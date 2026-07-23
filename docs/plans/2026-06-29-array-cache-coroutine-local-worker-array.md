@@ -50,7 +50,7 @@ Current `ArrayStore` keeps values and locks on object properties:
 protected array $storage = [];
 
 /**
- * @var array<string, array{owner: ?string, expiresAt: ?Carbon}>
+ * @var array<string, array{owner: ?string, expiresAt: ?CarbonImmutable}>
  */
 public array $locks = [];
 ```
@@ -135,7 +135,7 @@ Remove `public array $locks` from the public store surface. `ArrayLock` should c
 $record = $this->store->getLockRecord($this->name);
 $this->store->putLockRecord($this->name, [
     'owner' => $this->owner,
-    'expiresAt' => $this->seconds === 0 ? null : Carbon::now()->addSeconds($this->seconds),
+    'expiresAt' => $this->seconds === 0 ? null : CarbonImmutable::now()->addSeconds($this->seconds),
 ]);
 ```
 
@@ -258,7 +258,7 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
 
@@ -419,14 +419,14 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
     /**
      * Get the lock record for the given name.
      *
-     * @return array{owner: ?string, expiresAt: ?Carbon}|null
+     * @return array{owner: ?string, expiresAt: ?CarbonImmutable}|null
      */
     abstract public function getLockRecord(string $name): ?array;
 
     /**
      * Store the lock record for the given name.
      *
-     * @param array{owner: ?string, expiresAt: ?Carbon} $record
+     * @param array{owner: ?string, expiresAt: ?CarbonImmutable} $record
      */
     abstract public function putLockRecord(string $name, array $record): void;
 
@@ -506,7 +506,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 
 class ArrayStore extends AbstractArrayStore
 {
@@ -599,7 +599,7 @@ class ArrayStore extends AbstractArrayStore
 
     protected function getLockRecords(): array
     {
-        /** @var array<string, array{owner: ?string, expiresAt: ?Carbon}> $records */
+        /** @var array<string, array{owner: ?string, expiresAt: ?CarbonImmutable}> $records */
         $records = CoroutineContext::get($this->locksContextKey, []);
 
         return $records;
@@ -622,7 +622,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 
 class WorkerArrayStore extends AbstractArrayStore
 {
@@ -632,7 +632,7 @@ class WorkerArrayStore extends AbstractArrayStore
     protected array $storage = [];
 
     /**
-     * @var array<string, array{owner: ?string, expiresAt: ?Carbon}>
+     * @var array<string, array{owner: ?string, expiresAt: ?CarbonImmutable}>
      */
     protected array $locks = [];
 
@@ -712,7 +712,7 @@ Core changes:
 public function acquire(): bool
 {
     $record = $this->store->getLockRecord($this->name);
-    $expiration = $record['expiresAt'] ?? Carbon::now()->addSecond();
+    $expiration = $record['expiresAt'] ?? CarbonImmutable::now()->addSecond();
 
     if ($record !== null && $expiration->isFuture()) {
         return false;
@@ -721,7 +721,7 @@ public function acquire(): bool
     // WorkerArrayStore shares this check/write path across coroutines; keep it non-yielding.
     $this->store->putLockRecord($this->name, [
         'owner' => $this->owner,
-        'expiresAt' => $this->seconds === 0 ? null : Carbon::now()->addSeconds($this->seconds),
+        'expiresAt' => $this->seconds === 0 ? null : CarbonImmutable::now()->addSeconds($this->seconds),
     ]);
 
     return true;
@@ -766,7 +766,7 @@ public function refresh(?int $seconds = null): bool
         return false;
     }
 
-    $record['expiresAt'] = Carbon::now()->addSeconds($seconds);
+    $record['expiresAt'] = CarbonImmutable::now()->addSeconds($seconds);
     $this->store->putLockRecord($this->name, $record);
 
     return true;
@@ -790,7 +790,7 @@ public function getRemainingLifetime(): ?float
         return null;
     }
 
-    return (float) Carbon::now()->diffInSeconds($expiresAt);
+    return (float) CarbonImmutable::now()->diffInSeconds($expiresAt);
 }
 ```
 
@@ -1010,7 +1010,7 @@ public function testSeparateArrayStoreInstancesDoNotShareContextData(): void
 ```php
 public function testAllOnlyReturnsCurrentStoreContextData(): void
 {
-    Carbon::setTestNow(Carbon::now());
+    CarbonImmutable::setTestNow(CarbonImmutable::now());
 
     $first = new ArrayStore;
     $second = new ArrayStore;

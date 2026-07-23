@@ -1130,7 +1130,7 @@ Use `CoroutineContext` only if a ported controller or middleware introduces requ
 
 Port the model with strict types and Hypervel namespaces.
 
-Keep date annotations aligned with the actual casts. A `datetime` cast returns Hypervel's configured date class, which defaults to mutable `Hypervel\Support\Carbon`; do not document `CarbonImmutable` unless the model intentionally uses `immutable_datetime`.
+Keep date annotations aligned with the actual casts. A `datetime` cast returns Hypervel's configured date class, which defaults to `Hypervel\Support\CarbonImmutable`; type that configurable boundary as `CarbonInterface`. An `immutable_datetime` cast always returns `CarbonImmutable`, even when the application explicitly opts into mutable dates.
 
 Use a polymorphic `user` owner relation instead of Laravel's single-model `belongsTo` relation. This avoids a global `Passkeys::userModel()` static and lets one application register passkeys for multiple authenticatable model classes in the same table.
 
