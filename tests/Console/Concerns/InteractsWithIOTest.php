@@ -14,6 +14,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Question\Question;
 
 class InteractsWithIOTest extends TestCase
 {
@@ -76,6 +77,56 @@ class InteractsWithIOTest extends TestCase
         });
 
         $this->assertTrue($called);
+    }
+
+    public function testWithProgressBarSupportsGeneratorsWithoutPrecounting(): void
+    {
+        $command = new CommandInteractsWithIO;
+        $bufferedOutput = new BufferedOutput;
+        $output = m::mock(OutputStyle::class, [new ArgvInput, $bufferedOutput])->makePartial();
+        $command->setOutput($output);
+
+        $generator = (function () {
+            yield 'first' => 'a';
+            yield 'second' => 'b';
+        })();
+
+        $output->shouldReceive('createProgressBar')
+            ->once()
+            ->with(0)
+            ->andReturnUsing(fn (int $steps): ProgressBar => new ProgressBar($bufferedOutput, $steps));
+
+        $values = [];
+        $result = $command->withProgressBar($generator, function (string $value, ProgressBar $bar, string $key) use (&$values): void {
+            $this->assertSame(0, $bar->getMaxSteps());
+            $values[$key] = $value;
+        });
+
+        $this->assertSame(['first' => 'a', 'second' => 'b'], $values);
+        $this->assertSame($generator, $result);
+    }
+
+    public function testAskWithCompletionAcceptsGeneratorValues(): void
+    {
+        $command = new CommandInteractsWithIO;
+        $output = m::mock(OutputStyle::class);
+        $command->setOutput($output);
+
+        $choices = (function () {
+            yield 'alpha';
+            yield 'bravo';
+        })();
+
+        $output->shouldReceive('askQuestion')
+            ->once()
+            ->with(m::on(function (Question $question): bool {
+                $this->assertSame(['alpha', 'bravo'], $question->getAutocompleterValues());
+
+                return true;
+            }))
+            ->andReturn('bravo');
+
+        $this->assertSame('bravo', $command->anticipate('Choose', $choices));
     }
 }
 

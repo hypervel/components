@@ -10,7 +10,8 @@
 #   ./bin/test-servers.sh engine grpc  # Start selected groups
 #
 # Groups:
-#   engine  — HTTP (19501), TCP (19502), WebSocket (19503), HTTP v2 (19505)
+#   engine  — HTTP (19501), TCP (19502), WebSocket (19503), HTTP v2 (19505),
+#             Hypervel HTTP Server (19506)
 #   grpc    — Hypervel plaintext (19520), grpc-go plaintext (19521),
 #             Hypervel TLS (19522), grpc-go TLS (19523)
 #   reverb  — Single-worker (19510), Redis scaling (19511), multi-worker (19512),
@@ -116,6 +117,16 @@ start_engine() {
     setsid php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
     PIDS+=($!)
     echo "  HTTP v2 server started on port 19505 (PID: $!)"
+
+    setsid php "$PROJECT_DIR/tests/Integration/HttpServer/server.php" &
+    PIDS+=($!)
+    echo "  Hypervel HTTP Server starting on port 19506 (PID: $!)..."
+
+    wait_for_tcp 19501 "HTTP"
+    wait_for_tcp 19502 "TCP packet"
+    wait_for_tcp 19503 "WebSocket"
+    wait_for_tcp 19505 "HTTP v2"
+    wait_for_server 19506 "Hypervel HTTP Server"
 }
 
 start_grpc() {

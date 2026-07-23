@@ -69,7 +69,11 @@ If you would like to view an overview of your scheduled tasks and the next time 
 php artisan schedule:list
 ```
 
-The `schedule:list` command also supports `--timezone`, `--next`, and `--json` options for customizing the displayed timezone, sorting by the next due date, or returning the schedule as JSON.
+The `schedule:list` command also supports `--timezone`, `--environment`, `--next`, and `--json` options for customizing the displayed timezone, filtering by environment, sorting by the next due date, or returning the schedule as JSON. The `--environment` option may be repeated to include tasks from multiple environments:
+
+```shell
+php artisan schedule:list --environment=staging --environment=production
+```
 
 <a name="scheduling-artisan-commands"></a>
 ### Scheduling Artisan Commands
@@ -330,6 +334,8 @@ If you are repeatedly assigning the same timezone to all of your scheduled tasks
 > [!WARNING]
 > Remember that some timezones utilize daylight savings time. When daylight saving time changes occur, your scheduled task may run twice or even not run at all. For this reason, we recommend avoiding timezone scheduling when possible.
 
+When using `schedule:list --timezone`, the next due date is displayed in the requested timezone while the cron expression remains in the timezone in which it is evaluated. If these timezones differ, the CLI displays the expression timezone beside the expression. JSON output provides the display timezone as `timezone` and the expression timezone as `expression_timezone`.
+
 <a name="preventing-task-overlaps"></a>
 ### Preventing Task Overlaps
 
@@ -419,6 +425,8 @@ Schedule::command('analytics:report')
 > The `runInBackground` method may only be used when scheduling tasks via the `command` and `exec` methods.
 
 Hypervel starts background tasks as coroutines inside the `schedule:run` process. This is well suited to I/O-bound work such as HTTP calls, queries, and file or network I/O because coroutines yield while waiting. For CPU-bound work, coroutines offer limited benefit. In those cases, schedule the task using `exec` so the operating system runs it in a separate process:
+
+Unlike Laravel's detached background processes, Hypervel observes the exit status of background tasks. A non-zero exit dispatches a `ScheduledTaskFailed` event and is reported through the exception handler.
 
 ```php
 Schedule::exec('php artisan reports:compute')
@@ -642,6 +650,19 @@ Schedule::command('emails:send')
     })
     ->after(function () {
         // The task has executed...
+    });
+```
+
+Scheduled task constraint and lifecycle callbacks are invoked through the service container, so you may type-hint dependencies. You may also type-hint `Hypervel\Console\Scheduling\Event` to receive the current scheduled event:
+
+```php
+use App\Services\Metrics;
+use Hypervel\Console\Scheduling\Event;
+
+Schedule::command('emails:send')
+    ->daily()
+    ->before(function (Event $event, Metrics $metrics) {
+        $metrics->recordStarting($event);
     });
 ```
 

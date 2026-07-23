@@ -6,10 +6,12 @@ namespace Hypervel\HttpServer;
 
 use Hypervel\Contracts\Http\HasTrailers;
 use Hypervel\Http\IterableStreamedResponse;
-use Hypervel\Http\Response as HypervelResponse;
+use ReflectionProperty;
 use RuntimeException;
+use SplTempFileObject;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -36,31 +38,27 @@ class ResponseBridge
     /**
      * Send an HttpFoundation response through Swoole.
      */
-    public static function send(Response $response, SwooleResponse $swooleResponse, bool $withBody = true): void
-    {
-        if ($response instanceof HypervelResponse && $response->isStreamed()) {
-            // Response::stream() writes headers and content itself but leaves
-            // finalization to the bridge. gRPC responses never use this escape hatch.
-            $swooleResponse->end();
-
-            return;
-        }
-
+    public static function send(
+        Response $response,
+        SwooleResponse $swooleResponse,
+        bool $withBody = true,
+        string $protocol = 'HTTP/1.1',
+        ?Request $request = null,
+    ): void {
         if ($response instanceof HasTrailers && $response instanceof BinaryFileResponse) {
             throw new RuntimeException('Binary file responses cannot emit trailers.');
+        }
+
+        if ($response instanceof BinaryFileResponse) {
+            static::sendBinaryFile($response, $swooleResponse, $withBody, $protocol, $request);
+
+            return;
         }
 
         if (! $withBody) {
             static::announceTrailers($response);
             static::sendStatusAndHeaders($response, $swooleResponse);
             static::end($swooleResponse);
-
-            return;
-        }
-
-        if ($response instanceof BinaryFileResponse) {
-            static::sendStatusAndHeaders($response, $swooleResponse);
-            static::sendFile($swooleResponse, $response->getFile()->getPathname());
 
             return;
         }
@@ -113,7 +111,9 @@ class ResponseBridge
         }
 
         foreach ($response->headers->getCookies() as $cookie) {
-            if ($swooleResponse->cookie(
+            $method = $cookie->isRaw() ? 'rawcookie' : 'cookie';
+
+            if ($swooleResponse->{$method}(
                 $cookie->getName(),
                 $cookie->getValue() ?? '',
                 $cookie->getExpiresTime(),
@@ -121,10 +121,245 @@ class ResponseBridge
                 $cookie->getDomain() ?? '',
                 $cookie->isSecure(),
                 $cookie->isHttpOnly(),
-                $cookie->getSameSite() ?? ''
+                $cookie->getSameSite() ?? '',
+                '',
+                $cookie->isPartitioned(),
             ) === false) {
                 throw new RuntimeException('Unable to set a response cookie.');
             }
+        }
+    }
+
+    /**
+     * Send a prepared binary file response.
+     */
+    protected static function sendBinaryFile(
+        BinaryFileResponse $response,
+        SwooleResponse $swooleResponse,
+        bool $withBody,
+        string $protocol,
+        ?Request $request,
+    ): void {
+        $state = static::binaryFileState($response);
+        $shouldSendBody = $withBody
+            && $response->isSuccessful()
+            && ! $response->isEmpty()
+            && $state['maxlen'] !== 0;
+        $shouldDelete = $state['tempFileObject'] === null
+            && $response->shouldDeleteFileAfterSend();
+        $delegated = false;
+
+        // maxlen is zero for both HEAD and X-Sendfile. The request's exact
+        // proxy-controlled type header proves prepare() actually delegated.
+        if ($shouldDelete
+            && $state['trustXSendfileTypeHeader']
+            && $state['maxlen'] === 0
+            && $request !== null
+        ) {
+            $xSendfileType = $request->headers->get('X-Sendfile-Type');
+            $delegated = $xSendfileType !== null && $response->headers->has($xSendfileType);
+        }
+
+        $shouldDelete = $shouldDelete && ! $delegated;
+        $shouldStream = $shouldSendBody && (
+            $state['tempFileObject'] !== null
+            || $shouldDelete
+            || $protocol === 'HTTP/2'
+        );
+
+        if ($shouldSendBody && ! $shouldStream) {
+            static::sendStatusAndHeaders($response, $swooleResponse);
+            static::sendFile(
+                $swooleResponse,
+                $response->getFile()->getPathname(),
+                $state['offset'],
+                $state['maxlen'],
+            );
+
+            return;
+        }
+
+        if ($shouldStream) {
+            // TODO: Preserve Content-Length for HTTP/2 when Swoole accepts known-length write streams.
+            $response->headers->remove('Content-Length');
+            $response->headers->remove('Transfer-Encoding');
+        }
+
+        $exception = null;
+
+        try {
+            static::sendStatusAndHeaders($response, $swooleResponse);
+
+            if ($shouldStream) {
+                // TODO: Return HTTP/2 files to native sendfile when Swoole supports bounded file framing.
+                // TODO: Return delete-after-send files to native sendfile when Swoole owns completion-time deletion.
+                static::streamBinaryFile($response, $swooleResponse, $state);
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            static::end($swooleResponse);
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($shouldDelete) {
+            try {
+                $path = $response->getFile()->getPathname();
+
+                if (! static::deleteBinaryFile($path) && is_file($path)) {
+                    throw new RuntimeException('Unable to delete the binary response file.');
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Read the prepared BinaryFileResponse state Symfony does not expose.
+     *
+     * @return array{
+     *     tempFileObject: ?SplTempFileObject,
+     *     offset: int,
+     *     maxlen: int,
+     *     chunkSize: int,
+     *     trustXSendfileTypeHeader: bool
+     * }
+     */
+    protected static function binaryFileState(BinaryFileResponse $response): array
+    {
+        /** @var ?SplTempFileObject $tempFileObject */
+        $tempFileObject = (new ReflectionProperty(BinaryFileResponse::class, 'tempFileObject'))
+            ->getValue($response);
+        /** @var int $offset */
+        $offset = (new ReflectionProperty(BinaryFileResponse::class, 'offset'))->getValue($response);
+        /** @var int $maxlen */
+        $maxlen = (new ReflectionProperty(BinaryFileResponse::class, 'maxlen'))->getValue($response);
+        /** @var int $chunkSize */
+        $chunkSize = (new ReflectionProperty(BinaryFileResponse::class, 'chunkSize'))->getValue($response);
+        /** @var bool $trustXSendfileTypeHeader */
+        $trustXSendfileTypeHeader = (new ReflectionProperty(
+            BinaryFileResponse::class,
+            'trustXSendfileTypeHeader',
+        ))->getValue();
+
+        return compact(
+            'tempFileObject',
+            'offset',
+            'maxlen',
+            'chunkSize',
+            'trustXSendfileTypeHeader',
+        );
+    }
+
+    /**
+     * Stream a prepared binary response through checked bounded writes.
+     *
+     * @param array{
+     *     tempFileObject: ?SplTempFileObject,
+     *     offset: int,
+     *     maxlen: int,
+     *     chunkSize: int,
+     *     trustXSendfileTypeHeader: bool
+     * } $state
+     */
+    protected static function streamBinaryFile(
+        BinaryFileResponse $response,
+        SwooleResponse $swooleResponse,
+        array $state,
+    ): void {
+        $file = $state['tempFileObject'];
+        $stream = null;
+        $exception = null;
+
+        try {
+            if ($file !== null) {
+                $file->rewind();
+            } else {
+                $stream = @fopen($response->getFile()->getPathname(), 'rb');
+
+                if (! is_resource($stream)) {
+                    throw new RuntimeException('Unable to open the binary response file.');
+                }
+            }
+
+            if ($state['offset'] !== 0) {
+                $result = $file !== null
+                    ? $file->fseek($state['offset'])
+                    : fseek($stream, $state['offset']);
+
+                if ($result !== 0) {
+                    throw new RuntimeException('Unable to seek the binary response file.');
+                }
+            }
+
+            $remaining = $state['maxlen'];
+
+            while ($remaining !== 0) {
+                $eof = $file !== null ? $file->eof() : feof($stream);
+
+                if ($eof) {
+                    if ($remaining > 0) {
+                        throw new RuntimeException('The binary response file ended before the prepared range was complete.');
+                    }
+
+                    break;
+                }
+
+                $length = $remaining < 0
+                    ? $state['chunkSize']
+                    : min($state['chunkSize'], $remaining);
+                $content = $file !== null ? $file->fread($length) : fread($stream, $length);
+
+                if ($content === false) {
+                    throw new RuntimeException('Unable to read the binary response file.');
+                }
+
+                if ($content === '') {
+                    $eof = $file !== null ? $file->eof() : feof($stream);
+
+                    if (! $eof) {
+                        throw new RuntimeException('The binary response file returned no data before reaching end of file.');
+                    }
+
+                    if ($remaining > 0) {
+                        throw new RuntimeException('The binary response file ended before the prepared range was complete.');
+                    }
+
+                    break;
+                }
+
+                if ($swooleResponse->write($content) === false) {
+                    throw new RuntimeException('Unable to write the binary response.');
+                }
+
+                if ($remaining > 0) {
+                    $remaining -= strlen($content);
+                }
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        if (is_resource($stream)) {
+            try {
+                if (! fclose($stream)) {
+                    throw new RuntimeException('Unable to close the binary response file.');
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
@@ -476,6 +711,14 @@ class ResponseBridge
     }
 
     /**
+     * Delete a binary response file.
+     */
+    protected static function deleteBinaryFile(string $path): bool
+    {
+        return @unlink($path);
+    }
+
+    /**
      * Complete a response and require native success.
      */
     protected static function end(SwooleResponse $swooleResponse, ?string $content = null): void
@@ -492,9 +735,13 @@ class ResponseBridge
     /**
      * Send a response file and require native success.
      */
-    protected static function sendFile(SwooleResponse $swooleResponse, string $path): void
-    {
-        if ($swooleResponse->sendfile($path) === false) {
+    protected static function sendFile(
+        SwooleResponse $swooleResponse,
+        string $path,
+        int $offset,
+        int $maxlen,
+    ): void {
+        if ($swooleResponse->sendfile($path, $offset, $maxlen < 0 ? 0 : $maxlen) === false) {
             throw new RuntimeException('Unable to send the response file.');
         }
     }

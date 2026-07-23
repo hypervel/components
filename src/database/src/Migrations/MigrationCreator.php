@@ -6,12 +6,17 @@ namespace Hypervel\Database\Migrations;
 
 use Closure;
 use Exception;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use RuntimeException;
 
 class MigrationCreator
 {
+    protected const CURRENT_MIGRATION_PATH_CONTEXT_KEY_PREFIX = '__database.migration_creator.current_path.';
+
     /**
      * The registered post create hooks.
      */
@@ -31,20 +36,22 @@ class MigrationCreator
      *
      * @throws Exception
      */
-    public function create(string $name, string $path, ?string $table = null, bool $create = false): string
+    public function create(string $name, string $path, ?string $table = null, bool $create = false, ?string $stubPath = null): string
     {
         $this->ensureMigrationDoesntAlreadyExist($name, $path);
 
         // First we will get the stub file for the migration, which serves as a type
         // of template for the migration. Once we have those we will populate the
         // various place-holders, save the file, and run the post create event.
-        $stub = $this->getStub($table, $create);
+        $stub = $stubPath === null
+            ? $this->getStub($table, $create)
+            : $this->files->get($stubPath);
 
-        $path = $this->getPath($name, $path);
+        $path = $this->getCollisionFreePath($name, $path);
 
         $this->files->ensureDirectoryExists(dirname($path));
 
-        $this->files->put(
+        $this->files->replace(
             $path,
             $this->populateStub($stub, $table)
         );
@@ -65,7 +72,7 @@ class MigrationCreator
     protected function ensureMigrationDoesntAlreadyExist(string $name, ?string $migrationPath = null): void
     {
         if (! empty($migrationPath)) {
-            $migrationFiles = $this->files->glob($migrationPath . '/*.php');
+            $migrationFiles = $this->matchingFiles($migrationPath . '/*.php');
 
             foreach ($migrationFiles as $migrationFile) {
                 $this->files->requireOnce($migrationFile);
@@ -135,6 +142,22 @@ class MigrationCreator
     }
 
     /**
+     * Get a collision-free full path to the migration.
+     */
+    protected function getCollisionFreePath(string $name, string $path): string
+    {
+        $contextKey = self::CURRENT_MIGRATION_PATH_CONTEXT_KEY_PREFIX . spl_object_id($this);
+
+        CoroutineContext::set($contextKey, $path);
+
+        try {
+            return $this->getPath($name, $path);
+        } finally {
+            CoroutineContext::forget($contextKey);
+        }
+    }
+
+    /**
      * Fire the registered post create hooks.
      */
     protected function firePostCreateHooks(?string $table, string $path): void
@@ -157,7 +180,37 @@ class MigrationCreator
      */
     protected function getDatePrefix(): string
     {
-        return date('Y_m_d_His');
+        $path = CoroutineContext::get(
+            self::CURRENT_MIGRATION_PATH_CONTEXT_KEY_PREFIX . spl_object_id($this)
+        );
+
+        if ($path === null) {
+            return Date::now()->format('Y_m_d_His');
+        }
+
+        $date = Date::now();
+
+        while ($this->matchingFiles($path . '/' . $date->format('Y_m_d_His') . '_*.php')) {
+            $date = $date->addSecond();
+        }
+
+        return $date->format('Y_m_d_His');
+    }
+
+    /**
+     * Get files matching the given pattern.
+     *
+     * @return list<string>
+     */
+    protected function matchingFiles(string $pattern): array
+    {
+        $files = $this->files->glob($pattern);
+
+        if ($files === false) {
+            throw new RuntimeException("Unable to read files matching [{$pattern}].");
+        }
+
+        return array_values($files);
     }
 
     /**

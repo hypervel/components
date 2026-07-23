@@ -49,4 +49,4 @@ jobs:
       - name: Execute integration tests
         env:
           TEST_SERVER_HOST: 127.0.0.1
-        run: vendor/bin/phpunit tests/Integration/Engine
+        run: vendor/bin/phpunit tests/Integration/Engine tests/Integration/HttpServer

@@ -11,6 +11,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Question\ChoiceQuestion;
+use Symfony\Component\Console\Question\Question;
 
 class ComponentsTest extends TestCase
 {
@@ -100,6 +101,29 @@ class ComponentsTest extends TestCase
 
         $result = (new Components\Choice($output))->render('Question?', ['a', 'b']);
         $this->assertSame('a', $result);
+    }
+
+    public function testAskWithCompletionAcceptsGeneratorValues(): void
+    {
+        $output = m::mock(OutputStyle::class);
+
+        $output->shouldReceive('askQuestion')
+            ->with(m::on(function (Question $question): bool {
+                $this->assertSame(['a', 'b'], $question->getAutocompleterValues());
+
+                return true;
+            }))
+            ->once()
+            ->andReturn('b');
+
+        $choices = (function () {
+            yield 'a';
+            yield 'b';
+        })();
+
+        $result = (new Components\AskWithCompletion($output))->render('Question?', $choices);
+
+        $this->assertSame('b', $result);
     }
 
     public function testTask()

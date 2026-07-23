@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Server\Commands;
 
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
-use Hypervel\Foundation\Application;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Server\ServerInterface;
 use InvalidArgumentException;
@@ -30,7 +29,7 @@ use function Hypervel\Support\swoole_hook_flags;
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class ServerStartCommand extends SymfonyCommand
 {
-    public function __construct(protected Container $container)
+    public function __construct(protected Application $application)
     {
         parent::__construct('serve');
         $this->setDescription('Start Hypervel servers.');
@@ -61,19 +60,19 @@ class ServerStartCommand extends SymfonyCommand
      */
     protected function startServer(InputInterface $input): int
     {
-        if (Application::getInstance()->runningInConsole()) {
+        if ($this->application->runningInConsole()) {
             throw new RuntimeException(
                 'Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.'
             );
         }
 
-        $serverFactory = $this->container->make(ServerFactory::class)
-            ->setEventDispatcher($this->container->make('events'))
-            ->setLogger($this->container->make(StdoutLoggerInterface::class));
+        $serverFactory = $this->application->make(ServerFactory::class)
+            ->setEventDispatcher($this->application->make('events'))
+            ->setLogger($this->application->make(StdoutLoggerInterface::class));
 
         /** @var ConfigRepository $config */
-        $config = $this->container->make('config');
-        $serverConfig = $config->array('server', []);
+        $config = $this->application->make('config');
+        $serverConfig = $config->array('server');
         if (! $serverConfig) {
             throw new InvalidArgumentException('At least one server should be defined.');
         }
@@ -92,7 +91,7 @@ class ServerStartCommand extends SymfonyCommand
             $httpServerIndex = null;
 
             foreach ($servers as $index => $server) {
-                if (($server['type'] ?? null) === ServerInterface::SERVER_HTTP) {
+                if (($server['type'] ?? ServerInterface::SERVER_HTTP) === ServerInterface::SERVER_HTTP) {
                     $httpServerIndex = $index;
                     break;
                 }
@@ -123,6 +122,6 @@ class ServerStartCommand extends SymfonyCommand
 
         $serverFactory->start();
 
-        return 0;
+        return self::SUCCESS;
     }
 }

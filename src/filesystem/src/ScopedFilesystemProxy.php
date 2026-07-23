@@ -10,12 +10,13 @@ use DateTimeInterface;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\PathNormalizer;
 use League\Flysystem\WhitespacePathNormalizer;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Isolate every filesystem path behind a dynamically resolved prefix.
@@ -260,7 +261,7 @@ class ScopedFilesystemProxy implements Filesystem
         ?string $name = null,
         array $headers = [],
         string $disposition = 'inline',
-    ): Response {
+    ): StreamedResponse {
         $prefix = $this->prefix();
 
         return $this->call(__FUNCTION__, [
@@ -289,7 +290,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Create a streamed download response for a scoped file.
      */
-    public function download(string $path, ?string $name = null, array $headers = []): Response
+    public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
         $prefix = $this->prefix();
 

@@ -105,6 +105,31 @@ class ScheduleTest extends TestCase
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
     }
 
+    public function testItCanFilterEventsByEnvironments(): void
+    {
+        $schedule = new Schedule;
+        $schedule->job(JobToTestWithSchedule::class)->environments('production')->daily();
+        $schedule->command('inspire')->environments(['staging', 'production'])->everyMinute();
+        $schedule->command('foobar', ['a' => 'b'])->environments(['local', 'uat'])->everyMinute();
+        $schedule->command('foobar')->hourly();
+
+        $filteredEvents = $schedule->eventsForEnvironments(['production', 'staging']);
+
+        self::assertCount(3, $filteredEvents);
+
+        self::assertSame(JobToTestWithSchedule::class, $filteredEvents[0]->description);
+        self::assertSame(['production'], $filteredEvents[0]->environments);
+        self::assertSame('0 0 * * *', $filteredEvents[0]->expression);
+
+        self::assertSame('inspire', $filteredEvents[1]->command);
+        self::assertSame(['staging', 'production'], $filteredEvents[1]->environments);
+        self::assertSame('* * * * *', $filteredEvents[1]->expression);
+
+        self::assertMatchesRegularExpression('/^foobar\b/', $filteredEvents[2]->command);
+        self::assertSame([], $filteredEvents[2]->environments);
+        self::assertSame('0 * * * *', $filteredEvents[2]->expression);
+    }
+
     public function testDueEventsAtUsesGivenTime()
     {
         $app = m::mock(ApplicationContract::class);

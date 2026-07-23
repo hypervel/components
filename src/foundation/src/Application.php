@@ -1424,7 +1424,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Http\Request::class,
                 \Symfony\Component\HttpFoundation\Request::class,
             ],
-            // Ensures Symfony Response type-hints resolve to the coroutine-local response via ResponseContext.
             \Hypervel\Http\Response::class => [
                 \Symfony\Component\HttpFoundation\Response::class,
             ],

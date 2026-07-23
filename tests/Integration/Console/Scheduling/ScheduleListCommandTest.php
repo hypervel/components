@@ -189,8 +189,92 @@ class ScheduleListCommandTest extends TestCase
         $this->assertIsArray($data);
         $this->assertCount(1, $data);
         $this->assertSame('America/Chicago', $data[0]['timezone']);
+        $this->assertSame('UTC', $data[0]['expression_timezone']);
         $this->assertStringContainsString('-06:00', $data[0]['next_due_date']);
         $this->assertSame('inspire', $data[0]['command']);
+    }
+
+    public function testDisplayScheduleFallsBackToApplicationTimezoneWhenScheduleHasNone(): void
+    {
+        config()->set('app.timezone', 'America/Chicago');
+
+        $schedule = new Schedule;
+        $schedule->command('inspire')->daily();
+        $this->app->instance(Schedule::class, $schedule);
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
+
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertSame('America/Chicago', $data[0]['expression_timezone']);
+        $this->assertSame('America/Chicago', $data[0]['timezone']);
+    }
+
+    public function testDisplayScheduleKeepsTheRawExpressionInItsEvaluationTimezone(): void
+    {
+        // REMOVED: Laravel's display-only cron timezone converter cannot preserve
+        // ranges, special syntax, month boundaries, or daylight-saving changes.
+        $this->schedule->command('inspire')->cron('0 1-23/2 * * *')->timezone('UTC');
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
+            '--timezone' => 'America/Chicago',
+            '--json' => true,
+        ]);
+
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertSame('0 1-23/2 * * *', $data[0]['expression']);
+        $this->assertSame('UTC', $data[0]['expression_timezone']);
+        $this->assertSame('America/Chicago', $data[0]['timezone']);
+    }
+
+    public function testDisplayScheduleLabelsASeparateExpressionTimezone(): void
+    {
+        $this->schedule->command('inspire')->cron('0 1-23/2 * * *')->timezone('UTC');
+
+        $this->artisan(ScheduleListCommand::class, ['--timezone' => 'America/Chicago'])
+            ->assertSuccessful()
+            ->expectsOutputToContain('0 1-23/2 * * * (UTC)');
+    }
+
+    public function testDisplayScheduleForEnvironment(): void
+    {
+        $this->schedule->command(FooCommand::class)->environments('production')->everyMinute();
+        $this->schedule->command('inspire')->environments('local')->everyTwoMinutes();
+        $this->schedule->command('foobar')->everyFiveMinutes();
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
+            '--environment' => ['production'],
+            '--json' => true,
+        ]);
+
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertCount(2, $data);
+        $this->assertSame('foo:command', $data[0]['command']);
+        $this->assertSame(['production'], $data[0]['environments']);
+        $this->assertSame('foobar', $data[1]['command']);
+        $this->assertSame([], $data[1]['environments']);
+    }
+
+    public function testDisplayScheduleForMultipleEnvironments(): void
+    {
+        $this->schedule->command(FooCommand::class)->environments('production')->everyMinute();
+        $this->schedule->command('foobar', ['a' => 'b'])->environments(['staging', 'local'])->everyTwoMinutes();
+        $this->schedule->command('inspire')->environments('local')->everyFiveMinutes();
+
+        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
+            '--environment' => ['staging', 'local'],
+            '--json' => true,
+        ]);
+
+        $data = json_decode(Artisan::output(), true);
+
+        $this->assertCount(2, $data);
+        $this->assertSame('foobar a=' . ProcessUtils::escapeArgument('b'), $data[0]['command']);
+        $this->assertSame(['staging', 'local'], $data[0]['environments']);
+        $this->assertSame('inspire', $data[1]['command']);
+        $this->assertSame(['local'], $data[1]['environments']);
     }
 
     public function testDisplayScheduleAsJsonInVerboseMode()
@@ -311,13 +395,6 @@ class ScheduleListCommandTest extends TestCase
             ->expectsOutput('  * *   * * * 15s  php artisan five ............ Next Due: 15 seconds from now')
             ->expectsOutput('  0 *   * * * 20s  php artisan six ............. Next Due: 20 seconds from now')
             ->expectsOutput('  * */3 * * * 1s   php artisan six ............... Next Due: 1 second from now');
-    }
-
-    protected function tearDown(): void
-    {
-        putenv('SHELL_VERBOSITY');
-
-        parent::tearDown();
     }
 }
 

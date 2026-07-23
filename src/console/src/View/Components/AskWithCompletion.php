@@ -12,7 +12,7 @@ class AskWithCompletion extends Component
     /**
      * Render the component using the given arguments.
      */
-    public function render(string $question, array|callable $choices, ?string $default = null): mixed
+    public function render(string $question, iterable|callable $choices, ?string $default = null): mixed
     {
         $question = new Question($question, $default);
 

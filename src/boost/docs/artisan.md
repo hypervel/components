@@ -8,6 +8,7 @@
         - [Command Attributes](#command-attributes)
     - [Closure Commands](#closure-commands)
     - [Coroutine Execution](#coroutine-execution)
+    - [Trait Setup](#trait-setup)
     - [Isolatable Commands](#isolatable-commands)
 - [Defining Input Expectations](#defining-input-expectations)
     - [Arguments](#arguments)
@@ -278,6 +279,24 @@ You may also customize the Swoole hook flags used when the command coroutine is 
  * The hook flags for the command coroutine.
  */
 protected int $hookFlags = SWOOLE_HOOK_ALL & ~SWOOLE_HOOK_CURL;
+```
+
+<a name="trait-setup"></a>
+### Trait Setup
+
+Traits used by a command may define a setup method named `setUp{TraitName}`. Hypervel calls each setup method before the command's `handle` method on every execution, passing the current input and output instances. This is useful when a reusable command trait needs per-execution initialization:
+
+```php
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+
+trait UsesReportWindow
+{
+    protected function setUpUsesReportWindow(InputInterface $input, OutputInterface $output): void
+    {
+        // Prepare the trait for this command execution...
+    }
+}
 ```
 
 <a name="isolatable-commands"></a>
@@ -605,6 +624,28 @@ $queueName = $this->option('queue');
 // Retrieve all options as an array...
 $options = $this->options();
 ```
+
+You may use the `input` method to retrieve a command's arguments and options as a `Hypervel\Console\CommandInput` instance, which provides the same typed accessors that are available on HTTP requests and other data containers:
+
+```php
+/**
+ * Execute the console command.
+ */
+public function handle(): void
+{
+    $from = $this->input()->date('from');
+
+    // ...
+}
+```
+
+The `input` method may also be used to retrieve a single input value from either the arguments or options:
+
+```php
+$queue = $this->input('queue', 'default');
+```
+
+If an argument and option have the same name, the argument takes precedence.
 
 <a name="prompting-for-input"></a>
 ### Prompting for Input

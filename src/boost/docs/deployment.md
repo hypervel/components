@@ -213,6 +213,14 @@ php artisan reload
 
 The `reload` command gracefully reloads the Hypervel server and signals queue workers and the scheduler to restart. If you are not using [SonicStack](https://sonicstack.io), you should manually configure a process monitor that can detect when your reloadable processes exit and automatically restart them.
 
+To reload only the Hypervel server, you may use the `server:reload` command. This command reloads the server's event workers and any configured task workers:
+
+```shell
+php artisan server:reload
+```
+
+The command will fail if the configured PID file cannot be read, does not contain a valid process ID, or the reload signal cannot be delivered.
+
 <a name="debug-mode"></a>
 ## Debug Mode
 

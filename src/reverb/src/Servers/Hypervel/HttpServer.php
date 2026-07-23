@@ -80,7 +80,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                 : new Response('Internal Server Error', 500);
         } finally {
             if (isset($response)) {
-                ResponseBridge::send($response, $swooleResponse);
+                ResponseBridge::send($response, $swooleResponse, request: $request);
             }
         }
     }

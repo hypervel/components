@@ -145,7 +145,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             isset($fd) && WebSocketContext::release($fd);
         } finally {
             if ($httpResponse instanceof Response) {
-                ResponseBridge::send($httpResponse, $response);
+                ResponseBridge::send($httpResponse, $response, request: $httpRequest ?? null);
             }
         }
     }

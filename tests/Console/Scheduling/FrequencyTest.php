@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Console\Scheduling;
 
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
-use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 
 class FrequencyTest extends TestCase
@@ -122,11 +122,25 @@ class FrequencyTest extends TestCase
         $this->assertSame('0 15 4 * *', $this->event->monthlyOn(4, '15:00')->getExpression());
     }
 
-    public function testLastDayOfMonth()
+    public function testLastDayOfMonth(): void
     {
-        CarbonImmutable::setTestNow('2020-10-10 10:10:10');
+        $this->assertSame('0 0 L * *', $this->event->lastDayOfMonth()->getExpression());
+    }
 
-        $this->assertSame('0 0 31 * *', $this->event->lastDayOfMonth()->getExpression());
+    public function testRepeatEveryRejectsZero(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The seconds [0] must be greater than zero.');
+
+        (fn () => $this->repeatEvery(0))->call($this->event);
+    }
+
+    public function testRepeatEveryRejectsNegativeValues(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The seconds [-5] must be greater than zero.');
+
+        (fn () => $this->repeatEvery(-5))->call($this->event);
     }
 
     public function testTwiceMonthly()

@@ -8,13 +8,16 @@ use Closure;
 use Hypervel\Contracts\Http\HasTrailers;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\IterableStreamedResponse;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use RuntimeException;
+use SplTempFileObject;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -111,6 +114,31 @@ class ResponseBridgeTest extends TestCase
         $this->assertSame('abc123', $sentCookies[0][1]);
     }
 
+    public function testSendRawPartitionedCookie(): void
+    {
+        $response = new Response('OK');
+        $response->headers->setCookie(
+            Cookie::create('raw', 'a%2Fb')->withRaw()->withPartitioned()
+        );
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldNotReceive('cookie');
+        $swooleResponse->shouldReceive('rawcookie')->once()->with(
+            'raw',
+            'a%2Fb',
+            0,
+            '/',
+            '',
+            false,
+            true,
+            'lax',
+            '',
+            true,
+        )->andReturnTrue();
+
+        ResponseBridge::send($response, $swooleResponse);
+    }
+
     public function testSendWithoutBodyForHeadRequest(): void
     {
         $response = new Response('This body should not be sent', 200, ['Content-Length' => '28']);
@@ -121,19 +149,6 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
 
         ResponseBridge::send($response, $swooleResponse, withBody: false);
-    }
-
-    public function testSendAlreadyStreamedResponse(): void
-    {
-        $response = new HypervelResponse('', 200);
-        $response->markStreamed();
-        $swooleResponse = $this->mockSwooleResponse();
-
-        $swooleResponse->shouldNotReceive('status');
-        $swooleResponse->shouldNotReceive('header');
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
-
-        ResponseBridge::send($response, $swooleResponse);
     }
 
     public function testSendNonStreamedHypervelResponse(): void
@@ -156,9 +171,365 @@ class ResponseBridgeTest extends TestCase
 
         $swooleResponse->shouldReceive('status')->once()->andReturnTrue();
         $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
-        $swooleResponse->shouldReceive('sendfile')->once()->with($path)->andReturnTrue();
+        $swooleResponse->shouldReceive('sendfile')->once()->with($path, 0, 0)->andReturnTrue();
 
         ResponseBridge::send($response, $swooleResponse);
+    }
+
+    public function testPreparedBinaryRangeUsesBoundedNativeSendfileArgumentsForHttpOne(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->prepare(Request::create('/', 'GET', server: ['HTTP_RANGE' => 'bytes=2-5']));
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldReceive('status')->once()->with(206)->andReturnTrue();
+        $swooleResponse->shouldReceive('sendfile')->once()->with($path, 2, 4)->andReturnTrue();
+        $swooleResponse->shouldNotReceive('write');
+        $swooleResponse->shouldNotReceive('end');
+
+        ResponseBridge::send($response, $swooleResponse);
+    }
+
+    public function testHttpTwoBinaryResponseStreamsBoundedChunksWithoutConflictingFramingHeaders(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->setChunkSize(4);
+        $response->prepare(Request::create('/'));
+        $response->headers->set('Transfer-Encoding', 'chunked');
+        $swooleResponse = $this->mockSwooleResponse();
+        $headers = [];
+        $chunks = [];
+
+        $swooleResponse->shouldReceive('header')->andReturnUsing(
+            static function (string $name, string|array $value) use (&$headers): bool {
+                $headers[strtolower($name)] = $value;
+
+                return true;
+            }
+        );
+        $swooleResponse->shouldReceive('sendfile')->never();
+        $swooleResponse->shouldReceive('write')->times(4)->andReturnUsing(
+            static function (string $chunk) use (&$chunks): bool {
+                $chunks[] = $chunk;
+
+                return true;
+            }
+        );
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2');
+
+        $this->assertSame('file contents', implode('', $chunks));
+        $this->assertArrayNotHasKey('content-length', $headers);
+        $this->assertArrayNotHasKey('transfer-encoding', $headers);
+    }
+
+    public function testHttpTwoBinaryRangeStreamsOnlyThePreparedBytes(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->setChunkSize(2);
+        $response->prepare(Request::create('/', 'GET', server: ['HTTP_RANGE' => 'bytes=5-8']));
+        $swooleResponse = $this->mockSwooleResponse();
+        $chunks = [];
+
+        $swooleResponse->shouldReceive('sendfile')->never();
+        $swooleResponse->shouldReceive('write')->twice()->andReturnUsing(
+            static function (string $chunk) use (&$chunks): bool {
+                $chunks[] = $chunk;
+
+                return true;
+            }
+        );
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+        ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2');
+
+        $this->assertSame('cont', implode('', $chunks));
+    }
+
+    public function testTemporaryBinaryResponseUsesBoundedStreaming(): void
+    {
+        $file = new SplTempFileObject;
+        $file->fwrite('temporary contents');
+        $response = new BinaryFileResponse($file);
+        $response->setChunkSize(4);
+        $response->prepare(Request::create('/'));
+        $swooleResponse = $this->mockSwooleResponse();
+        $chunks = [];
+
+        $swooleResponse->shouldReceive('sendfile')->never();
+        $swooleResponse->shouldReceive('write')->andReturnUsing(
+            static function (string $chunk) use (&$chunks): bool {
+                $chunks[] = $chunk;
+
+                return true;
+            }
+        );
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+        ResponseBridge::send($response, $swooleResponse);
+
+        $this->assertSame('temporary contents', implode('', $chunks));
+    }
+
+    public function testDeleteAfterSendStreamsBeforeDeletingAndRemovesConflictingHeaders(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->setChunkSize(4);
+        $response->deleteFileAfterSend();
+        $response->prepare(Request::create('/'));
+        $swooleResponse = $this->mockSwooleResponse();
+        $headers = [];
+        $chunks = [];
+
+        $swooleResponse->shouldReceive('header')->andReturnUsing(
+            static function (string $name, string|array $value) use (&$headers): bool {
+                $headers[strtolower($name)] = $value;
+
+                return true;
+            }
+        );
+        $swooleResponse->shouldReceive('sendfile')->never();
+        $swooleResponse->shouldReceive('write')->andReturnUsing(
+            static function (string $chunk) use (&$chunks): bool {
+                $chunks[] = $chunk;
+
+                return true;
+            }
+        );
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+        ResponseBridge::send($response, $swooleResponse);
+
+        $this->assertSame('file contents', implode('', $chunks));
+        $this->assertArrayNotHasKey('content-length', $headers);
+        $this->assertArrayNotHasKey('transfer-encoding', $headers);
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function testDeleteAfterSendPreservesWriteFailureAndStillEndsAndDeletes(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->deleteFileAfterSend();
+        $response->prepare(Request::create('/'));
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldReceive('write')->once()->andReturnFalse();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+
+        try {
+            ResponseBridge::send($response, $swooleResponse);
+            $this->fail('Expected the write failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to write the binary response.', $exception->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function testDeleteAfterSendPreservesEarlyEofFailureAndStillDeletes(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->deleteFileAfterSend();
+        $response->prepare(Request::create('/', 'GET', server: ['HTTP_RANGE' => 'bytes=0-11']));
+        file_put_contents($path, 'short');
+        clearstatcache(true, $path);
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldReceive('write')->once()->with('short')->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+        try {
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2');
+            $this->fail('Expected the premature EOF failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'The binary response file ended before the prepared range was complete.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function testDeleteAfterSendPropagatesEndFailureAfterDeleting(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->deleteFileAfterSend();
+        $response->prepare(Request::create('/'));
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldReceive('write')->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+
+        try {
+            ResponseBridge::send($response, $swooleResponse);
+            $this->fail('Expected the end failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to complete the response.', $exception->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function testDeleteAfterSendPreservesStatusFailureAndStillEndsAndDeletes(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->deleteFileAfterSend();
+        $response->prepare(Request::create('/'));
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldReceive('status')->once()->andReturnFalse();
+        $swooleResponse->shouldNotReceive('header');
+        $swooleResponse->shouldNotReceive('write');
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+
+        try {
+            ResponseBridge::send($response, $swooleResponse);
+            $this->fail('Expected the status failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to set the response status.', $exception->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function testDeleteAfterSendPropagatesDeletionFailureAfterSuccessfulEmission(): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path);
+        $response->deleteFileAfterSend();
+        $response->prepare(Request::create('/'));
+        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $exception = null;
+
+        try {
+            ResponseBridgeWithFailingDeletion::send($response, $swooleResponse);
+        } catch (RuntimeException $throwable) {
+            $exception = $throwable;
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $exception);
+        $this->assertSame('Unable to delete the binary response file.', $exception->getMessage());
+        $this->assertFileExists($path);
+    }
+
+    public function testHeadDeleteAfterSendSuppressesTheBodyAndStillDeletes(): void
+    {
+        $trust = new ReflectionProperty(BinaryFileResponse::class, 'trustXSendfileTypeHeader');
+        $previousTrust = $trust->getValue();
+        $path = $this->temporaryFile();
+
+        try {
+            BinaryFileResponse::trustXSendfileTypeHeader();
+            $request = Request::create('/', 'HEAD');
+            $response = new BinaryFileResponse($path);
+            $response->deleteFileAfterSend();
+            $response->prepare($request);
+            $swooleResponse = $this->mockSwooleResponse();
+
+            $swooleResponse->shouldNotReceive('sendfile');
+            $swooleResponse->shouldNotReceive('write');
+            $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+            ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
+
+            $this->assertFileDoesNotExist($path);
+        } finally {
+            $trust->setValue(null, $previousTrust);
+        }
+    }
+
+    #[DataProvider('binaryResponseStatusesWithoutBodies')]
+    public function testDeleteAfterSendDeletesResponsesWithoutBodies(int $status): void
+    {
+        $path = $this->temporaryFile();
+        $response = new BinaryFileResponse($path, $status);
+        $response->deleteFileAfterSend();
+        $response->prepare(Request::create('/'));
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldNotReceive('sendfile');
+        $swooleResponse->shouldNotReceive('write');
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+        ResponseBridge::send($response, $swooleResponse);
+
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public static function binaryResponseStatusesWithoutBodies(): array
+    {
+        return [
+            'informational' => [101],
+            'empty' => [204],
+            'unsuccessful' => [404],
+        ];
+    }
+
+    public function testDelegatedXSendfilePreservesDeleteAfterSendSource(): void
+    {
+        $trust = new ReflectionProperty(BinaryFileResponse::class, 'trustXSendfileTypeHeader');
+        $previousTrust = $trust->getValue();
+        $path = $this->temporaryFile();
+
+        try {
+            BinaryFileResponse::trustXSendfileTypeHeader();
+            $request = Request::create('/', 'GET', server: ['HTTP_X_SENDFILE_TYPE' => 'X-Sendfile']);
+            $response = new BinaryFileResponse($path);
+            $response->deleteFileAfterSend();
+            $response->prepare($request);
+            $swooleResponse = $this->mockSwooleResponse();
+
+            $swooleResponse->shouldNotReceive('sendfile');
+            $swooleResponse->shouldNotReceive('write');
+            $swooleResponse->shouldReceive('header')->with('X-Sendfile', $path)->andReturnTrue();
+            $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+            ResponseBridge::send($response, $swooleResponse, request: $request);
+
+            $this->assertFileExists($path);
+        } finally {
+            $trust->setValue(null, $previousTrust);
+        }
+    }
+
+    public function testDelegatedXSendfileHeadPreservesDeleteAfterSendSource(): void
+    {
+        $trust = new ReflectionProperty(BinaryFileResponse::class, 'trustXSendfileTypeHeader');
+        $previousTrust = $trust->getValue();
+        $path = $this->temporaryFile();
+
+        try {
+            BinaryFileResponse::trustXSendfileTypeHeader();
+            $request = Request::create('/', 'HEAD', server: [
+                'HTTP_X_SENDFILE_TYPE' => 'X-Custom-Sendfile',
+            ]);
+            $response = new BinaryFileResponse($path);
+            $response->deleteFileAfterSend();
+            $response->prepare($request);
+            $swooleResponse = $this->mockSwooleResponse();
+
+            $swooleResponse->shouldNotReceive('sendfile');
+            $swooleResponse->shouldNotReceive('write');
+            $swooleResponse->shouldReceive('header')->with('X-Custom-Sendfile', $path)->andReturnTrue();
+            $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+
+            ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
+
+            $this->assertFileExists($path);
+        } finally {
+            $trust->setValue(null, $previousTrust);
+        }
     }
 
     public function testSendStreamedResponse(): void
@@ -922,7 +1293,7 @@ class ResponseBridgeTest extends TestCase
         $path = $this->temporaryFile();
         $swooleResponse = $this->mockSwooleResponse();
 
-        $swooleResponse->shouldReceive('sendfile')->once()->with($path)->andReturnFalse();
+        $swooleResponse->shouldReceive('sendfile')->once()->with($path, 0, 0)->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Unable to send the response file.');
@@ -936,6 +1307,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldReceive('status')->byDefault()->andReturnTrue();
         $swooleResponse->shouldReceive('header')->byDefault()->andReturnTrue();
         $swooleResponse->shouldReceive('cookie')->byDefault()->andReturnTrue();
+        $swooleResponse->shouldReceive('rawcookie')->byDefault()->andReturnTrue();
         $swooleResponse->shouldReceive('write')->byDefault()->andReturnTrue();
         $swooleResponse->shouldReceive('trailer')->byDefault()->andReturnTrue();
         $swooleResponse->shouldReceive('end')->byDefault()->andReturnTrue();
@@ -994,11 +1366,22 @@ class ResponseBridgeTest extends TestCase
     }
 }
 
+class ResponseBridgeWithFailingDeletion extends ResponseBridge
+{
+    /**
+     * Simulate a binary response file deletion failure.
+     */
+    protected static function deleteBinaryFile(string $path): bool
+    {
+        return false;
+    }
+}
+
 class ResponseBridgeTrailerResponse extends Response implements HasTrailers
 {
     /**
      * @param list<string> $names
-     * @param array<array-key, mixed>|Closure(): array<array-key, mixed> $finalTrailers
+     * @param array<array-key, mixed>|(Closure(): array<array-key, mixed>) $finalTrailers
      */
     public function __construct(
         string $content,
@@ -1026,7 +1409,7 @@ class ResponseBridgeTrailerIterableResponse extends IterableStreamedResponse imp
     /**
      * @param iterable<string> $chunks
      * @param list<string> $names
-     * @param array<array-key, mixed>|Closure(): array<array-key, mixed> $finalTrailers
+     * @param array<array-key, mixed>|(Closure(): array<array-key, mixed>) $finalTrailers
      */
     public function __construct(
         iterable $chunks,
@@ -1053,7 +1436,7 @@ class ResponseBridgeTrailerStreamedResponse extends StreamedResponse implements 
 {
     /**
      * @param list<string> $names
-     * @param array<array-key, mixed>|Closure(): array<array-key, mixed> $finalTrailers
+     * @param array<array-key, mixed>|(Closure(): array<array-key, mixed>) $finalTrailers
      */
     public function __construct(
         Closure $callback,

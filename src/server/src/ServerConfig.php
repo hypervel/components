@@ -9,13 +9,11 @@ use Hypervel\Server\Exceptions\InvalidArgumentException;
 use Swoole\Constant;
 
 /**
- * @method ServerConfig setType(string $type)
  * @method ServerConfig setMode(int $mode)
  * @method ServerConfig setServers(array $servers)
  * @method ServerConfig setProcesses(array $processes)
  * @method ServerConfig setSettings(array $settings)
  * @method ServerConfig setCallbacks(array $callbacks)
- * @method string getType()
  * @method int getMode()
  * @method Port[] getServers()
  * @method array getProcesses()
@@ -40,8 +38,7 @@ class ServerConfig implements Arrayable
             $servers[] = Port::build($item);
         }
 
-        $this->setType($config['type'] ?? Server::class)
-            ->setMode($config['mode'] ?? 0)
+        $this->setMode($config['mode'] ?? SWOOLE_PROCESS)
             ->setServers($servers)
             ->setProcesses($config['processes'] ?? [])
             ->setSettings($config['settings'] ?? [])
@@ -62,7 +59,7 @@ class ServerConfig implements Arrayable
     public function __get(string $name): mixed
     {
         if (! $this->isAvailableProperty($name)) {
-            throw new \InvalidArgumentException(sprintf('Invalid property %s', $name));
+            throw new InvalidArgumentException(sprintf('Invalid property %s', $name));
         }
         return $this->config[$name] ?? null;
     }
@@ -76,12 +73,12 @@ class ServerConfig implements Arrayable
         if (in_array($prefix, ['set', 'get'], true)) {
             $propertyName = strtolower(substr($name, 3));
             if (! $this->isAvailableProperty($propertyName)) {
-                throw new \InvalidArgumentException(sprintf('Invalid property %s', $propertyName));
+                throw new InvalidArgumentException(sprintf('Invalid property %s', $propertyName));
             }
             return $prefix === 'set' ? $this->set($propertyName, ...$arguments) : $this->__get($propertyName);
         }
 
-        throw new \InvalidArgumentException(sprintf('Invalid method %s', $name));
+        throw new InvalidArgumentException(sprintf('Invalid method %s', $name));
     }
 
     /**
@@ -108,7 +105,7 @@ class ServerConfig implements Arrayable
     protected function set(string $name, mixed $value): self
     {
         if (! $this->isAvailableProperty($name)) {
-            throw new \InvalidArgumentException(sprintf('Invalid property %s', $name));
+            throw new InvalidArgumentException(sprintf('Invalid property %s', $name));
         }
 
         if ($name === 'servers') {
@@ -167,7 +164,7 @@ class ServerConfig implements Arrayable
     private function isAvailableProperty(string $name): bool
     {
         return in_array($name, [
-            'type', 'mode', 'servers', 'processes', 'settings', 'callbacks',
+            'mode', 'servers', 'processes', 'settings', 'callbacks',
         ], true);
     }
 }

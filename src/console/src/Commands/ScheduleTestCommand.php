@@ -82,8 +82,6 @@ class ScheduleTestCommand extends Command
             $event->runInBackground ? ' normally in background' : '',
         );
 
-        $event->runInBackground = false;
-
         $this->components->task($description, fn () => $event->run($this->hypervel));
 
         if (! $event instanceof CallbackEvent) {

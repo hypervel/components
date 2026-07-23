@@ -15,6 +15,7 @@ class FooExitCommand extends Command
         parent::__construct($name);
 
         $this->eventDispatcher = m::mock(Dispatcher::class);
+        $this->eventDispatcher->shouldReceive('hasListeners')->andReturnTrue();
         $this->eventDispatcher->shouldReceive('dispatch')->andReturnNull();
     }
 

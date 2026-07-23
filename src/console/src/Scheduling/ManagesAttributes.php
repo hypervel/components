@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Scheduling;
 
-use Closure;
 use DateTimeZone;
 use Hypervel\Support\Reflector;
 
@@ -172,7 +171,7 @@ trait ManagesAttributes
     /**
      * Register a callback to further filter the schedule.
      */
-    public function when(bool|Closure $callback): static
+    public function when(bool|callable $callback): static
     {
         $this->filters[] = Reflector::isCallable($callback) ? $callback : function () use ($callback) {
             return $callback;
@@ -184,7 +183,7 @@ trait ManagesAttributes
     /**
      * Register a callback to further filter the schedule.
      */
-    public function skip(bool|Closure $callback): static
+    public function skip(bool|callable $callback): static
     {
         $this->rejects[] = Reflector::isCallable($callback) ? $callback : function () use ($callback) {
             return $callback;

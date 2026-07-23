@@ -172,9 +172,9 @@ class Command extends SymfonyCommand
 
         $this->configurePrompts($input);
 
-        $this->setUpTraits($this->input = $input, $this->output);
-
         try {
+            $this->setUpTraits($this->input = $input, $this->output);
+
             return parent::run($this->input, $this->output);
         } finally {
             $this->untrap();
@@ -275,34 +275,43 @@ class Command extends SymfonyCommand
         $this->disableDispatcher($input);
         $this->replaceOutput();
 
-        // Check if the command should be isolated and if another instance is running
-        if ($this instanceof Isolatable
-            && $this->option('isolated') !== false
-            && ! $this->commandIsolationMutex()->create($this)
-        ) {
-            $this->comment(sprintf(
-                'The [%s] command is already running.',
-                $this->getName()
-            ));
+        $commandMutex = null;
 
-            return (int) (is_numeric($this->option('isolated'))
-                ? $this->option('isolated')
-                : $this->isolatedExitCode);
+        // Check if the command should be isolated and if another instance is running
+        if ($this instanceof Isolatable && $this->option('isolated') !== false) {
+            $commandMutex = $this->commandIsolationMutex();
+
+            if (! $commandMutex->create($this)) {
+                $this->comment(sprintf(
+                    'The [%s] command is already running.',
+                    $this->getName()
+                ));
+
+                return (int) (is_numeric($this->option('isolated'))
+                    ? $this->option('isolated')
+                    : $this->isolatedExitCode);
+            }
         }
 
         $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
 
         $exception = null;
 
-        $callback = function () use ($method, &$exception): int {
+        $callback = function () use ($method, $commandMutex, &$exception): int {
             try {
-                $this->eventDispatcher?->dispatch(new BeforeHandle($this));
+                if ($this->eventDispatcher?->hasListeners(BeforeHandle::class)) {
+                    $this->eventDispatcher->dispatch(new BeforeHandle($this));
+                }
+
                 /* @phpstan-ignore-next-line */
                 $statusCode = $this->hypervel->call([$this, $method]);
                 if (is_int($statusCode)) {
                     $this->exitCode = $statusCode;
                 }
-                $this->eventDispatcher?->dispatch(new AfterHandle($this));
+
+                if ($this->eventDispatcher?->hasListeners(AfterHandle::class)) {
+                    $this->eventDispatcher->dispatch(new AfterHandle($this));
+                }
             } catch (ManuallyFailedException $e) {
                 $this->components->error($e->getMessage());
 
@@ -318,11 +327,20 @@ class Command extends SymfonyCommand
                 $exception = $e;
                 $this->exitCode = self::FAILURE;
             } finally {
-                $this->eventDispatcher?->dispatch(new AfterExecute($this, $exception));
+                try {
+                    if ($this->eventDispatcher?->hasListeners(AfterExecute::class)) {
+                        $this->eventDispatcher->dispatch(new AfterExecute($this, $exception));
+                    }
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
 
-                // Release the isolation mutex if applicable
-                if ($this instanceof Isolatable && $this->option('isolated') !== false) {
-                    $this->commandIsolationMutex()->forget($this);
+                if ($commandMutex !== null) {
+                    try {
+                        $commandMutex->forget($this);
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
+                    }
                 }
             }
 

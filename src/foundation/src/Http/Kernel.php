@@ -9,7 +9,6 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
@@ -145,10 +144,6 @@ class Kernel implements KernelContract
             return $response;
         } catch (Throwable $e) {
             $this->reportException($e);
-
-            if (ResponseContext::getOrNull()?->isStreamed()) {
-                throw $e;
-            }
 
             return $this->renderException($request, $e);
         }

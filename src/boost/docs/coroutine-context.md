@@ -22,7 +22,6 @@
 - [Context Containers](#context-containers)
 - [Typed Context Helpers](#typed-context-helpers)
     - [Request Context](#request-context)
-    - [Response Context](#response-context)
     - [Parent Coroutine Context](#parent-coroutine-context)
 - [Common Pitfalls](#common-pitfalls)
 
@@ -408,7 +407,7 @@ This method is intended for low-level framework and package code. Most code shou
 <a name="typed-context-helpers"></a>
 ## Typed Context Helpers
 
-Hypervel includes a few small typed helpers built on top of `CoroutineContext`. These helpers are mostly useful in framework and package code that needs direct access to low-level request or response state.
+Hypervel includes a few small typed helpers built on top of `CoroutineContext`. These helpers are mostly useful in framework and package code that needs direct access to low-level framework state.
 
 <a name="request-context"></a>
 ### Request Context
@@ -434,31 +433,6 @@ RequestContext::forget();
 ```
 
 Each method accepts an optional coroutine ID when you need to access another coroutine's request context.
-
-<a name="response-context"></a>
-### Response Context
-
-The `ResponseContext` class stores the current `Hypervel\Http\Response` instance:
-
-```php
-use Hypervel\Context\ResponseContext;
-
-ResponseContext::set($response);
-
-$response = ResponseContext::get();
-```
-
-You may check, remove, or optionally retrieve the current response:
-
-```php
-if (ResponseContext::has()) {
-    $response = ResponseContext::getOrNull();
-}
-
-ResponseContext::forget();
-```
-
-Each method accepts an optional coroutine ID when you need to access another coroutine's response context.
 
 <a name="parent-coroutine-context"></a>
 ### Parent Coroutine Context

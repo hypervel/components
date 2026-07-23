@@ -12,6 +12,7 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use ReflectionClass;
@@ -27,6 +28,7 @@ class ScheduleListCommand extends Command
      */
     protected ?string $signature = 'schedule:list
         {--timezone= : The timezone that times should be displayed in}
+        {--environment=* : Display the tasks scheduled to run on this environment}
         {--next : Sort the listed tasks by their next due date}
         {--json : Output the scheduled tasks as JSON}
     ';
@@ -54,7 +56,13 @@ class ScheduleListCommand extends Command
      */
     public function handle()
     {
-        $events = new Collection($this->schedule->events());
+        $environments = Arr::wrap($this->option('environment'));
+
+        $events = new Collection(
+            empty($environments)
+                ? $this->schedule->events()
+                : $this->schedule->eventsForEnvironments($environments)
+        );
 
         if ($events->isEmpty()) {
             if ($this->option('json')) {
@@ -66,7 +74,7 @@ class ScheduleListCommand extends Command
             return;
         }
 
-        $timezone = new DateTimeZone($this->option('timezone') ?? config('app.timezone'));
+        $timezone = new DateTimeZone($this->option('timezone') ?? config()->string('app.timezone'));
 
         $events = $this->sortEvents($events, $timezone);
 
@@ -110,6 +118,7 @@ class ScheduleListCommand extends Command
                 'next_due_date' => $nextDueDate->format('Y-m-d H:i:s P'),
                 'next_due_date_human' => $nextDueDate->diffForHumans(),
                 'timezone' => $timezone->getName(),
+                'expression_timezone' => $this->getExpressionTimezone($event),
                 'has_mutex' => $event->mutex->exists($event),
                 'repeat_seconds' => $event->isRepeatable() ? $event->repeatSeconds : null,
                 'environments' => $event->environments,
@@ -163,6 +172,10 @@ class ScheduleListCommand extends Command
     private function listEvent(Event $event, int $terminalWidth, array $expressionSpacing, int $repeatExpressionSpacing, DateTimeZone $timezone): array
     {
         $expression = $this->formatCronExpression($event->expression, $expressionSpacing);
+
+        if (($expressionTimezone = $this->getExpressionTimezone($event)) !== $timezone->getName()) {
+            $expression .= " ({$expressionTimezone})";
+        }
 
         $repeatExpression = str_pad($this->getRepeatExpression($event), $repeatExpressionSpacing);
 
@@ -244,9 +257,11 @@ class ScheduleListCommand extends Command
      */
     private function getNextDueDateForEvent(Event $event, DateTimeZone $timezone): CarbonImmutable
     {
+        $expressionTimezone = $this->getExpressionTimezone($event);
+
         $nextDueDate = CarbonImmutable::instance(
             (new CronExpression($event->expression))
-                ->getNextRunDate(CarbonImmutable::now()->setTimezone($event->timezone))
+                ->getNextRunDate(CarbonImmutable::now()->setTimezone($expressionTimezone))
                 ->setTimezone($timezone)
         );
 
@@ -256,11 +271,11 @@ class ScheduleListCommand extends Command
 
         $previousDueDate = CarbonImmutable::instance(
             (new CronExpression($event->expression))
-                ->getPreviousRunDate(CarbonImmutable::now()->setTimezone($event->timezone), allowCurrentDate: true)
+                ->getPreviousRunDate(CarbonImmutable::now()->setTimezone($expressionTimezone), allowCurrentDate: true)
                 ->setTimezone($timezone)
         );
 
-        $now = CarbonImmutable::now()->setTimezone($event->timezone);
+        $now = CarbonImmutable::now()->setTimezone($expressionTimezone);
 
         if (! $now->startOfMinute()->eq($previousDueDate)) {
             return $nextDueDate;
@@ -269,6 +284,22 @@ class ScheduleListCommand extends Command
         return $now
             ->endOfSecond()
             ->ceilSeconds($event->repeatSeconds);
+    }
+
+    /**
+     * Get the timezone in which the raw cron expression is evaluated.
+     *
+     * A static timezone conversion cannot preserve cron ranges, special syntax,
+     * month boundaries, and daylight-saving transitions, so the expression
+     * remains in its real evaluation timezone.
+     */
+    private function getExpressionTimezone(Event $event): string
+    {
+        if ($event->timezone instanceof DateTimeZone) {
+            return $event->timezone->getName();
+        }
+
+        return $event->timezone ?? config()->string('app.timezone');
     }
 
     /**

@@ -6,12 +6,16 @@ namespace Hypervel\Tests\Console\Scheduling;
 
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\EventMutex;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Engine\Channel;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use Mockery\MockInterface;
 use RuntimeException;
+
+use function Hypervel\Coroutine\parallel;
 
 class CallbackEventTest extends TestCase
 {
@@ -213,6 +217,82 @@ class CallbackEventTest extends TestCase
         $this->expectExceptionMessage('Callback failed');
 
         $event->run($this->app);
+    }
+
+    public function testSuccessfulRunDoesNotRethrowExceptionFromPreviousRun(): void
+    {
+        $calls = 0;
+        $event = new CallbackEvent($this->mutex, function () use (&$calls): string {
+            if (++$calls === 1) {
+                throw new RuntimeException('first run failed');
+            }
+
+            return 'recovered';
+        });
+
+        try {
+            $event->run($this->app);
+            $this->fail('The first callback exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('first run failed', $exception->getMessage());
+        }
+
+        $this->assertSame('recovered', $event->run($this->app));
+    }
+
+    public function testCallbackFailureRemainsPrimaryWhenAfterCallbackFails(): void
+    {
+        $event = new CallbackEvent($this->mutex, fn () => throw new RuntimeException('callback failed'));
+        $event->after(fn () => throw new RuntimeException('after callback failed'));
+
+        try {
+            $event->run($this->app);
+            $this->fail('The callback exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('callback failed', $exception->getMessage());
+        }
+    }
+
+    public function testConcurrentRunsKeepResultsAndExceptionsIsolated(): void
+    {
+        $firstReady = new Channel(1);
+        $releaseFirst = new Channel(1);
+        $event = new CallbackEvent($this->mutex, function () use ($firstReady, $releaseFirst): string {
+            if (CoroutineContext::get('__test.callback_event_run') === 'first') {
+                $firstReady->push(true);
+                $releaseFirst->pop(1.0);
+
+                throw new RuntimeException('first run failed');
+            }
+
+            $firstReady->pop(1.0);
+            $releaseFirst->push(true);
+            usleep(5000);
+
+            return 'second result';
+        });
+
+        [$first, $second] = parallel([
+            function () use ($event): string {
+                CoroutineContext::set('__test.callback_event_run', 'first');
+
+                try {
+                    $event->run($this->app);
+                } catch (RuntimeException $exception) {
+                    return $exception->getMessage();
+                }
+
+                return 'did not fail';
+            },
+            function () use ($event): string {
+                CoroutineContext::set('__test.callback_event_run', 'second');
+
+                return $event->run($this->app);
+            },
+        ]);
+
+        $this->assertSame('first run failed', $first);
+        $this->assertSame('second result', $second);
     }
 
     public function testExecuteWithParameters(): void

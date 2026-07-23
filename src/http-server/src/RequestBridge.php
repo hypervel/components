@@ -15,9 +15,23 @@ class RequestBridge
      */
     public static function createFromSwoole(SwooleRequest $swooleRequest): Request
     {
-        $server = static::normalizeTrailingSlash(
-            static::transformServerParams($swooleRequest->server ?? [], $swooleRequest->header ?? [])
+        $server = static::transformServerParams(
+            $swooleRequest->server ?? [],
+            $swooleRequest->header ?? [],
         );
+
+        // Swoole exposes the URI and query as separate server values while
+        // HttpFoundation expects REQUEST_URI to retain both components.
+        if (isset($server['REQUEST_URI'], $server['QUERY_STRING'])
+            && is_string($server['REQUEST_URI'])
+            && is_string($server['QUERY_STRING'])
+            && $server['QUERY_STRING'] !== ''
+            && ! str_contains($server['REQUEST_URI'], '?')
+        ) {
+            $server['REQUEST_URI'] .= '?' . $server['QUERY_STRING'];
+        }
+
+        $server = static::normalizeTrailingSlash($server);
         $content = $swooleRequest->rawContent();
 
         return new Request(
@@ -68,12 +82,12 @@ class RequestBridge
      *
      * Swoole provides files in $_FILES format. We construct UploadedFile objects
      * with $test=true because Swoole's CLI SAPI means PHP's is_uploaded_file()
-     * and move_uploaded_file() don't recognise Swoole-received uploads. Symfony's
+     * and move_uploaded_file() don't recognize Swoole-received uploads. Symfony's
      * $test flag makes isValid() skip is_uploaded_file() and move() use rename()
      * instead of move_uploaded_file().
      *
-     * Pre-constructed UploadedFile instances pass through FileBag unchanged
-     * (FileBag::convertFileInformation returns them as-is).
+     * UploadedFile instances constructed here pass through FileBag unchanged
+     * because FileBag::convertFileInformation returns them as-is.
      */
     protected static function transformFiles(array $files): array
     {
@@ -141,7 +155,9 @@ class RequestBridge
     {
         if (isset($server['REQUEST_URI']) && $server['REQUEST_URI'] !== '/') {
             $parts = explode('?', $server['REQUEST_URI'], 2);
-            $server['REQUEST_URI'] = rtrim($parts[0], '/') . (isset($parts[1]) ? '?' . $parts[1] : '');
+            $path = rtrim($parts[0], '/');
+            $server['REQUEST_URI'] = ($path === '' ? '/' : $path)
+                . (isset($parts[1]) ? '?' . $parts[1] : '');
         }
 
         return $server;

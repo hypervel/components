@@ -17,6 +17,8 @@ parameters:
     - src
   scanFiles:
     - phpstan-stubs/constants.php
+    - vendor/swoole/ide-helper/src/swoole/Swoole/Http/Response.php
+    - vendor/swoole/ide-helper/src/swoole/Swoole/Server.php
   excludePaths:
     - %currentWorkingDirectory%/src/helper/*
     - %currentWorkingDirectory%/tests/*

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Http;
 
 use Hypervel\Config\Repository;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
@@ -263,32 +262,24 @@ class KernelTest extends TestCase
         ], $called);
     }
 
-    public function testHandleRethrowsAfterAResponseIsCommitted(): void
+    public function testHandleReportsAndRendersRouterFailures(): void
     {
         $app = new Application;
         $events = new Dispatcher($app);
         $app->instance('events', $events);
         $app->bootstrapWith([]);
         $failure = new RuntimeException('stream failed');
+        $request = Request::create('/');
+        $replacement = new Response('replacement', 500);
         $handler = m::mock(ExceptionHandler::class);
         $handler->shouldReceive('report')->once()->with($failure);
-        $handler->shouldReceive('render')->andReturn(new Response('replacement', 500));
+        $handler->shouldReceive('render')->once()->with($request, $failure)->andReturn($replacement);
         $app->instance(ExceptionHandler::class, $handler);
         $router = m::mock(Router::class);
         $router->shouldReceive('dispatch')->once()->andThrow($failure);
         $kernel = new Kernel($app, $router);
-        $committedResponse = new Response;
-        $committedResponse->markStreamed();
-        ResponseContext::set($committedResponse);
 
-        try {
-            $kernel->handle(Request::create('/'));
-            $this->fail('Expected the committed stream failure to propagate.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame($failure, $exception);
-        } finally {
-            ResponseContext::forget();
-        }
+        $this->assertSame($replacement, $kernel->handle($request));
     }
 
     public function testTerminationIsExhaustiveAndPreservesTheFirstFailure(): void

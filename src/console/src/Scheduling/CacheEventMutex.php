@@ -30,16 +30,16 @@ class CacheEventMutex implements EventMutex, CacheAware
      */
     public function create(Event $event): bool
     {
-        $store = $this->cache->store($this->store)->getStore();
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
         if ($this->shouldUseLocks($store)) {
-            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
             return $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
                 ->acquire();
         }
 
-        return $this->cache->store($this->store)->add(
+        return $repository->add(
             $event->mutexName(),
             true,
             $event->expiresAt * 60
@@ -51,16 +51,16 @@ class CacheEventMutex implements EventMutex, CacheAware
      */
     public function exists(Event $event): bool
     {
-        $store = $this->cache->store($this->store)->getStore();
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
         if ($this->shouldUseLocks($store)) {
-            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
             return ! $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
                 ->get(fn () => true);
         }
 
-        return $this->cache->store($this->store)->has($event->mutexName());
+        return $repository->has($event->mutexName());
     }
 
     /**
@@ -68,10 +68,10 @@ class CacheEventMutex implements EventMutex, CacheAware
      */
     public function forget(Event $event): void
     {
-        $store = $this->cache->store($this->store)->getStore();
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
         if ($this->shouldUseLocks($store)) {
-            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
             $store
                 ->lock($event->mutexName(), $event->expiresAt * 60)
                 ->forceRelease();
@@ -79,11 +79,13 @@ class CacheEventMutex implements EventMutex, CacheAware
             return;
         }
 
-        $this->cache->store($this->store)->forget($event->mutexName());
+        $repository->forget($event->mutexName());
     }
 
     /**
      * Determine if the given store should use locks for cache event mutexes.
+     *
+     * @phpstan-assert-if-true LockProvider $store
      */
     protected function shouldUseLocks(Store $store): bool
     {

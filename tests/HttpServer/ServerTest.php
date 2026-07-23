@@ -5,33 +5,50 @@ declare(strict_types=1);
 namespace Hypervel\Tests\HttpServer;
 
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
 use Hypervel\HttpServer\Server;
 use Hypervel\Routing\Router;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
+
+use function Hypervel\Coroutine\wait;
 
 class ServerTest extends TestCase
 {
+    protected string $tempDirectory;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tempDirectory = ParallelTesting::tempDir('HttpServerServerTest');
+        mkdir($this->tempDirectory, 0777, true);
+    }
+
     protected function tearDown(): void
     {
-        parent::tearDown();
         CoordinatorManager::clear(Constants::WORKER_START);
+        (new Filesystem)->deleteDirectory($this->tempDirectory);
+
+        parent::tearDown();
     }
 
     public function testBootstrapForServerResolvesKernelAndBootstraps(): void
@@ -79,7 +96,7 @@ class ServerTest extends TestCase
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
-    public function testOnRequestSetsRequestAndResponseInContext(): void
+    public function testOnRequestSetsRequestInContext(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -89,10 +106,8 @@ class ServerTest extends TestCase
         $kernel->shouldReceive('handle')
             ->once()
             ->andReturnUsing(function (Request $request) use (&$capturedRequest): Response {
-                // Inside the kernel, RequestContext should have the request
                 $capturedRequest = RequestContext::get();
-                // ResponseContext should also be set
-                $this->assertInstanceOf(HypervelResponse::class, ResponseContext::get());
+
                 return new Response('OK');
             });
         $kernel->shouldReceive('terminate')->once();
@@ -117,18 +132,27 @@ class ServerTest extends TestCase
     public function testOnRequestReturns500OnKernelException(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $failure = new RuntimeException('Fatal error');
 
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')
             ->once()
-            ->andThrow(new RuntimeException('Fatal error'));
+            ->andThrow($failure);
         $kernel->shouldReceive('terminate')->once();
 
+        $handledEvent = null;
+        $events = new Dispatcher;
+        $events->listen(RequestHandled::class, function (RequestHandled $event) use (&$handledEvent): void {
+            $handledEvent = $event;
+        });
+
         $container = m::mock(Container::class);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
+        $this->setServerName($server, 'http');
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
@@ -136,60 +160,67 @@ class ServerTest extends TestCase
         $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
         $swooleResponse->shouldReceive('end')->once()->with('Internal Server Error')->andReturnTrue();
 
-        $server->onRequest($swooleRequest, $swooleResponse);
+        try {
+            $server->onRequest($swooleRequest, $swooleResponse);
+            $this->fail('Expected the kernel failure to propagate after the fallback response.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertInstanceOf(RequestHandled::class, $handledEvent);
+        $this->assertSame(500, $handledEvent->response->getStatusCode());
+        $this->assertSame($failure, $handledEvent->exception);
     }
 
-    public function testOnRequestPreservesACommittedResponseAfterKernelFailure(): void
+    public function testOnRequestPreservesOperationFailureAcrossExhaustiveFinalization(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
-        $failure = new RuntimeException('stream failed');
-        $committedResponse = null;
-        $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('handle')
-            ->once()
-            ->andReturnUsing(function () use ($failure, &$committedResponse): never {
-                $committedResponse = ResponseContext::get();
-                $committedResponse->markStreamed();
+        $operationFailure = new RuntimeException('received failed');
+        $handledFailure = new RuntimeException('handled failed');
+        $sendFailure = new RuntimeException('send failed');
+        $terminateFailure = new RuntimeException('terminate failed');
 
-                throw $failure;
-            });
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldNotReceive('handle');
         $kernel->shouldReceive('terminate')
             ->once()
             ->with(m::type(Request::class), m::on(
-                function (Response $response) use (&$committedResponse): bool {
-                    return $response === $committedResponse;
-                }
-            ));
-        $handledEvent = null;
-        $eventDispatcher = m::mock(EventDispatcherContract::class);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestReceived::class)->andReturn(false);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestTerminated::class)->andReturn(false);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestHandled::class)->andReturn(true);
-        $eventDispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(RequestHandled::class))
-            ->andReturnUsing(function (RequestHandled $event) use (&$handledEvent): RequestHandled {
-                $handledEvent = $event;
+                fn (Response $response): bool => $response->getStatusCode() === 500
+            ))
+            ->andThrow($terminateFailure);
 
-                return $event;
-            });
+        $terminatedEvent = null;
+        $events = new Dispatcher;
+        $events->listen(RequestReceived::class, fn () => throw $operationFailure);
+        $events->listen(RequestHandled::class, fn () => throw $handledFailure);
+        $events->listen(RequestTerminated::class, function (RequestTerminated $event) use (&$terminatedEvent): void {
+            $terminatedEvent = $event;
+        });
+
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
+
         $server = new Server($container);
         $this->setKernel($server, $kernel);
         $this->setServerName($server, 'http');
+
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldNotReceive('status');
-        $swooleResponse->shouldNotReceive('header');
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
+        $swooleResponse->shouldReceive('status')->once()->with(500)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->with('Internal Server Error')->andThrow($sendFailure);
 
-        $server->onRequest($this->createSwooleRequest(), $swooleResponse);
+        try {
+            wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));
+            $this->fail('Expected the operation failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($operationFailure, $exception);
+        }
 
-        $this->assertInstanceOf(HypervelResponse::class, $committedResponse);
-        $this->assertInstanceOf(RequestHandled::class, $handledEvent);
-        $this->assertSame($committedResponse, $handledEvent->response);
-        $this->assertSame($failure, $handledEvent->exception);
+        $this->assertInstanceOf(RequestTerminated::class, $terminatedEvent);
+        $this->assertSame(500, $terminatedEvent->response->getStatusCode());
+        $this->assertSame($operationFailure, $terminatedEvent->exception);
+        $this->assertSame('http', $terminatedEvent->server);
     }
 
     public function testOnRequestFinalizationIsExhaustiveAndPreservesTheFirstFailure(): void
@@ -201,31 +232,115 @@ class ServerTest extends TestCase
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
         $kernel->shouldReceive('terminate')->once()->andThrow($terminateFailure);
-        $eventDispatcher = m::mock(EventDispatcherContract::class);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestReceived::class)->andReturn(false);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestTerminated::class)->andReturn(false);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestHandled::class)->andReturn(true);
-        $eventDispatcher->shouldReceive('dispatch')
-            ->once()
-            ->with(m::type(RequestHandled::class))
-            ->andThrow($handledFailure);
+
+        $terminatedEvent = null;
+        $events = new Dispatcher;
+        $events->listen(RequestHandled::class, fn () => throw $handledFailure);
+        $events->listen(RequestTerminated::class, function (RequestTerminated $event) use (&$terminatedEvent): void {
+            $terminatedEvent = $event;
+        });
+
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
+
         $server = new Server($container);
         $this->setKernel($server, $kernel);
         $this->setServerName($server, 'http');
+
         $swooleResponse = m::mock(SwooleResponse::class);
         $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
         $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
         $swooleResponse->shouldReceive('end')->once()->with('OK')->andThrow($sendFailure);
 
         try {
-            $server->onRequest($this->createSwooleRequest(), $swooleResponse);
+            wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));
             $this->fail('Expected the first finalization failure to propagate.');
         } catch (RuntimeException $exception) {
             $this->assertSame($handledFailure, $exception);
         }
+
+        $this->assertInstanceOf(RequestTerminated::class, $terminatedEvent);
+        $this->assertSame($handledFailure, $terminatedEvent->exception);
+    }
+
+    public function testRequestTerminatedObservesSendFailureBeforeLaterTerminationFailure(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $sendFailure = new RuntimeException('send failed');
+        $terminateFailure = new RuntimeException('terminate failed');
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
+        $kernel->shouldReceive('terminate')->once()->andThrow($terminateFailure);
+
+        $terminatedEvent = null;
+        $events = new Dispatcher;
+        $events->listen(RequestTerminated::class, function (RequestTerminated $event) use (&$terminatedEvent): void {
+            $terminatedEvent = $event;
+        });
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+        $this->setServerName($server, 'http');
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->with('OK')->andThrow($sendFailure);
+
+        try {
+            wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));
+            $this->fail('Expected the send failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($sendFailure, $exception);
+        }
+
+        $this->assertInstanceOf(RequestTerminated::class, $terminatedEvent);
+        $this->assertSame($sendFailure, $terminatedEvent->exception);
+    }
+
+    public function testRequestTerminatedObservesTerminationFailure(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $terminateFailure = new RuntimeException('terminate failed');
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')->once()->andReturn(new Response('OK'));
+        $kernel->shouldReceive('terminate')->once()->andThrow($terminateFailure);
+
+        $terminatedEvent = null;
+        $events = new Dispatcher;
+        $events->listen(RequestTerminated::class, function (RequestTerminated $event) use (&$terminatedEvent): void {
+            $terminatedEvent = $event;
+        });
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+        $this->setServerName($server, 'http');
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->with('OK')->andReturnTrue();
+
+        try {
+            wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));
+            $this->fail('Expected the termination failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($terminateFailure, $exception);
+        }
+
+        $this->assertInstanceOf(RequestTerminated::class, $terminatedEvent);
+        $this->assertSame($terminateFailure, $terminatedEvent->exception);
     }
 
     public function testOnRequestSuppressesBodyForHeadRequests(): void
@@ -254,30 +369,56 @@ class ServerTest extends TestCase
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
+    public function testOnRequestForwardsHttp2ProtocolToBinaryResponseEmission(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $path = $this->tempDirectory . '/http2-response.txt';
+        file_put_contents($path, 'HTTP/2 body');
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')->once()->andReturn(new BinaryFileResponse($path));
+        $kernel->shouldReceive('terminate')->once();
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('write')->once()->with('HTTP/2 body')->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $swooleResponse->shouldNotReceive('sendfile');
+
+        $server->onRequest(
+            $this->createSwooleRequest(protocol: 'HTTP/2'),
+            $swooleResponse
+        );
+    }
+
     public function testOnRequestDispatchesLifecycleEventsWhenListenersAreRegistered(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
-        $dispatchedEvents = [];
+        $response = new Response('OK');
 
         $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('handle')->andReturn(new Response('OK'));
+        $kernel->shouldReceive('handle')->andReturn($response);
         $kernel->shouldReceive('terminate');
 
-        $eventDispatcher = m::mock(EventDispatcherContract::class);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestReceived::class)->andReturn(true);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestTerminated::class)->andReturn(true);
-        $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestHandled::class)->andReturn(true);
-        $eventDispatcher->shouldReceive('dispatch')
-            ->andReturnUsing(function (object $event) use (&$dispatchedEvents): object {
-                $dispatchedEvents[] = get_class($event);
-
-                return $event;
+        $dispatchedEvents = [];
+        $events = new Dispatcher;
+        foreach ([RequestReceived::class, RequestHandled::class, RequestTerminated::class] as $eventClass) {
+            $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
+                $dispatchedEvents[$event::class] = $event;
             });
+        }
 
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(true);
-        $container->shouldReceive('make')->with('events')->andReturn($eventDispatcher);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
 
         $server = new Server($container);
         $this->setKernel($server, $kernel);
@@ -289,12 +430,54 @@ class ServerTest extends TestCase
         $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
         $swooleResponse->shouldReceive('end')->withAnyArgs()->andReturnTrue();
 
-        $server->onRequest($swooleRequest, $swooleResponse);
+        wait(fn () => $server->onRequest($swooleRequest, $swooleResponse));
 
-        // RequestReceived and RequestHandled should be dispatched synchronously.
-        // RequestTerminated is deferred, so it may not be in the list yet.
-        $this->assertContains(RequestReceived::class, $dispatchedEvents);
-        $this->assertContains(RequestHandled::class, $dispatchedEvents);
+        $this->assertNull($dispatchedEvents[RequestReceived::class]->response);
+        $this->assertSame($response, $dispatchedEvents[RequestHandled::class]->response);
+        $this->assertNull($dispatchedEvents[RequestHandled::class]->exception);
+        $this->assertSame($response, $dispatchedEvents[RequestTerminated::class]->response);
+        $this->assertNull($dispatchedEvents[RequestTerminated::class]->exception);
+    }
+
+    public function testOnRequestSkipsFallbackEmissionAndTerminationAfterCancellation(): void
+    {
+        CoordinatorManager::until(Constants::WORKER_START)->resume();
+        $cancellation = new CanceledException;
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('handle')->once()->andThrow($cancellation);
+        $kernel->shouldNotReceive('terminate');
+
+        $dispatchedEvents = [];
+        $events = new Dispatcher;
+        foreach ([RequestHandled::class, RequestTerminated::class] as $eventClass) {
+            $events->listen($eventClass, function (object $event) use (&$dispatchedEvents): void {
+                $dispatchedEvents[$event::class] = $event;
+            });
+        }
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('bound')->with('events')->andReturn(true);
+        $container->shouldReceive('make')->with('events')->andReturn($events);
+
+        $server = new Server($container);
+        $this->setKernel($server, $kernel);
+        $this->setServerName($server, 'http');
+
+        $swooleResponse = m::mock(SwooleResponse::class);
+        $swooleResponse->shouldNotReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end');
+
+        try {
+            wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertNull($dispatchedEvents[RequestHandled::class]->response);
+        $this->assertSame($cancellation, $dispatchedEvents[RequestHandled::class]->exception);
+        $this->assertNull($dispatchedEvents[RequestTerminated::class]->response);
+        $this->assertSame($cancellation, $dispatchedEvents[RequestTerminated::class]->exception);
     }
 
     public function testOnRequestSkipsLifecycleEventDispatchWhenNoListenersAreRegistered(): void
@@ -406,10 +589,17 @@ class ServerTest extends TestCase
     /**
      * Create a mock Swoole request.
      */
-    private function createSwooleRequest(string $method = 'get', string $uri = '/'): SwooleRequest
-    {
+    private function createSwooleRequest(
+        string $method = 'get',
+        string $uri = '/',
+        string $protocol = 'HTTP/1.1',
+    ): SwooleRequest {
         $swooleRequest = m::mock(SwooleRequest::class);
-        $swooleRequest->server = ['request_method' => $method, 'request_uri' => $uri];
+        $swooleRequest->server = [
+            'request_method' => $method,
+            'request_uri' => $uri,
+            'server_protocol' => $protocol,
+        ];
         $swooleRequest->header = ['host' => 'example.com'];
         $swooleRequest->get = null;
         $swooleRequest->post = null;

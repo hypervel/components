@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Commands;
 
-use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Throwable;
 
 #[AsCommand(name: 'server:reload')]
 class ServerReloadCommand extends Command
@@ -20,54 +18,63 @@ class ServerReloadCommand extends Command
     protected string $description = 'Reload all workers gracefully.';
 
     public function __construct(
-        protected Container $container,
         protected Repository $config,
         protected Filesystem $filesystem
     ) {
         parent::__construct();
     }
 
-    public function handle()
+    public function handle(): int
     {
-        $file = $this->config->string('server.settings.pid_file', '');
-        if (empty($file)) {
-            throw new FileNotFoundException('The config of pid_file is not found.');
-        }
+        $file = $this->config->string('server.settings.pid_file');
+        $hasTaskWorkers = $this->config->integer('server.settings.task_worker_num') > 0;
 
-        if (! $this->filesystem->exists($file)) {
-            $this->warn("pid_file doesn't exist.");
-            return 0;
-        }
-
-        $hasTaskWorkers = (bool) $this->config->integer('server.settings.task_worker_num', 0);
-        $pid = $this->filesystem->get($file);
         try {
-            $this->info('Reloading workers...');
-            if (posix_kill((int) $pid, 0)) {
-                posix_kill((int) $pid, SIGUSR1);
-            } else {
-                $this->warn('No active workers.');
-            }
+            $contents = $this->filesystem->get($file);
+        } catch (FileNotFoundException) {
+            $this->warn("Unable to read the server PID file [{$file}].");
 
-            if (! $hasTaskWorkers) {
-                $this->info('Done.');
-
-                return 0;
-            }
-
-            $this->info('Reloading task workers...');
-            if (posix_kill((int) $pid, 0)) {
-                posix_kill((int) $pid, SIGUSR2);
-            } else {
-                $this->warn('No active task workers.');
-            }
-
-            $this->info('Done.');
-        } catch (Throwable $e) {
-            $this->error('Reload failed.');
-            return 1;
+            return self::FAILURE;
         }
 
-        return 0;
+        $pid = filter_var(trim($contents), FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1],
+        ]);
+
+        if ($pid === false) {
+            $this->error("The server PID file [{$file}] does not contain a valid process ID.");
+
+            return self::FAILURE;
+        }
+
+        $this->info('Reloading workers...');
+
+        if (! $this->signalProcess($pid, SIGUSR1)) {
+            $this->warn('Unable to reload workers.');
+
+            return self::FAILURE;
+        }
+
+        if ($hasTaskWorkers) {
+            $this->info('Reloading task workers...');
+
+            if (! $this->signalProcess($pid, SIGUSR2)) {
+                $this->warn('Unable to reload task workers.');
+
+                return self::FAILURE;
+            }
+        }
+
+        $this->info('Done.');
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Send a signal to the server process.
+     */
+    protected function signalProcess(int $pid, int $signal): bool
+    {
+        return posix_kill($pid, $signal);
     }
 }

@@ -23,13 +23,6 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class ServerStartCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        putenv('APP_RUNNING_IN_CONSOLE');
-
-        parent::tearDown();
-    }
-
     public function testServeCommandFailsFastWhenRunningInConsoleIsTrue(): void
     {
         $command = new ServerStartCommand($this->app);
@@ -70,7 +63,7 @@ class ServerStartCommandTest extends TestCase
         $serverFactory->shouldReceive('start')->once();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server', [])->andReturn($serverConfig);
+        $config->shouldReceive('array')->once()->with('server')->andReturn($serverConfig);
 
         $dispatcher = m::mock(DispatcherContract::class);
         $logger = m::mock(StdoutLoggerInterface::class);
@@ -130,7 +123,57 @@ class ServerStartCommandTest extends TestCase
         $serverFactory->shouldReceive('start')->once();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server', [])->andReturn($serverConfig);
+        $config->shouldReceive('array')->once()->with('server')->andReturn($serverConfig);
+        $config->shouldReceive('set')->once()->with('server.servers', $expectedServers);
+
+        $dispatcher = m::mock(DispatcherContract::class);
+        $logger = m::mock(StdoutLoggerInterface::class);
+
+        $this->app->instance(ServerFactory::class, $serverFactory);
+        $this->app->instance('events', $dispatcher);
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+        $this->app->instance('config', $config);
+
+        $command = new ServerStartCommand($this->app);
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $result = $command->run(new ArrayInput([
+            '--host' => '127.0.0.1',
+            '--port' => '8001',
+        ]), new NullOutput);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function testServeCommandOverridesHostAndPortForTheDefaultHttpServerType(): void
+    {
+        $serverConfig = [
+            'servers' => [
+                [
+                    'name' => 'http',
+                    'host' => '0.0.0.0',
+                    'port' => 8000,
+                ],
+            ],
+        ];
+
+        $expectedServers = [
+            [
+                'name' => 'http',
+                'host' => '127.0.0.1',
+                'port' => 8001,
+            ],
+        ];
+
+        $serverFactory = m::mock(ServerFactory::class);
+        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('configure')->once()->with(['servers' => $expectedServers]);
+        $serverFactory->shouldReceive('start')->once();
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->once()->with('server')->andReturn($serverConfig);
         $config->shouldReceive('set')->once()->with('server.servers', $expectedServers);
 
         $dispatcher = m::mock(DispatcherContract::class);
@@ -161,7 +204,7 @@ class ServerStartCommandTest extends TestCase
         $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server', [])->andReturn([
+        $config->shouldReceive('array')->once()->with('server')->andReturn([
             'servers' => [
                 [
                     'name' => 'http',
@@ -212,7 +255,7 @@ class ServerStartCommandTest extends TestCase
         $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server', [])->andReturn([
+        $config->shouldReceive('array')->once()->with('server')->andReturn([
             'servers' => [
                 [
                     'name' => 'reverb',

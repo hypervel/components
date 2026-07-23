@@ -34,7 +34,7 @@ class FoundationConfigTest extends TestCase
         $this->assertSame([], $config['previous_keys']);
     }
 
-    public function testServerConfigDisablesCoroutineTasksByDefault(): void
+    public function testServerConfigUsesSafeTaskDefaults(): void
     {
         $originalContainer = Container::getInstance();
 
@@ -47,6 +47,7 @@ class FoundationConfigTest extends TestCase
         }
 
         $this->assertFalse($config['settings'][Constant::OPTION_TASK_ENABLE_COROUTINE]);
+        $this->assertSame(0, $config['settings'][Constant::OPTION_TASK_WORKER_NUM]);
     }
 
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void

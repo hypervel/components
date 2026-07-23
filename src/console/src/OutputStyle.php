@@ -43,27 +43,39 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
     #[Override]
     public function write(string|iterable $messages, bool $newline = false, int $options = 0): void
     {
-        $this->newLinesWritten = $this->trailingNewLineCount($messages) + (int) $newline;
+        if (! is_iterable($messages)) {
+            parent::write($messages, $newline, $options);
 
-        parent::write($messages, $newline, $options);
+            if ($this->shouldWrite($options) && ($messages !== '' || $newline)) {
+                $this->newLinesWritten = $this->trailingNewLineCount($messages) + (int) $newline;
+            }
+
+            return;
+        }
+
+        foreach ($messages as $message) {
+            parent::write($message, $newline, $options);
+
+            if ($this->shouldWrite($options) && ($message !== '' || $newline)) {
+                $this->newLinesWritten = $this->trailingNewLineCount($message) + (int) $newline;
+            }
+        }
     }
 
     #[Override]
     public function writeln(string|iterable $messages, int $type = self::OUTPUT_NORMAL): void
     {
-        if ($this->output->getVerbosity() >= $type) {
-            $this->newLinesWritten = $this->trailingNewLineCount($messages) + 1;
-        }
-
-        parent::writeln($messages, $type);
+        $this->write($messages, true, $type);
     }
 
     #[Override]
     public function newLine(int $count = 1): void
     {
-        $this->newLinesWritten += $count;
-
         parent::newLine($count);
+
+        if ($this->shouldWrite(0)) {
+            $this->newLinesWritten += $count;
+        }
     }
 
     public function newLinesWritten(): int
@@ -77,22 +89,26 @@ class OutputStyle extends SymfonyStyle implements NewLineAware
 
     /**
      * Count the number of trailing new lines in a string.
-     *
-     * @param iterable<string>|string $messages
      */
-    protected function trailingNewLineCount(string|iterable $messages): int
+    protected function trailingNewLineCount(string $message): int
     {
-        if (is_iterable($messages)) {
-            $string = '';
+        return strlen($message) - strlen(rtrim($message, PHP_EOL));
+    }
 
-            foreach ($messages as $message) {
-                $string .= $message . PHP_EOL;
-            }
-        } else {
-            $string = $messages;
-        }
+    /**
+     * Determine whether output with the given options is visible.
+     */
+    protected function shouldWrite(int $options): bool
+    {
+        $verbosities = self::VERBOSITY_QUIET
+            | self::VERBOSITY_NORMAL
+            | self::VERBOSITY_VERBOSE
+            | self::VERBOSITY_VERY_VERBOSE
+            | self::VERBOSITY_DEBUG;
 
-        return strlen($string) - strlen(rtrim($string, PHP_EOL));
+        $verbosity = $verbosities & $options ?: self::VERBOSITY_NORMAL;
+
+        return $verbosity <= $this->output->getVerbosity();
     }
 
     /**
