@@ -464,10 +464,10 @@ Use Edit for targeted section changes; never rewrite whole files.
 - Lines 313-321 (the "Fortify derives the broker from the selected guard provider" steps and the throw-rather-than-guess note): replace the derivation steps with the key rule — resolve the current guard, read `auth.guards.{guard}.passwords`, and a missing key produces a configuration error naming the guard and the fix. Drop the multiple-providers-sharing-emails token-table caveat only if it no longer applies — it still applies (separate brokers still need separate token tables), so keep that paragraph.
 - Multi-Guard Applications section (lines ~180-210): add the `passwords` key to the example guard config so the documented pattern is complete.
 
-**`docs/plans/2026-07-01-fortify-passkeys-port.md`** — prepend a superseded note (Edit, never rewrite the historical body):
+**`docs/plans/2026-07-01-0915-fortify-passkeys-port.md`** — prepend a superseded note (Edit, never rewrite the historical body):
 
 ```md
-> Superseded note: the Fortify password broker inference described in this historical plan was later removed by `2026-07-06-auth-guard-declared-password-brokers.md`. Guards now declare password brokers with `auth.guards.{guard}.passwords`; `Fortify::passwordBrokerName()` no longer exists.
+> Superseded note: the Fortify password broker inference described in this historical plan was later removed by `2026-07-06-0900-auth-guard-declared-password-brokers.md`. Guards now declare password brokers with `auth.guards.{guard}.passwords`; `Fortify::passwordBrokerName()` no longer exists.
 ```
 
 This keeps the dated record intact while preventing a future grep of the plans directory from mistaking the old inference design for current guidance.
@@ -482,7 +482,7 @@ Final verification greps (last implementation step), each expected to return not
 grep -rn "auth\.defaults\.passwords\|AUTH_PASSWORD_BROKER\|passwordBrokerName" src/ tests/ .env .env.example
 ```
 
-Scope notes: clear the PHPStan result cache first (`rm -rf .cache/phpstan`) so stale analysis artifacts don't pollute the grep. `docs/plans/` is excluded by design — historical plan documents (e.g. `2026-07-01-fortify-passkeys-port.md`, which describes the provider inference it introduced at the time) are dated records of past work, not living documentation; rewriting them would falsify history. Living documentation (`src/boost/docs/`, config comments, READMEs) must contain zero stale references.
+Scope notes: clear the PHPStan result cache first (`rm -rf .cache/phpstan`) so stale analysis artifacts don't pollute the grep. `docs/plans/` is excluded by design — historical plan documents (e.g. `2026-07-01-0915-fortify-passkeys-port.md`, which describes the provider inference it introduced at the time) are dated records of past work, not living documentation; rewriting them would falsify history. Living documentation (`src/boost/docs/`, config comments, READMEs) must contain zero stale references.
 
 ## Test Plan
 

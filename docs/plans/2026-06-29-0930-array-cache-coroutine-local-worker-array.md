@@ -2,7 +2,7 @@
 
 ## Historical status
 
-This plan predates Hypervel's immutable date default. Its Carbon examples are preserved as implementation history; current cache expiry records use `Hypervel\Support\CarbonImmutable`. See [Make CarbonImmutable the Framework Default](2026-07-22-carbon-immutable-default.md) for the current date architecture.
+This plan predates Hypervel's immutable date default. Its Carbon examples are preserved as implementation history; current cache expiry records use `Hypervel\Support\CarbonImmutable`. See [Make CarbonImmutable the Framework Default](2026-07-22-0930-carbon-immutable-default.md) for the current date architecture.
 
 ## Goal
 

@@ -42,8 +42,8 @@ Files checked:
 - `tests/Cache/CacheSwooleStoreIntervalTest.php`
 - `tests/Cache/CreateSwooleTimersTest.php`
 - `Symfony\Component\Process\Process` test usage in `tests/Filesystem/FilesystemNonCoroutineTest.php`
-- `docs/plans/2026-07-03-swoole-store-row-concurrency-and-locks.md`
-- `docs/plans/2026-07-03-swoole-store-interval-cache-refresh.md`
+- `docs/plans/2026-07-03-1545-swoole-store-row-concurrency-and-locks.md`
+- `docs/plans/2026-07-03-1130-swoole-store-interval-cache-refresh.md`
 - `docs/reviews/swoole-store-concurrency-intervals-review.md`
 
 Runtime probes confirmed:

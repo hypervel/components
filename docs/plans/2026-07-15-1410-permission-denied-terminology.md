@@ -414,12 +414,12 @@ Update both `is_denied` columns in the custom partitioned migration example. The
 
 The checked-in plan documents are active design/context references and must not teach stale symbols. Review all six files found by the case-insensitive sweep:
 
-1. `docs/plans/2026-06-24-2406-permission-fresh-spatie-port.md` — update Permission effect terminology, final symbols, schema snippets, test references, and acceptance text.
-2. `docs/plans/2026-07-02-permission-forbidden-single-state-hardening.md` — rename the file with `mv` to `docs/plans/2026-07-02-permission-denied-single-state-hardening.md`, then update its title, final terminology, schema/code snippets, test filename, commands, and acceptance text.
-3. `docs/plans/2026-07-02-permission-review-hardening-and-performance.md` — update Permission effect terminology, symbols, code snippets, test filename, and commands.
-4. `docs/plans/2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md` — review but do not edit its ordinary-English descriptions of behavior that PHP forbids.
-5. `docs/plans/2026-07-13-permission-row-partitioning.md` — update effect terminology, public/private symbols, schema examples, synchronization descriptions, test language, and checklists without changing the partition design.
-6. `docs/plans/2026-07-06-stack-cache-tags-and-tag-architecture-refactor.md` — review but do not edit its ordinary-English `Forbidden:` comment-policy label.
+1. `docs/plans/2026-06-24-1015-permission-fresh-spatie-port.md` — update Permission effect terminology, final symbols, schema snippets, test references, and acceptance text.
+2. `docs/plans/2026-07-02-0930-permission-forbidden-single-state-hardening.md` — rename the file with `mv` to `docs/plans/2026-07-02-0930-permission-denied-single-state-hardening.md`, then update its title, final terminology, schema/code snippets, test filename, commands, and acceptance text.
+3. `docs/plans/2026-07-02-1415-permission-review-hardening-and-performance.md` — update Permission effect terminology, symbols, code snippets, test filename, and commands.
+4. `docs/plans/2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md` — review but do not edit its ordinary-English descriptions of behavior that PHP forbids.
+5. `docs/plans/2026-07-13-1015-permission-row-partitioning.md` — update effect terminology, public/private symbols, schema examples, synchronization descriptions, test language, and checklists without changing the partition design.
+6. `docs/plans/2026-07-06-1145-stack-cache-tags-and-tag-architecture-refactor.md` — review but do not edit its ordinary-English `Forbidden:` comment-policy label.
 
 Git history preserves the old point-in-time spelling. The working tree should use the final names wherever a plan describes the live Permission design.
 

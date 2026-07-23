@@ -4,7 +4,7 @@
 
 Audit every package under `src/` for coroutine safety, worker-lifetime state correctness, resource ownership, liveness, deterministic cleanup, test isolation, API correctness, and hot-path performance. Work package by package, but fix shared defects at their lowest owning boundary and update every affected consumer in the same coherent change.
 
-This is the reusable operating plan and compact routing index. The stable sections define how to run this audit now and in the future, while the package checklist tracks completion. Detailed package findings, changes, validation, and reviews live in the companion [`2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md`](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
+This is the reusable operating plan and compact routing index. The stable sections define how to run this audit now and in the future, while the package checklist tracks completion. Detailed package findings, changes, validation, and reviews live in the companion [`2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md`](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
 The superseded `docs/ai/package-coroutine-safety-review.md` is removed after its useful bug taxonomy, remediation patterns, and conventions are incorporated here. This plan and its companion ledger together become the only repository source of truth for the audit.
 
@@ -988,7 +988,7 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 ## Audit routing index
 
-This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
+This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
 - **Active package or work unit:** `websocket-server`
 - **Ledger entries required for the active work:** `Make coroutine creation and copied context failure-safe` (`websocket-server-01`) and `Unify HTTP response emission and harden native server boundaries` (`http-server-06`).
@@ -1052,7 +1052,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events` and `bus` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache`, `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database`, `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache`, `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database`, `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
@@ -1086,7 +1086,7 @@ The checklist mirrors every first-level directory under `src/`. Before plan sign
 ```bash
 for package_dir in src/*; do test -d "$package_dir" && basename "$package_dir"; done \
     | sort > /tmp/hypervel-src-packages
-grep '^- \[[ x]\] `' docs/plans/2026-07-12-framework-coroutine-state-lifecycle-audit.md \
+grep '^- \[[ x]\] `' docs/plans/2026-07-12-0900-framework-coroutine-state-lifecycle-audit.md \
     | cut -d'`' -f2 \
     | sort > /tmp/hypervel-plan-packages
 wc -l /tmp/hypervel-src-packages /tmp/hypervel-plan-packages

@@ -17,7 +17,7 @@
 
 ## Broadcasting
 
-- Review whether Pusher and Ably broadcaster pooling manages state that cannot safely be shared like the unpooled Reverb broadcaster. Their current pooling behavior remains unchanged; see `docs/plans/2026-07-10-object-pool-lifecycle-and-client-pooled-filesystems.md` for the state-ownership evidence and Reverb decision.
+- Review whether Pusher and Ably broadcaster pooling manages state that cannot safely be shared like the unpooled Reverb broadcaster. Their current pooling behavior remains unchanged; see `docs/plans/2026-07-10-1040-object-pool-lifecycle-and-client-pooled-filesystems.md` for the state-ownership evidence and Reverb decision.
 
 ## Framework-wide
 
