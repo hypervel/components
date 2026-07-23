@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
+use Carbon\CarbonInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -21,8 +22,8 @@ use function Hypervel\Support\now;
  * @property string $token
  * @property string $name
  * @property \Hypervel\Database\Eloquent\Model $tokenable
- * @property null|\Carbon\Carbon $last_used_at
- * @property null|\Carbon\Carbon $expires_at
+ * @property ?CarbonInterface $last_used_at
+ * @property ?CarbonInterface $expires_at
  * @method static \Hypervel\Database\Eloquent\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
  * @method static static|null find(mixed $id, array $columns = ['*'])
  */
