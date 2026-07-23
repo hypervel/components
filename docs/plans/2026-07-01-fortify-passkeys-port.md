@@ -2,6 +2,8 @@
 
 > Superseded note: the Fortify password broker inference described in this historical plan was later removed by `2026-07-06-auth-guard-declared-password-brokers.md`. Guards now declare password brokers with `auth.guards.{guard}.passwords`; `Fortify::passwordBrokerName()` no longer exists.
 
+> Date note: this plan predates Hypervel's immutable date default. Its mutable Carbon guidance is preserved as implementation history; configurable Eloquent date casts now return `Hypervel\Support\CarbonImmutable` by default and should be typed as `CarbonInterface`. See [Make CarbonImmutable the Framework Default](2026-07-22-carbon-immutable-default.md) for the current date architecture.
+
 ## Scope
 
 Port Laravel Fortify and Laravel Passkeys Server into the Hypervel components monorepo, with Swoole coroutine safety, worker-lifetime performance, clean Hypervel-native APIs, full tests, and updated Boost documentation.
@@ -1130,7 +1132,7 @@ Use `CoroutineContext` only if a ported controller or middleware introduces requ
 
 Port the model with strict types and Hypervel namespaces.
 
-Keep date annotations aligned with the actual casts. A `datetime` cast returns Hypervel's configured date class, which defaults to `Hypervel\Support\CarbonImmutable`; type that configurable boundary as `CarbonInterface`. An `immutable_datetime` cast always returns `CarbonImmutable`, even when the application explicitly opts into mutable dates.
+Keep date annotations aligned with the actual casts. A `datetime` cast returns Hypervel's configured date class, which defaults to mutable `Hypervel\Support\Carbon`; do not document `CarbonImmutable` unless the model intentionally uses `immutable_datetime`.
 
 Use a polymorphic `user` owner relation instead of Laravel's single-model `belongsTo` relation. This avoids a global `Passkeys::userModel()` static and lets one application register passkeys for multiple authenticatable model classes in the same table.
 
