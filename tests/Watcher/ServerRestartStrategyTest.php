@@ -234,6 +234,35 @@ class ServerRestartStrategyTest extends TestCase
         }
     }
 
+    public function testRestartAfterFinalStopDoesNotRelaunch(): void
+    {
+        $strategy = $this->createProbeStrategy();
+        [$entered, $resume] = $strategy->blockNextClose();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->stop();
+            $resume->push(true);
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $strategy->restart();
+
+            $this->assertFalse($strategy->lifecycleIsRunning());
+            $this->assertSame(1, $strategy->openCalls);
+
+            $strategy->start();
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $this->assertSame(2, $strategy->openCalls);
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
     public function testOpenFailureClearsLifecycleOwnershipAndAllowsRetry(): void
     {
         $handler = m::mock(ExceptionHandlerContract::class);

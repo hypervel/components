@@ -77,6 +77,10 @@ class ServerRestartStrategy implements RestartStrategy
      */
     public function restart(): void
     {
+        if ($this->stopping) {
+            return;
+        }
+
         if (! $this->lifecycleRunning) {
             $this->start();
 
