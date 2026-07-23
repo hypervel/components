@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Watcher\Driver;
 
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Watcher\Option;
-use Hypervel\Watcher\WatchPath;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -20,9 +20,12 @@ class FindNewerDriver extends AbstractDriver
 
     protected int $count = 0;
 
-    public function __construct(protected Option $option)
-    {
+    public function __construct(
+        Option $option,
+        protected StdoutLoggerInterface $logger,
+    ) {
         parent::__construct($option);
+
         $ret = $this->exec('which find');
         if (empty($ret['output'])) {
             throw new InvalidArgumentException('find not exists.');
@@ -60,15 +63,21 @@ class FindNewerDriver extends AbstractDriver
                     return;
                 }
 
-                $changedFiles = $this->scan();
+                [$changedFiles, $failureCode] = $this->scan();
 
                 if ($this->stopping) {
                     return;
                 }
 
-                // Every successful scan swaps reference roles, including a
-                // quiet scan, so the pre-recorded cutoff becomes authoritative.
-                ++$this->count;
+                if ($failureCode === null) {
+                    // Every successful scan swaps reference roles, including a
+                    // quiet scan, so the pre-recorded cutoff becomes authoritative.
+                    ++$this->count;
+                } else {
+                    $this->logger->warning(
+                        "One or more find commands exited with code {$failureCode} while scanning watched paths.",
+                    );
+                }
 
                 foreach ($changedFiles as $file) {
                     $channel->push($file);
@@ -97,24 +106,20 @@ class FindNewerDriver extends AbstractDriver
 
     /**
      * Find files newer than the reference file in the given targets.
+     *
+     * @return array{list<string>, int}
      */
     protected function find(array $targets): array
     {
         $changedFiles = [];
-
-        $commands = [];
         $referenceFile = $this->shellArguments([$this->getToScanFile()]);
+        $ret = $this->exec(sprintf(
+            'find %s -newer %s -type f -print',
+            $this->shellArguments($targets),
+            $referenceFile,
+        ));
 
-        foreach ($targets as $target) {
-            $commands[] = sprintf(
-                'find %s -newer %s -type f',
-                $this->shellArguments([$target]),
-                $referenceFile,
-            );
-        }
-
-        $ret = $this->exec(implode('&', $commands));
-        if ($ret['code'] === 0 && strlen($ret['output'])) {
+        if (strlen($ret['output'])) {
             $stdout = $ret['output'];
             $lineArr = explode(PHP_EOL, $stdout);
             foreach ($lineArr as $pathName) {
@@ -126,13 +131,15 @@ class FindNewerDriver extends AbstractDriver
             }
         }
 
-        return $changedFiles;
+        return [$changedFiles, $ret['code']];
     }
 
     /**
      * Scan watched directories and files for changes.
      *
      * The coroutine-aware find command may yield while stop state changes.
+     *
+     * @return array{list<string>, null|int}
      *
      * @phpstan-impure
      */
@@ -141,15 +148,18 @@ class FindNewerDriver extends AbstractDriver
         $changedFiles = [];
         $basePath = base_path();
         $directoryPaths = $this->option->getDirectoryPaths();
+        $failureCode = null;
 
-        // Scan all directories in a single parallelised find call.
-        $dirs = array_map(
-            fn (WatchPath $p) => base_path($p->path),
-            $directoryPaths,
-        );
+        // Scan all directories in a single find call.
+        $dirs = $this->existingTargets($this->resolveTargets($directoryPaths));
 
         if ($dirs !== []) {
-            $found = $this->find($dirs);
+            [$found, $directoryExitCode] = $this->find($dirs);
+
+            if ($directoryExitCode !== 0) {
+                $failureCode = $directoryExitCode;
+            }
+
             foreach ($found as $file) {
                 $relativePath = substr($file, strlen($basePath) + 1);
                 foreach ($directoryPaths as $watchPath) {
@@ -162,16 +172,19 @@ class FindNewerDriver extends AbstractDriver
         }
 
         // Check individual watched files.
-        $files = array_map(
-            fn (WatchPath $p) => base_path($p->path),
-            $this->option->getFilePaths(),
-        );
+        $files = $this->existingTargets($this->resolveTargets($this->option->getFilePaths()));
 
         if ($files !== []) {
-            $changedFiles = array_merge($changedFiles, $this->find($files));
+            [$changed, $fileExitCode] = $this->find($files);
+
+            if ($fileExitCode !== 0) {
+                $failureCode ??= $fileExitCode;
+            }
+
+            $changedFiles = array_merge($changedFiles, $changed);
         }
 
-        return $changedFiles;
+        return [$changedFiles, $failureCode];
     }
 
     /**

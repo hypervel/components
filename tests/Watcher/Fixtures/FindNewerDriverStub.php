@@ -11,7 +11,9 @@ class FindNewerDriverStub extends FindNewerDriver
 {
     public function watch(Channel $channel): void
     {
-        foreach ($this->scan() as $file) {
+        [$changedFiles] = $this->scan();
+
+        foreach ($changedFiles as $file) {
             $channel->push($file);
         }
 
@@ -21,6 +23,6 @@ class FindNewerDriverStub extends FindNewerDriver
 
     protected function scan(): array
     {
-        return ['.env'];
+        return [['.env'], null];
     }
 }
