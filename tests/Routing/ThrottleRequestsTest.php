@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Routing\ThrottleRequestsTest;
 
 use Hypervel\Auth\GenericUser;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\RateLimiter;
+use Hypervel\Cache\RateLimiting\GlobalLimit;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Cache\Repository;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Middleware\ThrottleRequests;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
 
 class ThrottleRequestsTest extends RoutingTestCase
 {
@@ -31,6 +38,105 @@ class ThrottleRequestsTest extends RoutingTestCase
             '123',
             (new ExposesThrottleRequestSignature)->resolveRequestSignatureForTest($request)
         );
+    }
+
+    public function testNamedLimiterUsesCentralizedScopedHash(): void
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $limiter->for('uploads', fn () => Limit::perMinute(10)->by('user-1'));
+        $limiter->resolveKeyScopeUsing(fn () => 'account-1');
+
+        (new ThrottleRequests($limiter))->handle(
+            Request::create('/upload'),
+            fn () => new Response('ok'),
+            'uploads',
+        );
+
+        $this->assertSame(
+            1,
+            $limiter->attempts(hash('xxh128', 'account-1:uploadsuser-1')),
+        );
+    }
+
+    public function testNamedLimiterUsesCentralizedRawScopedKeyWhenHashingIsDisabled(): void
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $limiter->for('uploads', fn () => Limit::perMinute(10)->by('user-1'));
+        $limiter->resolveKeyScopeUsing(fn () => 'account-1');
+        ThrottleRequests::shouldHashKeys(false);
+
+        (new ThrottleRequests($limiter))->handle(
+            Request::create('/upload'),
+            fn () => new Response('ok'),
+            'uploads',
+        );
+
+        $this->assertSame(1, $limiter->attempts('account-1:uploads:user-1'));
+    }
+
+    public function testGlobalNamedLimiterDoesNotResolveScope(): void
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $limiter->for('uploads', fn () => new GlobalLimit(10));
+        $limiter->resolveKeyScopeUsing(function (): never {
+            throw new RuntimeException('Scope resolver should not run.');
+        });
+
+        (new ThrottleRequests($limiter))->handle(
+            Request::create('/upload'),
+            fn () => new Response('ok'),
+            'uploads',
+        );
+
+        $this->assertSame(1, $limiter->attempts(hash('xxh128', 'uploads')));
+    }
+
+    public function testUnlimitedNamedLimiterBypassesStorage(): void
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $limiter->for('uploads', fn () => Limit::none());
+        $nextCalls = 0;
+
+        (new ThrottleRequests($limiter))->handle(
+            Request::create('/upload'),
+            function () use (&$nextCalls): Response {
+                ++$nextCalls;
+
+                return new Response('ok');
+            },
+            'uploads',
+        );
+
+        $this->assertSame(1, $nextCalls);
+        $this->assertSame(0, $limiter->attempts(hash('xxh128', 'uploads')));
+    }
+
+    public function testDefaultSignatureThrottleDoesNotResolveNamedLimiterScope(): void
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $scopeCalls = 0;
+        $limiter->resolveKeyScopeUsing(function () use (&$scopeCalls): string {
+            ++$scopeCalls;
+
+            return 'account-1';
+        });
+
+        $request = Request::create('/upload');
+        $request->setUserResolver(fn (): GenericUser => new GenericUser([
+            'id' => 123,
+            'password' => 'secret',
+            'remember_token' => null,
+        ]));
+
+        (new ThrottleRequests($limiter))->handle(
+            $request,
+            fn () => new Response('ok'),
+            10,
+            1,
+        );
+
+        $this->assertSame(0, $scopeCalls);
+        $this->assertSame(1, $limiter->attempts(hash('xxh128', '123')));
     }
 }
 

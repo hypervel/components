@@ -6,7 +6,9 @@ namespace Hypervel\Support\Facades;
 
 /**
  * @method static \Hypervel\Cache\RateLimiter for(\UnitEnum|string $name, \Closure $callback)
+ * @method static void resolveKeyScopeUsing(\Closure|null $resolver)
  * @method static \Closure|null limiter(\UnitEnum|string $name)
+ * @method static string resolveNamedLimiterKey(string $limiterName, \Hypervel\Cache\RateLimiting\Limit $limit, bool $shouldHashKeys = true)
  * @method static mixed attempt(string $key, int $maxAttempts, \Closure $callback, \DateInterval|\DateTimeInterface|int $decaySeconds = 60)
  * @method static bool tooManyAttempts(string $key, int $maxAttempts)
  * @method static int hit(string $key, \DateInterval|\DateTimeInterface|int $decaySeconds = 60)

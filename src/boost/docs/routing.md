@@ -24,6 +24,7 @@
 - [Fallback Routes](#fallback-routes)
 - [Rate Limiting](#rate-limiting)
     - [Defining Rate Limiters](#defining-rate-limiters)
+        - [Scoping Named Rate Limits](#scoping-named-rate-limits)
     - [Attaching Rate Limiters to Routes](#attaching-rate-limiters-to-routes)
 - [Form Method Spoofing](#form-method-spoofing)
 - [Accessing the Current Route](#accessing-the-current-route)
@@ -913,6 +914,32 @@ RateLimiter::for('uploads', function (Request $request) {
     return $request->user()
         ? Limit::perMinute(100)->by($request->user()->id)
         : Limit::perMinute(10)->by($request->ip());
+});
+```
+
+<a name="scoping-named-rate-limits"></a>
+#### Scoping Named Rate Limits
+
+If every named rate limit should also be separated by an account, workspace, or another value from the current context, you may register a key scope resolver:
+
+```php
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\RateLimiter;
+
+RateLimiter::resolveKeyScopeUsing(function (string $limiter): ?string {
+    return Context::get('account_id');
+});
+```
+
+Register the resolver only during application boot. It receives the named limiter and runs when Hypervel builds a key for route or queue rate limiting. Returning `null` keeps the normal key.
+
+The resolver applies only to named rate limiters. If a named limit should remain shared across every scope, return a `GlobalLimit`:
+
+```php
+use Hypervel\Cache\RateLimiting\GlobalLimit;
+
+RateLimiter::for('shared-api', function () {
+    return new GlobalLimit(maxAttempts: 1000, decaySeconds: 60);
 });
 ```
 
