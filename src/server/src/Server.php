@@ -92,7 +92,6 @@ class Server implements ServerInterface
                 // Trigger BeforeMainServerStart event, this event only triggers once before main server start.
                 $this->eventDispatcher->dispatch(new BeforeMainServerStart($this->server, $config->toArray()));
             } else {
-                /** @var bool|SwoolePort $slaveServer */
                 $slaveServer = $this->server->addlistener($host, $port, $sockType);
                 if ($slaveServer === false) {
                     throw new ServerException("Failed to listen on server port [{$host}:{$port}].");
