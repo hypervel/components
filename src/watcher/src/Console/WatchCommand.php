@@ -39,7 +39,7 @@ class WatchCommand extends Command
             );
         }
 
-        $config = $this->container->make('config')->array('watcher', []);
+        $config = $this->container->make('config')->array('watcher');
 
         $option = Option::fromConfig(
             config: $config,
