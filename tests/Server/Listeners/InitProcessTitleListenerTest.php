@@ -16,65 +16,80 @@ use Mockery as m;
 
 class InitProcessTitleListenerTest extends TestCase
 {
-    public function testProcessDefaultName()
+    public function testProcessDefaultName(): void
     {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with(m::any())->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-
-        $listener = new InitProcessTitleListenerStub($container);
-        $process = new DemoProcess($container);
+        $listener = new InitProcessTitleListenerStub(new ConfigRepository([
+            'app' => ['name' => ''],
+        ]));
+        $process = $this->process();
 
         $listener->handle(new BeforeProcessHandle($process, 1));
 
         if (! $listener->isSupportedOS()) {
-            $this->assertSame(null, CoroutineContext::get('test.server.process.title'));
+            $this->assertNull(CoroutineContext::get('test.server.process.title'));
         } else {
             $this->assertSame('test.demo.1', CoroutineContext::get('test.server.process.title'));
         }
     }
 
-    public function testProcessName()
+    public function testProcessName(): void
     {
-        $name = 'hyperf-skeleton.' . uniqid();
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with('config')->andReturn(true);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-        $container->shouldReceive('make')->with('config')->andReturn(new ConfigRepository([
+        $name = 'hypervel-skeleton.' . uniqid();
+        $listener = new InitProcessTitleListenerStub(new ConfigRepository([
             'app' => ['name' => $name],
         ]));
-
-        $listener = new InitProcessTitleListenerStub($container);
-        $process = new DemoProcess($container);
+        $process = $this->process();
 
         $listener->handle(new BeforeProcessHandle($process, 0));
 
         if (! $listener->isSupportedOS()) {
-            $this->assertSame(null, CoroutineContext::get('test.server.process.title'));
+            $this->assertNull(CoroutineContext::get('test.server.process.title'));
         } else {
             $this->assertSame($name . '.test.demo.0', CoroutineContext::get('test.server.process.title'));
         }
     }
 
-    public function testUserDefinedDot()
+    public function testUserDefinedDot(): void
     {
-        $name = 'hyperf-skeleton.' . uniqid();
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('has')->with('config')->andReturn(true);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-        $container->shouldReceive('make')->with('config')->andReturn(new ConfigRepository([
+        $name = 'hypervel-skeleton.' . uniqid();
+        $listener = new InitProcessTitleListenerStub2(new ConfigRepository([
             'app' => ['name' => $name],
         ]));
-
-        $listener = new InitProcessTitleListenerStub2($container);
-        $process = new DemoProcess($container);
+        $process = $this->process();
 
         $listener->handle(new BeforeProcessHandle($process, 0));
 
         if (! $listener->isSupportedOS()) {
-            $this->assertSame(null, CoroutineContext::get('test.server.process.title'));
+            $this->assertNull(CoroutineContext::get('test.server.process.title'));
         } else {
             $this->assertSame($name . '#test.demo#0', CoroutineContext::get('test.server.process.title'));
         }
+    }
+
+    public function testProcessNameUsesTheReloadedConfigRepository(): void
+    {
+        $config = new ConfigRepository([
+            'app' => ['name' => 'BeforeReload'],
+        ]);
+        $listener = new InitProcessTitleListenerStub($config);
+        $process = $this->process();
+
+        $listener->handle(new BeforeProcessHandle($process, 0));
+        $config->set('app.name', 'AfterReload');
+        $listener->handle(new BeforeProcessHandle($process, 0));
+
+        if (! $listener->isSupportedOS()) {
+            $this->assertNull(CoroutineContext::get('test.server.process.title'));
+        } else {
+            $this->assertSame('AfterReload.test.demo.0', CoroutineContext::get('test.server.process.title'));
+        }
+    }
+
+    private function process(): DemoProcess
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+
+        return new DemoProcess($container);
     }
 }

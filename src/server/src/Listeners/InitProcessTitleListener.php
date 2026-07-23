@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Listeners;
 
-use Hypervel\Config\Repository;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnManagerStart;
 use Hypervel\Core\Events\OnStart;
@@ -13,20 +12,10 @@ use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 
 class InitProcessTitleListener
 {
-    protected string $name = '';
-
     protected string $dot = '.';
 
-    public function __construct(Container $container)
+    public function __construct(protected Repository $config)
     {
-        if ($container->has('config')) {
-            /** @var Repository $config */
-            $config = $container->make('config');
-
-            if ($name = $config->string('app.name', '')) {
-                $this->name = $name;
-            }
-        }
     }
 
     /**
@@ -35,8 +24,10 @@ class InitProcessTitleListener
     public function handle(AfterWorkerStart|OnStart|OnManagerStart|BeforeProcessHandle $event): void
     {
         $array = [];
-        if ($this->name !== '') {
-            $array[] = $this->name;
+        $name = $this->config->string('app.name');
+
+        if ($name !== '') {
+            $array[] = $name;
         }
 
         if ($event instanceof OnStart) {
