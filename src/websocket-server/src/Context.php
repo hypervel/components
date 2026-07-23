@@ -42,7 +42,8 @@ class Context
     {
         $fd ??= CoroutineContext::get(Context::FD, 0);
         $key = sprintf('%d.%s', $fd, $id);
-        return data_get(self::$storage, $key) !== null;
+
+        return Arr::has(self::$storage, $key);
     }
 
     /**
@@ -51,7 +52,9 @@ class Context
     public static function forget(string $id): void
     {
         $fd = CoroutineContext::get(Context::FD, 0);
-        unset(self::$storage[strval($fd)][$id]);
+        $key = sprintf('%d.%s', $fd, $id);
+
+        Arr::forget(self::$storage, $key);
     }
 
     /**
@@ -79,10 +82,21 @@ class Context
 
         $fd = CoroutineContext::get(Context::FD, 0);
         $from = self::$storage[$fromFd];
-        $map = $keys ? Arr::only($from, $keys) : $from;
 
-        foreach ($map as $key => $value) {
-            self::$storage[$fd][$key] = $value;
+        if ($keys === []) {
+            foreach ($from as $key => $value) {
+                self::$storage[$fd][$key] = $value;
+            }
+
+            return;
+        }
+
+        self::$storage[$fd] ??= [];
+
+        foreach ($keys as $key) {
+            if (Arr::has($from, $key)) {
+                data_set(self::$storage[$fd], $key, data_get($from, $key));
+            }
         }
     }
 
