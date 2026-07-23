@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `server`
-- **Ledger entries required for the active work:** `Harden Core lifecycle callbacks and stdout logging` (`core-06`).
-- **Pending revalidation carried into the active work:** Revalidate `core-06` during the full Server audit.
+- **Active package or work unit:** `http-server`
+- **Ledger entries required for the active work:** `Harden filesystem I/O, streaming, and response teardown` (`http-02`, `filesystem-07`, `foundation-04`).
+- **Pending revalidation carried into the active work:** Revalidate `http-02`, `filesystem-07`, and `foundation-04` during the full HTTP Server audit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1064,7 +1064,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `bus-18` | `foundation`, `queue` | `foundation` (revalidation complete); later full `queue` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-18` |
 | `core-01` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-01` |
 | `core-05` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-05` |
-| `core-06` | `core`, `server` | later full `server` audit | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
+| `core-06` | `core`, `server` | `server` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
 | `foundation-06` | `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `foundation-06` |
 | `console-02` | `console` | `foundation` and `console` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `console-02` |
 | `queue-14` | `foundation`, `queue` | `foundation` (revalidation complete); later full `queue` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
@@ -1134,7 +1134,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `core`
 - [x] `foundation`
 - [x] `console`
-- [ ] `server`
+- [x] `server`
 - [ ] `http-server`
 - [ ] `websocket-server`
 - [ ] `watcher`
