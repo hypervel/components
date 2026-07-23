@@ -209,7 +209,7 @@ class ResponseBridge
             try {
                 $path = $response->getFile()->getPathname();
 
-                if (! @unlink($path) && is_file($path)) {
+                if (! static::deleteBinaryFile($path) && is_file($path)) {
                     throw new RuntimeException('Unable to delete the binary response file.');
                 }
             } catch (Throwable $throwable) {
@@ -708,6 +708,14 @@ class ResponseBridge
 
             ob_end_clean();
         }
+    }
+
+    /**
+     * Delete a binary response file.
+     */
+    protected static function deleteBinaryFile(string $path): bool
+    {
+        return @unlink($path);
     }
 
     /**

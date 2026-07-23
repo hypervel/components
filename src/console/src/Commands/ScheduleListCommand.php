@@ -74,7 +74,7 @@ class ScheduleListCommand extends Command
             return;
         }
 
-        $timezone = new DateTimeZone($this->option('timezone') ?? config('app.timezone'));
+        $timezone = new DateTimeZone($this->option('timezone') ?? config()->string('app.timezone'));
 
         $events = $this->sortEvents($events, $timezone);
 
@@ -299,7 +299,7 @@ class ScheduleListCommand extends Command
             return $event->timezone->getName();
         }
 
-        return $event->timezone ?? config('app.timezone');
+        return $event->timezone ?? config()->string('app.timezone');
     }
 
     /**

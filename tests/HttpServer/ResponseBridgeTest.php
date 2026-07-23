@@ -404,29 +404,23 @@ class ResponseBridgeTest extends TestCase
 
     public function testDeleteAfterSendPropagatesDeletionFailureAfterSuccessfulEmission(): void
     {
-        $directory = $this->tempDirectory . '/read-only';
-        mkdir($directory);
-        $path = $directory . '/response.txt';
-        file_put_contents($path, 'file contents');
+        $path = $this->temporaryFile();
         $response = new BinaryFileResponse($path);
         $response->deleteFileAfterSend();
         $response->prepare(Request::create('/'));
         $swooleResponse = $this->mockSwooleResponse();
-
-        chmod($directory, 0555);
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
+        $exception = null;
 
         try {
-            try {
-                ResponseBridge::send($response, $swooleResponse);
-                $this->fail('Expected the deletion failure to propagate.');
-            } catch (RuntimeException $exception) {
-                $this->assertSame('Unable to delete the binary response file.', $exception->getMessage());
-            }
-
-            $this->assertFileExists($path);
-        } finally {
-            chmod($directory, 0777);
+            ResponseBridgeWithFailingDeletion::send($response, $swooleResponse);
+        } catch (RuntimeException $throwable) {
+            $exception = $throwable;
         }
+
+        $this->assertInstanceOf(RuntimeException::class, $exception);
+        $this->assertSame('Unable to delete the binary response file.', $exception->getMessage());
+        $this->assertFileExists($path);
     }
 
     public function testHeadDeleteAfterSendSuppressesTheBodyAndStillDeletes(): void
@@ -1369,6 +1363,17 @@ class ResponseBridgeTest extends TestCase
         ResponseBridge::send($response, $swooleResponse);
 
         return [$writes, $endContent, $announcement, $trailers];
+    }
+}
+
+class ResponseBridgeWithFailingDeletion extends ResponseBridge
+{
+    /**
+     * Simulate a binary response file deletion failure.
+     */
+    protected static function deleteBinaryFile(string $path): bool
+    {
+        return false;
     }
 }
 
