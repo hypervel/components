@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Exception;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\MultipleItemsFoundException;
@@ -1310,7 +1310,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
     {
         tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertDoesNotEnumerateCollection($mock, function ($mock) {
-                $timeout = Carbon::now();
+                $timeout = CarbonImmutable::now();
 
                 $results = $mock
                     ->tap(function ($collection) use ($mock, $timeout) {
@@ -1330,7 +1330,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 
         tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertEnumeratesCollection($mock, 1, function ($mock) {
-                $timeout = Carbon::now();
+                $timeout = CarbonImmutable::now();
 
                 $results = $mock
                     ->tap(function ($collection) use ($mock, $timeout) {
@@ -1340,7 +1340,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                             ->shouldReceive('now')
                             ->times(2)
                             ->andReturn(
-                                (clone $timeout)->sub(1, 'minute')->getTimestamp(),
+                                $timeout->sub(1, 'minute')->getTimestamp(),
                                 $timeout->getTimestamp()
                             );
                     })
@@ -1351,7 +1351,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 
         tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertEnumeratesCollectionOnce($mock, function ($mock) {
-                $timeout = Carbon::now();
+                $timeout = CarbonImmutable::now();
 
                 $results = $mock
                     ->tap(function ($collection) use ($mock, $timeout) {
@@ -1361,7 +1361,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                             ->shouldReceive('now')
                             ->times(100)
                             ->andReturn(
-                                (clone $timeout)->sub(1, 'minute')->getTimestamp()
+                                $timeout->sub(1, 'minute')->getTimestamp()
                             );
                     })
                     ->takeUntilTimeout($timeout)

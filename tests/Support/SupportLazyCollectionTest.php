@@ -8,7 +8,7 @@ use ArrayIterator;
 use Carbon\CarbonInterval as Duration;
 use Generator;
 use Hypervel\Foundation\Testing\Wormhole;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Sleep;
@@ -226,7 +226,7 @@ class SupportLazyCollectionTest extends TestCase
 
     public function testTakeUntilTimeout(): void
     {
-        $timeout = Carbon::now();
+        $timeout = CarbonImmutable::now();
 
         $mock = m::mock(LazyCollection::class . '[now]');
 
@@ -241,8 +241,8 @@ class SupportLazyCollectionTest extends TestCase
                     ->shouldReceive('now')
                     ->times(3)
                     ->andReturn(
-                        (clone $timeout)->sub(2, 'minute')->getTimestamp(),
-                        (clone $timeout)->sub(1, 'minute')->getTimestamp(),
+                        $timeout->sub(2, 'minute')->getTimestamp(),
+                        $timeout->sub(1, 'minute')->getTimestamp(),
                         $timeout->getTimestamp()
                     );
             })
@@ -299,7 +299,7 @@ class SupportLazyCollectionTest extends TestCase
     public function testThrottleAccountsForTimePassed(): void
     {
         Sleep::fake();
-        Carbon::setTestNow(now());
+        CarbonImmutable::setTestNow(now());
 
         $data = LazyCollection::times(3)
             ->throttle(3)
@@ -326,7 +326,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([1, 2, 3], $data);
 
         Sleep::fake(false);
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testUniqueDoubleEnumeration(): void
@@ -491,31 +491,31 @@ class SupportLazyCollectionTest extends TestCase
 
     public function testWithHeartbeat(): void
     {
-        $start = Carbon::create(2000, 1, 1);
-        $after2Minutes = $start->copy()->addMinutes(2);
-        $after5Minutes = $start->copy()->addMinutes(5);
-        $after7Minutes = $start->copy()->addMinutes(7);
-        $after11Minutes = $start->copy()->addMinutes(11);
+        $start = CarbonImmutable::create(2000, 1, 1);
+        $after2Minutes = $start->addMinutes(2);
+        $after5Minutes = $start->addMinutes(5);
+        $after7Minutes = $start->addMinutes(7);
+        $after11Minutes = $start->addMinutes(11);
 
-        Carbon::setTestNow($start);
+        CarbonImmutable::setTestNow($start);
 
         $output = new Collection;
 
         $numbers = LazyCollection::range(1, 10)
 
             // Move the clock to possibly trigger the heartbeat...
-            ->tapEach(fn ($number) => Carbon::setTestNow(
+            ->tapEach(fn ($number) => CarbonImmutable::setTestNow(
                 match ($number) {
                     3 => $after2Minutes,
                     4 => $after5Minutes,
                     6 => $after7Minutes,
                     9 => $after11Minutes,
-                    default => Carbon::now(),
+                    default => CarbonImmutable::now(),
                 }
             ))
 
             // Push the current date to `output` when heartbeat is triggered...
-            ->withHeartbeat(Duration::minutes(5), fn () => $output[] = Carbon::now())
+            ->withHeartbeat(Duration::minutes(5), fn () => $output[] = CarbonImmutable::now())
 
             // Push every number onto `output` as it's enumerated...
             ->tapEach(fn ($number) => $output[] = $number)->all();
@@ -533,7 +533,7 @@ class SupportLazyCollectionTest extends TestCase
             $output->all(),
         );
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testRandomPreservesKeys(): void
