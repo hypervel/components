@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use Closure;
+use Hypervel\ObjectPool\PoolErrorReporter;
 use Override;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 use Traversable;
 
 /**
@@ -63,11 +65,17 @@ class IterableStreamedResponse extends StreamedResponse
             return parent::sendContent();
         }
 
+        $primaryException = null;
+
         try {
-            return parent::sendContent();
-        } finally {
-            $this->clearChunks();
+            parent::sendContent();
+        } catch (Throwable $throwable) {
+            $primaryException = $throwable;
         }
+
+        $this->clearChunks($primaryException);
+
+        return $this;
     }
 
     /**
@@ -83,27 +91,43 @@ class IterableStreamedResponse extends StreamedResponse
             return false;
         }
 
+        $primaryException = null;
+
         try {
             foreach ($this->chunks as $chunk) {
                 if (! $write($chunk)) {
                     break;
                 }
             }
-        } finally {
-            $this->clearChunks();
+        } catch (Throwable $throwable) {
+            $primaryException = $throwable;
         }
+
+        $this->clearChunks($primaryException);
 
         return true;
     }
 
     /**
-     * Release retained chunks and prevent callback replay.
+     * Release retained chunks while preserving an earlier failure.
      */
-    private function clearChunks(): void
+    private function clearChunks(?Throwable $primaryException = null): void
     {
-        $this->chunks = null;
+        try {
+            $this->chunks = null;
 
-        parent::setCallback(static function (): void {
-        });
+            parent::setCallback(static function (): void {
+            });
+        } catch (Throwable $throwable) {
+            if ($primaryException === null) {
+                throw $throwable;
+            }
+
+            PoolErrorReporter::report($throwable);
+        }
+
+        if ($primaryException !== null) {
+            throw $primaryException;
+        }
     }
 }
