@@ -66,6 +66,7 @@ return [
         Constant::OPTION_TASK_WORKER_NUM => 0,
         Constant::OPTION_WORKER_NUM => env('SERVER_WORKERS', swoole_cpu_num()),
         Constant::OPTION_PID_FILE => storage_path('framework/hypervel.pid'),
+        Constant::OPTION_DAEMONIZE => false,
         Constant::OPTION_OPEN_TCP_NODELAY => true,
         Constant::OPTION_MAX_COROUTINE => 100000,
         Constant::OPTION_OPEN_HTTP2_PROTOCOL => (bool) env('SERVER_HTTP2', true),

@@ -48,6 +48,7 @@ class FoundationConfigTest extends TestCase
 
         $this->assertFalse($config['settings'][Constant::OPTION_TASK_ENABLE_COROUTINE]);
         $this->assertSame(0, $config['settings'][Constant::OPTION_TASK_WORKER_NUM]);
+        $this->assertFalse($config['settings'][Constant::OPTION_DAEMONIZE]);
     }
 
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void
