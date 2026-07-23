@@ -990,8 +990,8 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `watcher`
-- **Ledger entries required for the active work:** None.
+- **Active package or work unit:** `database`
+- **Ledger entries required for the active work:** `Release cleared coordinator timers deterministically`; `Bound pool resources and connection progress deterministically`; `Normalize framework enum identifiers at string boundaries`; `Complete Foundation runtime lifecycles and safe publication`; `Complete Console command, scheduling, and generator lifecycles`.
 - **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
@@ -1078,6 +1078,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `database-03` | `database` | `foundation` (revalidation complete); later full `database` and `testbench` audits | `Complete Foundation runtime lifecycles and safe publication`; finding `database-03` |
 | `database-04` | `database` | `console` (revalidation complete); later full `database` audit | `Complete Console command, scheduling, and generator lifecycles`; finding `database-04` |
 | `reverb-04` | `reverb` | later full `reverb` audit | `Complete Console command, scheduling, and generator lifecycles`; finding `reverb-04` |
+| `watcher-10` | `support` | `watcher`, `foundation`, and `horizon` (revalidation complete) | `Make Watcher drivers and managed processes lifecycle-safe`; finding `watcher-10` |
 
 ## Package checklist
 
@@ -1142,7 +1143,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `server`
 - [x] `http-server`
 - [x] `websocket-server`
-- [ ] `watcher`
+- [x] `watcher`
 
 ### Persistence, transport, and background execution
 
