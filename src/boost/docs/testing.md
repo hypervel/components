@@ -313,6 +313,8 @@ These traits are required for external-service tests to work correctly under Par
 
 The traits handle service-specific setup and cleanup. If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
 
+The search traits create a worker-specific prefix from `TEST_TOKEN`. Prefix test indexes and collections with `$this->meilisearchTestPrefix`, `$this->typesenseTestPrefix`, or `$this->algoliaTestPrefix`. Cleanup only removes resources that start with the matching prefix.
+
 <a name="parallel-testing-and-redis"></a>
 #### Parallel Testing and Redis
 

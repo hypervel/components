@@ -12,25 +12,10 @@ use GuzzleHttp\Client as GuzzleClient;
 use Throwable;
 
 /**
- * Provides Algolia integration testing support.
+ * Add Algolia support to an integration test.
  *
- * Auto-called by TestCase via setUpTraits():
- * - setUpInteractsWithAlgolia() runs after app boots
- * - tearDownInteractsWithAlgolia() runs via beforeApplicationDestroyed()
- *
- * Features:
- * - Opt-in skip: Skips unless ALGOLIA_APP_ID and ALGOLIA_SECRET are set
- * - Explicit-fail: If credentials are set but the probe fails, exceptions
- *   propagate so misconfigured credentials are never hidden
- * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
- * - Auto-cleanup: Removes test indexes in teardown
- *
- * Usage: Add `use InteractsWithAlgolia;` to your test case.
- *
- * Environment Variables:
- * - ALGOLIA_APP_ID: Application ID (required)
- * - ALGOLIA_SECRET: Admin API key (required)
- * - TEST_TOKEN: Parallel test token from paratest (auto-set)
+ * Use this trait on a test case and set ALGOLIA_APP_ID and ALGOLIA_SECRET.
+ * Test indexes are isolated and cleaned up using a TEST_TOKEN-based prefix.
  */
 trait InteractsWithAlgolia
 {

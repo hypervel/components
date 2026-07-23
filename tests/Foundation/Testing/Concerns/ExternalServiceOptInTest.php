@@ -25,13 +25,14 @@ class ExternalServiceOptInTest extends TestCase
      *
      * @var list<string>
      */
-    private const HOST_ENVIRONMENT_KEYS = [
+    private const ENVIRONMENT_KEYS = [
         'REDIS_HOST',
         'MEILISEARCH_HOST',
         'TYPESENSE_HOST',
         'ALGOLIA_APP_ID',
         'ALGOLIA_SECRET',
         'TEST_SERVER_HOST',
+        'TEST_TOKEN',
     ];
 
     /**
@@ -57,7 +58,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testRedisSkipsBeforeFlushingWhenHostIsNotConfigured(): void
     {
-        $this->setHostEnvironmentValue('REDIS_HOST', null);
+        $this->setExternalServiceEnvironmentValue('REDIS_HOST', null);
 
         $harness = new RedisOptInHarness;
 
@@ -73,7 +74,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testRedisRunsWhenHostIsConfigured(): void
     {
-        $this->setHostEnvironmentValue('REDIS_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('REDIS_HOST', '127.0.0.1');
 
         $harness = new RedisOptInHarness;
 
@@ -84,7 +85,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testMeilisearchSkipsBeforeInitializingClientWhenHostIsNotConfigured(): void
     {
-        $this->setHostEnvironmentValue('MEILISEARCH_HOST', null);
+        $this->setExternalServiceEnvironmentValue('MEILISEARCH_HOST', null);
 
         $harness = new MeilisearchOptInHarness;
 
@@ -95,12 +96,65 @@ class ExternalServiceOptInTest extends TestCase
             $harness->runSetUp();
         } finally {
             $this->assertSame(0, $harness->initializeClientCalls);
+            $this->assertSame('', $harness->prefix());
+        }
+    }
+
+    public function testMeilisearchAssignsSequentialPrefixBeforeInitializingClient(): void
+    {
+        $this->setExternalServiceEnvironmentValue('MEILISEARCH_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('TEST_TOKEN', null);
+
+        $harness = new MeilisearchOptInHarness;
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Meilisearch client initialization stopped.');
+
+        try {
+            $harness->runSetUp();
+        } finally {
+            $this->assertSame('test_', $harness->prefixAtClientInitialization);
+        }
+    }
+
+    public function testMeilisearchAssignsParallelPrefixBeforeInitializingClient(): void
+    {
+        $this->setExternalServiceEnvironmentValue('MEILISEARCH_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('TEST_TOKEN', '4');
+
+        $harness = new MeilisearchOptInHarness;
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Meilisearch client initialization stopped.');
+
+        try {
+            $harness->runSetUp();
+        } finally {
+            $this->assertSame('test_4_', $harness->prefixAtClientInitialization);
+        }
+    }
+
+    public function testMeilisearchPreservesExplicitPrefixBeforeInitializingClient(): void
+    {
+        $this->setExternalServiceEnvironmentValue('MEILISEARCH_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('TEST_TOKEN', '4');
+
+        $harness = new MeilisearchOptInHarness;
+        $harness->usePrefix('custom_');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Meilisearch client initialization stopped.');
+
+        try {
+            $harness->runSetUp();
+        } finally {
+            $this->assertSame('custom_', $harness->prefixAtClientInitialization);
         }
     }
 
     public function testTypesenseSkipsBeforeInitializingClientWhenHostIsNotConfigured(): void
     {
-        $this->setHostEnvironmentValue('TYPESENSE_HOST', null);
+        $this->setExternalServiceEnvironmentValue('TYPESENSE_HOST', null);
 
         $harness = new TypesenseOptInHarness;
 
@@ -111,13 +165,66 @@ class ExternalServiceOptInTest extends TestCase
             $harness->runSetUp();
         } finally {
             $this->assertSame(0, $harness->initializeClientCalls);
+            $this->assertSame('', $harness->prefix());
+        }
+    }
+
+    public function testTypesenseAssignsSequentialPrefixBeforeInitializingClient(): void
+    {
+        $this->setExternalServiceEnvironmentValue('TYPESENSE_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('TEST_TOKEN', null);
+
+        $harness = new TypesenseOptInHarness;
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Typesense client initialization stopped.');
+
+        try {
+            $harness->runSetUp();
+        } finally {
+            $this->assertSame('test_', $harness->prefixAtClientInitialization);
+        }
+    }
+
+    public function testTypesenseAssignsParallelPrefixBeforeInitializingClient(): void
+    {
+        $this->setExternalServiceEnvironmentValue('TYPESENSE_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('TEST_TOKEN', '4');
+
+        $harness = new TypesenseOptInHarness;
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Typesense client initialization stopped.');
+
+        try {
+            $harness->runSetUp();
+        } finally {
+            $this->assertSame('test_4_', $harness->prefixAtClientInitialization);
+        }
+    }
+
+    public function testTypesensePreservesExplicitPrefixBeforeInitializingClient(): void
+    {
+        $this->setExternalServiceEnvironmentValue('TYPESENSE_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('TEST_TOKEN', '4');
+
+        $harness = new TypesenseOptInHarness;
+        $harness->usePrefix('custom_');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Typesense client initialization stopped.');
+
+        try {
+            $harness->runSetUp();
+        } finally {
+            $this->assertSame('custom_', $harness->prefixAtClientInitialization);
         }
     }
 
     public function testAlgoliaSkipsWhenCredentialsAreNotConfigured(): void
     {
-        $this->setHostEnvironmentValue('ALGOLIA_APP_ID', null);
-        $this->setHostEnvironmentValue('ALGOLIA_SECRET', null);
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_APP_ID', null);
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', null);
 
         $harness = new AlgoliaOptInHarness;
 
@@ -129,8 +236,8 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testAlgoliaAssignsADefaultPrefixAndRestoresTheExactHttpClient(): void
     {
-        $this->setHostEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
-        $this->setHostEnvironmentValue('ALGOLIA_SECRET', 'secret');
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', 'secret');
 
         $testToken = (string) env('TEST_TOKEN', '');
         $expectedPrefix = $testToken === '' ? 'test_' : "test_{$testToken}_";
@@ -163,8 +270,8 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testAlgoliaPreservesAnExplicitPrefix(): void
     {
-        $this->setHostEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
-        $this->setHostEnvironmentValue('ALGOLIA_SECRET', 'secret');
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', 'secret');
 
         $originalClient = Algolia::getHttpClient();
         $testClient = m::mock(HttpClientInterface::class);
@@ -188,8 +295,8 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testAlgoliaRestoresTheExactHttpClientWhenSetupFails(): void
     {
-        $this->setHostEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
-        $this->setHostEnvironmentValue('ALGOLIA_SECRET', 'secret');
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
+        $this->setExternalServiceEnvironmentValue('ALGOLIA_SECRET', 'secret');
 
         $originalClient = Algolia::getHttpClient();
         $previousClient = m::mock(HttpClientInterface::class);
@@ -220,7 +327,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testServerSkipsBeforeProbingSocketWhenHostIsNotConfigured(): void
     {
-        $this->setHostEnvironmentValue('TEST_SERVER_HOST', null);
+        $this->setExternalServiceEnvironmentValue('TEST_SERVER_HOST', null);
 
         $harness = new ServerOptInHarness;
 
@@ -236,7 +343,7 @@ class ExternalServiceOptInTest extends TestCase
 
     public function testServerFailsWhenConfiguredHostIsUnavailable(): void
     {
-        $this->setHostEnvironmentValue('TEST_SERVER_HOST', '127.0.0.1');
+        $this->setExternalServiceEnvironmentValue('TEST_SERVER_HOST', '127.0.0.1');
 
         $harness = new ServerOptInHarness;
         $harness->canConnect = false;
@@ -256,7 +363,7 @@ class ExternalServiceOptInTest extends TestCase
      */
     private function captureEnvironmentValues(): void
     {
-        foreach (self::HOST_ENVIRONMENT_KEYS as $key) {
+        foreach (self::ENVIRONMENT_KEYS as $key) {
             $this->originalEnvironmentValues[$key] = [
                 'process' => getenv($key),
                 'server_exists' => array_key_exists($key, $_SERVER),
@@ -270,7 +377,7 @@ class ExternalServiceOptInTest extends TestCase
     /**
      * Set an environment value.
      */
-    private function setHostEnvironmentValue(string $key, ?string $value): void
+    private function setExternalServiceEnvironmentValue(string $key, ?string $value): void
     {
         if ($value === null) {
             putenv($key);
@@ -356,6 +463,8 @@ class MeilisearchOptInHarness
 
     public int $initializeClientCalls = 0;
 
+    public ?string $prefixAtClientInitialization = null;
+
     /**
      * Run Meilisearch setup.
      */
@@ -370,6 +479,25 @@ class MeilisearchOptInHarness
     protected function initializeMeilisearchClient(): void
     {
         ++$this->initializeClientCalls;
+        $this->prefixAtClientInitialization = $this->meilisearchTestPrefix;
+
+        throw new RuntimeException('Meilisearch client initialization stopped.');
+    }
+
+    /**
+     * Use the given index prefix.
+     */
+    public function usePrefix(string $prefix): void
+    {
+        $this->meilisearchTestPrefix = $prefix;
+    }
+
+    /**
+     * Get the current index prefix.
+     */
+    public function prefix(): string
+    {
+        return $this->meilisearchTestPrefix;
     }
 
     /**
@@ -387,6 +515,8 @@ class TypesenseOptInHarness
 
     public int $initializeClientCalls = 0;
 
+    public ?string $prefixAtClientInitialization = null;
+
     /**
      * Run Typesense setup.
      */
@@ -401,6 +531,25 @@ class TypesenseOptInHarness
     protected function initializeTypesenseClient(): void
     {
         ++$this->initializeClientCalls;
+        $this->prefixAtClientInitialization = $this->typesenseTestPrefix;
+
+        throw new RuntimeException('Typesense client initialization stopped.');
+    }
+
+    /**
+     * Use the given collection prefix.
+     */
+    public function usePrefix(string $prefix): void
+    {
+        $this->typesenseTestPrefix = $prefix;
+    }
+
+    /**
+     * Get the current collection prefix.
+     */
+    public function prefix(): string
+    {
+        return $this->typesenseTestPrefix;
     }
 
     /**
