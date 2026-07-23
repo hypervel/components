@@ -4,16 +4,36 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpServer;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\HttpServer\RequestBridge;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Http\Request as SwooleRequest;
 
 class RequestBridgeTest extends TestCase
 {
-    public function testCreateFromSwooleWithGetRequest()
+    protected string $tempDirectory;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tempDirectory = ParallelTesting::tempDir('RequestBridgeTest');
+        mkdir($this->tempDirectory, 0777, true);
+    }
+
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->tempDirectory);
+
+        parent::tearDown();
+    }
+
+    public function testCreateFromSwooleWithGetRequest(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'get', 'request_uri' => '/users'],
@@ -30,7 +50,7 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('10', $request->query->get('per_page'));
     }
 
-    public function testCreateFromSwooleWithPostRequest()
+    public function testCreateFromSwooleWithPostRequest(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'post', 'request_uri' => '/users'],
@@ -45,7 +65,7 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('taylor@example.com', $request->request->get('email'));
     }
 
-    public function testCreateFromSwooleWithCookies()
+    public function testCreateFromSwooleWithCookies(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'get', 'request_uri' => '/'],
@@ -59,7 +79,7 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('dark', $request->cookies->get('theme'));
     }
 
-    public function testCreateFromSwooleWithRawJsonBody()
+    public function testCreateFromSwooleWithRawJsonBody(): void
     {
         $body = '{"name":"Taylor","role":"admin"}';
 
@@ -74,7 +94,7 @@ class RequestBridgeTest extends TestCase
         $this->assertSame($body, $request->getContent());
     }
 
-    public function testCreateFromSwooleWithEmptyRawContent()
+    public function testCreateFromSwooleWithEmptyRawContent(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'get', 'request_uri' => '/'],
@@ -88,7 +108,7 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('', $request->getContent());
     }
 
-    public function testServerParamsAreUppercased()
+    public function testServerParamsAreUppercased(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: [
@@ -107,7 +127,7 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('54321', $request->server->get('REMOTE_PORT'));
     }
 
-    public function testHeadersGetHttpPrefix()
+    public function testHeadersGetHttpPrefix(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'get', 'request_uri' => '/'],
@@ -127,7 +147,7 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('Bearer token123', $request->headers->get('authorization'));
     }
 
-    public function testContentTypeAndContentLengthGetSpecialTreatment()
+    public function testContentTypeAndContentLengthGetSpecialTreatment(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'post', 'request_uri' => '/'],
@@ -149,50 +169,45 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('application/json', $request->headers->get('content-type'));
     }
 
-    public function testTrailingSlashIsNormalized()
+    #[DataProvider('requestUriProvider')]
+    public function testRequestUriIsNormalized(array $server, string $expected): void
     {
         $swooleRequest = $this->createSwooleRequest(
-            server: ['request_method' => 'get', 'request_uri' => '/users/'],
+            server: ['request_method' => 'get', ...$server],
             header: ['host' => 'example.com'],
         );
 
         $request = RequestBridge::createFromSwoole($swooleRequest);
 
-        $this->assertSame('/users', $request->server->get('REQUEST_URI'));
-        $this->assertSame('/users', $request->getPathInfo());
+        $this->assertSame($expected, $request->server->get('REQUEST_URI'));
+        $this->assertSame($expected, $request->getRequestUri());
     }
 
-    public function testTrailingSlashNormalizationPreservesQueryString()
+    public static function requestUriProvider(): iterable
     {
-        $swooleRequest = $this->createSwooleRequest(
-            server: ['request_method' => 'get', 'request_uri' => '/users/?page=1&sort=name'],
-            header: ['host' => 'example.com'],
-            get: ['page' => '1', 'sort' => 'name'],
-        );
-
-        $request = RequestBridge::createFromSwoole($swooleRequest);
-
-        $this->assertSame('/users?page=1&sort=name', $request->server->get('REQUEST_URI'));
-        $this->assertSame('/users', $request->getPathInfo());
-        $this->assertSame('1', $request->query->get('page'));
-        $this->assertSame('name', $request->query->get('sort'));
+        yield 'split query and trailing slash' => [
+            ['request_uri' => '/users/', 'query_string' => 'page=1'],
+            '/users?page=1',
+        ];
+        yield 'split root query' => [
+            ['request_uri' => '/', 'query_string' => 'page=1'],
+            '/?page=1',
+        ];
+        yield 'already combined query' => [
+            ['request_uri' => '/users/?page=1', 'query_string' => 'page=1'],
+            '/users?page=1',
+        ];
+        yield 'all-slash path' => [
+            ['request_uri' => '//'],
+            '/',
+        ];
+        yield 'all-slash path with split query' => [
+            ['request_uri' => '///', 'query_string' => 'page=1'],
+            '/?page=1',
+        ];
     }
 
-    public function testRootPathIsNotNormalized()
-    {
-        $swooleRequest = $this->createSwooleRequest(
-            server: ['request_method' => 'get', 'request_uri' => '/'],
-            header: ['host' => 'example.com'],
-        );
-
-        $request = RequestBridge::createFromSwoole($swooleRequest);
-
-        // Root path "/" should NOT be stripped to ""
-        $this->assertSame('/', $request->server->get('REQUEST_URI'));
-        $this->assertSame('/', $request->getPathInfo());
-    }
-
-    public function testPathWithoutTrailingSlashIsUnchanged()
+    public function testPathWithoutTrailingSlashIsUnchanged(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: ['request_method' => 'get', 'request_uri' => '/api/users'],
@@ -204,9 +219,9 @@ class RequestBridgeTest extends TestCase
         $this->assertSame('/api/users', $request->getPathInfo());
     }
 
-    public function testSingleFileUpload()
+    public function testSingleFileUpload(): void
     {
-        $tmpFile = tempnam(sys_get_temp_dir(), 'upload_');
+        $tmpFile = $this->tempDirectory . '/avatar';
         file_put_contents($tmpFile, 'file contents');
 
         try {
@@ -236,9 +251,9 @@ class RequestBridgeTest extends TestCase
         }
     }
 
-    public function testFileUploadUsesFullPathWhenAvailable()
+    public function testFileUploadUsesFullPathWhenAvailable(): void
     {
-        $tmpFile = tempnam(sys_get_temp_dir(), 'upload_');
+        $tmpFile = $this->tempDirectory . '/document';
         file_put_contents($tmpFile, 'pdf contents');
 
         try {
@@ -270,10 +285,10 @@ class RequestBridgeTest extends TestCase
         }
     }
 
-    public function testMultiFileUpload()
+    public function testMultiFileUpload(): void
     {
-        $tmpFile1 = tempnam(sys_get_temp_dir(), 'upload_');
-        $tmpFile2 = tempnam(sys_get_temp_dir(), 'upload_');
+        $tmpFile1 = $this->tempDirectory . '/photo-1';
+        $tmpFile2 = $this->tempDirectory . '/photo-2';
         file_put_contents($tmpFile1, 'photo1');
         file_put_contents($tmpFile2, 'photo2');
 
@@ -307,7 +322,7 @@ class RequestBridgeTest extends TestCase
         }
     }
 
-    public function testCreateFromSwooleWithNullFields()
+    public function testCreateFromSwooleWithNullFields(): void
     {
         // Swoole may have null for optional fields
         $swooleRequest = $this->createSwooleRequest(
@@ -329,7 +344,7 @@ class RequestBridgeTest extends TestCase
         $this->assertEmpty($request->files->all());
     }
 
-    public function testSchemeAndHost()
+    public function testSchemeAndHost(): void
     {
         $swooleRequest = $this->createSwooleRequest(
             server: [
