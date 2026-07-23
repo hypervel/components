@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Http;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Routing\Middleware\ThrottleRequestsWithRedis;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Throwable;
@@ -15,11 +15,11 @@ class ThrottleRequestsWithRedisTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testLockOpensImmediatelyAfterDecay()
+    public function testLockOpensImmediatelyAfterDecay(): void
     {
-        $now = Carbon::now();
+        $now = CarbonImmutable::now();
 
-        Carbon::setTestNow($now);
+        CarbonImmutable::setTestNow($now);
 
         Route::get('/', function () {
             return 'yes';
@@ -35,7 +35,7 @@ class ThrottleRequestsWithRedisTest extends TestCase
         $this->assertEquals(2, $response->headers->get('X-RateLimit-Limit'));
         $this->assertEquals(0, $response->headers->get('X-RateLimit-Remaining'));
 
-        Carbon::setTestNow($finish = $now->addSeconds(58));
+        CarbonImmutable::setTestNow($finish = $now->addSeconds(58));
 
         try {
             $this->withoutExceptionHandling()->get('/');
