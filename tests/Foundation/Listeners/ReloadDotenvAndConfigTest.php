@@ -38,7 +38,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         parent::tearDown();
     }
 
-    public function testReloadsUsingApplicationEnvironmentFile()
+    public function testReloadsUsingApplicationEnvironmentFile(): void
     {
         $app = $this->createApp();
 
@@ -58,7 +58,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         $this->assertSame('testing_value', Env::get('TEST_KEY'));
     }
 
-    public function testSkipsReloadWhenEnvironmentFileDoesNotExist()
+    public function testMissingEnvironmentFileClearsPreviouslyLoadedValues(): void
     {
         $app = $this->createApp();
         $app->loadEnvironmentFrom('.env.nonexistent');
@@ -71,8 +71,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         $listener = $app->make(ReloadDotenvAndConfig::class);
         $listener->handle($event);
 
-        // Values should still be from the original .env since reload was skipped.
-        $this->assertSame('Hypervel', Env::get('APP_NAME'));
+        $this->assertNull(Env::get('APP_NAME'));
     }
 
     public function testReloadPreservesRepositoryIdentityAndMutationsMadeBeforeListenerResolution(): void
