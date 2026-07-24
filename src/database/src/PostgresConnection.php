@@ -81,7 +81,12 @@ class PostgresConnection extends Connection
      */
     protected function isUsingEmulatedPrepares(): bool
     {
-        return ($this->config['options'][PDO::ATTR_EMULATE_PREPARES] ?? false) === true;
+        $config = $this->latestReadWriteTypeUsed() === 'read'
+            && $this->readPdoConfig !== []
+                ? $this->readPdoConfig
+                : $this->config;
+
+        return (bool) ($config['options'][PDO::ATTR_EMULATE_PREPARES] ?? false);
     }
 
     /**
@@ -90,6 +95,26 @@ class PostgresConnection extends Connection
     protected function isUniqueConstraintError(Exception $exception): bool
     {
         return $exception->getCode() === '23505';
+    }
+
+    /**
+     * Extract the index and columns that caused a unique constraint violation.
+     *
+     * @return array{index: null|string, columns: list<string>}
+     */
+    protected function parseUniqueConstraintViolation(Exception $exception): array
+    {
+        [$index, $columns] = [null, []];
+
+        if (preg_match('#unique constraint "([^"]+)"#i', $message = $exception->getMessage(), $matches)) {
+            $index = $matches[1];
+        }
+
+        if (preg_match('#Key \(([^)]+)\)=#i', $message, $matches)) {
+            $columns = array_map(trim(...), explode(',', $matches[1]));
+        }
+
+        return ['columns' => $columns, 'index' => $index];
     }
 
     /**
