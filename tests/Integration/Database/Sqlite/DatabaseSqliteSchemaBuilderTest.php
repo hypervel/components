@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\SQLiteConnection;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testing\ParallelTesting;
+use PDO;
 
 class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
 {
@@ -91,5 +95,29 @@ SQL);
         $indexes = Schema::getIndexes('table');
 
         $this->assertSame([], collect($indexes)->firstWhere('name', 'table_raw_index')['columns']);
+    }
+
+    public function testDropAllTablesRefreshesTheCanonicalPathForAFileUri(): void
+    {
+        $directory = ParallelTesting::tempDir('DatabaseSqliteSchemaBuilderTest');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($directory);
+        $path = $directory . '/database.sqlite';
+        $files->put($path, '');
+        $uri = 'file:' . $path . '?mode=rwc';
+        $pdo = new PDO('sqlite:' . $uri);
+        $connection = new SQLiteConnection($pdo, $uri);
+
+        try {
+            $connection->statement('create table canonical_path_test (id integer primary key)');
+
+            $connection->getSchemaBuilder()->dropAllTables();
+
+            $this->assertSame([], $connection->getSchemaBuilder()->getTables());
+            $this->assertSame($pdo, $connection->getPdo());
+        } finally {
+            $connection->disconnect();
+            $files->deleteDirectory($directory);
+        }
     }
 }

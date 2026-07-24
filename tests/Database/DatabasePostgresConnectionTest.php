@@ -11,7 +11,7 @@ use PDO;
 
 class DatabasePostgresConnectionTest extends TestCase
 {
-    public function testPrepareBindingsConvertsBooleansToPostgresLiteralsWhenEmulatedPreparesAreEnabled()
+    public function testPrepareBindingsConvertsBooleansToPostgresLiteralsWhenEmulatedPreparesAreEnabled(): void
     {
         $connection = $this->newConnection(emulatePrepares: true);
 
@@ -28,7 +28,38 @@ class DatabasePostgresConnectionTest extends TestCase
         ], $bindings);
     }
 
-    public function testPrepareBindingsFallsBackToDefaultBooleanCastingWhenEmulatedPreparesAreDisabled()
+    public function testPrepareBindingsConvertsBooleansForTruthyEmulatedPreparesConfiguration(): void
+    {
+        $connection = $this->newConnection(emulatePrepares: 1);
+
+        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
+    }
+
+    public function testPrepareBindingsUsesActiveReadConnectionConfiguration(): void
+    {
+        $connection = $this->newConnection(emulatePrepares: false, readWriteType: 'read');
+        $connection->setReadPdoConfig([
+            'options' => [
+                PDO::ATTR_EMULATE_PREPARES => true,
+            ],
+        ]);
+
+        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
+    }
+
+    public function testPrepareBindingsUsesWriteConnectionConfiguration(): void
+    {
+        $connection = $this->newConnection(emulatePrepares: true, readWriteType: 'write');
+        $connection->setReadPdoConfig([
+            'options' => [
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ],
+        ]);
+
+        $this->assertSame(['true', 'false'], $connection->prepareBindings([true, false]));
+    }
+
+    public function testPrepareBindingsFallsBackToDefaultBooleanCastingWhenEmulatedPreparesAreDisabled(): void
     {
         $connection = $this->newConnection(emulatePrepares: false);
 
@@ -45,7 +76,7 @@ class DatabasePostgresConnectionTest extends TestCase
         ], $bindings);
     }
 
-    public function testEscapeUsesPostgresBooleanLiterals()
+    public function testEscapeUsesPostgresBooleanLiterals(): void
     {
         $connection = $this->newConnection(emulatePrepares: true);
 
@@ -53,7 +84,7 @@ class DatabasePostgresConnectionTest extends TestCase
         $this->assertSame('false', $connection->escape(false));
     }
 
-    protected function newConnection(bool $emulatePrepares): PostgresConnection
+    protected function newConnection(bool|int $emulatePrepares, ?string $readWriteType = null): PostgresConnection
     {
         return new PostgresConnection(
             new DatabasePostgresConnectionPdoStub,
@@ -62,6 +93,7 @@ class DatabasePostgresConnectionTest extends TestCase
             [
                 'name' => 'test',
                 'driver' => 'pgsql',
+                PostgresConnection::READ_WRITE_TYPE_CONFIG_KEY => $readWriteType,
                 'options' => [
                     PDO::ATTR_EMULATE_PREPARES => $emulatePrepares,
                 ],

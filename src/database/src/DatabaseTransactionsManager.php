@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Collection;
+use Throwable;
 
 /**
  * Manages database transaction callbacks in a coroutine-safe manner.
@@ -175,26 +176,45 @@ class DatabaseTransactionsManager
     {
         if ($newTransactionLevel === 0) {
             $this->removeAllTransactionsForConnection($connection);
-        } else {
-            $pending = $this->getPendingTransactionsInternal()->reject(
+
+            return;
+        }
+
+        $this->setPendingTransactions(
+            $this->getPendingTransactionsInternal()->reject(
                 fn ($transaction) => $transaction->connection === $connection
                                      && $transaction->level > $newTransactionLevel
-            )->values();
-            $this->setPendingTransactions($pending);
+            )->values()
+        );
 
-            $currentForConnection = $this->getCurrentTransactionForConnection($connection);
-            if ($currentForConnection !== null) {
-                do {
-                    $this->removeCommittedTransactionsThatAreChildrenOf($currentForConnection);
-                    $currentForConnection->executeCallbacksForRollback();
-                    $currentForConnection = $currentForConnection->parent;
-                    $this->setCurrentTransactionForConnection($connection, $currentForConnection);
-                } while (
-                    $currentForConnection !== null
-                    && $currentForConnection->level > $newTransactionLevel
-                );
-            }
+        $transactions = new Collection;
+        $currentForConnection = $this->getCurrentTransactionForConnection($connection);
+
+        while ($currentForConnection !== null
+            && $currentForConnection->level > $newTransactionLevel) {
+            $transactions->push($currentForConnection);
+            $transactions = $transactions->concat(
+                $this->removeCommittedTransactionsThatAreChildrenOf($currentForConnection)
+            );
+            $currentForConnection = $currentForConnection->parent;
         }
+
+        $this->setCurrentTransactionForConnection($connection, $currentForConnection);
+
+        [$stagedTransactions, $remainingCommitted] = $this->getCommittedTransactionsInternal()->partition(
+            fn (DatabaseTransactionRecord $committed): bool => $transactions->contains(
+                fn (DatabaseTransactionRecord $transaction): bool => $transaction === $committed
+            )
+        );
+        $this->setCommittedTransactions($remainingCommitted->values());
+
+        $this->executeRollbackCallbacks(
+            $transactions
+                ->concat($stagedTransactions)
+                ->uniqueStrict()
+                ->sortByDesc(static fn (DatabaseTransactionRecord $transaction): int => $transaction->level)
+                ->values()
+        );
     }
 
     /**
@@ -202,12 +222,26 @@ class DatabaseTransactionsManager
      */
     protected function removeAllTransactionsForConnection(string $connection): void
     {
+        [$committedForConnection, $committedForOtherConnections] = $this
+            ->getCommittedTransactionsInternal()
+            ->partition(
+                fn (DatabaseTransactionRecord $transaction): bool => $transaction->connection === $connection
+            );
+
+        $currentTransactions = new Collection;
         $currentForConnection = $this->getCurrentTransactionForConnection($connection);
 
         for ($current = $currentForConnection; $current !== null; $current = $current->parent) {
-            $current->executeCallbacksForRollback();
+            $currentTransactions->push($current);
         }
 
+        $transactions = $committedForConnection
+            ->concat($currentTransactions)
+            ->uniqueStrict()
+            ->sortByDesc(static fn (DatabaseTransactionRecord $transaction): int => $transaction->level)
+            ->values();
+
+        // User callbacks must observe the transaction records as already detached.
         $this->setCurrentTransactionForConnection($connection, null);
 
         $this->setPendingTransactions(
@@ -216,18 +250,19 @@ class DatabaseTransactionsManager
             )->values()
         );
 
-        $this->setCommittedTransactions(
-            $this->getCommittedTransactionsInternal()->reject(
-                fn ($transaction) => $transaction->connection === $connection
-            )->values()
-        );
+        $this->setCommittedTransactions($committedForOtherConnections->values());
+
+        $this->executeRollbackCallbacks($transactions);
     }
 
     /**
-     * Remove all transactions that are children of the given transaction.
+     * Remove and return all committed descendants of the given transaction.
+     *
+     * @return Collection<int, DatabaseTransactionRecord>
      */
-    protected function removeCommittedTransactionsThatAreChildrenOf(DatabaseTransactionRecord $transaction): void
-    {
+    protected function removeCommittedTransactionsThatAreChildrenOf(
+        DatabaseTransactionRecord $transaction
+    ): Collection {
         $committed = $this->getCommittedTransactionsInternal();
 
         [$removedTransactions, $remaining] = $committed->partition(
@@ -237,10 +272,35 @@ class DatabaseTransactionsManager
 
         $this->setCommittedTransactions($remaining);
 
-        // Recurse down children
-        $removedTransactions->each(
-            fn ($removed) => $this->removeCommittedTransactionsThatAreChildrenOf($removed)
-        );
+        foreach ($removedTransactions as $removedTransaction) {
+            $removedTransactions = $removedTransactions->concat(
+                $this->removeCommittedTransactionsThatAreChildrenOf($removedTransaction)
+            );
+        }
+
+        return $removedTransactions;
+    }
+
+    /**
+     * Execute rollback callbacks for every detached transaction.
+     *
+     * @param Collection<int, DatabaseTransactionRecord> $transactions
+     */
+    protected function executeRollbackCallbacks(Collection $transactions): void
+    {
+        $exception = null;
+
+        foreach ($transactions as $transaction) {
+            try {
+                $transaction->executeCallbacksForRollback();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

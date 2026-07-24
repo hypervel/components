@@ -51,6 +51,21 @@ class MariaDbGrammar extends MySqlGrammar
     }
 
     /**
+     * Compile a vector index key command.
+     */
+    public function compileVectorIndex(Blueprint $blueprint, Fluent $command): string
+    {
+        return sprintf(
+            'alter table %s add vector index %s(%s) %s%s',
+            $this->wrapTable($blueprint),
+            $this->wrap($command->index),
+            $this->columnize($command->columns),
+            $command->operatorClass ?? '',
+            $command->lock ? ', lock=' . $command->lock : ''
+        );
+    }
+
+    /**
      * Wrap the given JSON selector.
      */
     protected function wrapJsonSelector(string $value): string

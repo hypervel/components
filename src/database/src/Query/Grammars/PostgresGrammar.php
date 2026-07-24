@@ -96,7 +96,7 @@ class PostgresGrammar extends Grammar
         $column = $this->wrap($where['column']);
         $value = $this->parameter($where['value']);
 
-        if ($this->isJsonSelector($where['column'])) {
+        if ($this->isJsonSelector($column)) {
             $column = '(' . $column . ')';
         }
 
@@ -111,7 +111,7 @@ class PostgresGrammar extends Grammar
         $column = $this->wrap($where['column']);
         $value = $this->parameter($where['value']);
 
-        if ($this->isJsonSelector($where['column'])) {
+        if ($this->isJsonSelector($column)) {
             $column = '(' . $column . ')';
         }
 
@@ -139,8 +139,12 @@ class PostgresGrammar extends Grammar
             $language = 'english';
         }
 
+        $isVector = $where['options']['vector'] ?? false;
+
         $columns = (new Collection($where['columns']))
-            ->map(fn ($column) => "to_tsvector('{$language}', {$this->wrap($column)})")
+            ->map(fn ($column) => $isVector
+                ? $this->wrap($column)
+                : "to_tsvector('{$language}', {$this->wrap($column)})")
             ->implode(' || ');
 
         $mode = 'plainto_tsquery';
@@ -309,6 +313,19 @@ class PostgresGrammar extends Grammar
     public function compileInsertOrIgnore(Builder $query, array $values): string
     {
         return $this->compileInsert($query, $values) . ' on conflict do nothing';
+    }
+
+    /**
+     * Compile an insert or ignore statement with a returning clause into SQL.
+     */
+    public function compileInsertOrIgnoreReturning(Builder $query, array $values, array $returning, ?array $uniqueBy): string
+    {
+        $insert = $this->compileInsert($query, $values);
+
+        return match ($uniqueBy) {
+            null => "{$insert} on conflict do nothing returning {$this->columnize($returning)}",
+            default => "{$insert} on conflict ({$this->columnize($uniqueBy)}) do nothing returning {$this->columnize($returning)}",
+        };
     }
 
     /**
@@ -704,6 +721,9 @@ class PostgresGrammar extends Grammar
     {
         static::$cascadeTruncate = $value;
     }
+
+    // REMOVED: Laravel's deprecated cascadeOnTrucate() typo is omitted;
+    // use cascadeOnTruncate().
 
     /**
      * Flush all static state.

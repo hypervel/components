@@ -321,6 +321,17 @@ $query = DB::table('users')->select('name');
 $users = $query->addSelect('age')->get();
 ```
 
+<a name="query-timeouts"></a>
+#### Query Timeouts
+
+When using MariaDB or MySQL, the `timeout` method may be used to limit a select query's execution time in seconds:
+
+```php
+$users = DB::table('users')
+    ->timeout(2)
+    ->get();
+```
+
 <a name="index-hints"></a>
 #### Index Hints
 
@@ -438,6 +449,19 @@ $users = DB::table('users')
     ->select('users.*', 'contacts.phone', 'orders.price')
     ->get();
 ```
+
+<a name="straight-join-clause"></a>
+#### Straight Join Clauses
+
+When using MariaDB or MySQL, the `straightJoin` method may be used to force joined tables to be read in the order they appear in the query:
+
+```php
+$users = DB::table('users')
+    ->straightJoin('contacts', 'users.id', '=', 'contacts.user_id')
+    ->get();
+```
+
+The `straightJoinWhere` method compares the joined column against a value, while the `straightJoinSub` method joins a subquery.
 
 <a name="left-join-right-join-clause"></a>
 #### Left Join / Right Join Clause
@@ -972,6 +996,18 @@ $users = DB::table('users')
     ->get();
 ```
 
+**whereNullSafeEquals / orWhereNullSafeEquals**
+
+The `whereNullSafeEquals` and `orWhereNullSafeEquals` methods may be used to compare a column's value against a given value while treating two `NULL` values as equal:
+
+```php
+$lastLoginIp = $request->input('last_login_ip');
+
+$users = DB::table('users')
+    ->whereNullSafeEquals('last_login_ip', $lastLoginIp)
+    ->get();
+```
+
 **whereDate / whereMonth / whereDay / whereYear / whereTime**
 
 The `whereDate` method may be used to compare a column's value against a date:
@@ -1290,6 +1326,17 @@ $corporations = DB::table('corporations')
     ->get();
 ```
 
+<a name="preferred-value-ordering"></a>
+#### Preferred Value Ordering
+
+The `inOrderOf` method orders results according to a preferred sequence of values. Values not included in the sequence are placed last:
+
+```php
+$orders = DB::table('orders')
+    ->inOrderOf('status', ['pending', 'processing', 'completed'])
+    ->get();
+```
+
 <a name="latest-oldest"></a>
 #### The `latest` and `oldest` Methods
 
@@ -1447,6 +1494,21 @@ DB::table('users')->insertOrIgnore([
     ['id' => 2, 'email' => 'archer@example.com'],
 ]);
 ```
+
+When using PostgreSQL or SQLite, the `insertOrIgnoreReturning` method inserts non-conflicting records and returns the inserted rows. You may select the returned columns and specify the column or columns that identify a conflict:
+
+```php
+$users = DB::table('users')->insertOrIgnoreReturning(
+    [
+        ['email' => 'sisko@example.com'],
+        ['email' => 'archer@example.com'],
+    ],
+    ['id', 'email'],
+    'email',
+);
+```
+
+Unlike `insertOrIgnore`, this method returns a collection containing only the rows that were inserted.
 
 The `insertUsing` method will insert new records into the table while using a subquery to determine the data that should be inserted:
 

@@ -169,6 +169,7 @@ class MultiExecTest extends TestCase
         // Connection is NOT released during the test (it already existed in context),
         // but allow release() call for test cleanup
         $connection->shouldReceive('release')->zeroOrMoreTimes();
+        $connection->shouldReceive('clearWatchState')->once();
 
         $redis = $this->createRedis($connection);
 

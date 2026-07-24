@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Exception;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
@@ -73,8 +74,10 @@ class RedisProxyTest extends TestCase
             'auth',
             'check',
             'client',
+            'clearWatchState',
             'close',
             'connect',
+            'discardTransaction',
             'getActiveConnection',
             'getConnection',
             'getCreatedAt',
@@ -169,6 +172,124 @@ class RedisProxyTest extends TestCase
 
         $this->assertTrue($result);
         $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
+    public function testConnectionIsStoredInContextForWatch(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('watch')->once()->with('key')->andReturn(true);
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $this->assertTrue($redis->watch('key'));
+        $this->assertSame(
+            $connection,
+            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
+        );
+    }
+
+    public function testNativeDiscardDoesNotInvokePoolDiscard(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('discardTransaction')->once()->andReturn(true);
+        $connection->shouldReceive('discard')->never();
+        $connection->shouldReceive('release')->never();
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        $redis = $this->createRedis($connection);
+
+        $this->assertTrue($redis->discard());
+        $this->assertSame(
+            $connection,
+            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
+        );
+    }
+
+    public function testRepeatedCallbackTransactionsRegisterOneTerminalRelease(): void
+    {
+        $firstTransaction = m::mock(PhpRedis::class);
+        $firstTransaction->expects('exec')->andReturn([]);
+        $secondTransaction = m::mock(PhpRedis::class);
+        $secondTransaction->expects('exec')->andReturn([]);
+
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->twice()->andReturn($firstTransaction, $secondTransaction);
+        $connection->expects('release')->twice();
+
+        $redis = $this->createCountingRedis($connection);
+        $completed = new Channel(1);
+        go(static function () use ($redis, $completed): void {
+            Coroutine::defer(static function () use ($completed): void {
+                $completed->push(true);
+            });
+
+            $redis->transaction(static function (): void {
+            });
+            $redis->transaction(static function (): void {
+            });
+        });
+
+        $this->assertTrue($completed->pop(1.0));
+        $this->assertSame(1, $redis->contextAbsentReleaseCalls);
+    }
+
+    public function testExistingTerminalReleaseOwnsALaterRawPin(): void
+    {
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andReturn([]);
+        $rawTransaction = m::mock(PhpRedis::class);
+
+        $callbackConnection = $this->mockConnection();
+        $callbackConnection->expects('multi')->andReturn($transaction);
+        $callbackConnection->expects('release');
+        $rawConnection = $this->mockConnection();
+        $rawConnection->expects('multi')->andReturn($rawTransaction);
+        $rawConnection->expects('release');
+
+        $redis = $this->createCountingRedis($callbackConnection, $rawConnection);
+        $completed = new Channel(1);
+        go(static function () use ($redis, $completed): void {
+            Coroutine::defer(static function () use ($completed): void {
+                $completed->push(true);
+            });
+
+            $redis->transaction(static function (): void {
+            });
+            $redis->multi();
+        });
+
+        $this->assertTrue($completed->pop(1.0));
+        $this->assertSame(0, $redis->contextAbsentReleaseCalls);
+    }
+
+    public function testCopiedContextRegistersAChildOwnedTerminalRelease(): void
+    {
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andReturn([]);
+        $rawTransaction = m::mock(PhpRedis::class);
+
+        $parentConnection = $this->mockConnection();
+        $parentConnection->expects('multi')->andReturn($transaction);
+        $parentConnection->expects('release');
+        $childConnection = $this->mockConnection();
+        $childConnection->expects('multi')->andReturn($rawTransaction);
+        $childConnection->expects('release');
+
+        $redis = $this->createCountingRedis($parentConnection, $childConnection);
+        $redis->transaction(static function (): void {
+        });
+
+        $completed = new Channel(1);
+        go(static function () use ($redis, $completed): void {
+            Coroutine::defer(static function () use ($completed): void {
+                $completed->push(true);
+            });
+
+            $redis->multi();
+        }, copyContext: true);
+
+        $this->assertTrue($completed->pop(1.0));
     }
 
     public function testSelectPinnedConnectionDoesNotLeakAcrossCoroutines(): void
@@ -402,6 +523,160 @@ class RedisProxyTest extends TestCase
         } catch (Exception) {
             // Expected
         }
+    }
+
+    public function testThrowingSuccessListenerStillReleasesOrdinaryConnection(): void
+    {
+        $eventException = new RuntimeException('Success listener failed.');
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->andThrow($eventException);
+        $connection = $this->createMockRedisConnection('get', 'value', null, $dispatcher);
+        $connection->expects('release');
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the event listener failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($eventException, $throwable);
+        }
+    }
+
+    public function testThrowingSuccessListenerDoesNotSkipSameConnectionHandoff(): void
+    {
+        $eventException = new RuntimeException('Success listener failed.');
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(CommandExecuted::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->andThrow($eventException);
+        $transaction = m::mock(PhpRedis::class);
+        $connection = $this->createMockRedisConnection('multi', $transaction, null, $dispatcher);
+        $connection->expects('release');
+        $redis = $this->createRedis($connection);
+
+        try {
+            $redis->multi();
+            $this->fail('Expected the event listener failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($eventException, $throwable);
+        }
+
+        $this->assertSame(
+            $connection,
+            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
+        );
+    }
+
+    public function testThrowingFailureListenerStillReleasesAndReplacesCommandFailure(): void
+    {
+        $commandException = new RuntimeException('Command failed.');
+        $eventException = new RuntimeException('Failure listener failed.');
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(CommandFailed::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->andThrow($eventException);
+        $connection = $this->createMockRedisConnection('get', null, $commandException, $dispatcher);
+        $connection->expects('release');
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the event listener failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($eventException, $throwable);
+        }
+    }
+
+    public function testCommandFailureRemainsPrimaryOverCleanupFailure(): void
+    {
+        $commandException = new RuntimeException('Command failed.');
+        $connection = $this->createMockRedisConnection('get', null, $commandException);
+        $connection->expects('release')->andThrow(new RuntimeException('Cleanup failed.'));
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the command failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($commandException, $throwable);
+        }
+    }
+
+    public function testCleanupFailurePropagatesAfterSuccessfulCommand(): void
+    {
+        $cleanupException = new RuntimeException('Cleanup failed.');
+        $connection = $this->createMockRedisConnection();
+        $connection->expects('release')->andThrow($cleanupException);
+
+        try {
+            $this->createRedis($connection)->get('key');
+            $this->fail('Expected the cleanup failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($cleanupException, $throwable);
+        }
+    }
+
+    public function testCallbackTransactionClearsWatchStateAfterSuccessfulExec(): void
+    {
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andReturn([]);
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('clearWatchState');
+        $connection->shouldNotReceive('release');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        $this->assertSame(
+            [],
+            $this->createRedis($connection)->transaction(static function (): void {
+            })
+        );
+    }
+
+    public function testCallbackTransactionClearsWatchStateAfterOptimisticLockConflict(): void
+    {
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andReturnFalse();
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('clearWatchState');
+        $connection->shouldNotReceive('release');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        $this->assertFalse(
+            $this->createRedis($connection)->transaction(static function (): void {
+            })
+        );
+    }
+
+    public function testCallbackTransactionDoesNotClearWatchStateWhenExecThrows(): void
+    {
+        $transaction = m::mock(PhpRedis::class);
+        $transaction->expects('exec')->andThrow(new RuntimeException('Exec failed.'));
+        $connection = $this->mockConnection();
+        $connection->expects('multi')->andReturn($transaction);
+        $connection->shouldNotReceive('clearWatchState');
+        $connection->shouldNotReceive('release');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Exec failed.');
+
+        $this->createRedis($connection)->transaction(static function (): void {
+        });
+    }
+
+    public function testCallbackPipelineDoesNotClearWatchState(): void
+    {
+        $pipeline = m::mock(PhpRedis::class);
+        $pipeline->expects('exec')->andReturn([]);
+        $connection = $this->mockConnection();
+        $connection->expects('pipeline')->andReturn($pipeline);
+        $connection->shouldNotReceive('clearWatchState');
+        $connection->shouldNotReceive('release');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        $this->assertSame(
+            [],
+            $this->createRedis($connection)->pipeline(static function (): void {
+            })
+        );
     }
 
     public function testRegularCommandDoesNotStoreConnectionInContext(): void
@@ -875,6 +1150,22 @@ class RedisProxyTest extends TestCase
     }
 
     /**
+     * Create a release-counting Redis proxy with the given mock connections.
+     */
+    private function createCountingRedis(
+        m\MockInterface|RedisConnection ...$connections
+    ): RedisProxyReleaseCountingStub {
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('get')->andReturn(...$connections);
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        return new RedisProxyReleaseCountingStub($poolFactory, 'default');
+    }
+
+    /**
      * Create a mock Redis connection with configurable behavior.
      */
     private function createMockRedisConnection(
@@ -906,5 +1197,23 @@ class RedisProxyTest extends TestCase
             });
 
         return $mockRedisConnection;
+    }
+}
+
+class RedisProxyReleaseCountingStub extends RedisProxy
+{
+    public int $contextAbsentReleaseCalls = 0;
+
+    public function releaseContextConnection(): void
+    {
+        $hasContextConnection = CoroutineContext::has(
+            self::CONNECTION_CONTEXT_PREFIX . $this->getName()
+        );
+
+        parent::releaseContextConnection();
+
+        if (! $hasContextConnection) {
+            ++$this->contextAbsentReleaseCalls;
+        }
     }
 }

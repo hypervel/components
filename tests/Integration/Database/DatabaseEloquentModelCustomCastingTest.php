@@ -10,11 +10,13 @@ use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Contracts\Database\Eloquent\DeviatesCastableAttributes;
 use Hypervel\Contracts\Database\Eloquent\SerializesCastableAttributes;
+use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\InvalidCastException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Schema;
+use RuntimeException;
 
 class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 {
@@ -289,6 +291,29 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
         $model->undefined_cast_column = 'Glāžšķūņu rūķīši';
     }
+
+    public function testMutatorCanDependOnAnotherCastedAttribute(): void
+    {
+        $model = new TestEloquentModelWithCustomCast([
+            'address_line_one' => '110 Kingsbrook St.',
+            'address_line_two' => 'My Childhood House',
+        ]);
+        $model->address->lineOne = 'Changed St.';
+
+        $this->assertSame('Changed St. (My Childhood House)', $model->address_string);
+    }
+
+    public function testMutatorCanDependOnAnotherCastedCarbonAttribute(): void
+    {
+        $model = new TestEloquentModelWithCustomCast([
+            'dob' => '2000-11-11',
+            'tob' => '2000-11-11 11:11:00',
+        ]);
+
+        $model->dob->addDay();
+
+        $this->assertSame('2000-11-12 11:11:00', $model->tob);
+    }
 }
 
 class TestEloquentModelWithCustomCast extends Model
@@ -296,6 +321,7 @@ class TestEloquentModelWithCustomCast extends Model
     protected array $guarded = [];
 
     protected array $casts = [
+        'dob' => DOBCaster::class,
         'address' => AddressCaster::class,
         'price' => DecimalCaster::class,
         'password' => HashCaster::class,
@@ -311,6 +337,53 @@ class TestEloquentModelWithCustomCast extends Model
         'anniversary_on_with_object_caching' => DateTimezoneCasterWithObjectCaching::class . ':America/New_York',
         'anniversary_on_without_object_caching' => DateTimezoneCasterWithoutObjectCaching::class . ':America/New_York',
     ];
+
+    protected function getTobAttribute(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (isset($this->attributes['dob'])) {
+            return Carbon::parse($this->attributes['dob'])->toDateString() . ' '
+                . Carbon::parse($value)->toTimeString();
+        }
+
+        return Carbon::parse($value)->toDateTimeString();
+    }
+
+    /**
+     * Get the address string attribute.
+     */
+    protected function addressString(): Attribute
+    {
+        return Attribute::get(function (): string {
+            $address = $this->address;
+
+            if (! $address instanceof Address) {
+                throw new RuntimeException('Address was not cast before mutator access.');
+            }
+
+            return "{$address->lineOne} ({$address->lineTwo})";
+        });
+    }
+}
+
+class DOBCaster implements CastsAttributes
+{
+    public function get(Model $model, string $key, mixed $value, array $attributes): ?Carbon
+    {
+        return $value === null ? null : Carbon::parse($value);
+    }
+
+    public function set(Model $model, string $key, mixed $value, array $attributes): array
+    {
+        if ($value instanceof Carbon) {
+            return [$key => $value->toDateString()];
+        }
+
+        return [$key => $value === null ? null : (string) $value];
+    }
 }
 
 class HashCaster implements CastsInboundAttributes

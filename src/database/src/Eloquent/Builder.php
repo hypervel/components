@@ -319,6 +319,9 @@ class Builder implements BuilderContract
 
             $this->eagerLoad = array_merge($this->eagerLoad, $query->getEagerLoads());
 
+            $this->withoutGlobalScopes(
+                $query->removedScopes()
+            );
             $this->query->addNestedWhereQuery($query->getQuery(), $boolean);
         } else {
             $this->query->where(...func_get_args());
@@ -616,13 +619,13 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function firstOrNew(array $attributes = [], array $values = []): Model
+    public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
     {
         if (! is_null($instance = $this->where($attributes)->first())) {
             return $instance;
         }
 
-        return $this->newModelInstance(array_merge($attributes, $values));
+        return $this->newModelInstance(array_merge($attributes, value($values)));
     }
 
     /**
@@ -630,7 +633,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function firstOrCreate(array $attributes = [], array $values = []): Model
+    public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model
     {
         if (! is_null($instance = (clone $this)->where($attributes)->first())) {
             return $instance;
@@ -644,10 +647,10 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function createOrFirst(array $attributes = [], array $values = []): Model
+    public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
         try {
-            return $this->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values)));
+            return $this->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $e) {
             // @phpstan-ignore return.type (first() returns hydrated TModel, not stdClass)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
@@ -659,11 +662,11 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function updateOrCreate(array $attributes, array $values = []): Model
+    public function updateOrCreate(array $attributes, Closure|array $values = []): Model
     {
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
-                $instance->fill($values)->save();
+                $instance->fill(value($values))->save();
             }
         });
     }
@@ -1150,12 +1153,16 @@ class Builder implements BuilderContract
     /**
      * Update the column's update timestamp.
      */
-    public function touch(?string $column = null): false|int
+    public function touch(array|string|null $column = null): false|int
     {
         $time = $this->model->freshTimestamp();
 
         if ($column) {
-            return $this->toBase()->update([$column => $time]);
+            $columns = (new BaseCollection(Arr::wrap($column)))
+                ->mapWithKeys(fn ($column) => [$column => $time])
+                ->all();
+
+            return $this->toBase()->update($columns);
         }
 
         $column = $this->model->getUpdatedAtColumn();
@@ -1187,6 +1194,34 @@ class Builder implements BuilderContract
         return $this->toBase()->decrement(
             $column,
             $amount,
+            $this->addUpdatedAtColumn($extra)
+        );
+    }
+
+    /**
+     * Increment the given column's values by the given amounts.
+     *
+     * @param array<string, float|int|numeric-string> $columns
+     * @param array<string, mixed> $extra
+     */
+    public function incrementEach(array $columns, array $extra = []): int
+    {
+        return $this->toBase()->incrementEach(
+            $columns,
+            $this->addUpdatedAtColumn($extra)
+        );
+    }
+
+    /**
+     * Decrement the given column's values by the given amounts.
+     *
+     * @param array<string, float|int|numeric-string> $columns
+     * @param array<string, mixed> $extra
+     */
+    public function decrementEach(array $columns, array $extra = []): int
+    {
+        return $this->toBase()->decrementEach(
+            $columns,
             $this->addUpdatedAtColumn($extra)
         );
     }

@@ -87,6 +87,11 @@ interface ConnectionInterface
     /**
      * Execute a Closure within a transaction.
      *
+     * @template TReturn
+     *
+     * @param Closure(static): TReturn $callback
+     * @return TReturn
+     *
      * @throws Throwable
      */
     public function transaction(Closure $callback, int $attempts = 1): mixed;

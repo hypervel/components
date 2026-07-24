@@ -203,13 +203,13 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @return TRelatedModel
      */
-    public function firstOrCreate(array $attributes = [], array $values = []): Model
+    public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model
     {
         if (! is_null($instance = (clone $this)->where($attributes)->first())) {
             return $instance;
         }
 
-        return $this->createOrFirst(array_merge($attributes, $values));
+        return $this->createOrFirst(array_merge($attributes, value($values)));
     }
 
     /**
@@ -217,10 +217,10 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @return TRelatedModel
      */
-    public function createOrFirst(array $attributes = [], array $values = []): Model
+    public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
         try {
-            return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values)));
+            return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $exception) {
             return $this->where($attributes)->first() ?? throw $exception;
         }

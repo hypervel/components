@@ -819,6 +819,16 @@ If you would like to save the model within a database transaction, you may use t
 $flight->saveOrFail();
 ```
 
+When using PostgreSQL or SQLite, the `saveOrIgnore` method may be used to insert a new model while ignoring a matching conflict. The method returns `false` when the model was not inserted:
+
+```php
+$flight = new Flight;
+$flight->flight_number = 'HV100';
+$flight->destination = 'Paris';
+
+$inserted = $flight->saveOrIgnore(uniqueBy: 'flight_number');
+```
+
 Alternatively, you may use the `create` method to "save" a new model using a single PHP statement. The inserted model instance will be returned to you by the `create` method:
 
 ```php
@@ -851,6 +861,22 @@ If you would like to update the model within a database transaction, you may use
 ```php
 $flight->updateOrFail(['name' => 'Paris to London']);
 ```
+
+You may increment or decrement several attributes on a model instance in one query using the `incrementEach` and `decrementEach` methods:
+
+```php
+$flight->incrementEach([
+    'seats_booked' => 1,
+    'miles_flown' => 250,
+]);
+
+$flight->decrementEach([
+    'seats_available' => 1,
+    'reward_points' => 50,
+]);
+```
+
+These methods dispatch the model's `updating` and `updated` events. To perform the same updates without dispatching model events, use `incrementEachQuietly` or `decrementEachQuietly`.
 
 Occasionally, you may need to update an existing model or create a new model if no matching model exists. Like the `firstOrCreate` method, the `updateOrCreate` method persists the model, so there's no need to manually call the `save` method.
 

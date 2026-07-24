@@ -7,9 +7,11 @@ namespace Hypervel\Core\Bootstrap;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Core\Events\OnTask;
+use Hypervel\Core\Events\TaskTerminated;
 use Swoole\Constant;
 use Swoole\Server;
 use Swoole\Server\Task;
+use Throwable;
 
 class TaskCallback
 {
@@ -42,15 +44,31 @@ class TaskCallback
             $task->data = $data;
         }
 
-        $event = new OnTask($server, $task);
-        $this->dispatcher->dispatch($event);
+        $exception = null;
 
-        if (! is_null($event->result)) {
-            if ($this->taskUsesObject) {
-                $task->finish($event->result);
-            } else {
-                $server->finish($event->result);
+        try {
+            $event = new OnTask($server, $task);
+            $this->dispatcher->dispatch($event);
+
+            if ($event->result !== null) {
+                $this->taskUsesObject
+                    ? $task->finish($event->result)
+                    : $server->finish($event->result);
             }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            if ($this->dispatcher->hasListeners(TaskTerminated::class)) {
+                $this->dispatcher->dispatch(new TaskTerminated($server, $task));
+            }
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 }

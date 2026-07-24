@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Testing\Concerns;
 
 use Hypervel\Database\QueryException;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Schema;
+use InvalidArgumentException;
 
 trait TestDatabases
 {
@@ -141,11 +143,23 @@ trait TestDatabases
             return;
         }
 
+        /** @var string $database */
         $database = DB::getConfig('database');
 
-        if ($database !== ':memory:') {
-            $callback($database);
+        if (DB::getConfig('driver') === 'sqlite') {
+            if (SQLiteDatabase::isInMemory($database)) {
+                return;
+            }
+
+            if (SQLiteDatabase::isUri($database)) {
+                throw new InvalidArgumentException(
+                    'SQLite URI databases cannot be automatically managed during parallel testing. '
+                    . 'Configure a plain filesystem path or run with --without-databases.'
+                );
+            }
         }
+
+        $callback($database);
     }
 
     /**

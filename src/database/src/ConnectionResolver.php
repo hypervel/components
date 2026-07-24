@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -16,9 +18,7 @@ use function Hypervel\Support\enum_value;
 /**
  * Resolves database connections from a connection pool.
  *
- * Uses Context to store connections per-coroutine and defer()
- * to automatically release connections back to the pool when the
- * coroutine ends.
+ * Retains pooled wrappers until their owning coroutine or task ends.
  */
 class ConnectionResolver implements ConnectionResolverInterface
 {
@@ -40,6 +40,13 @@ class ConnectionResolver implements ConnectionResolverInterface
     protected readonly ?string $default;
 
     protected PoolFactory $factory;
+
+    /**
+     * Pooled wrappers retained by non-coroutine task execution.
+     *
+     * @var array<string, PooledConnection>
+     */
+    protected array $nonCoroutineConnections = [];
 
     public function __construct(
         protected Container $container
@@ -66,7 +73,8 @@ class ConnectionResolver implements ConnectionResolverInterface
             : $name;
 
         $connectionName = ConnectionName::parse($name);
-        $contextKey = $this->getContextKey($connectionName->requested);
+        $connectionOwnerName = $connectionName->requested;
+        $contextKey = $this->getContextKey($connectionOwnerName);
 
         // Check if this coroutine already has a connection
         if (CoroutineContext::has($contextKey)) {
@@ -79,30 +87,86 @@ class ConnectionResolver implements ConnectionResolverInterface
         // Get a pooled connection wrapper from the pool
         $pool = $this->factory->getPool($connectionName->requested);
 
+        // Role aliases of one shared in-memory PDO must share its sole wrapper owner.
+        if ($pool->getSharedInMemorySqlitePdo() !== null) {
+            $connectionOwnerName = $pool->getName();
+            $contextKey = $this->getContextKey($connectionOwnerName);
+
+            if (CoroutineContext::has($contextKey)) {
+                $connection = CoroutineContext::get($contextKey);
+
+                if ($connection instanceof ConnectionInterface) {
+                    if ($connectionName->isWrite() && $connection instanceof Connection) {
+                        $connection->useWriteConnectionWhenReading();
+                    }
+
+                    return $connection;
+                }
+            }
+        }
+
         /** @var PooledConnection $pooledConnection */
         $pooledConnection = $pool->get();
 
         try {
-            // Get the actual database connection from the wrapper
             $connection = $pooledConnection->getConnection();
 
             if ($connectionName->isWrite() && $connection instanceof Connection) {
                 $connection->useWriteConnectionWhenReading();
             }
 
-            // Store in context for this coroutine
             CoroutineContext::set($contextKey, $connection);
-        } finally {
-            // Schedule cleanup when coroutine ends
+
             if (Coroutine::inCoroutine()) {
-                Coroutine::defer(function () use ($pooledConnection, $contextKey) {
-                    CoroutineContext::set($contextKey, null);
+                Coroutine::defer(function () use ($pooledConnection, $contextKey): void {
+                    CoroutineContext::forget($contextKey);
                     $pooledConnection->release();
                 });
+            } else {
+                $this->nonCoroutineConnections[$connectionOwnerName] = $pooledConnection;
             }
+        } catch (Throwable $exception) {
+            CoroutineContext::forget($contextKey);
+            unset($this->nonCoroutineConnections[$connectionOwnerName]);
+
+            try {
+                $pooledConnection->discard();
+            } catch (Throwable) {
+                // Preserve the connection-creation or publication failure.
+            }
+
+            throw $exception;
         }
 
         return $connection;
+    }
+
+    /**
+     * Release connections retained by non-coroutine task execution.
+     *
+     * @internal
+     */
+    public function releaseConnections(): void
+    {
+        $this->terminateConnections(
+            static function (PooledConnection $connection): void {
+                $connection->release();
+            },
+        );
+    }
+
+    /**
+     * Discard connections retained by non-coroutine task execution.
+     *
+     * @internal
+     */
+    public function discardConnections(): void
+    {
+        $this->terminateConnections(
+            static function (PooledConnection $connection): void {
+                $connection->discard();
+            },
+        );
     }
 
     /**
@@ -139,5 +203,34 @@ class ConnectionResolver implements ConnectionResolverInterface
     protected function getContextKey(string $name): string
     {
         return sprintf('__database.connection.%s', $name);
+    }
+
+    /**
+     * Detach and terminate retained non-coroutine connections.
+     */
+    protected function terminateConnections(Closure $terminate): void
+    {
+        $connections = $this->nonCoroutineConnections;
+        $this->nonCoroutineConnections = [];
+
+        foreach (array_keys($connections) as $name) {
+            CoroutineContext::forget($this->getContextKey($name));
+        }
+
+        CoroutineContext::forget(self::DEFAULT_CONNECTION_CONTEXT_KEY);
+
+        $exception = null;
+
+        foreach ($connections as $connection) {
+            try {
+                $terminate($connection);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 }

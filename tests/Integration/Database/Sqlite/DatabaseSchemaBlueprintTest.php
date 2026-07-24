@@ -70,7 +70,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         $this->assertTrue($schema->hasColumns('test', ['bar', 'qux']));
     }
 
-    public function testNativeColumnModifyingOnPostgreSql()
+    public function testNativeColumnModifyingOnPostgreSql(): void
     {
         $blueprint = $this->getBlueprint('Postgres', 'users', function ($table) {
             $table->integer('code')->autoIncrement()->from(10)->comment('my comment')->change();
@@ -80,7 +80,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
             'alter table "users" '
             . 'alter column "code" type integer, '
             . 'alter column "code" set not null',
-            'alter sequence users_code_seq restart with 10',
+            'select setval(pg_get_serial_sequence(\'"users"\', \'code\'), 10, false)',
             'comment on column "users"."code" is \'my comment\'',
         ], $blueprint->toSql());
 

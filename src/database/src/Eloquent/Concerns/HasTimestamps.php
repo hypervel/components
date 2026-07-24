@@ -9,6 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
 
 trait HasTimestamps
@@ -46,10 +47,14 @@ trait HasTimestamps
     /**
      * Update the model's update timestamp.
      */
-    public function touch(?string $attribute = null): bool
+    public function touch(array|string|null $attribute = null): bool
     {
         if ($attribute) {
-            $this->{$attribute} = $this->freshTimestamp();
+            $time = $this->freshTimestamp();
+
+            foreach (Arr::wrap($attribute) as $column) {
+                $this->{$column} = $time;
+            }
 
             return $this->save();
         }
@@ -66,7 +71,7 @@ trait HasTimestamps
     /**
      * Update the model's update timestamp without raising any events.
      */
-    public function touchQuietly(?string $attribute = null): bool
+    public function touchQuietly(array|string|null $attribute = null): bool
     {
         return static::withoutEvents(fn () => $this->touch($attribute));
     }
@@ -181,6 +186,11 @@ trait HasTimestamps
 
     /**
      * Disable timestamps for the current class during the given callback scope.
+     *
+     * @template TReturn
+     *
+     * @param (callable(): TReturn) $callback
+     * @return TReturn
      */
     public static function withoutTimestamps(callable $callback): mixed
     {
@@ -190,7 +200,11 @@ trait HasTimestamps
     /**
      * Disable timestamps for the given model classes during the given callback scope.
      *
+     * @template TReturn
+     *
      * @param array<int, class-string> $models
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public static function withoutTimestampsOn(array $models, callable $callback): mixed
     {

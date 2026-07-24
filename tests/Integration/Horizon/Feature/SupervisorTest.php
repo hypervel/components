@@ -27,6 +27,7 @@ use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use Throwable;
 
 class SupervisorTest extends IntegrationTestCase
 {
@@ -81,16 +82,18 @@ class SupervisorTest extends IntegrationTestCase
             ->concat($this->supervisor->terminatingProcesses()->pluck('process'))
             ->unique(static fn (WorkerProcess $process): int => spl_object_id($process));
 
-        try {
-            $processes->each->terminate();
-        } finally {
-            $processes->each->kill();
+        $exception = null;
 
-            $processes->each(function (WorkerProcess $process): void {
-                if ($process->isStarted()) {
-                    $process->wait();
-                }
-            });
+        $processes->each(function (WorkerProcess $process) use (&$exception): void {
+            try {
+                $process->kill();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        });
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 

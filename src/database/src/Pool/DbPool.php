@@ -9,6 +9,7 @@ use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
@@ -22,9 +23,9 @@ use Throwable;
  * Extends the base Pool to create PooledConnection instances that wrap
  * our Laravel-ported Connection class.
  *
- * For in-memory SQLite, manages a shared PDO so all pool slots see the same
- * data. Non-pooled paths (Capsule, SimpleConnectionResolver) bypass this
- * entirely and get isolated connections as expected.
+ * For in-memory SQLite, manages a shared PDO behind a single pooled owner.
+ * Non-pooled paths (Capsule, SimpleConnectionResolver) bypass this entirely
+ * and get isolated connections as expected.
  */
 class DbPool extends Pool
 {
@@ -35,8 +36,7 @@ class DbPool extends Pool
     protected ?int $heartbeatTimerId = null;
 
     /**
-     * Shared PDO for in-memory SQLite. All pool slots must share the same PDO
-     * instance, otherwise each would get its own empty database.
+     * Shared PDO for in-memory SQLite.
      */
     protected ?PDO $sharedInMemorySqlitePdo = null;
 
@@ -70,6 +70,20 @@ class DbPool extends Pool
             ['testing_enabled'],
         );
 
+        $minimum = $poolOptions['min_connections'] ?? 1;
+        $maximum = $poolOptions['max_connections'] ?? 10;
+
+        if ($this->isInMemorySqlite()
+            && is_int($minimum)
+            && is_int($maximum)
+            && $minimum >= 0
+            && $maximum >= 1
+            && $minimum <= $maximum
+        ) {
+            $poolOptions['min_connections'] = min($minimum, 1);
+            $poolOptions['max_connections'] = 1;
+        }
+
         $this->frequency = new Frequency;
 
         parent::__construct($container, $name, $poolOptions);
@@ -77,8 +91,7 @@ class DbPool extends Pool
 
         $this->heartbeatTimer = new Timer($this->getLogger());
 
-        // For in-memory SQLite, pre-create a shared PDO so all pool slots
-        // see the same database. This must happen after parent::__construct.
+        // The sole managed wrapper must retain one PDO for the database lifetime.
         if ($this->isInMemorySqlite()) {
             $this->sharedInMemorySqlitePdo = $this->createSharedInMemorySqlitePdo();
         }
@@ -149,9 +162,7 @@ class DbPool extends Pool
 
         $database = $this->config['database'] ?? '';
 
-        return $database === ':memory:'
-            || str_contains($database, '?mode=memory')
-            || str_contains($database, '&mode=memory');
+        return SQLiteDatabase::isInMemory($database);
     }
 
     /**
@@ -165,7 +176,7 @@ class DbPool extends Pool
 
         $database = $config['database'] ?? '';
 
-        if ($database === ':memory:' || str_contains($database, '?mode=memory') || str_contains($database, '&mode=memory')) {
+        if (SQLiteDatabase::isInMemory($database)) {
             throw new InvalidArgumentException(
                 "Database connection [{$name->requested}] cannot use a derived read pool for in-memory SQLite."
             );

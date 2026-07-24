@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
@@ -27,11 +28,7 @@ abstract class SqliteTestCase extends DatabaseTestCase
      */
     protected function isConfiguredForInMemoryDatabase(): bool
     {
-        $path = env('DB_DATABASE', ':memory:');
-
-        return $path === ':memory:'
-            || str_contains($path, '?mode=memory')
-            || str_contains($path, '&mode=memory');
+        return SQLiteDatabase::isInMemory($this->getConfiguredDatabasePath());
     }
 
     /**
@@ -52,11 +49,12 @@ abstract class SqliteTestCase extends DatabaseTestCase
      */
     protected function ensureSqliteDatabaseFileExists(): void
     {
-        if ($this->isConfiguredForInMemoryDatabase()) {
+        $path = $this->getConfiguredDatabasePath();
+
+        // URI names pass to SQLite unchanged and are not literal filesystem paths.
+        if (SQLiteDatabase::isInMemory($path) || SQLiteDatabase::isUri($path)) {
             return;
         }
-
-        $path = $this->getConfiguredDatabasePath();
 
         if (! file_exists($path)) {
             touch($path);
@@ -74,7 +72,8 @@ abstract class SqliteTestCase extends DatabaseTestCase
     {
         $path ??= $this->app->make('config')->get('database.connections.sqlite.database');
 
-        if ($path === ':memory:' || str_contains($path, 'mode=memory')) {
+        // URI names pass to SQLite unchanged and are not literal filesystem paths.
+        if (SQLiteDatabase::isInMemory($path) || SQLiteDatabase::isUri($path)) {
             return;
         }
 

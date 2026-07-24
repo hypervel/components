@@ -346,6 +346,20 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
+    public function testSQLiteFileUriDatabasesMayBeConnectedTo(): void
+    {
+        $dsn = 'sqlite:file:/tmp/database.sqlite?mode=rw';
+        $config = ['database' => 'file:/tmp/database.sqlite?mode=rw'];
+        $connector = $this->getMockBuilder(SQLiteConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
     public function testSQLiteFileDatabasesMayBeConnectedTo()
     {
         $dsn = 'sqlite:' . __DIR__;

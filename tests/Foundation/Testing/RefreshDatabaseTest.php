@@ -15,6 +15,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
 use PDO;
 use RuntimeException;
@@ -36,12 +37,18 @@ class RefreshDatabaseTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    /**
+     * @var list<?string>
+     */
+    protected array $connectionsToTransact = [null];
+
     public function tearDown(): void
     {
         $this->dropViews = false;
         $this->dropTypes = false;
         $this->seed = false;
         $this->seeder = null;
+        $this->connectionsToTransact = [null];
 
         ResetRefreshDatabaseState::run();
 
@@ -65,7 +72,14 @@ class RefreshDatabaseTest extends TestCase
             ])->andReturn(0);
 
         $this->app = new Application;
-        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['database' => 'database.sqlite'],
+                ],
+            ],
+        ]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
@@ -85,7 +99,14 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => false,
             ])->andReturn(0);
         $this->app = new Application;
-        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['database' => 'database.sqlite'],
+                ],
+            ],
+        ]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
@@ -105,7 +126,14 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => false,
             ])->andReturn(0);
         $this->app = new Application;
-        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['database' => 'database.sqlite'],
+                ],
+            ],
+        ]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
@@ -125,7 +153,14 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => true,
             ])->andReturn(0);
         $this->app = new Application;
-        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['database' => 'database.sqlite'],
+                ],
+            ],
+        ]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
@@ -145,7 +180,14 @@ class RefreshDatabaseTest extends TestCase
                 '--seeder' => 'seeder',
             ])->andReturn(0);
         $this->app = new Application;
-        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['database' => 'database.sqlite'],
+                ],
+            ],
+        ]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
         $this->app->singleton('db', fn () => $this->getMockedDatabase());
 
@@ -162,7 +204,14 @@ class RefreshDatabaseTest extends TestCase
             ->andThrow(new RuntimeException('Migration failed.'));
 
         $this->app = new Application;
-        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['database' => 'database.sqlite'],
+                ],
+            ],
+        ]));
         $this->app->singleton(KernelContract::class, fn () => $kernel);
 
         try {
@@ -225,6 +274,85 @@ class RefreshDatabaseTest extends TestCase
             $pdo,
             reset(RefreshDatabaseState::$inMemoryConnections),
             'cached PDO must match the one returned by the connection',
+        );
+    }
+
+    public function testInMemoryClassificationUsesTheNamedConnectionAndLiveDefault(): void
+    {
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'file',
+                'connections' => [
+                    'file' => [
+                        'database' => ParallelTesting::tempDir('RefreshDatabaseTest')
+                            . '/database.sqlite',
+                    ],
+                    'memory' => ['database' => 'file::memory:?cache=shared'],
+                ],
+            ],
+        ]));
+
+        $this->assertFalse($this->usingInMemoryDatabase());
+        $this->assertFalse($this->usingInMemoryDatabase('file'));
+        $this->assertTrue($this->usingInMemoryDatabase('memory'));
+
+        $this->connectionsToTransact = ['file', 'memory'];
+
+        $this->assertTrue($this->usingInMemoryDatabases());
+
+        $this->connectionsToTransact = ['file'];
+
+        $this->assertFalse($this->usingInMemoryDatabases());
+    }
+
+    public function testBeginDatabaseTransactionWorkCachesOnlyNamedInMemoryConnections(): void
+    {
+        RefreshDatabaseState::$migrated = false;
+        RefreshDatabaseState::$inMemoryConnections = [];
+
+        $memoryPdo = m::mock(PDO::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
+        $fileConnection = m::mock(ConnectionInterface::class);
+        $memoryConnection = m::mock(ConnectionInterface::class);
+
+        foreach ([$fileConnection, $memoryConnection] as $connection) {
+            $connection->shouldReceive('setTransactionManager')->once();
+            $connection->shouldReceive('getEventDispatcher')->once()->andReturn($eventDispatcher);
+            $connection->shouldReceive('unsetEventDispatcher')->once();
+            $connection->shouldReceive('beginTransaction')->once();
+            $connection->shouldReceive('setEventDispatcher')->once()->with($eventDispatcher);
+        }
+
+        $fileConnection->shouldNotReceive('getPdo');
+        $memoryConnection->shouldReceive('getPdo')->once()->andReturn($memoryPdo);
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with('file')->andReturn($fileConnection);
+        $database->shouldReceive('connection')->once()->with('memory')->andReturn($memoryConnection);
+
+        $this->connectionsToTransact = ['file', 'memory'];
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository([
+            'database' => [
+                'default' => 'file',
+                'connections' => [
+                    'file' => [
+                        'database' => ParallelTesting::tempDir('RefreshDatabaseTest')
+                            . '/database.sqlite',
+                    ],
+                    'memory' => ['database' => 'file::memory:?cache=shared'],
+                ],
+            ],
+        ]));
+        $this->app->singleton('db', fn () => $database);
+
+        $this->beginDatabaseTransactionWork();
+
+        $this->assertTrue(RefreshDatabaseState::$migrated);
+        $this->assertSame(
+            ['memory' => $memoryPdo],
+            RefreshDatabaseState::$inMemoryConnections,
         );
     }
 

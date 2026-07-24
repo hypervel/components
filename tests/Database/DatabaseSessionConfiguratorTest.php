@@ -688,6 +688,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
 
         $this->assertSame(2, $pdo->beginCalls);
         $this->assertSame(2, $pdo->commitCalls);
+        $this->assertSame(1, $pdo->rollbackCalls);
         $this->assertSame(2, $configurator->applyCalls);
         $this->assertFalse(TestSessionConnection::sessionStateIsUnknownForTest($pdo));
     }
@@ -970,6 +971,10 @@ class CommitRetryPdo extends PDO
 
     public int $commitCalls = 0;
 
+    public int $rollbackCalls = 0;
+
+    private bool $transactionActive = false;
+
     public function __construct()
     {
     }
@@ -977,6 +982,7 @@ class CommitRetryPdo extends PDO
     public function beginTransaction(): bool
     {
         ++$this->beginCalls;
+        $this->transactionActive = true;
 
         return true;
     }
@@ -988,6 +994,21 @@ class CommitRetryPdo extends PDO
         if ($this->commitCalls === 1) {
             throw new StringCodePdoException('Serialization failure', '40001');
         }
+
+        $this->transactionActive = false;
+
+        return true;
+    }
+
+    public function inTransaction(): bool
+    {
+        return $this->transactionActive;
+    }
+
+    public function rollBack(): bool
+    {
+        ++$this->rollbackCalls;
+        $this->transactionActive = false;
 
         return true;
     }

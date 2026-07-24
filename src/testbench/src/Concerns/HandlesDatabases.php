@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Concerns;
 
 use Closure;
 use Hypervel\Database\Events\DatabaseRefreshed;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Testbench\Attributes\DefineDatabase;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -88,9 +89,7 @@ trait HandlesDatabases
             return false;
         }
 
-        return $database['database'] === ':memory:'
-            || str_contains($database['database'], '?mode=memory')
-            || str_contains($database['database'], '&mode=memory');
+        return SQLiteDatabase::isInMemory($database['database']);
     }
 
     /**

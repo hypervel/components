@@ -53,10 +53,39 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "embeddings" add column "embedding" vector(384) not null', $statements[0]);
     }
 
+    public function testAddingTsvectorColumn(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'test');
+        $blueprint->tsvector('search_vector');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "test" add column "search_vector" tsvector not null', $statements[0]);
+    }
+
+    public function testAddingNullableTsvectorColumn(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'test');
+        $blueprint->tsvector('search_vector')->nullable();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "test" add column "search_vector" tsvector null', $statements[0]);
+    }
+
+    public function testAddingTsvectorColumnWithStoredAs(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'test');
+        $blueprint->tsvector('search_vector')->nullable()->storedAs("to_tsvector('english', coalesce(name, ''))");
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "test" add column "search_vector" tsvector null generated always as (to_tsvector(\'english\', coalesce(name, \'\'))) stored', $statements[0]);
+    }
+
     public function testCreateTableWithAutoIncrementStartingValue()
     {
         $connection = $this->getConnection();
-        $connection->getSchemaBuilder()->shouldReceive('parseSchemaAndTable')->andReturn([null, 'users']);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->create();
@@ -67,15 +96,12 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
 
         $this->assertCount(2, $statements);
         $this->assertSame('create table "users" ("id" serial not null primary key, "email" varchar(255) not null, "name" varchar(255) collate "nb_NO.utf8" not null)', $statements[0]);
-        $this->assertSame('alter sequence users_id_seq restart with 1000', $statements[1]);
+        $this->assertSame("select setval(pg_get_serial_sequence('\"users\"', 'id'), 1000, false)", $statements[1]);
     }
 
     public function testAddColumnsWithMultipleAutoIncrementStartingValue()
     {
-        $builder = $this->getBuilder();
-        $builder->shouldReceive('parseSchemaAndTable')->andReturn([null, 'users']);
-
-        $blueprint = new Blueprint($this->getConnection(builder: $builder), 'users');
+        $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->id()->from(100);
         $blueprint->increments('code')->from(200);
         $blueprint->string('name')->from(300);
@@ -85,9 +111,21 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
             'alter table "users" add column "id" bigserial not null primary key',
             'alter table "users" add column "code" serial not null primary key',
             'alter table "users" add column "name" varchar(255) not null',
-            'alter sequence users_id_seq restart with 100',
-            'alter sequence users_code_seq restart with 200',
+            "select setval(pg_get_serial_sequence('\"users\"', 'id'), 100, false)",
+            "select setval(pg_get_serial_sequence('\"users\"', 'code'), 200, false)",
         ], $statements);
+    }
+
+    public function testAutoIncrementStartingValueUsesTheWrappedSchemaAndTable(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(prefix: 'prefix_'), 'tenant.users');
+        $blueprint->increments('id')->startingValue(1000);
+        $statements = $blueprint->toSql();
+
+        $this->assertSame(
+            "select setval(pg_get_serial_sequence('\"tenant\".\"prefix_users\"', 'id'), 1000, false)",
+            $statements[1]
+        );
     }
 
     public function testCreateTableAndCommentColumn()
@@ -1358,6 +1396,22 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
         $this->assertStringContainsString("where c.relname = 'table' and n.nspname = 'public'", $statement);
+        $this->assertStringContainsString('pg_catalog.pg_collation', $statement);
+        $this->assertStringContainsString('a.attgenerated as generated', $statement);
+    }
+
+    public function testCompileColumnsOnLegacyServer(): void
+    {
+        $connection = $this->getConnection();
+        $connection->shouldReceive('getServerVersion')->once()->andReturn('8.0.2');
+
+        $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
+
+        $this->assertStringContainsString("where c.relname = 'table' and n.nspname = 'public'", $statement);
+        $this->assertStringContainsString('null as collation', $statement);
+        $this->assertStringContainsString("'' as generated", $statement);
+        $this->assertStringNotContainsString('pg_catalog.pg_collation', $statement);
+        $this->assertStringNotContainsString('a.attgenerated', $statement);
     }
 
     protected function getConnection(

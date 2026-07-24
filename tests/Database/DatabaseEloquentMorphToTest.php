@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Database\DatabaseEloquentMorphToTest;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
@@ -382,6 +384,37 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertFalse($relation->is($model));
     }
 
+    public function testMatchToMorphParentsNormalizesKeyWhenOwnerKeyIsNullAndResultKeyIsObject(): void
+    {
+        $uuidObject = new class {
+            public function __toString(): string
+            {
+                return 'uuid-value';
+            }
+        };
+
+        $builder = m::mock(Builder::class);
+        $related = m::mock(Model::class);
+        $builder->shouldReceive('getModel')->andReturn($related);
+
+        $parent = new ModelStub;
+        $parent->morph_type = 'type_1';
+        $parent->foreign_key = 'uuid-value';
+
+        $relation = Relation::noConstraints(function () use ($builder, $parent) {
+            return new AccessibleMorphTo($builder, $parent, 'foreign_key', null, 'morph_type', 'relation');
+        });
+
+        $relation->addEagerConstraints([$parent]);
+
+        $result = m::mock(Model::class);
+        $result->shouldReceive('getKey')->once()->andReturn($uuidObject);
+
+        $relation->callMatchToMorphParents('type_1', new EloquentCollection([$result]));
+
+        $this->assertSame($result, $parent->getRelation('relation'));
+    }
+
     protected function getRelationAssociate($parent)
     {
         $builder = m::mock(Builder::class);
@@ -425,4 +458,12 @@ class ModelStub extends Model
 class RelatedStub extends Model
 {
     protected ?string $table = 'related_stubs';
+}
+
+class AccessibleMorphTo extends MorphTo
+{
+    public function callMatchToMorphParents(string $type, EloquentCollection $results): void
+    {
+        $this->matchToMorphParents($type, $results);
+    }
 }

@@ -372,6 +372,11 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * Uses Context for coroutine-safe state management, ensuring concurrent
      * requests don't interfere with each other's default connection.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public function usingConnection(UnitEnum|string $name, callable $callback): mixed
     {

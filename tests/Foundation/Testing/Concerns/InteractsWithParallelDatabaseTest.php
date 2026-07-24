@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Closure;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 
 class InteractsWithParallelDatabaseTest extends TestCase
 {
@@ -64,6 +66,57 @@ class InteractsWithParallelDatabaseTest extends TestCase
         $this->assertSame(':memory:', $config->get("database.connections.{$connection}.database"));
     }
 
+    public function testConfigureParallelDatabaseNameSkipsSqliteMemoryUri(): void
+    {
+        $config = $this->app->make('config');
+        $connection = $config->get('database.default');
+        $config->set("database.connections.{$connection}.database", 'file::memory:');
+
+        $this->withParallelEnvironment('7', false, function () use ($config, $connection): void {
+            $this->configureParallelDatabaseName($this->app);
+
+            $this->assertSame(
+                'file::memory:',
+                $config->get("database.connections.{$connection}.database")
+            );
+        });
+    }
+
+    public function testConfigureParallelDatabaseNameRejectsSqliteFileUri(): void
+    {
+        $config = $this->app->make('config');
+        $connection = $config->get('database.default');
+        $config->set("database.connections.{$connection}.database", 'file:/tmp/database.sqlite?mode=rwc');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'SQLite URI databases cannot be automatically managed during parallel testing. '
+            . 'Configure a plain filesystem path or run with --without-databases.'
+        );
+
+        $this->withParallelEnvironment(
+            '7',
+            false,
+            fn () => $this->configureParallelDatabaseName($this->app)
+        );
+    }
+
+    public function testConfigureParallelDatabaseNameHonorsWithoutDatabasesOption(): void
+    {
+        $config = $this->app->make('config');
+        $connection = $config->get('database.default');
+        $database = $config->get("database.connections.{$connection}.database");
+
+        $this->withParallelEnvironment('7', true, function () use ($config, $connection, $database): void {
+            $this->configureParallelDatabaseName($this->app);
+
+            $this->assertSame(
+                $database,
+                $config->get("database.connections.{$connection}.database")
+            );
+        });
+    }
+
     public function testConfigureParallelDatabaseNameSkipsEmptyDatabase()
     {
         $config = $this->app->make('config');
@@ -90,5 +143,106 @@ class InteractsWithParallelDatabaseTest extends TestCase
         $this->ensureParallelDatabaseExists();
 
         $this->assertTrue(true);
+    }
+
+    public function testEnsureParallelDatabaseExistsSkipsLateConfiguredSqliteMemoryUri(): void
+    {
+        $config = $this->app->make('config');
+        $connection = $config->get('database.default');
+        $config->set("database.connections.{$connection}.database", 'file::memory:');
+
+        $this->withParallelEnvironment('7', false, function (): void {
+            $this->ensureParallelDatabaseExists();
+
+            $this->assertTrue(true);
+        });
+    }
+
+    public function testEnsureParallelDatabaseExistsRejectsLateConfiguredSqliteFileUri(): void
+    {
+        $config = $this->app->make('config');
+        $connection = $config->get('database.default');
+        $config->set("database.connections.{$connection}.database", 'file:/tmp/database.sqlite?mode=rwc');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'SQLite URI databases cannot be automatically managed during parallel testing. '
+            . 'Configure a plain filesystem path or run with --without-databases.'
+        );
+
+        $this->withParallelEnvironment(
+            '7',
+            false,
+            fn () => $this->ensureParallelDatabaseExists()
+        );
+    }
+
+    public function testEnsureParallelDatabaseExistsHonorsWithoutDatabasesOption(): void
+    {
+        $config = $this->app->make('config');
+        $connection = $config->get('database.default');
+        $config->set("database.connections.{$connection}.database", 'file:/tmp/database.sqlite?mode=rwc');
+
+        $this->withParallelEnvironment('7', true, function (): void {
+            $this->ensureParallelDatabaseExists();
+
+            $this->assertTrue(true);
+        });
+    }
+
+    /**
+     * Run a callback with an isolated parallel-testing environment.
+     */
+    private function withParallelEnvironment(
+        string $token,
+        bool $withoutDatabases,
+        Closure $callback
+    ): void {
+        $previousProcessToken = getenv('TEST_TOKEN');
+        $previousServerTokenExists = array_key_exists('TEST_TOKEN', $_SERVER);
+        $previousServerToken = $_SERVER['TEST_TOKEN'] ?? null;
+        $previousEnvironmentTokenExists = array_key_exists('TEST_TOKEN', $_ENV);
+        $previousEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
+        $previousWithoutDatabasesExists = array_key_exists(
+            'HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES',
+            $_SERVER
+        );
+        $previousWithoutDatabases = $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES'] ?? null;
+
+        putenv("TEST_TOKEN={$token}");
+        $_SERVER['TEST_TOKEN'] = $token;
+        $_ENV['TEST_TOKEN'] = $token;
+
+        if ($withoutDatabases) {
+            $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES'] = 1;
+        } else {
+            unset($_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES']);
+        }
+
+        try {
+            $callback();
+        } finally {
+            $previousProcessToken === false
+                ? putenv('TEST_TOKEN')
+                : putenv("TEST_TOKEN={$previousProcessToken}");
+
+            if ($previousServerTokenExists) {
+                $_SERVER['TEST_TOKEN'] = $previousServerToken;
+            } else {
+                unset($_SERVER['TEST_TOKEN']);
+            }
+
+            if ($previousEnvironmentTokenExists) {
+                $_ENV['TEST_TOKEN'] = $previousEnvironmentToken;
+            } else {
+                unset($_ENV['TEST_TOKEN']);
+            }
+
+            if ($previousWithoutDatabasesExists) {
+                $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES'] = $previousWithoutDatabases;
+            } else {
+                unset($_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES']);
+            }
+        }
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Collection;
 use Override;
 
@@ -53,10 +54,7 @@ class SqliteSchemaState extends SchemaState
     {
         $database = $this->connection->getDatabaseName();
 
-        if ($database === ':memory:'
-            || str_contains($database, '?mode=memory')
-            || str_contains($database, '&mode=memory')
-        ) {
+        if (SQLiteDatabase::isInMemory($database)) {
             $this->connection->getPdo()->exec($this->files->get($path));
 
             return;

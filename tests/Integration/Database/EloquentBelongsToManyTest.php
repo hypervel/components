@@ -1059,6 +1059,25 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', Tag::find(2)->updated_at?->toDateTimeString());
     }
 
+    public function testCanTouchRelatedModelsUsingCustomRelatedKey()
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $tag = Tag::create(['name' => 'first']);
+        $untouchedTag = Tag::create(['name' => 'second']);
+
+        DB::table('posts_tags')->insert([
+            'post_id' => $post->id,
+            'tag_name' => $tag->name,
+        ]);
+
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
+
+        $post->tagsWithCustomRelatedKey()->touch();
+
+        $this->assertSame('2017-10-10 10:10:10', $tag->fresh()->updated_at?->toDateTimeString());
+        $this->assertNotSame('2017-10-10 10:10:10', $untouchedTag->fresh()->updated_at?->toDateTimeString());
+    }
+
     public function testWherePivotOnString()
     {
         $tag = Tag::create(['name' => Str::random()])->fresh();

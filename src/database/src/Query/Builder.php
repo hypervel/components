@@ -6,8 +6,8 @@ namespace Hypervel\Database\Query;
 
 use BackedEnum;
 use BadMethodCallException;
-use Carbon\CarbonPeriod;
 use Closure;
+use DatePeriod;
 use DateTimeInterface;
 use Hypervel\Contracts\Database\Query\Builder as BuilderContract;
 use Hypervel\Contracts\Database\Query\ConditionExpression;
@@ -190,6 +190,11 @@ class Builder implements BuilderContract
      * Indicates whether row locking is being used.
      */
     public string|bool|null $lock = null;
+
+    /**
+     * The query execution timeout in seconds.
+     */
+    public ?int $timeout = null;
 
     /**
      * The callbacks that should be invoked before the query is executed.
@@ -688,6 +693,32 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Add a straight join to the query.
+     */
+    public function straightJoin(ExpressionContract|string $table, Closure|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    {
+        return $this->join($table, $first, $operator, $second, 'straight_join');
+    }
+
+    /**
+     * Add a straight join where clause to the query.
+     */
+    public function straightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second): static
+    {
+        return $this->joinWhere($table, $first, $operator, $second, 'straight_join');
+    }
+
+    /**
+     * Add a subquery straight join to the query.
+     *
+     * @param Closure|self|EloquentBuilder<*>|string $query
+     */
+    public function straightJoinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    {
+        return $this->joinSub($query, $as, $first, $operator, $second, 'straight_join');
+    }
+
+    /**
      * Get a new "join" clause.
      */
     protected function newJoinClause(self $parentQuery, string $type, ExpressionContract|string $table): JoinClause
@@ -1086,6 +1117,30 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Add a null-safe equality clause to the query.
+     */
+    public function whereNullSafeEquals(ExpressionContract|string $column, mixed $value, string $boolean = 'and'): static
+    {
+        $type = 'NullSafeEquals';
+
+        $this->wheres[] = compact('type', 'column', 'value', 'boolean');
+
+        if (! $value instanceof ExpressionContract) {
+            $this->addBinding($this->flattenValue($value), 'where');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Add an "or" null-safe equality clause to the query.
+     */
+    public function orWhereNullSafeEquals(ExpressionContract|string $column, mixed $value): static
+    {
+        return $this->whereNullSafeEquals($column, $value, 'or');
+    }
+
+    /**
      * Add a "where in" clause to the query.
      */
     public function whereIn(ExpressionContract|string $column, mixed $values, string $boolean = 'and', bool $not = false): static
@@ -1240,8 +1295,8 @@ class Builder implements BuilderContract
                 ->whereBetween(new Expression('(' . $sub . ')'), $values, $boolean, $not);
         }
 
-        if ($values instanceof CarbonPeriod) { // @phpstan-ignore instanceof.alwaysFalse (Carbon v3 lazy-loaded class hierarchy not statically resolvable)
-            $values = [$values->getStartDate(), $values->getEndDate()];
+        if ($values instanceof DatePeriod) {
+            $values = $this->resolveDatePeriodBounds($values);
         }
 
         $this->wheres[] = compact('type', 'column', 'values', 'boolean', 'not');
@@ -2260,8 +2315,8 @@ class Builder implements BuilderContract
     {
         $type = 'between';
 
-        if ($values instanceof CarbonPeriod) { // @phpstan-ignore instanceof.alwaysFalse (Carbon v3 lazy-loaded class hierarchy not statically resolvable)
-            $values = [$values->getStartDate(), $values->getEndDate()];
+        if ($values instanceof DatePeriod) {
+            $values = $this->resolveDatePeriodBounds($values);
         }
 
         $this->havings[] = compact('type', 'column', 'values', 'boolean', 'not');
@@ -2293,6 +2348,27 @@ class Builder implements BuilderContract
     public function orHavingNotBetween(string $column, iterable $values): static
     {
         return $this->havingBetween($column, $values, 'or', true);
+    }
+
+    /**
+     * Resolve the start and end dates from a DatePeriod.
+     *
+     * @return array{DateTimeInterface, DateTimeInterface}
+     */
+    protected function resolveDatePeriodBounds(DatePeriod $period): array
+    {
+        [$start, $end] = [$period->getStartDate(), $period->getEndDate()];
+
+        if ($end === null) {
+            $end = clone $start;
+            $recurrences = $period->getRecurrences();
+
+            for ($i = 0; $i < $recurrences; ++$i) {
+                $end = $end->add($period->getDateInterval());
+            }
+        }
+
+        return [$start, $end];
     }
 
     /**
@@ -2416,6 +2492,37 @@ class Builder implements BuilderContract
     public function inRandomOrder(string|int $seed = ''): static
     {
         return $this->orderByRaw($this->grammar->compileRandom($seed));
+    }
+
+    /**
+     * Add an order clause for a given sequence of values.
+     */
+    public function inOrderOf(ExpressionContract|string $column, Arrayable|array $values): static
+    {
+        if ($values instanceof Arrayable) {
+            $values = $values->toArray();
+        }
+
+        $values = array_values($values);
+
+        if ($values === []) {
+            return $this;
+        }
+
+        $hasUnions = $this->unions !== null && $this->unions !== [];
+
+        $this->{$hasUnions ? 'unionOrders' : 'orders'}[] = [
+            'type' => 'InOrderOf',
+            'column' => $column,
+            'values' => $values,
+        ];
+
+        $this->addBinding(
+            $this->cleanBindings($values),
+            $hasUnions ? 'unionOrder' : 'order'
+        );
+
+        return $this;
     }
 
     /**
@@ -2619,6 +2726,22 @@ class Builder implements BuilderContract
     public function sharedLock(): static
     {
         return $this->lock(false);
+    }
+
+    /**
+     * Set a query execution timeout in seconds.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function timeout(?int $seconds): static
+    {
+        if ($seconds !== null && $seconds <= 0) {
+            throw new InvalidArgumentException('Timeout must be greater than zero.');
+        }
+
+        $this->timeout = $seconds;
+
+        return $this;
     }
 
     /**
@@ -3375,6 +3498,58 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Insert records while ignoring conflicts and return the inserted rows.
+     *
+     * @param non-empty-array<non-empty-string> $returning
+     * @param null|non-empty-array<non-empty-string>|non-empty-string $uniqueBy
+     * @return Collection<int, object>
+     */
+    public function insertOrIgnoreReturning(array $values, array $returning = ['*'], array|string|null $uniqueBy = null): Collection
+    {
+        if ($values === []) {
+            return new Collection;
+        }
+
+        if ($uniqueBy === [] || $uniqueBy === '') {
+            throw new InvalidArgumentException('The unique columns must not be empty.');
+        }
+
+        if ($returning === []) {
+            throw new InvalidArgumentException('The returning columns must not be empty.');
+        }
+
+        if (! is_array(array_first($values))) {
+            $values = [$values];
+        } else {
+            foreach ($values as $key => $value) {
+                ksort($value);
+
+                $values[$key] = $value;
+            }
+        }
+
+        $this->applyBeforeQueryCallbacks();
+
+        $sql = $this->grammar->compileInsertOrIgnoreReturning(
+            $this,
+            $values,
+            $returning,
+            $uniqueBy === null ? null : Arr::wrap($uniqueBy)
+        );
+
+        $result = new Collection(
+            $this->connection->selectFromWriteConnection(
+                $sql,
+                $this->cleanBindings(Arr::flatten($values, 1))
+            )
+        );
+
+        $this->connection->recordsHaveBeenModified($result->isNotEmpty());
+
+        return $result;
+    }
+
+    /**
      * Insert a new record and get the value of the primary key.
      */
     public function insertGetId(array $values, ?string $sequence = null): int|string
@@ -3432,7 +3607,9 @@ class Builder implements BuilderContract
         $this->applyBeforeQueryCallbacks();
 
         $values = (new Collection($values))->map(function ($value) {
-            if (! $value instanceof Builder) {
+            if (! $value instanceof self
+                && ! $value instanceof EloquentBuilder
+                && ! $value instanceof Relation) {
                 return ['value' => $value, 'bindings' => match (true) {
                     $value instanceof Collection => $value->all(),
                     $value instanceof UnitEnum => enum_value($value),

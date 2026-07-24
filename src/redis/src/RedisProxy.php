@@ -26,8 +26,8 @@ use Throwable;
  *
  * Each proxy represents a named Redis connection. Commands are executed by
  * checking out a connection from the pool, running the command, and releasing
- * the connection back. Context management ensures that multi/pipeline/select
- * commands reuse the same connection within a coroutine.
+ * the connection back. Context management ensures that stateful commands reuse
+ * the same connection within a coroutine.
  *
  * @mixin \Hypervel\Redis\RedisConnection
  */
@@ -41,6 +41,11 @@ class RedisProxy implements ConnectionContract
     public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
 
     /**
+     * Context key prefix for the coroutine owning deferred pool cleanup.
+     */
+    private const DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
+
+    /**
      * Methods that must be called while explicitly holding a pool connection.
      *
      * Keep in sync with Hypervel\Support\Facades\Redis::ignoredFacadeDocumenterMethods().
@@ -49,8 +54,10 @@ class RedisProxy implements ConnectionContract
         'auth',
         'check',
         'client',
+        'clearWatchState',
         'close',
         'connect',
+        'discardTransaction',
         'getActiveConnection',
         'getConnection',
         'getCreatedAt',
@@ -162,48 +169,86 @@ class RedisProxy implements ConnectionContract
 
         $start = hrtime(true) / 1e9;
         $result = null;
-        $exception = null;
+        $commandException = null;
+        $eventException = null;
+        $cleanupException = null;
 
         try {
             /** @var RedisConnection $connection */
             $connection = $connection->getConnection();
-            $result = $connection->{$name}(...$arguments);
-        } catch (Throwable $e) {
-            $exception = $e;
-            $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
+            $result = $name === 'discard'
+                ? $connection->discardTransaction()
+                : $connection->{$name}(...$arguments);
+        } catch (Throwable $throwable) {
+            $commandException = $throwable;
 
-            if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
-                $connection->getEventDispatcher()->dispatch(
-                    new CommandFailed($name, $arguments, $e, $connection, $time)
-                );
+            try {
+                if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
+                    $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
+                    $connection->getEventDispatcher()->dispatch(
+                        new CommandFailed($name, $arguments, $throwable, $connection, $time)
+                    );
+                }
+            } catch (Throwable $throwable) {
+                $eventException = $throwable;
             }
-        } finally {
-            if ($exception === null && $connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
-                $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
-                $connection->getEventDispatcher()->dispatch(
-                    new CommandExecuted($name, $arguments, $time, $connection)
-                );
-            }
+        }
 
+        if ($commandException === null) {
+            try {
+                if ($connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
+                    $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
+                    $connection->getEventDispatcher()->dispatch(
+                        new CommandExecuted($name, $arguments, $time, $connection)
+                    );
+                }
+            } catch (Throwable $throwable) {
+                $eventException = $throwable;
+            }
+        }
+
+        try {
             if ($hasContextConnection) {
                 // Connection is already in context, don't release
-            } elseif ($exception === null && $this->shouldUseSameConnection($name)) {
+            } elseif ($commandException === null && $this->shouldUseSameConnection($name)) {
                 // On success with same-connection command: store in context for reuse
                 if ($name === 'select' && array_key_exists(0, $arguments)) {
                     $connection->setDatabase((int) $arguments[0]);
                 }
+
                 CoroutineContext::set($this->getContextKey(), $connection);
-                Coroutine::defer(function () {
-                    $this->releaseContextConnection();
-                });
+
+                $coroutineId = Coroutine::id();
+
+                if ($coroutineId > 0) {
+                    $deferredReleaseOwnerContextKey = $this->getDeferredReleaseOwnerContextKey();
+
+                    if (CoroutineContext::get($deferredReleaseOwnerContextKey) !== $coroutineId) {
+                        Coroutine::defer(function (): void {
+                            $this->releaseContextConnection();
+                        });
+
+                        CoroutineContext::set($deferredReleaseOwnerContextKey, $coroutineId);
+                    }
+                }
             } else {
                 // Release the connection
                 $connection->release();
             }
+        } catch (Throwable $throwable) {
+            $cleanupException = $throwable;
         }
 
-        if ($exception !== null) {
-            throw $exception;
+        if ($eventException !== null) {
+            throw $eventException;
+        }
+
+        if ($commandException !== null) {
+            throw $commandException;
+        }
+
+        if ($cleanupException !== null) {
+            throw $cleanupException;
         }
 
         return $result;
@@ -211,15 +256,35 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Release the connection stored in coroutine context.
+     *
+     * @internal
      */
-    protected function releaseContextConnection(): void
+    public function releaseContextConnection(): void
     {
         $contextKey = $this->getContextKey();
         $connection = CoroutineContext::get($contextKey);
 
-        if ($connection) {
-            CoroutineContext::set($contextKey, null);
+        CoroutineContext::forget($contextKey);
+
+        if ($connection instanceof RedisConnection) {
             $connection->release();
+        }
+    }
+
+    /**
+     * Discard the connection stored in coroutine context.
+     *
+     * @internal
+     */
+    public function discardContextConnection(): void
+    {
+        $contextKey = $this->getContextKey();
+        $connection = CoroutineContext::get($contextKey);
+
+        CoroutineContext::forget($contextKey);
+
+        if ($connection instanceof RedisConnection) {
+            $connection->discard();
         }
     }
 
@@ -255,8 +320,7 @@ class RedisProxy implements ConnectionContract
     }
 
     /**
-     * Define the commands that need same connection to execute.
-     * When these commands executed, the connection will storage to coroutine context.
+     * Determine which commands must reuse the same connection.
      */
     protected function shouldUseSameConnection(string $methodName): bool
     {
@@ -264,6 +328,7 @@ class RedisProxy implements ConnectionContract
             'multi',
             'pipeline',
             'select',
+            'watch',
         ], true);
     }
 
@@ -295,6 +360,14 @@ class RedisProxy implements ConnectionContract
     protected function getContextKey(): string
     {
         return self::CONNECTION_CONTEXT_PREFIX . $this->poolName;
+    }
+
+    /**
+     * Get the context key for this coroutine's deferred release owner.
+     */
+    private function getDeferredReleaseOwnerContextKey(): string
+    {
+        return self::DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX . $this->poolName;
     }
 
     /**
@@ -351,7 +424,7 @@ class RedisProxy implements ConnectionContract
             return $callback();
         } finally {
             if (! $hadContextConnection) {
-                CoroutineContext::set($contextKey, null);
+                CoroutineContext::forget($contextKey);
                 $connection->release();
             }
         }

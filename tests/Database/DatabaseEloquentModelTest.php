@@ -21,6 +21,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
+use Hypervel\Database\Eloquent\Attributes\RouteKey;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\ArrayObject;
@@ -1126,6 +1127,142 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertFalse($model->save());
         $this->assertFalse($model->exists);
+    }
+
+    public function testInsertOrIgnoreProcessWithIncrementing(): void
+    {
+        $model = $this->getMockBuilder(ModelStub::class)
+            ->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])
+            ->getMock();
+        $query = m::mock(Builder::class);
+        $baseQuery = m::mock(BaseBuilder::class);
+        $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
+        $baseQuery->shouldReceive('insertOrIgnoreReturning')
+            ->once()
+            ->with(['name' => 'taylor'], ['*'], null)
+            ->andReturn(new BaseCollection([(object) ['id' => 1, 'name' => 'taylor']]));
+        $query->shouldReceive('getConnection')
+            ->once()
+            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $model->expects($this->once())->method('newModelQuery')->willReturn($query);
+        $model->expects($this->once())->method('updateTimestamps');
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('until')->once()->with('eloquent.saving: ' . get_class($model), $model)->andReturn(true);
+        $events->shouldReceive('until')->once()->with('eloquent.creating: ' . get_class($model), $model)->andReturn(true);
+        $events->shouldReceive('dispatch')->once()->with('eloquent.created: ' . get_class($model), $model);
+        $events->shouldReceive('dispatch')->once()->with('eloquent.saved: ' . get_class($model), $model);
+
+        $model->name = 'taylor';
+        $model->exists = false;
+
+        $this->assertTrue($model->saveOrIgnore());
+        $this->assertSame(1, $model->id);
+        $this->assertTrue($model->exists);
+        $this->assertTrue($model->wasRecentlyCreated);
+    }
+
+    public function testInsertOrIgnoreProcessWithConflict(): void
+    {
+        $model = $this->getMockBuilder(ModelStub::class)
+            ->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])
+            ->getMock();
+        $query = m::mock(Builder::class);
+        $baseQuery = m::mock(BaseBuilder::class);
+        $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
+        $baseQuery->shouldReceive('insertOrIgnoreReturning')
+            ->once()
+            ->with(['name' => 'taylor'], ['*'], null)
+            ->andReturn(new BaseCollection);
+        $query->shouldReceive('getConnection')
+            ->once()
+            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $model->expects($this->once())->method('newModelQuery')->willReturn($query);
+        $model->expects($this->once())->method('updateTimestamps');
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('until')->once()->with('eloquent.saving: ' . get_class($model), $model)->andReturn(true);
+        $events->shouldReceive('until')->once()->with('eloquent.creating: ' . get_class($model), $model)->andReturn(true);
+
+        $model->name = 'taylor';
+        $model->exists = false;
+
+        $this->assertFalse($model->saveOrIgnore());
+        $this->assertFalse($model->exists);
+        $this->assertFalse($model->wasRecentlyCreated);
+    }
+
+    public function testInsertOrIgnoreProcessWithNonIncrementing(): void
+    {
+        $model = $this->getMockBuilder(ModelStub::class)
+            ->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])
+            ->getMock();
+        $query = m::mock(Builder::class);
+        $baseQuery = m::mock(BaseBuilder::class);
+        $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
+        $baseQuery->shouldReceive('insertOrIgnoreReturning')
+            ->once()
+            ->with(['name' => 'taylor'], ['*'], null)
+            ->andReturn(new BaseCollection([(object) ['name' => 'taylor']]));
+        $query->shouldReceive('getConnection')
+            ->once()
+            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $model->expects($this->once())->method('newModelQuery')->willReturn($query);
+        $model->expects($this->once())->method('updateTimestamps');
+        $model->setIncrementing(false);
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('until')->once()->with('eloquent.saving: ' . get_class($model), $model)->andReturn(true);
+        $events->shouldReceive('until')->once()->with('eloquent.creating: ' . get_class($model), $model)->andReturn(true);
+        $events->shouldReceive('dispatch')->once()->with('eloquent.created: ' . get_class($model), $model);
+        $events->shouldReceive('dispatch')->once()->with('eloquent.saved: ' . get_class($model), $model);
+
+        $model->name = 'taylor';
+        $model->exists = false;
+
+        $this->assertTrue($model->saveOrIgnore());
+        $this->assertNull($model->id);
+        $this->assertTrue($model->exists);
+        $this->assertTrue($model->wasRecentlyCreated);
+    }
+
+    public function testInsertOrIgnoreProcessWithNamedUnique(): void
+    {
+        $model = $this->getMockBuilder(ModelStub::class)
+            ->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])
+            ->getMock();
+        $query = m::mock(Builder::class);
+        $baseQuery = m::mock(BaseBuilder::class);
+        $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
+        $baseQuery->shouldReceive('insertOrIgnoreReturning')
+            ->once()
+            ->with(['name' => 'taylor'], ['*'], ['name'])
+            ->andReturn(new BaseCollection);
+        $query->shouldReceive('getConnection')
+            ->once()
+            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $model->expects($this->once())->method('newModelQuery')->willReturn($query);
+        $model->expects($this->once())->method('updateTimestamps');
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('until')->once()->with('eloquent.saving: ' . get_class($model), $model)->andReturn(true);
+        $events->shouldReceive('until')->once()->with('eloquent.creating: ' . get_class($model), $model)->andReturn(true);
+
+        $model->name = 'taylor';
+        $model->exists = false;
+
+        $this->assertFalse($model->saveOrIgnore([], ['name']));
+        $this->assertFalse($model->exists);
+        $this->assertFalse($model->wasRecentlyCreated);
+    }
+
+    public function testInsertOrIgnoreThrowsOnExistingModel(): void
+    {
+        $this->expectException(LogicException::class);
+
+        $model = new ModelStub;
+        $model->exists = true;
+        $model->saveOrIgnore();
     }
 
     public function testDeleteProperlyDeletesModel()
@@ -2648,6 +2785,253 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertTrue($model->isDirty('category'));
     }
 
+    public function testIncrementReturnsFalseWhenUpdatingEventIsCancelled(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->foo = 1;
+        $model->shouldNotReceive('newQueryWithoutScopes');
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('until')
+            ->once()
+            ->with('eloquent.updating: ' . get_class($model), $model)
+            ->andReturn(false);
+
+        $this->assertFalse($model->publicIncrement('foo'));
+        $this->assertSame(2, $model->foo);
+    }
+
+    public function testIncrementEachOnExistingModelScopesQueryToModelKey(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+        $model->foo = 2;
+        $model->bar = 5;
+
+        $model->shouldReceive('newQueryWithoutScopes')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('where')->once()->with('id', '=', 1)->andReturnSelf();
+        $query->shouldReceive('incrementEach')
+            ->once()
+            ->with(['foo' => 1, 'bar' => 2], [])
+            ->andReturn(1);
+
+        $result = $model->publicIncrementEach(['foo' => 1, 'bar' => 2]);
+
+        $this->assertSame(1, $result);
+        $this->assertSame(3, $model->foo);
+        $this->assertSame(7, $model->bar);
+    }
+
+    public function testDecrementEachOnExistingModelScopesQueryToModelKey(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+        $model->foo = 10;
+        $model->bar = 5;
+
+        $model->shouldReceive('newQueryWithoutScopes')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('where')->once()->with('id', '=', 1)->andReturnSelf();
+        $query->shouldReceive('decrementEach')
+            ->once()
+            ->with(['foo' => 3, 'bar' => 2], [])
+            ->andReturn(1);
+
+        $result = $model->publicDecrementEach(['foo' => 3, 'bar' => 2]);
+
+        $this->assertSame(1, $result);
+        $this->assertSame(7, $model->foo);
+        $this->assertSame(3, $model->bar);
+    }
+
+    public function testIncrementEachQuietlyUpdatesTheModelWithoutEvents(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+        $model->foo = 2;
+        $model->bar = 5;
+
+        $model->shouldReceive('newQueryWithoutScopes')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('where')->andReturnSelf();
+        $query->shouldReceive('incrementEach')->twice()->andReturn(1);
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldNotReceive('until');
+        $events->shouldNotReceive('dispatch');
+
+        $model->publicIncrementEachQuietly(['foo' => 1, 'bar' => 2]);
+
+        $this->assertSame(3, $model->foo);
+        $this->assertSame(7, $model->bar);
+        $this->assertFalse($model->isDirty());
+
+        $model->publicIncrementEachQuietly(['foo' => 1], ['category' => 1]);
+
+        $this->assertSame(4, $model->foo);
+        $this->assertSame(1, $model->category);
+        $this->assertTrue($model->isDirty('category'));
+    }
+
+    public function testDecrementEachQuietlyUpdatesTheModelWithoutEvents(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+        $model->foo = 10;
+        $model->bar = 5;
+
+        $model->shouldReceive('newQueryWithoutScopes')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('where')->andReturnSelf();
+        $query->shouldReceive('decrementEach')->twice()->andReturn(1);
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldNotReceive('until');
+        $events->shouldNotReceive('dispatch');
+
+        $model->publicDecrementEachQuietly(['foo' => 3, 'bar' => 2]);
+
+        $this->assertSame(7, $model->foo);
+        $this->assertSame(3, $model->bar);
+        $this->assertFalse($model->isDirty());
+
+        $model->publicDecrementEachQuietly(['foo' => 1], ['category' => 1]);
+
+        $this->assertSame(6, $model->foo);
+        $this->assertSame(1, $model->category);
+        $this->assertTrue($model->isDirty('category'));
+    }
+
+    public function testIncrementEachQuietlyCanBeCalledDynamicallyOnModelInstance(): void
+    {
+        $query = m::mock(Builder::class);
+        $query->shouldReceive('where')->once()->with('id', '=', 1)->andReturnSelf();
+        $query->shouldReceive('incrementEach')
+            ->once()
+            ->with(['foo' => 1, 'bar' => 2], [])
+            ->andReturn(1);
+
+        $model = new DynamicIncrementEachStub($query, ['foo' => 2, 'bar' => 5]);
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+
+        $model->incrementEachQuietly(['foo' => 1, 'bar' => 2]);
+
+        $this->assertSame(3, $model->foo);
+        $this->assertSame(7, $model->bar);
+    }
+
+    public function testDecrementEachQuietlyCanBeCalledDynamicallyOnModelInstance(): void
+    {
+        $query = m::mock(Builder::class);
+        $query->shouldReceive('where')->once()->with('id', '=', 1)->andReturnSelf();
+        $query->shouldReceive('decrementEach')
+            ->once()
+            ->with(['foo' => 1, 'bar' => 2], [])
+            ->andReturn(1);
+
+        $model = new DynamicIncrementEachStub($query, ['foo' => 5, 'bar' => 10]);
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+
+        $model->decrementEachQuietly(['foo' => 1, 'bar' => 2]);
+
+        $this->assertSame(4, $model->foo);
+        $this->assertSame(8, $model->bar);
+    }
+
+    public function testIncrementEachWithExtraColumnsOnExistingModel(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+        $model->foo = 2;
+
+        $model->shouldReceive('newQueryWithoutScopes')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('where')->once()->with('id', '=', 1)->andReturnSelf();
+        $query->shouldReceive('incrementEach')
+            ->once()
+            ->with(['foo' => 5], ['category' => 'test'])
+            ->andReturn(1);
+
+        $result = $model->publicIncrementEach(['foo' => 5], ['category' => 'test']);
+
+        $this->assertSame(1, $result);
+        $this->assertSame(7, $model->foo);
+        $this->assertSame('test', $model->category);
+    }
+
+    public function testIncrementEachFiresModelEvents(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+        $model->foo = 1;
+
+        $model->shouldReceive('newQueryWithoutScopes')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('where')->andReturnSelf();
+        $query->shouldReceive('incrementEach')->andReturn(1);
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('until')
+            ->once()
+            ->with('eloquent.updating: ' . get_class($model), $model)
+            ->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->once()
+            ->with('eloquent.updated: ' . get_class($model), $model);
+
+        $model->publicIncrementEach(['foo' => 1]);
+    }
+
+    public function testIncrementEachReturnsFalseWhenUpdatingEventIsCancelled(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes]');
+        $model->exists = true;
+        $model->id = 1;
+        $model->syncOriginalAttribute('id');
+        $model->foo = 1;
+        $model->shouldNotReceive('newQueryWithoutScopes');
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('until')
+            ->once()
+            ->with('eloquent.updating: ' . get_class($model), $model)
+            ->andReturn(false);
+
+        $result = $model->publicIncrementEach(['foo' => 1]);
+
+        $this->assertFalse($result);
+        $this->assertSame(2, $model->foo);
+    }
+
+    public function testIncrementEachOnNonExistingModelForwardsToQueryBuilder(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutRelationships]');
+        $model->exists = false;
+
+        $model->shouldReceive('newQueryWithoutRelationships')
+            ->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('incrementEach')
+            ->once()
+            ->with(['foo' => 1], [])
+            ->andReturn(5);
+
+        $result = $model->publicIncrementEach(['foo' => 1]);
+
+        $this->assertSame(5, $result);
+    }
+
     public function testRelationshipTouchOwnersIsPropagated()
     {
         $relation = $this->getMockBuilder(BelongsTo::class)->onlyMethods(['touch'])->disableOriginalConstructor()->getMock();
@@ -3447,6 +3831,7 @@ class DatabaseEloquentModelTest extends TestCase
         Model::$snakeAttributes = false;
         Model::encryptUsing(m::mock(Encrypter::class));
 
+        $reflection->setStaticPropertyValue('booting', [ModelStub::class => 1]);
         $reflection->setStaticPropertyValue('booted', [ModelStub::class => true]);
         $reflection->setStaticPropertyValue('bootedCallbacks', [ModelStub::class => [static function () {
         }]]);
@@ -3473,6 +3858,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertNull(Model::getConnectionResolver());
         $this->assertNull($reflection->getStaticPropertyValue('dispatcher'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('booting'));
         $this->assertSame([], $reflection->getStaticPropertyValue('booted'));
         $this->assertSame([], $reflection->getStaticPropertyValue('bootedCallbacks'));
         $this->assertSame([], $reflection->getStaticPropertyValue('traitInitializers'));
@@ -4032,6 +4418,20 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertNotInstanceOf(CustomBuilder::class, $eloquentBuilder);
     }
+
+    public function testRouteKeyCanBeResolvedFromAttribute(): void
+    {
+        $model = new ModelWithRouteKeyAttributeStub;
+
+        $this->assertSame('slug', $model->getRouteKeyName());
+    }
+
+    public function testRouteKeyAttributeIsInherited(): void
+    {
+        $model = new ModelInheritingRouteKeyAttributeStub;
+
+        $this->assertSame('slug', $model->getRouteKeyName());
+    }
 }
 
 class CustomBuilder extends Builder
@@ -4044,6 +4444,15 @@ class ModelWithUseEloquentBuilderAttributeStub extends Model
 }
 
 class ModelWithoutUseEloquentBuilderAttributeStub extends Model
+{
+}
+
+#[RouteKey('slug')]
+class ModelWithRouteKeyAttributeStub extends Model
+{
+}
+
+class ModelInheritingRouteKeyAttributeStub extends ModelWithRouteKeyAttributeStub
 {
 }
 
@@ -4125,6 +4534,26 @@ class ModelStub extends Model
     public function publicDecrementQuietly($column, $amount = 1, $extra = [])
     {
         return $this->decrementQuietly($column, $amount, $extra);
+    }
+
+    public function publicIncrementEach(array $columns, array $extra = [])
+    {
+        return $this->incrementEach($columns, $extra);
+    }
+
+    public function publicDecrementEach(array $columns, array $extra = [])
+    {
+        return $this->decrementEach($columns, $extra);
+    }
+
+    public function publicIncrementEachQuietly(array $columns, array $extra = [])
+    {
+        return $this->incrementEachQuietly($columns, $extra);
+    }
+
+    public function publicDecrementEachQuietly(array $columns, array $extra = [])
+    {
+        return $this->decrementEachQuietly($columns, $extra);
     }
 
     public function belongsToStub()
@@ -4984,6 +5413,28 @@ class CastCacheInvalidClassStub extends Model
     protected array $guarded = [];
 
     protected array $casts = ['foo' => '\This\Class\Does\Not\Exist'];
+}
+
+class DynamicIncrementEachStub extends Model
+{
+    protected array $guarded = [];
+
+    public function __construct(
+        public Builder $queryStub,
+        array $attributes = [],
+    ) {
+        parent::__construct($attributes);
+    }
+
+    public function newQueryWithoutScopes(): Builder
+    {
+        return $this->queryStub;
+    }
+
+    public function newQuery(): Builder
+    {
+        return $this->queryStub;
+    }
 }
 
 enum ConnectionName

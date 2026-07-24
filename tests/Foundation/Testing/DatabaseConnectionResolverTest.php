@@ -13,7 +13,7 @@ use Hypervel\Testbench\TestCase;
 
 class DatabaseConnectionResolverTest extends TestCase
 {
-    public function testFlushDisconnectsCachedConnection()
+    public function testFlushDisconnectsCachedConnection(): void
     {
         $resolver = $this->app->make(DatabaseConnectionResolver::class);
 
@@ -81,6 +81,20 @@ class DatabaseConnectionResolverTest extends TestCase
 
         $this->assertSame($connection, $cachedConnection);
         $this->assertSame('Taylor', $cachedConnection->selectOne('select name from users')->name);
+    }
+
+    public function testSharedInMemorySqliteAliasesReuseAndFlushOneCachedOwner(): void
+    {
+        $resolver = $this->app->make(DatabaseConnectionResolver::class);
+        $connection = $resolver->connection('testing');
+
+        $this->assertSame($connection, $resolver->connection('testing::read'));
+        $this->assertSame($connection, $resolver->connection('testing::write'));
+
+        $resolver->flush('testing::read');
+
+        $this->assertNull($connection->getRawPdo());
+        $this->assertNotSame($connection, $resolver->connection('testing'));
     }
 
     public function testIntegerBackedEnumConnectionNamesAreNormalizedInTestingAndPooledModes(): void

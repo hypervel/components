@@ -978,24 +978,22 @@ class PooledConnectionTest extends DatabaseTestCase
         $nextPooledConnection->release();
     }
 
-    public function testSharedPdoForInMemorySqlite(): void
+    public function testSharedPdoPersistsAcrossInMemorySqliteBorrows(): void
     {
         $pool = new DbPool($this->app, 'pool_test');
 
         $this->assertNotNull($pool->getSharedInMemorySqlitePdo());
 
-        // Two connections from the same pool should share the same PDO
         /** @var PooledConnection $conn1 */
         $conn1 = $pool->get();
+        $pdo1 = $conn1->getConnection()->getPdo();
+        $conn1->release();
+
         /** @var PooledConnection $conn2 */
         $conn2 = $pool->get();
-
-        $pdo1 = $conn1->getConnection()->getPdo();
         $pdo2 = $conn2->getConnection()->getPdo();
 
-        $this->assertSame($pdo1, $pdo2, 'In-memory SQLite connections should share the same PDO');
-
-        $conn1->release();
+        $this->assertSame($pdo1, $pdo2, 'In-memory SQLite borrows should share the same PDO');
         $conn2->release();
     }
 

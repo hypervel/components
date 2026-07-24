@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\NestedSet\Eloquent\AncestorsRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
@@ -53,6 +54,8 @@ trait HasNode
      */
     public static function bootHasNode(): void
     {
+        // Keep event registration in the boot phase; soft-delete detection avoids
+        // constructing a model before boot publication.
         static::saving(fn ($model) => $model->callPendingActions());
 
         static::deleting(fn ($model) => $model->refreshNode());
@@ -106,7 +109,11 @@ trait HasNode
             return static::$hasSoftDelete;
         }
 
-        return static::$hasSoftDelete = method_exists(new static, 'bootSoftDeletes');
+        return static::$hasSoftDelete = in_array(
+            SoftDeletes::class,
+            class_uses_recursive(static::class),
+            true,
+        );
     }
 
     protected function actionRaw(): bool

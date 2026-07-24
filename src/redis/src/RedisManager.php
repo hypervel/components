@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Closure;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Contracts\Redis\Factory as FactoryContract;
@@ -15,6 +14,7 @@ use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolFactory;
 use InvalidArgumentException;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -81,9 +81,8 @@ class RedisManager implements FactoryContract, ConnectionContract
     /**
      * Disconnect the given connection and remove from local cache.
      *
-     * Releases any context-pinned connection, clears the coroutine context
-     * entry, and flushes the underlying pool so all connections are closed
-     * and re-created on next use.
+     * Discards any context-pinned connection and flushes the underlying pool
+     * so all connections are closed and re-created on next use.
      *
      * Boot or tests only. Flushes the shared pool; concurrent coroutines
      * checked out before this call may complete against the destroyed pool
@@ -97,20 +96,29 @@ class RedisManager implements FactoryContract, ConnectionContract
 
         $name = $name === null || $name === '' ? 'default' : $name;
 
+        $proxy = $this->connections[$name] ?? null;
         unset($this->connections[$name]);
 
-        // Release any context-pinned connection before clearing context.
-        // The coroutine defer in RedisProxy::__call() looks up the connection
-        // from context to release it — if we forget the key first, the defer
-        // finds null and the checked-out pool slot is leaked.
-        $contextKey = RedisProxy::CONNECTION_CONTEXT_PREFIX . $name;
-        $connection = CoroutineContext::get($contextKey);
-        if ($connection instanceof RedisConnection) {
-            $connection->release();
-        }
-        CoroutineContext::forget($contextKey);
+        $poolName = $proxy?->getName() ?? $name;
+        $exception = null;
 
-        $this->factory->flushPool($name);
+        if ($proxy !== null) {
+            try {
+                $proxy->discardContextConnection();
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+        }
+
+        try {
+            $this->factory->flushPool($poolName);
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -121,6 +129,56 @@ class RedisManager implements FactoryContract, ConnectionContract
     public function connections(): array
     {
         return $this->connections;
+    }
+
+    /**
+     * Release connections retained by non-coroutine task execution.
+     *
+     * @internal
+     */
+    public function releaseConnections(): void
+    {
+        $this->terminateConnections(
+            static function (RedisProxy $connection): void {
+                $connection->releaseContextConnection();
+            },
+        );
+    }
+
+    /**
+     * Discard connections retained by this manager.
+     *
+     * @internal
+     */
+    public function discardConnections(): void
+    {
+        $this->terminateConnections(
+            static function (RedisProxy $connection): void {
+                $connection->discardContextConnection();
+            },
+        );
+    }
+
+    /**
+     * Terminate every created connection proxy.
+     *
+     * @param Closure(RedisProxy): void $terminate
+     */
+    protected function terminateConnections(Closure $terminate): void
+    {
+        $exception = null;
+
+        foreach ($this->connections as $connection) {
+            try {
+                $terminate($connection);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
