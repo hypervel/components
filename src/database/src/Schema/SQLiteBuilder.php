@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\QueryException;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\File;
+use InvalidArgumentException;
 use Override;
+use RuntimeException;
 
 /**
  * @property \Hypervel\Database\Schema\Grammars\SQLiteGrammar $grammar
@@ -20,6 +23,8 @@ class SQLiteBuilder extends Builder
     #[Override]
     public function createDatabase(string $name): bool
     {
+        $this->validateDatabasePath($name);
+
         return File::put($name, '') !== false;
     }
 
@@ -29,7 +34,21 @@ class SQLiteBuilder extends Builder
     #[Override]
     public function dropDatabaseIfExists(string $name): bool
     {
+        $this->validateDatabasePath($name);
+
         return ! File::exists($name) || File::delete($name);
+    }
+
+    /**
+     * Validate the database name for filesystem management.
+     */
+    protected function validateDatabasePath(string $name): void
+    {
+        if (SQLiteDatabase::isInMemory($name) || SQLiteDatabase::isUri($name)) {
+            throw new InvalidArgumentException(
+                "SQLite database management requires a plain filesystem path; [{$name}] is not supported."
+            );
+        }
     }
 
     #[Override]
@@ -97,15 +116,12 @@ class SQLiteBuilder extends Builder
     #[Override]
     public function dropAllTables(): void
     {
-        foreach ($this->getCurrentSchemaListing() as $schema) {
-            $database = $schema === 'main'
-                ? $this->connection->getDatabaseName()
-                : (array_column($this->getSchemas(), 'path', 'name')[$schema] ?: ':memory:');
+        $databases = array_column($this->getSchemas(), 'path', 'name');
 
-            if ($database !== ':memory:'
-                && ! str_contains($database, '?mode=memory')
-                && ! str_contains($database, '&mode=memory')
-            ) {
+        foreach ($this->getCurrentSchemaListing() as $schema) {
+            $database = $databases[$schema] ?? null;
+
+            if (is_string($database) && $database !== '') {
                 $this->refreshDatabaseFile($database);
             } else {
                 $this->pragma('writable_schema', 1);
@@ -151,7 +167,11 @@ class SQLiteBuilder extends Builder
      */
     public function refreshDatabaseFile(?string $path = null): void
     {
-        file_put_contents($path ?? $this->connection->getDatabaseName(), '');
+        $path ??= $this->connection->getDatabaseName();
+
+        if (File::put($path, '') === false) {
+            throw new RuntimeException("Unable to refresh SQLite database file [{$path}].");
+        }
     }
 
     /**
