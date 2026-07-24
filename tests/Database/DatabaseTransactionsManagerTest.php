@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
@@ -281,6 +283,181 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[0]);
     }
 
+    public function testPartialRollbackDetachesOnlyTheCurrentBranchAndItsCommittedDescendants(): void
+    {
+        $manager = new InspectableDatabaseTransactionsManager;
+        $callbacks = [];
+
+        $manager->begin('default', 1);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'outer';
+        });
+
+        $manager->begin('default', 2);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'committed sibling';
+        });
+        $manager->commit('default', 2, 1);
+
+        $manager->begin('default', 2);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'current';
+        });
+        $manager->begin('default', 3);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'committed descendant';
+        });
+        $manager->commit('default', 3, 2);
+
+        $manager->rollback('default', 1);
+
+        $this->assertSame(['committed descendant', 'current'], $callbacks);
+        $this->assertSame(1, $manager->currentTransaction('default')?->level);
+        $this->assertSame([1], $manager->getPendingTransactions()->pluck('level')->all());
+        $this->assertSame([2], $manager->getCommittedTransactions()->pluck('level')->all());
+
+        $manager->rollback('default', 0);
+
+        $this->assertSame(
+            ['committed descendant', 'current', 'committed sibling', 'outer'],
+            $callbacks
+        );
+    }
+
+    public function testFullRollbackDetachesStateBeforeCallbacksCanReenter(): void
+    {
+        $manager = new InspectableDatabaseTransactionsManager;
+        $manager->begin('default', 1);
+        $manager->addCallbackForRollback(function () use ($manager): void {
+            $this->assertNull($manager->currentTransaction('default'));
+            $this->assertCount(0, $manager->getPendingTransactions());
+            $this->assertCount(0, $manager->getCommittedTransactions());
+
+            $manager->begin('default', 1);
+        });
+
+        $manager->rollback('default', 0);
+
+        $this->assertSame(1, $manager->currentTransaction('default')?->level);
+        $this->assertCount(1, $manager->getPendingTransactions());
+    }
+
+    public function testFullRollbackExecutesEachStagedCurrentRecordOnce(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $callbacks = 0;
+        $manager->begin('default', 1);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            ++$callbacks;
+        });
+        $manager->stageTransactions('default', 1);
+
+        $manager->rollback('default', 0);
+
+        $this->assertSame(1, $callbacks);
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertCount(0, $manager->getCommittedTransactions());
+    }
+
+    public function testRollbackCallbacksExhaustDeepestFirstAndPreserveTheEarliestFailure(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $callbacks = [];
+        $earliest = new RuntimeException('deepest failure');
+        $later = new RuntimeException('outer failure');
+
+        $manager->begin('default', 1);
+        $manager->addCallbackForRollback(function () use (&$callbacks, $later): void {
+            $callbacks[] = 'outer first';
+            throw $later;
+        });
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'outer second';
+        });
+
+        $manager->begin('default', 2);
+        $manager->addCallbackForRollback(function () use (&$callbacks, $earliest): void {
+            $callbacks[] = 'deepest first';
+            throw $earliest;
+        });
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'deepest second';
+        });
+        $manager->commit('default', 2, 1);
+
+        try {
+            $manager->rollback('default', 0);
+            $this->fail('Expected rollback callbacks to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($earliest, $exception);
+        }
+
+        $this->assertSame([
+            'deepest first',
+            'deepest second',
+            'outer first',
+            'outer second',
+        ], $callbacks);
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertCount(0, $manager->getCommittedTransactions());
+    }
+
+    public function testRollbackExecutesCallbacksInDeepestFirstOrderAcrossCommittedBranches(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $callbacks = [];
+
+        $manager->begin('default', 1);
+        $manager->begin('default', 2);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = ['first', 2];
+        });
+        $manager->commit('default', 2, 1);
+
+        $manager->begin('default', 2);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = ['second', 2];
+        });
+        $manager->begin('default', 3);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = ['second', 3];
+        });
+        $manager->commit('default', 3, 2);
+        $manager->commit('default', 2, 1);
+
+        $manager->rollback('default', 0);
+
+        $this->assertSame([
+            ['second', 3],
+            ['first', 2],
+            ['second', 2],
+        ], $callbacks);
+    }
+
+    public function testCommitCallbacksRemainStopOnFirst(): void
+    {
+        $manager = new DatabaseTransactionsManager;
+        $callbacks = [];
+        $failure = new RuntimeException('commit callback failure');
+        $manager->begin('default', 1);
+        $manager->addCallback(function () use (&$callbacks, $failure): void {
+            $callbacks[] = 'first';
+            throw $failure;
+        });
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'second';
+        });
+
+        try {
+            $manager->commit('default', 1, 0);
+            $this->fail('Expected the commit callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(['first'], $callbacks);
+    }
+
     public function testCallbackForRollbackIsNotExecutedIfNoTransactions()
     {
         $callbacks = [];
@@ -334,5 +511,13 @@ class DatabaseTransactionsManagerTest extends TestCase
 
         $this->assertCount(1, $manager->getPendingTransactions());
         $this->assertCount(2, $manager->getCommittedTransactions());
+    }
+}
+
+class InspectableDatabaseTransactionsManager extends DatabaseTransactionsManager
+{
+    public function currentTransaction(string $connection): ?DatabaseTransactionRecord
+    {
+        return $this->getCurrentTransactionForConnection($connection);
     }
 }
