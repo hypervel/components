@@ -6,7 +6,10 @@ namespace Hypervel\Database;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
+use Hypervel\Contracts\Queue\EntityResolver;
+use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
+use Hypervel\Core\Events\TaskTerminated;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Console\DbCommand;
 use Hypervel\Database\Console\DumpCommand;
@@ -28,12 +31,14 @@ use Hypervel\Database\Console\ShowModelCommand;
 use Hypervel\Database\Console\TableCommand;
 use Hypervel\Database\Console\WipeCommand;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Listeners\UnsetContextInTaskWorkerListener;
+use Hypervel\Database\Eloquent\QueueEntityResolver;
+use Hypervel\Database\Listeners\DatabaseConnectionLifecycleListener;
 use Hypervel\Database\Migrations\DatabaseMigrationRepository;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Database\Schema\SchemaProxy;
 use Hypervel\Support\ServiceProvider;
+use Swoole\Constant;
 
 class DatabaseServiceProvider extends ServiceProvider
 {
@@ -44,6 +49,7 @@ class DatabaseServiceProvider extends ServiceProvider
     {
         $this->registerConnectionServices();
         $this->registerFakerGenerator();
+        $this->registerQueueableEntityResolver();
 
         $this->app->singleton('db.resolver', fn ($app) => $app->make(ConnectionResolver::class));
 
@@ -150,17 +156,40 @@ class DatabaseServiceProvider extends ServiceProvider
     }
 
     /**
+     * Register the queueable entity resolver implementation.
+     */
+    protected function registerQueueableEntityResolver(): void
+    {
+        $this->app->singleton(EntityResolver::class, QueueEntityResolver::class);
+    }
+
+    /**
      * Bootstrap the service provider.
      */
     public function boot(): void
     {
-        Model::setConnectionResolver($this->app['db']);
-        Model::setEventDispatcher($this->app['events']);
+        Model::setConnectionResolver($this->app->make('db'));
+        Model::setEventDispatcher($this->app->make('events'));
 
-        $events = $this->app['events'];
+        $events = $this->app->make('events');
+        $listener = fn (): DatabaseConnectionLifecycleListener => $this->app->make(
+            DatabaseConnectionLifecycleListener::class
+        );
 
-        $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
-            $this->app->make(UnsetContextInTaskWorkerListener::class)->handle($event);
+        if (! $this->app->make('config')->boolean(
+            'server.settings.' . Constant::OPTION_TASK_ENABLE_COROUTINE
+        )) {
+            $events->listen(TaskTerminated::class, function () use ($listener): void {
+                $listener()->releaseTaskConnections();
+            });
+        }
+
+        $events->listen(BeforeServerFork::class, function () use ($listener): void {
+            $listener()->discardProcessConnections();
+        });
+
+        $events->listen(BeforeWorkerStart::class, function () use ($listener): void {
+            $listener()->discardProcessConnections();
         });
     }
 }
