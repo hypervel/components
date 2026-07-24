@@ -17,9 +17,9 @@
 <a name="introduction"></a>
 ## Introduction
 
-Server processes are custom Swoole child processes that run alongside your Hypervel application server. They are useful for long-running, application-specific workloads that need their own operating system process and should share the server's lifecycle.
+Server processes are custom Swoole child processes that run alongside your Hypervel application server. You may use them for long-running application tasks that need a separate operating system process and should start and stop with the server.
 
-Server processes are different from the [Process facade](/docs/{{version}}/processes), which invokes external commands on demand. For ordinary background jobs, scheduled work, or concurrent subtasks, consider using [queues](/docs/{{version}}/queues), [task scheduling](/docs/{{version}}/scheduling), or [concurrency](/docs/{{version}}/concurrency) instead.
+Server processes differ from the [Process facade](/docs/{{version}}/processes), which invokes external commands on demand. For background jobs, scheduled tasks, or short-lived concurrent work, you should use [queues](/docs/{{version}}/queues), [task scheduling](/docs/{{version}}/scheduling), or [concurrency](/docs/{{version}}/concurrency) instead.
 
 <a name="defining-server-processes"></a>
 ## Defining Server Processes
@@ -59,7 +59,7 @@ class ReportProcess extends AbstractProcess
 }
 ```
 
-The `handle` method is the entry point for each child process. If you define a custom constructor, always call the parent constructor so Hypervel can initialize the process correctly.
+The `handle` method runs inside each child process. If your process has a custom constructor, be sure to call the parent constructor so Hypervel can initialize it.
 
 <a name="process-options"></a>
 ### Process Options
@@ -68,19 +68,32 @@ You may customize a process by overriding the following properties on your proce
 
 | Property | Default | Description |
 |---|---:|---|
-| `name` | `process` | Name used for process titles, logs, and `ProcessCollector` groups. |
+| `name` | `process` | Name used in process titles and logs. This name also identifies the process when sending IPC messages. |
 | `processCount` | `1` | Number of child process instances to attach to the server. |
-| `redirectStdinStdout` | `false` | Whether Swoole redirects standard input and output to the process pipe. Leave disabled unless you specifically need this native behavior. |
-| `pipeType` | `SOCK_DGRAM` | Native Swoole process pipe type. Keep the default when using Hypervel's IPC support. |
-| `enableCoroutine` | `true` | Whether the child uses Swoole coroutine mode. Hypervel's IPC listener and collector integration also require this option. |
-| `receiveLength` | `65535` | Maximum number of bytes read from one IPC message. |
-| `receiveTimeout` | `10.0` | Maximum seconds an IPC receive waits before checking again. |
-| `restartInterval` | `5` | Seconds to wait after `handle` finishes or throws before the child callback returns. Swoole restarts the managed process after the callback returns, so this delay throttles the respawn rate. |
+| `redirectStdinStdout` | `false` | Determines whether Swoole redirects standard input and output to the process pipe. Leave this disabled unless you need Swoole's native redirection. |
+| `pipeType` | `SOCK_DGRAM` | The Swoole process pipe type. Keep the default when using Hypervel's IPC features. |
+| `enableCoroutine` | `true` | Determines whether the child process uses Swoole coroutine mode. Hypervel's IPC features require this option to be enabled. |
+| `receiveLength` | `65535` | Maximum number of bytes that may be read from a single IPC message. |
+| `receiveTimeout` | `10.0` | Number of seconds to wait for an IPC message before checking whether the process is stopping. |
+| `restartInterval` | `5` | Number of seconds to wait after `handle` returns or throws before Swoole restarts the process. |
 
 <a name="conditionally-enabling-processes"></a>
 ### Conditionally Enabling Processes
 
-By default, a registered process is enabled for every application server. You may override the `isEnabled` method when a process should only be attached to a particular `Swoole\Server` instance or application configuration.
+By default, registered processes are enabled for every application server. You may override the `isEnabled` method when a process should only run with a particular server or application configuration. For example, the following process will only run with a WebSocket server:
+
+```php
+use Swoole\Server;
+use Swoole\WebSocket\Server as WebSocketServer;
+
+/**
+ * Determine if the process should start.
+ */
+public function isEnabled(Server $server): bool
+{
+    return $server instanceof WebSocketServer;
+}
+```
 
 <a name="registering-server-processes"></a>
 ## Registering Server Processes
@@ -96,12 +109,12 @@ Most server processes should be registered by adding their class names to the `p
 ],
 ```
 
-Hypervel resolves each class through the service container and attaches the enabled processes before the server starts.
+Before the server starts, Hypervel resolves each class through the service container and attaches it to the server if it is enabled.
 
 <a name="registering-process-instances"></a>
 ### Registering Process Instances
 
-When you need multiple differently configured instances of the same process class, you may register each instance through `ProcessManager` from a service provider's `boot` method:
+When you need to register the same process class more than once with different settings, you may register each instance through `ProcessManager` from a service provider's `boot` method:
 
 ```php
 use App\Processes\ReportProcess;
@@ -124,7 +137,7 @@ public function boot(): void
 }
 ```
 
-Use programmatic registration instead of a configuration entry for these instances, otherwise the default class configuration will be attached as an additional process.
+Do not also list the class in your `config/server.php` file. Doing so will register another instance with the class's default settings.
 
 > [!WARNING]
 > Process registration is boot-time configuration. Register processes from a service provider before the server starts, not from requests, jobs, or other runtime application code.
@@ -132,31 +145,37 @@ Use programmatic registration instead of a configuration entry for these instanc
 <a name="process-lifecycle"></a>
 ## Process Lifecycle
 
-When the server starts, Hypervel resolves each registered definition, calls its `isEnabled` method, and attaches the configured number of child processes. Each child invokes `handle`. If `handle` throws an exception, Hypervel reports it through the application's exception handler. Once the callback returns, Swoole restarts the managed process while the server remains running.
+When the server starts, Hypervel resolves each registered process and calls its `isEnabled` method. For each enabled process, Hypervel creates the configured number of child processes and calls `handle` inside each one.
 
-Your `handle` method should remain running for the lifetime of its workload and return only when the child is ready to exit and be restarted.
+If `handle` throws an exception, Hypervel reports it through your application's exception handler. When `handle` returns or throws, Swoole restarts the child process after the configured `restartInterval`.
+
+Your `handle` method should keep running as long as the process is needed and only return when the child should exit and be restarted.
 
 <a name="lifecycle-events"></a>
 ### Lifecycle Events
 
-Hypervel dispatches `Hypervel\ServerProcess\Events\BeforeProcessHandle` before calling `handle` and `Hypervel\ServerProcess\Events\AfterProcessHandle` after it finishes. Both events expose the process definition and its zero-based child index. You may listen for these events using Hypervel's normal [event listeners](/docs/{{version}}/events#registering-events-and-listeners).
+Hypervel dispatches a `Hypervel\ServerProcess\Events\BeforeProcessHandle` event before calling `handle` and a `Hypervel\ServerProcess\Events\AfterProcessHandle` event as the child process finishes. Both events provide the process instance and its zero-based child index.
+
+You may register listeners for these events in the same way as other Hypervel [event listeners](/docs/{{version}}/events#registering-events-and-listeners).
 
 <a name="signals"></a>
 ### Signals
 
-When the Signal package is installed, process-scoped handlers configured in `signal.handlers` are active while the server process is running. This allows the same configured signal infrastructure to participate in custom child processes without adding signal handling to the process class itself.
+If the Signal package is installed, server processes automatically use the process signal handlers listed in the `signal.handlers` configuration value. You do not need to register these handlers again in your process class.
 
 <a name="inter-process-communication"></a>
 ## Inter-Process Communication
 
-Coroutine-enabled server processes may receive serialized messages from the application's server workers. Hypervel stores successfully attached process handles in `ProcessCollector`, grouped by the process `name`.
+Inter-process communication (IPC) allows a server worker to send data to a long-running server process. Hypervel supports IPC for coroutine-enabled server processes.
+
+After attaching a coroutine-enabled process to the server, Hypervel stores its handle in `ProcessCollector` under the process `name`.
 
 <a name="sending-messages"></a>
 ### Sending Messages
 
-`ProcessCollector` is populated when the application server boots and is available to the server's own workers. A separate process, such as a standalone Artisan command, has an empty collector and sends nothing.
+`ProcessCollector` is populated when the application server starts and is available to the server's workers. Standalone processes, such as Artisan commands, run separately from the application server and cannot use the collector to send messages.
 
-To send a message to every child in a process group, retrieve the handles, export each IPC socket, and send the serialized payload:
+To send a message to every child with a given process name, retrieve its handles, export each IPC socket, and send the serialized payload:
 
 ```php
 use Hypervel\ServerProcess\ProcessCollector;
@@ -181,7 +200,7 @@ The loop above broadcasts the message to every child named `reports`. Select a s
 <a name="receiving-messages"></a>
 ### Receiving Messages
 
-Hypervel deserializes each valid message in the custom child and dispatches a `PipeMessage` event. Register a listener during application boot and inspect the event's `data` property:
+Inside the child process, Hypervel deserializes each valid message and dispatches a `PipeMessage` event. You may register a listener during application boot and read the message from the event's `data` property:
 
 ```php
 use Hypervel\ServerProcess\Events\PipeMessage;
@@ -200,7 +219,9 @@ public function boot(): void
 }
 ```
 
-The listener runs in the custom child process. Since `PipeMessage` contains only the deserialized data, include any routing information your listener needs in the payload. Valid falsy values such as `false`, `null`, `0`, empty strings, and empty arrays are preserved. The serialized message must fit within the process's `receiveLength`.
+The listener runs inside the server process that received the message. Since `PipeMessage` only contains the deserialized data, include a message type or any other routing information your listener needs in the payload.
+
+Values such as `false`, `null`, `0`, empty strings, and empty arrays are delivered unchanged. Each serialized message must be no larger than the process's `receiveLength`.
 
 > [!WARNING]
-> Server-process IPC uses PHP serialization and is an internal application boundary. Only send trusted data. The collected process handles and exported sockets are owned by Swoole and should not be closed by application code.
+> Server-process IPC uses PHP serialization, so you should only send data created by code you trust. Swoole owns the collected process handles and exported sockets, so you should not close them in application code.
