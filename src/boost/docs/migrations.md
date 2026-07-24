@@ -59,6 +59,12 @@ php artisan schema:dump
 php artisan schema:dump --prune
 ```
 
+To dump the schema without including rows from the migrations table, use the `--without-migration-data` option:
+
+```shell
+php artisan schema:dump --without-migration-data
+```
+
 When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
 
 If your application's tests use a different database connection than the one you typically use during local development, you should ensure you have dumped a schema file using that database connection so that your tests are able to build your database. You may wish to do this after dumping the database connection you typically use during local development:
@@ -322,7 +328,7 @@ When creating the table, you may use any of the schema builder's [column methods
 <a name="determining-table-column-existence"></a>
 #### Determining Table / Column Existence
 
-You may determine the existence of a table, column, or index using the `hasTable`, `hasColumn`, and `hasIndex` methods:
+You may determine the existence of a table, column, index, or foreign key using the `hasTable`, `hasColumn`, `hasIndex`, and `hasForeignKey` methods:
 
 ```php
 if (Schema::hasTable('users')) {
@@ -336,7 +342,13 @@ if (Schema::hasColumn('users', 'email')) {
 if (Schema::hasIndex('users', ['email'], 'unique')) {
     // The "users" table exists and has a unique index on the "email" column...
 }
+
+if (Schema::hasForeignKey('posts', ['user_id'])) {
+    // The "posts" table has a foreign key on the "user_id" column...
+}
 ```
+
+The `hasForeignKey` method accepts either the foreign key name or its column list.
 
 <a name="database-connection-table-options"></a>
 #### Database Connection and Table Options
@@ -592,6 +604,7 @@ The schema builder blueprint offers a variety of methods that correspond to the 
 [foreignIdFor](#column-method-foreignIdFor)
 [foreignUlid](#column-method-foreignUlid)
 [foreignUuid](#column-method-foreignUuid)
+[foreignUuidFor](#column-method-foreignUuidFor)
 [morphs](#column-method-morphs)
 [nullableMorphs](#column-method-nullableMorphs)
 
@@ -608,6 +621,7 @@ The schema builder blueprint offers a variety of methods that correspond to the 
 [ipAddress](#column-method-ipAddress)
 [rememberToken](#column-method-rememberToken)
 [vector](#column-method-vector)
+[tsvector](#column-method-tsvector)
 
 </div>
 
@@ -769,6 +783,15 @@ The `foreignUuid` method creates a `UUID` equivalent column:
 
 ```php
 $table->foreignUuid('user_id');
+```
+
+<a name="column-method-foreignUuidFor"></a>
+#### `foreignUuidFor()` {.collection-method}
+
+The `foreignUuidFor` method adds a UUID column for the given model. By default, the column name, referenced table, and referenced model key are derived from the model:
+
+```php
+$table->foreignUuidFor(User::class);
 ```
 
 <a name="column-method-geography"></a>
@@ -1215,6 +1238,15 @@ When utilizing PostgreSQL, the `pgvector` extension must be loaded before `vecto
 Schema::ensureVectorExtensionExists();
 ```
 
+<a name="column-method-tsvector"></a>
+#### `tsvector()` {.collection-method}
+
+The `tsvector` method creates a PostgreSQL `tsvector` equivalent column for storing precomputed full-text search vectors:
+
+```php
+$table->tsvector('search_vector');
+```
+
 <a name="column-method-year"></a>
 #### `year()` {.collection-method}
 
@@ -1470,7 +1502,7 @@ Hypervel's schema builder blueprint class provides methods for creating each typ
 | `$table->fullText('body')->language('english');`               | Adds a full text index of the specified language (PostgreSQL). |
 | `$table->spatialIndex('location');`                            | Adds a spatial index (except SQLite).                          |
 | `$table->rawIndex('(lower(email))', 'users_email_lower_index');` | Adds an index from a raw expression.                          |
-| `$table->vectorIndex('embedding');`                            | Adds a vector index (PostgreSQL).                              |
+| `$table->vectorIndex('embedding');`                            | Adds a vector index (MariaDB / PostgreSQL).                    |
 
 </div>
 
@@ -1643,3 +1675,5 @@ For convenience, each migration operation will dispatch an [event](/docs/{{versi
 | `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.       |
 
 </div>
+
+The `MigrationStarted` and `MigrationEnded` events expose the migration filename through their `$name` property.
