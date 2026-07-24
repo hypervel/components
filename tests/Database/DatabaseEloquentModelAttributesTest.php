@@ -75,6 +75,27 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertSame('parent_attr', $model->getTable());
     }
 
+    public function testTableAttributeIsResolvedFromATrait(): void
+    {
+        $model = new ModelWithTableAttributeTrait;
+
+        $this->assertSame('trait_table', $model->getTable());
+    }
+
+    public function testChildInheritsTableAttributeFromAParentTrait(): void
+    {
+        $model = new ChildModelWithParentTableAttributeTrait;
+
+        $this->assertSame('parent_trait_table', $model->getTable());
+    }
+
+    public function testClassTableAttributeTakesPrecedenceOverTraitAttribute(): void
+    {
+        $model = new ModelWithClassAndTraitTableAttributes;
+
+        $this->assertSame('class_table', $model->getTable());
+    }
+
     public function testChildTablePropertyOverridesParentTableAttribute(): void
     {
         $model = new ChildModelWithTableProperty;
@@ -538,6 +559,36 @@ class ParentModelWithTableAttribute extends Model
 
 class ChildModelWithNoTable extends ParentModelWithTableAttribute
 {
+}
+
+#[Table(name: 'trait_table')]
+trait ModelTableAttributeTrait
+{
+}
+
+class ModelWithTableAttributeTrait extends Model
+{
+    use ModelTableAttributeTrait;
+}
+
+#[Table(name: 'parent_trait_table')]
+trait ParentModelTableAttributeTrait
+{
+}
+
+class ParentModelWithTableAttributeTrait extends Model
+{
+    use ParentModelTableAttributeTrait;
+}
+
+class ChildModelWithParentTableAttributeTrait extends ParentModelWithTableAttributeTrait
+{
+}
+
+#[Table(name: 'class_table')]
+class ModelWithClassAndTraitTableAttributes extends Model
+{
+    use ModelTableAttributeTrait;
 }
 
 class ChildModelWithTableProperty extends ParentModelWithTableAttribute

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -11,6 +12,21 @@ use RuntimeException;
 
 class SearchableModelTest extends ScoutTestCase
 {
+    public function testSearchableBootDefersModelInstanceWorkUntilAfterPublication(): void
+    {
+        $model = new SearchableModel;
+
+        $this->assertSame('searchable_models', $model->getTable());
+        $this->assertTrue(BaseCollection::hasMacro('searchable'));
+
+        $dispatcher = SearchableModel::getEventDispatcher();
+
+        $this->assertNotNull($dispatcher);
+        $this->assertTrue($dispatcher->hasListeners(
+            'eloquent.saved: ' . SearchableModel::class
+        ));
+    }
+
     public function testSearchReturnsBuilder()
     {
         $builder = SearchableModel::search('test');

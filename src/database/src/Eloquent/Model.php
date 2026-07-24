@@ -15,11 +15,13 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Coroutine\Mutex;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Eloquent\Attributes\Boot;
 use Hypervel\Database\Eloquent\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\RouteKey;
 use Hypervel\Database\Eloquent\Attributes\Scope as LocalScope;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
@@ -30,6 +32,7 @@ use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Str;
@@ -41,6 +44,7 @@ use JsonSerializable;
 use LogicException;
 use ReflectionClass;
 use ReflectionMethod;
+use RuntimeException;
 use Stringable;
 use Throwable;
 use UnitEnum;
@@ -157,6 +161,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * The event dispatcher instance.
      */
     protected static ?Dispatcher $dispatcher = null;
+
+    /**
+     * The coroutine currently booting each model.
+     *
+     * @var array<class-string<self>, int>
+     */
+    protected static array $booting = [];
 
     /**
      * The array of booted models.
@@ -313,22 +324,67 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function bootIfNotBooted(): void
     {
-        if (! isset(static::$booted[static::class])) {
-            static::$booted[static::class] = true;
+        $class = static::class;
+
+        if (isset(static::$booted[$class]) && ! isset(static::$booting[$class])) {
+            return;
+        }
+
+        $coroutineId = Coroutine::id();
+
+        if ((static::$booting[$class] ?? null) === $coroutineId) {
+            if (isset(static::$booted[$class])) {
+                return;
+            }
+
+            throw new LogicException(
+                'The [' . __METHOD__ . '] method may not be called on model [' . $class . '] while it is being booted.'
+            );
+        }
+
+        $mutexKey = 'database.model.booting.' . $class;
+        $locked = false;
+
+        if ($coroutineId >= 0) {
+            if (! Mutex::lock($mutexKey)) {
+                throw new RuntimeException("Unable to acquire the model boot lock for [{$class}].");
+            }
+
+            $locked = true;
+        }
+
+        try {
+            // A sibling may have completed publication while this coroutine waited.
+            if (isset(static::$booted[$class])) {
+                return;
+            }
+
+            static::$booting[$class] = $coroutineId;
 
             $this->fireModelEvent('booting', false);
 
             static::booting();
             static::boot();
+
+            static::$booted[$class] = true;
+
             static::booted();
 
-            static::$bootedCallbacks[static::class] ??= [];
+            static::$bootedCallbacks[$class] ??= [];
 
-            foreach (static::$bootedCallbacks[static::class] as $callback) {
+            foreach (static::$bootedCallbacks[$class] as $callback) {
                 $callback();
             }
 
             $this->fireModelEvent('booted', false);
+        } finally {
+            if ((static::$booting[$class] ?? null) === $coroutineId) {
+                unset(static::$booting[$class]);
+            }
+
+            if ($locked) {
+                Mutex::unlock($mutexKey);
+            }
         }
     }
 
@@ -454,6 +510,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function clearBootedModels(): void
     {
+        static::$booting = [];
         static::$booted = [];
         static::$bootedCallbacks = [];
         static::$classAttributes = [];
@@ -619,6 +676,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Execute a callback without broadcasting any model events for all model types.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public static function withoutBroadcasting(callable $callback): mixed
     {
@@ -1016,7 +1078,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    protected function increment(string $column, mixed $amount = 1, array $extra = []): int
+    protected function increment(string $column, mixed $amount = 1, array $extra = []): int|false
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'increment');
     }
@@ -1026,7 +1088,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    protected function decrement(string $column, mixed $amount = 1, array $extra = []): int
+    protected function decrement(string $column, mixed $amount = 1, array $extra = []): int|false
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'decrement');
     }
@@ -1137,6 +1199,104 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Increment each given column's value by the given amounts.
+     *
+     * @param array<string, float|int> $columns
+     * @param array<string, mixed> $extra
+     */
+    protected function incrementEach(array $columns, array $extra = []): int|false
+    {
+        return $this->incrementOrDecrementEach($columns, $extra, 'incrementEach');
+    }
+
+    /**
+     * Decrement each given column's value by the given amounts.
+     *
+     * @param array<string, float|int> $columns
+     * @param array<string, mixed> $extra
+     */
+    protected function decrementEach(array $columns, array $extra = []): int|false
+    {
+        return $this->incrementOrDecrementEach($columns, $extra, 'decrementEach');
+    }
+
+    /**
+     * Increment each given column's value by the given amounts without raising any events.
+     *
+     * @param array<string, float|int> $columns
+     * @param array<string, mixed> $extra
+     */
+    protected function incrementEachQuietly(array $columns, array $extra = []): int|false
+    {
+        return static::withoutEvents(
+            fn () => $this->incrementOrDecrementEach($columns, $extra, 'incrementEach')
+        );
+    }
+
+    /**
+     * Decrement each given column's value by the given amounts without raising any events.
+     *
+     * @param array<string, float|int> $columns
+     * @param array<string, mixed> $extra
+     */
+    protected function decrementEachQuietly(array $columns, array $extra = []): int|false
+    {
+        return static::withoutEvents(
+            fn () => $this->incrementOrDecrementEach($columns, $extra, 'decrementEach')
+        );
+    }
+
+    /**
+     * Run the incrementEach or decrementEach method on the model.
+     *
+     * @param array<string, float|int> $columns
+     * @param array<string, mixed> $extra
+     */
+    protected function incrementOrDecrementEach(array $columns, array $extra, string $method): int|false
+    {
+        if (! $this->exists) {
+            return $this->newQueryWithoutRelationships()->{$method}($columns, $extra);
+        }
+
+        $isIncrement = $method === 'incrementEach';
+        $singleMethod = $isIncrement ? 'increment' : 'decrement';
+
+        foreach ($columns as $column => $amount) {
+            $this->{$column} = $this->isClassDeviable($column)
+                ? $this->deviateClassCastableAttribute($singleMethod, $column, $amount)
+                : $this->{$column} + ($isIncrement ? $amount : $amount * -1);
+        }
+
+        $this->forceFill($extra);
+
+        if ($this->fireModelEvent('updating') === false) {
+            return false;
+        }
+
+        $dbColumns = $columns;
+
+        foreach ($dbColumns as $column => $amount) {
+            if ($this->isClassDeviable($column)) {
+                $dbColumns[$column] = (clone $this)
+                    ->setAttribute($column, $amount)
+                    ->getAttributeFromArray($column);
+            }
+        }
+
+        return tap(
+            $this->setKeysForSaveQuery($this->newQueryWithoutScopes())
+                ->{$method}($dbColumns, $extra),
+            function () use ($columns): void {
+                $this->syncChanges();
+
+                $this->fireModelEvent('updated', false);
+
+                $this->syncOriginalAttributes(array_keys($columns));
+            }
+        );
+    }
+
+    /**
      * Save the model and all of its relationships.
      */
     public function push(): bool
@@ -1223,6 +1383,38 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         // If the model is successfully saved, we need to do a few more things once
         // that is done. We will call the "saved" method here to run any actions
         // we need to happen after a model gets successfully saved right here.
+        if ($saved) {
+            $this->finishSave($options);
+        }
+
+        return $saved;
+    }
+
+    /**
+     * Save the model to the database, ignoring specific unique constraint conflicts.
+     *
+     * @param array<string, mixed> $options
+     */
+    public function saveOrIgnore(array $options = [], array|string|null $uniqueBy = null): bool
+    {
+        if ($this->exists) {
+            throw new LogicException('Cannot use saveOrIgnore on an existing model.');
+        }
+
+        $this->mergeAttributesFromCachedCasts();
+
+        $query = $this->newModelQuery();
+
+        if ($this->fireModelEvent('saving') === false) {
+            return false;
+        }
+
+        $saved = $this->performInsertOrIgnore($query, $uniqueBy);
+
+        if ($this->getConnectionName() === null) {
+            $this->setConnection($query->getConnection()->getName());
+        }
+
         if ($saved) {
             $this->finishSave($options);
         }
@@ -1384,6 +1576,56 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         // during the event. This will allow them to do so and run an update here.
         $this->exists = true;
 
+        $this->wasRecentlyCreated = true;
+
+        $this->fireModelEvent('created', false);
+
+        return true;
+    }
+
+    /**
+     * Perform a model insert operation, ignoring specific unique constraint conflicts.
+     *
+     * @param Builder<static> $query
+     */
+    protected function performInsertOrIgnore(Builder $query, array|string|null $uniqueBy): bool
+    {
+        if ($this->usesUniqueIds()) {
+            $this->setUniqueIds();
+        }
+
+        if ($this->fireModelEvent('creating') === false) {
+            return false;
+        }
+
+        if ($this->usesTimestamps()) {
+            $this->updateTimestamps();
+        }
+
+        $attributes = $this->getAttributesForInsert();
+
+        if ($attributes === []) {
+            return true;
+        }
+
+        $result = $query->toBase()->insertOrIgnoreReturning(
+            $attributes,
+            ['*'],
+            $uniqueBy
+        );
+
+        if ($result->isEmpty()) {
+            return false;
+        }
+
+        if ($this->getIncrementing()) {
+            $this->setAttribute(
+                $keyName = $this->getKeyName(),
+                $result->first()->{$keyName}
+            );
+        }
+
+        $this->exists = true;
         $this->wasRecentlyCreated = true;
 
         $this->fireModelEvent('created', false);
@@ -1708,9 +1950,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected static function isScopeMethodWithAttribute(string $method): bool
     {
-        return method_exists(static::class, $method)
-            && (new ReflectionMethod(static::class, $method))
-                ->getAttributes(LocalScope::class) !== [];
+        if (method_exists(static::class, $method)) {
+            $reflection = new ReflectionMethod(static::class, $method);
+
+            return ! $reflection->isPrivate()
+                && $reflection->getAttributes(LocalScope::class) !== [];
+        }
+
+        return false;
     }
 
     /**
@@ -1951,6 +2198,15 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
                     $instance = $attributes[0]->newInstance();
                     break;
                 }
+
+                foreach ($reflection->getTraits() as $trait) {
+                    $attributes = $trait->getAttributes($attributeClass);
+
+                    if ($attributes !== []) {
+                        $instance = $attributes[0]->newInstance();
+                        break 2;
+                    }
+                }
             } while ($reflection = $reflection->getParentClass());
 
             static::$classAttributes[$cacheKey] = $instance;
@@ -2116,7 +2372,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getRouteKeyName(): string
     {
-        return $this->getKeyName();
+        return static::resolveClassAttribute(RouteKey::class, 'key')
+            ?? $this->getKeyName();
     }
 
     /**
@@ -2304,6 +2561,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         static::$resolver = null;
         static::$dispatcher = null;
+        static::$booting = [];
         static::$booted = [];
         static::$bootedCallbacks = [];
         static::$traitInitializers = [];
@@ -2428,7 +2686,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function __call(string $method, array $parameters): mixed
     {
-        if (in_array($method, ['increment', 'decrement', 'incrementQuietly', 'decrementQuietly'])) {
+        if (in_array($method, ['increment', 'decrement', 'incrementQuietly', 'decrementQuietly', 'incrementEach', 'decrementEach', 'incrementEachQuietly', 'decrementEachQuietly'])) {
             return $this->{$method}(...$parameters);
         }
 
