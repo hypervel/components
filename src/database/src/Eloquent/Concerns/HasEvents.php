@@ -480,6 +480,11 @@ trait HasEvents
      *
      * Uses Context for coroutine-safe event disabling, ensuring concurrent
      * requests don't interfere with each other's event handling.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public static function withoutEvents(callable $callback): mixed
     {

@@ -568,10 +568,10 @@ class BelongsToMany extends Relation
      *
      * @return object{pivot: TPivotModel}&TRelatedModel
      */
-    public function firstOrNew(array $attributes = [], array $values = []): Model
+    public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
     {
         if (is_null($instance = $this->related->where($attributes)->first())) {
-            $instance = $this->related->newInstance(array_merge($attributes, $values));
+            $instance = $this->related->newInstance(array_merge($attributes, value($values)));
         }
 
         return $instance;
@@ -582,7 +582,7 @@ class BelongsToMany extends Relation
      *
      * @return object{pivot: TPivotModel}&TRelatedModel
      */
-    public function firstOrCreate(array $attributes = [], array $values = [], array $joining = [], bool $touch = true): Model
+    public function firstOrCreate(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
         if (is_null($instance = (clone $this)->where($attributes)->first())) {
             if (is_null($instance = $this->related->where($attributes)->first())) {
@@ -604,10 +604,10 @@ class BelongsToMany extends Relation
      *
      * @return object{pivot: TPivotModel}&TRelatedModel
      */
-    public function createOrFirst(array $attributes = [], array $values = [], array $joining = [], bool $touch = true): Model
+    public function createOrFirst(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
         try {
-            return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values), $joining, $touch));
+            return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values)), $joining, $touch));
         } catch (UniqueConstraintViolationException $e) {
             // ...
         }
@@ -626,11 +626,11 @@ class BelongsToMany extends Relation
      *
      * @return object{pivot: TPivotModel}&TRelatedModel
      */
-    public function updateOrCreate(array $attributes, array $values = [], array $joining = [], bool $touch = true): Model
+    public function updateOrCreate(array $attributes, Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
         return tap($this->firstOrCreate($attributes, $values, $joining, $touch), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
-                $instance->fill($values);
+                $instance->fill(value($values));
 
                 $instance->save(['touch' => false]);
             }
@@ -1167,7 +1167,7 @@ class BelongsToMany extends Relation
         // the related model's timestamps, to make sure these all reflect the changes
         // to the parent models. This will help us keep any caching synced up here.
         if (count($ids = $this->allRelatedIds()) > 0) {
-            $this->getRelated()->newQueryWithoutRelationships()->whereKey($ids)->update($columns);
+            $this->getRelated()->newQueryWithoutRelationships()->whereIn($this->getQualifiedRelatedKeyName(), $ids)->update($columns);
         }
     }
 

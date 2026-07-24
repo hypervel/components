@@ -1029,6 +1029,20 @@ trait HasRelationships
     }
 
     /**
+     * Duplicate the instance and unset the given loaded relations.
+     */
+    public function withoutRelation(array|string $relations): static
+    {
+        $model = clone $this;
+
+        foreach ((array) $relations as $relation) {
+            $model->unsetRelation($relation);
+        }
+
+        return $model;
+    }
+
+    /**
      * Unset all the loaded relations for the instance.
      *
      * @return $this

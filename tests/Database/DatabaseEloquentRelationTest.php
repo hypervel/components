@@ -266,6 +266,41 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($model->relationLoaded('foo'));
     }
 
+    public function testWithoutRelation(): void
+    {
+        $original = new NoTouchingModelStub;
+
+        $original->setRelation('foo', 'baz');
+        $original->setRelation('bar', 'qux');
+
+        $model = $original->withoutRelation('foo');
+
+        $this->assertInstanceOf(NoTouchingModelStub::class, $model);
+        $this->assertNotSame($model, $original);
+        $this->assertTrue($original->relationLoaded('foo'));
+        $this->assertTrue($original->relationLoaded('bar'));
+        $this->assertFalse($model->relationLoaded('foo'));
+        $this->assertTrue($model->relationLoaded('bar'));
+    }
+
+    public function testWithoutRelationWithArray(): void
+    {
+        $original = new NoTouchingModelStub;
+
+        $original->setRelation('foo', 'baz');
+        $original->setRelation('bar', 'qux');
+        $original->setRelation('bam', 'zap');
+
+        $model = $original->withoutRelation(['foo', 'bar']);
+
+        $this->assertTrue($original->relationLoaded('foo'));
+        $this->assertTrue($original->relationLoaded('bar'));
+        $this->assertTrue($original->relationLoaded('bam'));
+        $this->assertFalse($model->relationLoaded('foo'));
+        $this->assertFalse($model->relationLoaded('bar'));
+        $this->assertTrue($model->relationLoaded('bam'));
+    }
+
     public function testMacroable()
     {
         Relation::macro('foo', function () {

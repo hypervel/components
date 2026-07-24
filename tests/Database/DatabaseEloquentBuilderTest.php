@@ -144,6 +144,24 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->findOrFail('bar', ['column']);
     }
 
+    public function testFindOrFailMethodThrowsModelNotFoundExceptionWithBackedEnum(): void
+    {
+        $exception = new ModelNotFoundException;
+        $exception->setModel('Foo', BuilderTestBackedEnum::Bar);
+
+        $this->assertSame('No query results for model [Foo] bar', $exception->getMessage());
+        $this->assertSame(['bar'], $exception->getIds());
+    }
+
+    public function testFindOrFailMethodThrowsModelNotFoundExceptionWithUnitEnum(): void
+    {
+        $exception = new ModelNotFoundException;
+        $exception->setModel('Foo', BuilderTestUnitEnum::Baz);
+
+        $this->assertSame('No query results for model [Foo] Baz', $exception->getMessage());
+        $this->assertSame(['Baz'], $exception->getIds());
+    }
+
     public function testFindOrFailMethodWithManyThrowsModelNotFoundException()
     {
         $this->expectException(ModelNotFoundException::class);
@@ -1114,6 +1132,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $nestedRawQuery = $this->getMockQueryBuilder();
         $nestedQuery->shouldReceive('getQuery')->once()->andReturn($nestedRawQuery);
         $nestedQuery->shouldReceive('getEagerLoads')->once()->andReturn([]);
+        $nestedQuery->shouldReceive('removedScopes')->once()->andReturn([]);
         $model = $this->getMockModel()->makePartial();
         $model->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($nestedQuery);
         $builder = $this->getBuilder();
@@ -1176,6 +1195,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $nestedRawQuery = $this->getMockQueryBuilder();
         $nestedQuery->shouldReceive('getQuery')->once()->andReturn($nestedRawQuery);
         $nestedQuery->shouldReceive('getEagerLoads')->once()->andReturn([]);
+        $nestedQuery->shouldReceive('removedScopes')->once()->andReturn([]);
         $model = $this->getMockModel()->makePartial();
         $model->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($nestedQuery);
         $builder = $this->getBuilder();
@@ -1205,6 +1225,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $nestedRawQuery = $this->getMockQueryBuilder();
         $nestedQuery->shouldReceive('getQuery')->once()->andReturn($nestedRawQuery);
         $nestedQuery->shouldReceive('getEagerLoads')->once()->andReturn([]);
+        $nestedQuery->shouldReceive('removedScopes')->once()->andReturn([]);
         $model = $this->getMockModel()->makePartial();
         $model->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($nestedQuery);
         $builder = $this->getBuilder();
@@ -2013,7 +2034,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->whereNotMorphedTo('morph', $relatedModel);
 
-        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
         $this->assertEquals([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
@@ -2030,7 +2051,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->whereNotMorphedTo('morph', new Collection([$firstRelatedModel, $secondRelatedModel]));
 
-        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?, ?)))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?, ?)))', $builder->toSql());
         $this->assertEquals([$firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $secondRelatedModel->getKey()], $builder->getBindings());
     }
 
@@ -2050,7 +2071,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->whereNotMorphedTo('morph', [$firstRelatedModel, $secondRelatedModel, $thirdRelatedModel]);
 
-        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?, ?)) or ("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?, ?)) or ("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
         $this->assertEquals([$firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $thirdRelatedModel->getKey(), $secondRelatedModel->getMorphClass(), $secondRelatedModel->id], $builder->getBindings());
     }
 
@@ -2126,7 +2147,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->where('bar', 'baz')->orWhereNotMorphedTo('morph', $relatedModel);
 
-        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not (("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
         $this->assertEquals(['baz', $relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
@@ -2143,7 +2164,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->where('bar', 'baz')->orWhereNotMorphedTo('morph', new Collection([$firstRelatedModel, $secondRelatedModel]));
 
-        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not (("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?, ?)))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?, ?)))', $builder->toSql());
         $this->assertEquals(['baz', $firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $secondRelatedModel->getKey()], $builder->getBindings());
     }
 
@@ -2163,7 +2184,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->where('bar', 'baz')->orWhereNotMorphedTo('morph', [$firstRelatedModel, $secondRelatedModel, $thirdRelatedModel]);
 
-        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not (("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?, ?)) or ("model_parent_stubs"."morph_type" <=> ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?, ?)) or ("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
         $this->assertEquals(['baz', $firstRelatedModel->getMorphClass(), $firstRelatedModel->getKey(), $thirdRelatedModel->getKey(), $secondRelatedModel->getMorphClass(), $secondRelatedModel->id], $builder->getBindings());
     }
 
@@ -2185,7 +2206,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
 
-        $this->assertSame('select * from "model_parent_stubs" where not "model_parent_stubs"."morph_type" <=> ?', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not ("model_parent_stubs"."morph_type" is not distinct from ?)', $builder->toSql());
         $this->assertEquals([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
@@ -2207,7 +2228,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->where('bar', 'baz')->orWhereNotMorphedTo('morph', ModelCloseRelatedStub::class);
 
-        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not "model_parent_stubs"."morph_type" <=> ?', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not ("model_parent_stubs"."morph_type" is not distinct from ?)', $builder->toSql());
         $this->assertEquals(['baz', ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
@@ -2222,7 +2243,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = $model->whereNotMorphedTo('morph', $relatedModel);
 
         $this->assertStringNotContainsString('<=>', $builder->toSql());
-        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" IS ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" is ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
         $this->assertEquals([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
@@ -2234,8 +2255,58 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
 
         $this->assertStringNotContainsString('<=>', $builder->toSql());
-        $this->assertSame('select * from "model_parent_stubs" where not "model_parent_stubs"."morph_type" IS ?', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not ("model_parent_stubs"."morph_type" is ?)', $builder->toSql());
         $this->assertEquals([ModelCloseRelatedStub::class], $builder->getBindings());
+    }
+
+    public function testWhereNotMorphedToUsesMySqlNullSafeEquality(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, 'MySql');
+
+        $relatedModel = new ModelCloseRelatedStub;
+        $relatedModel->id = 1;
+
+        $builder = $model->whereNotMorphedTo('morph', $relatedModel);
+
+        $this->assertSame('select * from `model_parent_stubs` where not ((`model_parent_stubs`.`morph_type` <=> ? and `model_parent_stubs`.`morph_id` in (?)))', $builder->toSql());
+        $this->assertSame([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
+    }
+
+    public function testWhereNotMorphedToClassUsesMySqlNullSafeEquality(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, 'MySql');
+
+        $builder = $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
+
+        $this->assertSame('select * from `model_parent_stubs` where not (`model_parent_stubs`.`morph_type` <=> ?)', $builder->toSql());
+        $this->assertSame([ModelCloseRelatedStub::class], $builder->getBindings());
+    }
+
+    public function testWhereNotMorphedToUsesPostgresNullSafeEquality(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, 'Postgres');
+
+        $relatedModel = new ModelCloseRelatedStub;
+        $relatedModel->id = 1;
+
+        $builder = $model->whereNotMorphedTo('morph', $relatedModel);
+
+        $this->assertSame('select * from "model_parent_stubs" where not (("model_parent_stubs"."morph_type" is not distinct from ? and "model_parent_stubs"."morph_id" in (?)))', $builder->toSql());
+        $this->assertSame([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
+    }
+
+    public function testWhereNotMorphedToClassUsesPostgresNullSafeEquality(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, 'Postgres');
+
+        $builder = $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
+
+        $this->assertSame('select * from "model_parent_stubs" where not ("model_parent_stubs"."morph_type" is not distinct from ?)', $builder->toSql());
+        $this->assertSame([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
     public function testWhereMorphedToAlias()
@@ -2718,6 +2789,28 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(2, $result);
     }
 
+    public function testTouchWithMultipleColumns(): void
+    {
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
+
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
+        $query->from = 'foo_table';
+
+        $builder = new Builder($query);
+        $model = new StubStringPrimaryKey;
+        $builder->setModel($model);
+
+        $query->shouldReceive('update')
+            ->once()
+            ->with(['published_at' => $now, 'verified_at' => $now])
+            ->andReturn(2);
+
+        $result = $builder->touch(['published_at', 'verified_at']);
+
+        $this->assertSame(2, $result);
+    }
+
     public function testTouchWithoutUpdatedAtColumn()
     {
         $query = m::mock(BaseBuilder::class);
@@ -2861,6 +2954,72 @@ class DatabaseEloquentBuilderTest extends TestCase
         $result = $query->pipe(fn (Builder $query) => $query->where('foo', 'bar'));
         $this->assertSame($query, $result);
         $this->assertCount(1, $query->getQuery()->wheres);
+    }
+
+    public function testIncrementEachCallsToBaseWithUpdatedAt(): void
+    {
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table');
+        $query->from = 'foo_table';
+        $query->shouldReceive('incrementEach')->once()->withArgs(function ($columns, $extra) {
+            return $columns === ['votes' => 5]
+                && array_key_exists('foo_table.updated_at', $extra);
+        })->andReturn(1);
+
+        $builder = new Builder($query);
+        $model = $this->getMockModel();
+        $model->shouldReceive('usesTimestamps')->andReturn(true);
+        $model->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
+        $model->shouldReceive('freshTimestampString')->andReturn('2026-03-26 00:00:00');
+        $model->shouldReceive('hasSetMutator')->andReturn(false);
+        $model->shouldReceive('hasAttributeSetMutator')->andReturn(false);
+        $model->shouldReceive('hasCast')->andReturn(false);
+        $builder->setModel($model);
+
+        $result = $builder->incrementEach(['votes' => 5]);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function testDecrementEachCallsToBaseWithUpdatedAt(): void
+    {
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table');
+        $query->from = 'foo_table';
+        $query->shouldReceive('decrementEach')->once()->withArgs(function ($columns, $extra) {
+            return $columns === ['votes' => 3]
+                && array_key_exists('foo_table.updated_at', $extra);
+        })->andReturn(1);
+
+        $builder = new Builder($query);
+        $model = $this->getMockModel();
+        $model->shouldReceive('usesTimestamps')->andReturn(true);
+        $model->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
+        $model->shouldReceive('freshTimestampString')->andReturn('2026-03-26 00:00:00');
+        $model->shouldReceive('hasSetMutator')->andReturn(false);
+        $model->shouldReceive('hasAttributeSetMutator')->andReturn(false);
+        $model->shouldReceive('hasCast')->andReturn(false);
+        $builder->setModel($model);
+
+        $result = $builder->decrementEach(['votes' => 3]);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function testIncrementEachWithoutTimestamps(): void
+    {
+        $query = m::mock(BaseBuilder::class);
+        $query->shouldReceive('from')->with('foo_table');
+        $query->shouldReceive('incrementEach')->once()->with(['votes' => 1], [])->andReturn(1);
+
+        $builder = new Builder($query);
+        $model = $this->getMockModel();
+        $model->shouldReceive('usesTimestamps')->andReturn(false);
+        $builder->setModel($model);
+
+        $result = $builder->incrementEach(['votes' => 1]);
+
+        $this->assertSame(1, $result);
     }
 
     protected function mockConnectionForModel($model, $database)
@@ -3124,6 +3283,16 @@ class StubStringPrimaryKey extends Model
     protected ?string $table = 'foo_table';
 
     protected string $keyType = 'string';
+}
+
+enum BuilderTestBackedEnum: string
+{
+    case Bar = 'bar';
+}
+
+enum BuilderTestUnitEnum
+{
+    case Baz;
 }
 
 class WhereBelongsToStub extends Model
