@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Testing;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 
@@ -31,7 +32,7 @@ trait RefreshDatabase
         // Restore in-memory database BEFORE migrations for all tests.
         // This ensures the correct ordering: restore cached PDO → run migrations → begin transaction.
         // For in-memory SQLite, this avoids overwriting a freshly migrated schema later.
-        if ($this->usingInMemoryDatabase()) {
+        if ($this->usingInMemoryDatabases()) {
             $this->restoreInMemoryDatabase();
         }
 
@@ -70,13 +71,31 @@ trait RefreshDatabase
     }
 
     /**
-     * Determine if an in-memory database is being used.
+     * Determine if any of the connections transacting is using in-memory databases.
      */
-    protected function usingInMemoryDatabase(): bool
+    protected function usingInMemoryDatabases(): bool
+    {
+        foreach ($this->connectionsToTransact() as $name) {
+            if ($this->usingInMemoryDatabase($name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if a given database connection is an in-memory database.
+     */
+    protected function usingInMemoryDatabase(?string $name = null): bool
     {
         $config = $this->app->make('config');
+        $name ??= $this->getRefreshConnection();
 
-        return $config->get("database.connections.{$this->getRefreshConnection()}.database") === ':memory:';
+        // All supported SQLite memory URI forms need the same refresh lifecycle.
+        return SQLiteDatabase::isInMemory(
+            $config->string("database.connections.{$name}.database")
+        );
     }
 
     /**
@@ -166,7 +185,7 @@ trait RefreshDatabase
             // Set the testing transaction manager on the connection
             $connection->setTransactionManager($transactionsManager);
 
-            if ($this->usingInMemoryDatabase()) {
+            if ($this->usingInMemoryDatabase($name)) {
                 RefreshDatabaseState::$inMemoryConnections[$name] ??= $connection->getPdo();
             }
 

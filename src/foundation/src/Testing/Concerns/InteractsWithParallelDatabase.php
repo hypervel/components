@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Database\QueryException;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use InvalidArgumentException;
 
 /**
  * Provides per-worker database isolation for parallel testing.
@@ -42,6 +44,10 @@ trait InteractsWithParallelDatabase
      */
     protected function configureParallelDatabaseName($app): void
     {
+        if (! empty($_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES'])) {
+            return;
+        }
+
         $token = env('TEST_TOKEN');
 
         if ($token === null) {
@@ -56,9 +62,10 @@ trait InteractsWithParallelDatabase
             return;
         }
 
-        $database = $config->get("database.connections.{$connection}.database", '');
+        $driver = $config->get("database.connections.{$connection}.driver");
+        $database = $config->get("database.connections.{$connection}.database");
 
-        if ($database === ':memory:' || $database === '') {
+        if (! is_string($database) || ! $this->shouldManageParallelDatabase($driver, $database)) {
             return;
         }
 
@@ -78,6 +85,10 @@ trait InteractsWithParallelDatabase
      */
     protected function ensureParallelDatabaseExists(): void
     {
+        if (! empty($_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES'])) {
+            return;
+        }
+
         $token = env('TEST_TOKEN');
 
         if ($token === null) {
@@ -91,9 +102,10 @@ trait InteractsWithParallelDatabase
             return;
         }
 
-        $database = $config->get("database.connections.{$connection}.database", '');
+        $driver = $config->get("database.connections.{$connection}.driver");
+        $database = $config->get("database.connections.{$connection}.database");
 
-        if ($database === ':memory:' || $database === '') {
+        if (! is_string($database) || ! $this->shouldManageParallelDatabase($driver, $database)) {
             return;
         }
 
@@ -112,6 +124,33 @@ trait InteractsWithParallelDatabase
             $config->set("database.connections.{$connection}.database", $database);
             DB::purge($connection);
         }
+    }
+
+    /**
+     * Determine if the database should be managed for parallel testing.
+     */
+    protected function shouldManageParallelDatabase(mixed $driver, string $database): bool
+    {
+        if ($database === '') {
+            return false;
+        }
+
+        if ($driver !== 'sqlite') {
+            return true;
+        }
+
+        if (SQLiteDatabase::isInMemory($database)) {
+            return false;
+        }
+
+        if (SQLiteDatabase::isUri($database)) {
+            throw new InvalidArgumentException(
+                'SQLite URI databases cannot be automatically managed during parallel testing. '
+                . 'Configure a plain filesystem path or run with --without-databases.'
+            );
+        }
+
+        return true;
     }
 
     /**

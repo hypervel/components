@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns\Database;
 
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
@@ -66,7 +67,7 @@ trait InteractsWithSqliteDatabaseFile
         $database = $this->baseSqliteDatabasePath();
         $token = env('TEST_TOKEN');
 
-        if ($token === null || $database === '' || $database === ':memory:') {
+        if ($token === null || $database === '' || SQLiteDatabase::isInMemory($database)) {
             return $database;
         }
 

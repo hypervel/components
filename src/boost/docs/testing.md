@@ -276,6 +276,8 @@ php artisan test --parallel --processes=4
 
 As long as you have configured a primary database connection, Hypervel automatically handles creating and migrating a test database for each parallel process that is running your tests. The test databases will be suffixed with a process token which is unique per process. For example, if you have two parallel test processes, Hypervel will create and use `your_db_test_1` and `your_db_test_2` test databases.
 
+SQLite URI databases cannot be automatically isolated for parallel testing. Configure a plain filesystem path, or use the `--without-databases` option.
+
 By default, test databases persist between calls to the `test` Artisan command so that they can be used again by subsequent `test` invocations. However, you may re-create them using the `--recreate-databases` option:
 
 ```shell

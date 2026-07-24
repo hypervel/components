@@ -11,6 +11,7 @@ use Hypervel\Support\Facades\Facade;
 use Hypervel\Testing\Concerns\TestDatabases;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -134,6 +135,55 @@ class TestDatabasesTest extends TestCase
         $this->assertSame('my_database_test_1', $this->testDatabase('my_database_test_1'));
     }
 
+    public function testSqliteMemoryUriIsNotManaged(): void
+    {
+        $callbackCalled = false;
+
+        $this->whenNotUsingInMemoryDatabase(
+            'sqlite',
+            'file::memory:',
+            false,
+            function () use (&$callbackCalled): void {
+                $callbackCalled = true;
+            }
+        );
+
+        $this->assertFalse($callbackCalled);
+    }
+
+    public function testSqliteFileUriIsRejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'SQLite URI databases cannot be automatically managed during parallel testing. '
+            . 'Configure a plain filesystem path or run with --without-databases.'
+        );
+
+        $this->whenNotUsingInMemoryDatabase(
+            'sqlite',
+            'file:/tmp/database.sqlite?mode=rwc',
+            false,
+            static function (): void {
+            }
+        );
+    }
+
+    public function testSqliteFileUriIsIgnoredWhenDatabaseManagementIsDisabled(): void
+    {
+        $callbackCalled = false;
+
+        $this->whenNotUsingInMemoryDatabase(
+            'sqlite',
+            'file:/tmp/database.sqlite?mode=rwc',
+            true,
+            function () use (&$callbackCalled): void {
+                $callbackCalled = true;
+            }
+        );
+
+        $this->assertFalse($callbackCalled);
+    }
+
     protected function switchToDatabase(string $database): void
     {
         $instance = new class {
@@ -153,5 +203,33 @@ class TestDatabasesTest extends TestCase
         $method = new ReflectionMethod($instance, 'testDatabase');
 
         return $method->invoke($instance, $database);
+    }
+
+    protected function whenNotUsingInMemoryDatabase(
+        string $driver,
+        string $database,
+        bool $withoutDatabases,
+        callable $callback
+    ): void {
+        $db = m::mock(DatabaseManager::class);
+        $db->shouldReceive('getConfig')->with('database')->andReturn($database);
+
+        if (! $withoutDatabases) {
+            $db->shouldReceive('getConfig')->with('driver')->andReturn($driver);
+        }
+
+        Container::getInstance()->instance('db', $db);
+        Container::getInstance()
+            ->make(ParallelTesting::class)
+            ->resolveOptionsUsing(
+                fn (string $option): bool => $option === 'without_databases' && $withoutDatabases
+            );
+
+        $instance = new class {
+            use TestDatabases;
+        };
+
+        $method = new ReflectionMethod($instance, 'whenNotUsingInMemoryDatabase');
+        $method->invoke($instance, $callback);
     }
 }
