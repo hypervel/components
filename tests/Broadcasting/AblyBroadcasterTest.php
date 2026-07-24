@@ -38,10 +38,16 @@ class AblyBroadcasterTest extends TestCase
             return true;
         });
 
-        $this->broadcaster->shouldReceive('validAuthenticationResponse')->once();
+        $this->broadcaster->shouldReceive('generateAblySignature')
+            ->once()
+            ->with('private-test', 'abcd.1234')
+            ->andReturn('signature');
 
-        $this->broadcaster->auth(
-            $this->getMockRequestWithUserForChannel('private-test')
+        $this->assertSame(
+            ['auth' => 'abcd:signature'],
+            $this->broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('private-test')
+            ),
         );
     }
 
@@ -78,10 +84,26 @@ class AblyBroadcasterTest extends TestCase
             return $returnData;
         });
 
-        $this->broadcaster->shouldReceive('validAuthenticationResponse')->once();
+        $this->broadcaster->shouldReceive('generateAblySignature')
+            ->once()
+            ->with(
+                'presence-test',
+                'abcd.1234',
+                ['user_id' => '42', 'user_info' => $returnData],
+            )
+            ->andReturn('signature');
 
-        $this->broadcaster->auth(
-            $this->getMockRequestWithUserForChannel('presence-test')
+        $this->assertSame(
+            [
+                'auth' => 'abcd:signature',
+                'channel_data' => json_encode([
+                    'user_id' => '42',
+                    'user_info' => $returnData,
+                ]),
+            ],
+            $this->broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('presence-test')
+            ),
         );
     }
 
@@ -108,6 +130,57 @@ class AblyBroadcasterTest extends TestCase
         $this->broadcaster->auth(
             $this->getMockRequestWithoutUserForChannel('presence-test')
         );
+    }
+
+    public function testAuthUsesRewrittenChannelForConfiguredGuardAndOriginalNameForPresenceSignature(): void
+    {
+        $wireChannel = 'presence-application.tenant.orders.5';
+        $user = m::mock('User');
+        $user->shouldReceive('getAuthIdentifier')->once()->andReturn(42);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('input')->with('channel_name')->andReturn($wireChannel);
+        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
+        $request->shouldReceive('user')->times(3)->with('members')->andReturn($user);
+        $request->shouldNotReceive('user')->withNoArgs();
+
+        $calls = 0;
+        Broadcaster::authorizeChannelsUsing(function (Request $request, string $channel) use (&$calls): ?string {
+            ++$calls;
+
+            return $channel === 'application.tenant.orders.5'
+                ? 'application.orders.5'
+                : null;
+        });
+
+        $this->broadcaster->channel(
+            'application.orders.{order}',
+            static fn ($authenticatedUser, string $order): array|false => $authenticatedUser === $user && $order === '5'
+                ? ['role' => 'viewer']
+                : false,
+            ['guards' => ['members']],
+        );
+
+        $this->broadcaster->shouldReceive('generateAblySignature')
+            ->once()
+            ->with(
+                $wireChannel,
+                'abcd.1234',
+                ['user_id' => '42', 'user_info' => ['role' => 'viewer']],
+            )
+            ->andReturn('signature');
+
+        $this->assertSame(
+            [
+                'auth' => 'abcd:signature',
+                'channel_data' => json_encode([
+                    'user_id' => '42',
+                    'user_info' => ['role' => 'viewer'],
+                ]),
+            ],
+            $this->broadcaster->auth($request),
+        );
+        $this->assertSame(1, $calls);
     }
 
     public function testFormatsChannelsBeforeApplyingAblyNamespaces(): void

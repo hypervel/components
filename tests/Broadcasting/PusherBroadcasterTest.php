@@ -8,6 +8,7 @@ use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -38,10 +39,15 @@ class PusherBroadcasterTest extends TestCase
             return true;
         });
 
-        $this->broadcaster->shouldReceive('validAuthenticationResponse')->once();
+        $this->pusher->shouldReceive('authorizeChannel')
+            ->once()
+            ->andReturn(json_encode(['auth' => 'signed']));
 
-        $this->broadcaster->auth(
-            $this->getMockRequestWithUserForChannel('private-test')
+        $this->assertSame(
+            ['auth' => 'signed'],
+            $this->broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('private-test')
+            ),
         );
     }
 
@@ -78,10 +84,15 @@ class PusherBroadcasterTest extends TestCase
             return $returnData;
         });
 
-        $this->broadcaster->shouldReceive('validAuthenticationResponse')->once();
+        $this->pusher->shouldReceive('authorizePresenceChannel')
+            ->once()
+            ->andReturn(json_encode(['auth' => 'signed']));
 
-        $this->broadcaster->auth(
-            $this->getMockRequestWithUserForChannel('presence-test')
+        $this->assertSame(
+            ['auth' => 'signed'],
+            $this->broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('presence-test')
+            ),
         );
     }
 
@@ -108,6 +119,53 @@ class PusherBroadcasterTest extends TestCase
         $this->broadcaster->auth(
             $this->getMockRequestWithoutUserForChannel('presence-test')
         );
+    }
+
+    public function testAuthUsesRewrittenChannelForConfiguredGuardAndOriginalNameForPresenceSignature(): void
+    {
+        $wireChannel = 'presence-application.tenant.orders.5';
+        $calls = 0;
+        $boundOrder = null;
+        $user = m::mock('User');
+        $user->shouldReceive('getAuthIdentifier')->once()->andReturn(42);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('input')->with('channel_name')->andReturn($wireChannel);
+        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
+        $request->shouldReceive('input')->with('callback', false)->andReturn(false);
+        $request->shouldReceive('user')->times(3)->with('members')->andReturn($user);
+        $request->shouldNotReceive('user')->withNoArgs();
+
+        Broadcaster::authorizeChannelsUsing(function (Request $request, string $channel) use (&$calls): ?string {
+            ++$calls;
+
+            return $channel === 'application.tenant.orders.5'
+                ? 'application.orders.5'
+                : null;
+        });
+
+        $this->broadcaster->channel(
+            'application.orders.{order}',
+            function ($authenticatedUser, PusherBroadcasterTestEloquentModelStub $order) use ($user, &$boundOrder): array|false {
+                $boundOrder = $order;
+
+                return $authenticatedUser === $user ? ['role' => 'viewer'] : false;
+            },
+            ['guards' => ['members']],
+        );
+
+        $this->pusher->shouldReceive('authorizePresenceChannel')
+            ->once()
+            ->with($wireChannel, 'abcd.1234', '42', ['role' => 'viewer'])
+            ->andReturn(json_encode(['auth' => 'signed']));
+
+        $this->assertSame(
+            ['auth' => 'signed'],
+            $this->broadcaster->auth($request),
+        );
+        $this->assertSame(1, $calls);
+        $this->assertInstanceOf(PusherBroadcasterTestEloquentModelStub::class, $boundOrder);
+        $this->assertSame('5', $boundOrder->boundValue);
     }
 
     public function testValidAuthenticationResponseCallPusherSocketAuthMethodWithPrivateChannel()
@@ -242,5 +300,18 @@ class PusherBroadcasterTest extends TestCase
         $request->shouldReceive('user')->andReturn(null);
 
         return $request;
+    }
+}
+
+class PusherBroadcasterTestEloquentModelStub extends Model
+{
+    public string $boundValue = '';
+
+    public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
+    {
+        $instance = new static;
+        $instance->boundValue = (string) $value;
+
+        return $instance;
     }
 }

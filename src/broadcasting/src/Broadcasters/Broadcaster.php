@@ -48,6 +48,13 @@ abstract class Broadcaster implements BroadcasterContract
     protected static ?Closure $channelFormatter = null;
 
     /**
+     * The callback used to authorize incoming channel names.
+     *
+     * @var null|Closure(Request, string): ?string
+     */
+    protected static ?Closure $channelAuthorizer = null;
+
+    /**
      * The binding registrar instance.
      */
     protected ?BindingRegistrar $bindingRegistrar = null;
@@ -114,12 +121,35 @@ abstract class Broadcaster implements BroadcasterContract
     }
 
     /**
+     * Register the incoming channel authorizer.
+     *
+     * Boot-only. The callback persists in shared static state for the worker
+     * lifetime and applies to every broadcaster across all coroutines.
+     */
+    public static function authorizeChannelsUsing(?Closure $callback): void
+    {
+        static::$channelAuthorizer = $callback;
+    }
+
+    /**
      * Authenticate the incoming request for a given channel.
      *
      * @throws AccessDeniedHttpException
      */
-    protected function verifyUserCanAccessChannel(Request $request, string $channel): mixed
-    {
+    protected function verifyUserCanAccessChannel(
+        Request $request,
+        string $channel,
+        bool $guarded = false,
+    ): mixed {
+        if (static::$channelAuthorizer !== null) {
+            $channel = (static::$channelAuthorizer)($request, $channel)
+                ?? throw new AccessDeniedHttpException;
+        }
+
+        if ($guarded && ! $this->retrieveUser($request, $channel)) {
+            throw new AccessDeniedHttpException;
+        }
+
         foreach (static::$channels as $pattern => $callback) {
             if (! $this->channelNameMatchesPattern($channel, $pattern)) {
                 continue;
@@ -135,11 +165,22 @@ abstract class Broadcaster implements BroadcasterContract
                 throw new AccessDeniedHttpException;
             }
             if ($result) {
-                return $this->validAuthenticationResponse($request, $result);
+                return $this->validAuthenticationResponseForChannel($request, $result, $channel);
             }
         }
 
         throw new AccessDeniedHttpException;
+    }
+
+    /**
+     * Return the valid authentication response for the authorized channel.
+     */
+    protected function validAuthenticationResponseForChannel(
+        Request $request,
+        mixed $result,
+        string $channel,
+    ): mixed {
+        return $this->validAuthenticationResponse($request, $result);
     }
 
     /**
@@ -365,5 +406,6 @@ abstract class Broadcaster implements BroadcasterContract
         static::$channels = [];
         static::$channelOptions = [];
         static::$channelFormatter = null;
+        static::$channelAuthorizer = null;
     }
 }
