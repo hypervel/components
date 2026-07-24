@@ -11,6 +11,8 @@ use Hypervel\Tests\TestCase;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+use Symfony\Component\Process\Process;
 
 class DatabaseMariaDbSchemaStateTest extends TestCase
 {
@@ -136,5 +138,74 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
                 'unix_socket' => '/tmp/mysql.sock',
             ],
         ];
+    }
+
+    public function testDetectClientVersionUsesMariaDbClientOutput(): void
+    {
+        $connection = $this->createStub(MariaDbConnection::class);
+        $process = $this->createMock(Process::class);
+        $process->expects($this->once())->method('mustRun')->willReturnSelf();
+        $process->expects($this->once())->method('getOutput')->willReturn('mariadb from 11.8.3-MariaDB');
+
+        $schemaState = new class($connection, $process) extends MariaDbSchemaState {
+            public function __construct(MariaDbConnection $connection, private readonly Process $process)
+            {
+                parent::__construct($connection);
+            }
+
+            public function makeProcess(mixed ...$arguments): Process
+            {
+                return $this->process;
+            }
+
+            public function clientVersion(): array
+            {
+                return $this->detectClientVersion();
+            }
+        };
+
+        $this->assertSame([
+            'isMariaDb' => true,
+            'version' => '11.8.3',
+        ], $schemaState->clientVersion());
+    }
+
+    public function testDetectClientVersionFallsBackToMinimumSupportedVersion(): void
+    {
+        $connection = $this->createStub(MariaDbConnection::class);
+        $failedProcess = $this->createStub(Process::class);
+        $failedProcess->method('isSuccessful')->willReturn(false);
+        $failedProcess->method('getCommandLine')->willReturn("'mariadb' '--version'");
+        $failedProcess->method('getExitCode')->willReturn(1);
+        $failedProcess->method('getExitCodeText')->willReturn('General error');
+        $failedProcess->method('getWorkingDirectory')->willReturn(null);
+        $failedProcess->method('isOutputDisabled')->willReturn(true);
+
+        $process = $this->createMock(Process::class);
+        $process->expects($this->once())->method('mustRun')->willThrowException(
+            new ProcessFailedException($failedProcess)
+        );
+
+        $schemaState = new class($connection, $process) extends MariaDbSchemaState {
+            public function __construct(MariaDbConnection $connection, private readonly Process $process)
+            {
+                parent::__construct($connection);
+            }
+
+            public function makeProcess(mixed ...$arguments): Process
+            {
+                return $this->process;
+            }
+
+            public function clientVersion(): array
+            {
+                return $this->detectClientVersion();
+            }
+        };
+
+        $this->assertSame([
+            'isMariaDb' => true,
+            'version' => '10.5.2',
+        ], $schemaState->clientVersion());
     }
 }

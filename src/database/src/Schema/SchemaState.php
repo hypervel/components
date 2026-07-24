@@ -24,7 +24,7 @@ abstract class SchemaState
     /**
      * The name of the application's migration table.
      */
-    protected string $migrationTable = 'migrations';
+    protected ?string $migrationTable = 'migrations';
 
     /**
      * The process factory callback.
@@ -84,7 +84,9 @@ abstract class SchemaState
      */
     public function hasMigrationTable(): bool
     {
-        return $this->connection->getSchemaBuilder()->hasTable($this->migrationTable);
+        return $this->migrationTable !== null
+            && $this->migrationTable !== ''
+            && $this->connection->getSchemaBuilder()->hasTable($this->migrationTable);
     }
 
     /**
@@ -98,7 +100,7 @@ abstract class SchemaState
     /**
      * Specify the name of the application's migration table.
      */
-    public function withMigrationTable(string $table): static
+    public function withMigrationTable(?string $table): static
     {
         $this->migrationTable = $table;
 
