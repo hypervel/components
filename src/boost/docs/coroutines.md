@@ -15,7 +15,7 @@
 - [Deferred Coroutine Cleanup](#deferred-coroutine-cleanup)
 - [Channels](#channels)
 - [Waiting for Results](#waiting-for-results)
-    - [The wait Helper](#the-wait-helper)
+    - [The `wait` Helper](#the-wait-helper)
     - [Wait Groups](#wait-groups)
     - [Barriers](#barriers)
 - [Running Work in Parallel](#running-work-in-parallel)
@@ -32,32 +32,32 @@
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel is built on Swoole coroutines. Coroutines allow a worker process to continue serving other work while one coroutine is waiting on I/O such as network requests, Redis, database queries, file operations, or timers. This gives Hypervel high concurrency for I/O-heavy applications without requiring one operating system process or thread per request.
+Hypervel uses Swoole coroutines to run many tasks within a single worker process. When one coroutine waits for input or output (I/O), such as a network request, Redis command, database query, file operation, or timer, the worker may continue running other coroutines. This allows I/O-heavy applications to handle many tasks at once without creating a separate operating system process or thread for each request.
 
-A coroutine is a function that can pause and later resume from the same point. Unlike threads, coroutine scheduling is cooperative: execution switches at coroutine-aware operations such as hooked I/O, channel operations, sleeps, and explicit coroutine primitives. This keeps each coroutine lightweight while still allowing many independent tasks to make progress inside the same worker process.
+A coroutine runs a function that can pause and later resume from the same point. Swoole switches between coroutines when one reaches an operation that can pause, such as an I/O operation supported by Swoole, a channel operation, a sleep, or an explicit coroutine call. Ordinary PHP code continues running until it reaches one of these operations.
 
-Hypervel's HTTP server, console commands, queue workers, scheduler, testing layer, database pools, Redis pools, and other I/O-heavy services are designed around this model. Request-specific and coroutine-specific state should be stored in coroutine context instead of global variables or mutable static properties.
+Hypervel uses this model for HTTP requests, console commands, queued jobs, scheduled tasks, tests, and I/O connection pools. Store request-specific and coroutine-specific state in coroutine context instead of global variables or mutable static properties.
 
 For a detailed overview of Hypervel's runtime model, see the [introduction](/docs/{{version}}/introduction#why-hypervel).
 
 <a name="coroutines-and-concurrent-tasks"></a>
 ### Coroutines and Concurrent Tasks
 
-For most application code that needs to run several independent tasks and collect their results, you should start with Hypervel's [concurrency](/docs/{{version}}/concurrency) APIs. The `Concurrency` facade gives you a high-level, framework-integrated way to fan out work.
+If your application needs to run several independent tasks and collect their results, you should start with Hypervel's [concurrency](/docs/{{version}}/concurrency) APIs. The `Concurrency` facade provides a high-level API that works with the rest of the framework.
 
-The lower-level coroutine primitives documented here are useful when you need more control: fire-and-forget work, dynamic concurrency limits, coroutine-local cleanup, channels, locks, custom waiting behavior, or direct context propagation.
+Use the lower-level coroutine APIs in this guide when you need to start work without waiting for a result, limit how many coroutines may run, clean up when a coroutine exits, use channels or locks, customize waiting, or control how context is copied.
 
 <a name="creating-coroutines"></a>
 ## Creating Coroutines
 
-All coroutine-related methods are available on the `Hypervel\Coroutine\Coroutine` class or as functions in the `Hypervel\Coroutine` namespace.
+Hypervel provides the `Hypervel\Coroutine\Coroutine` class and several helper functions in the `Hypervel\Coroutine` namespace.
 
 <a name="running-code-in-a-coroutine-container"></a>
 ### Running Code in a Coroutine Container
 
-Hypervel normally creates coroutine environments for you. For example, HTTP requests, Hypervel console commands, queue workers, and framework tests run with coroutine support enabled.
+Most Hypervel entry points already run inside a coroutine. This includes HTTP requests, Hypervel console commands, queue workers, and framework tests.
 
-If you are running code from a non-coroutine environment and need to create a coroutine container manually, use the `run` function:
+If your code starts outside a coroutine and needs coroutine support, you may use the `run` function to create a coroutine container:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
@@ -92,7 +92,7 @@ You may retrieve the current coroutine ID using the `id` method:
 ```php
 use Hypervel\Coroutine\Coroutine;
 
-$id = Coroutine::id();
+$coroutineId = Coroutine::id();
 ```
 
 When code is running outside a coroutine, `Coroutine::id()` returns `-1`. Inside a coroutine, it returns a positive integer.
@@ -146,12 +146,12 @@ go(function () {
 echo 'Hello world!' . PHP_EOL;
 ```
 
-The `go` function returns the positive ID of the created coroutine. If the native runtime cannot create the coroutine, Hypervel throws a `CoroutineCreateException`. The `co` function is an alias of `go`:
+The `go` function returns a positive ID for the created coroutine. If Swoole cannot create the coroutine, Hypervel throws a `CoroutineCreateException`. The `co` function is an alias of `go`:
 
 ```php
 use function Hypervel\Coroutine\co;
 
-$id = co(function () {
+$coroutineId = co(function () {
     // ...
 });
 ```
@@ -161,7 +161,7 @@ You may also create a coroutine directly through the `Coroutine` class. The `cre
 ```php
 use Hypervel\Coroutine\Coroutine;
 
-$id = Coroutine::create(function () {
+$coroutineId = Coroutine::create(function () {
     // ...
 });
 ```
@@ -169,7 +169,7 @@ $id = Coroutine::create(function () {
 <a name="copying-coroutine-context"></a>
 ### Copying Coroutine Context
 
-Child coroutines do not copy the parent coroutine context by default:
+Child coroutines start with a fresh coroutine context by default:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -185,7 +185,7 @@ go(function () {
 });
 ```
 
-Context is copied from the current parent coroutine, such as the coroutine handling an HTTP request, console command, queued job, or test.
+When you enable context copying, Hypervel copies values from the current coroutine, such as the coroutine handling an HTTP request, console command, queued job, or test.
 
 If the child coroutine needs the parent context, pass `copyContext: true` to copy all parent context keys:
 
@@ -269,7 +269,7 @@ try {
     go(function () {
         throw new RuntimeException('Unable to process task.');
     });
-} catch (Throwable $e) {
+} catch (Throwable $exception) {
     // This will not run...
 }
 ```
@@ -282,8 +282,8 @@ use function Hypervel\Coroutine\go;
 go(function () {
     try {
         throw new RuntimeException('Unable to process task.');
-    } catch (Throwable $e) {
-        report($e);
+    } catch (Throwable $exception) {
+        report($exception);
     }
 });
 ```
@@ -293,9 +293,9 @@ If you need to collect results or rethrow child coroutine exceptions in the pare
 <a name="reporting-unhandled-exceptions"></a>
 ### Reporting Unhandled Exceptions
 
-Unhandled exceptions thrown inside `Coroutine::create`, `go`, `co`, or `Coroutine::fork` are caught and reported through Hypervel's exception handler when one is registered in the container.
+Hypervel catches unhandled exceptions thrown inside `Coroutine::create`, `go`, `co`, or `Coroutine::fork` and reports them through the application's exception handler when one is available.
 
-You may disable this automatic reporting for the worker process using `enableReportException`:
+You may disable this automatic reporting for the entire worker process using `enableReportException`:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
@@ -304,7 +304,7 @@ Coroutine::enableReportException(false);
 ```
 
 > [!WARNING]
-> `enableReportException` mutates worker-lifetime static state. Configure it during boot or tests only.
+> This setting remains active for the lifetime of the Swoole worker and affects every coroutine. Configure it during application boot or tests only.
 
 <a name="deferred-coroutine-cleanup"></a>
 ## Deferred Coroutine Cleanup
@@ -331,22 +331,22 @@ go(function () {
 
 Deferred callbacks run in last-in, first-out order.
 
-If a deferred callback throws an exception, Hypervel catches the throwable and reports it through the exception handler. Add your own `try` / `catch` inside the deferred callback only when you want to handle the exception yourself:
+If a deferred callback throws an exception, Hypervel catches it and reports it through the application's exception handler when one is available. Add your own `try` / `catch` inside the deferred callback only when you want to handle the exception yourself:
 
 ```php
 go(function () {
     Coroutine::defer(function () {
         try {
             // ...
-        } catch (Throwable $e) {
-            report($e);
+        } catch (Throwable $exception) {
+            report($exception);
         }
     });
 });
 ```
 
 > [!NOTE]
-> `Coroutine::defer()` is different from Hypervel's lifecycle-aware `defer()` helper. The global `defer()` helper runs after a response, command, or queued job lifecycle event. `Coroutine::defer()` runs when the current coroutine exits.
+> `Coroutine::defer()` runs when the current coroutine exits. The [`Hypervel\Support\defer`](/docs/{{version}}/helpers#deferred-functions) helper schedules a callback after the current HTTP response, console command, or queued job completes successfully.
 
 <a name="channels"></a>
 ## Channels
@@ -406,13 +406,13 @@ $channel->close();
 ```
 
 > [!NOTE]
-> Swoole channels do not support producer / consumer inspection or generic readable / writable checks. Hypervel's `hasProducers`, `hasConsumers`, `isReadable`, and `isWritable` channel methods will throw an exception.
+> Swoole does not provide producer or consumer inspection or general readable or writable checks. Therefore, Hypervel's `hasProducers`, `hasConsumers`, `isReadable`, and `isWritable` channel methods throw an exception.
 
 <a name="waiting-for-results"></a>
 ## Waiting for Results
 
 <a name="the-wait-helper"></a>
-### The wait Helper
+### The `wait` Helper
 
 The `wait` helper runs a closure inside a new coroutine and waits for its return value:
 
@@ -436,7 +436,11 @@ $result = wait(function () {
 
 If no timeout is provided, `wait` will wait up to 10 seconds for the closure to finish.
 
-If the closure throws an exception, the exception is rethrown in the waiting coroutine after deferred cleanup has completed. If the timeout is reached, the child coroutine is cancelled by throwing `Swoole\Coroutine\CanceledException` into its current operation. The waiter then gives the child up to 10 seconds to finish and run deferred cleanup before throwing `Hypervel\Coroutine\Exceptions\WaitTimeoutException`. Code that catches the cancellation and continues may remain active after that cleanup window.
+If the closure throws an exception, `wait` rethrows it in the waiting coroutine after the child's deferred callbacks have finished.
+
+If the timeout is reached, Hypervel cancels the child by throwing `Swoole\Coroutine\CanceledException` inside it. Hypervel then gives the child up to 10 seconds to finish and run its deferred callbacks before throwing `Hypervel\Coroutine\Exceptions\WaitTimeoutException` in the waiting coroutine.
+
+Code that catches the cancellation and keeps running may remain active after this 10-second cleanup period.
 
 You may also use the `Waiter` class directly:
 
@@ -483,7 +487,7 @@ You may initialize the counter in the constructor:
 $waitGroup = new WaitGroup(count($jobs));
 ```
 
-The `wait` method accepts a timeout in seconds and returns `true` when all work completed or `false` when the wait timed out:
+The `wait` method accepts a timeout in seconds and returns `true` when all work has completed or `false` when the wait timed out:
 
 ```php
 if (! $waitGroup->wait(timeout: 5.0)) {
@@ -500,7 +504,7 @@ $count = $waitGroup->count();
 <a name="barriers"></a>
 ### Barriers
 
-A `Barrier` waits until all coroutines that received the barrier have finished:
+A `Barrier` waits for every coroutine that captures it to finish:
 
 ```php
 use Hypervel\Coroutine\Barrier;
@@ -556,10 +560,10 @@ use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 
 try {
     parallel($callbacks);
-} catch (ParallelExecutionException $e) {
-    $results = $e->getResults();
+} catch (ParallelExecutionException $exception) {
+    $results = $exception->getResults();
 
-    $throwables = $e->getThrowables();
+    $throwables = $exception->getThrowables();
 }
 ```
 
@@ -634,14 +638,14 @@ You may inspect the current limit and number of running coroutines:
 ```php
 $limit = $concurrent->getLimit();
 
-$running = $concurrent->getRunningCoroutineCount();
+$runningCoroutineCount = $concurrent->getRunningCoroutineCount();
 
-$running = $concurrent->getLength();
+$runningCoroutineCount = $concurrent->getLength();
 
-$running = $concurrent->length();
+$runningCoroutineCount = $concurrent->length();
 ```
 
-The `isFull` and `isEmpty` methods are proxied to the underlying channel:
+You may use the `isFull` method to determine if the concurrency limit has been reached and the `isEmpty` method to determine if all child coroutines have finished:
 
 ```php
 if ($concurrent->isFull()) {
@@ -686,7 +690,7 @@ foreach ($jobs as $job) {
 $concurrent->wait();
 ```
 
-The `wait` method accepts a timeout in seconds and returns `true` when all child coroutines completed or `false` when the wait timed out:
+The `wait` method accepts a timeout in seconds and returns `true` when all child coroutines have completed or `false` when the wait timed out:
 
 ```php
 if (! $concurrent->wait(timeout: 5.0)) {
@@ -700,7 +704,7 @@ if (! $concurrent->wait(timeout: 5.0)) {
 <a name="mutexes"></a>
 ### Mutexes
 
-The `Mutex` class provides a coroutine-level mutual exclusion lock for a string key:
+The `Mutex` class ensures that only one coroutine at a time may hold a lock for a given string key:
 
 ```php
 use Hypervel\Coroutine\Mutex;
@@ -726,7 +730,7 @@ if (! Mutex::unlock('reports', timeout: 1.0)) {
 }
 ```
 
-You may close and remove the mutex channel for a key using `clear`:
+You may clear the mutex for a key using the `clear` method:
 
 ```php
 Mutex::clear('reports');
@@ -735,7 +739,7 @@ Mutex::clear('reports');
 <a name="lockers"></a>
 ### Lockers
 
-The `Locker` class provides a single-flight style gate. The first coroutine to call `lock` for a key receives `true`; other coroutines wait until the key is unlocked and then receive `false`:
+The `Locker` class allows one coroutine to perform work while other coroutines wait for it to finish. The first coroutine to call `lock` for a key receives `true`. Other coroutines wait until the key is unlocked and then receive `false`:
 
 ```php
 use Hypervel\Coroutine\Locker;
@@ -754,25 +758,27 @@ if (Locker::lock('warm-cache')) {
 <a name="advanced-coroutine-apis"></a>
 ## Advanced Coroutine APIs
 
-The `Coroutine` class exposes additional methods for advanced use cases:
+The `Coroutine` class provides additional methods for advanced use cases:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
 
 Coroutine::sleep(0.1);
 
-$joined = Coroutine::join([$firstId, $secondId], timeout: 5.0);
+$joined = Coroutine::join([$firstCoroutineId, $secondCoroutineId], timeout: 5.0);
 
-$stats = Coroutine::stats();
+$statistics = Coroutine::stats();
 
-$exists = Coroutine::exists($id);
+$coroutineExists = Coroutine::exists($coroutineId);
 
-$ids = Coroutine::list();
+$coroutineIds = Coroutine::list();
 ```
 
-The `join` method waits for the supplied child coroutine IDs to terminate. IDs for coroutines that have already terminated are accepted. A `false` result may mean that no supplied coroutine remained active or that the timeout elapsed; it is not a general failure signal.
+The `join` method waits for the supplied child coroutine IDs to finish. You may include IDs for coroutines that have already finished.
 
-The `afterCreated` method registers a callback that runs after every new coroutine is created:
+A `false` result may mean that none of the supplied coroutines remained active or that the timeout elapsed. It does not always indicate a failure.
+
+The `afterCreated` method registers a callback that runs whenever `Coroutine::create` creates a coroutine. APIs built on `Coroutine::create`, including `go`, `co`, and `Coroutine::fork`, also run the callback:
 
 ```php
 Coroutine::afterCreated(function () {
@@ -781,24 +787,24 @@ Coroutine::afterCreated(function () {
 ```
 
 > [!WARNING]
-> `afterCreated` registers worker-lifetime static callbacks. Register callbacks during boot or tests only.
+> These callbacks remain registered for the lifetime of the Swoole worker. Register them during application boot or tests only.
 
-The `flushState` method clears worker-lifetime coroutine package state:
+The `flushState` method clears coroutine settings and callbacks stored for the current worker:
 
 ```php
 Coroutine::flushState();
 ```
 
 > [!WARNING]
-> `flushState` is intended for tests and package cleanup. Calling it during normal request handling clears worker-lifetime coroutine configuration and callbacks for every coroutine in the worker.
+> `flushState` is intended for tests and package cleanup. Calling it during normal request handling clears coroutine settings and callbacks for every coroutine in the worker.
 
 <a name="common-pitfalls"></a>
 ## Common Pitfalls
 
-Because Hypervel workers are long-lived and may run many coroutines at the same time, request-specific state should not be stored in global variables, mutable static properties, or shared singleton object properties. Store coroutine-local state in [coroutine context](/docs/{{version}}/coroutine-context) instead.
+Hypervel workers stay alive and may run many coroutines at the same time. Do not store request-specific state in global variables, mutable static properties, or shared singleton object properties. Store it in [coroutine context](/docs/{{version}}/coroutine-context) instead.
 
-Use `Coroutine::defer()` for cleanup that belongs to one coroutine. Use Hypervel's global `defer()` helper for lifecycle-aware callbacks that should run after an HTTP response, console command, or queued job lifecycle event.
+Use `Coroutine::defer()` for cleanup that belongs to one coroutine. Use [`Hypervel\Support\defer`](/docs/{{version}}/helpers#deferred-functions) for callbacks that should run after a successful HTTP response, console command, or queued job.
 
-Prefer the [Concurrency facade](/docs/{{version}}/concurrency) or the `parallel` helper when the parent coroutine needs results or exceptions from child coroutines. Use `go`, `co`, `Coroutine::create`, or `Concurrent` for fire-and-forget work where errors can be reported instead of rethrown.
+Prefer the [Concurrency facade](/docs/{{version}}/concurrency) or the `parallel` helper when the parent coroutine needs results or exceptions from child coroutines. Use `go`, `co`, `Coroutine::create`, or `Concurrent` when a child may run independently and its exceptions may be reported instead of returned to the parent.
 
-Most stream-based I/O operations can be hooked by Swoole and become coroutine-friendly. Some PHP extensions may still block the entire worker process if Swoole cannot hook them. For CPU-bound work or extensions that cannot yield, consider running the work in a separate process.
+Swoole can make most stream-based I/O operations yield to other coroutines while they wait. Some PHP extensions cannot be hooked and will block the entire worker process. For CPU-intensive work or extensions that cannot yield, you should run the work in a separate process.
