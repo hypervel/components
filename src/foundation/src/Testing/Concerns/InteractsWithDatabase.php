@@ -36,6 +36,14 @@ trait InteractsWithDatabase
             return $this;
         }
 
+        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
+            foreach ($data as $row) {
+                $this->assertDatabaseHas($table, $row, $connection);
+            }
+
+            return $this;
+        }
+
         if ($table instanceof Model) {
             $data = [
                 $table->getKeyName() => $table->getKey(),
@@ -64,6 +72,14 @@ trait InteractsWithDatabase
         if (is_iterable($table)) {
             foreach ($table as $item) {
                 $this->assertDatabaseMissing($item, $data, $connection);
+            }
+
+            return $this;
+        }
+
+        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
+            foreach ($data as $row) {
+                $this->assertDatabaseMissing($table, $row, $connection);
             }
 
             return $this;
@@ -103,14 +119,22 @@ trait InteractsWithDatabase
     }
 
     /**
-     * Assert that the given table has no entries.
+     * Assert that the given table or tables has no entries.
      *
-     * @param \Hypervel\Database\Eloquent\Model|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string>|string $table
      * @param null|string $connection
      * @return $this
      */
     protected function assertDatabaseEmpty($table, $connection = null)
     {
+        if (is_iterable($table)) {
+            foreach ($table as $item) {
+                $this->assertDatabaseEmpty($item, $connection);
+            }
+
+            return $this;
+        }
+
         $this->assertThat(
             $this->getTable($table),
             new CountInDatabase($this->getConnection($connection, $table), 0)
@@ -122,7 +146,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has been "soft deleted".
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string>|string $table
      * @param array<string, mixed> $data
      * @param null|string $connection
      * @param null|string $deletedAtColumn
@@ -132,7 +156,7 @@ trait InteractsWithDatabase
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
-                $this->assertSoftDeleted($item, $data, $connection);
+                $this->assertSoftDeleted($item, $data, $connection, $deletedAtColumn);
             }
 
             return $this;
@@ -145,6 +169,14 @@ trait InteractsWithDatabase
                 $table->getConnectionName(),
                 $table->getDeletedAtColumn()
             );
+        }
+
+        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
+            foreach ($data as $row) {
+                $this->assertSoftDeleted($table, $row, $connection, $deletedAtColumn);
+            }
+
+            return $this;
         }
 
         $this->assertThat(
@@ -162,7 +194,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has not been "soft deleted".
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string>|string $table
      * @param array<string, mixed> $data
      * @param null|string $connection
      * @param null|string $deletedAtColumn
@@ -172,7 +204,7 @@ trait InteractsWithDatabase
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
-                $this->assertNotSoftDeleted($item, $data, $connection);
+                $this->assertNotSoftDeleted($item, $data, $connection, $deletedAtColumn);
             }
 
             return $this;
@@ -185,6 +217,14 @@ trait InteractsWithDatabase
                 $table->getConnectionName(),
                 $table->getDeletedAtColumn()
             );
+        }
+
+        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
+            foreach ($data as $row) {
+                $this->assertNotSoftDeleted($table, $row, $connection, $deletedAtColumn);
+            }
+
+            return $this;
         }
 
         $this->assertThat(
@@ -202,7 +242,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model exists in the database.
      *
-     * @param \Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model> $model
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $model
      * @return $this
      */
     protected function assertModelExists($model)
@@ -213,7 +253,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model does not exist in the database.
      *
-     * @param \Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model> $model
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $model
      * @return $this
      */
     protected function assertModelMissing($model)
@@ -268,9 +308,10 @@ trait InteractsWithDatabase
      * Cast a JSON string to a database compatible type.
      *
      * @param array|object|string $value
+     * @param null|string $connection
      * @return \Hypervel\Database\Query\Expression
      */
-    public function castAsJson($value)
+    public function castAsJson($value, $connection = null)
     {
         if ($value instanceof Jsonable) {
             $value = $value->toJson();
@@ -278,10 +319,12 @@ trait InteractsWithDatabase
             $value = json_encode($value);
         }
 
-        $value = DB::connection()->getPdo()->quote($value);
+        $database = DB::connection($connection);
 
-        return DB::raw(
-            DB::connection()->getQueryGrammar()->compileJsonValueCast($value)
+        $value = $database->getPdo()->quote($value);
+
+        return $database->raw(
+            $database->getQueryGrammar()->compileJsonValueCast($value)
         );
     }
 
@@ -296,7 +339,13 @@ trait InteractsWithDatabase
     {
         $database = $this->app->make('db');
 
-        $connection = $connection ?: $this->getTableConnection($table) ?: $database->getDefaultConnection();
+        if ($connection === null || $connection === '') {
+            $connection = $this->getTableConnection($table);
+        }
+
+        if ($connection === null || $connection === '') {
+            $connection = $database->getDefaultConnection();
+        }
 
         return $database->connection($connection);
     }

@@ -34,6 +34,8 @@ use Hypervel\Foundation\Console\ConfigMakeCommand;
 use Hypervel\Foundation\Console\ConfigPublishCommand;
 use Hypervel\Foundation\Console\ConfigShowCommand;
 use Hypervel\Foundation\Console\ConsoleMakeCommand;
+use Hypervel\Foundation\Console\DevCommand;
+use Hypervel\Foundation\Console\DevListCommand;
 use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\EnumMakeCommand;
 use Hypervel\Foundation\Console\EnvironmentCommand;
@@ -78,6 +80,7 @@ use Hypervel\Foundation\Console\VendorPublishCommand;
 use Hypervel\Foundation\Console\ViewCacheCommand;
 use Hypervel\Foundation\Console\ViewClearCommand;
 use Hypervel\Foundation\Console\ViewMakeCommand;
+use Hypervel\Foundation\DevCommands;
 use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
@@ -88,6 +91,7 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
@@ -114,6 +118,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->setDefaultTimezone();
         $this->setInternalEncoding();
+        DevCommands::registerDefaults();
 
         $events = $this->app->make('events');
 
@@ -172,6 +177,8 @@ class FoundationServiceProvider extends ServiceProvider
             ConfigPublishCommand::class,
             ConfigShowCommand::class,
             ConsoleMakeCommand::class,
+            DevCommand::class,
+            DevListCommand::class,
             DownCommand::class,
             EnvironmentCommand::class,
             EnvironmentDecryptCommand::class,
@@ -224,7 +231,10 @@ class FoundationServiceProvider extends ServiceProvider
      */
     protected function registerClock(): void
     {
-        $this->app->singleton(ClockInterface::class, fn () => new FactoryImmutable);
+        $this->app->singleton(
+            ClockInterface::class,
+            fn () => new FactoryImmutable(className: CarbonImmutable::class)
+        );
     }
 
     /**
@@ -319,7 +329,7 @@ class FoundationServiceProvider extends ServiceProvider
             MaintenanceModeContract::class,
             fn () => new WorkerCachedMaintenanceMode(
                 $this->app->make(MaintenanceModeManager::class)->driver(),
-                $this->app->make('config')->integer('app.maintenance.refresh_interval', 5)
+                $this->app->make('config')->integer('app.maintenance.refresh_interval')
             )
         );
     }
@@ -362,9 +372,10 @@ class FoundationServiceProvider extends ServiceProvider
             'hypervel-exceptions-renderer'
         );
 
+        // Laravel's optional Whoops renderer is omitted in favor of this framework-aware renderer.
         $this->app->singleton(Renderer::class, function () {
             $errorRenderer = new HtmlErrorRenderer(
-                $this->config->boolean('app.debug', false),
+                $this->config->boolean('app.debug'),
             );
 
             return new Renderer(
@@ -388,7 +399,7 @@ class FoundationServiceProvider extends ServiceProvider
 
     protected function setDefaultTimezone(): void
     {
-        date_default_timezone_set($this->config->get('app.timezone', 'UTC'));
+        date_default_timezone_set($this->config->string('app.timezone'));
     }
 
     protected function setInternalEncoding(): void

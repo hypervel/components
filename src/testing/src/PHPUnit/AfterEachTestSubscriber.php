@@ -11,19 +11,57 @@ use PHPUnit\Event\Test\FinishedSubscriber;
 use Throwable;
 
 /**
- * Global cleanup after every test method.
+ * Coordinates exactly one global cleanup after every test method.
  *
- * Runs after tearDown() completes, for ALL tests regardless of base class.
- * Centralizes static state resets so individual tests don't need to remember
- * them, and prevents state leaks even when a test forgets to clean up.
+ * Prepared tests clean after PHPUnit finishes them. Tests that never become
+ * prepared clean before the next test captures global state, or when the test
+ * runner finishes if there is no next test.
  */
 class AfterEachTestSubscriber implements FinishedSubscriber
 {
+    /**
+     * Whether the current or most recent test still needs global cleanup.
+     */
+    protected bool $cleanupPending = false;
+
     /**
      * Clean up static state after a test finishes.
      */
     public function notify(Finished $event): void
     {
+        $this->flushPendingCleanup();
+    }
+
+    /**
+     * Handle internal preparation-started coordination for the PHPUnit extension.
+     */
+    public function handlePreparationStarted(): void
+    {
+        try {
+            $this->flushPendingCleanup();
+        } finally {
+            $this->cleanupPending = true;
+        }
+    }
+
+    /**
+     * Handle internal execution-finished coordination for the PHPUnit extension.
+     */
+    public function handleExecutionFinished(): void
+    {
+        $this->flushPendingCleanup();
+    }
+
+    /**
+     * Flush pending cleanup at most once.
+     */
+    protected function flushPendingCleanup(): void
+    {
+        if (! $this->cleanupPending) {
+            return;
+        }
+
+        $this->cleanupPending = false;
         $this->flushStateAfterTest();
     }
 
@@ -71,8 +109,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Carbon\Carbon::resetMacros();
         \Carbon\Carbon::resetToStringFormat();
         \Carbon\Carbon::serializeUsing(null);
+        \Carbon\Carbon::useStrictMode();
         \Carbon\Carbon::setTestNow();
-        \Carbon\CarbonImmutable::setTestNow();
+
+        if (class_exists(\Laravel\SerializableClosure\SerializableClosure::class)) {
+            \Laravel\SerializableClosure\SerializableClosure::setSecretKey(null);
+            \Laravel\SerializableClosure\SerializableClosure::transformUseVariablesUsing(null);
+            \Laravel\SerializableClosure\SerializableClosure::resolveUseVariablesUsing(null);
+        }
+
         \Hypervel\Auth\Access\Gate::flushState();
         \Hypervel\Auth\AuthenticationException::flushState();
         \Hypervel\Auth\EloquentUserProvider::flushState();
@@ -83,8 +128,9 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Auth\RequestGuard::flushState();
         \Hypervel\Auth\SessionGuard::flushState();
         \Hypervel\Auth\TokenGuard::flushState();
-        \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushChannels();
+        \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushState();
         \Hypervel\Bus\PendingBatch::flushState();
+        \Hypervel\Bus\UniqueJobPayloadContext::flushState();
         \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
         \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
         \Hypervel\Cache\Repository::flushState();
@@ -97,7 +143,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Container\BoundMethod::flushState();
         \Hypervel\Container\Container::flushState();
         \Hypervel\Container\Container::setInstance(null);
-        \Hypervel\Container\ReflectionManager::flushState();
         \Hypervel\Context\CoroutineContext::flush();
         \Hypervel\Contracts\Database\ModelIdentifier::flushState();
         \Hypervel\Cookie\CookieJar::flushState();
@@ -134,7 +179,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Di\Aop\AspectManager::flushState();
         \Hypervel\Di\Aop\AstVisitorRegistry::flushState();
         \Hypervel\Di\ClassMap\ClassMapManager::flushState();
-        \Hypervel\Di\ReflectionManager::flushState();
+        \Hypervel\Encryption\Commands\KeyGenerateCommand::flushState();
         \Hypervel\Events\Dispatcher::flushState();
         \Hypervel\Filesystem\Filesystem::flushState();
         \Hypervel\Filesystem\FilesystemAdapter::flushState();
@@ -145,9 +190,11 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Console\AboutCommand::flushState();
         \Hypervel\Foundation\Console\ChannelListCommand::flushState();
         \Hypervel\Foundation\Console\CliDumper::flushState();
+        \Hypervel\Foundation\Console\DevCommand::flushState();
         \Hypervel\Foundation\Console\EventListCommand::flushState();
         \Hypervel\Foundation\Console\RouteListCommand::flushState();
         \Hypervel\Foundation\Console\VendorPublishCommand::flushState();
+        \Hypervel\Foundation\DevCommands::flushState();
         \Hypervel\Foundation\Events\DiscoverEvents::flushState();
         \Hypervel\Foundation\Exceptions\Renderer\Frame::flushState();
         \Hypervel\Foundation\Http\FormRequest::flushState();
@@ -156,21 +203,27 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::flushState();
         \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::flushState();
         \Hypervel\Foundation\Http\Middleware\TrimStrings::flushState();
-        \Hypervel\Foundation\Listeners\ReloadDotenvAndConfig::flushState();
         \Hypervel\Foundation\PackageManifest::flushState();
         \Hypervel\Foundation\Support\Providers\EventServiceProvider::flushState();
         \Hypervel\Foundation\Support\Providers\RouteServiceProvider::flushState();
         \Hypervel\Foundation\Vite::flush();
         \Hypervel\Foundation\WorkerCachedMaintenanceMode::flushCache();
+        \Hypervel\Http\Client\Factory::flushState();
+        \Hypervel\Http\Client\PendingRequest::flushState();
         \Hypervel\Http\Client\Request::flushState();
         \Hypervel\Http\Client\RequestException::flushState();
         \Hypervel\Http\Client\Response::flushState();
         \Hypervel\Http\Client\ResponseSequence::flushState();
+        \Hypervel\Http\JsonResponse::flushState();
         \Hypervel\Http\Middleware\HandleCors::flushState();
         \Hypervel\Http\Middleware\TrustHosts::flushState();
         \Hypervel\Http\Middleware\TrustProxies::flushState();
+        \Hypervel\Http\RedirectResponse::flushState();
+        \Hypervel\Http\Request::flushState();
         \Hypervel\Http\Resources\Json\JsonResource::flushState();
         \Hypervel\Http\Resources\JsonApi\JsonApiResource::flushState();
+        \Hypervel\Http\Response::flushState();
+        \Hypervel\Http\UploadedFile::flushState();
         \Hypervel\Jwt\ClaimFactory::flushState();
         \Hypervel\Jwt\JwtGuard::flushState();
         \Hypervel\Log\Context\Repository::flushState();
@@ -183,6 +236,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Pagination\AbstractPaginator::flushState();
         \Hypervel\Pipeline\Pipeline::flushState();
         \Hypervel\Process\Factory::flushState();
+        \Hypervel\Process\InvokedProcess::flushState();
         \Hypervel\Prompts\Prompt::flushState();
         \Hypervel\Prompts\Terminal::flushState();
         \Hypervel\Queue\Capsule\Manager::flushState();
@@ -230,7 +284,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\LazyCollection::flushState();
         \Hypervel\Support\Lottery::flushState();
         \Hypervel\Support\Number::flushState();
-        \Hypervel\Support\Once::flushState();
         \Hypervel\Support\Optional::flushState();
         \Hypervel\Support\Pluralizer::flushState();
         \Hypervel\Support\ServiceProvider::flushState();
@@ -238,6 +291,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Str::flushState();
         \Hypervel\Support\StrCache::flushState();
         \Hypervel\Support\Stringable::flushState();
+        \Hypervel\Support\Testing\Fakes\NotificationFake::flushState();
         \Hypervel\Support\Uri::flushState();
         \Hypervel\Testing\Fluent\AssertableJson::flushState();
         \Hypervel\Testing\ParallelRunner::flushState();

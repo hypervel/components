@@ -15,12 +15,14 @@ use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\Events\TransactionCommitting;
 use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Database\MultipleColumnsSelectedException;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
+use Hypervel\Database\SessionConfigurator;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
@@ -119,8 +121,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertIsNumeric($log[0]['time']);
     }
 
-    public function testSelectResultsetsReturnsMultipleRowset()
+    public function testSelectResultsetsReturnsMultipleRowset(): void
     {
+        $configurator = new StatementPathSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
         $writePdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['prepare'])->getMock();
         $writePdo->expects($this->never())->method('prepare');
@@ -146,6 +150,107 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('CALL a_procedure(?)', $log[0]['query']);
         $this->assertEquals(['foo'], $log[0]['bindings']);
         $this->assertIsNumeric($log[0]['time']);
+        $this->assertSame(1, $configurator->stateCalls);
+        $this->assertSame(1, $configurator->applyCalls);
+    }
+
+    public function testEveryOrdinaryConnectionStatementClosureSynchronizesItsPdo(): void
+    {
+        $configurator = new StatementPathSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $connection = new Connection(
+            new PDO('sqlite::memory:'),
+            ':memory:',
+            '',
+            ['name' => 'test', 'driver' => 'sqlite']
+        );
+
+        $operations = [
+            static fn () => $connection->select('select 1'),
+            static fn () => iterator_to_array($connection->cursor('select 1')),
+            static fn () => $connection->statement('create table records (id integer primary key)'),
+            static fn () => $connection->affectingStatement('insert into records (id) values (1)'),
+            static fn () => $connection->unprepared('delete from records'),
+        ];
+
+        foreach ($operations as $index => $operation) {
+            $configurator->desiredState = 'state-' . $index;
+            $operation();
+            $this->assertSame($index + 1, $configurator->applyCalls);
+        }
+
+        $this->assertSame(count($operations), $configurator->stateCalls);
+    }
+
+    public function testPretendModeDoesNotResolveOrSynchronizePdo(): void
+    {
+        $configurator = new StatementPathSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $resolutions = 0;
+        $connection = new Connection(
+            static function () use (&$resolutions): PDO {
+                ++$resolutions;
+
+                return new PDO('sqlite::memory:');
+            },
+            ':memory:',
+            '',
+            ['name' => 'test', 'driver' => 'sqlite']
+        );
+
+        $connection->pretend(static function (Connection $connection): void {
+            $connection->select('select 1');
+            $connection->statement('create table records (id integer)');
+            $connection->affectingStatement('delete from records');
+            $connection->unprepared('delete from records');
+        });
+
+        $this->assertSame(0, $resolutions);
+        $this->assertSame(0, $configurator->stateCalls);
+        $this->assertSame(0, $configurator->applyCalls);
+    }
+
+    public function testMySqlInsertUsesOneSynchronizedPdoForExecutionAndInsertId(): void
+    {
+        $configurator = new StatementPathSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pdo = $this->getMockBuilder(PDOStub::class)
+            ->onlyMethods(['prepare', 'lastInsertId'])
+            ->getMock();
+        $statement = $this->getMockBuilder(PDOStatement::class)
+            ->onlyMethods(['execute'])
+            ->getMock();
+        $pdo->expects($this->once())->method('prepare')->with('insert into records values ()')->willReturn($statement);
+        $pdo->expects($this->once())->method('lastInsertId')->with(null)->willReturn('42');
+        $statement->expects($this->once())->method('execute')->willReturn(true);
+        $connection = new MySqlConnection(
+            $pdo,
+            'test_database',
+            '',
+            ['name' => 'test', 'driver' => 'mysql']
+        );
+
+        $this->assertTrue($connection->insert('insert into records values ()'));
+        $this->assertSame('42', $connection->getLastInsertId());
+        $this->assertSame(1, $configurator->stateCalls);
+        $this->assertSame(1, $configurator->applyCalls);
+    }
+
+    public function testEscapingAndServerIntrospectionUseSynchronizedPdoHandOuts(): void
+    {
+        $configurator = new StatementPathSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $connection = new Connection(
+            new PDO('sqlite::memory:'),
+            ':memory:',
+            '',
+            ['name' => 'test', 'driver' => 'sqlite']
+        );
+
+        $this->assertSame("'value'", $connection->escape('value'));
+        $this->assertNotSame('', $connection->getServerVersion());
+        $this->assertSame(2, $configurator->stateCalls);
+        $this->assertSame(1, $configurator->applyCalls);
     }
 
     public function testInsertCallsTheStatementMethod()
@@ -474,6 +579,17 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('users', $builder->from);
     }
 
+    public function testTableNormalizesIntegerBackedEnumName(): void
+    {
+        $connection = $this->getMockConnection();
+        $connection->setQueryGrammar(m::mock(Grammar::class));
+        $connection->setPostProcessor(m::mock(Processor::class));
+
+        $builder = $connection->table(DatabaseTableName::Zero);
+
+        $this->assertSame('0', $builder->from);
+    }
+
     public function testPrepareBindings()
     {
         $date = m::mock(DateTime::class);
@@ -600,6 +716,17 @@ class DatabaseConnectionTest extends TestCase
 
         $this->assertSame($readPdo, $actualReadPdo);
         $this->assertNotSame($writePdo, $actualReadPdo);
+    }
+
+    public function testRecordModificationStateCanBeReplacedFluently(): void
+    {
+        $connection = $this->getMockConnection();
+
+        $this->assertSame($connection, $connection->setRecordModificationState(true));
+        $this->assertTrue($connection->hasModifiedRecords());
+
+        $this->assertSame($connection, $connection->setRecordModificationState(false));
+        $this->assertFalse($connection->hasModifiedRecords());
     }
 
     public function testResetForPoolClearsStickyReadRoutingState(): void
@@ -888,6 +1015,11 @@ class DatabaseConnectionTest extends TestCase
     }
 }
 
+enum DatabaseTableName: int
+{
+    case Zero = 0;
+}
+
 class PDOStub extends PDO
 {
     public function __construct()
@@ -908,5 +1040,26 @@ class PDOExceptionStub extends PDOException
     {
         $this->message = $message;
         $this->code = $code;
+    }
+}
+
+class StatementPathSessionConfigurator implements SessionConfigurator
+{
+    public string $desiredState = 'state';
+
+    public int $stateCalls = 0;
+
+    public int $applyCalls = 0;
+
+    public function state(Connection $connection): ?string
+    {
+        ++$this->stateCalls;
+
+        return $this->desiredState;
+    }
+
+    public function apply(PDO $pdo, string $state, Connection $connection): void
+    {
+        ++$this->applyCalls;
     }
 }

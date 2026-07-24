@@ -17,7 +17,9 @@ class ListenableProcess extends AbstractProcess
     /**
      * The fake socket to use in listen().
      */
-    public ?FakeSocket $fakeSocket = null;
+    public FakeSocket|false $fakeSocket;
+
+    public int $socketExports = 0;
 
     public function handle(): void
     {
@@ -35,8 +37,10 @@ class ListenableProcess extends AbstractProcess
     /**
      * Return the fake socket instead of calling exportSocket().
      */
-    protected function getListenSocket(): Socket
+    protected function getListenSocket(): Socket|false
     {
+        ++$this->socketExports;
+
         return $this->fakeSocket;
     }
 }

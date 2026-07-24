@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use ArrayAccess;
+use Carbon\CarbonInterface;
 use Closure;
 use Countable;
 use Hypervel\Support\Facades\Date;
@@ -191,6 +192,14 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     public function convertCase(int $mode = MB_CASE_FOLD, ?string $encoding = 'UTF-8'): static
     {
         return new static(Str::convertCase($this->value, $mode, $encoding));
+    }
+
+    /**
+     * Get the plural form of an English word with the count prepended.
+     */
+    public function counted(int|array|Countable $count): static
+    {
+        return new static(Str::counted($this->value, $count));
     }
 
     /**
@@ -1153,7 +1162,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @throws \Carbon\Exceptions\InvalidFormatException
      */
-    public function toDate(?string $format = null, ?string $tz = null): mixed
+    public function toDate(?string $format = null, ?string $tz = null): ?CarbonInterface
     {
         if (is_null($format)) {
             return Date::parse($this->value, $tz);

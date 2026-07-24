@@ -49,7 +49,7 @@ abstract class Connection implements ConnectionInterface
     public function release(): void
     {
         try {
-            $this->lastReleaseTime = microtime(true);
+            $this->lastReleaseTime = hrtime(true) / 1e9;
             $events = $this->pool->getOption()->getEvents();
 
             if (in_array(ReleaseConnection::class, $events, true)) {
@@ -94,7 +94,7 @@ abstract class Connection implements ConnectionInterface
         }
 
         $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
-        $now = microtime(true);
+        $now = hrtime(true) / 1e9;
 
         if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
             return false;

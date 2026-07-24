@@ -32,7 +32,7 @@
     "require": {
         "php": "^8.4",
         "brick/math": "^0.16",
-        "nesbot/carbon": "^3.8.4",
+        "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1",
         "symfony/polyfill-php86": "^1.36",
         "symfony/process": "^8.1",

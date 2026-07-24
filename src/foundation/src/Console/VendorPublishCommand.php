@@ -16,6 +16,7 @@ use League\Flysystem\Local\LocalFilesystemAdapter as LocalAdapter;
 use League\Flysystem\MountManager;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\search;
@@ -170,7 +171,7 @@ class VendorPublishCommand extends Command
         if ($publishing === false) {
             $this->components->info('No publishable resources for tag [' . $tag . '].');
         } else {
-            $this->hypervel['events']->dispatch(new VendorTagPublished($tag, $pathsToPublish));
+            $this->hypervel->make('events')->dispatch(new VendorTagPublished($tag, $pathsToPublish));
 
             $this->newLine();
         }
@@ -212,7 +213,9 @@ class VendorPublishCommand extends Command
 
             $this->createParentDirectory(dirname($to));
 
-            $this->files->copy($from, $to);
+            if (! $this->files->copy($from, $to)) {
+                throw new RuntimeException("Unable to copy [{$from}] to [{$to}].");
+            }
 
             $this->status($from, $to, 'file');
         } else {
@@ -222,9 +225,11 @@ class VendorPublishCommand extends Command
                     str_replace(base_path() . '/', '', $to),
                 ), '<fg=yellow;options=bold>SKIPPED</>');
             } else {
+                $resolvedTo = realpath($to);
+
                 $this->components->twoColumnDetail(sprintf(
                     'File [%s] already exists',
-                    str_replace(base_path() . '/', '', realpath($to)),
+                    str_replace(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to),
                 ), '<fg=yellow;options=bold>SKIPPED</>');
             }
         }
@@ -272,9 +277,7 @@ class VendorPublishCommand extends Command
      */
     protected function createParentDirectory(string $directory): void
     {
-        if (! $this->files->isDirectory($directory)) {
-            $this->files->makeDirectory($directory, 0755, true);
-        }
+        $this->files->ensureDirectoryExists($directory);
     }
 
     /**
@@ -310,9 +313,11 @@ class VendorPublishCommand extends Command
      */
     protected function status(string $from, string $to, string $type): void
     {
-        $from = str_replace(base_path() . '/', '', realpath($from));
+        $resolvedFrom = realpath($from);
+        $resolvedTo = realpath($to);
 
-        $to = str_replace(base_path() . '/', '', realpath($to));
+        $from = str_replace(base_path() . '/', '', is_string($resolvedFrom) ? $resolvedFrom : $from);
+        $to = str_replace(base_path() . '/', '', is_string($resolvedTo) ? $resolvedTo : $to);
 
         $this->components->task(sprintf(
             'Copying %s [%s] to [%s]',

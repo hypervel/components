@@ -65,6 +65,21 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseHas(new ProductStub(['id' => 1]), $data);
     }
 
+    public function testAssertDatabaseHasSupportsArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('exists')->twice()->andReturn(true);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertDatabaseHas($this->table, [
+            ['title' => 'Spark', 'name' => 'Laravel'],
+            ['title' => 'Forge', 'name' => 'Laravel'],
+        ]);
+    }
+
     public function testSeeInDatabaseDoesNotFindResults()
     {
         $this->expectException(ExpectationFailedException::class);
@@ -105,6 +120,21 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         );
 
         $this->assertDatabaseHas($this->table, $this->data);
+    }
+
+    public function testAssertDatabaseMissingSupportsArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('exists')->twice()->andReturn(false);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertDatabaseMissing($this->table, [
+            ['title' => 'Spark', 'name' => 'Laravel'],
+            ['title' => 'Forge', 'name' => 'Laravel'],
+        ]);
     }
 
     public function testDontSeeInDatabaseDoesNotFindResults()
@@ -170,6 +200,17 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseEmpty(new ProductStub);
     }
 
+    public function testAssertDatabaseEmptySupportsArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('count')->twice()->andReturn(0);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
+
+        $this->assertDatabaseEmpty([ProductStub::class, OrderStub::class]);
+    }
+
     public function testAssertTableEntriesCountWrong()
     {
         $this->expectException(ExpectationFailedException::class);
@@ -177,6 +218,64 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->mockCountBuilder(true);
 
         $this->assertDatabaseCount($this->table, 3);
+    }
+
+    public function testAssertSoftDeletedSupportsArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('whereNotNull')->with('deleted_at')->twice()->andReturnSelf();
+        $builder->shouldReceive('count')->twice()->andReturn(1);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertSoftDeleted($this->table, [
+            ['title' => 'Spark', 'name' => 'Laravel'],
+            ['title' => 'Forge', 'name' => 'Laravel'],
+        ]);
+    }
+
+    public function testAssertNotSoftDeletedSupportsArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('where')->with(['title' => 'Spark', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('where')->with(['title' => 'Forge', 'name' => 'Laravel'])->once()->andReturnSelf();
+        $builder->shouldReceive('whereNull')->with('deleted_at')->twice()->andReturnSelf();
+        $builder->shouldReceive('count')->twice()->andReturn(1);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertNotSoftDeleted($this->table, [
+            ['title' => 'Spark', 'name' => 'Laravel'],
+            ['title' => 'Forge', 'name' => 'Laravel'],
+        ]);
+    }
+
+    public function testAssertSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('where')->with($this->data)->twice()->andReturnSelf();
+        $builder->shouldReceive('whereNotNull')->with('removed_at')->twice()->andReturnSelf();
+        $builder->shouldReceive('count')->twice()->andReturn(1);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
+
+        $this->assertSoftDeleted(['products', 'orders'], $this->data, deletedAtColumn: 'removed_at');
+    }
+
+    public function testAssertNotSoftDeletedTableSupportsIterablesWithCustomDeletedAtColumn(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('where')->with($this->data)->twice()->andReturnSelf();
+        $builder->shouldReceive('whereNull')->with('removed_at')->twice()->andReturnSelf();
+        $builder->shouldReceive('count')->twice()->andReturn(1);
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+        $this->connection->shouldReceive('table')->with('orders')->andReturn($builder);
+
+        $this->assertNotSoftDeleted(['products', 'orders'], $this->data, deletedAtColumn: 'removed_at');
     }
 
     public function testAssertDatabaseMissingPassesWhenDoesNotFindResults()
@@ -528,4 +627,11 @@ class ProductStub extends Model
 class CustomProductStub extends ProductStub
 {
     public const DELETED_AT = 'trashed_at';
+}
+
+class OrderStub extends Model
+{
+    protected ?string $table = 'orders';
+
+    protected array $guarded = [];
 }

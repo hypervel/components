@@ -72,7 +72,7 @@ class LocalFilesystemAdapter extends FilesystemAdapter
         return $url->to($url->temporarySignedRoute(
             'storage.' . $this->disk,
             $expiration,
-            ['path' => $path],
+            ['path' => strtr(rawurlencode($path), ['%2F' => '/'])],
             absolute: false
         ));
     }
@@ -102,7 +102,7 @@ class LocalFilesystemAdapter extends FilesystemAdapter
             'url' => $url->to($url->temporarySignedRoute(
                 'storage.' . $this->disk . '.upload',
                 $expiration,
-                ['path' => $path, 'upload' => true],
+                ['path' => strtr(rawurlencode($path), ['%2F' => '/']), 'upload' => true],
                 absolute: false
             )),
             'headers' => [],

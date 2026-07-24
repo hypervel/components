@@ -111,6 +111,25 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
         );
     }
 
+    public function testQueueFilterDistinguishesZeroAndEmptyString(): void
+    {
+        $calculator = $this->with_scenario([
+            'test-supervisor' => (object) [
+                'processes' => [
+                    'redis:test-queue' => 1,
+                ],
+            ],
+        ], [
+            'test-queue' => [
+                'size' => 10,
+                'runtime' => 1000,
+            ],
+        ]);
+
+        $this->assertSame([], $calculator->calculate('0'));
+        $this->assertSame(['redis:test-queue' => 10.0], $calculator->calculate(''));
+    }
+
     public function testTimeToClearCanBeZero()
     {
         $calculator = $this->with_scenario([

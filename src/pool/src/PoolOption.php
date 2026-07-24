@@ -23,7 +23,7 @@ class PoolOption implements PoolOptionInterface
     public const LIFETIME_JITTER_SCALE = 10000;
 
     /**
-     * @param int $minConnections Minimum connections to maintain in the pool
+     * @param int $minConnections Managed-connection floor when trimming excess idle connections
      * @param int $maxConnections Maximum connections allowed in the pool
      * @param float $connectTimeout Timeout in seconds for establishing a connection
      * @param float $waitTimeout Timeout in seconds for waiting to get a connection from pool
@@ -80,7 +80,7 @@ class PoolOption implements PoolOptionInterface
     }
 
     /**
-     * Set the minimum number of connections in the pool.
+     * Set the managed-connection floor for excess-idle trimming.
      *
      * Boot-only. The value persists on the worker-lifetime pool option and is
      * read by every subsequent pool operation. Per-request use races across

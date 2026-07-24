@@ -69,20 +69,21 @@ function go(callable $callable, bool|array $copyContext = false): int
 
 /**
  * Run callable in non-coroutine environment, all hook functions by Swoole only available in the callable.
- *
- * @param array|callable $callbacks
  */
-function run($callbacks, int $flags = SWOOLE_HOOK_ALL): bool
+function run(callable|array $callbacks, int $flags = SWOOLE_HOOK_ALL): bool
 {
     if (Coroutine::inCoroutine()) {
         throw new RuntimeException('Function \'run\' only execute in non-coroutine environment.');
     }
 
+    $previousFlags = Runtime::getHookFlags();
     Runtime::enableCoroutine($flags);
 
-    /* @phpstan-ignore-next-line */
-    $result = \Swoole\Coroutine\run(...(array) $callbacks);
-
-    Runtime::enableCoroutine(0);
-    return $result;
+    try {
+        return is_callable($callbacks)
+            ? \Swoole\Coroutine\run($callbacks)
+            : \Swoole\Coroutine\run(...$callbacks);
+    } finally {
+        Runtime::enableCoroutine($previousFlags);
+    }
 }

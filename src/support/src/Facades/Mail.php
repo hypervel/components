@@ -7,13 +7,13 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Support\Testing\Fakes\MailFake;
 
 /**
- * @method static \Hypervel\Contracts\Mail\Mailer mailer(string|null $name = null)
- * @method static \Hypervel\Contracts\Mail\Mailer driver(string|null $driver = null)
+ * @method static \Hypervel\Contracts\Mail\Mailer mailer(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Mail\Mailer driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Mail\Mailer build(array $config)
  * @method static \Symfony\Component\Mailer\Transport\TransportInterface createSymfonyTransport(array $config)
  * @method static string getDefaultDriver()
- * @method static void setDefaultDriver(string $name)
- * @method static void purge(string|null $name = null)
+ * @method static void setDefaultDriver(\UnitEnum|string $name)
+ * @method static void purge(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Mail\MailManager extend(string $driver, \Closure $callback, bool $poolable = false)
  * @method static \Hypervel\Contracts\Container\Container getApplication()
  * @method static \Hypervel\Mail\MailManager setApplication(\Hypervel\Contracts\Container\Container $app)
@@ -37,6 +37,7 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static void assertNothingOutgoing()
  * @method static void assertNothingSent()
  * @method static void assertQueued(\Closure|string $mailable, callable|array|string|int|null $callback = null)
+ * @method static void assertQueuedTimes(string $mailable, int $times = 1)
  * @method static void assertNotQueued(\Closure|string $mailable, callable|array|string|null $callback = null)
  * @method static void assertNothingQueued()
  * @method static void assertSentCount(int $count)

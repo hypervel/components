@@ -11,7 +11,6 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Tests\TestCase;
-use TypeError;
 
 enum TaggedCacheTestKeyStringEnum: string
 {
@@ -21,6 +20,7 @@ enum TaggedCacheTestKeyStringEnum: string
 
 enum TaggedCacheTestKeyIntEnum: int
 {
+    case Zero = 0;
     case Key1 = 1;
     case Key2 = 2;
 }
@@ -313,14 +313,14 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame(11, $value);
     }
 
-    public function testIncrementWithIntBackedEnumThrowsTypeError(): void
+    public function testIncrementAcceptsIntegerBackedEnum(): void
     {
         $store = new ArrayStore;
         $taggableStore = $store->tags('bop');
+        $taggableStore->put(TaggedCacheTestKeyIntEnum::Zero, 5, 10);
 
-        // Int-backed enum causes TypeError because itemKey() expects string
-        $this->expectException(TypeError::class);
-        $taggableStore->increment(TaggedCacheTestKeyIntEnum::Key1);
+        $this->assertSame(6, $taggableStore->increment(TaggedCacheTestKeyIntEnum::Zero));
+        $this->assertSame(6, $taggableStore->get('0'));
     }
 
     public function testDecrementAcceptsStringBackedEnum(): void
@@ -348,14 +348,14 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame(19, $value);
     }
 
-    public function testDecrementWithIntBackedEnumThrowsTypeError(): void
+    public function testDecrementAcceptsIntegerBackedEnum(): void
     {
         $store = new ArrayStore;
         $taggableStore = $store->tags('bop');
+        $taggableStore->put(TaggedCacheTestKeyIntEnum::Key1, 10, 10);
 
-        // Int-backed enum causes TypeError because itemKey() expects string
-        $this->expectException(TypeError::class);
-        $taggableStore->decrement(TaggedCacheTestKeyIntEnum::Key1);
+        $this->assertSame(9, $taggableStore->decrement(TaggedCacheTestKeyIntEnum::Key1));
+        $this->assertSame(9, $taggableStore->get('1'));
     }
 
     private function getTestCacheStoreWithTagValues(): ArrayStore

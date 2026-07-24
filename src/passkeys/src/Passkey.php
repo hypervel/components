@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Passkeys;
 
+use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
 use Hypervel\Passkeys\Support\Aaguids;
-use Hypervel\Support\Carbon;
 
 /**
  * @mixin Builder<Passkey>
@@ -21,9 +21,9 @@ use Hypervel\Support\Carbon;
  * @property string $name
  * @property string $credential_id
  * @property array<string, mixed> $credential
- * @property null|Carbon $last_used_at
- * @property null|Carbon $created_at
- * @property null|Carbon $updated_at
+ * @property ?CarbonInterface $last_used_at
+ * @property ?CarbonInterface $created_at
+ * @property ?CarbonInterface $updated_at
  * @property-read PasskeyUser $user
  * @property-read null|string $authenticator
  */

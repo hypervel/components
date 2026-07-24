@@ -57,7 +57,15 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        $connectionName = ConnectionName::parse(enum_value($name) ?: $this->getDefaultConnection());
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $connectionName = ConnectionName::parse($name);
         $contextKey = $this->getContextKey($connectionName->requested);
 
         // Check if this coroutine already has a connection

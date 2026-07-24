@@ -32,7 +32,7 @@ class Coroutine implements CoroutineInterface
     /**
      * Create and execute a new coroutine.
      */
-    public static function create(callable $callable, ...$data): static
+    public static function create(callable $callable, mixed ...$data): static
     {
         $coroutine = new static($callable);
         $coroutine->execute(...$data);
@@ -42,7 +42,7 @@ class Coroutine implements CoroutineInterface
     /**
      * Execute the coroutine.
      */
-    public function execute(...$data): static
+    public function execute(mixed ...$data): static
     {
         // Swoole warns when its coroutine limit is exceeded; expose that native
         // failure through the typed framework exception instead of two signals.
@@ -63,7 +63,7 @@ class Coroutine implements CoroutineInterface
     public function getId(): int
     {
         if (is_null($this->id)) {
-            throw new RuntimeException('Coroutine was not be executed.');
+            throw new RuntimeException('Coroutine has not been executed.');
         }
         return $this->id;
     }
@@ -90,7 +90,7 @@ class Coroutine implements CoroutineInterface
             $cid = SwooleCo::getPcid();
         }
         if ($cid === false) {
-            throw new RunningInNonCoroutineException('Non-Coroutine environment don\'t has parent coroutine id.');
+            throw new RunningInNonCoroutineException('Cannot retrieve a parent coroutine ID outside a coroutine.');
         }
         return max(0, $cid);
     }
@@ -149,6 +149,15 @@ class Coroutine implements CoroutineInterface
     {
         /* @phpstan-ignore arguments.count (@TODO: Remove once PHPStan's bundled JetBrains Swoole stub includes Swoole 6.2's throw_exception parameter.) */
         return SwooleCo::cancel($id, $throwException);
+    }
+
+    /**
+     * Wait for the given coroutines to finish.
+     */
+    public static function join(array $coroutineIds, float $timeout = -1): bool
+    {
+        /* @phpstan-ignore argument.type (@TODO: Remove once PHPStan's bundled JetBrains Swoole stub declares Swoole 6.2's float join() timeout; the extension exposes float.) */
+        return SwooleCo::join($coroutineIds, $timeout);
     }
 
     /**

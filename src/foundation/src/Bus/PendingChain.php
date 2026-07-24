@@ -60,7 +60,9 @@ class PendingChain
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = enum_value($connection);
+        $this->connection = $connection instanceof UnitEnum
+            ? (string) enum_value($connection)
+            : $connection;
 
         return $this;
     }
@@ -70,7 +72,9 @@ class PendingChain
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->queue = enum_value($queue);
+        $this->queue = $queue instanceof UnitEnum
+            ? (string) enum_value($queue)
+            : $queue;
 
         return $this;
     }
@@ -146,24 +150,28 @@ class PendingChain
     /**
      * Dispatch the job chain.
      */
-    public function dispatch(): mixed
+    public function dispatch(mixed ...$arguments): mixed
     {
         if (is_string($this->job)) {
-            $firstJob = new $this->job(...func_get_args());
+            $firstJob = new $this->job(...$arguments);
         } elseif ($this->job instanceof Closure) {
             $firstJob = CallQueuedClosure::create($this->job);
         } else {
             $firstJob = $this->job;
         }
 
-        if ($this->connection) {
+        if ($this->connection !== null && $this->connection !== '') {
             $firstJob->chainConnection = $this->connection;
-            $firstJob->connection = $firstJob->connection ?: $this->connection;
+            $firstJob->connection = $firstJob->connection === null || $firstJob->connection === ''
+                ? $this->connection
+                : $firstJob->connection;
         }
 
-        if ($this->queue) {
+        if ($this->queue !== null && $this->queue !== '') {
             $firstJob->chainQueue = $this->queue;
-            $firstJob->queue = $firstJob->queue ?: $this->queue;
+            $firstJob->queue = $firstJob->queue === null || $firstJob->queue === ''
+                ? $this->queue
+                : $firstJob->queue;
         }
 
         if ($this->delay) {

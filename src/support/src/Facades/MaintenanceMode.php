@@ -8,7 +8,7 @@ use Hypervel\Foundation\MaintenanceModeManager;
 
 /**
  * @method static string getDefaultDriver()
- * @method static mixed driver(string|null $driver = null)
+ * @method static mixed driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Foundation\MaintenanceModeManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()

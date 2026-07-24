@@ -7,12 +7,15 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Routing\CompiledRouteCollection;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use Mockery as m;
 use RuntimeException;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 
 use function Hypervel\Testbench\testbench_path;
 
-class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
+class RouteCacheCommandTest extends TestCase
 {
     protected Filesystem $files;
 
@@ -66,7 +69,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         CleanupActions::run(...$actions);
     }
 
-    public function testRouteCacheSucceedsWithSourceRoutes()
+    public function testRouteCacheSucceedsWithSourceRoutes(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -81,14 +84,20 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertFileExists($this->app->getCachedRoutesPath());
     }
 
-    public function testRouteCacheFailsWithNoRoutes()
+    public function testRouteCacheFailsWithNoRoutes(): void
     {
+        $cachePath = $this->app->getCachedRoutesPath();
+        $previousContents = "<?php return ['previous' => true];\n";
+        $this->files->put($cachePath, $previousContents);
+
         $this->artisan('route:cache')
             ->expectsOutputToContain("doesn't have any routes")
             ->assertExitCode(1);
+
+        $this->assertSame($previousContents, $this->files->get($cachePath));
     }
 
-    public function testCachedRoutesAreLoadable()
+    public function testCachedRoutesAreLoadable(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -103,7 +112,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertInstanceOf(CompiledRouteCollection::class, $this->app['router']->getRoutes());
     }
 
-    public function testNamedRoutesSurviveCache()
+    public function testNamedRoutesSurviveCache(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -122,7 +131,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame('posts', $routes->getByName('posts.index')?->uri());
     }
 
-    public function testRoutesWithMiddlewareDomainPrefixAndMultipleMethodsSurviveCache()
+    public function testRoutesWithMiddlewareDomainPrefixAndMultipleMethodsSurviveCache(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -148,7 +157,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertContains('POST', $route->methods());
     }
 
-    public function testRouteClearRemovesCacheFile()
+    public function testRouteClearRemovesCacheFile(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -164,7 +173,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertFileDoesNotExist($this->app->getCachedRoutesPath());
     }
 
-    public function testRouteCacheDoesNotOverwriteGlobalContainerInstance()
+    public function testRouteCacheDoesNotOverwriteGlobalContainerInstance(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -179,7 +188,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame($originalInstance, Container::getInstance());
     }
 
-    public function testRouteCacheRebuildsFromSourceWhenApplicationBootedWithExistingCachedRoutes()
+    public function testRouteCacheRebuildsFromSourceWhenApplicationBootedWithExistingCachedRoutes(): void
     {
         $this->defineTestbenchRoutes(
             <<<'PHP'
@@ -243,6 +252,69 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         }
     }
 
+    public function testExistingRouteCacheSurvivesChildBootstrapFailure(): void
+    {
+        $cachePath = $this->app->getCachedRoutesPath();
+        $previousContents = "<?php return ['previous' => true];\n";
+        $this->files->put($cachePath, $previousContents);
+        $this->defineTestbenchRoutes("throw new RuntimeException('bootstrap failed');");
+
+        try {
+            $this->artisan('route:cache');
+            $this->fail('The subprocess should have failed.');
+        } catch (ProcessFailedException) {
+        }
+
+        $this->assertSame($previousContents, $this->files->get($cachePath));
+    }
+
+    public function testRouteCacheReplacementPreservesExistingMode(): void
+    {
+        $cachePath = $this->app->getCachedRoutesPath();
+        $this->files->put($cachePath, "<?php return ['previous' => true];\n");
+        chmod($cachePath, 0640);
+        $this->defineTestbenchRoutes(
+            <<<'PHP'
+            Route::get('/fresh', fn () => 'fresh')->name('fresh.index');
+            PHP
+        );
+
+        $this->artisan('route:cache')->assertSuccessful();
+
+        $this->assertSame(0640, fileperms($cachePath) & 0777);
+    }
+
+    public function testExistingRouteCacheSurvivesPublicationFailure(): void
+    {
+        $cachePath = $this->app->getCachedRoutesPath();
+        $previousContents = "<?php return ['previous' => true];\n";
+        $this->files->put($cachePath, $previousContents);
+        chmod($cachePath, 0640);
+        $this->defineTestbenchRoutes(
+            <<<'PHP'
+            Route::get('/fresh', fn () => 'fresh')->name('fresh.index');
+            PHP
+        );
+
+        $publicationException = new RuntimeException('publication failed');
+        $mock = m::mock(Filesystem::class)->makePartial();
+        $mock->shouldReceive('replace')
+            ->once()
+            ->with($cachePath, m::type('string'), 0640)
+            ->andThrow($publicationException);
+        $this->app->instance(Filesystem::class, $mock);
+
+        try {
+            $this->artisan('route:cache');
+            $this->fail('Publication should have failed.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame($previousContents, $this->files->get($cachePath));
+        $this->assertSame(0640, fileperms($cachePath) & 0777);
+    }
+
     /**
      * Write a testbench route file into the cloned skeleton's routes dir.
      *
@@ -298,5 +370,32 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
             $routeFiles,
             'Unexpected Testbench runtime route files found: ' . implode(', ', $routeFiles),
         );
+
+        $manifestPath = $this->app->getCachedPackagesPath();
+
+        if ($this->files->isFile($manifestPath)) {
+            $manifest = $this->files->getRequire($manifestPath);
+
+            $this->assertIsArray(
+                $manifest,
+                "Testbench package manifest [{$manifestPath}] did not return an array.",
+            );
+
+            $providers = [];
+
+            foreach ($manifest as $configuration) {
+                if (is_array($configuration)) {
+                    $providers = [...$providers, ...(array) ($configuration['providers'] ?? [])];
+                }
+            }
+
+            $providers = array_values(array_unique(array_filter($providers, is_string(...))));
+
+            $this->assertSame(
+                [],
+                $providers,
+                'Unexpected Testbench package providers found: ' . implode(', ', $providers),
+            );
+        }
     }
 }

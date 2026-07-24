@@ -12,6 +12,7 @@ use Hypervel\Support\Js;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use JsonException;
 
 class FoundationViteTest extends TestCase
 {
@@ -646,10 +647,82 @@ class FoundationViteTest extends TestCase
         $this->assertSame('http://localhost:3000/resources/js/app.js', $url);
     }
 
+    public function testItThrowsWhenHotFileDisappearsBeforeItCanBeRead(): void
+    {
+        $this->withUnreadableViteStream(function (string $path): void {
+            $vite = (new Vite)->useHotFile($path . '/hot');
+
+            $this->expectException(ViteException::class);
+            $this->expectExceptionMessage('Unable to read the Vite hot file');
+
+            $vite->asset('resources/js/app.js');
+        });
+    }
+
     public function testItThrowsWhenUnableToFindAssetManifestInBuildMode()
     {
         $this->expectException(ViteException::class);
         $this->expectExceptionMessage('Vite manifest not found at: ' . public_path('build/manifest.json'));
+
+        ViteFacade::asset('resources/js/app.js');
+    }
+
+    public function testItThrowsWhenUnableToReadAssetManifestInBuildMode(): void
+    {
+        $this->withUnreadableViteStream(function (string $path): void {
+            $vite = new class($path) extends Vite {
+                public function __construct(protected string $path)
+                {
+                }
+
+                public function isRunningHot(): bool
+                {
+                    return false;
+                }
+
+                protected function publicPath(string $path): string
+                {
+                    return $this->path . '/' . $path;
+                }
+            };
+
+            $this->expectException(ViteException::class);
+            $this->expectExceptionMessage('Unable to read the Vite manifest');
+
+            $vite->asset('resources/js/app.js');
+        });
+    }
+
+    public function testItRejectsMalformedManifestWithoutCachingIt(): void
+    {
+        $path = public_path('build');
+        mkdir($path, 0777, true);
+        file_put_contents($path . '/manifest.json', '{');
+
+        try {
+            ViteFacade::asset('resources/js/app.js');
+
+            self::fail('Expected the malformed manifest to be rejected.');
+        } catch (ViteException $exception) {
+            $this->assertInstanceOf(JsonException::class, $exception->getPrevious());
+        }
+
+        $this->makeViteManifest();
+
+        $this->assertSame(
+            'https://example.com/build/assets/app.versioned.js',
+            ViteFacade::asset('resources/js/app.js'),
+        );
+    }
+
+    public function testItRejectsNonArrayManifest(): void
+    {
+        $path = public_path('build');
+        mkdir($path, 0777, true);
+        file_put_contents($path . '/manifest.json', 'null');
+
+        $this->expectException(ViteException::class);
+        $this->expectExceptionMessage('The Vite manifest at [' . $path . '/manifest.json] is invalid.');
 
         ViteFacade::asset('resources/js/app.js');
     }
@@ -693,6 +766,29 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame('4f73e7c072a5410b92846df2052c7839', ViteFacade::manifestHash());
         $this->assertSame('fe4db42397a18ffd2e0638cca3a85567', ViteFacade::manifestHash('admin'));
+    }
+
+    public function testItReturnsNullWhenManifestHashCannotBeRead(): void
+    {
+        $this->withUnreadableViteStream(function (string $path): void {
+            $vite = new class($path) extends Vite {
+                public function __construct(protected string $path)
+                {
+                }
+
+                public function isRunningHot(): bool
+                {
+                    return false;
+                }
+
+                protected function publicPath(string $path): string
+                {
+                    return $this->path . '/' . $path;
+                }
+            };
+
+            $this->assertNull($vite->manifestHash());
+        });
     }
 
     public function testViteCanSetEntryPointsWithFluentBuilder()
@@ -1320,6 +1416,38 @@ class FoundationViteTest extends TestCase
         ViteFacade::content('resources/js/app.js');
     }
 
+    public function testItThrowsWhenManifestAssetDisappearsBeforeItCanBeRead(): void
+    {
+        $this->makeViteManifest();
+
+        $this->withUnreadableViteStream(function (string $path): void {
+            $vite = new class($this->tempDir, $path) extends Vite {
+                public function __construct(
+                    protected string $root,
+                    protected string $unreadablePath,
+                ) {
+                }
+
+                public function isRunningHot(): bool
+                {
+                    return false;
+                }
+
+                protected function publicPath(string $path): string
+                {
+                    return str_ends_with($path, '/manifest.json')
+                        ? $this->root . '/' . $path
+                        : $this->unreadablePath . '/' . $path;
+                }
+            };
+
+            $this->expectException(ViteException::class);
+            $this->expectExceptionMessage('Unable to read file from Vite manifest');
+
+            $vite->content('resources/js/app.js');
+        });
+    }
+
     public function testItCanPrefetchEntrypoint()
     {
         $manifest = json_decode(file_get_contents(__DIR__ . '/Fixtures/prefetching-manifest.json'));
@@ -1781,5 +1909,38 @@ class FoundationViteTest extends TestCase
         $path ??= public_path('hot');
 
         file_put_contents($path, 'http://localhost:3000');
+    }
+
+    protected function withUnreadableViteStream(callable $callback): mixed
+    {
+        $scheme = 'hypervel-vite-unreadable';
+
+        $this->assertTrue(stream_wrapper_register($scheme, ViteUnreadableStreamWrapper::class));
+
+        try {
+            return $callback($scheme . '://file');
+        } finally {
+            stream_wrapper_unregister($scheme);
+        }
+    }
+}
+
+class ViteUnreadableStreamWrapper
+{
+    public mixed $context;
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
+    {
+        return false;
+    }
+
+    public function url_stat(string $path, int $flags): array
+    {
+        return [
+            2 => 0100444,
+            7 => 1,
+            'mode' => 0100444,
+            'size' => 1,
+        ];
     }
 }

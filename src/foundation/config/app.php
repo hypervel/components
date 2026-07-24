@@ -69,9 +69,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | These options configure the stdout logger, which is the low-level logger
-    | used by Swoole server infrastructure (connection pools, server lifecycle,
-    | response emitter, etc.). This logger is separate from the application log
-    | stack and writes directly to stdout.
+    | used by Swoole server infrastructure such as connection pools and server
+    | lifecycle callbacks. It is separate from the application log stack and
+    | writes directly to stdout.
     |
     */
 
@@ -84,6 +84,8 @@ return [
         | This array determines which log levels are written to stdout. Only
         | messages at these levels will be output. This does not affect the
         | application log stack configured in config/logging.php.
+        | Settings are loaded when each worker starts, so changes take effect
+        | for replacement workers after the server is reloaded.
         |
         */
 
@@ -192,7 +194,7 @@ return [
 
     'previous_keys' => [
         ...array_filter(
-            explode(',', env('APP_PREVIOUS_KEYS', ''))
+            explode(',', (string) env('APP_PREVIOUS_KEYS', ''))
         ),
     ],
 
@@ -204,9 +206,11 @@ return [
     | These configuration options determine the driver used to determine and
     | manage Hypervel's "maintenance mode" status. The "cache" driver will
     | allow maintenance mode to be controlled across multiple machines. The
-    | refresh interval controls how often workers re-check the driver.
+    | refresh interval controls how often workers re-check the driver. The
+    | "array" driver is intended for tests and isolated application processes;
+    | it cannot coordinate maintenance state across Swoole workers.
     |
-    | Supported drivers: "file", "cache"
+    | Supported drivers: "file", "cache", "array"
     |
     */
 

@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\SessionConfigurator;
 use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testing\ParallelTesting;
+use PDO;
 use RuntimeException;
 use Throwable;
 
@@ -35,6 +40,8 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 
     protected static string $writePath;
 
+    protected static string $sessionPath;
+
     public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
@@ -45,8 +52,10 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 
         static::$readPath = static::$databaseDirectory . '/read.sqlite';
         static::$writePath = static::$databaseDirectory . '/write.sqlite';
+        static::$sessionPath = static::$databaseDirectory . '/session.sqlite';
         touch(static::$readPath);
         touch(static::$writePath);
+        touch(static::$sessionPath);
     }
 
     public static function tearDownAfterClass(): void
@@ -60,6 +69,8 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
+        $app->make('config')->set('app.stdout_log.level', []);
+
         $app->make('config')->set('database.connections.sqlite_readwrite_pool', [
             'driver' => 'sqlite',
             'read' => [
@@ -71,6 +82,28 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
             'pool' => [
                 'testing_enabled' => true,
                 'max_connections' => 5,
+                'heartbeat' => -1,
+            ],
+        ]);
+
+        $app->make('config')->set('database.connections.session_context_pool', [
+            'driver' => 'sqlite',
+            'database' => static::$sessionPath,
+            'pool' => [
+                'testing_enabled' => true,
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+
+        $app->make('config')->set('database.connections.session_shared_pool', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'pool' => [
+                'testing_enabled' => true,
+                'min_connections' => 2,
+                'max_connections' => 2,
                 'heartbeat' => -1,
             ],
         ]);
@@ -390,6 +423,129 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $this->assertNotNull($manager, 'Pooled connection should have transaction manager configured');
     }
 
+    public function testSessionConfiguratorReadsCoroutineContextOnEachPooledHandOut(): void
+    {
+        $configurator = new CoroutineSessionConfigurator('session_context_pool');
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'session_context_pool');
+        $firstFinished = new Channel(1);
+
+        try {
+            [$firstValue, $secondValue] = parallel([
+                function () use ($pool, $firstFinished): int {
+                    CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '101');
+
+                    /** @var PooledConnection $pooledConnection */
+                    $pooledConnection = $pool->get();
+
+                    try {
+                        return (int) $pooledConnection->getConnection()
+                            ->selectOne('PRAGMA user_version')
+                            ->user_version;
+                    } finally {
+                        $pooledConnection->release();
+                        $firstFinished->push(true);
+                    }
+                },
+                function () use ($pool, $firstFinished): int {
+                    $firstFinished->pop();
+                    CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '202');
+
+                    /** @var PooledConnection $pooledConnection */
+                    $pooledConnection = $pool->get();
+
+                    try {
+                        return (int) $pooledConnection->getConnection()
+                            ->selectOne('PRAGMA user_version')
+                            ->user_version;
+                    } finally {
+                        $pooledConnection->release();
+                    }
+                },
+            ]);
+
+            CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '202');
+            /** @var PooledConnection $matchingPooledConnection */
+            $matchingPooledConnection = $pool->get();
+
+            try {
+                $matchingValue = (int) $matchingPooledConnection->getConnection()
+                    ->selectOne('PRAGMA user_version')
+                    ->user_version;
+            } finally {
+                $matchingPooledConnection->release();
+            }
+
+            $this->assertSame(101, $firstValue);
+            $this->assertSame(202, $secondValue);
+            $this->assertSame(202, $matchingValue);
+            $this->assertSame(['101', '202'], $configurator->appliedStates);
+            $this->assertSame(3, $configurator->stateCalls);
+            $this->assertSame(2, $configurator->applyCalls);
+        } finally {
+            $pool->close();
+        }
+    }
+
+    public function testOverlappingConfigurationOfSharedPdoFailsClosedForBothCallers(): void
+    {
+        $configurator = new CoroutineSessionConfigurator('session_shared_pool');
+        Connection::configureSessionUsing($configurator);
+        CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '0');
+        $pool = new DbPool($this->app, 'session_shared_pool');
+        $configurationStarted = new Channel(1);
+        $resumeConfiguration = new Channel(1);
+        $configurator->blockedState = '101';
+        $configurator->configurationStarted = $configurationStarted;
+        $configurator->resumeConfiguration = $resumeConfiguration;
+
+        try {
+            [$firstFailure, $secondFailure] = parallel([
+                function () use ($pool): string {
+                    CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '101');
+
+                    /** @var PooledConnection $pooledConnection */
+                    $pooledConnection = $pool->get();
+
+                    try {
+                        $pooledConnection->getConnection()->getPdo();
+
+                        return 'no failure';
+                    } catch (RuntimeException $exception) {
+                        return $exception->getMessage();
+                    } finally {
+                        $pooledConnection->release();
+                    }
+                },
+                function () use ($pool, $configurationStarted, $resumeConfiguration): string {
+                    $configurationStarted->pop();
+                    CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '202');
+
+                    /** @var PooledConnection $pooledConnection */
+                    $pooledConnection = $pool->get();
+
+                    try {
+                        $pooledConnection->getConnection()->getPdo();
+
+                        return 'no failure';
+                    } catch (RuntimeException $exception) {
+                        return $exception->getMessage();
+                    } finally {
+                        $resumeConfiguration->push(true);
+                        $pooledConnection->release();
+                    }
+                },
+            ]);
+
+            $this->assertSame('Database session state became unknown during configuration.', $firstFailure);
+            $this->assertSame('Reentrant database session configuration is not allowed.', $secondFailure);
+            $this->assertSame(['0', '101'], $configurator->appliedStates);
+            $this->assertSame(2, $configurator->applyCalls);
+        } finally {
+            $pool->close();
+        }
+    }
+
     public function testWriteSuffixDoesNotForcePlainConnectionReadsInAnotherCoroutine(): void
     {
         $this->seedReadWritePoolMarkers();
@@ -463,4 +619,51 @@ class UnguardedTestUser extends Model
     protected array $fillable = ['name', 'email'];
 
     public static array $eventLog = [];
+}
+
+class CoroutineSessionConfigurator implements SessionConfigurator
+{
+    public const CONTEXT_KEY = '__database.session_configurator_test';
+
+    public int $stateCalls = 0;
+
+    public int $applyCalls = 0;
+
+    /**
+     * @var string[]
+     */
+    public array $appliedStates = [];
+
+    public ?string $blockedState = null;
+
+    public ?Channel $configurationStarted = null;
+
+    public ?Channel $resumeConfiguration = null;
+
+    public function __construct(
+        private readonly string $connectionName,
+    ) {
+    }
+
+    public function state(Connection $connection): ?string
+    {
+        ++$this->stateCalls;
+
+        return $connection->getName() === $this->connectionName
+            ? CoroutineContext::get(self::CONTEXT_KEY, '0')
+            : null;
+    }
+
+    public function apply(PDO $pdo, string $state, Connection $connection): void
+    {
+        ++$this->applyCalls;
+        $this->appliedStates[] = $state;
+
+        if ($state === $this->blockedState) {
+            $this->configurationStarted?->push(true);
+            $this->resumeConfiguration?->pop();
+        }
+
+        $pdo->exec('PRAGMA user_version = ' . (int) $state);
+    }
 }

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Container;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 use stdClass;
 
 class ResolvingCallbackTest extends TestCase
@@ -579,6 +581,123 @@ class ResolvingCallbackTest extends TestCase
             'concrete.after',
         ], $order);
     }
+
+    public function testScopedCallbackFailureRollsBackPublishedValue(): void
+    {
+        $container = new Container;
+        $constructions = 0;
+        $shouldFail = true;
+
+        $container->scoped('service', function () use (&$constructions) {
+            $service = new stdClass;
+            $service->construction = ++$constructions;
+
+            return $service;
+        });
+        $container->resolving('service', function () use (&$shouldFail): void {
+            if ($shouldFail) {
+                $shouldFail = false;
+
+                throw new RuntimeException('callback failed');
+            }
+        });
+
+        try {
+            $container->make('service');
+            $this->fail('Expected the resolving callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('callback failed', $exception->getMessage());
+        }
+
+        $resolved = $container->make('service');
+
+        $this->assertSame(2, $resolved->construction);
+        $this->assertSame($resolved, $container->make('service'));
+    }
+
+    public function testCircularCallbackFailureRollsBackPublishedValue(): void
+    {
+        $container = new Container;
+        $constructions = 0;
+
+        $container->singleton('service', function () use (&$constructions) {
+            $service = new stdClass;
+            $service->construction = ++$constructions;
+
+            return $service;
+        });
+        $container->resolving('service', fn () => $container->make(ResolvingCircularA::class));
+
+        try {
+            $container->make('service');
+            $this->fail('Expected the resolving callback to expose a circular dependency.');
+        } catch (CircularDependencyException $exception) {
+            $this->assertSame([
+                ResolvingCircularA::class,
+                ResolvingCircularB::class,
+                ResolvingCircularA::class,
+            ], $exception->getDependencyChain());
+        }
+
+        try {
+            $container->make('service');
+        } catch (CircularDependencyException) {
+            // A second construction proves the first failed value was not retained.
+        }
+
+        $this->assertSame(2, $constructions);
+    }
+
+    public function testAutoSingletonCallbackFailureRollsBackPublishedValue(): void
+    {
+        $container = new Container;
+        $shouldFail = true;
+        ResolvingAutoSingletonStub::$constructions = 0;
+
+        try {
+            $container->resolving(ResolvingAutoSingletonStub::class, function () use (&$shouldFail): void {
+                if ($shouldFail) {
+                    $shouldFail = false;
+
+                    throw new RuntimeException('callback failed');
+                }
+            });
+
+            try {
+                $container->make(ResolvingAutoSingletonStub::class);
+                $this->fail('Expected the resolving callback to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('callback failed', $exception->getMessage());
+            }
+
+            $resolved = $container->make(ResolvingAutoSingletonStub::class);
+
+            $this->assertSame(2, ResolvingAutoSingletonStub::$constructions);
+            $this->assertSame($resolved, $container->make(ResolvingAutoSingletonStub::class));
+        } finally {
+            ResolvingAutoSingletonStub::$constructions = 0;
+        }
+    }
+
+    public function testExplicitReplacementSurvivesLaterCallbackFailure(): void
+    {
+        $container = new Container;
+        $replacement = new stdClass;
+        $container->singleton('service', fn () => new stdClass);
+        $container->resolving('service', function () use ($container, $replacement): void {
+            $container->instance('service', $replacement);
+        });
+        $container->resolving('service', fn () => throw new RuntimeException('callback failed'));
+
+        try {
+            $container->make('service');
+            $this->fail('Expected the resolving callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('callback failed', $exception->getMessage());
+        }
+
+        $this->assertSame($replacement, $container->make('service'));
+    }
 }
 
 interface ResolvingContractStub
@@ -591,4 +710,28 @@ class ResolvingImplementationStub implements ResolvingContractStub
 
 class ResolvingImplementationStubTwo implements ResolvingContractStub
 {
+}
+
+class ResolvingAutoSingletonStub
+{
+    public static int $constructions = 0;
+
+    public function __construct()
+    {
+        ++self::$constructions;
+    }
+}
+
+class ResolvingCircularA
+{
+    public function __construct(ResolvingCircularB $dependency)
+    {
+    }
+}
+
+class ResolvingCircularB
+{
+    public function __construct(ResolvingCircularA $dependency)
+    {
+    }
 }

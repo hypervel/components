@@ -4,46 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http;
 
-use Hypervel\Context\ResponseContext;
 use Hypervel\Http\Response;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ResponseBindingTest extends TestCase
 {
-    public function testContainerResolvesResponseFromContext()
+    public function testContainerReturnsFreshResponses(): void
     {
-        $contextResponse = new Response;
-        ResponseContext::set($contextResponse);
-
-        try {
-            $resolved = $this->app->make(Response::class);
-
-            $this->assertSame($contextResponse, $resolved);
-        } finally {
-            ResponseContext::forget();
-        }
-    }
-
-    public function testContainerResolvesSymfonyResponseFromContext()
-    {
-        $contextResponse = new Response;
-        ResponseContext::set($contextResponse);
-
-        try {
-            $resolved = $this->app->make(\Symfony\Component\HttpFoundation\Response::class);
-
-            $this->assertSame($contextResponse, $resolved);
-        } finally {
-            ResponseContext::forget();
-        }
-    }
-
-    public function testContainerReturnsFreshResponseWhenNoContext()
-    {
-        ResponseContext::forget();
-
         $first = $this->app->make(Response::class);
         $second = $this->app->make(Response::class);
 
@@ -52,13 +23,21 @@ class ResponseBindingTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testStreamedResponseWorksInTestHarness()
+    public function testContainerReturnsFreshResponsesThroughSymfonyAlias(): void
     {
-        Route::get('/test-stream', function () {
-            $response = app(Response::class);
+        $first = $this->app->make(SymfonyResponse::class);
+        $second = $this->app->make(SymfonyResponse::class);
 
-            return $response->stream(function ($output) {
-                $output->write('streamed content');
+        $this->assertInstanceOf(Response::class, $first);
+        $this->assertInstanceOf(Response::class, $second);
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testStreamedResponseWorksInTestHarness(): void
+    {
+        Route::get('/test-stream', function (): StreamedResponse {
+            return response()->stream(function (): void {
+                echo 'streamed content';
             });
         });
 
@@ -69,14 +48,12 @@ class ResponseBindingTest extends TestCase
         $response->assertStreamedContent('streamed content');
     }
 
-    public function testStreamedContentReadFromFakeWritable()
+    public function testGeneratorStreamedContentWorksInTestHarness(): void
     {
-        Route::get('/test-stream-content', function () {
-            $response = app(Response::class);
-
-            return $response->stream(function ($output) {
-                $output->write('hello ');
-                $output->write('world');
+        Route::get('/test-stream-content', function (): StreamedResponse {
+            return response()->stream(function (): iterable {
+                yield 'hello ';
+                yield 'world';
             });
         });
 
@@ -85,9 +62,24 @@ class ResponseBindingTest extends TestCase
         $this->assertSame('hello world', $response->streamedContent());
     }
 
-    public function testNonStreamedResponseIsNotStreamed()
+    public function testStreamDownloadWorksInTestHarness(): void
     {
-        Route::get('/test-normal', function () {
+        Route::get('/test-stream-download', function (): StreamedResponse {
+            return response()->streamDownload(function (): void {
+                echo 'download content';
+            }, 'example.txt');
+        });
+
+        $response = $this->get('/test-stream-download');
+
+        $response->assertOk();
+        $response->assertDownload('example.txt');
+        $response->assertStreamedContent('download content');
+    }
+
+    public function testNonStreamedResponseIsNotStreamed(): void
+    {
+        Route::get('/test-normal', function (): SymfonyResponse {
             return response('normal content');
         });
 
@@ -97,14 +89,16 @@ class ResponseBindingTest extends TestCase
         $response->assertNotStreamed();
     }
 
-    public function testHeadRequestSendsHeadersButNoBody()
+    public function testHeadRequestDoesNotInvokeStreamedProducer(): void
     {
-        Route::get('/test-head-stream', function () {
-            $response = app(Response::class);
+        $invocations = 0;
 
-            return $response->stream(function ($output) {
-                $output->write('this should not be sent');
-            }, ['X-Custom' => 'header-value']);
+        Route::get('/test-head-stream', function () use (&$invocations): StreamedResponse {
+            return response()->stream(function () use (&$invocations): void {
+                ++$invocations;
+
+                echo 'this should not be sent';
+            }, 200, ['X-Custom' => 'header-value']);
         });
 
         $response = $this->head('/test-head-stream');
@@ -113,16 +107,15 @@ class ResponseBindingTest extends TestCase
         $response->assertHeader('X-Custom', 'header-value');
         $response->assertStreamed();
         $this->assertSame('', $response->streamedContent());
+        $this->assertSame(0, $invocations);
     }
 
-    public function testStreamedJsonWorksWithAssertJson()
+    public function testStreamedJsonWorksWithAssertJson(): void
     {
-        Route::get('/test-stream-json', function () {
-            $response = app(Response::class);
-
-            return $response->stream(function ($output) {
-                $output->write(json_encode(['foo' => 'bar']));
-            }, ['Content-Type' => 'application/json']);
+        Route::get('/test-stream-json', function (): StreamedResponse {
+            return response()->stream(function (): void {
+                echo json_encode(['foo' => 'bar']);
+            }, 200, ['Content-Type' => 'application/json']);
         });
 
         $response = $this->get('/test-stream-json');
@@ -131,12 +124,12 @@ class ResponseBindingTest extends TestCase
         $response->assertJson(['foo' => 'bar']);
     }
 
-    public function testStreamedCallbackExceptionDoesNotLeakOutputBuffering()
+    public function testStreamedCallbackExceptionDoesNotLeakOutputBuffering(): void
     {
         $levelBefore = ob_get_level();
 
         $response = $this->createTestResponse(
-            new \Symfony\Component\HttpFoundation\StreamedResponse(function () {
+            new StreamedResponse(function (): void {
                 throw new RuntimeException('callback error');
             })
         );

@@ -64,7 +64,7 @@ class PermissionMiddleware
      */
     public static function using(array|string|UnitEnum $permission, ?string $guard = null): string
     {
-        $permissionString = self::parsePermissionsToString(enum_value($permission));
+        $permissionString = self::parsePermissionsToString($permission);
 
         $args = is_null($guard) ? $permissionString : "{$permissionString},{$guard}";
 
@@ -79,7 +79,10 @@ class PermissionMiddleware
         $permission = enum_value($permission);
 
         if (is_array($permission)) {
-            return implode('|', array_map(fn ($r) => enum_value($r), $permission));
+            return implode('|', array_map(
+                fn ($name) => $name instanceof UnitEnum ? (string) enum_value($name) : $name,
+                $permission
+            ));
         }
 
         return (string) $permission;

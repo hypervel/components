@@ -25,7 +25,7 @@ return [
     | may even configure multiple disks for the same driver. Examples for
     | most supported storage drivers are configured here for reference.
     |
-    | Supported drivers: "local", "ftp", "sftp", "s3"
+    | Supported drivers: "local", "ftp", "sftp", "s3", "gcs"
     |
     */
 
@@ -54,6 +54,7 @@ return [
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'throw' => false,
+            'stream_reads' => true,
             'pool' => [
                 'min_retained_objects' => 1,
                 'max_objects' => 10,
@@ -77,7 +78,7 @@ return [
             'visibility_handler' => null, // optional: set to \League\Flysystem\GoogleCloudStorage\UniformBucketLevelAccessVisibility::class to enable uniform bucket level access
             'metadata' => ['cacheControl' => 'public,max-age=86400'], // optional: default metadata
             'throw' => false,
-            'stream_reads' => false,
+            'stream_reads' => true,
             'pool' => [
                 'min_retained_objects' => 1,
                 'max_objects' => 10,

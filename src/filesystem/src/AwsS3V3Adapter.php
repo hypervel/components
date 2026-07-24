@@ -163,7 +163,7 @@ class AwsS3V3Adapter extends FilesystemAdapter
                 $options[$key] = $value;
             }
 
-            if (($this->config['stream_reads'] ?? false) && ! isset($options['@http']['stream'])) {
+            if (($this->config['stream_reads'] ?? true) && ! isset($options['@http']['stream'])) {
                 $options['@http']['stream'] = true;
             }
 

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'config:clear')]
@@ -33,9 +34,13 @@ class ConfigClearCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
-        $this->files->delete($this->hypervel->getCachedConfigPath());
+        $path = $this->hypervel->getCachedConfigPath();
+
+        if (! $this->files->delete($path) && $this->files->exists($path)) {
+            throw new RuntimeException("Unable to delete the configuration cache file [{$path}].");
+        }
 
         $this->components->info('Configuration cache cleared successfully.');
     }

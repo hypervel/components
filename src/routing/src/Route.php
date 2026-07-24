@@ -139,11 +139,10 @@ class Route
     /**
      * The resolved callable for the route.
      *
-     * Cached to avoid repeated unserialize() calls for serialized closures
-     * (route caching). The resolved callable is a deterministic transformation
-     * of the immutable serialized string in the action array.
+     * Serialized closures are decoded once. Direct callable objects are retained
+     * on the shared route for the worker lifetime.
      */
-    protected ?Closure $callable = null;
+    protected ?object $callable = null;
 
     /**
      * The resolved missing model handler for the route.
@@ -197,7 +196,7 @@ class Route
     /**
      * Create a new Route instance.
      */
-    public function __construct(array|string $methods, string $uri, Closure|array|null $action)
+    public function __construct(array|string $methods, string $uri, callable|array|null $action)
     {
         $this->uri = $uri;
         $this->methods = (array) $methods;

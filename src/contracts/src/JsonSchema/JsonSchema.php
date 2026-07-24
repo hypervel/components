@@ -5,6 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\JsonSchema;
 
 use Closure;
+use Hypervel\JsonSchema\Types\ArrayType;
+use Hypervel\JsonSchema\Types\BooleanType;
+use Hypervel\JsonSchema\Types\IntegerType;
+use Hypervel\JsonSchema\Types\NumberType;
+use Hypervel\JsonSchema\Types\ObjectType;
+use Hypervel\JsonSchema\Types\StringType;
 
 interface JsonSchema
 {
@@ -12,42 +18,31 @@ interface JsonSchema
      * Create a new object schema instance.
      *
      * @param array<string, \Hypervel\JsonSchema\Types\Type>|(Closure(JsonSchema): array<string, \Hypervel\JsonSchema\Types\Type>) $properties
-     * @return \Hypervel\JsonSchema\Types\ObjectType
      */
-    public function object(Closure|array $properties = []);
+    public function object(Closure|array $properties = []): ObjectType;
 
     /**
      * Create a new array property instance.
-     *
-     * @return \Hypervel\JsonSchema\Types\ArrayType
      */
-    public function array();
+    public function array(): ArrayType;
 
     /**
      * Create a new string property instance.
-     *
-     * @return \Hypervel\JsonSchema\Types\StringType
      */
-    public function string();
+    public function string(): StringType;
 
     /**
      * Create a new integer property instance.
-     *
-     * @return \Hypervel\JsonSchema\Types\IntegerType
      */
-    public function integer();
+    public function integer(): IntegerType;
 
     /**
      * Create a new number property instance.
-     *
-     * @return \Hypervel\JsonSchema\Types\NumberType
      */
-    public function number();
+    public function number(): NumberType;
 
     /**
      * Create a new boolean property instance.
-     *
-     * @return \Hypervel\JsonSchema\Types\BooleanType
      */
-    public function boolean();
+    public function boolean(): BooleanType;
 }

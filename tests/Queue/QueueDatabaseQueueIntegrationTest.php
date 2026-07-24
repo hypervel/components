@@ -10,7 +10,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 
@@ -55,7 +55,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     /**
      * Test that jobs that are not reserved and have an available_at value less then now, are popped.
      */
-    public function testAvailableAndUnReservedJobsArePopped()
+    public function testAvailableAndUnReservedJobsArePopped(): void
     {
         $this->connection()
             ->table('jobs')
@@ -65,8 +65,8 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'payload' => 'mock_payload',
                 'attempts' => 0,
                 'reserved_at' => null,
-                'available_at' => Carbon::now()->subSeconds(1)->getTimestamp(),
-                'created_at' => Carbon::now()->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->subSeconds(1)->getTimestamp(),
+                'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]);
 
         $poppedJob = $this->queue->pop($mockQueueName);
@@ -77,7 +77,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     /**
      * Test that when jobs are popped, the attempts attribute is incremented.
      */
-    public function testPoppedJobsIncrementAttempts()
+    public function testPoppedJobsIncrementAttempts(): void
     {
         $job = [
             'id' => 1,
@@ -85,8 +85,8 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
             'payload' => 'mock_payload',
             'attempts' => 0,
             'reserved_at' => null,
-            'available_at' => Carbon::now()->subSeconds(1)->getTimestamp(),
-            'created_at' => Carbon::now()->getTimestamp(),
+            'available_at' => CarbonImmutable::now()->subSeconds(1)->getTimestamp(),
+            'created_at' => CarbonImmutable::now()->getTimestamp(),
         ];
 
         $this->connection()->table('jobs')->insert($job);
@@ -102,7 +102,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     /**
      * Test that the queue can be cleared.
      */
-    public function testThatQueueCanBeCleared()
+    public function testThatQueueCanBeCleared(): void
     {
         $this->connection()
             ->table('jobs')
@@ -111,17 +111,17 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'queue' => $mock_queue_name = 'mock_queue_name',
                 'payload' => 'mock_payload',
                 'attempts' => 0,
-                'reserved_at' => Carbon::now()->addDay()->getTimestamp(),
-                'available_at' => Carbon::now()->subDay()->getTimestamp(),
-                'created_at' => Carbon::now()->getTimestamp(),
+                'reserved_at' => CarbonImmutable::now()->addDay()->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->subDay()->getTimestamp(),
+                'created_at' => CarbonImmutable::now()->getTimestamp(),
             ], [
                 'id' => 2,
                 'queue' => $mock_queue_name,
                 'payload' => 'mock_payload 2',
                 'attempts' => 0,
                 'reserved_at' => null,
-                'available_at' => Carbon::now()->subSeconds(1)->getTimestamp(),
-                'created_at' => Carbon::now()->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->subSeconds(1)->getTimestamp(),
+                'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]]);
 
         $this->assertEquals(2, $this->queue->clear($mock_queue_name));
@@ -131,7 +131,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     /**
      * Test that jobs that are not reserved and have an available_at value in the future, are not popped.
      */
-    public function testUnavailableJobsAreNotPopped()
+    public function testUnavailableJobsAreNotPopped(): void
     {
         $this->connection()
             ->table('jobs')
@@ -141,8 +141,8 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'payload' => 'mock_payload',
                 'attempts' => 0,
                 'reserved_at' => null,
-                'available_at' => Carbon::now()->addSeconds(60)->getTimestamp(),
-                'created_at' => Carbon::now()->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->addSeconds(60)->getTimestamp(),
+                'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]);
 
         $poppedJob = $this->queue->pop($mock_queue_name);
@@ -153,7 +153,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     /**
      * Test that jobs that are reserved and have expired are popped.
      */
-    public function testThatReservedAndExpiredJobsArePopped()
+    public function testThatReservedAndExpiredJobsArePopped(): void
     {
         $this->connection()
             ->table('jobs')
@@ -162,9 +162,9 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'queue' => $mock_queue_name = 'mock_queue_name',
                 'payload' => 'mock_payload',
                 'attempts' => 0,
-                'reserved_at' => Carbon::now()->subDay()->getTimestamp(),
-                'available_at' => Carbon::now()->addDay()->getTimestamp(),
-                'created_at' => Carbon::now()->getTimestamp(),
+                'reserved_at' => CarbonImmutable::now()->subDay()->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->addDay()->getTimestamp(),
+                'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]);
 
         $poppedJob = $this->queue->pop($mock_queue_name);
@@ -175,7 +175,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     /**
      * Test that jobs that are reserved and not expired and available are not popped.
      */
-    public function testThatReservedJobsAreNotPopped()
+    public function testThatReservedJobsAreNotPopped(): void
     {
         $this->connection()
             ->table('jobs')
@@ -184,9 +184,9 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'queue' => $mock_queue_name = 'mock_queue_name',
                 'payload' => 'mock_payload',
                 'attempts' => 0,
-                'reserved_at' => Carbon::now()->addDay()->getTimestamp(),
-                'available_at' => Carbon::now()->subDay()->getTimestamp(),
-                'created_at' => Carbon::now()->getTimestamp(),
+                'reserved_at' => CarbonImmutable::now()->addDay()->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->subDay()->getTimestamp(),
+                'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]);
 
         $poppedJob = $this->queue->pop($mock_queue_name);

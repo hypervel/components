@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentIntegrationTest;
 
-use DateTime;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
@@ -26,7 +25,7 @@ use Hypervel\Pagination\AbstractPaginator as Paginator;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
@@ -1286,8 +1285,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
     public function testAggregatedValuesOfDatetimeField()
     {
         User::insert([
-            ['id' => 1, 'email' => 'test1@test.test', 'created_at' => '2016-08-10 09:21:00', 'updated_at' => Carbon::now()],
-            ['id' => 2, 'email' => 'test2@test.test', 'created_at' => '2016-08-01 12:00:00', 'updated_at' => Carbon::now()],
+            ['id' => 1, 'email' => 'test1@test.test', 'created_at' => '2016-08-10 09:21:00', 'updated_at' => CarbonImmutable::now()],
+            ['id' => 2, 'email' => 'test2@test.test', 'created_at' => '2016-08-01 12:00:00', 'updated_at' => CarbonImmutable::now()],
         ]);
 
         $this->assertSame('2016-08-10 09:21:00', User::max('created_at'));
@@ -1998,10 +1997,10 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testFreshMethodOnModel()
     {
-        $now = Carbon::now()->startOfSecond();
+        $now = CarbonImmutable::now()->startOfSecond();
         $nowSerialized = $now->toJSON();
         $nowWithFractionsSerialized = $now->toJSON();
-        Carbon::setTestNow($now);
+        CarbonImmutable::setTestNow($now);
 
         $storedUser1 = User::create([
             'id' => 1,
@@ -2159,7 +2158,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertFalse(Date::hasFormat('2017-11-14 08:23:19.734', $model->getDateFormat()));
     }
 
-    public function testSpecialFormats()
+    public function testSpecialFormats(): void
     {
         $model = new User;
         $model->setDateFormat('!Y-d-m \Y');
@@ -2178,6 +2177,14 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $date = $model->getAttribute('updated_at');
         $this->assertSame('2020-09-11 00:00:00.000000', $date->format('Y-m-d H:i:s.u'), 'the date should respect the whole format');
 
+        $model->setDateFormat('!Y-m-d+');
+        $model->setRawAttributes([
+            'updated_at' => '2020-09-11 trailing data',
+        ]);
+
+        $date = $model->getAttribute('updated_at');
+        $this->assertSame('2020-09-11 00:00:00.000000', $date->format('Y-m-d H:i:s.u'), 'the date should allow trailing data when the format does');
+
         $model->setDateFormat('Y d m|*');
         $model->setRawAttributes([
             'updated_at' => '2020 11 09 foo',
@@ -2189,7 +2196,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testUpdatingChildModelTouchesParent()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
@@ -2197,7 +2204,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         $post->update(['name' => 'Updated']);
 
@@ -2207,7 +2214,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testMultiLevelTouchingWorks()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
@@ -2215,7 +2222,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
 
@@ -2225,7 +2232,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testDeletingChildModelTouchesParentTimestamps()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
@@ -2233,7 +2240,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         $post->delete();
 
@@ -2242,7 +2249,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTouchingChildModelUpdatesParentsTimestamps()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
@@ -2250,7 +2257,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         $post->touch();
 
@@ -2260,7 +2267,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTouchingChildModelRespectsParentNoTouching()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
@@ -2268,7 +2275,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         TouchingUser::withoutTouching(function () use ($post) {
             $post->touch();
@@ -2287,7 +2294,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testUpdatingChildPostRespectsNoTouchingDefinition()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
@@ -2295,7 +2302,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         TouchingUser::withoutTouching(function () use ($post) {
             $post->update(['name' => 'Updated']);
@@ -2307,7 +2314,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testUpdatingModelInTheDisabledScopeTouchesItsOwnTimestamps()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
@@ -2315,7 +2322,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         Model::withoutTouching(function () use ($post) {
             $post->update(['name' => 'Updated']);
@@ -2327,7 +2334,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testDeletingChildModelRespectsTheNoTouchingRule()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
@@ -2335,7 +2342,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         TouchingUser::withoutTouching(function () use ($post) {
             $post->delete();
@@ -2346,7 +2353,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testRespectedMultiLevelTouchingChain()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
@@ -2354,7 +2361,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         TouchingUser::withoutTouching(function () {
             TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
@@ -2366,7 +2373,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTouchesGreatParentEvenWhenParentIsInNoTouchScope()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
@@ -2374,7 +2381,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         TouchingPost::withoutTouching(function () {
             TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
@@ -2386,7 +2393,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testCanNestCallsOfNoTouching()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
@@ -2394,7 +2401,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         TouchingUser::withoutTouching(function () {
             TouchingPost::withoutTouching(function () {
@@ -2408,7 +2415,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testCanPassArrayOfModelsToIgnore()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
@@ -2416,7 +2423,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($user->updated_at));
         $this->assertTrue($before->isSameDay($post->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         Model::withoutTouchingOn([TouchingUser::class, TouchingPost::class], function () {
             TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
@@ -2506,7 +2513,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTouchingChaperonedChildModelUpdatesParentTimestamps()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         $one = TouchingCategory::create(['id' => 1, 'name' => 'One']);
         $two = $one->children()->create(['id' => 2, 'name' => 'Two']);
@@ -2514,7 +2521,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($one->updated_at));
         $this->assertTrue($before->isSameDay($two->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         $two->touch();
 
@@ -2524,7 +2531,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTouchingBiDirectionalChaperonedModelUpdatesAllRelatedTimestamps()
     {
-        $before = Carbon::now();
+        $before = CarbonImmutable::now();
 
         TouchingCategory::insert([
             ['id' => 1, 'name' => 'One', 'parent_id' => null, 'created_at' => $before, 'updated_at' => $before],
@@ -2542,7 +2549,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertTrue($before->isSameDay($three->updated_at));
         $this->assertTrue($before->isSameDay($four->updated_at));
 
-        Carbon::setTestNow($future = $before->copy()->addDays(3));
+        CarbonImmutable::setTestNow($future = $before->addDays(3));
 
         // Touch a random model and check that all of the others have been updated
         $models = tap([$one, $two, $three, $four], shuffle(...));
@@ -2559,15 +2566,15 @@ class DatabaseEloquentIntegrationTest extends TestCase
         }
     }
 
-    public function testCanFillAndInsert()
+    public function testCanFillAndInsert(): void
     {
         DB::enableQueryLog();
-        Carbon::setTestNow('2025-03-15T07:32:00Z');
+        CarbonImmutable::setTestNow('2025-03-15T07:32:00Z');
 
         $this->assertTrue(User::fillAndInsert([
             ['email' => 'taylor@laravel.com', 'birthday' => null],
-            ['email' => 'nuno@laravel.com', 'birthday' => new Carbon('1980-01-01')],
-            ['email' => 'tim@laravel.com', 'birthday' => '1987-11-01', 'created_at' => '2025-01-02T02:00:55', 'updated_at' => Carbon::parse('2025-02-19T11:41:13')],
+            ['email' => 'nuno@laravel.com', 'birthday' => new CarbonImmutable('1980-01-01')],
+            ['email' => 'tim@laravel.com', 'birthday' => '1987-11-01', 'created_at' => '2025-01-02T02:00:55', 'updated_at' => CarbonImmutable::parse('2025-02-19T11:41:13')],
         ]));
 
         $this->assertCount(1, DB::getQueryLog());
@@ -2575,17 +2582,17 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertCount(3, $users = User::get());
 
         $users->take(2)->each(function (User $user) {
-            $this->assertEquals(Carbon::parse('2025-03-15T07:32:00Z'), $user->created_at);
-            $this->assertEquals(Carbon::parse('2025-03-15T07:32:00Z'), $user->updated_at);
+            $this->assertEquals(CarbonImmutable::parse('2025-03-15T07:32:00Z'), $user->created_at);
+            $this->assertEquals(CarbonImmutable::parse('2025-03-15T07:32:00Z'), $user->updated_at);
         });
 
         $tim = $users->firstWhere('email', 'tim@laravel.com');
-        $this->assertEquals(Carbon::parse('2025-01-02T02:00:55'), $tim->created_at);
-        $this->assertEquals(Carbon::parse('2025-02-19T11:41:13'), $tim->updated_at);
+        $this->assertEquals(CarbonImmutable::parse('2025-01-02T02:00:55'), $tim->created_at);
+        $this->assertEquals(CarbonImmutable::parse('2025-02-19T11:41:13'), $tim->updated_at);
 
         $this->assertNull($users[0]->birthday);
-        $this->assertInstanceOf(DateTime::class, $users[1]->birthday);
-        $this->assertInstanceOf(DateTime::class, $users[2]->birthday);
+        $this->assertSame(CarbonImmutable::class, $users[1]->birthday::class);
+        $this->assertSame(CarbonImmutable::class, $users[2]->birthday::class);
         $this->assertEquals('1987-11-01', $users[2]->birthday->format('Y-m-d'));
 
         DB::flushQueryLog();

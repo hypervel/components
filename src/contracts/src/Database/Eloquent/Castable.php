@@ -12,5 +12,5 @@ interface Castable
      * @param string[] $arguments
      * @return CastsAttributes|CastsInboundAttributes|class-string<CastsAttributes|CastsInboundAttributes>
      */
-    public static function castUsing(array $arguments);
+    public static function castUsing(array $arguments): CastsAttributes|CastsInboundAttributes|string;
 }

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Socialite;
 
 use Hypervel\Config\Repository;
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
@@ -260,13 +261,13 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->make(SocialiteManager::class);
 
-        $factory->extend('github_a', fn () => $factory->buildOAuth2Provider(
+        $factory->extend('github_a', static fn (Container $container) => $factory->buildOAuth2Provider(
             GithubProvider::class,
-            $this->app->make('config')->get('services.github_a')
+            $container->make('config')->get('services.github_a')
         ));
-        $factory->extend('github_b', fn () => $factory->buildOAuth2Provider(
+        $factory->extend('github_b', static fn (Container $container) => $factory->buildOAuth2Provider(
             GithubProvider::class,
-            $this->app->make('config')->get('services.github_b')
+            $container->make('config')->get('services.github_b')
         ));
 
         $driverA = $factory->driver('github_a');
@@ -318,8 +319,8 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->make(SocialiteManager::class);
 
-        $factory->extend('generic', fn () => new GenericTestProviderStub(
-            $this->app->make('request')
+        $factory->extend('generic', static fn (Container $container) => new GenericTestProviderStub(
+            $container->make('request')
         ));
 
         $provider = $factory->driver('generic');

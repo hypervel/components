@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Providers;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Foundation\ArrayMaintenanceMode;
+use Hypervel\Foundation\DevCommands;
+use Hypervel\Foundation\MaintenanceModeManager;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
 use Psr\Clock\ClockInterface;
@@ -55,6 +59,19 @@ class FoundationServiceProviderTest extends TestCase
         $this->assertSame($schedule, $this->app->make(Schedule::class));
     }
 
+    public function testDevelopmentCommandsAreRegistered(): void
+    {
+        $artisan = $this->app->make(Kernel::class)->getArtisan();
+
+        $this->assertTrue($artisan->has('dev'));
+        $this->assertTrue($artisan->has('dev:list'));
+    }
+
+    public function testDefaultDevelopmentProcessesAreRegistered(): void
+    {
+        $this->assertSame(['server', 'queue', 'vite'], array_column(DevCommands::commands(), 'name'));
+    }
+
     public function testClockSingletonIsRegistered(): void
     {
         $clock = $this->app->make(ClockInterface::class);
@@ -65,15 +82,15 @@ class FoundationServiceProviderTest extends TestCase
 
     public function testClockReturnsCarbonImmutable(): void
     {
-        $this->assertInstanceOf(
+        $this->assertSame(
             CarbonImmutable::class,
-            $this->app->make(ClockInterface::class)->now()
+            $this->app->make(ClockInterface::class)->now()::class
         );
     }
 
     public function testClockHonorsCarbonTestTime(): void
     {
-        Carbon::setTestNow($expected = Carbon::parse('2026-07-03 12:34:56', 'UTC'));
+        Carbon::setTestNow($expected = CarbonImmutable::parse('2026-07-03 12:34:56', 'UTC'));
 
         $this->assertSame(
             $expected->format('Y-m-d H:i:s.u P'),
@@ -83,10 +100,11 @@ class FoundationServiceProviderTest extends TestCase
 
     public function testClockAgreesWithDateFacadeAndNowHelper(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-03 12:34:56', 'UTC'));
+        Carbon::setTestNow(CarbonImmutable::parse('2026-07-03 12:34:56', 'UTC'));
 
         $clockNow = $this->app->make(ClockInterface::class)->now();
 
+        $this->assertSame(CarbonImmutable::class, $clockNow::class);
         $this->assertSame(now()->format('Y-m-d H:i:s.u P'), $clockNow->format('Y-m-d H:i:s.u P'));
         $this->assertSame(Date::now()->format('Y-m-d H:i:s.u P'), $clockNow->format('Y-m-d H:i:s.u P'));
     }
@@ -95,9 +113,9 @@ class FoundationServiceProviderTest extends TestCase
     {
         Date::useClass(Carbon::class);
 
-        $this->assertInstanceOf(
+        $this->assertSame(
             CarbonImmutable::class,
-            $this->app->make(ClockInterface::class)->now()
+            $this->app->make(ClockInterface::class)->now()::class
         );
     }
 
@@ -115,5 +133,14 @@ class FoundationServiceProviderTest extends TestCase
             11,
             (new ReflectionClass($mode))->getProperty('refreshInterval')->getValue($mode)
         );
+    }
+
+    public function testArrayMaintenanceModeDriverIsAvailable(): void
+    {
+        $this->app->make('config')->set('app.maintenance.driver', 'array');
+
+        $driver = (new MaintenanceModeManager($this->app))->driver();
+
+        $this->assertInstanceOf(ArrayMaintenanceMode::class, $driver);
     }
 }

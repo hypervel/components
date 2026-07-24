@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Container\Container;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\BatchFake;
 
@@ -30,7 +30,7 @@ trait Batchable
             return $this->fakeBatch;
         }
 
-        if ($this->batchId) {
+        if ($this->batchId !== null && $this->batchId !== '') {
             return Container::getInstance()->make(BatchRepository::class)->find($this->batchId);
         }
 
@@ -44,7 +44,7 @@ trait Batchable
     {
         $batch = $this->batch();
 
-        return $batch && ! $batch->cancelled();
+        return $batch && ! $batch->finished() && ! $batch->cancelled();
     }
 
     /**
@@ -75,7 +75,7 @@ trait Batchable
         ?CarbonImmutable $finishedAt = null,
     ): array {
         $this->fakeBatch = new BatchFake(
-            empty($id) ? (string) Str::uuid() : $id,
+            $id === '' ? (string) Str::uuid() : $id,
             $name,
             $totalJobs,
             $pendingJobs,

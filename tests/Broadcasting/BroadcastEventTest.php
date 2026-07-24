@@ -9,8 +9,9 @@ use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
+use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Throwable;
 
 class BroadcastEventTest extends TestCase
@@ -133,6 +134,20 @@ class BroadcastEventTest extends TestCase
 
         $this->assertTrue($job->deleteWhenMissingModels);
     }
+
+    public function testArrayBackoffIsReadFromTheUnderlyingEvent(): void
+    {
+        $job = new BroadcastEvent(new TestBroadcastEventWithArrayBackoff);
+
+        $this->assertSame([1, 5, 10], $job->backoff);
+    }
+
+    public function testVariadicBackoffIsReadFromTheUnderlyingEvent(): void
+    {
+        $job = new BroadcastEvent(new TestBroadcastEventWithVariadicBackoff);
+
+        $this->assertSame([1, 5, 10], $job->backoff);
+    }
 }
 
 class TestBroadcastEvent
@@ -205,4 +220,14 @@ class TestBroadcastEventWithChannelsPerConnection extends TestBroadcastEvent
             'second_connection' => ['second-channel'],
         ];
     }
+}
+
+#[Backoff([1, 5, 10])]
+class TestBroadcastEventWithArrayBackoff extends TestBroadcastEvent
+{
+}
+
+#[Backoff(1, 5, 10)]
+class TestBroadcastEventWithVariadicBackoff extends TestBroadcastEvent
+{
 }

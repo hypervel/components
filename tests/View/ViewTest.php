@@ -39,7 +39,7 @@ class ViewTest extends TestCase
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
         $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('getShared')->once()->andReturn(['shared' => 'foo']);
+        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with(['foo' => 'bar'])->andReturn(['foo' => 'bar', 'shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->once()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();
@@ -60,7 +60,7 @@ class ViewTest extends TestCase
         $view->getFactory()->shouldReceive('incrementRender');
         $view->getFactory()->shouldReceive('callComposer');
         $view->getFactory()->shouldReceive('notifyRendering')->with($view);
-        $view->getFactory()->shouldReceive('getShared')->andReturn(['shared' => 'foo']);
+        $view->getFactory()->shouldReceive('mergeSharedData')->with([])->andReturn(['shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender');
         $view->getFactory()->shouldReceive('flushStateIfDoneRendering');
@@ -104,7 +104,7 @@ class ViewTest extends TestCase
         $view->getFactory()->shouldReceive('incrementRender')->twice();
         $view->getFactory()->shouldReceive('callComposer')->twice()->with($view);
         $view->getFactory()->shouldReceive('notifyRendering')->twice()->with($view);
-        $view->getFactory()->shouldReceive('getShared')->twice()->andReturn(['shared' => 'foo']);
+        $view->getFactory()->shouldReceive('mergeSharedData')->twice()->with(['foo' => 'bar'])->andReturn(['foo' => 'bar', 'shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->twice()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->twice();
         $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->twice();
@@ -196,13 +196,16 @@ class ViewTest extends TestCase
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
         $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('getShared')->once()->andReturn(['shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->once()->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();
 
         $view->renderable = m::mock(Renderable::class);
         $view->renderable->shouldReceive('render')->once()->andReturn('text');
+        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with(['renderable' => $view->renderable])->andReturn([
+            'shared' => 'foo',
+            'renderable' => $view->renderable,
+        ]);
         $this->assertSame('contents', $view->render());
     }
 
@@ -212,7 +215,7 @@ class ViewTest extends TestCase
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
         $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('getShared')->once()->andReturn(['shared' => 'foo']);
+        $view->getFactory()->shouldReceive('mergeSharedData')->once()->with([])->andReturn(['shared' => 'foo']);
         $view->getEngine()->shouldReceive('get')->once()->andReturn('contents');
         $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
         $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();

@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
-use Carbon\CarbonInterface;
-use DateTimeImmutable;
-use DateTimeInterface;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Foundation\Env;
@@ -84,13 +82,11 @@ class DefaultConfigurationTest extends TestCase
     }
 
     #[Test]
-    public function itUsesMutableDatesByDefault(): void
+    public function itUsesImmutableDatesByDefault(): void
     {
         $date = Date::parse('2023-01-01');
 
-        $this->assertInstanceOf(CarbonInterface::class, $date);
-        $this->assertInstanceOf(DateTimeInterface::class, $date);
-        $this->assertNotInstanceOf(DateTimeImmutable::class, $date);
+        $this->assertSame(CarbonImmutable::class, $date::class);
     }
 
     #[Test]

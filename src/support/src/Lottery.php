@@ -145,6 +145,9 @@ class Lottery
 
     /**
      * Force the lottery to always result in a win.
+     *
+     * Tests only. Without a callback, the result factory persists in static
+     * state for the worker lifetime and affects every subsequent lottery.
      */
     public static function alwaysWin(?callable $callback = null): void
     {
@@ -154,13 +157,18 @@ class Lottery
             return;
         }
 
-        $callback();
-
-        static::determineResultNormally();
+        try {
+            $callback();
+        } finally {
+            static::determineResultNormally();
+        }
     }
 
     /**
      * Force the lottery to always result in a lose.
+     *
+     * Tests only. Without a callback, the result factory persists in static
+     * state for the worker lifetime and affects every subsequent lottery.
      */
     public static function alwaysLose(?callable $callback = null): void
     {
@@ -170,13 +178,18 @@ class Lottery
             return;
         }
 
-        $callback();
-
-        static::determineResultNormally();
+        try {
+            $callback();
+        } finally {
+            static::determineResultNormally();
+        }
     }
 
     /**
      * Set the sequence that will be used to determine lottery results.
+     *
+     * Tests only. The sequence factory persists in a static property for the
+     * worker lifetime and affects every subsequent lottery result.
      */
     public static function fix(array $sequence, ?callable $whenMissing = null): void
     {
@@ -198,9 +211,11 @@ class Lottery
 
             static::$resultFactory = null;
 
-            $result = static::resultFactory()($chances, $outOf);
-
-            static::$resultFactory = $factoryCache;
+            try {
+                $result = static::resultFactory()($chances, $outOf);
+            } finally {
+                static::$resultFactory = $factoryCache;
+            }
 
             ++$next;
 

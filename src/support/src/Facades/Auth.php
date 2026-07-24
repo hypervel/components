@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
- * @method static \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard guard(string|null $name = null)
+ * @method static \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard guard(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Auth\SessionGuard createSessionDriver(string $name, array $config)
  * @method static \Hypervel\Auth\TokenGuard createTokenDriver(string $name, array $config)
  * @method static string getDefaultDriver()
- * @method static void shouldUse(string|null $name)
- * @method static void setDefaultDriver(string $name)
+ * @method static void shouldUse(\UnitEnum|string|null $name)
+ * @method static void setDefaultDriver(\UnitEnum|string $name)
  * @method static \Hypervel\Auth\AuthManager viaRequest(string $driver, callable $callback)
  * @method static \Closure userResolver()
  * @method static \Hypervel\Auth\AuthManager resolveUsersUsing(\Closure $userResolver)
  * @method static void clearUserCache(mixed $identifier, ?string $guard = null)
- * @method static \Hypervel\Auth\AuthManager redirectGuestsTo(callable|string $redirect)
+ * @method static \Hypervel\Auth\AuthManager redirectGuestsTo(callable|string|null $redirect)
  * @method static \Hypervel\Auth\AuthManager redirectUsersTo(callable|string $redirect)
  * @method static \Hypervel\Auth\AuthManager redirectTo(callable|string|null $guests = null, callable|string|null $users = null)
  * @method static \Hypervel\Auth\AuthManager extend(string $driver, \Closure $callback)
@@ -54,4 +54,6 @@ class Auth extends Facade
     {
         return 'auth';
     }
+
+    // REMOVED: Auth::routes() requires laravel/ui, which Hypervel does not integrate.
 }

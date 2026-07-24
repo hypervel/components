@@ -15,17 +15,17 @@ interface CoroutineInterface
      */
     public function __construct(callable $callable);
 
-    /**
-     * @param mixed ...$data
-     */
-    public function execute(...$data): static;
+    public function execute(mixed ...$data): static;
 
+    /**
+     * Get the coroutine ID.
+     */
     public function getId(): int;
 
     /**
      * Create and execute a new coroutine.
      */
-    public static function create(callable $callable, ...$data): static;
+    public static function create(callable $callable, mixed ...$data): static;
 
     /**
      * @return int returns coroutine id from current coroutine, -1 in non coroutine environment
@@ -41,7 +41,10 @@ interface CoroutineInterface
     public static function pid(?int $id = null): int;
 
     /**
-     * Set config to coroutine.
+     * Set the process-wide coroutine configuration.
+     *
+     * Boot-only. The configuration affects every coroutine subsequently
+     * created in the worker process.
      */
     public static function set(array $config): void;
 
@@ -69,6 +72,16 @@ interface CoroutineInterface
      * Cancel the coroutine by coroutine ID.
      */
     public static function cancelById(int $id, bool $throwException = false): bool;
+
+    /**
+     * Wait for the given coroutines to finish.
+     *
+     * A false return may mean that no supplied coroutine remained active or
+     * that the timeout elapsed. It is not a general failure signal.
+     *
+     * @param list<int> $coroutineIds
+     */
+    public static function join(array $coroutineIds, float $timeout = -1): bool;
 
     /**
      * Get the coroutine stats.

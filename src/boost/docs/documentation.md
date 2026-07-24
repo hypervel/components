@@ -52,6 +52,8 @@
     - [Notifications](/docs/{{version}}/notifications)
     - [Package Development](/docs/{{version}}/packages)
     - [Processes](/docs/{{version}}/processes)
+    - [Server Processes](/docs/{{version}}/server-process)
+    - [WebSockets](/docs/{{version}}/websockets)
     - [Queues](/docs/{{version}}/queues)
     - [Rate Limiting](/docs/{{version}}/rate-limiting)
     - [Search](/docs/{{version}}/search)

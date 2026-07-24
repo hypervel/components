@@ -104,10 +104,8 @@ interface Application extends Container
 
     /**
      * Get or check the current application environment.
-     *
-     * @param array|string ...$environments
      */
-    public function environment(...$environments): bool|string;
+    public function environment(array|string ...$environments): bool|string;
 
     /**
      * Determine if the application is in the local environment.

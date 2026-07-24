@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\RateLimiter;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Cache\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Queue\Middleware\RateLimited;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
-use PHPUnit\Framework\TestCase;
+use stdClass;
 
 enum RateLimitedTestStringEnum: string
 {
@@ -76,6 +80,51 @@ class RateLimitedTest extends TestCase
 
         $this->assertFalse($middleware->shouldRelease);
         $this->assertSame($middleware, $result);
+    }
+
+    public function testNamedQueueLimiterUsesCentralizedScopedHash(): void
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $limiter->for('uploads', fn () => Limit::perMinute(10)->by('user-1'));
+        $limiter->resolveKeyScopeUsing(fn () => 'account-1');
+
+        $container = new Container;
+        $container->instance(RateLimiter::class, $limiter);
+        Container::setInstance($container);
+
+        $nextCalls = 0;
+        (new RateLimited('uploads'))->handle(
+            new stdClass,
+            function () use (&$nextCalls): string {
+                ++$nextCalls;
+
+                return 'handled';
+            },
+        );
+
+        $this->assertSame(1, $nextCalls);
+        $this->assertSame(
+            1,
+            $limiter->attempts(hash('xxh128', 'account-1:uploadsuser-1')),
+        );
+    }
+
+    public function testUnlimitedNamedQueueLimiterBypassesStorage(): void
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $limiter->for('uploads', fn () => Limit::none());
+
+        $container = new Container;
+        $container->instance(RateLimiter::class, $limiter);
+        Container::setInstance($container);
+
+        $result = (new RateLimited('uploads'))->handle(
+            new stdClass,
+            fn (): string => 'handled',
+        );
+
+        $this->assertSame('handled', $result);
+        $this->assertSame(0, $limiter->attempts(hash('xxh128', 'uploads')));
     }
 
     /**

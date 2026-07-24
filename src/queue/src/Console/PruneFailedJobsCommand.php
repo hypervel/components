@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Console;
 use Hypervel\Console\Command;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Failed\PrunableFailedJobProvider;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:prune-failed')]
@@ -32,7 +32,7 @@ class PruneFailedJobsCommand extends Command
         $failer = $this->hypervel->make(FailedJobProviderInterface::class);
 
         if ($failer instanceof PrunableFailedJobProvider) {
-            $count = $failer->prune(Carbon::now()->subHours((int) $this->option('hours')));
+            $count = $failer->prune(CarbonImmutable::now()->subHours((int) $this->option('hours')));
         } else {
             $this->error('The [' . class_basename($failer) . '] failed job storage driver does not support pruning.');
 

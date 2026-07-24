@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
+use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
@@ -23,6 +24,7 @@ use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -182,8 +184,8 @@ class Schedule
     ): CallbackEvent {
         $jobName = $job;
 
-        $queue = is_null($queue) ? null : enum_value($queue);
-        $connection = is_null($connection) ? null : enum_value($connection);
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
 
         if (! is_string($job)) {
             $jobName = method_exists($job, 'displayName')
@@ -259,14 +261,25 @@ class Schedule
             throw new RuntimeException('Cache driver not available. Scheduling unique jobs not supported.');
         }
 
-        $cache = Container::getInstance()->make(Cache::class);
-        if (! (new UniqueLock($cache))->acquire($job)) {
+        $job = $job->onConnection($connection)->onQueue($queue);
+
+        $lock = new UniqueLock(Container::getInstance()->make(Cache::class));
+
+        if (! $lock->acquire($job)) {
             return;
         }
 
-        $this->getDispatcher()->dispatch(
-            $job->onConnection($connection)->onQueue($queue)
-        );
+        UniqueJobPayloadContext::register($job);
+
+        try {
+            $this->getDispatcher()->dispatch($job);
+        } catch (Throwable $exception) {
+            if (UniqueJobPayloadContext::consume($job) !== null) {
+                $lock->release($job);
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -413,6 +426,20 @@ class Schedule
     }
 
     /**
+     * Get all of the events on the schedule which run on any of the provided environments.
+     *
+     * @param list<string> $environments
+     * @return list<Event>
+     */
+    public function eventsForEnvironments(array $environments): array
+    {
+        return array_values(array_filter(
+            $this->events,
+            static fn (Event $event): bool => array_any($environments, $event->runsInEnvironment(...))
+        ));
+    }
+
+    /**
      * Specify the cache store that should be used to store mutexes.
      *
      * Boot-only. Mutates the shared mutex instances used by this worker's
@@ -424,7 +451,7 @@ class Schedule
             return $this;
         }
 
-        $store = enum_value($store);
+        $store = $store instanceof UnitEnum ? (string) enum_value($store) : $store;
 
         if ($this->eventMutex instanceof CacheAware) {
             $this->eventMutex->useStore($store);

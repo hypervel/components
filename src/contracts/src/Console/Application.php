@@ -16,11 +16,20 @@ interface Application
      */
     public function getHypervel(): ApplicationContract;
 
-    public function add(SymfonyCommand $command);
+    /**
+     * Add a command to the application.
+     */
+    public function add(SymfonyCommand $command): ?SymfonyCommand;
 
-    public function all(?string $namespace = null);
+    /**
+     * Get all of the commands registered with the application.
+     */
+    public function all(?string $namespace = null): array;
 
-    public function run(?InputInterface $input = null, ?OutputInterface $output = null);
+    /**
+     * Run the console application.
+     */
+    public function run(?InputInterface $input = null, ?OutputInterface $output = null): int;
 
     /**
      * Run an Artisan console command by name.
@@ -42,10 +51,10 @@ interface Application
     /**
      * Resolve an array of commands through the application.
      *
-     * @param array|mixed $commands
+     * @param array<string|SymfonyCommand>|string|SymfonyCommand ...$commands
      * @return $this
      */
-    public function resolveCommands($commands): static;
+    public function resolveCommands(array|SymfonyCommand|string ...$commands): static;
 
     /**
      * Set the container command loader for lazy resolution.

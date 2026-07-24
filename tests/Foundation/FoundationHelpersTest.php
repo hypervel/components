@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\FoundationHelpersTest;
 
-use Carbon\Carbon;
 use DateTimeZone;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
@@ -13,11 +12,16 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Log\LogManager;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use Psr\Log\LoggerInterface;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -41,118 +45,132 @@ enum UnitEnum
 
 class FoundationHelpersTest extends TestCase
 {
-    public function testNowReturnsCarbon()
+    public function testNowReturnsCarbonImmutableByDefault(): void
     {
         $result = now();
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
     }
 
-    public function testNowWithStringTimezone()
+    public function testNowHonorsTheMutableDateFactoryOptOut(): void
+    {
+        Date::use(Carbon::class);
+
+        $this->assertSame(Carbon::class, now()::class);
+    }
+
+    public function testNowWithStringTimezone(): void
     {
         $result = now('America/New_York');
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testNowWithDateTimeZone()
+    public function testNowWithDateTimeZone(): void
     {
         $tz = new DateTimeZone('America/New_York');
         $result = now($tz);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testNowWithStringBackedEnum()
+    public function testNowWithStringBackedEnum(): void
     {
         $result = now(StringEnum::NewYork);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testNowWithUnitEnum()
+    public function testNowWithUnitEnum(): void
     {
         $result = now(UnitEnum::UTC);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('UTC', $result->timezone->getName());
     }
 
-    public function testNowWithIntBackedEnum()
+    public function testNowWithIntBackedEnum(): void
     {
         // Int-backed enum returns int, Carbon interprets as UTC offset
         $result = now(IntEnum::One);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('+01:00', $result->timezone->getName());
     }
 
-    public function testNowWithNull()
+    public function testNowWithNull(): void
     {
         $result = now(null);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
     }
 
-    public function testTodayReturnsCarbon()
+    public function testTodayReturnsCarbonImmutableByDefault(): void
     {
         $result = today();
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('00:00:00', $result->format('H:i:s'));
     }
 
-    public function testTodayWithStringTimezone()
+    public function testTodayHonorsTheMutableDateFactoryOptOut(): void
+    {
+        Date::use(Carbon::class);
+
+        $this->assertSame(Carbon::class, today()::class);
+    }
+
+    public function testTodayWithStringTimezone(): void
     {
         $result = today('America/New_York');
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
         $this->assertEquals('00:00:00', $result->format('H:i:s'));
     }
 
-    public function testTodayWithDateTimeZone()
+    public function testTodayWithDateTimeZone(): void
     {
         $tz = new DateTimeZone('America/New_York');
         $result = today($tz);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testTodayWithStringBackedEnum()
+    public function testTodayWithStringBackedEnum(): void
     {
         $result = today(StringEnum::NewYork);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
-    public function testTodayWithUnitEnum()
+    public function testTodayWithUnitEnum(): void
     {
         $result = today(UnitEnum::UTC);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('UTC', $result->timezone->getName());
     }
 
-    public function testTodayWithIntBackedEnum()
+    public function testTodayWithIntBackedEnum(): void
     {
         // Int-backed enum returns int, Carbon interprets as UTC offset
         $result = today(IntEnum::One);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('+01:00', $result->timezone->getName());
     }
 
-    public function testTodayWithNull()
+    public function testTodayWithNull(): void
     {
         $result = today(null);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
     }
 
     public function testCache()
@@ -178,6 +196,17 @@ class FoundationHelpersTest extends TestCase
         // cache('baz', 'default') gets with default
         $cache->shouldReceive('get')->once()->with('baz', 'default')->andReturn('default');
         $this->assertSame('default', cache('baz', 'default'));
+    }
+
+    public function testLogsResolvesAChannelNamedZero(): void
+    {
+        $manager = m::mock(LogManager::class);
+        $logger = m::mock(LoggerInterface::class);
+        $manager->shouldReceive('driver')->once()->with('0')->andReturn($logger);
+        $this->app->instance('log', $manager);
+
+        $this->assertSame($logger, logs('0'));
+        $this->assertSame($manager, logs());
     }
 
     public function testEvents()

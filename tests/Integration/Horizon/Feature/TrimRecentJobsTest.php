@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\Listeners\TrimRecentJobs;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 

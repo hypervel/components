@@ -113,7 +113,7 @@ Hypervel's default logging configuration includes `stdout` and `stderr` channels
 
 The `stdout` channel writes messages to `php://stdout`, while the `stderr` channel writes messages to `php://stderr`. You may customize their formatters using the `LOG_STDOUT_FORMATTER` and `LOG_STDERR_FORMATTER` environment variables.
 
-Hypervel also uses a separate low-level stdout logger for server infrastructure such as connection pools, server lifecycle messages, and the response emitter. You may customize this logger's output format using the `STDOUT_LOG_FORMAT` environment variable. Supported values are `line` and `json`.
+Hypervel also uses a separate low-level stdout logger for server infrastructure such as connection pools and server lifecycle messages. Configure its enabled levels using `app.stdout_log.level` and its output format using the `STDOUT_LOG_FORMAT` environment variable. Supported formats are `line` and `json`. Each worker loads these settings when it starts, so reload the server after changing them.
 
 <a name="logging-deprecation-warnings"></a>
 ### Logging Deprecation Warnings
@@ -373,6 +373,8 @@ Log::stack(['slack', $channel])->info('Something happened!');
 
 Sometimes you may need complete control over how Monolog is configured for an existing channel. For example, you may want to configure a custom Monolog `FormatterInterface` implementation for Hypervel's built-in `single` channel.
 
+Configured channels and their Monolog handlers and processors are reused for the lifetime of a worker. Custom handlers and processors may therefore keep only immutable worker-wide state or state that is safely isolated between coroutines. Mutable request or record state stored directly on a custom component can leak between concurrent requests.
+
 To get started, define a `tap` array on the channel's configuration. The `tap` array should contain a list of classes that should have an opportunity to customize (or "tap" into) the Monolog instance after it is created. There is no conventional location where these classes should be placed, so you are free to create a directory within your application to contain these classes:
 
 ```php
@@ -413,6 +415,8 @@ class CustomizeFormatter
 
 > [!NOTE]
 > All of your "tap" classes are resolved by the [service container](/docs/{{version}}/container), so any constructor dependencies they require will automatically be injected.
+
+The `getLogger` method returns the underlying Monolog instance when direct Monolog access is required. Messages written directly to that instance bypass Hypervel's shared log context, log event dispatch, and recursion protection, so normal application logging should use the `Hypervel\Log\Logger` wrapper.
 
 <a name="creating-monolog-handler-channels"></a>
 ### Creating Monolog Handler Channels

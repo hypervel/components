@@ -6,7 +6,7 @@ namespace Hypervel\Console\Scheduling;
 
 use Closure;
 use DateTimeZone;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -45,21 +45,23 @@ trait ManagesFrequencies
      */
     private function inTimeInterval(string $startTime, string $endTime): Closure
     {
-        [$now, $startTime, $endTime] = [
-            Carbon::now($this->timezone),
-            Carbon::parse($startTime, $this->timezone),
-            Carbon::parse($endTime, $this->timezone),
-        ];
+        return function () use ($startTime, $endTime) {
+            [$now, $startTime, $endTime] = [
+                CarbonImmutable::now($this->timezone),
+                CarbonImmutable::parse($startTime, $this->timezone),
+                CarbonImmutable::parse($endTime, $this->timezone),
+            ];
 
-        if ($endTime->lessThan($startTime)) {
-            if ($startTime->greaterThan($now)) {
-                $startTime = $startTime->subDay();
-            } else {
-                $endTime = $endTime->addDay();
+            if ($endTime->lessThan($startTime)) {
+                if ($startTime->greaterThan($now)) {
+                    $startTime = $startTime->subDay();
+                } else {
+                    $endTime = $endTime->addDay();
+                }
             }
-        }
 
-        return fn () => $now->between($startTime, $endTime);
+            return $now->between($startTime, $endTime);
+        };
     }
 
     /**
@@ -121,10 +123,14 @@ trait ManagesFrequencies
     /**
      * Schedule the event to run multiple times per minute.
      *
-     * @param int<0, 59> $seconds
+     * @param int<1, 59> $seconds
      */
     protected function repeatEvery(int $seconds): static
     {
+        if ($seconds <= 0) {
+            throw new InvalidArgumentException("The seconds [{$seconds}] must be greater than zero.");
+        }
+
         if (60 % $seconds !== 0) {
             throw new InvalidArgumentException("The seconds [{$seconds}] are not evenly divisible by 60.");
         }
@@ -464,7 +470,7 @@ trait ManagesFrequencies
     {
         $this->dailyAt($time);
 
-        return $this->spliceIntoPosition(3, Carbon::now()->endOfMonth()->day);
+        return $this->spliceIntoPosition(3, 'L');
     }
 
     /**
@@ -543,7 +549,9 @@ trait ManagesFrequencies
      */
     public function timezone(DateTimeZone|UnitEnum|string $timezone): static
     {
-        $this->timezone = enum_value($timezone);
+        $this->timezone = $timezone instanceof UnitEnum
+            ? (string) enum_value($timezone)
+            : $timezone;
 
         return $this;
     }

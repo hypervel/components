@@ -73,44 +73,76 @@ class RouteListCommandTest extends TestCase
         $this->assertStringNotContainsString('exampleMiddleware', $output);
     }
 
-    public function testSortRouteListAsc()
+    public function testSortRouteListAsc(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true, '--sort' => 'domain,uri']);
         $output = $this->consoleApp->output();
 
-        $expectedOrder = '[{"domain":null,"method":"GET|HEAD","uri":"example","name":null,"action":"Closure","middleware":["exampleMiddleware"]},{"domain":null,"method":"GET|HEAD","uri":"example-group","name":null,"action":"Closure","middleware":["web","auth"]},{"domain":"sub","method":"GET|HEAD","uri":"sub-example","name":null,"action":"Closure","middleware":["exampleMiddleware"]}]';
+        $routes = json_decode($output, true);
 
-        $this->assertJsonStringEqualsJsonString($expectedOrder, $output);
+        $this->assertCount(3, $routes);
+        $this->assertSame('example', $routes[0]['uri']);
+        $this->assertSame('example-group', $routes[1]['uri']);
+        $this->assertSame('sub-example', $routes[2]['uri']);
+
+        foreach ($routes as $route) {
+            $this->assertArrayHasKey('path', $route);
+            $this->assertStringContainsString('RouteListCommandTest.php:', $route['path']);
+        }
     }
 
-    public function testSortRouteListDesc()
+    public function testSortRouteListDesc(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true, '--sort' => 'domain,uri', '--reverse' => true]);
         $output = $this->consoleApp->output();
 
-        $expectedOrder = '[{"domain":"sub","method":"GET|HEAD","uri":"sub-example","name":null,"action":"Closure","middleware":["exampleMiddleware"]},{"domain":null,"method":"GET|HEAD","uri":"example-group","name":null,"action":"Closure","middleware":["web","auth"]},{"domain":null,"method":"GET|HEAD","uri":"example","name":null,"action":"Closure","middleware":["exampleMiddleware"]}]';
+        $routes = json_decode($output, true);
 
-        $this->assertJsonStringEqualsJsonString($expectedOrder, $output);
+        $this->assertCount(3, $routes);
+        $this->assertSame('sub-example', $routes[0]['uri']);
+        $this->assertSame('example-group', $routes[1]['uri']);
+        $this->assertSame('example', $routes[2]['uri']);
+
+        foreach ($routes as $route) {
+            $this->assertArrayHasKey('path', $route);
+            $this->assertStringContainsString('RouteListCommandTest.php:', $route['path']);
+        }
     }
 
-    public function testSortRouteListDefault()
+    public function testSortRouteListDefault(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true]);
         $output = $this->consoleApp->output();
 
-        $expectedOrder = '[{"domain":null,"method":"GET|HEAD","uri":"example","name":null,"action":"Closure","middleware":["exampleMiddleware"]},{"domain":null,"method":"GET|HEAD","uri":"example-group","name":null,"action":"Closure","middleware":["web","auth"]}, {"domain":"sub","method":"GET|HEAD","uri":"sub-example","name":null,"action":"Closure","middleware":["exampleMiddleware"]}]';
+        $routes = json_decode($output, true);
 
-        $this->assertJsonStringEqualsJsonString($expectedOrder, $output);
+        $this->assertCount(3, $routes);
+        $this->assertSame('example', $routes[0]['uri']);
+        $this->assertSame('example-group', $routes[1]['uri']);
+        $this->assertSame('sub-example', $routes[2]['uri']);
+
+        foreach ($routes as $route) {
+            $this->assertArrayHasKey('path', $route);
+            $this->assertStringContainsString('RouteListCommandTest.php:', $route['path']);
+        }
     }
 
-    public function testSortRouteListPrecedence()
+    public function testSortRouteListPrecedence(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true, '--sort' => 'definition']);
         $output = $this->consoleApp->output();
 
-        $expectedOrder = '[{"domain":null,"method":"GET|HEAD","uri":"example","name":null,"action":"Closure","middleware":["exampleMiddleware"]},{"domain":"sub","method":"GET|HEAD","uri":"sub-example","name":null,"action":"Closure","middleware":["exampleMiddleware"]}, {"domain":null,"method":"GET|HEAD","uri":"example-group","name":null,"action":"Closure","middleware":["web","auth"]}]';
+        $routes = json_decode($output, true);
 
-        $this->assertJsonStringEqualsJsonString($expectedOrder, $output);
+        $this->assertCount(3, $routes);
+        $this->assertSame('example', $routes[0]['uri']);
+        $this->assertSame('sub-example', $routes[1]['uri']);
+        $this->assertSame('example-group', $routes[2]['uri']);
+
+        foreach ($routes as $route) {
+            $this->assertArrayHasKey('path', $route);
+            $this->assertStringContainsString('RouteListCommandTest.php:', $route['path']);
+        }
     }
 
     public function testMiddlewareGroupsAssignmentInCli()
@@ -177,23 +209,83 @@ class RouteListCommandTest extends TestCase
         $this->assertStringNotContainsString('auth', $output);
     }
 
-    public function testMiddlewareGroupsExpandCorrectlySortedIfVeryVerbose()
+    public function testMiddlewareGroupsExpandCorrectlySortedIfVeryVerbose(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true, '-vv' => true]);
         $output = $this->consoleApp->output();
 
-        $expectedOrder = '[{"domain":null,"method":"GET|HEAD","uri":"example","name":null,"action":"Closure","middleware":["exampleMiddleware"]},{"domain":null,"method":"GET|HEAD","uri":"example-group","name":null,"action":"Closure","middleware":["Middleware 5","Middleware 1","Middleware 4","Middleware 2","Middleware 3"]},{"domain":"sub","method":"GET|HEAD","uri":"sub-example","name":null,"action":"Closure","middleware":["exampleMiddleware"]}]';
+        $routes = json_decode($output, true);
 
-        $this->assertJsonStringEqualsJsonString($expectedOrder, $output);
+        $this->assertCount(3, $routes);
+        $this->assertSame('example', $routes[0]['uri']);
+        $this->assertSame(['exampleMiddleware'], $routes[0]['middleware']);
+        $this->assertSame('example-group', $routes[1]['uri']);
+        $this->assertSame(['Middleware 5', 'Middleware 1', 'Middleware 4', 'Middleware 2', 'Middleware 3'], $routes[1]['middleware']);
+        $this->assertSame('sub-example', $routes[2]['uri']);
+        $this->assertSame(['exampleMiddleware'], $routes[2]['middleware']);
     }
 
-    public function testFilterByMiddleware()
+    public function testFilterByMiddleware(): void
     {
         $this->consoleApp->call('route:list', ['--json' => true, '-v' => true, '--middleware' => 'auth']);
         $output = $this->consoleApp->output();
 
-        $expectedOrder = '[{"domain":null,"method":"GET|HEAD","uri":"example-group","name":null,"action":"Closure","middleware":["web","auth"]}]';
+        $routes = json_decode($output, true);
 
-        $this->assertJsonStringEqualsJsonString($expectedOrder, $output);
+        $this->assertCount(1, $routes);
+        $this->assertSame('example-group', $routes[0]['uri']);
+        $this->assertSame(['web', 'auth'], $routes[0]['middleware']);
+        $this->assertStringContainsString('RouteListCommandTest.php:', $routes[0]['path']);
+    }
+
+    public function testClosureRouteShowsPathInCli(): void
+    {
+        RouteListCommand::resolveTerminalWidthUsing(static fn (): int => 200);
+
+        $this->consoleApp->call('route:list');
+        $output = $this->consoleApp->output();
+
+        $this->assertStringContainsString('RouteListCommandTest.php:', $output);
+
+        RouteListCommand::resolveTerminalWidthUsing(null);
+    }
+
+    public function testControllerRoutePathIsNull(): void
+    {
+        $hypervel = new \Hypervel\Foundation\Application(__DIR__);
+        $router = new Router(m::mock('Hypervel\Events\Dispatcher'));
+
+        $kernel = new class($hypervel, $router) extends Kernel {
+            protected array $middlewareGroups = [];
+        };
+
+        $hypervel->instance(Kernel::class, $kernel);
+
+        $router->get('/controller-route', [RouteListCommandTestController::class, 'index']);
+
+        $command = new RouteListCommand($router);
+        $command->setHypervel($hypervel);
+
+        $app = new Application(
+            $hypervel,
+            m::mock(Dispatcher::class, ['dispatch' => null, 'fire' => null]),
+            'testing',
+        );
+        $app->addCommands([$command]);
+        $app->call('route:list', ['--json' => true]);
+        $output = $app->output();
+
+        $routes = json_decode($output, true);
+
+        $this->assertCount(1, $routes);
+        $this->assertNull($routes[0]['path']);
+    }
+}
+
+class RouteListCommandTestController
+{
+    public function index(): string
+    {
+        return 'Hello World';
     }
 }

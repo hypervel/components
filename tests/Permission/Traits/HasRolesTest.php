@@ -585,6 +585,42 @@ class HasRolesTest extends TestCase
         $this->assertCount(1, Admin::role('testAdminRole2', 'admin')->get());
     }
 
+    public function testItCanScopeAgainstAZeroNamedGuard(): void
+    {
+        config()->set('auth.guards.0', ['driver' => 'session', 'provider' => 'users']);
+
+        $user = User::create(['email' => 'zero-guard@test.com']);
+        $role = app(Role::class)->create(['name' => 'zeroGuardRole', 'guard_name' => '0']);
+        $webRole = app(Role::class)->create(['name' => 'emptyGuardFallbackRole', 'guard_name' => 'web']);
+        $user->assignRole($role, $webRole);
+
+        $this->assertSame([$user->getKey()], User::role('zeroGuardRole', '0')->pluck('id')->all());
+        $this->assertSame([$user->getKey()], User::role('emptyGuardFallbackRole', '')->pluck('id')->all());
+    }
+
+    public function testRoleChecksHonorAZeroNamedGuard(): void
+    {
+        config()->set('auth.guards.0', ['driver' => 'session', 'provider' => 'users']);
+
+        $user = User::create(['email' => 'zero-role-checks@test.com']);
+        $zeroRole = app(Role::class)->create(['name' => 'zeroGuardRole', 'guard_name' => '0']);
+        $webRole = app(Role::class)->create(['name' => 'webOnlyRole', 'guard_name' => 'web']);
+        $user->assignRole($zeroRole, $webRole);
+
+        $this->assertTrue($user->hasRole($zeroRole->getKey(), '0'));
+        $this->assertFalse($user->hasRole($webRole->getKey(), '0'));
+        $this->assertTrue($user->hasRole($zeroRole->name, '0'));
+        $this->assertFalse($user->hasRole($webRole->name, '0'));
+        $this->assertTrue($user->hasRole(collect([$user->roles->firstWhere('guard_name', '0')]), '0'));
+        $this->assertFalse($user->hasRole(collect([$user->roles->firstWhere('guard_name', 'web')]), '0'));
+        $this->assertTrue($user->hasAllRoles([$zeroRole->name], '0'));
+        $this->assertFalse($user->hasAllRoles([$zeroRole->name, $webRole->name], '0'));
+        $this->assertTrue($user->hasRole($webRole->getKey(), ''));
+        $this->assertTrue($user->hasRole($webRole->name, ''));
+        $this->assertTrue($user->hasRole(collect([$user->roles->firstWhere('guard_name', 'web')]), ''));
+        $this->assertTrue($user->hasAllRoles([$webRole->name], ''));
+    }
+
     public function testItCanWithoutScopeAgainstASpecificGuard(): void
     {
         User::all()->each(fn ($item) => $item->delete());

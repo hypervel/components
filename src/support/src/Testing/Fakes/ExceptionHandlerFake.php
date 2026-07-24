@@ -6,6 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Foundation\Testing\Concerns\WithoutExceptionHandlingHandler;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -167,7 +168,15 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
      */
     public function shouldReport(Throwable $e): bool
     {
-        return $this->handler->shouldReport($e);
+        return $this->runningWithoutExceptionHandling() || $this->handler->shouldReport($e);
+    }
+
+    /**
+     * Determine if the handler is running without exception handling.
+     */
+    protected function runningWithoutExceptionHandling(): bool
+    {
+        return $this->handler instanceof WithoutExceptionHandlingHandler;
     }
 
     /**

@@ -114,7 +114,9 @@ class SeedCommand extends Command
     {
         $database = $this->input->getOption('database');
 
-        return $database ?: $this->resolver->getDefaultConnection();
+        return $database === null || $database === ''
+            ? $this->resolver->getDefaultConnection()
+            : $database;
     }
 
     /**

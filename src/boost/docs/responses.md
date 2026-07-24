@@ -188,6 +188,18 @@ By default, thanks to the `Hypervel\Cookie\Middleware\EncryptCookies` middleware
 })
 ```
 
+Alternatively, you may encrypt only a specific set of cookies by passing them to the `only` argument. Every cookie not listed will remain unencrypted and readable by the client:
+
+```php
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->encryptCookies(only: [
+        'session_cookie',
+    ]);
+})
+```
+
+When the `only` list is not empty, it takes precedence over the `except` list.
+
 > [!NOTE]
 > In general, cookie encryption should never be disabled, as this exposes your cookies to potential client-side data exposure and tampering.
 
@@ -1121,4 +1133,4 @@ return response()->caps('foo');
 ```
 
 > [!NOTE]
-> Macros register on a static property and persist for the life of the Swoole worker. If you register a macro inside a test, call `Hypervel\Routing\ResponseFactory::flushState()` or `Response::flushMacros()` before the next test runs so the macro doesn't leak into other tests.
+> Macros register on a static property and persist for the life of the Swoole worker. Hypervel automatically flushes framework-owned response macros after every test. If your application or package defines its own macroable class, add it to your [test-state cleanup](/docs/{{version}}/testing#macro-state).

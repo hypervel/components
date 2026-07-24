@@ -8,16 +8,22 @@ use Carbon\CarbonInterval;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use PDO;
 
 class QueryDurationThresholdTest extends TestCase
 {
-    /**
-     * @var \Illuminate\Support\Carbon
-     */
-    protected $now;
+    protected ?CarbonImmutable $now = null;
+
+    public function testElapsedQueryTimeUsesTheMonotonicClock(): void
+    {
+        $connection = new QueryDurationConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $elapsed = $connection->elapsedTimeSince(hrtime(true) / 1e9 - 0.001);
+
+        $this->assertGreaterThan(0.0, $elapsed);
+        $this->assertLessThan(100.0, $elapsed);
+    }
 
     public function testItCanHandleReachingADurationThresholdInTheDb()
     {
@@ -72,7 +78,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItIsOnlyCalledOnceWhenGivenDateTime()
     {
-        Carbon::setTestNow($this->now = Carbon::create(2017, 6, 27, 13, 14, 15, 'UTC'));
+        CarbonImmutable::setTestNow($this->now = CarbonImmutable::create(2017, 6, 27, 13, 14, 15, 'UTC'));
 
         $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
@@ -242,5 +248,13 @@ class QueryDurationThresholdTest extends TestCase
             'bar',
             'baz',
         ], $queries);
+    }
+}
+
+class QueryDurationConnection extends Connection
+{
+    public function elapsedTimeSince(float $start): float
+    {
+        return $this->getElapsedTime($start);
     }
 }

@@ -18,7 +18,7 @@ trait Dispatchable
      */
     public static function dispatch(mixed ...$arguments): PendingDispatch
     {
-        return new PendingDispatch(new static(...$arguments));
+        return static::newPendingDispatch(new static(...$arguments));
     }
 
     /**
@@ -30,12 +30,12 @@ trait Dispatchable
             $dispatchable = new static(...$arguments);
 
             return value($boolean, $dispatchable) // @phpstan-ignore ternary.alwaysTrue (phpstan over-narrows TValue from conditional return PHPDoc)
-                ? new PendingDispatch($dispatchable)
+                ? static::newPendingDispatch($dispatchable)
                 : new Fluent;
         }
 
         return value($boolean)
-            ? new PendingDispatch(new static(...$arguments))
+            ? static::newPendingDispatch(new static(...$arguments))
             : new Fluent;
     }
 
@@ -48,12 +48,12 @@ trait Dispatchable
             $dispatchable = new static(...$arguments);
 
             return ! value($boolean, $dispatchable) // @phpstan-ignore booleanNot.alwaysFalse
-                ? new PendingDispatch($dispatchable)
+                ? static::newPendingDispatch($dispatchable)
                 : new Fluent;
         }
 
         return ! value($boolean)
-            ? new PendingDispatch(new static(...$arguments))
+            ? static::newPendingDispatch(new static(...$arguments))
             : new Fluent;
     }
 
@@ -83,5 +83,13 @@ trait Dispatchable
     public static function withChain(array $chain): PendingChain
     {
         return new PendingChain(static::class, $chain);
+    }
+
+    /**
+     * Create a new pending job dispatch instance.
+     */
+    protected static function newPendingDispatch(mixed $job): PendingDispatch
+    {
+        return new PendingDispatch($job);
     }
 }

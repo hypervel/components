@@ -10,8 +10,9 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
+use Throwable;
 
 class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
@@ -266,7 +267,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
         return $layers;
     }
 
-    protected function getOrRestoreRecord(string $key): mixed
+    protected function getOrRestoreRecord(string $key): ?array
     {
         return $this->callStoresStacked(
             function (StackStoreProxy $store, Closure $next) use ($key): ?array {
@@ -274,17 +275,15 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
                     return (array) $record;
                 }
 
-                if (is_null($record = $next())) {
+                if (is_null($record = $next()) || ! array_key_exists('value', $record)) {
                     return null;
                 }
 
-                if ($this->putToStore($store, $key, $record)) {
-                    return $record;
-                }
+                $this->putToStore($store, $key, $record);
 
-                return null;
+                return $record;
             },
-            static fn () => null
+            static fn (): null => null
         );
     }
 
@@ -319,7 +318,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
             return $store->forever($key, $record);
         }
 
-        $currentTimestamp = Carbon::now()->getTimestamp();
+        $currentTimestamp = CarbonImmutable::now()->getTimestamp();
         $value = $record['value'];
         $expiration = $record['expiration'] ?? $currentTimestamp + $record['ttl'];
         $ttl = $record['ttl'] ?? $record['expiration'] - $currentTimestamp;
@@ -355,7 +354,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
             return $store->tags($tags)->put($key, $record, $proxyTtl);
         }
 
-        $currentTimestamp = Carbon::now()->getTimestamp();
+        $currentTimestamp = CarbonImmutable::now()->getTimestamp();
         $value = $record['value'];
         $expiration = $record['expiration'] ?? $currentTimestamp + $record['ttl'];
         $ttl = $record['ttl'] ?? $record['expiration'] - $currentTimestamp;
@@ -500,15 +499,24 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
                     return false;
                 }
 
-                $result = $next();
+                // Only a layer whose write completed is eligible for compensation.
+                try {
+                    $result = $next();
+                } catch (Throwable $throwable) {
+                    if ($rollback !== null) {
+                        $rollback($store);
+                    }
 
-                if (! $result && $rollback) {
+                    throw $throwable;
+                }
+
+                if (! $result && $rollback !== null) {
                     $rollback($store);
                 }
 
                 return $result;
             },
-            static fn () => true
+            static fn (): bool => true
         );
     }
 }

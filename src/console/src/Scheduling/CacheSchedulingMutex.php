@@ -33,16 +33,16 @@ class CacheSchedulingMutex implements SchedulingMutex, CacheAware
     {
         $mutexName = $event->mutexName() . $time->format('Hi');
 
-        $store = $this->cache->store($this->store)->getStore();
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
         if ($this->shouldUseLocks($store)) {
-            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
             return $store
                 ->lock($mutexName, 3600)
                 ->acquire();
         }
 
-        return $this->cache->store($this->store)->add(
+        return $repository->add(
             $mutexName,
             true,
             3600
@@ -56,20 +56,22 @@ class CacheSchedulingMutex implements SchedulingMutex, CacheAware
     {
         $mutexName = $event->mutexName() . $time->format('Hi');
 
-        $store = $this->cache->store($this->store)->getStore();
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
         if ($this->shouldUseLocks($store)) {
-            /** @var LockProvider&Store $store */ // @phpstan-ignore varTag.nativeType
             return ! $store
                 ->lock($mutexName, 3600)
                 ->get(fn () => true);
         }
 
-        return $this->cache->store($this->store)->has($mutexName);
+        return $repository->has($mutexName);
     }
 
     /**
      * Determine if the given store should use locks for cache scheduling mutexes.
+     *
+     * @phpstan-assert-if-true LockProvider $store
      */
     protected function shouldUseLocks(Store $store): bool
     {

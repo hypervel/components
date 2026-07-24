@@ -8,11 +8,16 @@ use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\TextPrompt;
+use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionMethod;
+use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -316,6 +321,39 @@ class ConfiguresPromptsTest extends TestCase
         ];
     }
 
+    public function testNestedCommandRestoresTheParentPromptConfiguration(): void
+    {
+        $parent = new ConfiguresPromptsNestedParentCommand;
+
+        Artisan::registerCommand($parent);
+
+        $this->artisan($parent->getName())->assertSuccessful();
+
+        $this->assertSame(ConfiguresPromptsNestedParentCommand::class, CoroutineContext::get('__test.console.prompt_owner'));
+    }
+
+    public function testFailingNestedCommandRestoresTheParentPromptConfiguration(): void
+    {
+        $parent = new ConfiguresPromptsNestedParentCommand(throwFromChild: true);
+
+        Artisan::registerCommand($parent);
+
+        $this->artisan($parent->getName())->assertSuccessful();
+
+        $this->assertSame(ConfiguresPromptsNestedParentCommand::class, CoroutineContext::get('__test.console.prompt_owner'));
+    }
+
+    public function testSilentNestedCommandRestoresTheParentPromptConfiguration(): void
+    {
+        $parent = new ConfiguresPromptsNestedParentCommand(silent: true);
+
+        Artisan::registerCommand($parent);
+
+        $this->artisan($parent->getName())->assertSuccessful();
+
+        $this->assertSame(ConfiguresPromptsNestedParentCommand::class, CoroutineContext::get('__test.console.prompt_owner'));
+    }
+
     protected function runPrompt(Closure $prompt, Closure $expectations, bool $runningUnitTests = false): mixed
     {
         $command = $this->makePromptCommand($prompt);
@@ -357,5 +395,69 @@ class ConfiguresPromptsTest extends TestCase
         $expectations($factory);
 
         return $command->run(new ArrayInput([]), new NullOutput);
+    }
+}
+
+class ConfiguresPromptsNestedParentCommand extends Command
+{
+    protected ?string $signature = 'test:prompt-parent';
+
+    public function __construct(
+        protected bool $throwFromChild = false,
+        protected bool $silent = false,
+    ) {
+        parent::__construct();
+    }
+
+    public function handle(): void
+    {
+        try {
+            $command = $this->throwFromChild
+                ? ConfiguresPromptsThrowingNestedCommand::class
+                : ConfiguresPromptsNestedCommand::class;
+
+            $this->silent ? $this->callSilent($command) : $this->call($command);
+        } catch (RuntimeException) {
+        }
+
+        $validation = (new ReflectionMethod(Prompt::class, 'getValidateUsing'))->invoke(null);
+
+        $validation(new TextPrompt('Test', validate: 'required'));
+    }
+
+    protected function validatePrompt(mixed $value, mixed $rules): ?string
+    {
+        CoroutineContext::set('__test.console.prompt_owner', static::class);
+
+        return null;
+    }
+}
+
+class ConfiguresPromptsNestedCommand extends Command
+{
+    protected ?string $signature = 'test:prompt-child';
+
+    public function handle(): void
+    {
+    }
+
+    protected function validatePrompt(mixed $value, mixed $rules): ?string
+    {
+        return null;
+    }
+}
+
+class ConfiguresPromptsThrowingNestedCommand extends Command
+{
+    protected ?string $signature = 'test:prompt-child-throwing';
+
+    public function handle(): never
+    {
+        throw new RuntimeException('Nested command failed.');
+    }
+
+    protected function validatePrompt(mixed $value, mixed $rules): ?string
+    {
+        return null;
     }
 }

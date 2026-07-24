@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EventTest extends TestCase
 {
-    public function testRequestReceivedEvent()
+    public function testRequestReceivedEvent(): void
     {
         $request = Request::create('/test');
         $response = new Response('OK');
@@ -32,7 +32,7 @@ class EventTest extends TestCase
         $this->assertNull($event->getThrowable());
     }
 
-    public function testRequestHandledEvent()
+    public function testRequestHandledEvent(): void
     {
         $request = Request::create('/test');
         $response = new Response('OK');
@@ -48,7 +48,7 @@ class EventTest extends TestCase
         $this->assertNull($event->exception);
     }
 
-    public function testRequestTerminatedEventWithException()
+    public function testRequestTerminatedEventWithException(): void
     {
         $request = Request::create('/test');
         $response = new Response('Error', 500);
@@ -68,7 +68,7 @@ class EventTest extends TestCase
         $this->assertSame('http', $event->server);
     }
 
-    public function testEventDefaultServerName()
+    public function testEventDefaultServerName(): void
     {
         $event = new RequestReceived(
             request: Request::create('/'),
@@ -78,7 +78,7 @@ class EventTest extends TestCase
         $this->assertSame('http', $event->server);
     }
 
-    public function testEventWithNullRequestAndResponse()
+    public function testEventWithNullRequestAndResponse(): void
     {
         $event = new RequestTerminated(
             request: null,
@@ -92,7 +92,7 @@ class EventTest extends TestCase
         $this->assertInstanceOf(RuntimeException::class, $event->getThrowable());
     }
 
-    public function testEventWithCustomServerName()
+    public function testEventWithCustomServerName(): void
     {
         $event = new RequestReceived(
             request: Request::create('/ws'),

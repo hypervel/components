@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\ProcessRepository;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class ProcessRepositoryTest extends IntegrationTestCase

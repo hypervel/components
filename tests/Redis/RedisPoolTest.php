@@ -17,7 +17,7 @@ use Mockery as m;
 
 class RedisPoolTest extends TestCase
 {
-    public function testPoolConfigComesFromRedisConfig(): void
+    public function testPoolConnectTimeoutConfiguresTheNativeRedisTimeout(): void
     {
         $connectionConfig = [
             'host' => 'redis',
@@ -26,7 +26,32 @@ class RedisPoolTest extends TestCase
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 30,
-                'connect_timeout' => 10.0,
+                'connect_timeout' => 1.25,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1,
+                'max_idle_time' => 1,
+            ],
+        ];
+
+        $container = $this->mockContainerWithRedisConfig($connectionConfig);
+        $pool = new RedisPool($container, 'default');
+        $expectedConfig = $connectionConfig;
+        $expectedConfig['timeout'] = 1.25;
+
+        $this->assertSame($expectedConfig, $pool->getConfig());
+    }
+
+    public function testPoolConnectTimeoutDoesNotOverrideTheNativeRedisTimeout(): void
+    {
+        $connectionConfig = [
+            'host' => 'redis',
+            'port' => 16379,
+            'database' => 0,
+            'timeout' => 7.0,
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 30,
+                'connect_timeout' => 1.25,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
                 'max_idle_time' => 1,
@@ -145,10 +170,6 @@ class TestPoolConnection extends Connection
 
 class AlwaysLowFrequency implements FrequencyInterface, LowFrequencyInterface
 {
-    public function __construct(?\Hypervel\Pool\Pool $pool = null)
-    {
-    }
-
     public function hit(int $number = 1): bool
     {
         return true;

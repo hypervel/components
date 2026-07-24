@@ -6,6 +6,7 @@
 - [Configuration](#configuration)
     - [Declaring Trusted Session Guards](#declaring-trusted-session-guards)
     - [Overriding Default Models](#overriding-default-models)
+    - [Last Used Timestamps](#last-used-timestamps)
     - [Token Caching](#token-caching)
     - [Token Prefix](#token-prefix)
     - [Custom Token Retrieval and Validation](#custom-token-retrieval-and-validation)
@@ -150,10 +151,23 @@ public function boot(): void
 }
 ```
 
+<a name="last-used-timestamps"></a>
+### Last Used Timestamps
+
+By default, Sanctum records the time a personal access token last completed authentication successfully. Rejected or expired tokens do not update the `last_used_at` timestamp, and session authentication is not affected.
+
+You may disable these writes using the `SANCTUM_LAST_USED_AT` environment variable:
+
+```env
+SANCTUM_LAST_USED_AT=false
+```
+
+When [token caching](#token-caching) is enabled, the `last_used_at_update_interval` option limits how often the timestamp is written.
+
 <a name="token-caching"></a>
 ### Token Caching
 
-Sanctum can cache personal access token lookups and the tokenable model associated with each token. This reduces database reads for token-authenticated requests. When caching is enabled, Sanctum also throttles `last_used_at` writes so the timestamp is updated at a configured interval instead of on every authenticated request.
+Sanctum can cache personal access token lookups and the tokenable model associated with each token. This reduces database reads for token-authenticated requests. When caching is enabled, Sanctum also throttles `last_used_at` writes so the timestamp is updated at a configured interval instead of after every successful API token authentication.
 
 Token caching is disabled by default. You may enable and configure it in your application's `config/sanctum.php` file:
 

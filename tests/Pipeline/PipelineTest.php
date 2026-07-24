@@ -6,15 +6,18 @@ namespace Hypervel\Tests\Pipeline;
 
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Database\Connection;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Tests\Pipeline\Fixtures\FooPipeline;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use RuntimeException;
 use stdClass;
 
 class PipelineTest extends TestCase
 {
-    public function testPipelineBasicUsage()
+    public function testPipelineBasicUsage(): void
     {
         $pipeTwo = function ($piped, $next) {
             $_SERVER['__test.pipe.two'] = $piped;
@@ -36,7 +39,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one'], $_SERVER['__test.pipe.two']);
     }
 
-    public function testPipelineUsageWithObjects()
+    public function testPipelineUsageWithObjects(): void
     {
         $result = (new Pipeline(new Container))
             ->send('foo')
@@ -51,7 +54,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one']);
     }
 
-    public function testPipelineUsageWithInvokableObjects()
+    public function testPipelineUsageWithInvokableObjects(): void
     {
         $result = (new Pipeline(new Container))
             ->send('foo')
@@ -68,7 +71,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one']);
     }
 
-    public function testPipelineUsageWithCallable()
+    public function testPipelineUsageWithCallable(): void
     {
         $function = function ($piped, $next) {
             $_SERVER['__test.pipe.one'] = 'foo';
@@ -101,7 +104,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one']);
     }
 
-    public function testPipelineUsageWithPipe()
+    public function testPipelineUsageWithPipe(): void
     {
         $object = new stdClass;
 
@@ -127,7 +130,7 @@ class PipelineTest extends TestCase
         $this->assertEquals(2, $object->value);
     }
 
-    public function testPipelineThroughMethodOverwritesPreviouslySetAndAppendedPipes()
+    public function testPipelineThroughMethodOverwritesPreviouslySetAndAppendedPipes(): void
     {
         $object = new stdClass;
 
@@ -150,7 +153,7 @@ class PipelineTest extends TestCase
         $this->assertEquals(1, $object->value);
     }
 
-    public function testPipelineUsageWithInvokableClass()
+    public function testPipelineUsageWithInvokableClass(): void
     {
         $result = (new Pipeline(new Container))
             ->send('foo')
@@ -167,7 +170,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one']);
     }
 
-    public function testThenMethodIsNotCalledIfThePipeReturns()
+    public function testThenMethodIsNotCalledIfThePipeReturns(): void
     {
         $_SERVER['__test.pipe.then'] = '(*_*)';
         $_SERVER['__test.pipe.second'] = '(*_*)';
@@ -193,7 +196,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.then']);
     }
 
-    public function testThenMethodInputValue()
+    public function testThenMethodInputValue(): void
     {
         $result = (new Pipeline(new Container))
             ->send('foo')
@@ -216,7 +219,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.then.arg'], $_SERVER['__test.pipe.return']);
     }
 
-    public function testPipelineUsageWithParameters()
+    public function testPipelineUsageWithParameters(): void
     {
         $parameters = ['one', 'two'];
 
@@ -233,7 +236,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.parameters']);
     }
 
-    public function testPipelineViaChangesTheMethodBeingCalledOnThePipes()
+    public function testPipelineViaChangesTheMethodBeingCalledOnThePipes(): void
     {
         $pipelineInstance = new Pipeline(new Container);
         $result = $pipelineInstance->send('data')
@@ -245,7 +248,7 @@ class PipelineTest extends TestCase
         $this->assertSame('data', $result);
     }
 
-    public function testPipelineThrowsExceptionOnResolveWithoutContainer()
+    public function testPipelineThrowsExceptionOnResolveWithoutContainer(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('A container instance has not been passed to the Pipeline.');
@@ -257,7 +260,7 @@ class PipelineTest extends TestCase
             });
     }
 
-    public function testPipelineThrowsExceptionWhenUsingTransactionsWithoutContainer()
+    public function testPipelineThrowsExceptionWhenUsingTransactionsWithoutContainer(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('A container instance has not been passed to the Pipeline.');
@@ -270,7 +273,24 @@ class PipelineTest extends TestCase
             });
     }
 
-    public function testPipelineThenReturnMethodRunsPipelineThenReturnsPassable()
+    public function testPipelineDelegatesIntegerBackedEnumTransactionConnection(): void
+    {
+        $container = new Container;
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('transaction')->once()->andReturnUsing(fn (callable $callback) => $callback());
+        $manager = m::mock(DatabaseManager::class);
+        $manager->shouldReceive('connection')->once()->with(PipelineConnectionName::Zero)->andReturn($connection);
+        $container->instance('db', $manager);
+
+        $result = (new Pipeline($container))
+            ->send('data')
+            ->withinTransaction(PipelineConnectionName::Zero)
+            ->thenReturn();
+
+        $this->assertSame('data', $result);
+    }
+
+    public function testPipelineThenReturnMethodRunsPipelineThenReturnsPassable(): void
     {
         $result = (new Pipeline(new Container))
             ->send('foo')
@@ -283,7 +303,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one']);
     }
 
-    public function testPipelineConditionable()
+    public function testPipelineConditionable(): void
     {
         $result = (new Pipeline(new Container))
             ->send('foo')
@@ -313,7 +333,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one']);
     }
 
-    public function testPipelineFinally()
+    public function testPipelineFinally(): void
     {
         $pipeTwo = function ($piped, $next) {
             $_SERVER['__test.pipe.two'] = $piped;
@@ -339,7 +359,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one'], $_SERVER['__test.pipe.two'], $_SERVER['__test.pipe.finally']);
     }
 
-    public function testPipelineFinallyMethodWhenChainIsStopped()
+    public function testPipelineFinallyMethodWhenChainIsStopped(): void
     {
         $pipeTwo = function ($piped) {
             $_SERVER['__test.pipe.two'] = $piped;
@@ -363,7 +383,7 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.one'], $_SERVER['__test.pipe.two'], $_SERVER['__test.pipe.finally']);
     }
 
-    public function testPipelineFinallyOrder()
+    public function testPipelineFinallyOrder(): void
     {
         $std = new stdClass;
 
@@ -394,7 +414,7 @@ class PipelineTest extends TestCase
         $this->assertSame(4, $result->value);
     }
 
-    public function testPipelineFinallyWhenExceptionOccurs()
+    public function testPipelineFinallyWhenExceptionOccurs(): void
     {
         $std = new stdClass;
 
@@ -430,7 +450,7 @@ class PipelineTest extends TestCase
         }
     }
 
-    public function testHandleCarry()
+    public function testHandleCarry(): void
     {
         $result = (new FooPipeline(new Container))
             ->send($id = rand(0, 99))
@@ -447,7 +467,7 @@ class PipelineTest extends TestCase
         $this->assertSame($id + 6, $result);
     }
 
-    public function testPipelineMacro()
+    public function testPipelineMacro(): void
     {
         Pipeline::macro('customMethod', function ($value) {
             return 'custom_' . $value;
@@ -458,7 +478,7 @@ class PipelineTest extends TestCase
         $this->assertSame('custom_test', $pipeline->customMethod('test'));
     }
 
-    public function testPipelineMacroWithThis()
+    public function testPipelineMacroWithThis(): void
     {
         Pipeline::macro('getPipes', function () {
             return $this->pipes;
@@ -470,7 +490,7 @@ class PipelineTest extends TestCase
         $this->assertEquals(['pipe1', 'pipe2'], $pipeline->getPipes());
     }
 
-    public function testPipelineHasMacro()
+    public function testPipelineHasMacro(): void
     {
         Pipeline::macro('existingMacro', function () {
             return 'exists';
@@ -482,7 +502,7 @@ class PipelineTest extends TestCase
         $this->assertFalse($pipeline->hasMacro('nonExistingMacro'));
     }
 
-    public function testPipelineMacroOverwrite()
+    public function testPipelineMacroOverwrite(): void
     {
         Pipeline::macro('testMacro', function () {
             return 'first';
@@ -498,6 +518,11 @@ class PipelineTest extends TestCase
         $pipeline2 = new Pipeline(new Container);
         $this->assertSame('second', $pipeline2->testMacro());
     }
+}
+
+enum PipelineConnectionName: int
+{
+    case Zero = 0;
 }
 
 class PipelineTestPipeOne

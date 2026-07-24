@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Console\Scheduling\ScheduleTestCommandTest;
 use Hypervel\Console\Command;
 use Hypervel\Console\Commands\ScheduleTestCommand;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 
@@ -19,7 +19,7 @@ class ScheduleTestCommandTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow(now()->startOfYear());
+        CarbonImmutable::setTestNow(now()->startOfYear());
 
         $this->schedule = $this->app->make(Schedule::class);
 
@@ -59,6 +59,24 @@ class ScheduleTestCommandTest extends TestCase
         $this->artisan(ScheduleTestCommand::class, ['--name' => 'callback'])
             ->assertSuccessful()
             ->expectsOutputToContain('Running [callback]');
+    }
+
+    public function testRunDoesNotMutateBackgroundExecutionOnTheScheduledEvent(): void
+    {
+        $callbackRan = false;
+
+        $event = $this->schedule->command(BarCommandStub::class)
+            ->runInBackground()
+            ->onSuccess(function () use (&$callbackRan): void {
+                $callbackRan = true;
+            });
+
+        $this->artisan(ScheduleTestCommand::class, ['--name' => 'bar:command'])
+            ->assertSuccessful()
+            ->expectsOutputToContain('Running [php artisan bar:command] normally in background');
+
+        $this->assertTrue($event->runInBackground);
+        $this->assertTrue($callbackRan);
     }
 
     public function testRunUsingChoices()

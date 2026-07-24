@@ -7,11 +7,14 @@ namespace Hypervel\Tests\Integration\Console;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\File;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
+use RuntimeException;
 
-class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
+class EnvironmentEncryptCommandTest extends TestCase
 {
-    protected $filesystem;
+    protected Filesystem $filesystem;
 
     protected function setUp(): void
     {
@@ -19,9 +22,9 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
 
         $this->filesystem = m::spy(Filesystem::class);
         $this->filesystem->shouldReceive('get')
-            ->andReturn(true)
-            ->shouldReceive('put')
             ->andReturn('APP_NAME=Laravel');
+        $this->filesystem->shouldReceive('replace');
+        $this->filesystem->shouldReceive('chmod')->andReturn('0640');
         File::swap($this->filesystem);
     }
 
@@ -68,8 +71,8 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('.env.production.encrypted')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env.production.encrypted'), m::any());
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env.production.encrypted'), m::any(), null);
     }
 
     public function testItGeneratesTheCorrectFileWhenNotUsingEnvironment(): void
@@ -87,8 +90,8 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('.env.encrypted')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env.encrypted'), m::any());
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env.encrypted'), m::any(), null);
     }
 
     public function testItFailsWhenEnvironmentFileCannotBeFound(): void
@@ -125,8 +128,8 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('.env.encrypted')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env.encrypted'), m::any());
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env.encrypted'), m::any(), 0640);
     }
 
     public function testItEncryptsWithGivenKeyAndDisplaysIt(): void
@@ -178,7 +181,7 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
             ->with(base_path('.env'))
             ->once()
             ->andReturn("APP_NAME=Laravel\nAPP_ENV=local");
-        $filesystem->shouldReceive('put')
+        $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) {
                 $lines = explode("\n", rtrim($content));
@@ -186,8 +189,7 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
                 return count($lines) === 2
                     && str_starts_with($lines[0], 'APP_NAME=')
                     && str_starts_with($lines[1], 'APP_ENV=');
-            }))
-            ->andReturn(true);
+            }), null);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP'])
@@ -210,7 +212,7 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
             ->with(base_path('.env'))
             ->once()
             ->andReturn("# Comment\nAPP_NAME=Laravel\n\nAPP_ENV=local");
-        $filesystem->shouldReceive('put')
+        $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) {
                 $lines = explode("\n", rtrim($content));
@@ -219,8 +221,7 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
                 return count($lines) === 2
                     && str_starts_with($lines[0], 'APP_NAME=')
                     && str_starts_with($lines[1], 'APP_ENV=');
-            }))
-            ->andReturn(true);
+            }), null);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP'])
@@ -257,14 +258,13 @@ ENV;
             ->with(base_path('.env'))
             ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('put')
+        $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
                 $encryptedOutput = $content;
 
                 return true;
-            }))
-            ->andReturn(true);
+            }), null);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
@@ -311,14 +311,13 @@ ENV;
             ->with(base_path('.env'))
             ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('put')
+        $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
                 $encryptedOutput = $content;
 
                 return true;
-            }))
-            ->andReturn(true);
+            }), null);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
@@ -366,14 +365,13 @@ ENV;
             ->with(base_path('.env'))
             ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('put')
+        $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
                 $encryptedOutput = $content;
 
                 return true;
-            }))
-            ->andReturn(true);
+            }), null);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
@@ -420,14 +418,13 @@ ENV;
             ->with(base_path('.env'))
             ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('put')
+        $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
                 $encryptedOutput = $content;
 
                 return true;
-            }))
-            ->andReturn(true);
+            }), null);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
@@ -460,17 +457,145 @@ ENV;
             ->shouldReceive('exists')
             ->once()
             ->andReturn(false);
+        $this->filesystem->shouldReceive('delete')
+            ->once()
+            ->with(base_path('.env'))
+            ->andReturnTrue();
 
         $this->artisan('env:encrypt', ['--prune' => true])
             ->expectsQuestion('What encryption key would you like to use?', 'generate')
             ->expectsOutputToContain('.env.encrypted')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env.encrypted'), m::any());
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env.encrypted'), m::any(), null);
 
         $this->filesystem->shouldHaveReceived('delete')
             ->with(base_path('.env'));
+    }
+
+    public function testItFailsWhenPrunedEnvironmentFileRemains(): void
+    {
+        $environmentFile = base_path('.env');
+        $encryptedFile = base_path('.env.encrypted');
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('exists')->with($environmentFile)->twice()->andReturn(true, true);
+        $filesystem->shouldReceive('exists')->with($encryptedFile)->once()->andReturnFalse();
+        $filesystem->shouldReceive('get')->once()->with($environmentFile)->andReturn('APP_NAME=Hypervel');
+        $filesystem->shouldReceive('replace')->once()->with($encryptedFile, m::type('string'), null);
+        $filesystem->shouldReceive('delete')->once()->with($environmentFile)->andReturnFalse();
+        File::swap($filesystem);
+
+        $this->artisan('env:encrypt', [
+            '--prune' => true,
+            '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP',
+        ])
+            ->doesntExpectOutputToContain('Environment successfully encrypted.')
+            ->assertExitCode(1);
+    }
+
+    public function testItAcceptsConcurrentDisappearanceWhenPruning(): void
+    {
+        $environmentFile = base_path('.env');
+        $encryptedFile = base_path('.env.encrypted');
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('exists')->with($environmentFile)->twice()->andReturn(true, false);
+        $filesystem->shouldReceive('exists')->with($encryptedFile)->once()->andReturnFalse();
+        $filesystem->shouldReceive('get')->once()->with($environmentFile)->andReturn('APP_NAME=Hypervel');
+        $filesystem->shouldReceive('replace')->once()->with($encryptedFile, m::type('string'), null);
+        $filesystem->shouldReceive('delete')->once()->with($environmentFile)->andReturnFalse();
+        File::swap($filesystem);
+
+        $this->artisan('env:encrypt', [
+            '--prune' => true,
+            '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP',
+        ])
+            ->expectsOutputToContain('Environment successfully encrypted.')
+            ->assertSuccessful();
+    }
+
+    public function testExistingEncryptedFileSurvivesReplacementFailure(): void
+    {
+        $tempDir = ParallelTesting::tempDir('EnvironmentEncryptCommandTest');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($tempDir);
+        $this->app->useEnvironmentPath($tempDir);
+        $environmentFile = $tempDir . '/.env';
+        $encryptedFile = $environmentFile . '.encrypted';
+        $previousContents = 'previous encrypted contents';
+        $files->put($environmentFile, 'APP_NAME=Hypervel');
+        $files->put($encryptedFile, $previousContents);
+        chmod($encryptedFile, 0640);
+
+        $filesystem = m::mock(Filesystem::class)->makePartial();
+        $filesystem->shouldReceive('replace')
+            ->once()
+            ->with($encryptedFile, m::type('string'), 0640)
+            ->andThrow(new RuntimeException('publication failed'));
+        File::swap($filesystem);
+
+        try {
+            $this->artisan('env:encrypt', [
+                '--force' => true,
+                '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP',
+            ])
+                ->expectsOutputToContain('publication failed')
+                ->doesntExpectOutputToContain('Environment successfully encrypted.')
+                ->assertExitCode(1);
+
+            $this->assertSame($previousContents, $files->get($encryptedFile));
+            $this->assertSame(0640, fileperms($encryptedFile) & 0777);
+        } finally {
+            $files->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testNewEncryptedFileUsesTheNormalUmask(): void
+    {
+        $tempDir = ParallelTesting::tempDir('EnvironmentEncryptCommandTest-new');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($tempDir);
+        $this->app->useEnvironmentPath($tempDir);
+        $environmentFile = $tempDir . '/.env';
+        $encryptedFile = $environmentFile . '.encrypted';
+        $files->put($environmentFile, 'APP_NAME=Hypervel');
+        File::swap($files);
+
+        try {
+            $this->artisan('env:encrypt', [
+                '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP',
+            ])->assertSuccessful();
+
+            $this->assertFileExists($encryptedFile);
+            $this->assertSame(0777 - umask(), fileperms($encryptedFile) & 0777);
+        } finally {
+            $files->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testOverwrittenEncryptedFilePreservesExistingPermissions(): void
+    {
+        $tempDir = ParallelTesting::tempDir('EnvironmentEncryptCommandTest-overwrite');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($tempDir);
+        $this->app->useEnvironmentPath($tempDir);
+        $environmentFile = $tempDir . '/.env';
+        $encryptedFile = $environmentFile . '.encrypted';
+        $files->put($environmentFile, 'APP_NAME=Hypervel');
+        $files->put($encryptedFile, 'previous');
+        chmod($encryptedFile, 0644);
+        File::swap($files);
+
+        try {
+            $this->artisan('env:encrypt', [
+                '--force' => true,
+                '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP',
+            ])->assertSuccessful();
+
+            $this->assertSame(0644, fileperms($encryptedFile) & 0777);
+        } finally {
+            $files->deleteDirectory($tempDir);
+        }
     }
 
     public function testItEncryptsWithInteractivelyGivenKeyAndDisplaysIt(): void

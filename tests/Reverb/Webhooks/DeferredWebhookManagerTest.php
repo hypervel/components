@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Webhooks;
 
+use Hypervel\Coordinator\Timer;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
@@ -11,6 +12,7 @@ use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
+use ReflectionProperty;
 
 class DeferredWebhookManagerTest extends ReverbTestCase
 {
@@ -65,16 +67,14 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
     public function testChannelVacatedSuppressedOnCancel()
     {
-        Queue::fake();
+        $timer = $this->replaceTimer();
+        $timer->shouldReceive('after')->once()->andReturn(11);
+        $timer->shouldReceive('clear')->with(11)->once();
 
         $this->manager->deferChannelVacated($this->testApp, 'test-channel', 0.05, 5000);
 
-        // Cancel before the delay expires
-        $this->manager->cancelChannelVacated('test-app', 'test-channel');
-
-        usleep(80_000);
-
-        Queue::assertNotPushed(WebhookDeliveryJob::class);
+        $this->assertTrue($this->manager->cancelChannelVacated('test-app', 'test-channel'));
+        $this->assertFalse($this->manager->cancelChannelVacated('test-app', 'test-channel'));
     }
 
     public function testChannelVacatedSuppressedWhenReOccupied()
@@ -127,15 +127,14 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
     public function testMemberRemovedSuppressedOnCancel()
     {
-        Queue::fake();
+        $timer = $this->replaceTimer();
+        $timer->shouldReceive('after')->once()->andReturn(12);
+        $timer->shouldReceive('clear')->with(12)->once();
 
         $this->manager->deferMemberRemoved($this->testApp, 'presence-test', 'user-1', 0.05, 5000);
 
-        $this->manager->cancelMemberRemoved('test-app', 'presence-test', 'user-1');
-
-        usleep(80_000);
-
-        Queue::assertNotPushed(WebhookDeliveryJob::class);
+        $this->assertTrue($this->manager->cancelMemberRemoved('test-app', 'presence-test', 'user-1'));
+        $this->assertFalse($this->manager->cancelMemberRemoved('test-app', 'presence-test', 'user-1'));
     }
 
     public function testMemberRemovedSuppressedWhenUserReturned()
@@ -162,7 +161,11 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
     public function testCancelAllClearsAllPendingTimers()
     {
-        Queue::fake();
+        $timer = $this->replaceTimer();
+        $timer->shouldReceive('after')->times(3)->andReturn(1, 2, 3);
+        $timer->shouldReceive('clear')->with(1)->once();
+        $timer->shouldReceive('clear')->with(2)->once();
+        $timer->shouldReceive('clear')->with(3)->once();
 
         $this->manager->deferChannelVacated($this->testApp, 'channel-a', 0.05, 5000);
         $this->manager->deferChannelVacated($this->testApp, 'channel-b', 0.05, 5000);
@@ -170,8 +173,20 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
         $this->manager->cancelAll();
 
-        usleep(80_000);
+        $this->assertFalse($this->manager->cancelChannelVacated('test-app', 'channel-a'));
+        $this->assertFalse($this->manager->cancelChannelVacated('test-app', 'channel-b'));
+        $this->assertFalse($this->manager->cancelMemberRemoved('test-app', 'presence-c', 'user-1'));
+    }
 
-        Queue::assertNotPushed(WebhookDeliveryJob::class);
+    /**
+     * Replace the manager's timer for deterministic cancellation assertions.
+     */
+    protected function replaceTimer(): Timer
+    {
+        $timer = m::mock(Timer::class);
+
+        (new ReflectionProperty($this->manager, 'timer'))->setValue($this->manager, $timer);
+
+        return $timer;
     }
 }

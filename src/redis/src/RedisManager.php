@@ -53,7 +53,11 @@ class RedisManager implements FactoryContract, ConnectionContract
      */
     public function connection(UnitEnum|string|null $name = null): RedisProxy
     {
-        $name = enum_value($name) ?? 'default';
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === '' ? 'default' : $name;
 
         if (isset($this->connections[$name])) {
             return $this->connections[$name];
@@ -87,7 +91,11 @@ class RedisManager implements FactoryContract, ConnectionContract
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
-        $name = enum_value($name) ?? 'default';
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === '' ? 'default' : $name;
 
         unset($this->connections[$name]);
 

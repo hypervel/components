@@ -18,6 +18,10 @@ class AfterEachTestExtension implements Extension
     {
         TestStateRegistrars::forRootInstall()->register();
 
-        $facade->registerSubscriber(new AfterEachTestSubscriber);
+        $cleanup = new AfterEachTestSubscriber;
+
+        $facade->registerSubscriber(new AfterEachTestPreparationStartedSubscriber($cleanup));
+        $facade->registerSubscriber($cleanup);
+        $facade->registerSubscriber(new AfterEachTestExecutionFinishedSubscriber($cleanup));
     }
 }

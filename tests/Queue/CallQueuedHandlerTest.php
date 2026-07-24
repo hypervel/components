@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\Dispatcher as ConcreteBusDispatcher;
 use Hypervel\Bus\Queueable;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -18,14 +20,18 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 use RuntimeException;
+use Swoole\Coroutine\Channel;
+
+use function Hypervel\Coroutine\parallel;
 
 class CallQueuedHandlerTest extends TestCase
 {
-    public function testCommandShouldBeUniqueReturnsTrueForShouldBeUniqueInterface()
+    public function testCommandShouldBeUniqueReturnsTrueForShouldBeUniqueInterface(): void
     {
         $handler = $this->createHandler();
 
@@ -34,7 +40,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUnique', [$command]));
     }
 
-    public function testCommandShouldBeUniqueReturnsTrueForCallQueuedListenerWithShouldBeUnique()
+    public function testCommandShouldBeUniqueReturnsTrueForCallQueuedListenerWithShouldBeUnique(): void
     {
         $handler = $this->createHandler();
 
@@ -44,7 +50,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUnique', [$listener]));
     }
 
-    public function testCommandShouldBeUniqueReturnsFalseForCallQueuedListenerWithoutShouldBeUnique()
+    public function testCommandShouldBeUniqueReturnsFalseForCallQueuedListenerWithoutShouldBeUnique(): void
     {
         $handler = $this->createHandler();
 
@@ -54,7 +60,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertFalse($this->invokeMethod($handler, 'commandShouldBeUnique', [$listener]));
     }
 
-    public function testCommandShouldBeUniqueReturnsFalseForRegularCommand()
+    public function testCommandShouldBeUniqueReturnsFalseForRegularCommand(): void
     {
         $handler = $this->createHandler();
 
@@ -63,7 +69,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertFalse($this->invokeMethod($handler, 'commandShouldBeUnique', [$command]));
     }
 
-    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForInterface()
+    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForInterface(): void
     {
         $handler = $this->createHandler();
 
@@ -72,7 +78,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUniqueUntilProcessing', [$command]));
     }
 
-    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForCallQueuedListener()
+    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForCallQueuedListener(): void
     {
         $handler = $this->createHandler();
 
@@ -82,7 +88,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUniqueUntilProcessing', [$listener]));
     }
 
-    public function testCommandShouldBeUniqueUntilProcessingReturnsFalseForCallQueuedListenerWithout()
+    public function testCommandShouldBeUniqueUntilProcessingReturnsFalseForCallQueuedListenerWithout(): void
     {
         $handler = $this->createHandler();
 
@@ -92,7 +98,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertFalse($this->invokeMethod($handler, 'commandShouldBeUniqueUntilProcessing', [$listener]));
     }
 
-    public function testUniqueJobLockIsReleasedAfterProcessing()
+    public function testUniqueJobLockIsReleasedAfterProcessing(): void
     {
         $lock = m::mock(Lock::class);
         $lock->shouldReceive('forceRelease')->once();
@@ -144,7 +150,7 @@ class CallQueuedHandlerTest extends TestCase
         $handler->call($job, ['command' => $serialized]);
     }
 
-    public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse()
+    public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse(): void
     {
         $container = m::mock(ContainerContract::class);
 
@@ -156,7 +162,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException]);
     }
 
-    public function testHandleModelNotFoundDeletesJobWhenDeleteWhenMissingModelsIsTrue()
+    public function testHandleModelNotFoundDeletesJobWhenDeleteWhenMissingModelsIsTrue(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('bound')->with(BatchRepository::class)->andReturn(false);
@@ -171,7 +177,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException]);
     }
 
-    public function testEnsureUniqueJobLockIsReleasedViaContextDoesNothingWithoutContext()
+    public function testEnsureUniqueJobLockIsReleasedViaContextDoesNothingWithoutContext(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('bound')->never();
@@ -182,7 +188,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->invokeMethod($handler, 'ensureUniqueJobLockIsReleasedViaContext', []);
     }
 
-    public function testFailedMethodSetsJobInstanceWhenProvided()
+    public function testFailedMethodSetsJobInstanceWhenProvided(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')->with(Cache::class)->andReturn(m::mock(Cache::class));
@@ -261,7 +267,7 @@ class CallQueuedHandlerTest extends TestCase
     public function testRunningCommandStaysNullForDebouncedJobs(): void
     {
         $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')->twice()->andReturn('new-owner');
+        $cache->shouldReceive('get')->once()->andReturn('new-owner');
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')->with(Cache::class)->andReturn($cache);
@@ -275,6 +281,87 @@ class CallQueuedHandlerTest extends TestCase
         $handler->call($job, ['command' => serialize(new CallQueuedHandlerTestDebouncedJob)]);
 
         $this->assertNull($handler->getRunningCommand());
+    }
+
+    public function testNextChainJobIsDispatchedBeforeCurrentJobIsDeleted(): void
+    {
+        CallQueuedHandlerTestChainJob::$order = [];
+
+        try {
+            $dispatcher = m::mock(BusDispatcher::class);
+            $dispatcher->shouldReceive('getCommandHandler')->andReturn(null);
+            $dispatcher->shouldReceive('dispatchNow')->once()->andReturnUsing(function (): void {
+                CallQueuedHandlerTestChainJob::$order[] = 'handle';
+            });
+
+            $job = m::mock(Job::class);
+            $job->shouldReceive('isReleased')->andReturn(false);
+            $job->shouldReceive('hasFailed')->andReturn(false);
+            $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
+            $job->shouldReceive('delete')->once()->andReturnUsing(function (): void {
+                CallQueuedHandlerTestChainJob::$order[] = 'delete';
+            });
+
+            (new CallQueuedHandler(
+                $dispatcher,
+                m::mock(ContainerContract::class),
+            ))->call($job, ['command' => serialize(new CallQueuedHandlerTestChainJob)]);
+
+            $this->assertSame(['handle', 'chain', 'delete'], CallQueuedHandlerTestChainJob::$order);
+        } finally {
+            CallQueuedHandlerTestChainJob::$order = [];
+        }
+    }
+
+    public function testConcurrentMappedHandlersReceiveTheirOwnJobInstance(): void
+    {
+        $container = new Container;
+        $dispatcher = new ConcreteBusDispatcher($container);
+        $dispatcher->map([
+            CallQueuedHandlerTestMappedCommand::class => CallQueuedHandlerTestMappedHandler::class,
+        ]);
+        $handler = new CallQueuedHandler($dispatcher, $container);
+
+        $firstReady = new Channel(1);
+        $secondReady = new Channel(1);
+        $firstJob = new FakeJob;
+        $secondJob = new FakeJob;
+
+        [$firstResolved, $secondResolved] = parallel([
+            function () use ($handler, $firstJob, $firstReady, $secondReady) {
+                $resolved = $this->invokeMethod(
+                    $handler,
+                    'resolveHandler',
+                    [$firstJob, new CallQueuedHandlerTestMappedCommand]
+                );
+
+                $firstReady->push(true);
+
+                if ($secondReady->pop(1.0) !== true) {
+                    throw new RuntimeException('Timed out waiting for the second mapped handler.');
+                }
+
+                return $resolved;
+            },
+            function () use ($handler, $secondJob, $firstReady, $secondReady) {
+                if ($firstReady->pop(1.0) !== true) {
+                    throw new RuntimeException('Timed out waiting for the first mapped handler.');
+                }
+
+                $resolved = $this->invokeMethod(
+                    $handler,
+                    'resolveHandler',
+                    [$secondJob, new CallQueuedHandlerTestMappedCommand]
+                );
+                $secondReady->push(true);
+
+                return $resolved;
+            },
+        ]);
+
+        $this->assertNotSame($firstResolved, $secondResolved);
+        $this->assertSame($firstJob, $firstResolved->job);
+        $this->assertSame($secondJob, $secondResolved->job);
     }
 
     private function createHandler(): CallQueuedHandler
@@ -321,6 +408,26 @@ class CallQueuedHandlerTestRegularJob implements ShouldQueue
     public function handle(): void
     {
     }
+}
+
+class CallQueuedHandlerTestMappedCommand
+{
+}
+
+class CallQueuedHandlerTestChainJob
+{
+    /** @var list<string> */
+    public static array $order = [];
+
+    public function dispatchNextJobInChain(): void
+    {
+        self::$order[] = 'chain';
+    }
+}
+
+class CallQueuedHandlerTestMappedHandler
+{
+    use InteractsWithQueue;
 }
 
 class CallQueuedHandlerTestRunningCommandJob implements ShouldQueue

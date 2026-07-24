@@ -73,6 +73,28 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
         $this->bootstrap();
     }
 
+    // Composer can preload an older, untyped Symfony Console application before
+    // running Hypervel scripts. Keep these contract methods declared locally so
+    // their return types do not depend on the Symfony version already loaded.
+
+    /**
+     * Get all commands registered with the application.
+     */
+    #[Override]
+    public function all(?string $namespace = null): array
+    {
+        return parent::all($namespace);
+    }
+
+    /**
+     * Run the console application.
+     */
+    #[Override]
+    public function run(?InputInterface $input = null, ?OutputInterface $output = null): int
+    {
+        return parent::run($input, $output);
+    }
+
     /**
      * Determine the proper PHP executable.
      */
@@ -447,15 +469,15 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Resolve an array of commands through the application.
      *
-     * @param array|mixed $commands
+     * @param array<string|SymfonyCommand>|string|SymfonyCommand ...$commands
      * @return $this
      */
-    public function resolveCommands($commands): static
+    public function resolveCommands(array|SymfonyCommand|string ...$commands): static
     {
-        $commands = is_array($commands) ? $commands : func_get_args();
-
         foreach ($commands as $command) {
-            $this->resolve($command);
+            foreach (is_array($command) ? $command : [$command] as $resolvable) {
+                $this->resolve($resolvable);
+            }
         }
 
         return $this;

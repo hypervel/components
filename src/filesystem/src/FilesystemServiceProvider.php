@@ -68,7 +68,7 @@ class FilesystemServiceProvider extends ServiceProvider
 
         $served = [];
 
-        foreach ($this->app->make('config')->array('filesystems.disks', []) as $disk => $config) {
+        foreach ($this->app->make('config')->array('filesystems.disks') as $disk => $config) {
             if (! $this->shouldServeFiles($config)) {
                 continue;
             }

@@ -7,6 +7,7 @@ namespace Hypervel\Foundation;
 use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Foundation\MaintenanceMode;
+use RuntimeException;
 
 class CacheBasedMaintenanceMode implements MaintenanceMode
 {
@@ -25,7 +26,9 @@ class CacheBasedMaintenanceMode implements MaintenanceMode
      */
     public function activate(array $payload): void
     {
-        $this->getStore()->put($this->key, $payload);
+        if (! $this->getStore()->put($this->key, $payload)) {
+            throw new RuntimeException("Unable to activate maintenance mode using cache key [{$this->key}].");
+        }
     }
 
     /**
@@ -33,7 +36,9 @@ class CacheBasedMaintenanceMode implements MaintenanceMode
      */
     public function deactivate(): void
     {
-        $this->getStore()->forget($this->key);
+        if (! $this->getStore()->forget($this->key)) {
+            throw new RuntimeException("Unable to deactivate maintenance mode using cache key [{$this->key}].");
+        }
     }
 
     /**

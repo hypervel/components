@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class QueueRoutesTest extends TestCase
 {
-    public function testSet()
+    public function testSet(): void
     {
         $defaults = new QueueRoutes;
 
@@ -38,7 +38,7 @@ class QueueRoutesTest extends TestCase
         );
     }
 
-    public function testGetQueue()
+    public function testGetQueue(): void
     {
         $defaults = new QueueRoutes;
 
@@ -56,7 +56,7 @@ class QueueRoutesTest extends TestCase
         $this->assertNull($defaults->getQueue(new Payment));
     }
 
-    public function testGetConnection()
+    public function testGetConnection(): void
     {
         $defaults = new QueueRoutes;
 
@@ -71,6 +71,24 @@ class QueueRoutesTest extends TestCase
         $this->assertSame('notification-connection', $defaults->getConnection(new FinanceNotification));
         $this->assertSame('job-connection', $defaults->getConnection(new SomeJob));
         $this->assertNull($defaults->getConnection(new Payment));
+    }
+
+    public function testEnumRoutesAreNormalizedAndScalarRoutesRemainQueueOnly(): void
+    {
+        $defaults = new QueueRoutes;
+
+        $defaults->set([
+            SomeJob::class => QueueRouteIntegerIdentifier::Zero,
+            BaseNotification::class => [
+                QueueRouteUnitIdentifier::Connection,
+                QueueRouteIntegerIdentifier::Queue,
+            ],
+        ]);
+
+        $this->assertSame('0', $defaults->getQueue(new SomeJob));
+        $this->assertNull($defaults->getConnection(new SomeJob));
+        $this->assertSame('Connection', $defaults->getConnection(new FinanceNotification));
+        $this->assertSame('1', $defaults->getQueue(new FinanceNotification));
     }
 }
 
@@ -99,4 +117,15 @@ interface PaymentContract
 
 class Payment implements PaymentContract
 {
+}
+
+enum QueueRouteUnitIdentifier
+{
+    case Connection;
+}
+
+enum QueueRouteIntegerIdentifier: int
+{
+    case Zero = 0;
+    case Queue = 1;
 }

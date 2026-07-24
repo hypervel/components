@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console;
 
-use Exception;
 use Hypervel\Console\Command;
+use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeDisabled;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Throwable;
 
 #[AsCommand(name: 'up')]
 class UpCommand extends Command
 {
+    use ReloadsWorkers;
+
     /**
      * The console command name.
      */
@@ -27,6 +30,8 @@ class UpCommand extends Command
      */
     public function handle(): int
     {
+        $stateCommitted = false;
+
         try {
             if (! $this->hypervel->maintenanceMode()->active()) {
                 $this->components->info('Application is already up.');
@@ -35,15 +40,37 @@ class UpCommand extends Command
             }
 
             $this->hypervel->maintenanceMode()->deactivate();
+            $stateCommitted = true;
 
-            $this->hypervel->make('events')->dispatch(new MaintenanceModeDisabled);
+            $exception = null;
 
-            $this->reloadWorkers();
+            try {
+                $this->hypervel->make('events')->dispatch(new MaintenanceModeDisabled);
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+
+            try {
+                $this->reloadWorkers();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
 
             $this->components->info('Application is now live.');
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
+            try {
+                report($e);
+            } catch (Throwable) {
+            }
+
             $this->components->error(sprintf(
-                'Failed to disable maintenance mode: %s.',
+                $stateCommitted
+                    ? 'The application is live, but a follow-up operation failed: %s.'
+                    : 'Failed to disable maintenance mode: %s.',
                 $e->getMessage(),
             ));
 
@@ -51,23 +78,5 @@ class UpCommand extends Command
         }
 
         return 0;
-    }
-
-    /**
-     * Attempt a best-effort worker reload via SIGUSR1.
-     */
-    protected function reloadWorkers(): void
-    {
-        $pidFile = $this->hypervel->make('config')->string('server.settings.pid_file', '');
-
-        if (empty($pidFile) || ! is_file($pidFile)) {
-            return;
-        }
-
-        $pid = (int) file_get_contents($pidFile);
-
-        if ($pid > 0 && posix_kill($pid, 0)) {
-            posix_kill($pid, SIGUSR1);
-        }
     }
 }

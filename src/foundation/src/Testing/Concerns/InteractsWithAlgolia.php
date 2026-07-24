@@ -7,29 +7,15 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
+use Algolia\AlgoliaSearch\Http\HttpClientInterface;
 use GuzzleHttp\Client as GuzzleClient;
 use Throwable;
 
 /**
- * Provides Algolia integration testing support.
+ * Add Algolia support to an integration test.
  *
- * Auto-called by TestCase via setUpTraits():
- * - setUpInteractsWithAlgolia() runs after app boots
- * - tearDownInteractsWithAlgolia() runs via beforeApplicationDestroyed()
- *
- * Features:
- * - Opt-in skip: Skips unless ALGOLIA_APP_ID and ALGOLIA_SECRET are set
- * - Explicit-fail: If credentials are set but the probe fails, exceptions
- *   propagate so misconfigured credentials are never hidden
- * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
- * - Auto-cleanup: Removes test indexes in teardown
- *
- * Usage: Add `use InteractsWithAlgolia;` to your test case.
- *
- * Environment Variables:
- * - ALGOLIA_APP_ID: Application ID (required)
- * - ALGOLIA_SECRET: Admin API key (required)
- * - TEST_TOKEN: Parallel test token from paratest (auto-set)
+ * Use this trait on a test case and set ALGOLIA_APP_ID and ALGOLIA_SECRET.
+ * Test indexes are isolated and cleaned up using a TEST_TOKEN-based prefix.
  */
 trait InteractsWithAlgolia
 {
@@ -42,6 +28,11 @@ trait InteractsWithAlgolia
      * The Algolia client instance.
      */
     protected ?AlgoliaSearchClient $algolia = null;
+
+    /**
+     * The HTTP client installed before this test.
+     */
+    protected ?HttpClientInterface $previousAlgoliaHttpClient = null;
 
     /**
      * Set up Algolia for testing (auto-called by setUpTraits).
@@ -61,12 +52,26 @@ trait InteractsWithAlgolia
             );
         }
 
+        if ($this->algoliaTestPrefix === '') {
+            $this->computeAlgoliaTestPrefix();
+        }
+
         // Credentials are explicit. Any failure from here on is a real
         // misconfiguration — let it propagate so the test fails loudly.
-        Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient));
-        $this->algolia = AlgoliaSearchClient::create($appId, $secret);
-        $this->algolia->listIndices();
-        $this->cleanupAlgoliaIndices();
+        $this->previousAlgoliaHttpClient = Algolia::getHttpClient();
+
+        try {
+            Algolia::setHttpClient($this->createAlgoliaHttpClient());
+            $this->algolia = AlgoliaSearchClient::create($appId, $secret);
+            $this->algolia->listIndices();
+            $this->cleanupAlgoliaIndices();
+        } catch (Throwable $throwable) {
+            Algolia::setHttpClient($this->previousAlgoliaHttpClient);
+            $this->previousAlgoliaHttpClient = null;
+            $this->algolia = null;
+
+            throw $throwable;
+        }
     }
 
     /**
@@ -74,17 +79,26 @@ trait InteractsWithAlgolia
      */
     protected function tearDownInteractsWithAlgolia(): void
     {
-        if ($this->algolia === null) {
-            return;
-        }
-
         try {
-            $this->cleanupAlgoliaIndices();
-        } catch (Throwable) {
-            // Ignore cleanup errors
-        }
+            if ($this->algolia !== null) {
+                $this->cleanupAlgoliaIndices();
+            }
+        } finally {
+            $this->algolia = null;
 
-        $this->algolia = null;
+            if ($this->previousAlgoliaHttpClient !== null) {
+                Algolia::setHttpClient($this->previousAlgoliaHttpClient);
+                $this->previousAlgoliaHttpClient = null;
+            }
+        }
+    }
+
+    /**
+     * Create the Algolia HTTP client.
+     */
+    protected function createAlgoliaHttpClient(): HttpClientInterface
+    {
+        return new GuzzleHttpClient(new GuzzleClient);
     }
 
     /**

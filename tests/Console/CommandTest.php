@@ -10,9 +10,12 @@ use Hypervel\Console\Attributes\Hidden;
 use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Attributes\Usage;
 use Hypervel\Console\Command;
+use Hypervel\Console\CommandInput;
 use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\OutputStyle;
+use Hypervel\Console\SignalRegistry;
 use Hypervel\Console\View\Components\Factory;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Commands\DefaultSwooleFlagsCommand;
@@ -25,6 +28,7 @@ use Hypervel\Tests\Console\Commands\SwooleFlagsCommand;
 use Hypervel\Tests\Console\Commands\Traits\Foo;
 use Mockery as m;
 use RuntimeException;
+use stdClass;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
@@ -32,6 +36,11 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Question\ChoiceQuestion;
+
+enum CommandInputType: string
+{
+    case Foo = 'foo';
+}
 
 class CommandTest extends TestCase
 {
@@ -102,6 +111,24 @@ class CommandTest extends TestCase
         $command->setOutput($output);
         $this->assertArrayHasKey(Foo::class, (fn () => $this->setUpTraits($input, $output))->call($command));
         $this->assertSame('foo', (fn () => $this->propertyFoo)->call($command));
+    }
+
+    public function testSignalHandlersAreRemovedWhenTraitSetupFails(): void
+    {
+        $registry = m::mock(SignalRegistry::class);
+        $registry->shouldReceive('register')->once()->with(SIGTERM, m::type('callable'));
+        $registry->shouldReceive('unregister')->once()->with(null);
+
+        $command = new CommandTestFailingTraitSetupCommand;
+        $command->setHypervel($this->app);
+        $command->setSignalRegistryForTest($registry);
+
+        try {
+            $command->run(new ArrayInput([]), new NullOutput);
+            $this->fail('The setup exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('trait setup failed', $exception->getMessage());
+        }
     }
 
     public function testExceptionPropagatesFromExecuteInCoroutine()
@@ -277,15 +304,104 @@ class CommandTest extends TestCase
         $this->assertSame('third-option-default', $command->option('option-three'));
     }
 
+    public function testGettingCommandInputAsFluentData(): void
+    {
+        $command = new class extends Command {
+            public function handle(): void
+            {
+            }
+
+            protected function getArguments(): array
+            {
+                return [
+                    ['type', InputArgument::OPTIONAL, 'a backed enum argument'],
+                    ['when', InputArgument::OPTIONAL, 'a date argument'],
+                    ['role', InputArgument::OPTIONAL, 'a colliding argument'],
+                ];
+            }
+
+            protected function getOptions(): array
+            {
+                return [
+                    ['limit', null, InputOption::VALUE_OPTIONAL, 'an integer option'],
+                    ['role', null, InputOption::VALUE_OPTIONAL, 'a colliding option'],
+                ];
+            }
+        };
+
+        $command->setHypervel($this->app);
+
+        $command->run(new ArrayInput([
+            'type' => 'foo',
+            'when' => '2026-06-26',
+            'role' => 'admin',
+            '--limit' => '5',
+            '--role' => 'user',
+        ]), new NullOutput);
+
+        $commandInput = $command->input();
+
+        $this->assertInstanceOf(CommandInput::class, $commandInput);
+        $this->assertSame(CommandInputType::Foo, $commandInput->enum('type', CommandInputType::class));
+        $this->assertInstanceOf(CarbonImmutable::class, $commandInput->date('when'));
+        $this->assertSame('2026-06-26', $commandInput->date('when')->format('Y-m-d'));
+        $this->assertSame(5, $commandInput->integer('limit'));
+        $this->assertSame('admin', $commandInput->all()['role']);
+        $this->assertSame('admin', $command->input('role'));
+        $this->assertSame('fallback', $command->input('missing', 'fallback'));
+        $this->assertSame('admin', (string) $commandInput->string('role'));
+        $this->assertSame('admin', $commandInput->arguments()['role']);
+        $this->assertSame('user', $commandInput->options()['role']);
+    }
+
+    public function testArgumentAndOptionGettersPreserveObjectValuesAndAggregateArrays(): void
+    {
+        $argumentDefault = new stdClass;
+        $optionDefault = new stdClass;
+
+        $command = new class($argumentDefault, $optionDefault) extends Command {
+            public function __construct(
+                protected object $argumentDefault,
+                protected object $optionDefault,
+            ) {
+                parent::__construct();
+            }
+
+            public function handle(): void
+            {
+            }
+
+            protected function getArguments(): array
+            {
+                return [new InputArgument('payload', InputArgument::OPTIONAL, default: $this->argumentDefault)];
+            }
+
+            protected function getOptions(): array
+            {
+                return [new InputOption('context', null, InputOption::VALUE_OPTIONAL, default: $this->optionDefault)];
+            }
+        };
+
+        $command->setHypervel($this->app);
+        $command->run(new ArrayInput([]), new NullOutput);
+
+        $this->assertSame($argumentDefault, $command->argument('payload'));
+        $this->assertSame($optionDefault, $command->option('context'));
+        $this->assertSame($argumentDefault, $command->arguments()['payload']);
+        $this->assertSame($optionDefault, $command->options()['context']);
+    }
+
     public function testTheInputSetterOverwrite()
     {
         $input = m::mock(InputInterface::class);
         $input->shouldReceive('hasArgument')->once()->with('foo')->andReturn(false);
+        $input->shouldReceive('hasArgument')->once()->with('0')->andReturn(true);
 
         $command = new CommandTestStubCommand;
         $command->setInput($input);
 
         $this->assertFalse($command->hasArgument('foo'));
+        $this->assertTrue($command->hasArgument(0));
     }
 
     public function testTheOutputSetterOverwrite()
@@ -499,5 +615,34 @@ class CommandTestUsageCommand extends Command
 {
     public function handle(): void
     {
+    }
+}
+
+trait CommandTestRegistersSignalDuringSetup
+{
+    protected function setUpCommandTestRegistersSignalDuringSetup(): void
+    {
+        $this->trap(SIGTERM, static fn (): null => null);
+    }
+}
+
+trait CommandTestThrowsDuringSetup
+{
+    protected function setUpCommandTestThrowsDuringSetup(): void
+    {
+        throw new RuntimeException('trait setup failed');
+    }
+}
+
+class CommandTestFailingTraitSetupCommand extends Command
+{
+    use CommandTestRegistersSignalDuringSetup;
+    use CommandTestThrowsDuringSetup;
+
+    protected ?string $name = 'test:trait-setup-failure';
+
+    public function setSignalRegistryForTest(SignalRegistry $signalRegistry): void
+    {
+        $this->signalRegistry = $signalRegistry;
     }
 }

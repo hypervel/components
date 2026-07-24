@@ -17,7 +17,7 @@ interface Kernel
     /**
      * Handle an incoming console command.
      */
-    public function handle(InputInterface $input, ?OutputInterface $output = null): mixed;
+    public function handle(InputInterface $input, ?OutputInterface $output = null): int;
 
     /**
      * Bootstrap the application for artisan commands.
@@ -80,7 +80,7 @@ interface Kernel
      *
      * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
      */
-    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null);
+    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int;
 
     /**
      * Queue the given console command.

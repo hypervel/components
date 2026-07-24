@@ -21,7 +21,7 @@ use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
 use Hypervel\Support\InteractsWithTime;
@@ -33,6 +33,8 @@ use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Finder\Finder;
@@ -83,7 +85,7 @@ class Kernel implements KernelContract
     /**
      * When the currently handled command started.
      */
-    protected ?Carbon $commandStartedAt = null;
+    protected ?CarbonImmutable $commandStartedAt = null;
 
     /**
      * The console application bootstrappers.
@@ -149,9 +151,10 @@ class Kernel implements KernelContract
     /**
      * Run the console application.
      */
-    public function handle(InputInterface $input, ?OutputInterface $output = null): mixed
+    public function handle(InputInterface $input, ?OutputInterface $output = null): int
     {
-        $this->commandStartedAt = Carbon::now();
+        $this->commandStartedAt = CarbonImmutable::now();
+        $output ??= new ConsoleOutput;
 
         try {
             if (in_array($input->getFirstArgument(), ['env:encrypt', 'env:decrypt'], true)) {
@@ -175,27 +178,47 @@ class Kernel implements KernelContract
      */
     public function terminate(InputInterface $input, int $status): void
     {
-        $this->events->dispatch(new Terminating);
+        $exception = null;
 
-        $this->app->terminate();
-
-        if ($this->commandStartedAt === null) {
-            return;
+        try {
+            $this->events->dispatch(new Terminating);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         }
 
-        $this->commandStartedAt->setTimezone(
-            $this->app['config']->get('app.timezone') ?? 'UTC'
-        );
+        try {
+            $this->app->terminate();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
 
-        foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
-            $end ??= Carbon::now();
+        if ($this->commandStartedAt !== null) {
+            try {
+                $this->commandStartedAt = $this->commandStartedAt->setTimezone(
+                    $this->app->make('config')->string('app.timezone')
+                );
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
 
-            if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
-                $handler($this->commandStartedAt, $input, $status);
+            foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
+                try {
+                    $end ??= CarbonImmutable::now();
+
+                    if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
+                        $handler($this->commandStartedAt, $input, $status);
+                    }
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
             }
         }
 
         $this->commandStartedAt = null;
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -220,7 +243,7 @@ class Kernel implements KernelContract
     /**
      * When the command being handled started.
      */
-    public function commandStartedAt(): ?Carbon
+    public function commandStartedAt(): ?CarbonImmutable
     {
         return $this->commandStartedAt;
     }
@@ -352,7 +375,7 @@ class Kernel implements KernelContract
      */
     public function registerCommand(SymfonyCommand $command): void
     {
-        $this->getArtisan()->add($command); // @phpstan-ignore argument.type (interface narrower than parent)
+        $this->getArtisan()->add($command);
     }
 
     /**
@@ -360,7 +383,7 @@ class Kernel implements KernelContract
      *
      * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
      */
-    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null)
+    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {
         if (in_array($command, ['env:encrypt', 'env:decrypt'], true)) {
             $this->bootstrapWithoutBootingProviders();
@@ -543,6 +566,10 @@ class Kernel implements KernelContract
      */
     protected function renderException(OutputInterface $output, Throwable $e): void
     {
+        if ($output instanceof ConsoleOutputInterface) {
+            $output = $output->getErrorOutput();
+        }
+
         $this->app[ExceptionHandler::class]->renderForConsole($output, $e);
     }
 

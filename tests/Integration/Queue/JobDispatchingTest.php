@@ -11,13 +11,16 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Queue;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
+use RuntimeException;
 
 #[WithMigration]
 #[WithMigration('queue')]
@@ -33,7 +36,7 @@ class JobDispatchingTest extends QueueTestCase
         parent::setUp();
     }
 
-    public function testJobCanUseCustomMethodsAfterDispatch()
+    public function testJobCanUseCustomMethodsAfterDispatch(): void
     {
         Job::dispatch('test')->replaceValue('new-test');
 
@@ -43,7 +46,7 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertSame('new-test', Job::$value);
     }
 
-    public function testDispatchesConditionallyWithBoolean()
+    public function testDispatchesConditionallyWithBoolean(): void
     {
         Job::dispatchIf(false, 'test')->replaceValue('new-test');
 
@@ -60,7 +63,7 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertSame('new-test', Job::$value);
     }
 
-    public function testDispatchesConditionallyWithClosure()
+    public function testDispatchesConditionallyWithClosure(): void
     {
         Job::dispatchIf(fn ($job) => $job instanceof Job ? 0 : 1, 'test')->replaceValue('new-test');
 
@@ -75,7 +78,7 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertTrue(Job::$ran);
     }
 
-    public function testDoesNotDispatchConditionallyWithBoolean()
+    public function testDoesNotDispatchConditionallyWithBoolean(): void
     {
         Job::dispatchUnless(true, 'test')->replaceValue('new-test');
 
@@ -92,7 +95,7 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertSame('new-test', Job::$value);
     }
 
-    public function testDoesNotDispatchConditionallyWithClosure()
+    public function testDoesNotDispatchConditionallyWithClosure(): void
     {
         Job::dispatchUnless(fn ($job) => $job instanceof Job ? 1 : 0, 'test')->replaceValue('new-test');
 
@@ -107,7 +110,7 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertTrue(Job::$ran);
     }
 
-    public function testUniqueJobLockIsReleasedForJobDispatchedAfterResponse()
+    public function testUniqueJobLockIsReleasedForJobDispatchedAfterResponse(): void
     {
         // Use worker-array because unique locks must be visible across the after-response child coroutine.
         Config::set('cache.default', 'worker-array');
@@ -147,7 +150,80 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertFalse(UniqueJob::$ran);
     }
 
-    public function testQueueMayBeNullForJobQueueingAndJobQueuedEvent()
+    public function testUniqueJobMetadataIsIncludedWhenPayloadIsCreatedAfterResponse(): void
+    {
+        Config::set('cache.default', 'worker-array');
+
+        $payload = null;
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $currentPayload) use (&$payload): array {
+            if (($currentPayload['data']['commandName'] ?? null) instanceof UniqueJob) {
+                $payload = $currentPayload;
+            }
+
+            return [];
+        });
+
+        $this->dispatchAfterResponseInChildCoroutine(function (): void {
+            UniqueJob::dispatchAfterResponse('after-response-metadata');
+        });
+
+        $this->assertSame(
+            'worker-array',
+            unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_cache_store'])
+        );
+        $this->assertSame(
+            'laravel_unique_job:' . UniqueJob::class . ':after-response-metadata',
+            unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_key'])
+        );
+    }
+
+    public function testPayloadHookFailureDoesNotLeakUniqueMetadataIntoTheNextPayload(): void
+    {
+        Config::set('cache.default', 'worker-array');
+        ContextRepository::getInstance()->addHidden('persistent', 'value');
+
+        $throw = true;
+        $ordinaryPayload = null;
+
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload) use (&$ordinaryPayload, &$throw): array {
+            if (($payload['data']['commandName'] ?? null) instanceof UniqueJob && $throw) {
+                throw new RuntimeException('Payload hook failed.');
+            }
+
+            if (($payload['data']['commandName'] ?? null) instanceof Job) {
+                $ordinaryPayload = $payload;
+            }
+
+            return [];
+        });
+
+        try {
+            UniqueJob::dispatch('payload-failure');
+            $this->fail('The payload hook should have failed.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Payload hook failed.', $exception->getMessage());
+        }
+
+        $this->assertSame(['persistent' => 'value'], ContextRepository::getInstance()->allHidden());
+
+        $throw = false;
+        Job::dispatch('ordinary');
+
+        $this->assertArrayNotHasKey(
+            'laravel_unique_job_cache_store',
+            $ordinaryPayload['illuminate:log:context']['hidden']
+        );
+        $this->assertArrayNotHasKey(
+            'laravel_unique_job_key',
+            $ordinaryPayload['illuminate:log:context']['hidden']
+        );
+        $this->assertSame(
+            'value',
+            unserialize($ordinaryPayload['illuminate:log:context']['hidden']['persistent'])
+        );
+    }
+
+    public function testQueueMayBeNullForJobQueueingAndJobQueuedEvent(): void
     {
         Config::set('queue.default', 'database');
         $events = [];
@@ -173,7 +249,7 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertNull($events[3]->queue);
     }
 
-    public function testQueuedClosureCanBeNamed()
+    public function testQueuedClosureCanBeNamed(): void
     {
         Config::set('queue.default', 'database');
         $events = [];
@@ -190,7 +266,7 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertStringContainsString('custom name', $events[0]->job->displayName());
     }
 
-    public function testCanDisableDispatchingAfterResponse()
+    public function testCanDisableDispatchingAfterResponse(): void
     {
         $ranBeforeCoroutineExit = false;
 

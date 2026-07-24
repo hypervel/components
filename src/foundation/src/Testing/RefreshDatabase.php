@@ -8,7 +8,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 
 trait RefreshDatabase
@@ -40,7 +39,7 @@ trait RefreshDatabase
 
         // For coroutine tests, these run in setUpRefreshDatabaseInCoroutine()
         // to maintain correct ordering: transaction → afterRefreshing → test
-        if (! in_array(RunTestsInCoroutine::class, class_uses_recursive(static::class), true)) {
+        if (! $this->runsTestsInCoroutine()) {
             $this->afterRefreshingDatabase();
             $this->refreshModelBootedStates();
         }
@@ -89,27 +88,29 @@ trait RefreshDatabase
      */
     protected function refreshTestDatabase(): void
     {
-        $shouldMockOutput = true;
-        if ($hasMockConsoleOutput = property_exists($this, 'mockConsoleOutput')) {
-            $shouldMockOutput = $this->mockConsoleOutput;
+        $hasMockConsoleOutput = property_exists($this, 'mockConsoleOutput');
+        $shouldMockOutput = $hasMockConsoleOutput ? $this->mockConsoleOutput : null;
 
-            $this->mockConsoleOutput = false;
-        }
+        try {
+            if ($hasMockConsoleOutput) {
+                $this->mockConsoleOutput = false;
+            }
 
-        $migrateRefresh = property_exists($this, 'migrateRefresh') && (bool) $this->migrateRefresh;
-        if ($migrateRefresh || ! RefreshDatabaseState::$migrated) {
-            $this->command('migrate:fresh', $this->migrateFreshUsing());
-            if ($migrateRefresh) {
-                $this->migrateRefresh = false;
+            $migrateRefresh = property_exists($this, 'migrateRefresh') && (bool) $this->migrateRefresh;
+            if ($migrateRefresh || ! RefreshDatabaseState::$migrated) {
+                $this->command('migrate:fresh', $this->migrateFreshUsing());
+                if ($migrateRefresh) {
+                    $this->migrateRefresh = false;
+                }
+            }
+        } finally {
+            if ($hasMockConsoleOutput) {
+                $this->mockConsoleOutput = $shouldMockOutput;
             }
         }
 
-        if ($hasMockConsoleOutput) {
-            $this->mockConsoleOutput = $shouldMockOutput;
-        }
-
         // For coroutine tests, transaction handling happens in setUpRefreshDatabaseInCoroutine()
-        if (! in_array(RunTestsInCoroutine::class, class_uses_recursive(static::class), true)) {
+        if (! $this->runsTestsInCoroutine()) {
             $this->beginDatabaseTransactionWork();
 
             $this->beforeApplicationDestroyed(function () {
@@ -219,20 +220,6 @@ trait RefreshDatabase
     }
 
     /**
-     * Run the given callback without firing any model events.
-     */
-    protected function withoutModelEvents(callable $callback, ?string $connection = null): void
-    {
-        $connection = $this->app->make('db')
-            ->connection($connection);
-        $dispatcher = $connection->getEventDispatcher();
-
-        $callback();
-
-        $connection->setEventDispatcher($dispatcher);
-    }
-
-    /**
      * The database connections that should have transactions.
      */
     protected function connectionsToTransact(): array
@@ -260,7 +247,7 @@ trait RefreshDatabase
     protected function getRefreshConnection(): string
     {
         return $this->app
-            ->get('config')
-            ->get('database.default');
+            ->make('config')
+            ->string('database.default');
     }
 }

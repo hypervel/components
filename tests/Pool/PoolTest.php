@@ -10,10 +10,13 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Pool\Channel as PoolChannel;
+use Hypervel\Pool\ClearableFrequencyInterface;
 use Hypervel\Pool\LowFrequencyInterface;
 use Hypervel\Pool\Pool;
+use Hypervel\Tests\Pool\Fixtures\ConstantFrequencyStub;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -31,7 +34,7 @@ class PoolTest extends TestCase
         $this->createPool(['max_conections' => 10]);
     }
 
-    public function testFlushClosesIdleConnectionsDownToMinimum(): void
+    public function testFlushClosesIdleConnectionsUntilManagedCountReachesMinimum(): void
     {
         $connections = [];
         $pool = $this->createPool(
@@ -76,6 +79,49 @@ class PoolTest extends TestCase
         $this->assertSame(0, $pool->getConnectionsInChannel());
         $this->assertSame(0, $pool->getCurrentConnections());
         $this->assertSame(2, array_sum(array_column($connections, 'closeCount')));
+    }
+
+    public function testCloseClearsConstantFrequencyTimer(): void
+    {
+        $pool = new ConstantFrequencyPool($this->createContainer(), 'test');
+        $pool->useFrequency(new ConstantFrequencyStub($pool));
+
+        try {
+            Coroutine::sleep(0.005);
+            $this->assertGreaterThan(0, $pool->idleConnectionChecks);
+
+            $pool->close();
+            $idleConnectionChecks = $pool->idleConnectionChecks;
+            Coroutine::sleep(0.005);
+
+            $this->assertSame(0, Timer::stats()['num']);
+            $this->assertSame($idleConnectionChecks, $pool->idleConnectionChecks);
+        } finally {
+            $pool->close();
+        }
+    }
+
+    public function testCloseContinuesAfterFrequencyCleanupFails(): void
+    {
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('error')
+            ->once()
+            ->with(m::on(static fn (string $message): bool => str_contains($message, 'frequency cleanup failed')));
+        $container = $this->createContainer();
+        $container->instance(StdoutLoggerInterface::class, $logger);
+        $pool = new CallbackPool($container, 'test');
+        $channel = new InspectablePoolChannel(1);
+        $pool->replaceChannel($channel);
+        $connection = $pool->get();
+        $pool->release($connection);
+        $pool->useFrequency(new ThrowingClearableFrequency);
+
+        $pool->close();
+
+        $this->assertTrue($channel->isClosedForTest());
+        $this->assertSame(1, $connection->closeCount);
+        $this->assertSame(0, $pool->getConnectionsInChannel());
+        $this->assertSame(0, $pool->getCurrentConnections());
     }
 
     public function testBorrowFromClosedPoolThrows(): void
@@ -525,6 +571,37 @@ class CallbackPool extends Pool
     protected function createConnection(): ConnectionInterface
     {
         return ($this->connectionFactory)();
+    }
+}
+
+class ConstantFrequencyPool extends CallbackPool
+{
+    public int $idleConnectionChecks = 0;
+
+    public function checkIdleConnection(): void
+    {
+        ++$this->idleConnectionChecks;
+    }
+}
+
+class InspectablePoolChannel extends PoolChannel
+{
+    public function isClosedForTest(): bool
+    {
+        return $this->closed;
+    }
+}
+
+class ThrowingClearableFrequency implements ClearableFrequencyInterface, LowFrequencyInterface
+{
+    public function clear(): void
+    {
+        throw new RuntimeException('frequency cleanup failed');
+    }
+
+    public function isLowFrequency(): bool
+    {
+        return false;
     }
 }
 

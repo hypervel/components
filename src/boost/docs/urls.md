@@ -147,7 +147,24 @@ If you need to override the asset origin during the current request, you may use
 URL::useAssetOrigin('https://cdn.example.com');
 ```
 
-The `useOrigin` and `useAssetOrigin` methods are isolated to the current request. The `forceScheme` method configures the URL generator and is typically called from a service provider.
+The `useOrigin` and `useAssetOrigin` methods are isolated to the current request, job, or command. The `forceScheme` method configures the URL generator and is typically called from a service provider.
+
+If your application determines its URL origin from the current context, you may register an origin resolver in a service provider:
+
+```php
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\URL;
+
+URL::resolveOriginUsing(
+    fn () => Context::get('application_origin'),
+);
+```
+
+The resolver runs when Hypervel generates a URL. An origin set with `useOrigin` takes priority, followed by the resolver and then the current request. Routes that declare their own domain continue to use that domain.
+
+The resolver does not apply to asset URLs. Use the `ASSET_URL` environment variable or `useAssetOrigin` method to customize asset origins.
+
+Register the resolver only during application boot. The registration is shared by the worker and should read the current request, job, or command context when it runs.
 
 <a name="urls-for-named-routes"></a>
 ## URLs for Named Routes
@@ -439,6 +456,29 @@ class SetDefaultLocaleForUrls
 ```
 
 Once the default value for the `locale` parameter has been set, you are no longer required to pass its value when generating URLs via the `route` helper.
+
+If your application determines URL defaults from the current context, you may register a resolver in a service provider:
+
+```php
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\URL;
+
+URL::resolveDefaultsUsing(fn () => [
+    'locale' => Context::get('locale'),
+]);
+```
+
+Register the resolver only during application boot. It runs each time a route URL is generated and should read the current request, job, or command context.
+
+You may also replace the defaults for the current request, job, or command using the `useDefaults` method:
+
+```php
+URL::useDefaults(['locale' => 'fr']);
+```
+
+Calling `useDefaults` again replaces the previous values. Pass `null` to clear them.
+
+Defaults registered with `URL::defaults` are applied first, followed by resolved defaults and values set with `useDefaults`. Parameters passed directly to the `route` helper always take priority. During a request, `URL::defaults` merges values for that request. Outside a request, it changes the defaults for the entire worker, so jobs and commands should use `useDefaults` for temporary values.
 
 <a name="url-defaults-middleware-priority"></a>
 #### URL Defaults and Middleware Priority

@@ -660,7 +660,9 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('https://assets.example.com/foo/bar', $url->asset('foo/bar'));
     }
 
-    public function testUseRootUrl()
+    // REMOVED: forceRootUrl() is a deprecated alias; useOrigin() is the
+    // request-isolated URL-origin API.
+    public function testUseOrigin()
     {
         $url = new UrlGenerator(
             $routes = new RouteCollection,
@@ -688,6 +690,186 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
 
         $url->useOrigin('https://www.bar.com');
         $this->assertSame('https://www.bar.com/foo', $url->route('plain'));
+    }
+
+    public function testOriginResolverIsEvaluatedForEachEligibleUrl(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $origin = 'https://first.example.com/';
+        $url->resolveOriginUsing(function () use (&$origin): string {
+            return $origin;
+        });
+
+        $this->assertSame('https://first.example.com/foo', $url->to('foo'));
+
+        $origin = 'https://second.example.com';
+
+        $this->assertSame('https://second.example.com/foo', $url->to('foo'));
+    }
+
+    public function testNullAndEmptyResolvedOriginsFallBackToRequest(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $url->resolveOriginUsing(fn () => null);
+        $this->assertSame('https://request.example.com/foo', $url->to('foo'));
+
+        $url->resolveOriginUsing(fn () => '');
+        $this->assertSame('https://request.example.com/foo', $url->to('foo'));
+    }
+
+    public function testExplicitOriginTakesPrecedenceOverResolver(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $resolverCalls = 0;
+        $url->resolveOriginUsing(function () use (&$resolverCalls): string {
+            ++$resolverCalls;
+
+            return 'https://resolved.example.com';
+        });
+        $url->useOrigin('https://explicit.example.com');
+
+        $this->assertSame('https://explicit.example.com/foo', $url->to('foo'));
+        $this->assertSame(0, $resolverCalls);
+    }
+
+    public function testEmptyExplicitOriginAllowsResolverToRun(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $url->resolveOriginUsing(fn () => 'https://resolved.example.com');
+        $url->useOrigin('');
+
+        $this->assertSame('https://resolved.example.com/foo', $url->to('foo'));
+    }
+
+    public function testDeclaredRouteDomainTakesPrecedenceOverOriginResolver(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $resolverCalls = 0;
+        $url->resolveOriginUsing(function () use (&$resolverCalls): string {
+            ++$resolverCalls;
+
+            return 'https://resolved.example.com';
+        });
+
+        $routes->add(new Route(['GET'], 'dashboard', [
+            'as' => 'dashboard',
+            'domain' => 'account.example.com',
+            fn () => '',
+        ]));
+
+        $this->assertSame('https://account.example.com/dashboard', $url->route('dashboard'));
+        $this->assertSame(0, $resolverCalls);
+    }
+
+    public function testOriginResolverDoesNotApplyToAssets(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $resolverCalls = 0;
+        $url->resolveOriginUsing(function () use (&$resolverCalls): string {
+            ++$resolverCalls;
+
+            return 'https://resolved.example.com';
+        });
+
+        $this->assertSame('https://request.example.com/app.js', $url->asset('app.js'));
+        $this->assertSame(0, $resolverCalls);
+
+        $url->useOrigin('https://explicit.example.com');
+
+        $this->assertSame('https://explicit.example.com/app.js', $url->asset('app.js'));
+        $this->assertSame(0, $resolverCalls);
+    }
+
+    public function testAssetOriginsTakePrecedenceOverExplicitApplicationOrigin(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/'),
+            'https://configured-assets.example.com'
+        );
+
+        $url->useOrigin('https://explicit.example.com');
+
+        $this->assertSame('https://configured-assets.example.com/app.js', $url->asset('app.js'));
+
+        $url->useAssetOrigin('https://local-assets.example.com');
+
+        $this->assertSame('https://local-assets.example.com/app.js', $url->asset('app.js'));
+    }
+
+    public function testOriginResolverCanBeCleared(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $url->resolveOriginUsing(fn () => 'https://resolved.example.com');
+        $this->assertSame('https://resolved.example.com/foo', $url->to('foo'));
+
+        $url->resolveOriginUsing(null);
+
+        $this->assertSame('https://request.example.com/foo', $url->to('foo'));
+    }
+
+    public function testOriginResolverReadsEachCoroutineContextIndependently(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/')
+        );
+
+        $url->resolveOriginUsing(
+            fn () => RequestContext::get()?->headers->get('X-Application-Origin')
+        );
+
+        [$first, $second] = parallel([
+            function () use ($url) {
+                RequestContext::set(Request::create(
+                    'https://first-request.example.com/',
+                    server: ['HTTP_X_APPLICATION_ORIGIN' => 'https://first-origin.example.com']
+                ));
+                usleep(5000);
+
+                return $url->to('foo');
+            },
+            function () use ($url) {
+                RequestContext::set(Request::create(
+                    'https://second-request.example.com/',
+                    server: ['HTTP_X_APPLICATION_ORIGIN' => 'https://second-origin.example.com']
+                ));
+                usleep(2500);
+
+                return $url->to('foo');
+            },
+        ]);
+
+        $this->assertSame('https://first-origin.example.com/foo', $first);
+        $this->assertSame('https://second-origin.example.com/foo', $second);
     }
 
     public function testForceHttps()
@@ -998,6 +1180,166 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
                 tap(new RoutableInterfaceStub, fn ($x) => $x->key = 'concretePost'),
             ]),
         );
+    }
+
+    public function testDefaultResolverPrecedence(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults([
+            'worker' => 'worker',
+            'shared' => 'worker',
+        ]);
+        $url->resolveDefaultsUsing(fn () => [
+            'resolved' => 'resolved',
+            'shared' => 'resolved',
+        ]);
+        $url->useDefaults([
+            'local' => 'local',
+            'shared' => 'local',
+        ]);
+
+        $routes->add(new Route(
+            ['GET'],
+            '{worker}/{resolved}/{local}/{shared}',
+            ['as' => 'defaults', fn () => '']
+        ));
+
+        $this->assertSame(
+            'https://www.foo.com/worker/resolved/local/explicit',
+            $url->route('defaults', ['shared' => 'explicit'])
+        );
+    }
+
+    public function testNullDefaultResolverPreservesStoredDefaults(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['locale' => 'en']);
+        $url->resolveDefaultsUsing(fn () => null);
+        $routes->add(new Route(['GET'], '{locale}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        $this->assertSame('https://www.foo.com/en/dashboard', $url->route('dashboard'));
+    }
+
+    public function testDefaultResolverCanBeCleared(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['locale' => 'en']);
+        $url->resolveDefaultsUsing(fn () => ['locale' => 'fr']);
+        $routes->add(new Route(['GET'], '{locale}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        $this->assertSame('https://www.foo.com/fr/dashboard', $url->route('dashboard'));
+
+        $url->resolveDefaultsUsing(null);
+
+        $this->assertSame('https://www.foo.com/en/dashboard', $url->route('dashboard'));
+    }
+
+    public function testDefaultResolverUsesOneSnapshotForRouteDomainAndPath(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $resolverCalls = 0;
+        $url->resolveDefaultsUsing(function () use (&$resolverCalls): array {
+            ++$resolverCalls;
+
+            return [
+                'account' => "account-{$resolverCalls}",
+                'locale' => "locale-{$resolverCalls}",
+            ];
+        });
+
+        $routes->add(new Route(['GET'], '{locale}/dashboard', [
+            'as' => 'dashboard',
+            'domain' => '{account}.example.com',
+            fn () => '',
+        ]));
+
+        $this->assertSame(
+            'https://account-1.example.com/locale-1/dashboard',
+            $url->route('dashboard')
+        );
+        $this->assertSame(1, $resolverCalls);
+    }
+
+    public function testDefaultResolverIsEvaluatedForEachRouteGeneration(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $locale = 'en';
+        $url->resolveDefaultsUsing(function () use (&$locale): array {
+            return ['locale' => $locale];
+        });
+        $routes->add(new Route(['GET'], '{locale}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        $this->assertSame('https://www.foo.com/en/dashboard', $url->route('dashboard'));
+
+        $locale = 'fr';
+
+        $this->assertSame('https://www.foo.com/fr/dashboard', $url->route('dashboard'));
+    }
+
+    public function testUseDefaultsReplacesAndClearsCoroutineDefaults(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->useDefaults(['locale' => 'en', 'account' => 'first']);
+        $url->useDefaults(['locale' => 'fr']);
+
+        $this->assertSame(['locale' => 'fr'], $url->getDefaultParameters());
+
+        $url->useDefaults(null);
+
+        $this->assertSame([], $url->getDefaultParameters());
+    }
+
+    public function testUseDefaultsIsIsolatedAcrossNonHttpCoroutines(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], '{locale}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        [$first, $second] = parallel([
+            function () use ($url) {
+                $url->useDefaults(['locale' => 'en']);
+                usleep(5000);
+
+                return $url->route('dashboard');
+            },
+            function () use ($url) {
+                $url->useDefaults(['locale' => 'fr']);
+                usleep(2500);
+
+                return $url->route('dashboard');
+            },
+        ]);
+
+        $this->assertSame('https://www.foo.com/en/dashboard', $first);
+        $this->assertSame('https://www.foo.com/fr/dashboard', $second);
+        $this->assertSame([], $url->getDefaultParameters());
     }
 
     public function testRequestDefaultsAreIsolatedAcrossCoroutines(): void

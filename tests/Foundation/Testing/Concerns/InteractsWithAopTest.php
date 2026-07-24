@@ -9,16 +9,16 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
+use Hypervel\Di\Aop\ProxyMarker;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 use LogicException;
 
 class InteractsWithAopTest extends TestCase
 {
     use InteractsWithAop;
 
-    public function testCallWithAspectsRunsMatchingAspect()
+    public function testCallWithAspectsRunsMatchingAspect(): void
     {
         AspectCollector::setAround(UppercaseGreetingAspect::class, [InteractsWithAopTarget::class . '::greet']);
 
@@ -27,14 +27,14 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame('HELLO HYPERVEL', $result);
     }
 
-    public function testCallWithAspectsReturnsOriginalResultWhenNoAspectMatches()
+    public function testCallWithAspectsReturnsOriginalResultWhenNoAspectMatches(): void
     {
         $result = $this->callWithAspects(new InteractsWithAopTarget, 'greet', ['name' => 'hypervel']);
 
         $this->assertSame('hello hypervel', $result);
     }
 
-    public function testCallWithAspectsRespectsAspectPriority()
+    public function testCallWithAspectsRespectsAspectPriority(): void
     {
         AspectCollector::setAround(OuterSequenceAspect::class, [InteractsWithAopTarget::class . '::sequence'], 20);
         AspectCollector::setAround(InnerSequenceAspect::class, [InteractsWithAopTarget::class . '::sequence'], 10);
@@ -44,7 +44,7 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame('outer(inner(core))', $result);
     }
 
-    public function testCallWithAspectsPassesBoundInstanceToAspect()
+    public function testCallWithAspectsPassesBoundInstanceToAspect(): void
     {
         AspectCollector::setAround(UsesInstanceNameAspect::class, [InteractsWithAopTarget::class . '::instanceName']);
 
@@ -53,7 +53,7 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame('Hypervel', $result);
     }
 
-    public function testCallWithAspectsFillsOmittedOptionalParametersFromDefaults()
+    public function testCallWithAspectsFillsOmittedOptionalParametersFromDefaults(): void
     {
         AspectCollector::setAround(CaptureArgumentsAspect::class, [InteractsWithAopTarget::class . '::withDefaults']);
 
@@ -62,7 +62,7 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame([1, 'default'], $result);
     }
 
-    public function testCallWithAspectsHandlesVariadicParameters()
+    public function testCallWithAspectsHandlesVariadicParameters(): void
     {
         AspectCollector::setAround(CaptureArgumentsAspect::class, [InteractsWithAopTarget::class . '::withVariadic']);
 
@@ -74,7 +74,7 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame([2, 'alpha', 'beta'], $result);
     }
 
-    public function testCallWithAspectsSupportsExactMethodRules()
+    public function testCallWithAspectsSupportsExactMethodRules(): void
     {
         AspectCollector::setAround(AppendSuffixAspect::class, [InteractsWithAopTarget::class . '::intercepted']);
 
@@ -84,7 +84,7 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame('untouched', $this->callWithAspects($target, 'untouched'));
     }
 
-    public function testCallWithAspectsSupportsNonPublicMethods()
+    public function testCallWithAspectsSupportsNonPublicMethods(): void
     {
         AspectCollector::setAround(AppendSuffixAspect::class, [InteractsWithAopTarget::class . '::hiddenValue']);
 
@@ -93,21 +93,22 @@ class InteractsWithAopTest extends TestCase
         $this->assertSame('secret [aspect]', $result);
     }
 
-    public function testCallWithAspectsThrowsForAlreadyProxiedInstances()
+    public function testCallWithAspectsThrowsForAlreadyProxiedInstances(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('already proxied by AOP');
 
-        $this->callWithAspects(new ProxyTraitObject, 'get');
+        $this->callWithAspects(new InteractsWithAopProxiedTarget, 'get');
     }
 
-    public function testIsAopProxiedDetectsGeneratedProxyTraitUsage()
+    public function testIsAopProxiedDetectsGeneratedProxyMarkerUsage(): void
     {
         $this->assertFalse($this->isAopProxied(new InteractsWithAopTarget));
-        $this->assertTrue($this->isAopProxied(new ProxyTraitObject));
+        $this->assertTrue($this->isAopProxied(new InteractsWithAopProxiedTarget));
+        $this->assertTrue($this->isAopProxied(new InteractsWithAopInheritedProxyTarget));
     }
 
-    public function testCallWithAspectsPreservesPromiseReturnValues()
+    public function testCallWithAspectsPreservesPromiseReturnValues(): void
     {
         AspectCollector::setAround(PassThroughAspect::class, [InteractsWithAopTarget::class . '::promiseResult']);
 
@@ -116,6 +117,20 @@ class InteractsWithAopTest extends TestCase
         $this->assertInstanceOf(PromiseInterface::class, $promise);
         $this->assertSame('done', $promise->wait());
     }
+}
+
+class InteractsWithAopProxiedTarget
+{
+    use ProxyMarker;
+
+    public function get(): string
+    {
+        return 'value';
+    }
+}
+
+class InteractsWithAopInheritedProxyTarget extends InteractsWithAopProxiedTarget
+{
 }
 
 class InteractsWithAopTarget

@@ -160,7 +160,7 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $job = new OverlappingTestJobWithDisplayName;
 
         $this->assertSame(
-            'laravel-queue-overlap:App\Actions\WithoutOverlappingTestAction:key',
+            'laravel-queue-overlap:' . hash('xxh128', 'App\Actions\WithoutOverlappingTestAction') . ':key',
             (new WithoutOverlapping('key'))->getLockKey($job)
         );
 
@@ -170,7 +170,7 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         );
 
         $this->assertSame(
-            'prefix:App\Actions\WithoutOverlappingTestAction:key',
+            'prefix:' . hash('xxh128', 'App\Actions\WithoutOverlappingTestAction') . ':key',
             (new WithoutOverlapping('key'))->withPrefix('prefix:')->getLockKey($job)
         );
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Concurrency;
 
+use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Concurrency\Driver;
 use Hypervel\Coroutine\Coroutine;
@@ -23,7 +24,7 @@ class CoroutineDriver implements Driver
      * Results are keyed to match the input array. If any task throws, the
      * exception is re-thrown after all tasks complete.
      */
-    public function run(Closure|array $tasks): array
+    public function run(Closure|array $tasks, CarbonInterval|int|null $timeout = null): array
     {
         $tasks = Arr::wrap($tasks);
 

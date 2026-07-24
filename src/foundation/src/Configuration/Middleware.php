@@ -406,9 +406,11 @@ class Middleware
      * exception static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
      */
-    public function redirectGuestsTo(callable|string $redirect): static
+    public function redirectGuestsTo(callable|string|null $redirect): static
     {
-        return $this->redirectTo(guests: $redirect);
+        AuthenticationRedirects::redirectGuestsTo($redirect);
+
+        return $this;
     }
 
     /**
@@ -471,15 +473,8 @@ class Middleware
         return $this;
     }
 
-    /**
-     * Configure the CSRF token validation middleware.
-     *
-     * @deprecated use preventRequestForgery() instead
-     */
-    public function validateCsrfTokens(array $except = []): static
-    {
-        return $this->preventRequestForgery($except);
-    }
+    // Laravel's deprecated validateCsrfTokens() alias is intentionally not
+    // ported. Use preventRequestForgery() instead.
 
     /**
      * Configure the URL signature validation middleware.

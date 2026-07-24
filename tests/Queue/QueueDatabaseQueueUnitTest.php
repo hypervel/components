@@ -13,16 +13,31 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Queue;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use stdClass;
 
 class QueueDatabaseQueueUnitTest extends TestCase
 {
+    public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+
+        $this->assertSame('default', $queue->getQueue(null));
+        $this->assertSame('default', $queue->getQueue(''));
+        $this->assertSame('0', $queue->getQueue('0'));
+    }
+
     #[DataProvider('pushJobsDataProvider')]
     public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
     {
@@ -68,10 +83,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
         ];
     }
 
-    public function testDelayedPushProperlyPushesJobOntoDatabase()
+    public function testDelayedPushProperlyPushesJobOntoDatabase(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
 
         $uuid = Str::uuid();
 
@@ -165,10 +180,10 @@ class QueueDatabaseQueueUnitTest extends TestCase
         ]);
     }
 
-    public function testBulkBatchPushesOntoDatabase()
+    public function testBulkBatchPushesOntoDatabase(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
 
         $uuid = Str::uuid();
 

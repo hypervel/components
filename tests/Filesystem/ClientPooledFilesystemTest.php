@@ -9,10 +9,10 @@ use Closure;
 use DateTimeImmutable;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\ObjectPool\Contracts\Factory;
@@ -21,7 +21,6 @@ use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Testing\FakeWritableConnection;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
@@ -48,7 +47,7 @@ class ClientPooledFilesystemTest extends TestCase
         $this->tempDir = ParallelTesting::tempDir('ClientPooledFilesystem');
         $this->adapter = new LocalFilesystemAdapter($this->tempDir);
         $this->driver = new Filesystem($this->adapter);
-        $this->pools = new PoolManager($this->app);
+        $this->pools = new PoolManager;
     }
 
     protected function tearDownInCoroutine(): void
@@ -336,10 +335,6 @@ class ClientPooledFilesystemTest extends TestCase
         $this->driver->write('file.txt', '0123456789');
         $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=4-6']);
         RequestContext::set($request);
-        $writable = new FakeWritableConnection;
-        $response = new Response;
-        $response->setConnection($writable);
-        ResponseContext::set($response);
         $clientCreations = 0;
         $stackCreations = 0;
         $releaseCalls = 0;
@@ -353,8 +348,23 @@ class ClientPooledFilesystemTest extends TestCase
 
         $result = $disk->response('file.txt');
 
+        $this->assertInstanceOf(IterableStreamedResponse::class, $result);
         $this->assertSame(206, $result->getStatusCode());
-        $this->assertSame('456', $writable->written);
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(1, $clientCreations);
+        $this->assertSame(2, $stackCreations);
+        $this->assertSame(2, $releaseCalls);
+
+        $content = '';
+        $this->assertTrue($result->streamTo(
+            static function (string $chunk) use (&$content): bool {
+                $content .= $chunk;
+
+                return true;
+            }
+        ));
+
+        $this->assertSame('456', $content);
         $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
         $this->assertSame(1, $clientCreations);
         $this->assertSame(3, $stackCreations);

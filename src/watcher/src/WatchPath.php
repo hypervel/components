@@ -39,7 +39,10 @@ readonly class WatchPath
         }
 
         if ($this->pattern === null) {
-            return str_starts_with($relativePath, $this->path . '/');
+            $directory = rtrim($this->path, '/');
+
+            return $directory === '' || $directory === '.'
+                || str_starts_with($relativePath, $directory . '/');
         }
 
         /** @var string $regex */

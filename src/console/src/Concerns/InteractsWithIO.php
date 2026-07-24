@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Concerns;
 
 use Closure;
+use Hypervel\Console\CommandInput;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Support\Arrayable;
@@ -45,17 +46,29 @@ trait InteractsWithIO
     ];
 
     /**
+     * Retrieve the command's input as a CommandInput instance or retrieve an input item.
+     *
+     * @return ($key is null ? CommandInput : mixed)
+     */
+    public function input(?string $key = null, mixed $default = null): mixed
+    {
+        $input = new CommandInput($this->arguments(), $this->options());
+
+        return is_null($key) ? $input : data_get($input->all(), $key, $default);
+    }
+
+    /**
      * Determine if the given argument is present.
      */
     public function hasArgument(int|string $name): bool
     {
-        return $this->input->hasArgument($name);
+        return $this->input->hasArgument((string) $name);
     }
 
     /**
      * Get the value of a command argument.
      */
-    public function argument(?string $key = null): array|bool|string|null
+    public function argument(?string $key = null): mixed
     {
         if (is_null($key)) {
             return $this->input->getArguments();
@@ -67,7 +80,7 @@ trait InteractsWithIO
     /**
      * Get all of the arguments passed to the command.
      */
-    public function arguments(): array|bool|string|null
+    public function arguments(): array
     {
         return $this->argument();
     }
@@ -83,7 +96,7 @@ trait InteractsWithIO
     /**
      * Get the value of a command option.
      */
-    public function option(?string $key = null): array|bool|float|int|string|null
+    public function option(?string $key = null): mixed
     {
         if (is_null($key)) {
             return $this->input->getOptions();
@@ -95,7 +108,7 @@ trait InteractsWithIO
     /**
      * Get all of the options passed to the command.
      */
-    public function options(): array|bool|string|null
+    public function options(): array
     {
         return $this->option();
     }
@@ -119,7 +132,7 @@ trait InteractsWithIO
     /**
      * Prompt the user for input with auto completion.
      */
-    public function anticipate(string $question, array|callable $choices, ?string $default = null): mixed
+    public function anticipate(string $question, iterable|callable $choices, ?string $default = null): mixed
     {
         return $this->askWithCompletion($question, $choices, $default);
     }
@@ -127,7 +140,7 @@ trait InteractsWithIO
     /**
      * Prompt the user for input with auto completion.
      */
-    public function askWithCompletion(string $question, array|callable $choices, ?string $default = null): mixed
+    public function askWithCompletion(string $question, iterable|callable $choices, ?string $default = null): mixed
     {
         $question = new Question($question, $default);
 
@@ -188,7 +201,7 @@ trait InteractsWithIO
     public function withProgressBar(iterable|int $totalSteps, Closure $callback): mixed
     {
         $bar = $this->output?->createProgressBar(
-            is_iterable($totalSteps) ? count($totalSteps) : $totalSteps
+            is_countable($totalSteps) ? count($totalSteps) : (is_iterable($totalSteps) ? 0 : $totalSteps)
         );
 
         $bar->start();

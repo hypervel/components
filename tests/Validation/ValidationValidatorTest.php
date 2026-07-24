@@ -23,9 +23,10 @@ use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Stringable;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabasePresenceVerifierInterface;
@@ -41,7 +42,6 @@ use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
@@ -6287,17 +6287,17 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testDateEquals()
+    public function testDateEquals(): void
     {
         date_default_timezone_set('UTC');
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['x' => '2000-01-01'], ['x' => 'date_equals:2000-01-01']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['x' => new Carbon('2000-01-01')], ['x' => 'date_equals:2000-01-01']);
+        $v = new Validator($trans, ['x' => new CarbonImmutable('2000-01-01')], ['x' => 'date_equals:2000-01-01']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['x' => new Carbon('2000-01-01')], ['x' => 'date_equals:2001-01-01']);
+        $v = new Validator($trans, ['x' => new CarbonImmutable('2000-01-01')], ['x' => 'date_equals:2001-01-01']);
         $this->assertTrue($v->fails());
 
         $v = new Validator($trans, ['start' => new DateTime('2000-01-01'), 'ends' => new DateTime('2000-01-01')], ['ends' => 'date_equals:start']);
@@ -6349,11 +6349,11 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
-    public function testDateEqualsRespectsCarbonTestNowWhenParameterIsRelative()
+    public function testDateEqualsRespectsCarbonTestNowWhenParameterIsRelative(): void
     {
         date_default_timezone_set('UTC');
         $trans = $this->getArrayTranslator();
-        Carbon::setTestNow(new Carbon('2018-01-01'));
+        CarbonImmutable::setTestNow(new CarbonImmutable('2018-01-01'));
 
         $v = new Validator($trans, ['x' => '2018-01-01 00:00:00'], ['x' => 'date_equals:now']);
         $this->assertTrue($v->passes());
@@ -6385,17 +6385,17 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['x' => new DateTime('2018-01-01')], ['x' => 'date_equals:tomorrow']);
         $this->assertTrue($v->fails());
 
-        $v = new Validator($trans, ['x' => new Carbon('2018-01-01')], ['x' => 'date_equals:today|after:yesterday|before:tomorrow']);
+        $v = new Validator($trans, ['x' => new CarbonImmutable('2018-01-01')], ['x' => 'date_equals:today|after:yesterday|before:tomorrow']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['x' => new Carbon('2018-01-01')], ['x' => 'date_equals:yesterday']);
+        $v = new Validator($trans, ['x' => new CarbonImmutable('2018-01-01')], ['x' => 'date_equals:yesterday']);
         $this->assertTrue($v->fails());
 
-        $v = new Validator($trans, ['x' => new Carbon('2018-01-01')], ['x' => 'date_equals:tomorrow']);
+        $v = new Validator($trans, ['x' => new CarbonImmutable('2018-01-01')], ['x' => 'date_equals:tomorrow']);
         $this->assertTrue($v->fails());
     }
 
-    public function testBeforeAndAfter()
+    public function testBeforeAndAfter(): void
     {
         date_default_timezone_set('UTC');
         $trans = $this->getArrayTranslator();
@@ -6405,10 +6405,10 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['x' => ['2000-01-01']], ['x' => 'Before:2012-01-01']);
         $this->assertFalse($v->passes());
 
-        $v = new Validator($trans, ['x' => new Carbon('2000-01-01')], ['x' => 'Before:2012-01-01']);
+        $v = new Validator($trans, ['x' => new CarbonImmutable('2000-01-01')], ['x' => 'Before:2012-01-01']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['x' => [new Carbon('2000-01-01')]], ['x' => 'Before:2012-01-01']);
+        $v = new Validator($trans, ['x' => [new CarbonImmutable('2000-01-01')]], ['x' => 'Before:2012-01-01']);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['x' => '2012-01-01'], ['x' => 'After:2000-01-01']);
@@ -6417,10 +6417,10 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['x' => ['2012-01-01']], ['x' => 'After:2000-01-01']);
         $this->assertFalse($v->passes());
 
-        $v = new Validator($trans, ['x' => new Carbon('2012-01-01')], ['x' => 'After:2000-01-01']);
+        $v = new Validator($trans, ['x' => new CarbonImmutable('2012-01-01')], ['x' => 'After:2000-01-01']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['x' => [new Carbon('2012-01-01')]], ['x' => 'After:2000-01-01']);
+        $v = new Validator($trans, ['x' => [new CarbonImmutable('2012-01-01')]], ['x' => 'After:2000-01-01']);
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, ['start' => '2012-01-01', 'ends' => '2013-01-01'], ['start' => 'After:2000-01-01', 'ends' => 'After:start']);
@@ -6438,7 +6438,7 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['x' => new DateTime('2000-01-01')], ['x' => 'Before:2012-01-01']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['start' => new DateTime('2012-01-01'), 'ends' => new Carbon('2013-01-01')], ['start' => 'Before:ends', 'ends' => 'After:start']);
+        $v = new Validator($trans, ['start' => new DateTime('2012-01-01'), 'ends' => new CarbonImmutable('2013-01-01')], ['start' => 'Before:ends', 'ends' => 'After:start']);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['start' => '2012-01-01', 'ends' => new DateTime('2013-01-01')], ['start' => 'Before:ends', 'ends' => 'After:start']);
@@ -6481,7 +6481,26 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->fails());
     }
 
-    public function testBeforeAndAfterWithFormat()
+    public function testBeforeAndAfterAcceptImmutableFallbackDates(): void
+    {
+        $translator = $this->getArrayTranslator();
+
+        $validator = new Validator(
+            $translator,
+            ['date' => date('Y-m-d')],
+            ['date' => 'date_format:Y-m-d|after:yesterday|before:tomorrow']
+        );
+        $this->assertTrue($validator->passes());
+
+        $validator = new Validator(
+            $translator,
+            ['start' => date('d/m/Y'), 'end' => 'tomorrow'],
+            ['start' => 'date_format:d/m/Y|before:end']
+        );
+        $this->assertTrue($validator->passes());
+    }
+
+    public function testBeforeAndAfterWithFormat(): void
     {
         date_default_timezone_set('UTC');
         $trans = $this->getArrayTranslator();

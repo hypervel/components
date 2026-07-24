@@ -13,7 +13,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use SessionHandlerInterface;
 
@@ -81,7 +81,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     protected function expired(object $session): bool
     {
         return isset($session->last_activity)
-            && $session->last_activity < Carbon::now()->subMinutes($this->minutes)->getTimestamp();
+            && $session->last_activity < CarbonImmutable::now()->subMinutes($this->minutes)->getTimestamp();
     }
 
     public function write(string $sessionId, string $data): bool

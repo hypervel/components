@@ -31,7 +31,7 @@ class BusServiceProvider extends ServiceProvider
         );
 
         $this->app->alias(
-            Dispatcher::class,
+            DispatcherContract::class,
             QueueingDispatcherContract::class,
         );
     }
@@ -45,11 +45,13 @@ class BusServiceProvider extends ServiceProvider
             return $app->make(DatabaseBatchRepository::class);
         });
 
+        // DynamoDB batch storage is intentionally unsupported because Hypervel does not support DynamoDB databases.
+
         $this->app->singleton(DatabaseBatchRepository::class, function ($app) {
             return new DatabaseBatchRepository(
                 $app->make(BatchFactory::class),
                 $app->make('db'),
-                $app->make('config')->string('queue.batching.table', 'job_batches'),
+                $app->make('config')->string('queue.batching.table'),
                 $app->make('config')->get('queue.batching.database'),
             );
         });

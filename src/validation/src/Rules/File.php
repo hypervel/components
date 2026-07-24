@@ -13,12 +13,14 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Validation\Rules\Concerns\ClonesCustomRules;
 use InvalidArgumentException;
 use Stringable;
 
 class File implements Rule, DataAwareRule, ValidatorAwareRule
 {
     use Conditionable;
+    use ClonesCustomRules;
     use Macroable;
 
     /**
@@ -102,13 +104,21 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
     /**
      * Get the default configuration of the file rule.
      */
-    public static function default(): mixed
+    public static function default(): static
     {
+        if (static::$defaultCallback === null) {
+            return new static;
+        }
+
         $file = is_callable(static::$defaultCallback)
             ? call_user_func(static::$defaultCallback)
             : static::$defaultCallback;
 
-        return $file instanceof Rule ? $file : new self;
+        if (! $file instanceof static) {
+            throw new InvalidArgumentException('The default callback must return an instance of ' . static::class . '.');
+        }
+
+        return clone $file;
     }
 
     /**

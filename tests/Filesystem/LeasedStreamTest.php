@@ -38,7 +38,7 @@ class LeasedStreamTest extends TestCase
         $pool->close();
     }
 
-    public function testExplicitCloseAndWrapperDestructionReleaseExactlyOnce(): void
+    public function testExplicitCloseAndStreamResourceDestructionReleaseExactlyOnce(): void
     {
         $releaseCount = 0;
         [$pool, $lease, $inner] = $this->leaseWithStream(
@@ -162,7 +162,6 @@ class LeasedStreamTest extends TestCase
         $handler->shouldReceive('report')->once()->with($failure);
         $container->instance(ExceptionHandler::class, $handler);
         $pool = new SimpleObjectPool(
-            $container,
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
         );
@@ -237,7 +236,6 @@ PHP);
 namespace {
     require __AUTOLOAD__;
 
-    use Hypervel\Container\Container;
     use Hypervel\Filesystem\LeasedStream;
     use Hypervel\ObjectPool\Lease;
     use Hypervel\ObjectPool\PoolOptions;
@@ -251,10 +249,7 @@ namespace {
         }
     }
 
-    $container = new Container;
-    Container::setInstance($container);
     $pool = new SimpleObjectPool(
-        $container,
         static fn (): object => new stdClass,
         PoolOptions::fromArray([]),
     );
@@ -315,11 +310,7 @@ PHP;
 
     private function pool(): SimpleObjectPool
     {
-        $container = new Container;
-        Container::setInstance($container);
-
         return new SimpleObjectPool(
-            $container,
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
         );

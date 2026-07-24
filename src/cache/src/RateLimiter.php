@@ -7,6 +7,8 @@ namespace Hypervel\Cache;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Cache\RateLimiting\GlobalLimit;
+use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
@@ -27,6 +29,11 @@ class RateLimiter
      * The configured limit object resolvers.
      */
     protected array $limiters = [];
+
+    /**
+     * The callback used to resolve the scope for named limiter keys.
+     */
+    protected ?Closure $keyScopeResolver = null;
 
     /**
      * Create a new rate limiter instance.
@@ -50,6 +57,17 @@ class RateLimiter
         $this->limiters[$resolvedName] = $callback;
 
         return $this;
+    }
+
+    /**
+     * Register the named limiter key scope resolver.
+     *
+     * Boot-only. The callback persists on the singleton rate limiter for the
+     * worker lifetime and applies to subsequent named limits across coroutines.
+     */
+    public function resolveKeyScopeUsing(?Closure $resolver): void
+    {
+        $this->keyScopeResolver = $resolver;
     }
 
     /**
@@ -86,6 +104,29 @@ class RateLimiter
 
             return $result;
         };
+    }
+
+    /**
+     * Resolve the storage key for a named rate limit.
+     */
+    public function resolveNamedLimiterKey(
+        string $limiterName,
+        Limit $limit,
+        bool $shouldHashKeys = true,
+    ): string {
+        $scope = $limit instanceof GlobalLimit
+            ? null
+            : $this->keyScopeResolver?->__invoke($limiterName);
+
+        if ($scope === null) {
+            return $shouldHashKeys
+                ? hash('xxh128', $limiterName . $limit->key)
+                : $limiterName . ':' . $limit->key;
+        }
+
+        return $shouldHashKeys
+            ? hash('xxh128', $scope . ':' . $limiterName . $limit->key)
+            : $scope . ':' . $limiterName . ':' . $limit->key;
     }
 
     /**

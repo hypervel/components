@@ -43,12 +43,10 @@ class ContextServiceProvider extends ServiceProvider
         $this->app['events']->listen(JobProcessing::class, function (JobProcessing $event): void {
             $context = $event->job->payload()['illuminate:log:context'] ?? null;
 
-            if ($context === null) {
-                return;
+            if ($context !== null || Repository::hasInstance()) {
+                /* @phpstan-ignore staticMethod.notFound */
+                Context::hydrate($context);
             }
-
-            /* @phpstan-ignore staticMethod.notFound */
-            Context::hydrate($context);
         });
     }
 }

@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Notifications;
 
 use Hypervel\Support\Collection;
+use UnitEnum;
 
 interface Factory
 {
     /**
      * Get a channel instance by name.
      */
-    public function channel(?string $name = null): mixed;
+    public function channel(UnitEnum|string|null $name = null): mixed;
 
     /**
      * Send the given notification to the given notifiable entities.

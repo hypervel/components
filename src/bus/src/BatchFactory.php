@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Support\CarbonImmutable;
 
 class BatchFactory
 {

@@ -4,25 +4,28 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
+use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Core\Bootstrap;
 use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\Core\Events\BeforeServerStart;
-use Hypervel\Server\Exceptions\RuntimeException;
+use Hypervel\Server\Exceptions\InvalidArgumentException;
+use Hypervel\Server\Exceptions\ServerException;
 use Psr\Log\LoggerInterface;
+use Swoole\Coroutine\CanceledException;
+use Swoole\Http\Request as SwooleRequest;
+use Swoole\Http\Response as SwooleResponse;
 use Swoole\Http\Server as SwooleHttpServer;
 use Swoole\Server as SwooleServer;
 use Swoole\Server\Port as SwoolePort;
 use Swoole\WebSocket\Server as SwooleWebSocketServer;
+use Throwable;
 
 class Server implements ServerInterface
 {
-    protected bool $enableHttpServer = false;
-
-    protected bool $enableWebSocketServer = false;
-
     protected ?SwooleServer $server = null;
 
     protected array $onRequestCallbacks = [];
@@ -49,7 +52,9 @@ class Server implements ServerInterface
      */
     public function start(): void
     {
-        $this->server->start();
+        if ($this->server->start() === false) {
+            throw new ServerException('Failed to start the Swoole server.');
+        }
     }
 
     /**
@@ -79,16 +84,17 @@ class Server implements ServerInterface
                 $this->server = $this->makeServer($type, $host, $port, $config->getMode(), $sockType);
                 $callbacks = array_replace($this->defaultCallbacks(), $config->getCallbacks(), $callbacks);
                 $this->registerSwooleEvents($this->server, $callbacks, $name);
-                $this->server->set(array_replace($config->getSettings(), $server->getSettings()));
+                if ($this->server->set(array_replace($config->getSettings(), $server->getSettings())) === false) {
+                    throw new ServerException("Failed to configure server [{$name}].");
+                }
                 ServerManager::add($name, [$type, current($this->server->ports)]);
 
                 // Trigger BeforeMainServerStart event, this event only triggers once before main server start.
                 $this->eventDispatcher->dispatch(new BeforeMainServerStart($this->server, $config->toArray()));
             } else {
-                /** @var bool|SwoolePort $slaveServer */
                 $slaveServer = $this->server->addlistener($host, $port, $sockType);
-                if (! $slaveServer) {
-                    throw new \RuntimeException("Failed to listen server port [{$host}:{$port}]");
+                if ($slaveServer === false) {
+                    throw new ServerException("Failed to listen on server port [{$host}:{$port}].");
                 }
                 $server->getSettings() && $slaveServer->set(array_replace($config->getSettings(), $server->getSettings()));
                 $this->registerSwooleEvents($slaveServer, $callbacks, $name);
@@ -116,28 +122,27 @@ class Server implements ServerInterface
      */
     protected function sortServers(array $servers): array
     {
-        $sortServers = [];
-        foreach ($servers as $server) {
-            switch ($server->getType()) {
-                case ServerInterface::SERVER_HTTP:
-                    $this->enableHttpServer = true;
-                    if (! $this->enableWebSocketServer) {
-                        array_unshift($sortServers, $server);
-                    } else {
-                        $sortServers[] = $server;
-                    }
-                    break;
-                case ServerInterface::SERVER_WEBSOCKET:
-                    $this->enableWebSocketServer = true;
-                    array_unshift($sortServers, $server);
-                    break;
-                default:
-                    $sortServers[] = $server;
-                    break;
-            }
+        $prioritizedServers = [];
+
+        foreach (array_values($servers) as $index => $server) {
+            $priority = match ($server->getType()) {
+                ServerInterface::SERVER_WEBSOCKET => 0,
+                ServerInterface::SERVER_HTTP => 1,
+                default => 2,
+            };
+
+            $prioritizedServers[] = [$priority, $index, $server];
         }
 
-        return $sortServers;
+        usort(
+            $prioritizedServers,
+            static fn (array $left, array $right): int => [$left[0], $left[1]] <=> [$right[0], $right[1]],
+        );
+
+        return array_map(
+            static fn (array $prioritizedServer): Port => $prioritizedServer[2],
+            $prioritizedServers,
+        );
     }
 
     /**
@@ -154,7 +159,7 @@ class Server implements ServerInterface
                 return new SwooleServer($host, $port, $mode, $sockType);
         }
 
-        throw new RuntimeException('Server type is invalid.');
+        throw new InvalidArgumentException('Server type is invalid.');
     }
 
     /**
@@ -183,8 +188,48 @@ class Server implements ServerInterface
                 }
                 $callback = [$class, $method];
             }
-            $server->on($event, $callback);
+
+            if (
+                ($event === Event::ON_REQUEST || $event === Event::ON_HANDSHAKE)
+                && is_callable($callback)
+            ) {
+                $callback = $this->guardResponseCallback($callback);
+            }
+
+            if ($server->on($event, $callback) === false) {
+                throw new ServerException("Failed to register event [{$event}] on server [{$serverName}].");
+            }
         }
+    }
+
+    /**
+     * Guard a native response callback from escaping its transport boundary.
+     */
+    protected function guardResponseCallback(callable $callback): Closure
+    {
+        return function (SwooleRequest $request, SwooleResponse $response) use ($callback): void {
+            try {
+                $callback($request, $response);
+            } catch (Throwable $throwable) {
+                if (! $throwable instanceof CanceledException) {
+                    try {
+                        $this->container->make(ExceptionHandler::class)->report($throwable);
+                    } catch (Throwable) {
+                        try {
+                            error_log((string) $throwable);
+                        } catch (Throwable) {
+                        }
+                    }
+                }
+
+                try {
+                    if ($response->isWritable()) {
+                        $response->end();
+                    }
+                } catch (Throwable) {
+                }
+            }
+        };
     }
 
     /**

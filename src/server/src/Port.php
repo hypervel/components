@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
+use Hypervel\Server\Exceptions\InvalidArgumentException;
+use Swoole\Constant;
+
 class Port
 {
     protected string $name = 'http';
@@ -14,7 +17,7 @@ class Port
 
     protected int $port = 8000;
 
-    protected int $sockType = 0;
+    protected int $sockType = SWOOLE_SOCK_TCP;
 
     protected array $callbacks = [];
 
@@ -154,6 +157,12 @@ class Port
      */
     public function setSettings(array $settings): static
     {
+        if (! empty($settings[Constant::OPTION_EVENT_OBJECT])) {
+            throw new InvalidArgumentException(
+                "Swoole event_object is not supported on server port '{$this->name}'; use Hypervel lifecycle events instead."
+            );
+        }
+
         $this->settings = $settings;
         return $this;
     }
@@ -163,7 +172,7 @@ class Port
      */
     private static function filter(array $config): array
     {
-        if ((int) $config['type'] === ServerInterface::SERVER_BASE) {
+        if ((int) ($config['type'] ?? ServerInterface::SERVER_HTTP) === ServerInterface::SERVER_BASE) {
             $default = [
                 'open_http2_protocol' => false,
                 'open_http_protocol' => false,

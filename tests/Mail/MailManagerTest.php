@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Mail\Mailable;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\TransportPoolProxy;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Support\Testing\Fakes\MailFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -28,6 +30,38 @@ class MailManagerTest extends TestCase
     {
         parent::setUp();
         $this->app->instance('view', m::mock(ViewFactory::class));
+    }
+
+    public function testIntegerEnumMailerNamesAreNormalizedWithoutTreatingZeroAsAbsent(): void
+    {
+        $this->app->make('config')->set('mail.mailers.0', ['transport' => 'array']);
+
+        $manager = new MailManager($this->app);
+        $manager->setDefaultDriver(MailManagerTestIntIdentifier::Zero);
+
+        $mailer = $manager->mailer();
+
+        $this->assertSame('0', $manager->getDefaultDriver());
+        $this->assertSame($mailer, $manager->driver(MailManagerTestIntIdentifier::Zero));
+        $this->assertSame($mailer, $manager->mailer(''));
+
+        $manager->purge('');
+
+        $this->assertNotSame($mailer, $manager->mailer(MailManagerTestIntIdentifier::Zero));
+    }
+
+    public function testFakeDriverNormalizesIntegerEnumsWithoutEscapingToTheManager(): void
+    {
+        $this->app->make('config')->set('mail.default', 'array');
+
+        $fake = new MailFake(new MailManager($this->app));
+        $mailable = new Mailable;
+
+        $this->assertSame($fake, $fake->driver(MailManagerTestIntIdentifier::Zero));
+
+        $fake->send($mailable);
+
+        $this->assertSame('0', $mailable->mailer);
     }
 
     #[DataProvider('emptyTransportConfigDataProvider')]
@@ -648,6 +682,11 @@ class MailManagerTest extends TestCase
         $this->assertTrue($transport->invalidatePool());
         $this->assertFalse($pools->has($identity));
     }
+}
+
+enum MailManagerTestIntIdentifier: int
+{
+    case Zero = 0;
 }
 
 class MailManagerTestTransport implements TransportInterface

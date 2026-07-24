@@ -53,6 +53,7 @@ class SanctumGuard implements GuardContract
         protected array $sessionGuards,
         protected ?Dispatcher $events = null,
         protected ?int $expiration = null,
+        protected bool $trackLastUsedAt = true,
     ) {
         $this->provider = $provider;
     }
@@ -126,6 +127,10 @@ class SanctumGuard implements GuardContract
 
                     if ($this->events?->hasListeners(TokenAuthenticated::class)) {
                         $this->events->dispatch(new TokenAuthenticated($accessToken));
+                    }
+
+                    if ($this->trackLastUsedAt) {
+                        $accessToken->updateLastUsedAt();
                     }
 
                     CoroutineContext::set($contextKey, $user);

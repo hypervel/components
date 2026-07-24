@@ -128,6 +128,8 @@ php artisan serve
 
 By default, the HTTP server binds to `0.0.0.0:8000` with HTTP/2 enabled. You may configure the server host, port, worker count, max requests per worker, HTTP/2 support, and other Swoole settings using the `SERVER_HOST`, `SERVER_PORT`, `SERVER_WORKERS`, `SERVER_MAX_REQUESTS`, and `SERVER_HTTP2` environment variables read by `config/server.php`.
 
+Swoole's `event_object` setting is not supported because Hypervel dispatches its own lifecycle event objects from the native server callbacks. Leave this setting disabled and use Hypervel's lifecycle events when integrating with server activity.
+
 The `serve` command also accepts `--host` and `--port` options for overriding the HTTP server address for the current process. In production, prefer durable configuration in `config/server.php` and your environment.
 
 <a name="directory-permissions"></a>
@@ -211,6 +213,14 @@ php artisan reload
 
 The `reload` command gracefully reloads the Hypervel server and signals queue workers and the scheduler to restart. If you are not using [SonicStack](https://sonicstack.io), you should manually configure a process monitor that can detect when your reloadable processes exit and automatically restart them.
 
+To reload only the Hypervel server, you may use the `server:reload` command. This command reloads the server's event workers and any configured task workers:
+
+```shell
+php artisan server:reload
+```
+
+The command will fail if the configured PID file cannot be read, does not contain a valid process ID, or the reload signal cannot be delivered.
+
 <a name="debug-mode"></a>
 ## Debug Mode
 
@@ -236,6 +246,12 @@ When your application's `bootstrap/app.php` file enables the health route, it is
 ```
 
 When HTTP requests are made to this route, Hypervel will also dispatch a `Hypervel\Foundation\Events\DiagnosingHealth` event, allowing you to perform additional health checks relevant to your application. Within a [listener](/docs/{{version}}/events) for this event, you may check your application's database or cache status. If you detect a problem with your application, you may simply throw an exception from the listener.
+
+When the request expects JSON, the health route returns a JSON object containing a `status` value of `up` or `down`. The response uses the same 200 or 500 HTTP status code as the HTML response:
+
+```json
+{"status":"up"}
+```
 
 <a name="deploying-with-sonicstack"></a>
 ## Deploying With SonicStack

@@ -13,7 +13,7 @@ use function Hypervel\Coroutine\go;
 
 class CoordinatorManagerTest extends TestCase
 {
-    public function testFlushStateWakesWaitersAndClearsContainer()
+    public function testFlushStateWakesWaitersAndClearsContainer(): void
     {
         $identifier = uniqid();
         $coordinator = CoordinatorManager::until($identifier);
@@ -22,9 +22,12 @@ class CoordinatorManagerTest extends TestCase
         $wg = new WaitGroup;
         $wg->add();
 
-        go(function () use (&$aborted, $identifier, $wg) {
-            $aborted = block(10, $identifier);
-            $wg->done();
+        go(function () use (&$aborted, $identifier, $wg): void {
+            try {
+                $aborted = block(10, $identifier);
+            } finally {
+                $wg->done();
+            }
         });
 
         usleep(10000);

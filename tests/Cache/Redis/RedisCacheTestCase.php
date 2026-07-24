@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
-use Carbon\Carbon;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\PhpRedisClusterConnection;
@@ -13,6 +12,7 @@ use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
@@ -55,7 +55,7 @@ abstract class RedisCacheTestCase extends TestCase
         parent::setUp();
 
         // Fixed time for tag tests - ZSET scores use timestamps
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
     }
 
     /**

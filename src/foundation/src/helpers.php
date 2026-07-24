@@ -235,7 +235,7 @@ if (! function_exists('bcrypt')) {
     /**
      * Hash the given value against the bcrypt algorithm.
      */
-    function bcrypt(string $value, array $options = []): string
+    function bcrypt(#[\SensitiveParameter] string $value, array $options = []): string
     {
         /* @phpstan-ignore-next-line */
         return app('hash')->driver('bcrypt')->make($value, $options);
@@ -478,7 +478,7 @@ if (! function_exists('encrypt')) {
     /**
      * Encrypt the given value.
      */
-    function encrypt(mixed $value, bool $serialize = true): string
+    function encrypt(#[\SensitiveParameter] mixed $value, bool $serialize = true): string
     {
         /* @phpstan-ignore-next-line */
         return app('encrypter')->encrypt($value, $serialize);
@@ -502,7 +502,7 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
     function fake(?string $locale = null): \Faker\Generator
     {
         if (app()->bound('config')) {
-            $locale ??= app('config')->string('app.faker_locale', 'en_US');
+            $locale ??= app('config')->string('app.faker_locale');
         }
 
         $locale ??= 'en_US';
@@ -575,7 +575,7 @@ if (! function_exists('logs')) {
      */
     function logs(?string $driver = null): LoggerInterface|LogManager
     {
-        return $driver ? app('log')->driver($driver) : app('log');
+        return $driver !== null ? app('log')->driver($driver) : app('log');
     }
 }
 
@@ -591,7 +591,7 @@ if (! function_exists('method_field')) {
 
 if (! function_exists('now')) {
     /**
-     * Create a new Carbon instance for the current time.
+     * Create a new configured Carbon instance for the current time.
      */
     function now(\UnitEnum|\DateTimeZone|string|null $tz = null): CarbonInterface
     {
@@ -909,7 +909,7 @@ if (! function_exists('to_route')) {
 
 if (! function_exists('today')) {
     /**
-     * Create a new Carbon instance for the current date.
+     * Create a new configured Carbon instance for the current date.
      */
     function today(\UnitEnum|\DateTimeZone|string|null $tz = null): CarbonInterface
     {

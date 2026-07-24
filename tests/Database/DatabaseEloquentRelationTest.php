@@ -16,7 +16,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -53,7 +53,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $relation = new HasOne($builder, $parent, 'foreign_key', 'id');
         $related->shouldReceive('getTable')->andReturn('table');
         $related->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
-        $now = Carbon::now();
+        $now = CarbonImmutable::now();
         $related->shouldReceive('freshTimestampString')->andReturn($now);
         $builder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
 
@@ -126,7 +126,7 @@ class DatabaseEloquentRelationTest extends TestCase
             $anotherBuilder->shouldReceive('where');
             $anotherBuilder->shouldReceive('withoutGlobalScopes')->andReturnSelf();
             $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
-            $now = Carbon::now();
+            $now = CarbonImmutable::now();
             $anotherRelated->shouldReceive('freshTimestampString')->andReturn($now);
             $anotherBuilder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
 

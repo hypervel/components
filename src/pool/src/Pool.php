@@ -113,7 +113,7 @@ abstract class Pool implements PoolInterface
     }
 
     /**
-     * Close idle connections in excess of the minimum pool size.
+     * Close idle connections while the total managed count exceeds the configured minimum.
      */
     public function flush(): void
     {
@@ -167,6 +167,15 @@ abstract class Pool implements PoolInterface
         }
 
         $this->closed = true;
+
+        if ($this->frequency instanceof ClearableFrequencyInterface) {
+            try {
+                $this->frequency->clear();
+            } catch (Throwable $exception) {
+                $this->report($exception);
+            }
+        }
+
         $this->channel->close();
 
         while ($connection = $this->popIdleConnection()) {

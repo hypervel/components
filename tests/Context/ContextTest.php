@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Context;
 
+use ArrayObject;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Swoole\Event;
 
 use function Hypervel\Coroutine\run;
 
@@ -20,7 +21,7 @@ class ContextTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    public function testSetMany()
+    public function testSetMany(): void
     {
         $values = [
             'key1' => 'value1',
@@ -36,70 +37,86 @@ class ContextTest extends TestCase
         }
     }
 
-    /**
-     * @covers ::copyFromNonCoroutine
-     */
-    public function testCopyFromNonCoroutineCopiesAllKeys()
+    public function testCaptureFromOutsideCoroutineDoesNotReadNonCoroutineContext(): void
+    {
+        CoroutineContext::set('capture.fallback', 'fallback');
+
+        $this->assertSame([], CoroutineContext::captureFrom());
+        $this->assertSame([], CoroutineContext::captureFrom(['capture.fallback']));
+    }
+
+    public function testCaptureFromDestroyedCoroutineReturnsEmptyArray(): void
+    {
+        $this->assertSame([], CoroutineContext::captureFrom(fromCoroutineId: -1));
+    }
+
+    public function testCopyFromNonCoroutineCopiesAllKeys(): void
     {
         CoroutineContext::set('foo', 'foo');
         CoroutineContext::set('bar', 'bar');
+        $copied = [];
 
-        run(function () {
-            Coroutine::create(function () {
+        run(static function () use (&$copied): void {
+            Coroutine::create(static function () use (&$copied): void {
                 CoroutineContext::copyFromNonCoroutine();
-                $this->assertSame('foo', CoroutineContext::get('foo'));
-                $this->assertSame('bar', CoroutineContext::get('bar'));
+                $copied = [
+                    'foo' => CoroutineContext::get('foo'),
+                    'bar' => CoroutineContext::get('bar'),
+                ];
             });
         });
+
+        $this->assertSame(['foo' => 'foo', 'bar' => 'bar'], $copied);
     }
 
-    /**
-     * @covers ::copyFromNonCoroutine
-     */
-    public function testCopyFromNonCoroutinePreservesExistingCoroutineValues()
+    public function testCopyFromNonCoroutinePreservesExistingCoroutineValues(): void
     {
         CoroutineContext::set('from_non_co', 'copied');
+        $copied = [];
 
-        run(function () {
-            Coroutine::create(function () {
-                // Set a value in the coroutine before copying
+        run(static function () use (&$copied): void {
+            Coroutine::create(static function () use (&$copied): void {
                 CoroutineContext::set('existing', 'should_survive');
-
                 CoroutineContext::copyFromNonCoroutine();
-
-                // Copied value is present
-                $this->assertSame('copied', CoroutineContext::get('from_non_co'));
-                // Pre-existing coroutine value is preserved
-                $this->assertSame('should_survive', CoroutineContext::get('existing'));
+                $copied = [
+                    'from_non_co' => CoroutineContext::get('from_non_co'),
+                    'existing' => CoroutineContext::get('existing'),
+                ];
             });
         });
+
+        $this->assertSame([
+            'from_non_co' => 'copied',
+            'existing' => 'should_survive',
+        ], $copied);
     }
 
-    /**
-     * @covers ::copyFromNonCoroutine
-     */
-    public function testCopyFromNonCoroutineWithSelectiveKeysPreservesExisting()
+    public function testCopyFromNonCoroutineWithSelectiveKeysPreservesExisting(): void
     {
         CoroutineContext::set('wanted', 'yes');
         CoroutineContext::set('unwanted', 'no');
+        $copied = [];
 
-        run(function () {
-            Coroutine::create(function () {
+        run(static function () use (&$copied): void {
+            Coroutine::create(static function () use (&$copied): void {
                 CoroutineContext::set('existing', 'kept');
-
                 CoroutineContext::copyFromNonCoroutine(['wanted']);
-
-                $this->assertSame('yes', CoroutineContext::get('wanted'));
-                $this->assertNull(CoroutineContext::get('unwanted'));
-                $this->assertSame('kept', CoroutineContext::get('existing'));
+                $copied = [
+                    'wanted' => CoroutineContext::get('wanted'),
+                    'unwanted' => CoroutineContext::get('unwanted'),
+                    'existing' => CoroutineContext::get('existing'),
+                ];
             });
         });
+
+        $this->assertSame([
+            'wanted' => 'yes',
+            'unwanted' => null,
+            'existing' => 'kept',
+        ], $copied);
     }
 
-    /**
-     * @covers ::flush
-     */
-    public function testFlush()
+    public function testFlush(): void
     {
         CoroutineContext::set('key1', 'value1');
         CoroutineContext::set('key2', 'value2');
@@ -113,7 +130,120 @@ class ContextTest extends TestCase
         $this->assertFalse(CoroutineContext::has('key2'));
     }
 
-    public function testOverride()
+    public function testExplicitCoroutineIdTargetsLiveContextFromOutsideCoroutine(): void
+    {
+        CoroutineContext::set('shared', 'fallback');
+
+        $coroutineId = Coroutine::create(static function (): void {
+            CoroutineContext::set('shared', 'child');
+            CoroutineContext::set('child-only', 'value');
+            EngineCoroutine::yield();
+        });
+
+        try {
+            $this->assertTrue(CoroutineContext::has('shared', $coroutineId));
+            $this->assertSame('child', CoroutineContext::get('shared', null, $coroutineId));
+
+            $container = CoroutineContext::getContainer($coroutineId);
+            $this->assertInstanceOf(ArrayObject::class, $container);
+            $this->assertSame('value', $container['child-only']);
+
+            CoroutineContext::set('shared', 'updated', $coroutineId);
+            $this->assertSame('updated', CoroutineContext::get('shared', null, $coroutineId));
+            $this->assertSame('fallback', CoroutineContext::getFromNonCoroutine('shared'));
+
+            CoroutineContext::forget('shared', $coroutineId);
+            $this->assertFalse(CoroutineContext::has('shared', $coroutineId));
+            $this->assertSame('fallback', CoroutineContext::getFromNonCoroutine('shared'));
+
+            CoroutineContext::flush($coroutineId);
+            $this->assertSame([], $container->getArrayCopy());
+            $this->assertSame('fallback', CoroutineContext::getFromNonCoroutine('shared'));
+        } finally {
+            EngineCoroutine::resumeById($coroutineId);
+            // Drain explicitly so Swoole does not fall back to its deprecated shutdown wait.
+            Event::wait();
+        }
+    }
+
+    public function testCopyFromLiveCoroutineRequiresACoroutineDestination(): void
+    {
+        $coroutineId = Coroutine::create(static function (): void {
+            CoroutineContext::set('source', 'value');
+            EngineCoroutine::yield();
+        });
+
+        try {
+            CoroutineContext::copyFrom($coroutineId);
+            $this->fail('Expected copying into a missing current coroutine to fail.');
+        } catch (CoroutineDestroyedException $exception) {
+            $this->assertSame('Coroutine #-1 has been destroyed.', $exception->getMessage());
+            $this->assertFalse(CoroutineContext::has('source'));
+        } finally {
+            EngineCoroutine::resumeById($coroutineId);
+            // Drain explicitly so Swoole does not fall back to its deprecated shutdown wait.
+            Event::wait();
+        }
+    }
+
+    public function testCurrentCoroutineMutationNeverClearsFallbackStorage(): void
+    {
+        CoroutineContext::set('forgotten', 'fallback-forgotten');
+        CoroutineContext::set('flushed', 'fallback-flushed');
+        $observed = [];
+
+        run(static function () use (&$observed): void {
+            CoroutineContext::set('forgotten', 'coroutine-forgotten');
+            CoroutineContext::set('flushed', 'coroutine-flushed');
+
+            CoroutineContext::forget('forgotten');
+            $observed['forgotten'] = CoroutineContext::has('forgotten');
+            $observed['fallback-forgotten'] = CoroutineContext::getFromNonCoroutine('forgotten');
+
+            CoroutineContext::flush();
+            $observed['flushed'] = CoroutineContext::has('flushed');
+            $observed['fallback-flushed'] = CoroutineContext::getFromNonCoroutine('flushed');
+        });
+
+        $this->assertSame([
+            'forgotten' => false,
+            'fallback-forgotten' => 'fallback-forgotten',
+            'flushed' => false,
+            'fallback-flushed' => 'fallback-flushed',
+        ], $observed);
+    }
+
+    public function testExplicitDestroyedCoroutineIdNeverUsesFallbackStorage(): void
+    {
+        $coroutineId = Coroutine::create(static function (): void {
+            // The coroutine exits before its ID is used as an explicit target.
+        });
+        // Drain explicitly so Swoole does not fall back to its deprecated shutdown wait.
+        Event::wait();
+
+        CoroutineContext::set('shared', 'fallback');
+
+        $this->assertSame('default', CoroutineContext::get('shared', 'default', $coroutineId));
+        $this->assertFalse(CoroutineContext::has('shared', $coroutineId));
+        $this->assertNull(CoroutineContext::getContainer($coroutineId));
+
+        CoroutineContext::forget('shared', $coroutineId);
+        CoroutineContext::flush($coroutineId);
+        CoroutineContext::flush(-1);
+
+        $this->assertSame('fallback', CoroutineContext::getFromNonCoroutine('shared'));
+
+        try {
+            CoroutineContext::set('shared', 'target', $coroutineId);
+            $this->fail('Expected an explicit write to a destroyed coroutine to fail.');
+        } catch (CoroutineDestroyedException $exception) {
+            $this->assertSame("Coroutine #{$coroutineId} has been destroyed.", $exception->getMessage());
+        }
+
+        $this->assertSame('fallback', CoroutineContext::getFromNonCoroutine('shared'));
+    }
+
+    public function testOverride(): void
     {
         CoroutineContext::set('override.id', 1);
 
@@ -124,7 +254,7 @@ class ContextTest extends TestCase
         $this->assertSame(2, CoroutineContext::get('override.id'));
     }
 
-    public function testGetOrSet()
+    public function testGetOrSet(): void
     {
         CoroutineContext::set('test.store.id', null);
         $this->assertSame(1, CoroutineContext::getOrSet('test.store.id', function () {
@@ -138,7 +268,7 @@ class ContextTest extends TestCase
         $this->assertSame(1, CoroutineContext::getOrSet('test.store.id', 1));
     }
 
-    public function testContextForget()
+    public function testContextForget(): void
     {
         CoroutineContext::set($id = uniqid(), $value = uniqid());
 
@@ -147,7 +277,7 @@ class ContextTest extends TestCase
         $this->assertNull(CoroutineContext::get($id));
     }
 
-    public function testRequestContext()
+    public function testRequestContext(): void
     {
         $request = m::mock(Request::class);
         RequestContext::set($request);
@@ -157,17 +287,5 @@ class ContextTest extends TestCase
         $this->assertNotSame($request, RequestContext::get());
         $this->assertSame($req, RequestContext::get());
         $this->assertSame($req, CoroutineContext::get(Request::class));
-    }
-
-    public function testResponseContext()
-    {
-        $response = m::mock(Response::class);
-        ResponseContext::set($response);
-        $this->assertSame($response, ResponseContext::get());
-
-        CoroutineContext::set(SymfonyResponse::class, $res = m::mock(Response::class));
-        $this->assertNotSame($response, ResponseContext::get());
-        $this->assertSame($res, ResponseContext::get());
-        $this->assertSame($res, CoroutineContext::get(SymfonyResponse::class));
     }
 }

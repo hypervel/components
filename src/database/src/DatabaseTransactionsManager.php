@@ -316,6 +316,9 @@ class DatabaseTransactionsManager
 
     /**
      * Copy transaction state from the current coroutine to non-coroutine storage.
+     *
+     * Tests only. This copies coroutine-local transaction state into worker-global
+     * storage, so request-time use can leak or race across concurrent requests.
      */
     public static function copyToNonCoroutineState(): void
     {
@@ -328,6 +331,9 @@ class DatabaseTransactionsManager
 
     /**
      * Clear all transaction state from non-coroutine storage.
+     *
+     * Tests only. This mutates worker-global transaction state, so request-time
+     * use can race with concurrent requests using the same storage.
      */
     public static function clearNonCoroutineState(): void
     {

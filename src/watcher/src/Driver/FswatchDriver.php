@@ -178,10 +178,7 @@ class FswatchDriver extends AbstractDriver
      */
     protected function getCommand(): array
     {
-        $paths = array_map(
-            fn (WatchPath $p) => base_path($p->path),
-            $this->option->getWatchPaths(),
-        );
+        $paths = $this->resolveTargets($this->option->getWatchPaths());
 
         if ($this->isDarwin()) {
             return ['fswatch', ...$paths];

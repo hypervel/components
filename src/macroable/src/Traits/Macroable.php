@@ -52,7 +52,7 @@ trait Macroable
     }
 
     /**
-     * Checks if macro is registered.
+     * Check if macro is registered.
      */
     public static function hasMacro(string $name): bool
     {
@@ -88,7 +88,8 @@ trait Macroable
         $macro = static::$macros[$method];
 
         if ($macro instanceof Closure) {
-            $macro = $macro->bindTo(null, static::class);
+            // PHP warns when a valid first-class callable cannot be rebound; retain the original callable.
+            $macro = @$macro->bindTo(null, static::class) ?? $macro;
         }
 
         return $macro(...$parameters);
@@ -112,7 +113,10 @@ trait Macroable
         $macro = static::$macros[$method];
 
         if ($macro instanceof Closure) {
-            $macro = $macro->bindTo($this, static::class);
+            // PHP warns when a valid callable cannot use a binding form; select the first form it accepts.
+            $macro = @$macro->bindTo($this, static::class)
+                ?? @$macro->bindTo(null, static::class)
+                ?? $macro;
         }
 
         return $macro(...$parameters);

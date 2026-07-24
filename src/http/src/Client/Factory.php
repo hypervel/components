@@ -657,6 +657,14 @@ class Factory
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Execute a method against a new pending request instance.
      */
     public function __call(string $method, array $parameters): mixed

@@ -14,6 +14,7 @@
     - [Enum Keys](#enum-keys)
 - [Copying Context](#copying-context)
     - [Copying From Another Coroutine](#copying-from-another-coroutine)
+    - [Capturing Context Values](#capturing-context-values)
     - [Copying From Non-Coroutine Context](#copying-from-non-coroutine-context)
     - [Copying To Non-Coroutine Context](#copying-to-non-coroutine-context)
     - [Reading Non-Coroutine Context](#reading-non-coroutine-context)
@@ -21,7 +22,6 @@
 - [Context Containers](#context-containers)
 - [Typed Context Helpers](#typed-context-helpers)
     - [Request Context](#request-context)
-    - [Response Context](#response-context)
     - [Parent Coroutine Context](#parent-coroutine-context)
 - [Common Pitfalls](#common-pitfalls)
 
@@ -80,6 +80,8 @@ You may pass a coroutine ID as the third argument to store a value in a specific
 ```php
 CoroutineContext::set('tenant_id', 123, $coroutineId);
 ```
+
+An explicit coroutine ID always targets only that coroutine, regardless of whether the caller is running inside another coroutine. If the requested coroutine does not exist, `set` throws a `Hypervel\Engine\Exceptions\CoroutineDestroyedException`. In the same situation, `get` returns its default, `has` returns `false`, `forget` and `flush` do nothing, and `getContainer` returns `null`. These operations never fall back to the shared non-coroutine context store when an explicit ID is supplied.
 
 <a name="determining-item-existence"></a>
 ### Determining Item Existence
@@ -266,6 +268,37 @@ Copied values are merged into the current coroutine context. Existing values tha
 > [!NOTE]
 > `copyFrom` copies from another coroutine's context. It does not copy values from the non-coroutine context store.
 
+<a name="capturing-context-values"></a>
+### Capturing Context Values
+
+The `captureFrom` method returns context values as an array without copying them into another coroutine. By default, it captures all values from the current coroutine. You may pass a list of keys as the first argument to capture only those values:
+
+```php
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
+
+$context = CoroutineContext::captureFrom(['request_id']);
+
+Coroutine::create(function () use ($context) {
+    CoroutineContext::setMany($context);
+
+    $requestId = CoroutineContext::get('request_id');
+});
+```
+
+To capture another coroutine, pass its ID using the `fromCoroutineId` argument:
+
+```php
+$context = CoroutineContext::captureFrom(['request_id'], fromCoroutineId: $parentId);
+```
+
+Values implementing `ReplicableContext` are replicated when they are captured. If replication fails, no destination context has been modified and the caller may handle the exception before creating a child coroutine.
+
+The returned map is a coroutine-transfer snapshot, not a serialization or persistence format: ordinary objects remain shared references. For a few application values, prefer explicit `get` calls.
+
+> [!NOTE]
+> Most application code should use `Coroutine::fork` or the `copyContext` argument on `go`, `co`, and `parallel`. Use `captureFrom` when implementing a custom coroutine or scheduling boundary that must separate context capture from installation.
+
 <a name="copying-from-non-coroutine-context"></a>
 ### Copying From Non-Coroutine Context
 
@@ -300,31 +333,16 @@ CoroutineContext::copyFromNonCoroutine(['request_id'], $coroutineId);
 <a name="copying-to-non-coroutine-context"></a>
 ### Copying To Non-Coroutine Context
 
-The `copyToNonCoroutine` method copies values from a coroutine context into the non-coroutine context store:
+Hypervel's test infrastructure uses the `copyToNonCoroutine` method to bridge selected state from a test coroutine into PHPUnit lifecycle code that runs outside a coroutine. You may select specific keys and, when necessary, the source coroutine:
 
 ```php
 use Hypervel\Context\CoroutineContext;
 
-use function Hypervel\Coroutine\run;
-
-run(function () {
-    CoroutineContext::set('request_id', 'abc');
-
-    CoroutineContext::copyToNonCoroutine();
-});
+CoroutineContext::copyToNonCoroutine(['test_state'], $coroutineId);
 ```
 
-You may copy only specific keys:
-
-```php
-CoroutineContext::copyToNonCoroutine(['request_id']);
-```
-
-You may pass a coroutine ID as the second argument to copy from a specific coroutine:
-
-```php
-CoroutineContext::copyToNonCoroutine(['request_id'], $coroutineId);
-```
+> [!WARNING]
+> `copyToNonCoroutine` writes to process-global storage shared by every coroutine in the worker. It is intended only for controlled test lifecycle bridges and must not be used to propagate request state.
 
 <a name="reading-non-coroutine-context"></a>
 ### Reading Non-Coroutine Context
@@ -337,11 +355,14 @@ use Hypervel\Context\CoroutineContext;
 $requestId = CoroutineContext::getFromNonCoroutine('request_id');
 ```
 
-You may clear specific keys from the non-coroutine context store using `clearFromNonCoroutine`:
+Test infrastructure may clear its owned keys from the non-coroutine context store using `clearFromNonCoroutine`:
 
 ```php
-CoroutineContext::clearFromNonCoroutine(['request_id']);
+CoroutineContext::clearFromNonCoroutine(['test_state']);
 ```
+
+> [!WARNING]
+> `clearFromNonCoroutine` mutates process-global storage and is intended only for controlled test lifecycle cleanup.
 
 <a name="replicable-context-values"></a>
 ### Replicable Context Values
@@ -366,7 +387,7 @@ class RequestState implements ReplicableContext
 }
 ```
 
-Objects implementing `ReplicableContext` are copied by calling their `replicate` method when `CoroutineContext::copyFrom` or `CoroutineContext::copyFromNonCoroutine` copies them.
+Objects implementing `ReplicableContext` are copied by calling their `replicate` method when `Coroutine::fork`, `CoroutineContext::captureFrom`, `CoroutineContext::copyFrom`, or `CoroutineContext::copyFromNonCoroutine` copies them.
 
 <a name="context-containers"></a>
 ## Context Containers
@@ -386,7 +407,7 @@ This method is intended for low-level framework and package code. Most code shou
 <a name="typed-context-helpers"></a>
 ## Typed Context Helpers
 
-Hypervel includes a few small typed helpers built on top of `CoroutineContext`. These helpers are mostly useful in framework and package code that needs direct access to low-level request or response state.
+Hypervel includes a few small typed helpers built on top of `CoroutineContext`. These helpers are mostly useful in framework and package code that needs direct access to low-level framework state.
 
 <a name="request-context"></a>
 ### Request Context
@@ -412,31 +433,6 @@ RequestContext::forget();
 ```
 
 Each method accepts an optional coroutine ID when you need to access another coroutine's request context.
-
-<a name="response-context"></a>
-### Response Context
-
-The `ResponseContext` class stores the current `Hypervel\Http\Response` instance:
-
-```php
-use Hypervel\Context\ResponseContext;
-
-ResponseContext::set($response);
-
-$response = ResponseContext::get();
-```
-
-You may check, remove, or optionally retrieve the current response:
-
-```php
-if (ResponseContext::has()) {
-    $response = ResponseContext::getOrNull();
-}
-
-ResponseContext::forget();
-```
-
-Each method accepts an optional coroutine ID when you need to access another coroutine's response context.
 
 <a name="parent-coroutine-context"></a>
 ### Parent Coroutine Context

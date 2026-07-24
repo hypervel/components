@@ -48,11 +48,19 @@ class DeferredQueue extends SyncQueue
 
             return $this->container->make('db.transactions')
                 ->addCallback(
-                    fn () => $this->scheduleTimer($delay, $job, $data, $queue)
+                    fn () => $this->scheduleTimer(
+                        $delay,
+                        $this->createPayload($job, $queue, $data),
+                        $queue
+                    )
                 );
         }
 
-        return $this->scheduleTimer($delay, $job, $data, $queue);
+        return $this->scheduleTimer(
+            $delay,
+            $this->createPayload($job, $queue, $data),
+            $queue
+        );
     }
 
     /**
@@ -75,28 +83,28 @@ class DeferredQueue extends SyncQueue
      * dropped rather than racing against shutdown cleanup. Devs needing
      * durability across worker restarts should use a persistent queue.
      */
-    protected function scheduleTimer(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data, ?string $queue): int
+    protected function scheduleTimer(DateInterval|DateTimeInterface|int $delay, string $payload, ?string $queue): int
     {
         return $this->timer->after(
             max(0.0, (float) $this->secondsUntil($delay)),
-            function (bool $isClosing = false) use ($job, $data, $queue) {
+            function (bool $isClosing = false) use ($payload, $queue) {
                 if ($isClosing) {
                     return;
                 }
 
-                $this->executeJob($job, $data, $queue);
+                $this->executePayload($payload, $queue);
             }
         );
     }
 
     /**
-     * Defer a new job onto the deferred queue.
+     * Defer a serialized job onto the deferred queue.
      */
-    protected function executeJob(object|string $job, mixed $data = '', ?string $queue = null): int
+    protected function executePayload(string $payload, ?string $queue = null): int
     {
-        Coroutine::defer(function () use ($job, $data, $queue) {
+        Coroutine::defer(function () use ($payload, $queue) {
             try {
-                parent::executeJob($job, $data, $queue);
+                parent::executePayload($payload, $queue);
             } catch (Throwable $e) {
                 if ($this->exceptionCallback) {
                     ($this->exceptionCallback)($e);

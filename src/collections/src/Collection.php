@@ -580,12 +580,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         foreach ($this->items as $key => $item) {
             $resolvedKey = $keyBy($item, $key);
 
-            if ($resolvedKey instanceof UnitEnum) {
-                $resolvedKey = enum_value($resolvedKey);
-            }
-
             if (is_object($resolvedKey)) {
-                $resolvedKey = (string) $resolvedKey;
+                $resolvedKey = $resolvedKey instanceof UnitEnum
+                    ? enum_value($resolvedKey)
+                    : (string) $resolvedKey;
             }
 
             $results[$resolvedKey] = $item;
@@ -711,25 +709,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         return empty($this->items);
     }
 
-    /**
-     * Determine if the collection contains exactly one item. If a callback is provided, determine if exactly one item matches the condition.
-     *
-     * @param null|(callable(TValue, TKey): bool) $callback
-     */
-    public function containsOneItem(?callable $callback = null): bool
-    {
-        return $this->hasSole($callback);
-    }
-
-    /**
-     * Determine if the collection contains multiple items. If a callback is provided, determine if multiple items match the condition.
-     *
-     * @param null|(callable(TValue, TKey): bool) $callback
-     */
-    public function containsManyItems(?callable $callback = null): bool
-    {
-        return $this->hasMany($callback);
-    }
+    // REMOVED: Laravel's deprecated containsOneItem() and containsManyItems(); use hasSole() and hasMany().
 
     /**
      * Join all items from the collection using a string. The final items can use a separate glue string.
@@ -921,6 +901,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Create a new collection consisting of every n-th element.
      *
+     * @return ($step is positive-int ? static : never)
+     *
      * @throws InvalidArgumentException
      */
     public function nth(int $step, int $offset = 0): static
@@ -1108,7 +1090,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Get one or a specified number of items randomly from the collection.
      *
      * @param null|(callable(self<TKey, TValue>): int)|int|string $number
-     * @return ($number is null ? TValue : static<int, TValue>)
+     * @return ($number is null ? TValue : static<($preserveKeys is true ? TKey : int), TValue>)
      *
      * @throws InvalidArgumentException
      */
@@ -1323,7 +1305,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Split a collection into a certain number of groups.
      *
-     * @return static<int, static>
+     * @return ($numberOfGroups is positive-int ? static<int, static> : never)
      *
      * @throws InvalidArgumentException
      */
@@ -1365,7 +1347,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Split a collection into a certain number of groups, and fill the first groups completely.
      *
-     * @return static<int, static>
+     * @return ($numberOfGroups is positive-int ? static<int, static> : never)
      *
      * @throws InvalidArgumentException
      */
@@ -1880,47 +1862,47 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Determine if an item exists at an offset.
      *
-     * @param TKey $key
+     * @param TKey $offset
      */
-    public function offsetExists($key): bool
+    public function offsetExists($offset): bool
     {
-        return isset($this->items[$key]);
+        return isset($this->items[$offset]);
     }
 
     /**
      * Get an item at a given offset.
      *
-     * @param TKey $key
+     * @param TKey $offset
      * @return TValue
      */
-    public function offsetGet($key): mixed
+    public function offsetGet($offset): mixed
     {
-        return $this->items[$key];
+        return $this->items[$offset];
     }
 
     /**
      * Set the item at a given offset.
      *
-     * @param null|TKey $key
+     * @param null|TKey $offset
      * @param TValue $value
      */
-    public function offsetSet($key, $value): void
+    public function offsetSet($offset, $value): void
     {
-        if (is_null($key)) {
+        if (is_null($offset)) {
             $this->items[] = $value;
         } else {
-            $this->items[$key] = $value;
+            $this->items[$offset] = $value;
         }
     }
 
     /**
      * Unset the item at a given offset.
      *
-     * @param TKey $key
+     * @param TKey $offset
      */
-    public function offsetUnset($key): void
+    public function offsetUnset($offset): void
     {
-        unset($this->items[$key]);
+        unset($this->items[$offset]);
     }
 
     /**

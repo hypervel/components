@@ -22,6 +22,11 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\Http\Message\RequestInterface;
 
+enum ClientRequestWatcherTestIntTag: int
+{
+    case Zero = 0;
+}
+
 #[WithConfig('telescope.watchers', [
     ClientRequestWatcher::class => true,
 ])]
@@ -747,6 +752,26 @@ class ClientRequestWatcherTest extends FeatureTestCase
             ->all();
         $this->assertContains('scout', $tags);
         $this->assertContains('algolia', $tags);
+    }
+
+    public function testIntegerBackedEnumTelescopeTagsAreNormalizedToStrings(): void
+    {
+        $client = $this->makeClient([new Response(200, [], 'OK')]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('GET', 'https://example.com/api'),
+            ['telescope_tags' => [ClientRequestWatcherTestIntTag::Zero]],
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertNotNull($entry);
+        $tags = DB::table('telescope_entries_tags')
+            ->where('entry_uuid', $entry->uuid)
+            ->pluck('tag')
+            ->all();
+        $this->assertContains('0', $tags);
     }
 
     public function testExistingOnStatsCallbackIsPreserved()

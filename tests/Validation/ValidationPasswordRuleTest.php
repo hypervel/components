@@ -261,13 +261,15 @@ class ValidationPasswordRuleTest extends TestCase
         });
 
         $this->passes(Password::default(), ['abcd', '454qb^', '接2133手田']);
-        $this->assertSame($password, Password::default());
+        $this->assertNotSame($password, Password::default());
+        $this->assertSame($password->appliedRules(), Password::default()->appliedRules());
         $this->assertInstanceOf(Password::class, Password::required());
         $this->assertInstanceOf(Password::class, Password::sometimes());
 
         Password::defaults($password2);
         $this->passes(Password::default(), ['Nn', 'Mn', 'âA']);
-        $this->assertSame($password2, Password::default());
+        $this->assertNotSame($password2, Password::default());
+        $this->assertSame($password2->appliedRules(), Password::default()->appliedRules());
         $this->assertInstanceOf(Password::class, Password::required());
         $this->assertInstanceOf(Password::class, Password::sometimes());
     }

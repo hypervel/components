@@ -12,7 +12,7 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Queue\Worker;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Queue;
@@ -62,6 +62,47 @@ class WorkCommandTest extends QueueTestCase
         $this->assertFalse(SecondJob::$ran);
     }
 
+    public function testQueueOptionPreservesZeroAndDefaultsEmptyString(): void
+    {
+        Queue::push(new FirstJob, queue: '0');
+        Queue::push(new SecondJob);
+
+        $this->artisan('queue:work', [
+            '--once' => true,
+            '--memory' => 1024,
+            '--queue' => '0',
+        ])->assertExitCode(0);
+
+        $this->assertTrue(FirstJob::$ran);
+        $this->assertFalse(SecondJob::$ran);
+
+        $this->artisan('queue:work', [
+            '--once' => true,
+            '--memory' => 1024,
+            '--queue' => '',
+        ])->assertExitCode(0);
+
+        $this->assertTrue(SecondJob::$ran);
+    }
+
+    public function testConnectionArgumentPreservesZero(): void
+    {
+        $this->app['config']->set(
+            'queue.connections.0',
+            $this->app['config']->get('queue.connections.database'),
+        );
+
+        Queue::connection('0')->push(new FirstJob);
+
+        $this->artisan('queue:work', [
+            'connection' => '0',
+            '--once' => true,
+            '--memory' => 1024,
+        ])->assertExitCode(0);
+
+        $this->assertTrue(FirstJob::$ran);
+    }
+
     public function testOnceDoesNotRunInMaintenanceModeUnlessForced()
     {
         Queue::push(new FirstJob);
@@ -94,10 +135,10 @@ class WorkCommandTest extends QueueTestCase
         }
     }
 
-    public function testRunTimestampOutputWithDefaultAppTimezone()
+    public function testRunTimestampOutputWithDefaultAppTimezone(): void
     {
         // queue.output_timezone not set at all
-        $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
+        $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
@@ -107,11 +148,11 @@ class WorkCommandTest extends QueueTestCase
             ->assertExitCode(0);
     }
 
-    public function testRunTimestampOutputWithDifferentLogTimezone()
+    public function testRunTimestampOutputWithDifferentLogTimezone(): void
     {
         $this->app['config']->set('queue.output_timezone', 'Europe/Helsinki');
 
-        $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
+        $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
@@ -121,11 +162,11 @@ class WorkCommandTest extends QueueTestCase
             ->assertExitCode(0);
     }
 
-    public function testRunTimestampOutputWithSameAppDefaultAndQueueLogDefault()
+    public function testRunTimestampOutputWithSameAppDefaultAndQueueLogDefault(): void
     {
         $this->app['config']->set('queue.output_timezone', 'UTC');
 
-        $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
+        $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [

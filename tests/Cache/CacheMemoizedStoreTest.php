@@ -14,22 +14,22 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 class CacheMemoizedStoreTest extends TestCase
 {
-    public function testTouchExtendsTtl()
+    public function testTouchExtendsTtl(): void
     {
         $store = new MemoizedStore('test', new Repository(new ArrayStore));
 
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $store->put('foo', 'bar', 30);
         $store->touch('foo', 60);
 
-        Carbon::setTestNow($now->addSeconds(45));
+        CarbonImmutable::setTestNow($now->addSeconds(45));
 
         $this->assertSame('bar', $store->get('foo'));
     }

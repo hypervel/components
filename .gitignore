@@ -8,9 +8,9 @@
 /.fleet
 /.idea
 /.phpunit.cache
+/.tmp
 /.vscode
 /.zed
-/_tmp
 /docs/node_modules/
 /docs/.vuepress/dist/
 /docs/.vuepress/.cache

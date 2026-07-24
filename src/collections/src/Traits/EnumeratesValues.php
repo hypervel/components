@@ -170,7 +170,7 @@ trait EnumeratesValues
      * @template TTimesValue
      *
      * @param null|(callable(int): TTimesValue) $callback
-     * @return static<int, TTimesValue>
+     * @return ($callback is null ? static<int, int> : static<int, TTimesValue>)
      */
     public static function times(int $number, ?callable $callback = null, mixed ...$args): static
     {
@@ -465,7 +465,10 @@ trait EnumeratesValues
     /**
      * Get the min value of a given key.
      *
-     * @param null|(callable(TValue):mixed)|string $callback
+     * @template TMinResult = mixed
+     *
+     * @param null|(callable(TValue): TMinResult)|string $callback
+     * @return ($callback is callable ? ?TMinResult : ($callback is null ? ?TValue : mixed))
      */
     public function min(callable|int|string|null $callback = null): mixed
     {
@@ -479,7 +482,10 @@ trait EnumeratesValues
     /**
      * Get the max value of a given key.
      *
-     * @param null|(callable(TValue):mixed)|string $callback
+     * @template TMaxResult = mixed
+     *
+     * @param null|(callable(TValue): TMaxResult)|string $callback
+     * @return ($callback is callable ? ?TMaxResult : ($callback is null ? ?TValue : mixed))
      */
     public function max(callable|int|string|null $callback = null): mixed
     {
@@ -542,8 +548,8 @@ trait EnumeratesValues
      *
      * @template TReturnType
      *
-     * @param null|(callable(TValue): TReturnType)|string $callback
-     * @return ($callback is callable ? TReturnType : mixed)
+     * @param null|(callable(TValue, TKey): TReturnType)|string $callback
+     * @return ($callback is callable ? float|int|TReturnType : mixed)
      */
     public function sum(callable|int|string|null $callback = null): mixed
     {
@@ -551,7 +557,7 @@ trait EnumeratesValues
             ? $this->identity()
             : $this->valueRetriever($callback);
 
-        return $this->reduce(fn ($result, $item) => $result + $callback($item), 0);
+        return $this->reduce(fn ($result, $item, $key) => $result + $callback($item, $key), 0);
     }
 
     /**
@@ -769,7 +775,7 @@ trait EnumeratesValues
      *
      * @param callable(TReduceInitial|TReduceReturnType, TValue, TKey): TReduceReturnType $callback
      * @param TReduceInitial $initial
-     * @return TReduceReturnType
+     * @return TReduceInitial|TReduceReturnType
      */
     public function reduce(callable $callback, mixed $initial = null): mixed
     {
@@ -780,6 +786,24 @@ trait EnumeratesValues
         }
 
         return $result;
+    }
+
+    /**
+     * Reduce the collection to a single value by mutating an initial value.
+     *
+     * @template TReduceIntoInitial
+     *
+     * @param TReduceIntoInitial $initial
+     * @param callable(TReduceIntoInitial, TValue, TKey): void $callback
+     * @return TReduceIntoInitial
+     */
+    public function reduceInto(mixed $initial, callable $callback): mixed
+    {
+        foreach ($this as $key => $value) {
+            $callback($initial, $value, $key);
+        }
+
+        return $initial;
     }
 
     /**
@@ -814,7 +838,7 @@ trait EnumeratesValues
      *
      * @param callable(TReduceWithKeysInitial|TReduceWithKeysReturnType, TValue, TKey): TReduceWithKeysReturnType $callback
      * @param TReduceWithKeysInitial $initial
-     * @return TReduceWithKeysReturnType
+     * @return TReduceWithKeysInitial|TReduceWithKeysReturnType
      */
     public function reduceWithKeys(callable $callback, mixed $initial = null): mixed
     {

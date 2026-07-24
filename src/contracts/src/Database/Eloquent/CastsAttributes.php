@@ -18,14 +18,13 @@ interface CastsAttributes
      * @param array<string, mixed> $attributes
      * @return null|TGet
      */
-    public function get(Model $model, string $key, mixed $value, array $attributes);
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed;
 
     /**
      * Transform the attribute to its underlying model values.
      *
      * @param null|TSet $value
      * @param array<string, mixed> $attributes
-     * @return mixed
      */
-    public function set(Model $model, string $key, mixed $value, array $attributes);
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed;
 }

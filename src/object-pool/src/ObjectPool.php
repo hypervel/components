@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use RuntimeException;
 use Throwable;
@@ -43,7 +42,6 @@ abstract class ObjectPool implements ObjectPoolContract
      * Create an object pool.
      */
     public function __construct(
-        protected Container $container,
         protected PoolOptions $options,
         ?Closure $destroyCallback = null,
     ) {

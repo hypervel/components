@@ -30,7 +30,6 @@ use Hypervel\Queue\Queue;
 use Hypervel\Routing\Middleware\ThrottleRequests;
 use Hypervel\Support\Arr;
 use Hypervel\Support\EncodedHtmlString;
-use Hypervel\Support\Once;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Bootstrap\RegisterProviders;
@@ -390,7 +389,6 @@ class Application
         Markdown::flushState();
         Migrator::flushState();
         Model::flushState();
-        Once::flushState();
         PreventRequestForgery::flushState();
         PreventRequestsDuringMaintenance::flushState();
         Queue::flushState();

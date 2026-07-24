@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\RateLimiter;
+use Hypervel\Cache\RateLimiting\GlobalLimit;
 use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -13,6 +14,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
+use RuntimeException;
 
 enum BackedEnumNamedRateLimiter: string
 {
@@ -181,5 +183,96 @@ class RateLimiterTest extends TestCase
 
         // Closure returns expected value
         $this->assertSame('int-limit', $rateLimiter->limiter(IntBackedEnumNamedRateLimiter::First)());
+    }
+
+    public function testNamedLimiterKeyPreservesExistingHashedAndRawFormats(): void
+    {
+        $rateLimiter = new RateLimiter(m::mock(Cache::class));
+        $limit = Limit::perMinute(10)->by('user-1');
+
+        $this->assertSame(
+            hash('xxh128', 'apiuser-1'),
+            $rateLimiter->resolveNamedLimiterKey('api', $limit),
+        );
+        $this->assertSame(
+            'api:user-1',
+            $rateLimiter->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
+        );
+    }
+
+    public function testNamedLimiterKeyIncludesResolvedScopeBeforeSingleHash(): void
+    {
+        $rateLimiter = new RateLimiter(m::mock(Cache::class));
+        $resolvedName = null;
+        $rateLimiter->resolveKeyScopeUsing(function (string $limiterName) use (&$resolvedName): string {
+            $resolvedName = $limiterName;
+
+            return 'account-1';
+        });
+        $limit = Limit::perMinute(10)->by('user-1');
+
+        $this->assertSame(
+            hash('xxh128', 'account-1:apiuser-1'),
+            $rateLimiter->resolveNamedLimiterKey('api', $limit),
+        );
+        $this->assertSame(
+            'account-1:api:user-1',
+            $rateLimiter->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
+        );
+        $this->assertSame('api', $resolvedName);
+    }
+
+    public function testNullScopeAndClearedResolverPreserveExistingKey(): void
+    {
+        $rateLimiter = new RateLimiter(m::mock(Cache::class));
+        $limit = Limit::perMinute(10)->by('user-1');
+
+        $rateLimiter->resolveKeyScopeUsing(fn () => null);
+        $this->assertSame(
+            hash('xxh128', 'apiuser-1'),
+            $rateLimiter->resolveNamedLimiterKey('api', $limit),
+        );
+
+        $rateLimiter->resolveKeyScopeUsing(fn () => 'account-1');
+        $rateLimiter->resolveKeyScopeUsing(null);
+
+        $this->assertSame(
+            hash('xxh128', 'apiuser-1'),
+            $rateLimiter->resolveNamedLimiterKey('api', $limit),
+        );
+    }
+
+    public function testGlobalLimitNeverInvokesScopeResolver(): void
+    {
+        $rateLimiter = new RateLimiter(m::mock(Cache::class));
+        $rateLimiter->resolveKeyScopeUsing(function (): never {
+            throw new RuntimeException('Scope resolver should not run.');
+        });
+        $limit = new GlobalLimit(10);
+
+        $this->assertSame(
+            hash('xxh128', 'api'),
+            $rateLimiter->resolveNamedLimiterKey('api', $limit),
+        );
+        $this->assertSame(
+            'api:',
+            $rateLimiter->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
+        );
+    }
+
+    public function testNamedLimiterKeyAcceptsEmptyAndFallbackLimitKeys(): void
+    {
+        $rateLimiter = new RateLimiter(m::mock(Cache::class));
+        $emptyLimit = Limit::perMinute(10);
+        $fallbackLimit = Limit::perMinute(10)->by($emptyLimit->fallbackKey());
+
+        $this->assertSame(
+            hash('xxh128', 'api'),
+            $rateLimiter->resolveNamedLimiterKey('api', $emptyLimit),
+        );
+        $this->assertSame(
+            hash('xxh128', 'apiattempts:10:decay:60'),
+            $rateLimiter->resolveNamedLimiterKey('api', $fallbackLimit),
+        );
     }
 }

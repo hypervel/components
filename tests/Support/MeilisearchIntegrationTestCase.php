@@ -17,9 +17,6 @@ use Throwable;
  * - Opt-in skip: Skips unless MEILISEARCH_HOST is set
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
- *
- * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
- * should add the trait if they need coroutine context for their tests.
  */
 abstract class MeilisearchIntegrationTestCase extends TestCase
 {
@@ -34,13 +31,6 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
      * Computed prefix (includes TEST_TOKEN if running in parallel).
      */
     protected string $testPrefix;
-
-    /**
-     * Track indexes created during tests for cleanup.
-     *
-     * @var array<string>
-     */
-    protected array $createdIndexes = [];
 
     protected function setUp(): void
     {
@@ -60,27 +50,6 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $this->configureMeilisearch($app);
-    }
-
-    /**
-     * Initialize the Meilisearch client and clean up indexes.
-     *
-     * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
-     * Subclasses NOT using the trait should call this at the end of setUp().
-     *
-     * Uses the trait's opt-in skip logic - skips unless MEILISEARCH_HOST is set.
-     */
-    protected function initializeMeilisearch(): void
-    {
-        $this->setUpInteractsWithMeilisearch();
-    }
-
-    protected function tearDown(): void
-    {
-        $this->tearDownInteractsWithMeilisearch();
-        $this->createdIndexes = [];
-
-        parent::tearDown();
     }
 
     /**
@@ -123,7 +92,7 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
     }
 
     /**
-     * Create a test index and track it for cleanup.
+     * Create a test index.
      *
      * @param array<string, mixed> $options
      */
@@ -131,27 +100,6 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
     {
         $indexName = $this->prefixedIndexName($name);
         $this->meilisearch->createIndex($indexName, $options);
-        $this->createdIndexes[] = $indexName;
-    }
-
-    /**
-     * Clean up all test indexes matching the test prefix.
-     */
-    protected function cleanupTestIndexes(): void
-    {
-        try {
-            $indexes = $this->meilisearch->getIndexes();
-
-            foreach ($indexes->getResults() as $index) {
-                if (str_starts_with($index->getUid(), $this->testPrefix)) {
-                    $this->meilisearch->deleteIndex($index->getUid());
-                }
-            }
-        } catch (Throwable) {
-            // Ignore errors during cleanup
-        }
-
-        $this->createdIndexes = [];
     }
 
     /**

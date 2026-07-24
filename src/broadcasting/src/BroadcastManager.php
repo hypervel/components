@@ -32,11 +32,16 @@ use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
+use Hypervel\Support\RebindsCallbacksToSelf;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
+use ReflectionException;
 use RuntimeException;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
@@ -45,6 +50,7 @@ class BroadcastManager implements BroadcastingFactoryContract
 {
     use HasPoolProxy;
     use ReadsQueueAttributes;
+    use RebindsCallbacksToSelf;
     use ResolvesQueueRoutes;
 
     /**
@@ -241,7 +247,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Get a driver instance.
      */
-    public function connection(?string $driver = null): Broadcaster
+    public function connection(UnitEnum|string|null $driver = null): Broadcaster
     {
         return $this->driver($driver);
     }
@@ -249,9 +255,15 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Get a driver instance.
      */
-    public function driver(?string $name = null): Broadcaster
+    public function driver(UnitEnum|string|null $name = null): Broadcaster
     {
-        $name = $name ?: $this->getDefaultDriver();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         return $this->drivers[$name] = $this->get($name);
     }
@@ -458,8 +470,10 @@ class BroadcastManager implements BroadcastingFactoryContract
      *
      * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
+
         $this->app['config']['broadcasting.default'] = $name;
     }
 
@@ -470,8 +484,12 @@ class BroadcastManager implements BroadcastingFactoryContract
      * resources. Other connections sharing the pool transparently acquire a
      * fresh pool on their next operation.
      */
-    public function purge(?string $name = null): void
+    public function purge(UnitEnum|string|null $name = null): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $name ??= $this->getDefaultDriver();
         $driver = $this->drivers[$name] ?? null;
 
@@ -510,7 +528,14 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$driver] = $callback;
 
         return $this;
     }

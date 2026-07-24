@@ -50,7 +50,7 @@ class PasswordBroker implements PasswordBrokerContract
      */
     public function sendResetLink(#[SensitiveParameter] array $credentials, ?Closure $callback = null): string
     {
-        return $this->timebox->call(function () use ($credentials, $callback) {
+        return (clone $this->timebox)->call(function () use ($credentials, $callback) {
             // First we will check to see if we found a user at the given credentials and
             // if we did not we will redirect back to this current URI with a piece of
             // "flash" data in the session to indicate to the developers the errors.
@@ -96,7 +96,7 @@ class PasswordBroker implements PasswordBrokerContract
      */
     public function reset(#[SensitiveParameter] array $credentials, Closure $callback): mixed
     {
-        return $this->timebox->call(function ($timebox) use ($credentials, $callback) {
+        return (clone $this->timebox)->call(function ($timebox) use ($credentials, $callback) {
             $user = $this->validateReset($credentials);
 
             // If the responses from the validate method is not a user instance, we will

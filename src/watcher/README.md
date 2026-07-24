@@ -5,6 +5,8 @@ File Watcher for Hypervel
 
 A file watcher with pluggable drivers and restart strategies for Hypervel. Detects file changes using coroutine-native drivers and triggers configurable restart actions.
 
+Ported from: https://github.com/hyperf/hyperf/tree/master/src/watcher
+
 ## Configuration
 
 ```php
@@ -40,10 +42,10 @@ Glob patterns support `*` (single directory segment), `**` (recursive), `?` (sin
 
 | Driver | Description |
 |--------|-------------|
-| `ScanFileDriver` | Cross-platform, polls files using file hashes |
-| `FindDriver` | Uses `find -mmin` (Linux) or `gfind` (macOS via Homebrew) |
-| `FindNewerDriver` | Uses `find -newer` with a reference file for comparison |
-| `FswatchDriver` | Uses `fswatch` (macOS native or Linux via `apt`/`brew`) |
+| `ScanFileDriver` | Cross-platform hash polling for created, modified, and deleted files |
+| `FindDriver` | Uses `find -mmin` for created and modified files (`gfind` on macOS) |
+| `FindNewerDriver` | Uses `find -newer` for created and modified files |
+| `FswatchDriver` | Uses OS events for created, modified, renamed, and deleted files |
 
 ## Usage
 
@@ -57,6 +59,8 @@ php artisan watch --path=routes --path=database/**/*.php
 # Watch without restarting (detect changes only)
 php artisan watch --no-restart
 ```
+
+When the watch command receives `SIGINT`, `SIGTERM`, or `SIGQUIT`, it stops the active driver and managed server before allowing the signal to terminate the command.
 
 ## Architecture
 
@@ -79,4 +83,4 @@ interface RestartStrategy
 }
 ```
 
-The built-in `ServerRestartStrategy` handles Swoole server restart via PID file. Other packages (e.g., Horizon) can implement their own strategy to restart different process types.
+The built-in `ServerRestartStrategy` owns and restarts the Swoole server child process directly. Other packages (e.g., Horizon) can implement their own strategy to restart different process types.

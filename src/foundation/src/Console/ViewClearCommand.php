@@ -9,6 +9,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Engines\CompilerEngine;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Throwable;
 
 #[AsCommand(name: 'view:clear')]
 class ViewClearCommand extends Command
@@ -37,7 +38,7 @@ class ViewClearCommand extends Command
      *
      * @throws RuntimeException
      */
-    public function handle()
+    public function handle(): void
     {
         $path = $this->hypervel->make('config')->string('view.compiled');
 
@@ -47,12 +48,30 @@ class ViewClearCommand extends Command
 
         CompilerEngine::forgetCompiledOrNotExpired();
 
-        foreach ($this->files->glob("{$path}/*") as $view) {
-            if ($this->files->isDirectory($view)) {
-                $this->files->deleteDirectory($view);
-            } else {
-                $this->files->delete($view);
+        $views = $this->files->glob("{$path}/*");
+
+        if ($views === false) {
+            throw new RuntimeException("Unable to enumerate compiled views in [{$path}].");
+        }
+
+        $exception = null;
+
+        foreach ($views as $view) {
+            try {
+                $deleted = $this->files->isDirectory($view)
+                    ? $this->files->deleteDirectory($view)
+                    : $this->files->delete($view);
+
+                if (! $deleted && $this->files->exists($view)) {
+                    throw new RuntimeException("Unable to delete the compiled view [{$view}].");
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
             }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
 
         $this->components->info('Compiled views cleared successfully.');

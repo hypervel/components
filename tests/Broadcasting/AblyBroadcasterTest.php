@@ -6,11 +6,12 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Ably\AblyRest;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Http\Request;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class AblyBroadcasterTest extends TestCase
@@ -29,11 +30,6 @@ class AblyBroadcasterTest extends TestCase
         $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
         $this->ably = m::mock(AblyRest::class, ['abcd:efg']);
         $this->broadcaster = m::mock(AblyBroadcaster::class, [$this->container, $this->ably])->makePartial();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
@@ -114,6 +110,24 @@ class AblyBroadcasterTest extends TestCase
         );
     }
 
+    public function testFormatsChannelsBeforeApplyingAblyNamespaces(): void
+    {
+        Broadcaster::formatChannelsUsing(
+            static fn (array $channels): array => [
+                'private-' . $channels[0],
+                'presence-' . $channels[1],
+                $channels[2],
+            ],
+        );
+
+        $broadcaster = new InspectableAblyBroadcaster($this->container, $this->ably);
+
+        $this->assertSame(
+            ['private:orders', 'presence:users', 'public:status'],
+            $broadcaster->formatOutgoingChannels(['orders', 'users', 'status']),
+        );
+    }
+
     protected function getMockRequestWithUserForChannel(string $channel): Request
     {
         $request = m::mock(Request::class);
@@ -137,5 +151,13 @@ class AblyBroadcasterTest extends TestCase
         $request->shouldReceive('user')->andReturn(null);
 
         return $request;
+    }
+}
+
+class InspectableAblyBroadcaster extends AblyBroadcaster
+{
+    public function formatOutgoingChannels(array $channels): array
+    {
+        return parent::formatChannels($channels);
     }
 }

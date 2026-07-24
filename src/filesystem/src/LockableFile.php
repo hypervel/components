@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Filesystem;
 
-use Closure;
-use Exception;
 use Hypervel\Contracts\Filesystem\LockTimeoutException;
-use Hypervel\Coroutine\Coroutine;
-use Hypervel\Coroutine\Locker;
+use RuntimeException;
+use Throwable;
 
 class LockableFile
 {
@@ -45,19 +43,27 @@ class LockableFile
      */
     protected function ensureDirectoryExists(string $path): void
     {
-        if (! file_exists(dirname($path))) {
-            @mkdir(dirname($path), 0777, true);
+        $directory = dirname($path);
+
+        if (! is_dir($directory) && ! @mkdir($directory, 0777, true) && ! is_dir($directory)) {
+            throw new RuntimeException("Unable to create directory at path [{$directory}].");
         }
     }
 
     /**
      * Create the file resource.
      *
-     * @throws Exception
+     * @throws RuntimeException
      */
     protected function createResource(string $path, string $mode): void
     {
-        $this->handle = fopen($path, $mode);
+        $handle = @fopen($path, $mode);
+
+        if ($handle === false) {
+            throw new RuntimeException("Unable to open file at path [{$path}].");
+        }
+
+        $this->handle = $handle;
     }
 
     /**
@@ -65,9 +71,13 @@ class LockableFile
      */
     public function read(?int $length = null): string
     {
-        clearstatcache(true, $this->path);
+        $contents = @fread($this->handle, $length ?? ($this->size() ?: 1));
 
-        return fread($this->handle, $length ?? ($this->size() ?: 1));
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read from file at path [{$this->path}].");
+        }
+
+        return $contents;
     }
 
     /**
@@ -75,7 +85,13 @@ class LockableFile
      */
     public function size(): int
     {
-        return filesize($this->path);
+        $stat = @fstat($this->handle);
+
+        if ($stat === false) {
+            throw new RuntimeException("Unable to determine the size of file at path [{$this->path}].");
+        }
+
+        return $stat['size'];
     }
 
     /**
@@ -83,9 +99,19 @@ class LockableFile
      */
     public function write(string $contents): static
     {
-        fwrite($this->handle, $contents);
+        while ($contents !== '') {
+            $written = @fwrite($this->handle, $contents);
 
-        fflush($this->handle);
+            if ($written === false || $written === 0) {
+                throw new RuntimeException("Unable to write to file at path [{$this->path}].");
+            }
+
+            $contents = substr($contents, $written);
+        }
+
+        if (! @fflush($this->handle)) {
+            throw new RuntimeException("Unable to flush file at path [{$this->path}].");
+        }
 
         return $this;
     }
@@ -95,9 +121,13 @@ class LockableFile
      */
     public function truncate(): static
     {
-        rewind($this->handle);
+        if (! @rewind($this->handle)) {
+            throw new RuntimeException("Unable to rewind file at path [{$this->path}].");
+        }
 
-        ftruncate($this->handle, 0);
+        if (! @ftruncate($this->handle, 0)) {
+            throw new RuntimeException("Unable to truncate file at path [{$this->path}].");
+        }
 
         return $this;
     }
@@ -111,11 +141,9 @@ class LockableFile
      */
     public function getSharedLock(bool $block = false): static
     {
-        $this->atomic(function () use ($block) {
-            if (! flock($this->handle, LOCK_SH | ($block ? 0 : LOCK_NB))) {
-                throw new LockTimeoutException("Unable to acquire file lock at path [{$this->path}].");
-            }
-        });
+        if (! @flock($this->handle, LOCK_SH | ($block ? 0 : LOCK_NB))) {
+            throw new LockTimeoutException("Unable to acquire file lock at path [{$this->path}].");
+        }
 
         $this->isLocked = true;
 
@@ -131,11 +159,9 @@ class LockableFile
      */
     public function getExclusiveLock(bool $block = false): static
     {
-        $this->atomic(function () use ($block) {
-            if (! flock($this->handle, LOCK_EX | ($block ? 0 : LOCK_NB))) {
-                throw new LockTimeoutException("Unable to acquire file lock at path [{$this->path}].");
-            }
-        });
+        if (! @flock($this->handle, LOCK_EX | ($block ? 0 : LOCK_NB))) {
+            throw new LockTimeoutException("Unable to acquire file lock at path [{$this->path}].");
+        }
 
         $this->isLocked = true;
 
@@ -147,7 +173,9 @@ class LockableFile
      */
     public function releaseLock(): static
     {
-        $this->atomic(fn () => flock($this->handle, LOCK_UN));
+        if (! @flock($this->handle, LOCK_UN)) {
+            throw new RuntimeException("Unable to release file lock at path [{$this->path}].");
+        }
 
         $this->isLocked = false;
 
@@ -159,27 +187,30 @@ class LockableFile
      */
     public function close(): bool
     {
+        $exception = null;
+
         if ($this->isLocked) {
-            $this->releaseLock();
-        }
-
-        return fclose($this->handle);
-    }
-
-    protected function atomic(Closure $callback): mixed
-    {
-        if (! Coroutine::inCoroutine()) {
-            return $callback();
+            try {
+                $this->releaseLock();
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
         }
 
         try {
-            while (! Locker::lock($this->path)) {
-                usleep(1000);
-            }
+            $closed = @fclose($this->handle);
 
-            return $callback();
-        } finally {
-            Locker::unlock($this->path);
+            if (! $closed) {
+                throw new RuntimeException("Unable to close file at path [{$this->path}].");
+            }
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
         }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return true;
     }
 }

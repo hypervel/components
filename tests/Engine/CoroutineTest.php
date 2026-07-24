@@ -9,12 +9,23 @@ use Hypervel\Contracts\Engine\CoroutineInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
+use Hypervel\Engine\Exceptions\RuntimeException;
 use Hypervel\Tests\TestCase;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class CoroutineTest extends TestCase
 {
+    public function testCoroutineIdRequiresExecution(): void
+    {
+        $coroutine = new Coroutine(fn () => null);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Coroutine has not been executed.');
+
+        $coroutine->getId();
+    }
+
     public function testCoroutineCreate(): void
     {
         $coroutine = new Coroutine(function () {
@@ -171,6 +182,49 @@ class CoroutineTest extends TestCase
         $this->assertFalse(Coroutine::exists($coroutine->getId()));
         $this->assertSame('cancelled', $channel->pop(0.01));
         $this->assertFalse($channel->pop(0.01));
+    }
+
+    public function testCoroutineJoinWaitsForLiveCoroutines(): void
+    {
+        $completed = false;
+        $coroutine = Coroutine::create(function () use (&$completed): void {
+            usleep(1000);
+            $completed = true;
+        });
+
+        $this->assertTrue(Coroutine::join([$coroutine->getId()], 1));
+        $this->assertTrue($completed);
+        $this->assertFalse(Coroutine::exists($coroutine->getId()));
+    }
+
+    public function testCoroutineJoinAcceptsDestroyedCoroutineIds(): void
+    {
+        $destroyed = Coroutine::create(static function (): void {
+        });
+        $live = Coroutine::create(static function (): void {
+            usleep(1000);
+        });
+
+        $this->assertFalse(Coroutine::exists($destroyed->getId()));
+        $this->assertTrue(Coroutine::join([$destroyed->getId(), $live->getId()], 1));
+        $this->assertFalse(Coroutine::exists($live->getId()));
+        $this->assertFalse(Coroutine::join([$destroyed->getId(), $live->getId()], 1));
+    }
+
+    public function testCoroutineJoinReturnsFalseWhenItTimesOut(): void
+    {
+        $coroutine = Coroutine::create(static function (): void {
+            usleep(50000);
+        });
+
+        try {
+            $this->assertFalse(Coroutine::join([$coroutine->getId()], 0.001));
+            $this->assertTrue(Coroutine::exists($coroutine->getId()));
+        } finally {
+            Coroutine::join([$coroutine->getId()]);
+        }
+
+        $this->assertFalse(Coroutine::exists($coroutine->getId()));
     }
 
     public function testCoroutineList(): void

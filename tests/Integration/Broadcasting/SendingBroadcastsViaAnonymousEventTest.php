@@ -62,6 +62,28 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
+    public function testZeroNameIsPreserved(): void
+    {
+        Event::fake();
+
+        Broadcast::on('test-channel')->as('0')->send();
+
+        Event::assertDispatched(AnonymousEvent::class, function ($event) {
+            return $event->broadcastAs() === '0';
+        });
+    }
+
+    public function testEmptyNameUsesDefaultName(): void
+    {
+        Event::fake();
+
+        Broadcast::on('test-channel')->as('')->send();
+
+        Event::assertDispatched(AnonymousEvent::class, function ($event) {
+            return $event->broadcastAs() === 'AnonymousEvent';
+        });
+    }
+
     public function testDefaultPayloadIsSet()
     {
         Event::fake();

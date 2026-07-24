@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Filesystem;
 
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Support\Facades\Storage;
 use League\Flysystem\PathTraversalDetected;
+use Symfony\Component\HttpFoundation\Response;
 
 class ServeFile
 {

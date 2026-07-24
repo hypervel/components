@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use DateTime;
+use DateTimeInterface;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -149,7 +149,7 @@ class SendQueuedNotifications implements ShouldQueue
     /**
      * Determine the time at which the job should timeout.
      */
-    public function retryUntil(): ?DateTime
+    public function retryUntil(): ?DateTimeInterface
     {
         if (! method_exists($this->notification, 'retryUntil') && ! isset($this->notification->retryUntil)) {
             return null;

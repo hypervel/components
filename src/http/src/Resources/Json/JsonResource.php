@@ -271,5 +271,6 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     {
         static::$wrap = 'data';
         static::$forceWrapping = false;
+        static::flushMacros();
     }
 }

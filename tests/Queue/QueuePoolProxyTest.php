@@ -308,7 +308,7 @@ class QueuePoolProxyTest extends TestCase
         }
 
         Container::setInstance($container);
-        $pools = new PoolManager($container);
+        $pools = new PoolManager;
         $definition = new PoolDefinition(
             'queue-test',
             'queue-test',

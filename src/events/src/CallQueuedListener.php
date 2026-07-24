@@ -13,6 +13,7 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
+use UnitEnum;
 
 #[AllowDynamicProperties]
 class CallQueuedListener implements ShouldQueue
@@ -35,7 +36,7 @@ class CallQueuedListener implements ShouldQueue
     /**
      * The data to be passed to the listener.
      */
-    public array|string $data;
+    public array $data;
 
     /**
      * The number of times the job may be attempted.
@@ -50,7 +51,7 @@ class CallQueuedListener implements ShouldQueue
     /**
      * The number of seconds to wait before retrying a job that encountered an uncaught exception.
      */
-    public ?int $backoff = null;
+    public array|int|null $backoff = null;
 
     /**
      * The timestamp indicating when the job should timeout.
@@ -102,7 +103,7 @@ class CallQueuedListener implements ShouldQueue
      *
      * @param class-string $class
      */
-    public function __construct(string $class, string $method, array|string $data)
+    public function __construct(string $class, string $method, array $data)
     {
         $this->data = $data;
         $this->class = $class;
@@ -114,8 +115,6 @@ class CallQueuedListener implements ShouldQueue
      */
     public function handle(Container $container): void
     {
-        $this->prepareData();
-
         $handler = $this->setJobInstanceIfNecessary(
             $this->job,
             $container->make($this->class)
@@ -167,8 +166,6 @@ class CallQueuedListener implements ShouldQueue
             return null;
         }
 
-        $this->prepareData();
-
         return $listener->uniqueVia(...array_values($this->data));
     }
 
@@ -178,6 +175,9 @@ class CallQueuedListener implements ShouldQueue
     protected function setJobInstanceIfNecessary(Job $job, object $instance): object
     {
         if (in_array(InteractsWithQueue::class, class_uses_recursive($instance))) {
+            // Container resolution may return a worker-shared listener. Clone the
+            // configured instance before injecting the job owned by this execution.
+            $instance = clone $instance;
             $instance->setJob($job);
         }
 
@@ -191,8 +191,6 @@ class CallQueuedListener implements ShouldQueue
      */
     public function failed(Throwable $e): void
     {
-        $this->prepareData();
-
         $handler = Container::getInstance()->make($this->class);
 
         $parameters = array_merge(array_values($this->data), [$e]);
@@ -202,15 +200,8 @@ class CallQueuedListener implements ShouldQueue
         }
     }
 
-    /**
-     * Unserialize the data if needed.
-     */
-    protected function prepareData(): void
-    {
-        if (is_string($this->data)) {
-            $this->data = unserialize($this->data);
-        }
-    }
+    // Current queue producers always pass arrays. Legacy serialized-string
+    // listener payloads are intentionally unsupported in Hypervel 0.4.
 
     /**
      * Get the display name for the queued job.
@@ -226,7 +217,7 @@ class CallQueuedListener implements ShouldQueue
     public function __clone(): void
     {
         $this->data = array_map(function ($data) {
-            return is_object($data) ? clone $data : $data;
+            return is_object($data) && ! $data instanceof UnitEnum ? clone $data : $data;
         }, $this->data);
     }
 }

@@ -12,7 +12,7 @@ interface PoolOptionInterface
     public function getMaxConnections(): int;
 
     /**
-     * Get the minimum number of connections in the pool.
+     * Get the managed-connection floor for excess-idle trimming.
      */
     public function getMinConnections(): int;
 

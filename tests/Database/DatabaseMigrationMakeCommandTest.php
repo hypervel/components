@@ -8,7 +8,6 @@ use Hypervel\Console\CommandMutex;
 use Hypervel\Database\Console\Migrations\MigrateMakeCommand;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Foundation\Application;
-use Hypervel\Support\Composer;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -16,29 +15,15 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationMakeCommandTest extends TestCase
 {
-    public function testBasicCreateDumpsAutoload()
-    {
-        $app = new ApplicationDatabaseMigrationMakeStub;
-        $app->useDatabasePath(__DIR__);
-        $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class),
-            $composer = m::mock(Composer::class)
-        );
-        $command->setHypervel($app);
-        $creator->shouldReceive('create')->once()
-            ->with('create_foo', __DIR__ . DIRECTORY_SEPARATOR . 'migrations', 'foo', true)
-            ->andReturn(__DIR__ . '/migrations/2021_04_23_110457_create_foo.php');
-
-        $this->runCommand($command, ['name' => 'create_foo']);
-    }
+    // REMOVED: make:migration no longer dumps Composer autoload files or
+    // accepts Laravel's deprecated --fullpath option.
 
     public function testBasicCreateGivesCreatorProperArguments()
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class),
-            m::mock(Composer::class)->shouldIgnoreMissing()
+            $creator = m::mock(MigrationCreator::class)
         );
         $command->setHypervel($app);
         $creator->shouldReceive('create')->once()
@@ -53,8 +38,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class),
-            m::mock(Composer::class)->shouldIgnoreMissing()
+            $creator = m::mock(MigrationCreator::class)
         );
         $command->setHypervel($app);
         $creator->shouldReceive('create')->once()
@@ -69,8 +53,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class),
-            m::mock(Composer::class)->shouldIgnoreMissing()
+            $creator = m::mock(MigrationCreator::class)
         );
         $command->setHypervel($app);
         $creator->shouldReceive('create')->once()
@@ -85,8 +68,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
         $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class),
-            m::mock(Composer::class)->shouldIgnoreMissing()
+            $creator = m::mock(MigrationCreator::class)
         );
         $command->setHypervel($app);
         $creator->shouldReceive('create')->once()
@@ -100,8 +82,7 @@ class DatabaseMigrationMakeCommandTest extends TestCase
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class),
-            m::mock(Composer::class)->shouldIgnoreMissing()
+            $creator = m::mock(MigrationCreator::class)
         );
         $command->setHypervel($app);
         $app->setBasePath('/home/hypervel');

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use RuntimeException;
+use SensitiveParameter;
+
 /**
  * @method static bool supported(string $key, string $cipher)
  * @method static string generateKey(string $cipher)
@@ -24,5 +27,23 @@ class Crypt extends Facade
     protected static function getFacadeAccessor(): string
     {
         return 'encrypter';
+    }
+
+    /**
+     * Handle dynamic, static calls to the encrypter.
+     *
+     * @throws RuntimeException
+     */
+    public static function __callStatic(string $method, #[SensitiveParameter] array $args)
+    {
+        // This mirrors Facade::__callStatic() locally because delegating to the
+        // parent would retain the sensitive packed arguments in its stack frame.
+        $instance = static::getFacadeRoot();
+
+        if (! $instance) {
+            throw new RuntimeException('A facade root has not been set.');
+        }
+
+        return $instance->{$method}(...$args);
     }
 }

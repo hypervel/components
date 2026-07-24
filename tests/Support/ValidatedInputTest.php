@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Support\Carbon;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\ValidatedInput;
@@ -440,7 +441,7 @@ class ValidatedInputTest extends TestCase
         $this->assertSame(0.0, $input->float('null', 123.456));
     }
 
-    public function testDateMethod()
+    public function testDateMethod(): void
     {
         $input = new ValidatedInput([
             'as_null' => null,
@@ -454,12 +455,15 @@ class ValidatedInputTest extends TestCase
             'as_time' => '16:30:25',
         ]);
 
-        $current = Carbon::create(2024, 1, 1, 16, 30, 25);
+        $current = CarbonImmutable::create(2024, 1, 1, 16, 30, 25);
 
         $this->assertNull($input->date('as_null'));
         $this->assertNull($input->date('doesnt_exists'));
 
-        $this->assertEquals($current, $input->date('as_datetime'));
+        $dateTime = $input->date('as_datetime');
+
+        $this->assertSame(CarbonImmutable::class, $dateTime::class);
+        $this->assertEquals($current, $dateTime);
         $this->assertEquals($current->format('Y-m-d H:i:s P'), $input->date('as_format', 'U')->format('Y-m-d H:i:s P'));
         $this->assertEquals($current, $input->date('as_timezone', null, 'America/Santiago'));
 
@@ -493,6 +497,22 @@ class ValidatedInputTest extends TestCase
         $this->assertEquals([StringBackedEnum::HelloWorld], $input->enums('valid_enum_value', StringBackedEnum::class));
 
         $this->assertEmpty($input->enums('invalid_enum_value', StringBackedEnum::class));
+    }
+
+    public function testFileMethod(): void
+    {
+        $file = $this->createStub(UploadedFile::class);
+
+        $input = new ValidatedInput([
+            'name' => 'Taylor',
+            'avatar' => $file,
+        ]);
+
+        $this->assertSame($file, $input->file('avatar'));
+        $this->assertNull($input->file('name'));
+        $this->assertNull($input->file('missing'));
+        $this->assertSame('default', $input->file('missing', 'default'));
+        $this->assertSame('default', $input->file('name', 'default'));
     }
 
     public function testCollectMethod()

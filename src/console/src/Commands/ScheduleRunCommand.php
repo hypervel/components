@@ -20,10 +20,11 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Log\Context\Repository as ContextRepository;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -114,7 +115,7 @@ class ScheduleRunCommand extends Command
     /**
      * The events currently running in this process.
      *
-     * @var array<int, Event>
+     * @var array<int, array{event: Event, count: int<1, max>}>
      */
     protected array $runningEvents = [];
 
@@ -219,8 +220,9 @@ class ScheduleRunCommand extends Command
     protected function repeatEvents(Collection $events): void
     {
         $hasEnteredMaintenanceMode = false;
+        $endOfMinute = $this->startedAt->copy()->endOfMinute();
 
-        while (Date::now()->lte($this->startedAt->endOfMinute())) {
+        while (Date::now()->lte($endOfMinute)) {
             $paused = $this->isPaused();
 
             foreach ($events as $event) {
@@ -230,6 +232,10 @@ class ScheduleRunCommand extends Command
 
                 if (! $event->shouldRepeatNow()) {
                     continue;
+                }
+
+                if (Date::now()->gt($endOfMinute)) {
+                    return;
                 }
 
                 $hasEnteredMaintenanceMode = $hasEnteredMaintenanceMode || $this->hypervel->isDownForMaintenance();
@@ -295,7 +301,10 @@ class ScheduleRunCommand extends Command
             if ($event->runInBackground) {
                 $this->concurrent->fork(function () use ($runEvent, $event) {
                     $runEvent();
-                    $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
+
+                    if ($this->dispatcher->hasListeners(ScheduledBackgroundTaskFinished::class)) {
+                        $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
+                    }
                 }, [ContextRepository::CONTEXT_KEY]);
                 continue;
             }
@@ -359,7 +368,7 @@ class ScheduleRunCommand extends Command
 
         $description = sprintf(
             '<fg=gray>%s</> Running [%s]%s',
-            Carbon::now()->format('Y-m-d H:i:s'),
+            CarbonImmutable::now()->format('Y-m-d H:i:s'),
             $command,
             $event->runInBackground ? ' in background (coroutine)' : '',
         );
@@ -367,32 +376,65 @@ class ScheduleRunCommand extends Command
         $this->eventsRan = true;
 
         $this->line($description);
-        $this->dispatcher->dispatch(new ScheduledTaskStarting($event));
+
+        if ($this->dispatcher->hasListeners(ScheduledTaskStarting::class)) {
+            $this->dispatcher->dispatch(new ScheduledTaskStarting($event));
+        }
 
         $start = microtime(true);
 
         $this->registerRunningEvent($event);
 
+        $failed = false;
+        $skippedBecauseOverlapping = false;
+
         try {
             $event->run($this->hypervel);
+            $skippedBecauseOverlapping = $event->wasSkippedDueToOverlapping();
 
-            $this->dispatcher->dispatch(new ScheduledTaskFinished(
-                $event,
-                round(microtime(true) - $start, 2)
-            ));
+            if ($this->dispatcher->hasListeners(ScheduledTaskFinished::class)) {
+                $this->dispatcher->dispatch(new ScheduledTaskFinished(
+                    $event,
+                    round(microtime(true) - $start, 2)
+                ));
+            }
 
             $this->eventsRan = true;
+
+            $exitCode = $event->exitCode();
+
+            if (
+                ! $skippedBecauseOverlapping
+                && $exitCode !== null
+                && $exitCode !== 0
+            ) {
+                throw new RuntimeException(
+                    "Scheduled command [{$command}] failed with exit code [{$exitCode}]."
+                );
+            }
         } catch (Throwable $e) {
-            $this->dispatcher->dispatch(new ScheduledTaskFailed($event, $e));
+            $failed = true;
+
+            if ($this->dispatcher->hasListeners(ScheduledTaskFailed::class)) {
+                $this->dispatcher->dispatch(new ScheduledTaskFailed($event, $e));
+            }
+
             $this->handler->report($e);
         } finally {
             $this->forgetRunningEvent($event);
         }
 
+        $status = match (true) {
+            $failed => '<error>Failed</error>',
+            $skippedBecauseOverlapping => '<comment>Skipped</comment>',
+            $event->exitCode() === 0 => '<info>Finished</info>',
+            default => '<error>Failed</error>',
+        };
+
         $finishDescription = sprintf(
             '<fg=gray>%s</> %s [%s] <fg=gray>%sms</>',
-            Carbon::now()->format('Y-m-d H:i:s'),
-            $event->exitCode() === 0 ? '<info>Finished</info>' : '<error>Failed</error>',
+            CarbonImmutable::now()->format('Y-m-d H:i:s'),
+            $status,
             $command,
             round(microtime(true) - $start, 2),
         );
@@ -463,7 +505,15 @@ class ScheduleRunCommand extends Command
      */
     protected function registerRunningEvent(Event $event): void
     {
-        $this->runningEvents[spl_object_id($event)] = $event;
+        $eventId = spl_object_id($event);
+
+        if (isset($this->runningEvents[$eventId])) {
+            ++$this->runningEvents[$eventId]['count'];
+
+            return;
+        }
+
+        $this->runningEvents[$eventId] = ['event' => $event, 'count' => 1];
     }
 
     /**
@@ -471,7 +521,19 @@ class ScheduleRunCommand extends Command
      */
     protected function forgetRunningEvent(Event $event): void
     {
-        unset($this->runningEvents[spl_object_id($event)]);
+        $eventId = spl_object_id($event);
+
+        if (! isset($this->runningEvents[$eventId])) {
+            return;
+        }
+
+        if ($this->runningEvents[$eventId]['count'] > 1) {
+            --$this->runningEvents[$eventId]['count'];
+
+            return;
+        }
+
+        unset($this->runningEvents[$eventId]);
     }
 
     /**
@@ -479,8 +541,8 @@ class ScheduleRunCommand extends Command
      */
     protected function releaseRunningEventMutexes(): void
     {
-        foreach ($this->runningEvents as $event) {
-            $event->releaseMutexOnTerminationSignal();
+        foreach ($this->runningEvents as $runningEvent) {
+            $runningEvent['event']->releaseMutexOnTerminationSignal();
         }
     }
 

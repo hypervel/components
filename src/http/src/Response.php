@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use ArrayObject;
-use Hypervel\Contracts\Engine\Http\Writable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Renderable;
@@ -22,24 +21,6 @@ class Response extends SymfonyResponse
         Macroable::__call as macroCall;
     }
     use ResponseTrait;
-
-    /**
-     * Whether the response was already streamed directly to the client.
-     */
-    private bool $streamed = false;
-
-    /**
-     * Whether the response body should be sent.
-     *
-     * Set to false for HEAD requests so that direct streaming sends
-     * headers/status but skips the body callback.
-     */
-    private bool $sendBody = true;
-
-    /**
-     * The writable connection for direct Swoole streaming.
-     */
-    protected ?Writable $connection = null;
 
     /**
      * Create a new HTTP response.
@@ -127,172 +108,6 @@ class Response extends SymfonyResponse
     }
 
     /**
-     * Mark the response as already streamed to the client.
-     *
-     * Called by stream() and streamDownload() immediately after sending
-     * headers/status to Swoole, before invoking the user's callback.
-     * This ensures the flag is set even if the callback throws after
-     * partial writes.
-     */
-    public function markStreamed(): void
-    {
-        $this->streamed = true;
-    }
-
-    /**
-     * Determine if the response was already streamed to the client.
-     *
-     * Used by ResponseBridge to detect responses that were sent via
-     * the direct Swoole write path (stream()/streamDownload()).
-     */
-    public function isStreamed(): bool
-    {
-        return $this->streamed;
-    }
-
-    /**
-     * Suppress the response body.
-     *
-     * Used for HEAD requests to send headers/status without body content.
-     * Direct streaming via stream() will skip the body callback.
-     */
-    public function withoutBody(): static
-    {
-        $this->sendBody = false;
-
-        return $this;
-    }
-
-    /**
-     * Determine if the response body should be sent.
-     */
-    public function shouldSendBody(): bool
-    {
-        return $this->sendBody;
-    }
-
-    /**
-     * Set the writable connection for direct Swoole streaming.
-     */
-    public function setConnection(Writable $connection): static
-    {
-        $this->connection = $connection;
-
-        return $this;
-    }
-
-    /**
-     * Get the writable connection for direct Swoole streaming.
-     */
-    public function getConnection(): ?Writable
-    {
-        return $this->connection;
-    }
-
-    /**
-     * Stream content directly to the client via the Swoole socket.
-     *
-     * This is used by Hypervel's server and filesystem streaming internals.
-     * Application code should prefer response()->stream(), which returns a
-     * Symfony StreamedResponse handled by the normal response bridge.
-     *
-     * @param callable $callback Callback that receives a StreamOutput for writing chunks
-     * @param array $headers Additional headers for the response
-     *
-     * @internal
-     */
-    public function stream(callable $callback, array $headers = []): static
-    {
-        foreach ($headers as $key => $value) {
-            $this->headers->set($key, $value);
-        }
-
-        if (! $this->headers->has('Content-Type')) {
-            $this->headers->set('Content-Type', 'text/event-stream');
-        }
-
-        // Remove headers that conflict with chunked transfer encoding
-        $this->headers->remove('Transfer-Encoding');
-        $this->headers->remove('Accept-Encoding');
-        $this->headers->remove('Content-Length');
-
-        $connection = $this->getConnection();
-
-        if ($connection === null) {
-            throw new RuntimeException('Cannot stream response without a writable connection.');
-        }
-
-        // Send headers and status directly via Swoole before streaming
-        $swooleResponse = $connection->getSocket();
-        foreach ($this->headers->allPreserveCaseWithoutCookies() as $name => $values) {
-            foreach ($values as $value) {
-                $swooleResponse->header($name, $value);
-            }
-        }
-        foreach ($this->headers->getCookies() as $cookie) {
-            $swooleResponse->cookie(
-                $cookie->getName(),
-                $cookie->getValue() ?? '',
-                $cookie->getExpiresTime(),
-                $cookie->getPath(),
-                $cookie->getDomain() ?? '',
-                $cookie->isSecure(),
-                $cookie->isHttpOnly(),
-                $cookie->getSameSite() ?? ''
-            );
-        }
-        $swooleResponse->status($this->getStatusCode());
-
-        // Mark as streamed NOW — headers are committed to Swoole, so the bridge
-        // must not re-send even if the callback throws after partial writes.
-        $this->markStreamed();
-
-        // Skip body output for HEAD requests — headers and status are sent,
-        // but the callback is not invoked.
-        if ($this->shouldSendBody()) {
-            $output = new StreamOutput($connection);
-            if (! is_null($result = $callback($output))) {
-                $output->write($result);
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Stream a download directly to the client via the Swoole socket.
-     *
-     * This is used by Hypervel's server and filesystem streaming internals.
-     * Application code should prefer response()->streamDownload(), which
-     * returns a Symfony StreamedResponse handled by the normal response bridge.
-     *
-     * @param callable $callback Callback that receives a StreamOutput for writing chunks
-     * @param null|string $filename Filename for the Content-Disposition header
-     * @param array $headers Additional headers for the response
-     * @param string $disposition Content-Disposition type (attachment or inline)
-     *
-     * @internal
-     */
-    public function streamDownload(callable $callback, ?string $filename = null, array $headers = [], string $disposition = 'attachment'): static
-    {
-        $downloadHeaders = [
-            'Content-Type' => 'application/octet-stream',
-            'Content-Description' => 'File Transfer',
-            'Pragma' => 'no-cache',
-        ];
-
-        if ($filename) {
-            $downloadHeaders['Content-Disposition'] = $this->headers->makeDisposition($disposition, $filename);
-        }
-
-        foreach ($headers as $key => $value) {
-            $downloadHeaders[$key] = $value;
-        }
-
-        return $this->stream($callback, $downloadHeaders);
-    }
-
-    /**
      * Send HTTP headers.
      *
      * @throws RuntimeException always — Swoole manages headers via its own API
@@ -323,5 +138,13 @@ class Response extends SymfonyResponse
     public function send(bool $flush = true): static
     {
         throw new RuntimeException('Response::send() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

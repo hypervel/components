@@ -6,21 +6,26 @@ namespace Hypervel\WebSocketServer\Collector;
 
 class FdCollector
 {
-    /** @var array<int, Fd> */
+    /** @var array<int, class-string> */
     protected static array $fds = [];
 
     /**
      * Register a file descriptor with its handler class.
+     *
+     * @param class-string $class
      */
     public static function set(int $id, string $class): void
     {
-        static::$fds[$id] = new Fd($id, $class);
+        static::$fds[$id] = $class;
     }
 
     /**
-     * Get the Fd instance for the given ID.
+     * Get the handler class for the given file descriptor.
+     *
+     * @param null|class-string $default
+     * @return null|class-string
      */
-    public static function get(int $id, ?Fd $default = null): ?Fd
+    public static function get(int $id, ?string $default = null): ?string
     {
         return static::$fds[$id] ?? $default;
     }
@@ -44,7 +49,7 @@ class FdCollector
     /**
      * Get all registered file descriptors.
      *
-     * @return array<int, Fd>
+     * @return array<int, class-string>
      */
     public static function list(): array
     {

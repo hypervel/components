@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Http\Kernel as HttpKernel;
+use Hypervel\Http\Middleware\PrefersJsonResponses;
 use Hypervel\Tests\TestCase;
+use ReflectionClass;
 
 class FoundationApplicationBuilderTest extends TestCase
 {
@@ -103,5 +107,59 @@ class FoundationApplicationBuilderTest extends TestCase
         $app->useStoragePath(__DIR__ . '/custom-storage');
 
         $this->assertSame(__DIR__ . '/custom-storage', $app->storagePath());
+    }
+
+    public function testPrefersJsonResponsesIsFluent(): void
+    {
+        $builder = Application::configure();
+
+        $this->assertSame($builder, $builder->prefersJsonResponses());
+        $this->assertSame($builder, $builder->prefersJsonResponses(false));
+    }
+
+    public function testPrefersJsonResponsesRegistersMiddlewareWhenEnabled(): void
+    {
+        $app = Application::configure()->prefersJsonResponses()->create();
+
+        $this->assertTrue($this->bootAndResolveKernel($app)->hasMiddleware(PrefersJsonResponses::class));
+    }
+
+    public function testPrefersJsonResponsesDefaultsToDisabled(): void
+    {
+        $app = Application::configure()->create();
+
+        $this->assertFalse($this->bootAndResolveKernel($app)->hasMiddleware(PrefersJsonResponses::class));
+    }
+
+    public function testPrefersJsonResponsesIsIdempotentWhenCalledMultipleTimes(): void
+    {
+        $app = Application::configure()->prefersJsonResponses()->prefersJsonResponses()->create();
+
+        $this->assertTrue($this->bootAndResolveKernel($app)->hasMiddleware(PrefersJsonResponses::class));
+    }
+
+    public function testPrefersJsonResponsesFalseDoesNotRegisterMiddleware(): void
+    {
+        $app = Application::configure()->prefersJsonResponses(false)->create();
+
+        $this->assertFalse($this->bootAndResolveKernel($app)->hasMiddleware(PrefersJsonResponses::class));
+    }
+
+    /**
+     * Boot the configured callbacks and resolve the HTTP kernel.
+     */
+    protected function bootAndResolveKernel(Application $app): HttpKernel
+    {
+        $app->singleton(HttpKernelContract::class, HttpKernel::class);
+
+        // The builder registers its wiring inside booted callbacks. Invoking them
+        // directly keeps this unit test from booting the full provider chain.
+        $property = (new ReflectionClass(Application::class))->getProperty('bootedCallbacks');
+
+        foreach ($property->getValue($app) as $callback) {
+            $callback($app);
+        }
+
+        return $app->make(HttpKernelContract::class);
     }
 }

@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Sanctum\PersonalAccessToken;
-use Hypervel\Support\Carbon;
+use Hypervel\Sanctum\SanctumServiceProvider;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 
 class PruneExpiredTest extends TestCase
@@ -14,6 +18,13 @@ class PruneExpiredTest extends TestCase
     use RefreshDatabase;
 
     protected bool $migrateRefresh = true;
+
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            SanctumServiceProvider::class,
+        ];
+    }
 
     protected function migrateFreshUsing(): array
     {
@@ -23,6 +34,14 @@ class PruneExpiredTest extends TestCase
             '--realpath' => true,
             '--path' => __DIR__ . '/migrations',
         ];
+    }
+
+    public function testCommandCanBeResolvedFromCompleteCommandMap(): void
+    {
+        $command = $this->app->make(Kernel::class)->all()['sanctum:prune-expired'];
+
+        $this->assertInstanceOf(PruneExpired::class, $command);
+        $this->assertSame('24', $command->getDefinition()->getOption('hours')->getDefault());
     }
 
     public function testCanDeleteExpiredTokensWithIntegerExpiration(): void
@@ -36,7 +55,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_1',
             'token' => hash('sha256', 'test_1'),
-            'created_at' => Carbon::now()->subMinutes(181),
+            'created_at' => CarbonImmutable::now()->subMinutes(181),
         ]);
 
         PersonalAccessToken::forceCreate([
@@ -44,7 +63,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_2',
             'token' => hash('sha256', 'test_2'),
-            'created_at' => Carbon::now()->subMinutes(179),
+            'created_at' => CarbonImmutable::now()->subMinutes(179),
         ]);
 
         PersonalAccessToken::forceCreate([
@@ -52,21 +71,11 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_3',
             'token' => hash('sha256', 'test_3'),
-            'created_at' => Carbon::now()->subMinutes(121),
+            'created_at' => CarbonImmutable::now()->subMinutes(121),
         ]);
 
-        // Test directly using model methods
-        $hours = 2;
-
-        // This is what the command does
-        $model = PersonalAccessToken::class;
-        $model::where('expires_at', '<', now()->subHours($hours))->delete();
-
-        $expiration = $this->app->make('config')
-            ->get('sanctum.expiration');
-        if ($expiration) {
-            $model::where('created_at', '<', now()->subMinutes($expiration + ($hours * 60)))->delete();
-        }
+        $this->artisan('sanctum:prune-expired --hours=2')
+            ->expectsOutputToContain('Tokens expired for more than [2 hours] pruned successfully.');
 
         $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Test_1']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_2']);
@@ -83,20 +92,11 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test',
             'token' => hash('sha256', 'test'),
-            'created_at' => Carbon::now()->subMinutes(70),
+            'created_at' => CarbonImmutable::now()->subMinutes(70),
         ]);
 
-        // Test directly using model methods
-        $hours = 2;
-
-        // This is what the command does
-        $model = PersonalAccessToken::class;
-        $model::where('expires_at', '<', now()->subHours($hours))->delete();
-
-        // With null expiration, no config-based deletion happens
-        $expiration = $this->app->make('config')
-            ->get('sanctum.expiration');
-        $this->assertNull($expiration);
+        $this->artisan('sanctum:prune-expired --hours=2')
+            ->expectsOutputToContain('Expiration value not specified in configuration file.');
 
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test']);
     }
@@ -111,7 +111,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_1',
             'token' => hash('sha256', 'test_1'),
-            'expires_at' => Carbon::now()->subMinutes(121),
+            'expires_at' => CarbonImmutable::now()->subMinutes(121),
         ]);
 
         PersonalAccessToken::forceCreate([
@@ -119,7 +119,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_2',
             'token' => hash('sha256', 'test_2'),
-            'expires_at' => Carbon::now()->subMinutes(119),
+            'expires_at' => CarbonImmutable::now()->subMinutes(119),
         ]);
 
         PersonalAccessToken::forceCreate([
@@ -130,18 +130,8 @@ class PruneExpiredTest extends TestCase
             'expires_at' => null,
         ]);
 
-        // Test directly using model methods
-        $hours = 2;
-
-        // This is what the command does
-        $model = PersonalAccessToken::class;
-        $model::where('expires_at', '<', now()->subHours($hours))->delete();
-
-        $expiration = $this->app->make('config')
-            ->get('sanctum.expiration');
-        if ($expiration) {
-            $model::where('created_at', '<', now()->subMinutes($expiration + ($hours * 60)))->delete();
-        }
+        $this->artisan('sanctum:prune-expired --hours=2')
+            ->expectsOutputToContain('Tokens expired for more than [2 hours] pruned successfully.');
 
         $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Test_1']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_2']);

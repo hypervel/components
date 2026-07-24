@@ -10,7 +10,13 @@ use Hypervel\Contracts\Auth\Factory as FactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\RebindsCallbacksToSelf;
 use InvalidArgumentException;
+use ReflectionException;
+use RuntimeException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin Guard
@@ -19,6 +25,7 @@ use InvalidArgumentException;
 class AuthManager implements FactoryContract
 {
     use CreatesUserProviders;
+    use RebindsCallbacksToSelf;
 
     /**
      * Context key for the default guard override.
@@ -59,8 +66,12 @@ class AuthManager implements FactoryContract
     /**
      * Attempt to get the guard from the local cache.
      */
-    public function guard(?string $name = null): Guard|StatefulGuard
+    public function guard(UnitEnum|string|null $name = null): Guard|StatefulGuard
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $name ??= $this->getDefaultDriver();
 
         return $this->guards[$name] ??= $this->resolve($name);
@@ -177,8 +188,12 @@ class AuthManager implements FactoryContract
     /**
      * Set the default guard driver the factory should serve.
      */
-    public function shouldUse(?string $name): void
+    public function shouldUse(UnitEnum|string|null $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $name ??= $this->getDefaultDriver();
 
         $this->setDefaultDriver($name);
@@ -191,8 +206,12 @@ class AuthManager implements FactoryContract
      *
      * Uses coroutine Context so one request's override doesn't affect others.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         CoroutineContext::set(self::DEFAULT_GUARD_CONTEXT_KEY, $name);
     }
 
@@ -268,7 +287,7 @@ class AuthManager implements FactoryContract
      * exception static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
      */
-    public function redirectGuestsTo(callable|string $redirect): static
+    public function redirectGuestsTo(callable|string|null $redirect): static
     {
         AuthenticationRedirects::redirectGuestsTo($redirect);
 
@@ -311,7 +330,14 @@ class AuthManager implements FactoryContract
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$driver] = $callback;
 
         return $this;
     }

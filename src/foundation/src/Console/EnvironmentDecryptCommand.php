@@ -11,6 +11,7 @@ use Hypervel\Encryption\Encrypter;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Env;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\password;
@@ -40,7 +41,7 @@ class EnvironmentDecryptCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $key = $this->option('key') ?: Env::get('HYPERVEL_ENV_ENCRYPTION_KEY');
 
@@ -70,7 +71,9 @@ class EnvironmentDecryptCommand extends Command
             $this->fail('Encrypted environment file not found.');
         }
 
-        if ($this->files->exists($outputFile) && ! $this->option('force')) {
+        $outputFileExists = $this->files->exists($outputFile);
+
+        if ($outputFileExists && ! $this->option('force')) {
             $this->fail('Environment file already exists.');
         }
 
@@ -83,7 +86,19 @@ class EnvironmentDecryptCommand extends Command
                 ? $this->decryptReadableFormat($encryptedContents, $encrypter)
                 : $encrypter->decrypt($encryptedContents);
 
-            $this->files->put($outputFile, $decrypted);
+            $mode = 0600;
+
+            if ($outputFileExists) {
+                $permissions = $this->files->chmod($outputFile);
+
+                if (! is_string($permissions)) {
+                    throw new RuntimeException("Unable to determine permissions for [{$outputFile}].");
+                }
+
+                $mode = octdec($permissions);
+            }
+
+            $this->files->replace($outputFile, $decrypted, $mode);
         } catch (Exception $e) {
             $this->fail($e->getMessage());
         }

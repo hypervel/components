@@ -10,24 +10,36 @@ use InvalidArgumentException;
 
 class Base62Test extends TestCase
 {
-    public function testEncode()
+    public function testEncode(): void
     {
         $this->assertSame('fMYsmVDc', Base62::encode(145667762035560));
     }
 
-    public function testDecode()
+    public function testEncodeZero(): void
+    {
+        $this->assertSame('0', Base62::encode(0));
+    }
+
+    public function testEncodeNegativeNumberThrowsException(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Base62::encode(-1);
+    }
+
+    public function testDecode(): void
     {
         $this->assertSame(145667762035560, Base62::decode('fMYsmVDc'));
     }
 
-    public function testDecodeWithInvalidCharactersThrowsException()
+    public function testDecodeWithInvalidCharactersThrowsException(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
         Base62::decode('fMYsmVDc***');
     }
 
-    public function testDecodeEmptyStringThrowsException()
+    public function testDecodeEmptyStringThrowsException(): void
     {
         $this->expectException(InvalidArgumentException::class);
 

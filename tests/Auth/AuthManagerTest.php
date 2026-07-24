@@ -366,6 +366,24 @@ class AuthManagerTest extends TestCase
         $this->assertSame('/facade-login', (new AuthenticationException)->redirectTo(Request::create('/')));
     }
 
+    public function testRedirectGuestsToAcceptsNull(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectGuestsTo(null);
+
+        $this->assertNull((new AuthenticationException)->redirectTo(Request::create('/')));
+    }
+
+    public function testRedirectGuestsToNullCanBeConfiguredThroughFacade(): void
+    {
+        AuthFacade::swap(new AuthManager($this->getContainer()));
+
+        AuthFacade::redirectGuestsTo(null);
+
+        $this->assertNull((new AuthenticationException)->redirectTo(Request::create('/')));
+    }
+
     public function testRedirectUsersToConfiguresRedirectIfAuthenticatedMiddlewarePerRequest(): void
     {
         $manager = new AuthManager($this->getContainer());
@@ -406,6 +424,16 @@ class AuthManagerTest extends TestCase
         $response = (new RedirectIfAuthenticated)->handle(Request::create('/login'), fn () => null);
 
         $this->assertStringContainsString('/dashboard', $response->headers->get('Location'));
+    }
+
+    public function testRedirectToNullLeavesGuestRedirectUnchanged(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectGuestsTo('/login');
+        $manager->redirectTo(guests: null);
+
+        $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
     }
 
     public function testRedirectConfigurationUsesMostRecentHighLevelRegistration(): void

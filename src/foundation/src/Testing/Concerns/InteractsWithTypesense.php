@@ -8,25 +8,11 @@ use Throwable;
 use Typesense\Client as TypesenseClient;
 
 /**
- * Provides Typesense integration testing support.
+ * Add Typesense support to an integration test.
  *
- * Auto-called by TestCase via setUpTraits():
- * - setUpInteractsWithTypesense() runs after app boots
- * - tearDownInteractsWithTypesense() runs via beforeApplicationDestroyed()
- *
- * Features:
- * - Opt-in skip: Skips unless TYPESENSE_HOST is set
- * - Parallel-safe: Uses TEST_TOKEN for unique collection prefixes
- * - Auto-cleanup: Removes test collections in teardown
- *
- * Usage: Add `use InteractsWithTypesense;` to your test case.
- *
- * Environment Variables:
- * - TYPESENSE_HOST: Host; must be set to enable Typesense integration tests
- * - TYPESENSE_PORT: Port (default: 8108)
- * - TYPESENSE_PROTOCOL: Protocol (default: http)
- * - TYPESENSE_API_KEY: API key (required)
- * - TEST_TOKEN: Parallel test token from paratest (auto-set)
+ * Use this trait on a test case and set TYPESENSE_HOST and TYPESENSE_API_KEY.
+ * TYPESENSE_PORT and TYPESENSE_PROTOCOL may also be configured. Test
+ * collections are isolated and cleaned up using a TEST_TOKEN-based prefix.
  */
 trait InteractsWithTypesense
 {
@@ -52,6 +38,10 @@ trait InteractsWithTypesense
             $this->markTestSkipped(
                 'Set TYPESENSE_HOST to run Typesense integration tests for ' . static::class
             );
+        }
+
+        if ($this->typesenseTestPrefix === '') {
+            $this->computeTypesenseTestPrefix();
         }
 
         $this->initializeTypesenseClient();

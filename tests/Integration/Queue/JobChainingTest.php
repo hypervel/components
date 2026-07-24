@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\JobChainingTest;
 
+use Carbon\CarbonInterface;
 use Exception;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\PendingBatch;
@@ -13,7 +14,6 @@ use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Bus\PendingChain;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Queue\InteractsWithQueue;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -75,6 +75,32 @@ class JobChainingTest extends QueueTestCase
 
         $this->assertTrue(JobChainingTestFirstJob::$ran);
         $this->assertTrue(JobChainingTestSecondJob::$ran);
+    }
+
+    public function testPendingChainDispatchForwardsNamedArguments(): void
+    {
+        Bus::chain([
+            JobChainingNamedTestJob::class,
+            new JobChainingNamedTestJob('second'),
+        ])->dispatch(id: 'first');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertSame(['first', 'second'], JobRunRecorder::$results);
+    }
+
+    public function testFakePendingChainDispatchForwardsNamedArguments(): void
+    {
+        Bus::fake();
+
+        Bus::chain([
+            JobChainingNamedTestJob::class,
+        ])->dispatch(id: 'first');
+
+        Bus::assertDispatched(
+            JobChainingNamedTestJob::class,
+            fn (JobChainingNamedTestJob $job): bool => $job->id === 'first'
+        );
     }
 
     public function testJobsCanBeChainedOnSuccessUsingBusFacade()
@@ -915,7 +941,7 @@ class JobChainAddingExistingJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public static ?Carbon $ranAt = null;
+    public static ?CarbonInterface $ranAt = null;
 
     public function handle()
     {
@@ -929,7 +955,7 @@ class JobChainAddingAddedJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public static ?Carbon $ranAt = null;
+    public static ?CarbonInterface $ranAt = null;
 
     public function handle()
     {

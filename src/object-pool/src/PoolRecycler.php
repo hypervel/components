@@ -8,6 +8,7 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 class PoolRecycler implements Recycler
@@ -80,6 +81,9 @@ class PoolRecycler implements Recycler
 
     /**
      * Start periodic pool maintenance.
+     *
+     * Boot-only. Starting during a request schedules worker-wide maintenance
+     * that affects every subsequently registered pool.
      */
     public function start(): void
     {
@@ -101,6 +105,9 @@ class PoolRecycler implements Recycler
 
     /**
      * Stop periodic pool maintenance.
+     *
+     * Boot or tests only. Stopping disables automatic maintenance for every
+     * pool in the worker.
      */
     public function stop(): void
     {
@@ -117,14 +124,22 @@ class PoolRecycler implements Recycler
     protected function maintainPools(): void
     {
         foreach ($this->manager->pools() as $identity => $pool) {
-            if ($pool->isIdle()) {
-                $this->manager->remove($identity, $pool);
+            // A throwing public-contract pool must not starve unrelated pools of maintenance.
+            try {
+                if ($pool->isIdle()) {
+                    $this->manager->remove($identity, $pool);
 
-                continue;
+                    continue;
+                }
+
+                $pool->sweepExpired();
+                $pool->trimIdle();
+            } catch (Throwable $exception) {
+                PoolErrorReporter::report(new RuntimeException(
+                    "Pool maintenance failed for [{$identity}].",
+                    previous: $exception,
+                ));
             }
-
-            $pool->sweepExpired();
-            $pool->trimIdle();
         }
     }
 }

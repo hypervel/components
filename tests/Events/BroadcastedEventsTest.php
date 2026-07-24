@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Events\BroadcastedEventsTest;
 
+use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Foundation\Events\Dispatchable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -148,6 +150,38 @@ class BroadcastedEventsTest extends TestCase
 
         $d->dispatch($event);
     }
+
+    public function testEventBroadcastsUsingNamedArguments(): void
+    {
+        $container = new Container;
+        $broadcast = m::mock(BroadcastFactory::class);
+        $container->instance(BroadcastFactory::class, $broadcast);
+
+        $originalContainer = Container::getInstance();
+        Container::setInstance($container);
+
+        try {
+            $pendingBroadcast = m::mock(PendingBroadcast::class);
+
+            $broadcast->shouldReceive('event')
+                ->once()
+                ->with(m::on(function ($event): bool {
+                    $this->assertInstanceOf(BroadcastableNamedArgumentsEvent::class, $event);
+                    $this->assertSame('first-value', $event->first);
+                    $this->assertSame('second-value', $event->second);
+
+                    return true;
+                }))
+                ->andReturn($pendingBroadcast);
+
+            $this->assertSame(
+                $pendingBroadcast,
+                BroadcastableNamedArgumentsEvent::broadcast(second: 'second-value', first: 'first-value')
+            );
+        } finally {
+            Container::setInstance($originalContainer);
+        }
+    }
 }
 
 class BroadcastEvent implements ShouldBroadcast
@@ -181,4 +215,15 @@ class BroadcastFalseCondition extends BroadcastEvent
 
 class ExampleEvent
 {
+}
+
+class BroadcastableNamedArgumentsEvent
+{
+    use Dispatchable;
+
+    public function __construct(
+        public string $first,
+        public string $second,
+    ) {
+    }
 }

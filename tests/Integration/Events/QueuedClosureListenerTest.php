@@ -45,6 +45,34 @@ class QueuedClosureListenerTest extends TestCase
         });
     }
 
+    public function testAnonymousQueuedListenerAcceptsAnIntBackedEnumMessageGroup(): void
+    {
+        Bus::fake();
+
+        Event::listen(\Hypervel\Events\queueable(function (TestEvent $event): void {
+        })->onGroup(TestMessageGroup::First));
+
+        Event::dispatch(new TestEvent);
+
+        Bus::assertDispatched(CallQueuedListener::class, function ($job): bool {
+            return $job->messageGroup === TestMessageGroup::First->value;
+        });
+    }
+
+    public function testAnonymousQueuedListenerNormalizesEnumConnectionAndQueueIdentifiers(): void
+    {
+        Bus::fake();
+
+        Event::listen(\Hypervel\Events\queueable(function (TestEvent $event): void {
+        })->onConnection(TestQueueIdentifier::Zero)->onQueue(TestQueueUnitIdentifier::Primary));
+
+        Event::dispatch(new TestEvent);
+
+        Bus::assertDispatched(CallQueuedListener::class, function ($job): bool {
+            return $job->connection === '0' && $job->queue === 'Primary';
+        });
+    }
+
     public function testAnonymousQueuedListenerIsQueuedWithDeduplicator()
     {
         $deduplicator = fn ($payload, $queue) => 'deduplicator-1';
@@ -63,8 +91,49 @@ class QueuedClosureListenerTest extends TestCase
             return is_callable($job->deduplicator) && call_user_func($job->deduplicator, '', null) === 'deduplicator-1';
         });
     }
+
+    public function testAnonymousQueuedListenerAcceptsAnArrayCallableDeduplicator(): void
+    {
+        $deduplicator = [new QueuedClosureDeduplicator, 'resolve'];
+
+        Bus::fake();
+
+        Event::listen(\Hypervel\Events\queueable(function (TestEvent $event): void {
+        })->withDeduplicator($deduplicator));
+
+        Event::dispatch(new TestEvent);
+
+        Bus::assertDispatched(CallQueuedListener::class, function ($job): bool {
+            $this->assertIsCallable($job->deduplicator);
+
+            return call_user_func($job->deduplicator, '', null) === 'array-deduplicator';
+        });
+    }
 }
 
 class TestEvent
 {
+}
+
+enum TestMessageGroup: int
+{
+    case First = 1;
+}
+
+enum TestQueueIdentifier: int
+{
+    case Zero = 0;
+}
+
+enum TestQueueUnitIdentifier
+{
+    case Primary;
+}
+
+class QueuedClosureDeduplicator
+{
+    public function resolve(string $payload, mixed $queue): string
+    {
+        return 'array-deduplicator';
+    }
 }

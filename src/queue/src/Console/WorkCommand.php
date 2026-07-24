@@ -17,7 +17,7 @@ use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -95,8 +95,11 @@ class WorkCommand extends Command
         // which jobs are coming through a queue and be informed on its progress.
         $this->listenForEvents();
 
-        $connection = $this->argument('connection')
-            ?: $this->config->string('queue.default');
+        $connection = $this->argument('connection');
+
+        if ($connection === null || $connection === '') {
+            $connection = $this->config->string('queue.default');
+        }
 
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
@@ -291,17 +294,17 @@ class WorkCommand extends Command
     /**
      * Get the current date / time.
      */
-    protected function now(): Carbon
+    protected function now(): CarbonImmutable
     {
         $queueTimezone = $this->config->get('queue.output_timezone');
 
         if ($queueTimezone
             && $queueTimezone !== $this->config->get('app.timezone')
         ) {
-            return Carbon::now()->setTimezone($queueTimezone);
+            return CarbonImmutable::now()->setTimezone($queueTimezone);
         }
 
-        return Carbon::now();
+        return CarbonImmutable::now();
     }
 
     /**
@@ -323,10 +326,11 @@ class WorkCommand extends Command
      */
     protected function getQueue(?string $connection): string
     {
-        return $this->option('queue') ?: $this->config->string(
-            "queue.connections.{$connection}.queue",
-            'default'
-        );
+        $queue = $this->option('queue');
+
+        return $queue === null || $queue === ''
+            ? $this->config->string("queue.connections.{$connection}.queue", 'default')
+            : $queue;
     }
 
     /**

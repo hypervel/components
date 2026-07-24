@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Foundation\Testing\Concerns\WithoutExceptionHandlingHandler;
+use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testbench\TestCase;
@@ -145,5 +146,39 @@ class InteractsWithExceptionHandlingTest extends TestCase
         $handler = $this->app->make(ExceptionHandler::class);
 
         $this->assertFalse($handler->shouldReport(new RuntimeException));
+    }
+
+    public function testThrowOnReportWithoutExceptionHandling(): void
+    {
+        Exceptions::fake()->throwOnReport();
+
+        $this->withoutExceptionHandling();
+
+        Route::get('/report-exception', function (): void {
+            report(new RuntimeException('test exception'));
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('test exception');
+
+        $this->get('/report-exception');
+    }
+
+    public function testThrowOnReportRegardlessOfExceptionHandlingSetupOrder(): void
+    {
+        Exceptions::fake()->throwOnReport();
+
+        $this->withoutExceptionHandling()
+            ->withExceptionHandling()
+            ->withoutExceptionHandling();
+
+        Route::get('/report-exception-after-handler-swaps', function (): void {
+            report(new RuntimeException('test exception'));
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('test exception');
+
+        $this->get('/report-exception-after-handler-swaps');
     }
 }

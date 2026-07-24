@@ -21,6 +21,9 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class MailFake implements Factory, Fake, Mailer, MailQueue
 {
@@ -194,7 +197,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Assert if a mailable was queued a number of times.
      */
-    protected function assertQueuedTimes(string $mailable, int $times = 1): void
+    public function assertQueuedTimes(string $mailable, int $times = 1): void
     {
         $count = $this->queued($mailable)->count();
 
@@ -360,11 +363,23 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Get a mailer instance by name.
      */
-    public function mailer(?string $name = null): Mailer
+    public function mailer(UnitEnum|string|null $name = null): Mailer
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $this->currentMailer = $name;
 
         return $this;
+    }
+
+    /**
+     * Get a mailer driver instance.
+     */
+    public function driver(UnitEnum|string|null $driver = null): Mailer
+    {
+        return $this->mailer($driver);
     }
 
     /**

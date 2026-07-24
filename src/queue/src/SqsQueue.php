@@ -111,7 +111,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     {
         return $this->enqueueUsing(
             $job,
-            $this->createPayload($job, $queue ?: $this->default, $data),
+            $this->createPayload(
+                $job,
+                $queue === null || $queue === '' ? $this->default : $queue,
+                $data
+            ),
             $queue,
             null,
             function ($payload, $queue) use ($job) {
@@ -137,7 +141,12 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     {
         return $this->enqueueUsing(
             $job,
-            $this->createPayload($job, $queue ?: $this->default, $data, $delay),
+            $this->createPayload(
+                $job,
+                $queue === null || $queue === '' ? $this->default : $queue,
+                $data,
+                $delay
+            ),
             $queue,
             $delay,
             function ($payload, $queue, $delay) use ($job) {
@@ -205,7 +214,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     protected function getQueueableOptions(object|string $job, ?string $queue, string $payload, DateInterval|DateTimeInterface|int|null $delay = null): array
     {
         // Make sure we have a queue name to properly determine if it's a FIFO queue...
-        $queue ??= $this->default;
+        $queue = $queue === null || $queue === '' ? $this->default : $queue;
 
         $isObject = is_object($job);
         $isFifo = str_ends_with((string) $queue, '.fifo');
@@ -260,7 +269,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function getQueue(?string $queue): string
     {
-        $queue = $queue ?: $this->default;
+        $queue = $queue === null || $queue === '' ? $this->default : $queue;
 
         return filter_var($queue, FILTER_VALIDATE_URL) === false
             ? $this->suffixQueue($queue, $this->suffix)

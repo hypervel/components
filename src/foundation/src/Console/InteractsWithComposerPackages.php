@@ -15,7 +15,7 @@ trait InteractsWithComposerPackages
      *
      * @param array<int, string> $packages
      */
-    protected function requireComposerPackages(string $composer, array $packages): bool
+    protected function requireComposerPackages(string $composer, array $packages): void
     {
         if ($composer !== 'global') {
             $command = [$this->phpBinary(), $composer, 'require'];
@@ -26,9 +26,9 @@ trait InteractsWithComposerPackages
             $packages,
         );
 
-        return ! (new Process($command, $this->hypervel->basePath(), ['COMPOSER_MEMORY_LIMIT' => '-1']))
+        (new Process($command, $this->hypervel->basePath(), ['COMPOSER_MEMORY_LIMIT' => '-1']))
             ->setTimeout(null)
-            ->run(function ($type, $output) {
+            ->mustRun(function (string $type, string $output): void {
                 $this->output->write($output);
             });
     }

@@ -22,7 +22,7 @@ class HttpServerTest extends ReverbTestCase
         CoordinatorManager::clear(Constants::WORKER_START);
     }
 
-    public function testRejectsRequestsOverMaxRequestSizeUsingContentLength()
+    public function testRejectsRequestsOverMaxRequestSizeUsingContentLength(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -40,7 +40,7 @@ class HttpServerTest extends ReverbTestCase
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
-    public function testAllowsRequestsWithinMaxRequestSize()
+    public function testAllowsRequestsWithinMaxRequestSize(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -57,7 +57,7 @@ class HttpServerTest extends ReverbTestCase
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
-    public function testRejectsRequestsOverMaxRequestSizeWithoutContentLength()
+    public function testRejectsRequestsOverMaxRequestSizeWithoutContentLength(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -75,7 +75,7 @@ class HttpServerTest extends ReverbTestCase
     }
 
     #[DataProvider('invalidContentLengthProvider')]
-    public function testFallsBackToBodySizeForInvalidContentLength(string $contentLength)
+    public function testFallsBackToBodySizeForInvalidContentLength(string $contentLength): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -135,9 +135,9 @@ class HttpServerTest extends ReverbTestCase
     protected function makeSwooleResponse(int $status, string $body): SwooleResponse
     {
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with($status);
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
-        $swooleResponse->shouldReceive('end')->once()->with($body);
+        $swooleResponse->shouldReceive('status')->once()->with($status)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->with($body)->andReturnTrue();
 
         return $swooleResponse;
     }

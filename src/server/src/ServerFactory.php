@@ -64,7 +64,7 @@ class ServerFactory
      * Boot-only. Mutates the shared ServerFactory before startup; runtime use
      * races across coroutines and changes the server used by later calls.
      */
-    public function setServer(Server $server): static
+    public function setServer(ServerInterface $server): static
     {
         $this->server = $server;
         return $this;

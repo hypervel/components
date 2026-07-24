@@ -25,7 +25,7 @@
     "require": {
         "php": "^8.4",
         "laravel/serializable-closure": "^2.0.10",
-        "nesbot/carbon": "^3.8.4",
+        "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1",
         "symfony/process": "^8.1",
         "hypervel/bus": "^0.4",
@@ -42,6 +42,7 @@
         "hypervel/engine": "^0.4",
         "hypervel/events": "^0.4",
         "hypervel/foundation": "^0.4",
+        "hypervel/log": "^0.4",
         "hypervel/object-pool": "^0.4",
         "hypervel/pipeline": "^0.4",
         "hypervel/redis": "^0.4",

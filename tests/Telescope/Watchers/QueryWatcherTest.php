@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Exception;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryModel;
@@ -62,13 +62,13 @@ class QueryWatcherTest extends FeatureTestCase
         $this->assertTrue($entry->content['slow']);
     }
 
-    public function testQueryWatcherCanPrepareBindings()
+    public function testQueryWatcherCanPrepareBindings(): void
     {
         EntryModel::where('type', 'query')
             ->where('should_display_on_index', true)
             ->whereNull('family_hash')
             ->where('sequence', '>', 100)
-            ->where('created_at', '<', Carbon::parse('2019-01-01'))
+            ->where('created_at', '<', CarbonImmutable::parse('2019-01-01'))
             ->update([
                 'content' => null,
                 'should_display_on_index' => false,
@@ -87,7 +87,7 @@ SQL,
         $this->assertSame('testing', $entry->content['connection']);
     }
 
-    public function testQueryWatcherCanPrepareNamedBindings()
+    public function testQueryWatcherCanPrepareNamedBindings(): void
     {
         // using the "sequence"-condition twice is intentional
         // to test whether named parameters can be used multiple times.
@@ -100,7 +100,7 @@ SQL,
                 'sequence' => 100,
                 'index_old' => 1,
                 'type' => 'query',
-                'created_at' => Carbon::parse('2019-01-01'),
+                'created_at' => CarbonImmutable::parse('2019-01-01'),
                 'index_new' => 0,
                 'content' => null,
             ]

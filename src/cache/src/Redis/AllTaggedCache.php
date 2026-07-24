@@ -50,7 +50,7 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($ttl !== null) {
             $seconds = $this->getSeconds($ttl);
@@ -94,7 +94,7 @@ class AllTaggedCache extends NamespacedTaggedCache
             return $this->putMany($key, $value);
         }
 
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -156,7 +156,7 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->getRaw($key);
 
         if (is_null($value)) {
@@ -179,8 +179,10 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
         return $this->store->allTagOps()->increment()->execute(
-            $this->itemKey(enum_value($key)),
+            $this->itemKey($key),
             $value,
             $this->tags->tagIds()
         );
@@ -191,8 +193,10 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
         return $this->store->allTagOps()->decrement()->execute(
-            $this->itemKey(enum_value($key)),
+            $this->itemKey($key),
             $value,
             $this->tags->tagIds()
         );
@@ -203,7 +207,7 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function forever(UnitEnum|string $key, mixed $value): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         $result = $this->store->allTagOps()->forever()->execute(
             $this->itemKey($key),
@@ -260,7 +264,7 @@ class AllTaggedCache extends NamespacedTaggedCache
             return $this->rememberForever($key, $callback);
         }
 
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
@@ -298,7 +302,7 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         [$value, $wasHit] = $this->store->allTagOps()->rememberForever()->execute(
             $this->itemKey($key),

@@ -6,19 +6,23 @@ namespace Hypervel\Tests\Foundation\Http;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
+use RuntimeException;
 use stdClass;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 
+use function Hypervel\Coroutine\parallel;
+
 class HtmlDumperTest extends TestCase
 {
-    protected $config;
+    protected Repository $config;
 
-    protected $container;
+    protected Application $container;
 
     protected function setUp(): void
     {
@@ -46,7 +50,7 @@ class HtmlDumperTest extends TestCase
         ], $config));
     }
 
-    public function testString()
+    public function testString(): void
     {
         $output = $this->dump('string');
 
@@ -55,7 +59,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testInteger()
+    public function testInteger(): void
     {
         $output = $this->dump(1);
 
@@ -64,7 +68,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testFloat()
+    public function testFloat(): void
     {
         $output = $this->dump(1.1);
 
@@ -73,7 +77,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testArray()
+    public function testArray(): void
     {
         $output = $this->dump(['string', 1, 1.1, ['string', 1, 1.1]]);
 
@@ -82,7 +86,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testBoolean()
+    public function testBoolean(): void
     {
         $output = $this->dump(true);
 
@@ -91,7 +95,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testObject()
+    public function testObject(): void
     {
         $user = new stdClass;
         $user->name = 'Guus';
@@ -103,7 +107,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testNull()
+    public function testNull(): void
     {
         $output = $this->dump(null);
 
@@ -112,7 +116,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testUnresolvableSource()
+    public function testUnresolvableSource(): void
     {
         HtmlDumper::resolveDumpSourceUsing(fn () => null);
 
@@ -123,7 +127,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testWhenIsFileViewIsNotViewCompiled()
+    public function testWhenIsFileViewIsNotViewCompiled(): void
     {
         $file = '/my-work-directory/routes/web.php';
 
@@ -139,7 +143,7 @@ class HtmlDumperTest extends TestCase
         $this->assertFalse($isCompiledViewFile);
     }
 
-    public function testWhenIsFileViewIsViewCompiled()
+    public function testWhenIsFileViewIsViewCompiled(): void
     {
         $file = '/my-work-directory/storage/framework/views/6687c33c38b71a8560.php';
 
@@ -155,7 +159,7 @@ class HtmlDumperTest extends TestCase
         $this->assertTrue($isCompiledViewFile);
     }
 
-    public function testGetOriginalViewCompiledFile()
+    public function testGetOriginalViewCompiledFile(): void
     {
         $compiled = __DIR__ . '/../Fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
@@ -171,7 +175,7 @@ class HtmlDumperTest extends TestCase
         $this->assertSame($original, $method->invoke($dumper, $compiled));
     }
 
-    public function testWhenGetOriginalViewCompiledFileFails()
+    public function testWhenGetOriginalViewCompiledFileFails(): void
     {
         $compiled = __DIR__ . '/../Fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
@@ -187,7 +191,7 @@ class HtmlDumperTest extends TestCase
         $this->assertSame($original, $method->invoke($dumper, $compiled));
     }
 
-    public function testUnresolvableLine()
+    public function testUnresolvableLine(): void
     {
         HtmlDumper::resolveDumpSourceUsing(function () {
             return [
@@ -204,7 +208,7 @@ class HtmlDumperTest extends TestCase
         $this->assertStringContainsString($expected, $output);
     }
 
-    public function testHref()
+    public function testHref(): void
     {
         $dumper = new HtmlDumper(
             '/my-work-directory',
@@ -248,6 +252,20 @@ class HtmlDumperTest extends TestCase
             $resolveSourceHref()
         );
 
+        // A literal false disables base-path replacement.
+        $this->config->set('app.editor', ['name' => 'phpstorm', 'base_path' => false]);
+        $this->assertSame(
+            'phpstorm://open?file=/my-work-directory/app/my-file&line=10',
+            $resolveSourceHref()
+        );
+
+        // Other falsy replacement values remain valid replacements.
+        $this->config->set('app.editor', ['name' => 'phpstorm', 'base_path' => '']);
+        $this->assertSame(
+            'phpstorm://open?file=/app/my-file&line=10',
+            $resolveSourceHref()
+        );
+
         // When href is provided on array format...
         $this->config->set('app.editor', ['href' => 'vscode://open?file={file}&line={line}']);
         $this->assertSame(
@@ -279,7 +297,61 @@ class HtmlDumperTest extends TestCase
         );
     }
 
-    protected function dump($value)
+    public function testDumpingGuardIsClearedWhenSourceResolutionThrows(): void
+    {
+        $exception = new RuntimeException('source resolution failed');
+        HtmlDumperFixture::resolveDumpSourceUsing(static function () use ($exception): never {
+            throw $exception;
+        });
+
+        $dumper = new HtmlDumperFixture(
+            '/my-work-directory',
+            '/my-work-directory/storage/framework/views',
+        );
+
+        try {
+            $dumper->dumpWithSource((new VarCloner)->cloneVar('value'));
+            $this->fail('Expected source resolution to fail.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertFalse(CoroutineContext::has(HtmlDumperFixture::dumpingContextKey()));
+    }
+
+    public function testConcurrentDumpsEachIncludeTheirSource(): void
+    {
+        HtmlDumperFixture::resolveDumpSourceUsing(static function (): array {
+            usleep(10_000);
+
+            return [
+                '/my-work-directory/app/routes/console.php',
+                'app/routes/console.php',
+                18,
+            ];
+        });
+
+        $outputFile = stream_get_meta_data(tmpfile())['uri'];
+        $dumper = new HtmlDumperFixture(
+            '/my-work-directory',
+            '/my-work-directory/storage/framework/views',
+        );
+        $dumper->setOutput($outputFile);
+        $cloner = new VarCloner;
+
+        parallel([
+            fn () => $dumper->dumpWithSource($cloner->cloneVar('first')),
+            fn () => $dumper->dumpWithSource($cloner->cloneVar('second')),
+        ]);
+
+        $contents = file_get_contents($outputFile);
+        @unlink($outputFile);
+
+        $this->assertIsString($contents);
+        $this->assertSame(2, substr_count($contents, '// app/routes/console.php:18'));
+    }
+
+    protected function dump(mixed $value): string
     {
         $outputFile = stream_get_meta_data(tmpfile())['uri'];
 
@@ -294,6 +366,21 @@ class HtmlDumperTest extends TestCase
 
         $dumper->dumpWithSource($cloner->cloneVar($value));
 
-        return tap(file_get_contents($outputFile), fn () => @unlink($outputFile));
+        $contents = file_get_contents($outputFile);
+        @unlink($outputFile);
+
+        if ($contents === false) {
+            throw new RuntimeException('Unable to read the dump output.');
+        }
+
+        return $contents;
+    }
+}
+
+class HtmlDumperFixture extends HtmlDumper
+{
+    public static function dumpingContextKey(): string
+    {
+        return self::DUMPING_CONTEXT_KEY;
     }
 }

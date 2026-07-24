@@ -113,6 +113,17 @@ class CommandTest extends TestCase
         $this->assertStringNotContainsString('Guard: admin', $output);
     }
 
+    public function testItCanShowPermissionsForGuardNamedZero(): void
+    {
+        Permission::create(['name' => 'zero-permission', 'guard_name' => '0']);
+
+        Artisan::call('permission:show', ['guard' => '0']);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('Guard: 0', $output);
+        $this->assertStringNotContainsString('Guard: web', $output);
+    }
+
     public function testItCanSetupTeamsUpgrade(): void
     {
         $this->app->make('config')->set('permission.teams', true);
@@ -156,7 +167,7 @@ class CommandTest extends TestCase
         Artisan::call('about');
         $output = str_replace("\r\n", "\n", Artisan::output());
 
-        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Forbidden Permissions[ .\n]*Version/', $output);
+        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Denied Permissions[ .\n]*Version/', $output);
     }
 
     public function testItCanRespondToAboutCommandWithTeams(): void
@@ -171,7 +182,7 @@ class CommandTest extends TestCase
         Artisan::call('about');
         $output = str_replace("\r\n", "\n", Artisan::output());
 
-        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Teams, Forbidden Permissions[ .\n]*Version/', $output);
+        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Teams, Denied Permissions[ .\n]*Version/', $output);
     }
 
     public function testItCanAssignRoleToUser(): void

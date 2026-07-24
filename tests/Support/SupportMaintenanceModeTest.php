@@ -21,6 +21,32 @@ class SupportMaintenanceModeTest extends TestCase
 
         $this->assertInstanceOf(TestMaintenanceMode::class, $driver);
     }
+
+    public function testCacheDriverPreservesZeroStoreAndEmptyFallback(): void
+    {
+        $this->app->config->set([
+            'app.maintenance.driver' => 'cache',
+            'cache.default' => 'array',
+            'cache.stores.0' => ['driver' => 'array'],
+            'cache.stores.array' => ['driver' => 'array'],
+        ]);
+
+        $this->app->make('cache')->store('0')->put('hypervel:foundation:down', ['store' => 'zero']);
+        $this->app->config->set('app.maintenance.store', '0');
+
+        $this->assertSame(
+            ['store' => 'zero'],
+            (new MaintenanceModeManager($this->app))->driver()->data(),
+        );
+
+        $this->app->make('cache')->store('array')->put('hypervel:foundation:down', ['store' => 'default']);
+        $this->app->config->set('app.maintenance.store', '');
+
+        $this->assertSame(
+            ['store' => 'default'],
+            (new MaintenanceModeManager($this->app))->driver()->data(),
+        );
+    }
 }
 
 class TestMaintenanceMode implements MaintenanceModeContract

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Exception;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\MultipleItemsFoundException;
@@ -18,7 +18,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 {
     use Concerns\CountsEnumerations;
 
-    public function testMakeWithClosureIsLazy()
+    public function testMakeWithClosureIsLazy(): void
     {
         [$closure, $recorder] = $this->makeGeneratorFunctionWithRecorder();
 
@@ -27,14 +27,14 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         $this->assertEquals([], $recorder->all());
     }
 
-    public function testMakeWithLazyCollectionIsLazy()
+    public function testMakeWithLazyCollectionIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             LazyCollection::make($collection);
         });
     }
 
-    public function testEagerEnumeratesOnce()
+    public function testEagerEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection = $collection->eager();
@@ -44,7 +44,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testChunkIsLazy()
+    public function testChunkIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->chunk(3);
@@ -55,7 +55,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testChunkWhileIsLazy()
+    public function testChunkWhileIsLazy(): void
     {
         $collection = LazyCollection::make(['A', 'A', 'B', 'B', 'C', 'C', 'C']);
 
@@ -78,7 +78,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testCollapseIsLazy()
+    public function testCollapseIsLazy(): void
     {
         $collection = LazyCollection::make([
             [1, 2, 3],
@@ -95,7 +95,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testCombineIsLazy()
+    public function testCombineIsLazy(): void
     {
         $firstEnumerations = 0;
         $secondEnumerations = 0;
@@ -113,7 +113,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         $this->assertEnumerations(1, $secondEnumerations);
     }
 
-    public function testConcatIsLazy()
+    public function testConcatIsLazy(): void
     {
         $firstEnumerations = 0;
         $secondEnumerations = 0;
@@ -139,7 +139,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         $this->assertEnumerations(1, $secondEnumerations);
     }
 
-    public function testMultiplyIsLazy()
+    public function testMultiplyIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->multiply(2);
@@ -153,35 +153,35 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         );
     }
 
-    public function testContainsIsLazy()
+    public function testContainsIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->contains(5);
         });
     }
 
-    public function testDoesntContainIsLazy()
+    public function testDoesntContainIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->doesntContain(5);
         });
     }
 
-    public function testContainsStrictIsLazy()
+    public function testContainsStrictIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->containsStrict(5);
         });
     }
 
-    public function testCountEnumeratesOnce()
+    public function testCountEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->count();
         });
     }
 
-    public function testCountByIsLazy()
+    public function testCountByIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->countBy();
@@ -195,7 +195,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         );
     }
 
-    public function testCrossJoinIsLazy()
+    public function testCrossJoinIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->crossJoin([1]);
@@ -206,7 +206,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDiffIsLazy()
+    public function testDiffIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->diff([1, 2]);
@@ -217,7 +217,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDiffAssocIsLazy()
+    public function testDiffAssocIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->diffAssoc([1, 2]);
@@ -228,7 +228,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDiffAssocUsingIsLazy()
+    public function testDiffAssocUsingIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->diffAssocUsing([1, 2], 'strcasecmp');
@@ -239,7 +239,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDiffKeysIsLazy()
+    public function testDiffKeysIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->diffKeys([1, 2]);
@@ -250,7 +250,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDiffKeysUsingIsLazy()
+    public function testDiffKeysUsingIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->diffKeysUsing([1, 2], 'strcasecmp');
@@ -261,7 +261,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDiffUsingIsLazy()
+    public function testDiffUsingIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->diffUsing([1, 2], 'strcasecmp');
@@ -272,7 +272,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDuplicatesIsLazy()
+    public function testDuplicatesIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->duplicates();
@@ -283,7 +283,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testDuplicatesStrictIsLazy()
+    public function testDuplicatesStrictIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->duplicatesStrict();
@@ -294,7 +294,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testEachIsLazy()
+    public function testEachIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->each(function ($value, $key) {
@@ -325,7 +325,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testEachSpreadIsLazy()
+    public function testEachSpreadIsLazy(): void
     {
         $data = $this->make([[1, 2], [3, 4], [5, 6], [7, 8]]);
 
@@ -344,7 +344,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testEveryIsLazy()
+    public function testEveryIsLazy(): void
     {
         $this->assertEnumerates(2, function ($collection) {
             $collection->every(function ($value) {
@@ -359,7 +359,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testExceptIsLazy()
+    public function testExceptIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->except([1, 2]);
@@ -370,7 +370,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testFilterIsLazy()
+    public function testFilterIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->filter(function ($value) {
@@ -385,7 +385,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testFirstIsLazy()
+    public function testFirstIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->first();
@@ -398,7 +398,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testFirstWhereIsLazy()
+    public function testFirstWhereIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3]]);
 
@@ -407,7 +407,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testFlatMapIsLazy()
+    public function testFlatMapIsLazy(): void
     {
         $data = $this->make([1, 2, 3, 4, 5]);
 
@@ -424,7 +424,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testFlattenIsLazy()
+    public function testFlattenIsLazy(): void
     {
         $data = $this->make([1, [2, 3], [4, 5], [6, 7]]);
 
@@ -437,7 +437,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testFlipIsLazy()
+    public function testFlipIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->flip();
@@ -448,7 +448,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testForPageIsLazy()
+    public function testForPageIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->forPage(2, 10);
@@ -459,14 +459,14 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testGetIsLazy()
+    public function testGetIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->get(4);
         });
     }
 
-    public function testGroupByIsLazy()
+    public function testGroupByIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->groupBy(function ($value) {
@@ -481,7 +481,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testHasIsLazy()
+    public function testHasIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->has(4);
@@ -492,7 +492,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testHasAnyIsLazy()
+    public function testHasAnyIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->hasAny(4);
@@ -507,14 +507,14 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testImplodeEnumeratesOnce()
+    public function testImplodeEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->implode(', ');
         });
     }
 
-    public function testIntersectIsLazy()
+    public function testIntersectIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->intersect([1, 2, 3]);
@@ -525,7 +525,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testIntersectUsingIsLazy()
+    public function testIntersectUsingIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->intersectUsing([1, 2], 'strcasecmp');
@@ -536,7 +536,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testIntersectAssocIsLazy()
+    public function testIntersectAssocIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->intersectAssoc([1, 2]);
@@ -547,7 +547,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testIntersectAssocUsingIsLazy()
+    public function testIntersectAssocUsingIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->intersectAssocUsing([1, 2], 'strcasecmp');
@@ -558,7 +558,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testIntersectByKeysIsLazy()
+    public function testIntersectByKeysIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->intersectByKeys([1, 2, 3]);
@@ -569,28 +569,23 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testIsEmptyIsLazy()
+    public function testIsEmptyIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->isEmpty();
         });
     }
 
-    public function testIsNotEmptyIsLazy()
+    public function testIsNotEmptyIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->isNotEmpty();
         });
     }
 
-    public function testContainsOneItemIsLazy()
-    {
-        $this->assertEnumerates(2, function ($collection) {
-            $collection->containsOneItem();
-        });
-    }
+    // REMOVED: Laziness test for Laravel's deprecated containsOneItem(); use hasSole().
 
-    public function testHasSoleIsLazy()
+    public function testHasSoleIsLazy(): void
     {
         $this->assertEnumerates(2, function ($collection) {
             $collection->hasSole();
@@ -607,7 +602,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         );
     }
 
-    public function testHasManyIsLazy()
+    public function testHasManyIsLazy(): void
     {
         $this->assertEnumerates(2, function ($collection) {
             $collection->hasMany();
@@ -624,21 +619,21 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         );
     }
 
-    public function testJoinIsLazy()
+    public function testJoinIsLazy(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->join(', ', ' and ');
         });
     }
 
-    public function testJsonSerializeEnumeratesOnce()
+    public function testJsonSerializeEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->jsonSerialize();
         });
     }
 
-    public function testKeyByIsLazy()
+    public function testKeyByIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->keyBy(function ($value) {
@@ -653,7 +648,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testKeysIsLazy()
+    public function testKeysIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->keys();
@@ -664,14 +659,14 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testLastEnumeratesOnce()
+    public function testLastEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->last();
         });
     }
 
-    public function testMapIsLazy()
+    public function testMapIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->map(function ($value) {
@@ -686,7 +681,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMapIntoIsLazy()
+    public function testMapIntoIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->mapInto(stdClass::class);
@@ -697,7 +692,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMapSpreadIsLazy()
+    public function testMapSpreadIsLazy(): void
     {
         $data = $this->make([[1, 2], [3, 4], [5, 6], [7, 8]]);
 
@@ -714,7 +709,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMapToDictionaryIsLazy()
+    public function testMapToDictionaryIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->mapToDictionary(function ($value, $key) {
@@ -729,7 +724,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMapToGroupsIsLazy()
+    public function testMapToGroupsIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->mapToGroups(function ($value, $key) {
@@ -744,7 +739,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMapWithKeysIsLazy()
+    public function testMapWithKeysIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->mapWithKeys(function ($value, $key) {
@@ -759,28 +754,28 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMaxEnumeratesOnce()
+    public function testMaxEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->max();
         });
     }
 
-    public function testMedianEnumeratesOnce()
+    public function testMedianEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->median();
         });
     }
 
-    public function testAvgEnumeratesOnce()
+    public function testAvgEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->avg();
         });
     }
 
-    public function testMergeIsLazy()
+    public function testMergeIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->merge([1, 2, 3]);
@@ -791,7 +786,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMergeRecursiveIsLazy()
+    public function testMergeRecursiveIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->mergeRecursive([1, 2, 3]);
@@ -802,21 +797,21 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testMinEnumeratesOnce()
+    public function testMinEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->min();
         });
     }
 
-    public function testModeEnumeratesOnce()
+    public function testModeEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->mode();
         });
     }
 
-    public function testNthIsLazy()
+    public function testNthIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->nth(5);
@@ -827,7 +822,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testOnlyIsLazy()
+    public function testOnlyIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->only(5, 6, 7);
@@ -838,7 +833,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testPadIsLazy()
+    public function testPadIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->pad(200, null);
@@ -854,7 +849,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testPartitionEnumeratesOnce()
+    public function testPartitionEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->partition(function ($value) {
@@ -863,7 +858,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testPipeDoesNotEnumerate()
+    public function testPipeDoesNotEnumerate(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->pipe(function () {
@@ -872,7 +867,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testPluckIsLazy()
+    public function testPluckIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -885,7 +880,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testRandomEnumeratesOnce()
+    public function testRandomEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->random();
@@ -896,7 +891,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testRangeIsLazy()
+    public function testRangeIsLazy(): void
     {
         $data = LazyCollection::range(10, 1000);
 
@@ -909,7 +904,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testReduceIsLazy()
+    public function testReduceIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $this->rescue(function () use ($collection) {
@@ -926,7 +921,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testReduceSpreadIsLazy()
+    public function testReduceSpreadIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $this->rescue(function () use ($collection) {
@@ -943,7 +938,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testRejectIsLazy()
+    public function testRejectIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->reject(function ($value) {
@@ -958,7 +953,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testRememberIsLazy()
+    public function testRememberIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->remember();
@@ -979,7 +974,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testReplaceIsLazy()
+    public function testReplaceIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->replace([5 => 'a', 10 => 'b']);
@@ -990,7 +985,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testReplaceRecursiveIsLazy()
+    public function testReplaceRecursiveIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->replaceRecursive([5 => 'a', 10 => 'b']);
@@ -1001,7 +996,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testReverseIsLazy()
+    public function testReverseIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->reverse();
@@ -1012,7 +1007,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSearchIsLazy()
+    public function testSearchIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->search(5);
@@ -1023,7 +1018,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testShuffleIsLazy()
+    public function testShuffleIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->shuffle();
@@ -1034,7 +1029,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSlidingIsLazy()
+    public function testSlidingIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->sliding();
@@ -1057,7 +1052,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSkipIsLazy()
+    public function testSkipIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->skip(10);
@@ -1068,7 +1063,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSkipUntilIsLazy()
+    public function testSkipUntilIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->skipUntil(INF);
@@ -1085,7 +1080,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSkipWhileIsLazy()
+    public function testSkipWhileIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->skipWhile(1);
@@ -1102,7 +1097,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSliceIsLazy()
+    public function testSliceIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->slice(2);
@@ -1123,7 +1118,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testFindFirstOrFailIsLazy()
+    public function testFindFirstOrFailIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->firstOrFail();
@@ -1151,7 +1146,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSomeIsLazy()
+    public function testSomeIsLazy(): void
     {
         $this->assertEnumerates(5, function ($collection) {
             $collection->some(function ($value) {
@@ -1166,7 +1161,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSoleIsLazy()
+    public function testSoleIsLazy(): void
     {
         $this->assertEnumerates(2, function ($collection) {
             try {
@@ -1191,7 +1186,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSortIsLazy()
+    public function testSortIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->sort();
@@ -1202,7 +1197,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSortDescIsLazy()
+    public function testSortDescIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->sortDesc();
@@ -1213,7 +1208,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSortByIsLazy()
+    public function testSortByIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->sortBy(function ($value) {
@@ -1228,7 +1223,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSortByDescIsLazy()
+    public function testSortByDescIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->sortByDesc(function ($value) {
@@ -1243,7 +1238,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSortKeysIsLazy()
+    public function testSortKeysIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->sortKeys();
@@ -1254,7 +1249,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSortKeysDescIsLazy()
+    public function testSortKeysDescIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->sortKeysDesc();
@@ -1265,7 +1260,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSplitIsLazy()
+    public function testSplitIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->split(4);
@@ -1276,14 +1271,14 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testSumEnumeratesOnce()
+    public function testSumEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->sum();
         });
     }
 
-    public function testTakeIsLazy()
+    public function testTakeIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->take(10);
@@ -1294,7 +1289,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testTakeUntilIsLazy()
+    public function testTakeUntilIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->takeUntil(INF);
@@ -1311,11 +1306,11 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testTakeUntilTimeoutIsLazy()
+    public function testTakeUntilTimeoutIsLazy(): void
     {
         tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertDoesNotEnumerateCollection($mock, function ($mock) {
-                $timeout = Carbon::now();
+                $timeout = CarbonImmutable::now();
 
                 $results = $mock
                     ->tap(function ($collection) use ($mock, $timeout) {
@@ -1335,7 +1330,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 
         tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertEnumeratesCollection($mock, 1, function ($mock) {
-                $timeout = Carbon::now();
+                $timeout = CarbonImmutable::now();
 
                 $results = $mock
                     ->tap(function ($collection) use ($mock, $timeout) {
@@ -1345,7 +1340,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                             ->shouldReceive('now')
                             ->times(2)
                             ->andReturn(
-                                (clone $timeout)->sub(1, 'minute')->getTimestamp(),
+                                $timeout->sub(1, 'minute')->getTimestamp(),
                                 $timeout->getTimestamp()
                             );
                     })
@@ -1356,7 +1351,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 
         tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertEnumeratesCollectionOnce($mock, function ($mock) {
-                $timeout = Carbon::now();
+                $timeout = CarbonImmutable::now();
 
                 $results = $mock
                     ->tap(function ($collection) use ($mock, $timeout) {
@@ -1366,7 +1361,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                             ->shouldReceive('now')
                             ->times(100)
                             ->andReturn(
-                                (clone $timeout)->sub(1, 'minute')->getTimestamp()
+                                $timeout->sub(1, 'minute')->getTimestamp()
                             );
                     })
                     ->takeUntilTimeout($timeout)
@@ -1375,7 +1370,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testTakeWhileIsLazy()
+    public function testTakeWhileIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->takeWhile(0);
@@ -1392,7 +1387,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testTapDoesNotEnumerate()
+    public function testTapDoesNotEnumerate(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->tap(function ($collection) {
@@ -1401,7 +1396,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testTapEachIsLazy()
+    public function testTapEachIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->tapEach(function ($value) {
@@ -1416,7 +1411,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testThrottleIsLazy()
+    public function testThrottleIsLazy(): void
     {
         Sleep::fake();
 
@@ -1435,7 +1430,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         Sleep::fake(false);
     }
 
-    public function testTimesIsLazy()
+    public function testTimesIsLazy(): void
     {
         $data = LazyCollection::times(INF);
 
@@ -1444,21 +1439,21 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testToArrayEnumeratesOnce()
+    public function testToArrayEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->toArray();
         });
     }
 
-    public function testToJsonEnumeratesOnce()
+    public function testToJsonEnumeratesOnce(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             $collection->toJson();
         });
     }
 
-    public function testUnionIsLazy()
+    public function testUnionIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->union([4, 5, 6]);
@@ -1469,7 +1464,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testUniqueIsLazy()
+    public function testUniqueIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->unique();
@@ -1480,7 +1475,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testUniqueStrictIsLazy()
+    public function testUniqueStrictIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->uniqueStrict();
@@ -1491,7 +1486,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testUnlessDoesNotEnumerate()
+    public function testUnlessDoesNotEnumerate(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->unless(true, function ($collection) {
@@ -1504,7 +1499,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testUnlessEmptyIsLazy()
+    public function testUnlessEmptyIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->unlessEmpty(function ($collection) {
@@ -1513,7 +1508,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testUnlessNotEmptyIsLazy()
+    public function testUnlessNotEmptyIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->unlessNotEmpty(function ($collection) {
@@ -1522,14 +1517,14 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testUnwrapEnumeratesOne()
+    public function testUnwrapEnumeratesOne(): void
     {
         $this->assertEnumeratesOnce(function ($collection) {
             LazyCollection::unwrap($collection);
         });
     }
 
-    public function testValuesIsLazy()
+    public function testValuesIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->values();
@@ -1540,7 +1535,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhenDoesNotEnumerate()
+    public function testWhenDoesNotEnumerate(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->when(true, function ($collection) {
@@ -1553,7 +1548,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhenEmptyIsLazy()
+    public function testWhenEmptyIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->whenEmpty(function ($collection) {
@@ -1562,7 +1557,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhenNotEmptyIsLazy()
+    public function testWhenNotEmptyIsLazy(): void
     {
         $this->assertEnumerates(1, function ($collection) {
             $collection->whenNotEmpty(function ($collection) {
@@ -1571,7 +1566,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereIsLazy()
+    public function testWhereIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1584,7 +1579,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereBetweenIsLazy()
+    public function testWhereBetweenIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1597,7 +1592,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereInIsLazy()
+    public function testWhereInIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1610,7 +1605,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereInstanceOfIsLazy()
+    public function testWhereInstanceOfIsLazy(): void
     {
         $data = $this->make(['a' => 0])->concat(
             $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]])
@@ -1626,7 +1621,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereInStrictIsLazy()
+    public function testWhereInStrictIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1639,7 +1634,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereNotBetweenIsLazy()
+    public function testWhereNotBetweenIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1652,7 +1647,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereNotInIsLazy()
+    public function testWhereNotInIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1665,7 +1660,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereNotInStrictIsLazy()
+    public function testWhereNotInStrictIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1678,7 +1673,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereNotNullIsLazy()
+    public function testWhereNotNullIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => null], ['a' => 2], ['a' => 3]]);
 
@@ -1701,7 +1696,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereNullIsLazy()
+    public function testWhereNullIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => null], ['a' => 2], ['a' => 3]]);
 
@@ -1724,7 +1719,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWhereStrictIsLazy()
+    public function testWhereStrictIsLazy(): void
     {
         $data = $this->make([['a' => 1], ['a' => 2], ['a' => 3], ['a' => 4]]);
 
@@ -1737,7 +1732,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWithHeartbeatIsLazy()
+    public function testWithHeartbeatIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             $collection->withHeartbeat(1, function () {
@@ -1752,7 +1747,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testWrapIsLazy()
+    public function testWrapIsLazy(): void
     {
         $this->assertDoesNotEnumerate(function ($collection) {
             LazyCollection::wrap($collection);
@@ -1763,7 +1758,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         });
     }
 
-    public function testZipIsLazy()
+    public function testZipIsLazy(): void
     {
         $firstEnumerations = 0;
         $secondEnumerations = 0;
@@ -1781,12 +1776,12 @@ class SupportLazyCollectionIsLazyTest extends TestCase
         $this->assertEnumerations(1, $secondEnumerations);
     }
 
-    protected function make($source)
+    protected function make($source): LazyCollection
     {
         return new LazyCollection($source);
     }
 
-    protected function rescue($callback)
+    protected function rescue($callback): void
     {
         try {
             $callback();

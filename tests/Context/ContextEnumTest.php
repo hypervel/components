@@ -28,28 +28,28 @@ enum ContextKeyUnitEnum
 
 class ContextEnumTest extends TestCase
 {
-    public function testSetAndGetWithBackedEnum()
+    public function testSetAndGetWithBackedEnum(): void
     {
         CoroutineContext::set(ContextKeyBackedEnum::CurrentUser, 'user-123');
 
         $this->assertSame('user-123', CoroutineContext::get(ContextKeyBackedEnum::CurrentUser));
     }
 
-    public function testSetAndGetWithUnitEnum()
+    public function testSetAndGetWithUnitEnum(): void
     {
         CoroutineContext::set(ContextKeyUnitEnum::Locale, 'en-US');
 
         $this->assertSame('en-US', CoroutineContext::get(ContextKeyUnitEnum::Locale));
     }
 
-    public function testSetAndGetWithIntBackedEnum()
+    public function testSetAndGetWithIntBackedEnum(): void
     {
         CoroutineContext::set(ContextKeyIntBackedEnum::UserId, 'user-123');
 
         $this->assertSame('user-123', CoroutineContext::get(ContextKeyIntBackedEnum::UserId));
     }
 
-    public function testHasWithBackedEnum()
+    public function testHasWithBackedEnum(): void
     {
         $this->assertFalse(CoroutineContext::has(ContextKeyBackedEnum::CurrentUser));
 
@@ -58,7 +58,7 @@ class ContextEnumTest extends TestCase
         $this->assertTrue(CoroutineContext::has(ContextKeyBackedEnum::CurrentUser));
     }
 
-    public function testHasWithUnitEnum()
+    public function testHasWithUnitEnum(): void
     {
         $this->assertFalse(CoroutineContext::has(ContextKeyUnitEnum::Locale));
 
@@ -67,7 +67,7 @@ class ContextEnumTest extends TestCase
         $this->assertTrue(CoroutineContext::has(ContextKeyUnitEnum::Locale));
     }
 
-    public function testForgetWithBackedEnum()
+    public function testForgetWithBackedEnum(): void
     {
         CoroutineContext::set(ContextKeyBackedEnum::CurrentUser, 'user-123');
         $this->assertTrue(CoroutineContext::has(ContextKeyBackedEnum::CurrentUser));
@@ -77,7 +77,7 @@ class ContextEnumTest extends TestCase
         $this->assertFalse(CoroutineContext::has(ContextKeyBackedEnum::CurrentUser));
     }
 
-    public function testForgetWithUnitEnum()
+    public function testForgetWithUnitEnum(): void
     {
         CoroutineContext::set(ContextKeyUnitEnum::Locale, 'en-US');
         $this->assertTrue(CoroutineContext::has(ContextKeyUnitEnum::Locale));
@@ -87,7 +87,7 @@ class ContextEnumTest extends TestCase
         $this->assertFalse(CoroutineContext::has(ContextKeyUnitEnum::Locale));
     }
 
-    public function testOverrideWithBackedEnum()
+    public function testOverrideWithBackedEnum(): void
     {
         CoroutineContext::set(ContextKeyBackedEnum::CurrentUser, 'user-123');
 
@@ -97,7 +97,7 @@ class ContextEnumTest extends TestCase
         $this->assertSame('user-123-modified', CoroutineContext::get(ContextKeyBackedEnum::CurrentUser));
     }
 
-    public function testOverrideWithUnitEnum()
+    public function testOverrideWithUnitEnum(): void
     {
         CoroutineContext::set(ContextKeyUnitEnum::Locale, 'en');
 
@@ -107,7 +107,7 @@ class ContextEnumTest extends TestCase
         $this->assertSame('en-US', CoroutineContext::get(ContextKeyUnitEnum::Locale));
     }
 
-    public function testGetOrSetWithBackedEnum()
+    public function testGetOrSetWithBackedEnum(): void
     {
         // First call should set and return the value
         $result = CoroutineContext::getOrSet(ContextKeyBackedEnum::RequestId, 'req-001');
@@ -118,7 +118,7 @@ class ContextEnumTest extends TestCase
         $this->assertSame('req-001', $result);
     }
 
-    public function testGetOrSetWithUnitEnum()
+    public function testGetOrSetWithUnitEnum(): void
     {
         $result = CoroutineContext::getOrSet(ContextKeyUnitEnum::Theme, 'dark');
         $this->assertSame('dark', $result);
@@ -127,7 +127,7 @@ class ContextEnumTest extends TestCase
         $this->assertSame('dark', $result);
     }
 
-    public function testGetOrSetWithClosure()
+    public function testGetOrSetWithClosure(): void
     {
         $callCount = 0;
         $callback = function () use (&$callCount) {
@@ -145,7 +145,7 @@ class ContextEnumTest extends TestCase
         $this->assertSame(1, $callCount);
     }
 
-    public function testSetManyWithEnumKeys()
+    public function testSetManyWithEnumKeys(): void
     {
         CoroutineContext::setMany([
             ContextKeyBackedEnum::CurrentUser->value => 'user-123',
@@ -156,7 +156,16 @@ class ContextEnumTest extends TestCase
         $this->assertSame('en-US', CoroutineContext::get(ContextKeyUnitEnum::Locale));
     }
 
-    public function testBackedEnumAndStringInteroperability()
+    public function testSetManyWithIntegerBackedEnumKey(): void
+    {
+        CoroutineContext::setMany([
+            ContextKeyIntBackedEnum::UserId->value => 'user-123',
+        ]);
+
+        $this->assertSame('user-123', CoroutineContext::get(ContextKeyIntBackedEnum::UserId));
+    }
+
+    public function testBackedEnumAndStringInteroperability(): void
     {
         // Set with enum
         CoroutineContext::set(ContextKeyBackedEnum::CurrentUser, 'user-123');
@@ -171,7 +180,7 @@ class ContextEnumTest extends TestCase
         $this->assertSame('req-456', CoroutineContext::get(ContextKeyBackedEnum::RequestId));
     }
 
-    public function testUnitEnumAndStringInteroperability()
+    public function testUnitEnumAndStringInteroperability(): void
     {
         // Set with enum
         CoroutineContext::set(ContextKeyUnitEnum::Locale, 'en-US');
@@ -186,21 +195,21 @@ class ContextEnumTest extends TestCase
         $this->assertSame('dark', CoroutineContext::get(ContextKeyUnitEnum::Theme));
     }
 
-    public function testGetWithDefaultAndBackedEnum()
+    public function testGetWithDefaultAndBackedEnum(): void
     {
         $result = CoroutineContext::get(ContextKeyBackedEnum::CurrentUser, 'default-user');
 
         $this->assertSame('default-user', $result);
     }
 
-    public function testGetWithDefaultAndUnitEnum()
+    public function testGetWithDefaultAndUnitEnum(): void
     {
         $result = CoroutineContext::get(ContextKeyUnitEnum::Locale, 'en');
 
         $this->assertSame('en', $result);
     }
 
-    public function testMultipleEnumKeysCanCoexist()
+    public function testMultipleEnumKeysCanCoexist(): void
     {
         CoroutineContext::set(ContextKeyBackedEnum::CurrentUser, 'user-123');
         CoroutineContext::set(ContextKeyBackedEnum::RequestId, 'req-456');

@@ -33,20 +33,34 @@ class CacheTest extends TestCase
         $this->assertIsArray($permission);
         $this->assertArrayNotHasKey('attributes', $permission['roles'][0]);
         $this->assertSame($this->testUserRole->getKey(), $permission['roles'][0]['pivot'][$registrar->pivotRole]);
-        $this->assertFalse($permission['roles'][0]['pivot']['is_forbidden']);
+        $this->assertFalse($permission['roles'][0]['pivot']['is_denied']);
     }
 
-    public function testRoleForbiddenPivotHydratesFromGlobalCache(): void
+    public function testRoleDeniedPivotHydratesFromGlobalCache(): void
     {
         $this->testUser->assignRole('testRole');
-        $this->testUserRole->giveForbiddenTo('edit-articles');
+        $this->testUserRole->denyPermissionTo('edit-articles');
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
 
         $this->app->make(PermissionRegistrar::class)->clearPermissionsCollection();
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
+    }
+
+    public function testDirectDeniedPivotHydratesFromModelAssignmentCache(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUser->assignRole($this->testUserRole);
+        $this->testUser->denyPermissionTo('edit-articles');
+
+        $user = User::findOrFail($this->testUser->getKey());
+
+        $this->assertFalse($user->relationLoaded('permissions'));
+        $this->assertTrue($user->hasDeniedPermission('edit-articles'));
+        $this->assertFalse($user->relationLoaded('permissions'));
+        $this->assertFalse($user->hasPermissionTo('edit-articles'));
     }
 
     public function testPermissionCacheResetChangesModelAssignmentCacheToken(): void
@@ -114,19 +128,19 @@ class CacheTest extends TestCase
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
     }
 
-    public function testSyncPermissionsWithForbiddenInvalidatesWarmModelPermissionCache(): void
+    public function testSyncPermissionEffectsInvalidatesWarmModelPermissionCache(): void
     {
         $this->testUser->givePermissionTo('edit-articles');
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasDeniedPermission('edit-articles'));
 
-        $this->testUser->syncPermissionsWithForbidden(
+        $this->testUser->syncPermissionEffects(
             allowed: ['edit-news'],
-            forbidden: ['edit-articles'],
+            denied: ['edit-articles'],
         );
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermission('edit-articles'));
         $this->assertTrue($this->testUser->hasPermissionTo('edit-news'));
     }
 
@@ -153,17 +167,17 @@ class CacheTest extends TestCase
         $this->assertSame(['edit-articles'], $this->testUser->getAllPermissions()->pluck('name')->all());
     }
 
-    public function testRoleForbiddenPermissionMutationsInvalidateWarmGlobalPermissionCatalog(): void
+    public function testRoleDeniedPermissionMutationsInvalidateWarmGlobalPermissionCatalog(): void
     {
         $this->testUser->assignRole('testRole');
         $this->testUserRole->givePermissionTo('edit-articles');
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertFalse($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+        $this->assertFalse($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
 
-        $this->testUserRole->syncPermissionsWithForbidden(forbidden: ['edit-articles']);
+        $this->testUserRole->syncPermissionEffects(denied: ['edit-articles']);
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
     }
 
     public function testWildcardPermissionMutationsInvalidateWarmWildcardIndex(): void
@@ -194,7 +208,7 @@ class CacheTest extends TestCase
             ->insert([
                 $registrar->pivotPermission => $permission->getKey(),
                 $registrar->pivotRole => $this->testUserRole->getKey(),
-                'is_forbidden' => false,
+                'is_denied' => false,
             ]);
 
         $registrar->getCacheRepository()->forget($registrar->getCacheKey());
@@ -206,139 +220,7 @@ class CacheTest extends TestCase
         $this->assertTrue($results[0]);
     }
 
-    public function testCustomCacheKeyResolverScopesGlobalPermissionCatalogCache(): void
-    {
-        $tenant = 'tenant-a';
-        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
-            return $tenant;
-        });
-
-        $this->testUserRole->givePermissionTo('edit-articles');
-        $registrar = $this->app->make(PermissionRegistrar::class);
-        $store = $registrar->getCacheRepository()->getStore();
-
-        $registrar->getPermissions();
-
-        $this->assertArrayHasKey($registrar->cacheKey . ':tenant-a', $store->all());
-
-        $tenant = 'tenant-b';
-        $registrar->clearPermissionsCollection();
-        $registrar->getPermissions();
-
-        $items = $store->all();
-
-        $this->assertArrayHasKey($registrar->cacheKey . ':tenant-a', $items);
-        $this->assertArrayHasKey($registrar->cacheKey . ':tenant-b', $items);
-    }
-
-    public function testCustomCacheKeyResolverScopesModelAssignmentAndTokenCaches(): void
-    {
-        $tenant = 'tenant-a';
-        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
-            return $tenant;
-        });
-
-        $this->testUser->assignRole('testRole');
-        $registrar = $this->app->make(PermissionRegistrar::class);
-        $store = $registrar->getCacheRepository()->getStore();
-
-        $this->assertTrue($this->testUser->hasRole('testRole'));
-
-        $tenant = 'tenant-b';
-        $this->assertTrue($this->testUser->hasRole('testRole'));
-
-        $keys = array_keys($store->all());
-
-        $this->assertContains('hypervel.permission.cache.model.token:tenant-a', $keys);
-        $this->assertContains('hypervel.permission.cache.model.token:tenant-b', $keys);
-        $this->assertNotEmpty(array_filter(
-            $keys,
-            fn (string $key): bool => str_starts_with($key, 'hypervel.permission.cache.model.roles:tenant-a:'),
-        ));
-        $this->assertNotEmpty(array_filter(
-            $keys,
-            fn (string $key): bool => str_starts_with($key, 'hypervel.permission.cache.model.roles:tenant-b:'),
-        ));
-    }
-
-    public function testCustomCacheKeyResolverPreventsCrossTenantBleedForRoleGrantedPermissions(): void
-    {
-        $tenant = 'tenant-a';
-        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
-            return $tenant;
-        });
-
-        $this->testUser->assignRole('testRole');
-        $this->testUserRole->givePermissionTo('edit-articles');
-
-        $this->assertTrue($this->testUser->hasRole('testRole'));
-        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-
-        $connection = $this->testUserRole->getConnection();
-        $connection->table(Config::modelHasRolesTable())->delete();
-        $connection->table(Config::roleHasPermissionsTable())->delete();
-
-        $this->assertTrue($this->testUser->hasRole('testRole'));
-        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-
-        $tenant = 'tenant-b';
-
-        $this->assertFalse($this->testUser->hasRole('testRole'));
-        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-    }
-
-    public function testCustomCacheKeyResolverPreventsCrossTenantBleedForViaRolePermissionMemo(): void
-    {
-        $tenant = 'tenant-a';
-        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
-            return $tenant;
-        });
-
-        $this->testUser->assignRole('testRole');
-        $this->testUserRole->givePermissionTo('edit-articles');
-
-        $this->assertSame(['edit-articles'], $this->testUser->getPermissionsViaRoles()->pluck('name')->all());
-
-        $connection = $this->testUserRole->getConnection();
-        $connection->table(Config::modelHasRolesTable())->delete();
-        $connection->table(Config::roleHasPermissionsTable())->delete();
-
-        $this->assertSame(['edit-articles'], $this->testUser->getPermissionsViaRoles()->pluck('name')->all());
-
-        $tenant = 'tenant-b';
-
-        $this->assertSame([], $this->testUser->getPermissionsViaRoles()->pluck('name')->all());
-
-        $keys = array_keys(CoroutineContext::get(PermissionRegistrar::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, []));
-
-        $this->assertNotEmpty(array_filter($keys, fn (string $key): bool => str_starts_with($key, 'tenant-a:')));
-        $this->assertNotEmpty(array_filter($keys, fn (string $key): bool => str_starts_with($key, 'tenant-b:')));
-    }
-
-    public function testCustomCacheKeyResolverPreventsCrossTenantBleedForDirectPermissions(): void
-    {
-        $tenant = 'tenant-a';
-        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
-            return $tenant;
-        });
-
-        $this->testUser->givePermissionTo('edit-articles');
-
-        $this->assertTrue($this->testUser->hasDirectPermission('edit-articles'));
-        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-
-        $this->testUser->getConnection()->table(Config::modelHasPermissionsTable())->delete();
-
-        $this->assertTrue($this->testUser->hasDirectPermission('edit-articles'));
-        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-
-        $tenant = 'tenant-b';
-
-        $this->assertFalse($this->testUser->hasDirectPermission('edit-articles'));
-        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-    }
-
-    public function testWildcardIndexKeyDoesNotIncludeEmptyCacheScopeSegment(): void
+    public function testWildcardIndexKeyIsWellFormedWithoutPartitioning(): void
     {
         $this->app->make('config')->set('permission.enable_wildcard_permission', true);
         $this->flushPermissionState();
@@ -353,48 +235,6 @@ class CacheTest extends TestCase
 
         $this->assertNotEmpty($keys);
         $this->assertFalse(str_starts_with($keys[0], ':'));
-    }
-
-    public function testCustomCacheKeyResolverScopesWildcardIndexesInCoroutineContext(): void
-    {
-        $tenant = 'tenant-a';
-        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
-            return $tenant;
-        });
-
-        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
-        $this->flushPermissionState();
-
-        $this->app->make(PermissionContract::class)::create(['name' => 'posts.*']);
-        $this->testUser->givePermissionTo('posts.*');
-        $registrar = $this->app->make(PermissionRegistrar::class);
-
-        $registrar->getWildcardPermissionIndex($this->testUser);
-
-        $tenant = 'tenant-b';
-        $registrar->getWildcardPermissionIndex($this->testUser);
-
-        $keys = array_keys(CoroutineContext::get(PermissionRegistrar::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, []));
-
-        $this->assertNotEmpty(array_filter($keys, fn (string $key): bool => str_starts_with($key, 'tenant-a:')));
-        $this->assertNotEmpty(array_filter($keys, fn (string $key): bool => str_starts_with($key, 'tenant-b:')));
-    }
-
-    public function testFlushStateClearsCustomCacheKeyResolver(): void
-    {
-        PermissionRegistrar::resolveCacheKeyUsing(fn (): string => 'tenant-a');
-
-        $this->assertSame(
-            'hypervel.permission.cache.roles:tenant-a',
-            $this->app->make(PermissionRegistrar::class)->getCacheKey(),
-        );
-
-        PermissionRegistrar::flushState();
-
-        $this->assertSame(
-            'hypervel.permission.cache.roles',
-            $this->app->make(PermissionRegistrar::class)->getCacheKey(),
-        );
     }
 
     public function testDeletingPlainModelDoesNotBumpGlobalAssignmentCacheToken(): void

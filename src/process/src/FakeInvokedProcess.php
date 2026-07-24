@@ -7,6 +7,7 @@ namespace Hypervel\Process;
 use Closure;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Throwable;
 
 class FakeInvokedProcess implements InvokedProcessContract
 {
@@ -26,6 +27,11 @@ class FakeInvokedProcess implements InvokedProcessContract
      * The general output handler callback.
      */
     protected ?Closure $outputHandler = null;
+
+    /**
+     * Indicates that the output handler has failed.
+     */
+    protected bool $outputHandlerFailed = false;
 
     /**
      * The current output's index.
@@ -53,7 +59,9 @@ class FakeInvokedProcess implements InvokedProcessContract
     {
         $this->invokeOutputHandlerWithNextLineOfOutput();
 
-        return $this->process->processId;
+        $this->remainingRunIterations ??= $this->process->runIterations;
+
+        return $this->remainingRunIterations === 0 ? null : $this->process->processId;
     }
 
     /**
@@ -91,7 +99,7 @@ class FakeInvokedProcess implements InvokedProcessContract
      */
     public function hasReceivedSignal(int $signal): bool
     {
-        return in_array($signal, $this->receivedSignals);
+        return in_array($signal, $this->receivedSignals, true);
     }
 
     /**
@@ -123,7 +131,9 @@ class FakeInvokedProcess implements InvokedProcessContract
      */
     protected function invokeOutputHandlerWithNextLineOfOutput(): array|false
     {
-        if (! $this->outputHandler) {
+        $outputHandler = $this->outputHandler;
+
+        if ($outputHandler === null || $this->outputHandlerFailed) {
             return false;
         }
 
@@ -136,13 +146,13 @@ class FakeInvokedProcess implements InvokedProcessContract
             $currentOutput = $this->process->output[$i];
 
             if ($currentOutput['type'] === 'out' && $i >= $this->nextOutputIndex) {
-                call_user_func($this->outputHandler, 'out', $currentOutput['buffer']);
+                $this->callOutputHandler($outputHandler, 'out', $currentOutput['buffer']);
                 $this->nextOutputIndex = $i + 1;
 
                 return $currentOutput;
             }
             if ($currentOutput['type'] === 'err' && $i >= $this->nextErrorOutputIndex) {
-                call_user_func($this->outputHandler, 'err', $currentOutput['buffer']);
+                $this->callOutputHandler($outputHandler, 'err', $currentOutput['buffer']);
                 $this->nextErrorOutputIndex = $i + 1;
 
                 return $currentOutput;
@@ -150,6 +160,22 @@ class FakeInvokedProcess implements InvokedProcessContract
         }
 
         return false;
+    }
+
+    /**
+     * Invoke the output handler for the given output.
+     */
+    protected function callOutputHandler(Closure $outputHandler, string $type, string $buffer): void
+    {
+        try {
+            $outputHandler($type, $buffer);
+        } catch (Throwable $exception) {
+            // Match the real process's terminal stop and suppress delivery after callback failure.
+            $this->outputHandlerFailed = true;
+            $this->remainingRunIterations = 0;
+
+            throw $exception;
+        }
     }
 
     /**
@@ -167,7 +193,7 @@ class FakeInvokedProcess implements InvokedProcessContract
             }
         }
 
-        return rtrim(implode('', $output), "\n") . "\n";
+        return $output === [] ? '' : rtrim(implode('', $output), "\n") . "\n";
     }
 
     /**
@@ -185,7 +211,7 @@ class FakeInvokedProcess implements InvokedProcessContract
             }
         }
 
-        return rtrim(implode('', $output), "\n") . "\n";
+        return $output === [] ? '' : rtrim(implode('', $output), "\n") . "\n";
     }
 
     /**
@@ -231,11 +257,20 @@ class FakeInvokedProcess implements InvokedProcessContract
     }
 
     /**
+     * Ensure that the process has not timed out.
+     */
+    public function ensureNotTimedOut(): void
+    {
+    }
+
+    /**
      * Wait for the process to finish.
      */
     public function wait(?callable $output = null): ProcessResultContract
     {
-        $this->outputHandler = $output ?: $this->outputHandler;
+        if ($output !== null) {
+            $this->outputHandler = Closure::fromCallable($output);
+        }
 
         if (! $this->outputHandler) {
             $this->remainingRunIterations = 0;
@@ -255,25 +290,24 @@ class FakeInvokedProcess implements InvokedProcessContract
      */
     public function waitUntil(?callable $output = null): ProcessResultContract
     {
-        $shouldStop = false;
-
-        $this->outputHandler = $output
-            ? function ($type, $buffer) use ($output, &$shouldStop) {
-                $shouldStop = call_user_func($output, $type, $buffer);
-            }
-        : $this->outputHandler;
-
-        if (! $this->outputHandler) {
-            $this->remainingRunIterations = 0;
-
-            return $this->predictProcessResult();
+        if ($output === null) {
+            return $this->wait();
         }
 
-        while ($this->running() && ! $shouldStop);
+        $shouldStop = false;
+        $outputHandler = $this->outputHandler;
 
-        $this->remainingRunIterations = 0;
+        $this->outputHandler = function ($type, $buffer) use ($output, &$shouldStop) {
+            return $shouldStop = (bool) call_user_func($output, $type, $buffer);
+        };
 
-        return $this->process->toProcessResult($this->command);
+        try {
+            while ($this->running() && ! $shouldStop);
+
+            return $this->process->toProcessResult($this->command);
+        } finally {
+            $this->outputHandler = $outputHandler;
+        }
     }
 
     /**
@@ -289,7 +323,9 @@ class FakeInvokedProcess implements InvokedProcessContract
      */
     public function withOutputHandler(?callable $outputHandler): static
     {
-        $this->outputHandler = $outputHandler;
+        $this->outputHandler = $outputHandler === null
+            ? null
+            : Closure::fromCallable($outputHandler);
 
         return $this;
     }

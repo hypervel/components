@@ -13,28 +13,28 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
 
 class ThrottlesExceptionsTest extends TestCase
 {
-    public function testCircuitIsOpenedForJobErrors()
+    public function testCircuitIsOpenedForJobErrors(): void
     {
         $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
         $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
         $this->assertJobWasReleasedWithDelay(CircuitBreakerTestJob::class);
     }
 
-    public function testCircuitStaysClosedForSuccessfulJobs()
+    public function testCircuitStaysClosedForSuccessfulJobs(): void
     {
         $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
         $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
         $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
     }
 
-    public function testCircuitResetsAfterSuccess()
+    public function testCircuitResetsAfterSuccess(): void
     {
         $this->assertJobWasReleasedImmediately(CircuitBreakerTestJob::class);
         $this->assertJobRanSuccessfully(CircuitBreakerSuccessfulJob::class);
@@ -43,12 +43,12 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertJobWasReleasedWithDelay(CircuitBreakerTestJob::class);
     }
 
-    public function testCircuitCanSkipJob()
+    public function testCircuitCanSkipJob(): void
     {
         $this->assertJobWasDeleted(CircuitBreakerSkipJob::class);
     }
 
-    public function testCircuitCanFailJob()
+    public function testCircuitCanFailJob(): void
     {
         $this->assertJobWasFailed(CircuitBreakerFailedJob::class);
     }
@@ -157,7 +157,7 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
-    public function testItCanLimitPerMinute()
+    public function testItCanLimitPerMinute(): void
     {
         $jobFactory = fn () => new class {
             public $released = false;
@@ -179,7 +179,7 @@ class ThrottlesExceptionsTest extends TestCase
 
         $middleware = new ThrottlesExceptions(3, 60);
 
-        Carbon::setTestNow('2000-00-00 00:00:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:00.000');
 
         for ($i = 0; $i < 3; ++$i) {
             $result = $middleware->handle($job = $jobFactory(), $next);
@@ -187,7 +187,7 @@ class ThrottlesExceptionsTest extends TestCase
             $this->assertTrue($job->released);
             $this->assertTrue($job->handled);
 
-            Carbon::setTestNow(now()->addSeconds(1));
+            CarbonImmutable::setTestNow(now()->addSeconds(1));
         }
 
         $result = $middleware->handle($job = $jobFactory(), $next);
@@ -195,14 +195,14 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->released);
         $this->assertFalse($job->handled);
 
-        Carbon::setTestNow('2000-00-00 00:00:59.999');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:59.999');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
         $this->assertTrue($job->released);
         $this->assertFalse($job->handled);
 
-        Carbon::setTestNow('2000-00-00 00:01:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:01:00.000');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
@@ -210,7 +210,7 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->handled);
     }
 
-    public function testItCanLimitPerSecond()
+    public function testItCanLimitPerSecond(): void
     {
         $jobFactory = fn () => new class {
             public $released = false;
@@ -232,7 +232,7 @@ class ThrottlesExceptionsTest extends TestCase
 
         $middleware = new ThrottlesExceptions(3, 1);
 
-        Carbon::setTestNow('2000-00-00 00:00:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:00.000');
 
         for ($i = 0; $i < 3; ++$i) {
             $result = $middleware->handle($job = $jobFactory(), $next);
@@ -240,7 +240,7 @@ class ThrottlesExceptionsTest extends TestCase
             $this->assertTrue($job->released);
             $this->assertTrue($job->handled);
 
-            Carbon::setTestNow(now()->addMilliseconds(100));
+            CarbonImmutable::setTestNow(now()->addMilliseconds(100));
         }
 
         $result = $middleware->handle($job = $jobFactory(), $next);
@@ -248,14 +248,14 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->released);
         $this->assertFalse($job->handled);
 
-        Carbon::setTestNow('2000-00-00 00:00:00.999');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:00.999');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
         $this->assertTrue($job->released);
         $this->assertFalse($job->handled);
 
-        Carbon::setTestNow('2000-00-00 00:00:01.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:01.000');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
@@ -263,7 +263,7 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->handled);
     }
 
-    public function testLimitingWithDefaultValues()
+    public function testLimitingWithDefaultValues(): void
     {
         $jobFactory = fn () => new class {
             public $released = false;
@@ -285,7 +285,7 @@ class ThrottlesExceptionsTest extends TestCase
 
         $middleware = new ThrottlesExceptions;
 
-        Carbon::setTestNow('2000-00-00 00:00:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:00.000');
 
         for ($i = 0; $i < 10; ++$i) {
             $result = $middleware->handle($job = $jobFactory(), $next);
@@ -293,7 +293,7 @@ class ThrottlesExceptionsTest extends TestCase
             $this->assertTrue($job->released);
             $this->assertTrue($job->handled);
 
-            Carbon::setTestNow(now()->addSeconds(1));
+            CarbonImmutable::setTestNow(now()->addSeconds(1));
         }
 
         $result = $middleware->handle($job = $jobFactory(), $next);
@@ -301,14 +301,14 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->released);
         $this->assertFalse($job->handled);
 
-        Carbon::setTestNow('2000-00-00 00:09:59.999');
+        CarbonImmutable::setTestNow('2000-00-00 00:09:59.999');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
         $this->assertTrue($job->released);
         $this->assertFalse($job->handled);
 
-        Carbon::setTestNow('2000-00-00 00:10:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:10:00.000');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
@@ -316,7 +316,7 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->handled);
     }
 
-    public function testReportingExceptions()
+    public function testReportingExceptions(): void
     {
         $this->spy(ExceptionHandler::class)
             ->shouldReceive('report')
@@ -345,7 +345,7 @@ class ThrottlesExceptionsTest extends TestCase
         $middleware->handle($job, $next);
     }
 
-    public function testUsesJobClassNameForCacheKey()
+    public function testUsesJobClassNameForCacheKey(): void
     {
         $rateLimiter = $this->mock(RateLimiter::class);
 
@@ -381,7 +381,7 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->released);
     }
 
-    public function testUsesDisplayNameForCacheKeyWhenAvailable()
+    public function testUsesDisplayNameForCacheKeyWhenAvailable(): void
     {
         $rateLimiter = $this->mock(RateLimiter::class);
 

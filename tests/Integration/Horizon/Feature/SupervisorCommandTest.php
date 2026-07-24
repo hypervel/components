@@ -68,6 +68,22 @@ class SupervisorCommandTest extends IntegrationTestCase
         $this->assertSame(10, $this->myNiceness());
     }
 
+    public function testSupervisorCommandPreservesZeroQueue(): void
+    {
+        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
+        $this->artisan('horizon:supervisor', ['--queue' => '0'] + static::OPTIONS);
+
+        $this->assertSame('0', $factory->supervisor->options->queue);
+    }
+
+    public function testSupervisorCommandDefaultsEmptyQueue(): void
+    {
+        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
+        $this->artisan('horizon:supervisor', ['--queue' => ''] + static::OPTIONS);
+
+        $this->assertSame('default', $factory->supervisor->options->queue);
+    }
+
     private function myNiceness()
     {
         $pid = getmypid();

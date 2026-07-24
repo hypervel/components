@@ -140,9 +140,10 @@ class SupervisorCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: config(
-            "queue.connections.{$connection}.queue",
-            'default'
-        );
+        $queue = $this->option('queue');
+
+        return $queue === null || $queue === ''
+            ? config("queue.connections.{$connection}.queue", 'default')
+            : $queue;
     }
 }

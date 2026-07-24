@@ -108,6 +108,8 @@ $user->age;
 // 39
 ```
 
+Missing values use their constructor defaults. Passing `null` explicitly is distinct from omitting a nullable value.
+
 <a name="property-name-conversion"></a>
 ### Property Name Conversion
 
@@ -191,7 +193,9 @@ $data = TypeConversionData::make([
 <a name="date-and-time-values"></a>
 ### Date and Time Values
 
-When the second argument passed to `make` is `true`, data objects will resolve supported object dependencies. Date and time values typed as `DateTimeInterface`, `DateTime`, `Hypervel\Support\Carbon`, `Carbon\Carbon`, or `Carbon\CarbonInterface` are resolved to a Carbon-compatible instance:
+When the second argument passed to `make` is `true`, data objects will resolve supported object dependencies. The built-in date resolver supports `DateTimeInterface`, `Carbon\CarbonInterface`, native `DateTime` and `DateTimeImmutable`, `Hypervel\Support\Carbon` and `Hypervel\Support\CarbonImmutable`, and Carbon's base mutable and immutable classes.
+
+Interface-typed properties use Hypervel's configured date factory and therefore receive an exact `Hypervel\Support\CarbonImmutable` instance by default. A concrete property type always receives that exact concrete class, regardless of the configured factory. This allows a data object to request mutable or immutable behavior explicitly while keeping interfaces application-configurable:
 
 ```php
 <?php
@@ -284,6 +288,8 @@ $user->address->street;
 ```
 
 Nested resolution works recursively for nested data object properties. If you use a union type for an auto-resolved dependency, the union should include a data object or date / time type.
+
+You may also pass an existing nested data object instance. Auto-resolution preserves that instance instead of rebuilding it.
 
 <a name="backed-enums"></a>
 ### Backed Enums
@@ -448,7 +454,7 @@ class ProductPriceData extends DataObject
 }
 ```
 
-Date and Carbon instances created by the built-in resolver are serialized as ISO 8601 strings.
+All `DateTimeInterface` and Carbon instances created by the built-in resolver are serialized as ISO 8601 strings.
 
 <a name="updating-data-objects"></a>
 ## Updating Data Objects

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Hashing;
 
+use SensitiveParameter;
+
 interface Hasher
 {
     /**
@@ -14,12 +16,12 @@ interface Hasher
     /**
      * Hash the given value.
      */
-    public function make(string $value, array $options = []): string;
+    public function make(#[SensitiveParameter] string $value, array $options = []): string;
 
     /**
      * Check the given plain value against a hash.
      */
-    public function check(string $value, ?string $hashedValue, array $options = []): bool;
+    public function check(#[SensitiveParameter] string $value, ?string $hashedValue, array $options = []): bool;
 
     /**
      * Check if the given hash has been hashed using the given options.

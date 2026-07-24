@@ -14,6 +14,7 @@ use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Pool\Connection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 
 class PoolFactoryTest extends TestCase
 {
@@ -270,6 +271,55 @@ class PoolFactoryTest extends TestCase
         $this->assertTrue($factory->hasPool('default::read'));
     }
 
+    public function testPoolConnectTimeoutConfiguresMySqlDriversWithoutOverridingNativeOptions(): void
+    {
+        foreach (['mysql', 'mariadb'] as $driver) {
+            $config = $this->connectionConfig(['driver' => $driver]);
+            $config['pool']['connect_timeout'] = 1.25;
+            $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
+
+            $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
+            $poolConfig = $pool->configForTest();
+            $this->assertArrayHasKey('options', $poolConfig);
+            $this->assertSame(2, $poolConfig['options'][PDO::ATTR_TIMEOUT]);
+
+            $config['options'][PDO::ATTR_TIMEOUT] = 7;
+            $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
+
+            $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
+            $this->assertSame(7, $pool->configForTest()['options'][PDO::ATTR_TIMEOUT]);
+        }
+    }
+
+    public function testPoolConnectTimeoutConfiguresPostgresWithoutOverridingNativeConfig(): void
+    {
+        $config = $this->connectionConfig(['driver' => 'pgsql']);
+        $config['pool']['connect_timeout'] = 1.25;
+        $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
+
+        $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
+        $poolConfig = $pool->configForTest();
+        $this->assertArrayHasKey('connect_timeout', $poolConfig);
+        $this->assertSame(2, $poolConfig['connect_timeout']);
+
+        $config['connect_timeout'] = 7;
+        $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
+
+        $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
+        $this->assertSame(7, $pool->configForTest()['connect_timeout']);
+    }
+
+    public function testPoolConnectTimeoutDoesNotAddNetworkOptionsToSqlite(): void
+    {
+        $config = $this->connectionConfig(['driver' => 'sqlite']);
+        $config['pool']['connect_timeout'] = 1.25;
+        $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
+
+        $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
+        $this->assertArrayNotHasKey('connect_timeout', $pool->configForTest());
+        $this->assertArrayNotHasKey(PDO::ATTR_TIMEOUT, $pool->configForTest()['options'] ?? []);
+    }
+
     public function testFlushPoolResolvesWriteAliasToBasePool(): void
     {
         $container = $this->mockContainerWithPools();
@@ -364,6 +414,11 @@ class PoolFactoryTest extends TestCase
 
 class PoolFactoryTestPool extends DbPool
 {
+    public function configForTest(): array
+    {
+        return $this->config;
+    }
+
     protected function createConnection(): ConnectionInterface
     {
         return new PoolFactoryTestConnection($this->container, $this);

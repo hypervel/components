@@ -8,15 +8,15 @@ use Hypervel\Auth\Passwords\CacheTokenRepository;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Auth\CanResetPassword;
 use Hypervel\Contracts\Hashing\Hasher;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 class CacheTokenRepositoryTest extends TestCase
 {
-    public function testCreateStoresHashedTokenAndReturnsPlainToken()
+    public function testCreateStoresHashedTokenAndReturnsPlainToken(): void
     {
-        Carbon::setTestNow(Carbon::create(2024, 1, 1, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -41,13 +41,11 @@ class CacheTokenRepositoryTest extends TestCase
 
         $this->assertIsString($token);
         $this->assertSame(64, strlen($token)); // SHA-256 hash is 64 hex chars
-
-        Carbon::setTestNow();
     }
 
-    public function testExistsReturnsTrueForValidToken()
+    public function testExistsReturnsTrueForValidToken(): void
     {
-        Carbon::setTestNow(Carbon::create(2024, 1, 1, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -63,13 +61,11 @@ class CacheTokenRepositoryTest extends TestCase
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600);
 
         $this->assertTrue($repository->exists($user, 'plain_token'));
-
-        Carbon::setTestNow();
     }
 
-    public function testExistsReturnsFalseForExpiredToken()
+    public function testExistsReturnsFalseForExpiredToken(): void
     {
-        Carbon::setTestNow(Carbon::create(2024, 1, 1, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -84,13 +80,11 @@ class CacheTokenRepositoryTest extends TestCase
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600);
 
         $this->assertFalse($repository->exists($user, 'plain_token'));
-
-        Carbon::setTestNow();
     }
 
-    public function testExistsReturnsFalseForInvalidHash()
+    public function testExistsReturnsFalseForInvalidHash(): void
     {
-        Carbon::setTestNow(Carbon::create(2024, 1, 1, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -106,13 +100,11 @@ class CacheTokenRepositoryTest extends TestCase
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600);
 
         $this->assertFalse($repository->exists($user, 'wrong_token'));
-
-        Carbon::setTestNow();
     }
 
-    public function testRecentlyCreatedTokenReturnsTrueWithinThrottle()
+    public function testRecentlyCreatedTokenReturnsTrueWithinThrottle(): void
     {
-        Carbon::setTestNow(Carbon::create(2024, 1, 1, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -128,13 +120,11 @@ class CacheTokenRepositoryTest extends TestCase
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600, 60);
 
         $this->assertTrue($repository->recentlyCreatedToken($user));
-
-        Carbon::setTestNow();
     }
 
-    public function testRecentlyCreatedTokenReturnsFalseAfterThrottle()
+    public function testRecentlyCreatedTokenReturnsFalseAfterThrottle(): void
     {
-        Carbon::setTestNow(Carbon::create(2024, 1, 1, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -150,13 +140,11 @@ class CacheTokenRepositoryTest extends TestCase
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600, 60);
 
         $this->assertFalse($repository->recentlyCreatedToken($user));
-
-        Carbon::setTestNow();
     }
 
-    public function testRecentlyCreatedTokenReturnsFalseWhenThrottleIsZero()
+    public function testRecentlyCreatedTokenReturnsFalseWhenThrottleIsZero(): void
     {
-        Carbon::setTestNow(Carbon::create(2024, 1, 1, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2024, 1, 1, 12, 0, 0));
 
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -172,11 +160,9 @@ class CacheTokenRepositoryTest extends TestCase
         $repository = new CacheTokenRepository($cache, $hasher, 'test-hash-key', 3600, 0);
 
         $this->assertFalse($repository->recentlyCreatedToken($user));
-
-        Carbon::setTestNow();
     }
 
-    public function testDeleteRemovesFromCache()
+    public function testDeleteRemovesFromCache(): void
     {
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -190,7 +176,7 @@ class CacheTokenRepositoryTest extends TestCase
         $repository->delete($user);
     }
 
-    public function testCacheKeyHashesEmail()
+    public function testCacheKeyHashesEmail(): void
     {
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);
@@ -202,7 +188,7 @@ class CacheTokenRepositoryTest extends TestCase
         $this->assertSame(hash('sha256', 'foo@bar.com'), $repository->cacheKey($user));
     }
 
-    public function testDeleteExpiredIsNoOp()
+    public function testDeleteExpiredIsNoOp(): void
     {
         $cache = m::mock(Repository::class);
         $hasher = m::mock(Hasher::class);

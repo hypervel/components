@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'lang:publish')]
@@ -28,23 +29,36 @@ class LangPublishCommand extends Command
      */
     public function handle(): void
     {
-        if (! is_dir($langPath = $this->hypervel->basePath('lang/en'))) {
-            (new Filesystem)->makeDirectory($langPath, recursive: true);
-        }
+        $files = $this->hypervel->make(Filesystem::class);
+        $langPath = $this->hypervel->basePath('lang/en');
+        $files->ensureDirectoryExists($langPath);
 
         $stubs = [
-            realpath(__DIR__ . '/../../../translation/lang/en/auth.php') => 'auth.php',
-            realpath(__DIR__ . '/../../../translation/lang/en/pagination.php') => 'pagination.php',
-            realpath(__DIR__ . '/../../../translation/lang/en/passwords.php') => 'passwords.php',
-            realpath(__DIR__ . '/../../../translation/lang/en/validation.php') => 'validation.php',
+            __DIR__ . '/../../../translation/lang/en/auth.php' => 'auth.php',
+            __DIR__ . '/../../../translation/lang/en/pagination.php' => 'pagination.php',
+            __DIR__ . '/../../../translation/lang/en/passwords.php' => 'passwords.php',
+            __DIR__ . '/../../../translation/lang/en/validation.php' => 'validation.php',
         ];
 
         foreach ($stubs as $from => $to) {
             $to = $langPath . DIRECTORY_SEPARATOR . ltrim($to, DIRECTORY_SEPARATOR);
+            $exists = $files->exists($to);
 
-            if ((! $this->option('existing') && (! file_exists($to) || $this->option('force')))
-                || ($this->option('existing') && file_exists($to))) {
-                file_put_contents($to, file_get_contents($from));
+            if ((! $this->option('existing') && (! $exists || $this->option('force')))
+                || ($this->option('existing') && $exists)) {
+                $mode = null;
+
+                if ($exists) {
+                    $permissions = $files->chmod($to);
+
+                    if ($permissions === false) {
+                        throw new RuntimeException("Unable to determine permissions for [{$to}].");
+                    }
+
+                    $mode = octdec($permissions);
+                }
+
+                $files->replace($to, $files->get($from), $mode);
             }
         }
 

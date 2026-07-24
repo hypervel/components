@@ -14,6 +14,7 @@ use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use Hypervel\View\Factory;
@@ -194,6 +195,44 @@ class MailableQueuedTest extends TestCase
         $this->assertSame(30, $pushedJob->delay);
     }
 
+    public function testQueuedMailablePreservesZeroQueueAndDefaultsEmptyQueue(): void
+    {
+        $zeroQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('0')->queue($zeroQueue);
+
+        $zeroQueue->assertPushedOn('0', SendQueuedMailable::class);
+
+        $defaultQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('')->queue($defaultQueue);
+
+        $defaultQueue->assertPushedOn(null, SendQueuedMailable::class);
+    }
+
+    public function testDelayedMailablePreservesZeroQueueAndDefaultsEmptyQueue(): void
+    {
+        $zeroQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('0')->later(10, $zeroQueue);
+
+        $zeroQueue->assertPushedOn('0', SendQueuedMailable::class);
+
+        $defaultQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('')->later(10, $defaultQueue);
+
+        $defaultQueue->assertPushedOn(null, SendQueuedMailable::class);
+    }
+
+    public function testQueuedMailableAcceptsImmutableRetryUntilProperty(): void
+    {
+        $retryUntil = CarbonImmutable::parse('2026-07-23 12:34:56');
+        $mailable = new MailableQueueableStubWithRetryUntil;
+        $mailable->retryUntil = $retryUntil;
+
+        $this->assertSame(
+            $retryUntil,
+            (new SendQueuedMailable($mailable))->retryUntil()
+        );
+    }
+
     public function testQueuedMailableForwardsDeduplicationIdMethodToQueueJob()
     {
         $queueFake = new QueueFake($this->app);
@@ -289,6 +328,11 @@ class MailableQueueableStubWithDeduplication extends Mailable implements ShouldQ
     {
         return hash('sha256', $payload);
     }
+}
+
+class MailableQueueableStubWithRetryUntil extends MailableQueueableStub
+{
+    public CarbonImmutable $retryUntil;
 }
 
 #[Connection('redis')]

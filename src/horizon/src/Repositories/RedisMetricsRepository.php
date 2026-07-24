@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Repositories;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Lock;
@@ -12,6 +11,7 @@ use Hypervel\Horizon\LuaScripts;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 
 class RedisMetricsRepository implements MetricsRepository

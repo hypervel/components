@@ -17,6 +17,9 @@ use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Contracts\Queue\Queue
@@ -141,7 +144,7 @@ class QueueManager implements FactoryContract, MonitorContract
      *
      * @param array|class-string $class
      */
-    public function route(array|string $class, ?string $queue = null, ?string $connection = null): void
+    public function route(array|string $class, UnitEnum|string|null $queue = null, UnitEnum|string|null $connection = null): void
     {
         $this->queueRoutes()->set($class, $queue, $connection);
     }
@@ -217,17 +220,31 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Determine if the driver is connected.
      */
-    public function connected(?string $name = null): bool
+    public function connected(UnitEnum|string|null $name = null): bool
     {
-        return isset($this->connections[$name ?: $this->getDefaultDriver()]);
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
+
+        return isset($this->connections[$name]);
     }
 
     /**
      * Resolve a queue connection instance.
      */
-    public function connection(?string $name = null): Queue
+    public function connection(UnitEnum|string|null $name = null): Queue
     {
-        $name = $name ?: $this->getDefaultDriver();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         // If the connection has not been resolved yet we will resolve it now as all
         // of the connections are resolved when they are actually needed so we do
@@ -342,8 +359,10 @@ class QueueManager implements FactoryContract, MonitorContract
      *
      * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
+
         $this->app->make('config')->set('queue.default', $name);
     }
 
@@ -352,7 +371,9 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getName(?string $connection = null): string
     {
-        return $connection ?: $this->getDefaultDriver();
+        return $connection === null || $connection === ''
+            ? $this->getDefaultDriver()
+            : $connection;
     }
 
     /**
@@ -364,7 +385,9 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function purge(?string $name = null): void
     {
-        $name = $name ?: $this->getDefaultDriver();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
         $connection = $this->connections[$name] ?? null;
 
         unset($this->connections[$name]);

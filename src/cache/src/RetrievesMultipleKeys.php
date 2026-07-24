@@ -28,7 +28,7 @@ trait RetrievesMultipleKeys
 
         foreach ($keys as $key => $default) {
             /* @phpstan-ignore arguments.count (some clients don't accept a default) */
-            $return[$key] = $this->get($key, $default);
+            $return[$key] = $this->get((string) $key, $default);
         }
 
         return $return;

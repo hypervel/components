@@ -1,6 +1,7 @@
 # Queues
 
 - [Introduction](#introduction)
+    - [At-Least-Once Delivery](#at-least-once-delivery)
     - [Connections vs. Queues](#connections-vs-queues)
     - [Connection Pools](#connection-pools)
     - [Driver Notes and Prerequisites](#driver-prerequisites)
@@ -19,6 +20,9 @@
 - [Dispatching Jobs](#dispatching-jobs)
     - [Delayed Dispatching](#delayed-dispatching)
     - [Synchronous Dispatching](#synchronous-dispatching)
+        - [Deferred Dispatching](#deferred-dispatching)
+    - [Bulk Dispatching](#bulk-dispatching)
+    - [Preparing Jobs Before Dispatch](#preparing-jobs-before-dispatch)
     - [Jobs & Database Transactions](#jobs-and-database-transactions)
     - [Job Chaining](#job-chaining)
     - [Customizing The Queue and Connection](#customizing-the-queue-and-connection)
@@ -32,6 +36,7 @@
     - [Chains and Batches](#chains-and-batches)
     - [Adding Jobs to Batches](#adding-jobs-to-batches)
     - [Inspecting Batches](#inspecting-batches)
+    - [Batch Events](#batch-events)
     - [Cancelling Batches](#cancelling-batches)
     - [Batch Failures](#batch-failures)
     - [Pruning Batches](#pruning-batches)
@@ -56,6 +61,7 @@
 - [Clearing Jobs From Queues](#clearing-jobs-from-queues)
 - [Monitoring Your Queues](#monitoring-your-queues)
 - [Testing](#testing)
+    - [Testing Bus Dispatches](#testing-bus-dispatches)
     - [Faking a Subset of Jobs](#faking-a-subset-of-jobs)
     - [Testing Job Chains](#testing-job-chains)
     - [Testing Job Batches](#testing-job-batches)
@@ -73,6 +79,13 @@ Hypervel's queue configuration options are stored in your application's `config/
 
 > [!NOTE]
 > Hypervel Horizon is a beautiful dashboard and configuration system for your Redis powered queues. Check out the full [Horizon documentation](/docs/{{version}}/horizon) for more information.
+
+<a name="at-least-once-delivery"></a>
+### At-Least-Once Delivery
+
+A queue worker may finish a job's application work and then stop before deleting the job from the queue. When this happens, the queue may deliver the same job again. Timeout and visibility settings reduce unwanted overlap, but they cannot guarantee that a job runs exactly once.
+
+For this reason, queued jobs should be idempotent. Depending on the work being performed, you may use unique database constraints, idempotency keys, state checks, or a database transaction for changes that can be committed together.
 
 <a name="connections-vs-queues"></a>
 ### Connections vs. Queues
@@ -652,6 +665,8 @@ In the example above, we defined an hourly rate limit; however, you may easily d
 return Limit::perMinute(50)->by($job->user->id);
 ```
 
+Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
+
 Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 
 ```php
@@ -845,7 +860,7 @@ Hypervel includes a `Hypervel\Queue\Middleware\ThrottlesExceptions` middleware t
 For example, let's imagine a queued job that interacts with a third-party API that begins throwing exceptions. To throttle exceptions, you can return the `ThrottlesExceptions` middleware from your job's `middleware` method. Typically, this middleware should be paired with a job that implements [time based attempts](#time-based-attempts):
 
 ```php
-use DateTime;
+use DateTimeInterface;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
@@ -861,7 +876,7 @@ public function middleware(): array
 /**
  * Determine the time at which the job should timeout.
  */
-public function retryUntil(): DateTime
+public function retryUntil(): DateTimeInterface
 {
     return now()->plus(minutes: 30);
 }
@@ -1171,6 +1186,75 @@ RecordDelivery::dispatch($order)->onConnection('background');
 
 The `background` and `deferred` drivers do not persist jobs to an external queue backend. Delayed jobs on these connections are scheduled with an in-memory timer and will be lost if the worker exits before the timer fires. Use a persistent queue connection such as `database`, `redis`, `sqs`, or `beanstalkd` for durable delayed work.
 
+You may also chain `afterResponse` onto a dispatch to run the job synchronously when the current coroutine ends:
+
+```php
+ProcessPodcast::dispatch($podcast)->afterResponse();
+```
+
+The method accepts a boolean, which is useful when the choice is conditional. Passing `false` uses the job's normal dispatch path:
+
+```php
+ProcessPodcast::dispatch($podcast)->afterResponse($shouldDefer);
+```
+
+After-response dispatches use the synchronous connection and are not durable.
+
+<a name="bulk-dispatching"></a>
+### Bulk Dispatching
+
+If you need to dispatch many independent jobs at once and do not need [batch](#job-batching) tracking or callbacks, you may use the `bulk` method of the `Bus` facade. Hypervel will group the jobs by their configured queue connection and queue name and push each group to the appropriate queue in bulk:
+
+```php
+use App\Jobs\ProcessUser;
+use Hypervel\Support\Facades\Bus;
+
+Bus::bulk(
+    $users->map(fn ($user) => new ProcessUser($user))
+);
+```
+
+Bulk dispatch sends jobs directly to the selected queue driver and does not run the `PreparesForDispatch`, unique job, or debounce dispatch lifecycle. Dispatch jobs that use these features individually.
+
+<a name="preparing-jobs-before-dispatch"></a>
+### Preparing Jobs Before Dispatch
+
+If a job needs to prepare or inspect its state before it is pushed onto the queue, the job may implement the `Hypervel\Contracts\Queue\PreparesForDispatch` interface. Hypervel will invoke the job's `prepareForDispatch` method before dispatching the job. If this method returns `false`, the job will not be dispatched; returning `true` or no value allows dispatch to continue:
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use Hypervel\Contracts\Queue\PreparesForDispatch;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+use Hypervel\Support\Facades\Cache;
+
+class SyncPodcasts implements PreparesForDispatch, ShouldQueue
+{
+    use Queueable;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(
+        public array $podcastIds,
+    ) {
+    }
+
+    /**
+     * Prepare the job before dispatching.
+     */
+    public function prepareForDispatch(): bool
+    {
+        return collect($this->podcastIds)
+            ->reject(fn (int $id) => Cache::has("podcast-syncing:{$id}"))
+            ->isNotEmpty();
+    }
+}
+```
+
 <a name="jobs-and-database-transactions"></a>
 ### Jobs & Database Transactions
 
@@ -1242,6 +1326,9 @@ Bus::chain([
 
 > [!WARNING]
 > Deleting jobs using the `$this->delete()` method within the job will not prevent chained jobs from being processed. The chain will only stop executing if a job in the chain fails.
+
+> [!WARNING]
+> Hypervel dispatches the next job in a chain before deleting the current job from the queue. This avoids losing the rest of the chain if the worker stops between those operations, but the next job may be dispatched more than once. The current job and its downstream effects should be idempotent.
 
 <a name="chain-connection-queue"></a>
 #### Chain Connection and Queue
@@ -1554,15 +1641,15 @@ public function tries(): int
 <a name="time-based-attempts"></a>
 #### Time Based Attempts
 
-As an alternative to defining how many times a job may be attempted before it fails, you may define a time at which the job should no longer be attempted. This allows a job to be attempted any number of times within a given time frame. To define the time at which a job should no longer be attempted, add a `retryUntil` method to your job class. This method should return a `DateTime` instance:
+As an alternative to defining how many times a job may be attempted before it fails, you may define a time at which the job should no longer be attempted. This allows a job to be attempted any number of times within a given time frame. To define the time at which the job should no longer be attempted, add a `retryUntil` method to your job class. This method should return a `DateTimeInterface` instance:
 
 ```php
-use DateTime;
+use DateTimeInterface;
 
 /**
  * Determine the time at which the job should timeout.
  */
-public function retryUntil(): DateTime
+public function retryUntil(): DateTimeInterface
 {
     return now()->plus(minutes: 10);
 }
@@ -1611,6 +1698,35 @@ class ProcessPodcast implements ShouldQueue
 ```
 
 In this example, the job is released for ten seconds if the application is unable to obtain a Redis lock and will continue to be retried up to 25 times. However, the job will fail if three unhandled exceptions are thrown by the job.
+
+<a name="stopping-retries-by-exception"></a>
+#### Stopping Retries by Exception
+
+Sometimes an exception indicates that a queued job should fail immediately instead of being released for another attempt. You may configure exception types that should stop job retries using the `dontRetry` exception method in your application's `bootstrap/app.php` file:
+
+```php
+use App\Exceptions\InvalidPodcastSourceException;
+use Hypervel\Foundation\Configuration\Exceptions;
+
+->withExceptions(function (Exceptions $exceptions): void {
+    $exceptions->dontRetry([
+        InvalidPodcastSourceException::class,
+    ]);
+})
+```
+
+If you need more control over when retries should stop, you may provide a closure to the `dontRetryWhen` method. Hypervel invokes a closure with a declared exception type only when the job exception matches that type. A closure without a declared type is evaluated for every exception; type-hint `Throwable` to make this behavior explicit. When the closure returns `true`, the job will be marked as failed and will not be retried:
+
+```php
+use App\Exceptions\PodcastProcessingException;
+use Hypervel\Foundation\Configuration\Exceptions;
+
+->withExceptions(function (Exceptions $exceptions): void {
+    $exceptions->dontRetryWhen(function (PodcastProcessingException $exception): bool {
+        return $exception->reason() === 'Subscription expired';
+    });
+})
+```
 
 <a name="timeout"></a>
 #### Timeout
@@ -1677,7 +1793,7 @@ class ProcessPodcast implements ShouldQueue
 <a name="sqs-fifo-and-fair-queues"></a>
 ### SQS FIFO and Fair Queues
 
-Hypervel supports [Amazon SQS FIFO (First-In-First-Out)](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fifo-queues.html) and [fair](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fair-queues.html) queues. FIFO queues allow you to process jobs in the exact order they were sent while ensuring exactly-once processing through message deduplication.
+Hypervel supports [Amazon SQS FIFO (First-In-First-Out)](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fifo-queues.html) and [fair](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fair-queues.html) queues. FIFO queues preserve message order within a group and use deduplication IDs to prevent duplicate sends.
 
 FIFO queues require a message group ID to determine which jobs can be processed in parallel. Jobs with the same group ID are processed sequentially, while messages with different group IDs can be processed concurrently.
 
@@ -1688,7 +1804,7 @@ ProcessOrder::dispatch($order)
     ->onGroup("customer-{$order->customer_id}");
 ```
 
-SQS FIFO queues support message deduplication to ensure exactly-once processing. Implement a `deduplicationId` method in your job class to provide a custom deduplication ID:
+SQS FIFO queues support message deduplication. Implement a `deduplicationId` method in your job class to provide a custom deduplication ID:
 
 ```php
 <?php
@@ -2217,6 +2333,11 @@ Route::get('/batch/{batchId}', function (string $batchId) {
 });
 ```
 
+<a name="batch-events"></a>
+### Batch Events
+
+Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when it is marked as finished, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
+
 <a name="cancelling-batches"></a>
 ### Cancelling Batches
 
@@ -2593,7 +2714,7 @@ The `queue:work` Artisan command exposes a `--timeout` option. By default, the `
 php artisan queue:work --timeout=60
 ```
 
-The `retry_after` configuration option and the `--timeout` CLI option are different, but work together to ensure that jobs are not lost and that jobs are only successfully processed once.
+The `retry_after` configuration option and the `--timeout` CLI option are different, but work together to reduce overlapping attempts and make stalled jobs available for another worker.
 
 Hypervel monitors running jobs using a coroutine timer. The `--monitor-interval` option controls how often the worker checks for timed out jobs:
 
@@ -2804,6 +2925,8 @@ class ProcessPodcast implements ShouldQueue
     // ...
 }
 ```
+
+The `Backoff` attribute also accepts the same sequence as separate arguments: `#[Backoff(1, 5, 10)]`.
 
 <a name="cleaning-up-after-failed-jobs"></a>
 ### Cleaning Up After Failed Jobs
@@ -3086,6 +3209,9 @@ test('orders can be shipped', function () {
     // Assert a job was pushed
     Queue::assertPushed(ShipOrder::class);
 
+    // Assert a job was pushed exactly once...
+    Queue::assertPushedOnce(ShipOrder::class);
+
     // Assert a job was pushed twice...
     Queue::assertPushedTimes(ShipOrder::class, 2);
 
@@ -3130,6 +3256,9 @@ class ExampleTest extends TestCase
         // Assert a job was pushed
         Queue::assertPushed(ShipOrder::class);
 
+        // Assert a job was pushed exactly once...
+        Queue::assertPushedOnce(ShipOrder::class);
+
         // Assert a job was pushed twice...
         Queue::assertPushedTimes(ShipOrder::class, 2);
 
@@ -3160,6 +3289,21 @@ Queue::assertPushed(function (ShipOrder $job) use ($order) {
 Queue::assertClosurePushed(function (CallQueuedClosure $job) {
     return $job->name === 'validate-order';
 });
+```
+
+<a name="testing-bus-dispatches"></a>
+### Testing Bus Dispatches
+
+You may use the `Bus` facade to fake command and job dispatches. The `assertNothingDispatched` method checks normal, synchronous, and after-response dispatches:
+
+```php
+use Hypervel\Support\Facades\Bus;
+
+Bus::fake();
+
+// Perform the action under test...
+
+Bus::assertNothingDispatched();
 ```
 
 <a name="faking-a-subset-of-jobs"></a>
@@ -3221,7 +3365,7 @@ Queue::fake()->serializeAndRestore();
 <a name="testing-job-chains"></a>
 ### Testing Job Chains
 
-To test job chains, you will need to utilize the `Bus` facade's faking capabilities. The `Bus` facade's `assertChained` method may be used to assert that a [chain of jobs](/docs/{{version}}/queues#job-chaining) was dispatched. The `assertChained` method accepts an array of chained jobs as its first argument:
+To test job chains, you will need to utilize the `Bus` facade's faking capabilities. The `assertDispatchedOnce` method may be used to assert that a job was dispatched exactly once. The `Bus` facade's `assertChained` method may be used to assert that a [chain of jobs](/docs/{{version}}/queues#job-chaining) was dispatched. The `assertChained` method accepts an array of chained jobs as its first argument:
 
 ```php
 use App\Jobs\RecordShipment;
@@ -3232,6 +3376,8 @@ use Hypervel\Support\Facades\Bus;
 Bus::fake();
 
 // ...
+
+Bus::assertDispatchedOnce(ShipOrder::class);
 
 Bus::assertChained([
     ShipOrder::class,
@@ -3316,6 +3462,16 @@ Bus::assertBatched(function (PendingBatch $batch) {
     return $batch->name === 'Import CSV' &&
            $batch->jobs->count() === 10;
 });
+```
+
+If you only need to assert the batch's jobs, you may pass the expected jobs directly:
+
+```php
+Bus::assertBatched([
+    new ProcessCsvRow(row: 1),
+    new ProcessCsvRow(row: 2),
+    new ProcessCsvRow(row: 3),
+]);
 ```
 
 The `hasJobs` method may be used on the pending batch to verify that the batch contains the expected jobs. The method accepts an array of job instances, class names, or closures:

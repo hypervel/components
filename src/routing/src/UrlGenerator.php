@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Routing;
 
 use BackedEnum;
-use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -15,7 +14,7 @@ use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
@@ -98,6 +97,16 @@ class UrlGenerator implements UrlGeneratorContract
      * @var null|callable
      */
     protected $missingNamedRouteResolver;
+
+    /**
+     * The callback used to resolve the URL origin.
+     */
+    protected ?Closure $originResolver = null;
+
+    /**
+     * The callback used to resolve default route parameters.
+     */
+    protected ?Closure $defaultsResolver = null;
 
     /**
      * The callback to use to format hosts.
@@ -247,7 +256,11 @@ class UrlGenerator implements UrlGeneratorContract
         // for asset paths, but only for routes to endpoints in the application.
         $forcedAssetRoot = CoroutineContext::get(self::FORCED_ASSET_ROOT_CONTEXT_KEY);
 
-        $root = ($forcedAssetRoot ?? $this->assetRoot) ?: $this->formatRoot($this->formatScheme($secure));
+        $root = ($forcedAssetRoot ?? $this->assetRoot)
+            ?: $this->formatRoot(
+                $this->formatScheme($secure),
+                $this->resolveRoot(useOriginResolver: false),
+            );
 
         return Str::finish($this->removeIndex($root), '/') . trim($path, '/');
     }
@@ -418,7 +431,7 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $expires = $request->query('expires');
 
-        return ! ($expires && Carbon::now()->getTimestamp() > $expires);
+        return ! ($expires && CarbonImmutable::now()->getTimestamp() > $expires);
     }
 
     /**
@@ -525,16 +538,31 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function formatRoot(string $scheme, ?string $root = null): string
     {
-        if (is_null($root)) {
-            $root = CoroutineContext::getOrSet(self::CACHED_ROOT_CONTEXT_KEY, function () {
-                return CoroutineContext::get(self::FORCED_ROOT_CONTEXT_KEY)
-                    ?: $this->getRequest()->root();
-            });
+        if ($root === null) {
+            $root = $this->resolveRoot();
         }
 
         $start = str_starts_with($root, 'http://') ? 'http://' : 'https://';
 
         return preg_replace('~' . $start . '~', $scheme, $root, 1);
+    }
+
+    /**
+     * Resolve the root URL for the current coroutine.
+     */
+    protected function resolveRoot(bool $useOriginResolver = true): string
+    {
+        $root = CoroutineContext::get(self::FORCED_ROOT_CONTEXT_KEY) ?: null;
+
+        if ($root === null && $useOriginResolver && $this->originResolver !== null) {
+            $resolvedRoot = ($this->originResolver)();
+            $root = $resolvedRoot === null ? null : rtrim($resolvedRoot, '/');
+        }
+
+        return $root ?: CoroutineContext::getOrSet(
+            self::CACHED_ROOT_CONTEXT_KEY,
+            fn (): string => $this->getRequest()->root(),
+        );
     }
 
     /**
@@ -584,6 +612,17 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Register the default route parameter resolver.
+     *
+     * Boot-only. The callback persists on the worker-shared URL generator and
+     * is evaluated for subsequent route generations across all coroutines.
+     */
+    public function resolveDefaultsUsing(?Closure $resolver): void
+    {
+        $this->defaultsResolver = $resolver;
+    }
+
+    /**
      * Set the default named parameters used by the URL generator.
      *
      * Request-scoped when a request is present: the defaults are stored in
@@ -591,6 +630,8 @@ class UrlGenerator implements UrlGeneratorContract
      * (boot, queue jobs, scheduled tasks, console), they are stored on the
      * worker-global route URL generator, shared across concurrent coroutines
      * and persisting for the worker lifetime until changed or flushed.
+     *
+     * Use useDefaults() for operation-local defaults outside an HTTP request.
      */
     public function defaults(array $defaults): void
     {
@@ -611,10 +652,31 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function getDefaultParameters(): array
     {
+        $defaults = $this->routeUrl()->defaultParameters;
+
+        if ($this->defaultsResolver !== null
+            && ($resolvedDefaults = ($this->defaultsResolver)()) !== null) {
+            $defaults = array_merge($defaults, $resolvedDefaults);
+        }
+
         return array_merge(
-            $this->routeUrl()->defaultParameters,
-            CoroutineContext::get(self::DEFAULT_PARAMETERS_CONTEXT_KEY, [])
+            $defaults,
+            CoroutineContext::get(self::DEFAULT_PARAMETERS_CONTEXT_KEY, []),
         );
+    }
+
+    /**
+     * Replace the default route parameters for the current coroutine.
+     */
+    public function useDefaults(?array $defaults): void
+    {
+        if ($defaults === null) {
+            CoroutineContext::forget(self::DEFAULT_PARAMETERS_CONTEXT_KEY);
+
+            return;
+        }
+
+        CoroutineContext::set(self::DEFAULT_PARAMETERS_CONTEXT_KEY, $defaults);
     }
 
     /**
@@ -652,10 +714,21 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
-     * Set the URL origin for the current request.
+     * Register the URL origin resolver.
      *
-     * Stored in coroutine Context for request isolation — one request's
-     * origin override does not affect concurrent requests.
+     * Boot-only. The callback persists on the worker-shared URL generator and
+     * is evaluated for subsequent URL generations across all coroutines.
+     */
+    public function resolveOriginUsing(?Closure $resolver): void
+    {
+        $this->originResolver = $resolver;
+    }
+
+    /**
+     * Set the URL origin for the current coroutine.
+     *
+     * Stored in coroutine Context so one request, job, or command cannot
+     * affect concurrent work.
      */
     public function useOrigin(?string $root): void
     {
@@ -664,27 +737,16 @@ class UrlGenerator implements UrlGeneratorContract
         } else {
             CoroutineContext::forget(self::FORCED_ROOT_CONTEXT_KEY);
         }
-
-        CoroutineContext::forget(self::CACHED_ROOT_CONTEXT_KEY);
     }
 
-    /**
-     * Set the forced root URL.
-     *
-     * @deprecated use useOrigin() instead
-     *
-     * @throws BadMethodCallException
-     */
-    public function forceRootUrl(?string $root): never
-    {
-        throw new BadMethodCallException('forceRootUrl() is deprecated. Use useOrigin() instead.');
-    }
+    // Laravel's deprecated forceRootUrl() alias is intentionally not ported.
+    // Use the request-isolated useOrigin() method instead.
 
     /**
-     * Set the URL origin for generated asset URLs.
+     * Set the asset URL origin for the current coroutine.
      *
-     * Stored in coroutine Context for request isolation — one request's
-     * asset origin override does not affect concurrent requests.
+     * Stored in coroutine Context so one request, job, or command cannot
+     * affect concurrent work.
      */
     public function useAssetOrigin(?string $root): void
     {

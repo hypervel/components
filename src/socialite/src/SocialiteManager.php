@@ -21,6 +21,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use UnitEnum;
 
 class SocialiteManager extends Manager implements Contracts\Factory
 {
@@ -38,7 +39,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      * Refreshes the request on cached providers so each coroutine
      * gets the current request, not a stale one from first resolution.
      */
-    public function driver(?string $driver = null): mixed
+    public function driver(UnitEnum|string|null $driver = null): mixed
     {
         $provider = parent::driver($driver);
 

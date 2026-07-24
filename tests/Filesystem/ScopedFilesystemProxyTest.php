@@ -24,6 +24,7 @@ use League\Flysystem\PathTraversalDetected;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use TypeError;
 
 use function Hypervel\Coroutine\parallel;
@@ -78,6 +79,7 @@ class ScopedFilesystemProxyTest extends TestCase
     {
         $request = Request::create('/file.txt');
         $response = new Response('response');
+        $streamedResponse = new StreamedResponse;
         $expiration = new DateTimeImmutable('+1 hour');
 
         return [
@@ -96,9 +98,10 @@ class ScopedFilesystemProxyTest extends TestCase
             'directoryMissing' => ['directoryMissing', ['dir'], ['tenant/dir'], false, false],
             'get' => ['get', ['file.txt'], ['tenant/file.txt'], 'contents', 'contents'],
             'json' => ['json', ['file.json', JSON_THROW_ON_ERROR], ['tenant/file.json', JSON_THROW_ON_ERROR], ['ok' => true], ['ok' => true]],
-            'response' => ['response', ['file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], $response, $response],
+            'json scalar' => ['json', ['value.json'], ['tenant/value.json', 0], 'value', 'value'],
+            'response' => ['response', ['file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], $streamedResponse, $streamedResponse],
             'serve' => ['serve', [$request, 'file.txt', 'name.txt', ['X-Test' => 'yes']], [$request, 'tenant/file.txt', 'name.txt', ['X-Test' => 'yes']], $response, $response],
-            'download' => ['download', ['file.txt', 'name.txt', ['X-Test' => 'yes']], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes']], $response, $response],
+            'download' => ['download', ['file.txt', 'name.txt', ['X-Test' => 'yes']], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes']], $streamedResponse, $streamedResponse],
             'put boolean' => ['put', ['file.txt', 'contents', ['visibility' => 'private']], ['tenant/file.txt', 'contents', ['visibility' => 'private']], true, true],
             'put stored path' => ['put', ['file.txt', 'contents'], ['tenant/file.txt', 'contents', []], 'tenant/stored.txt', 'stored.txt'],
             'getVisibility' => ['getVisibility', ['file.txt'], ['tenant/file.txt'], 'private', 'private'],
@@ -251,6 +254,7 @@ class ScopedFilesystemProxyTest extends TestCase
         $inner->shouldReceive('assertMissing')->once()->with(['tenant/c.txt', 'tenant/d.txt'])->andReturnSelf();
         $inner->shouldReceive('assertCount')->once()->with('tenant/dir', 2, true)->andReturnSelf();
         $inner->shouldReceive('assertDirectoryEmpty')->once()->with('tenant/empty')->andReturnSelf();
+        $inner->shouldReceive('assertDirectoryEmpty')->once()->with('tenant')->andReturnSelf();
         $prefixCalls = 0;
         $proxy = new ScopedFilesystemProxy($inner, function () use (&$prefixCalls): string {
             ++$prefixCalls;
@@ -262,7 +266,8 @@ class ScopedFilesystemProxyTest extends TestCase
         $this->assertSame($proxy, $proxy->assertMissing(['c.txt', 'd.txt']));
         $this->assertSame($proxy, $proxy->assertCount('dir', 2, true));
         $this->assertSame($proxy, $proxy->assertDirectoryEmpty('empty'));
-        $this->assertSame(4, $prefixCalls);
+        $this->assertSame($proxy, $proxy->assertEmpty());
+        $this->assertSame(5, $prefixCalls);
     }
 
     #[DataProvider('emptyPrefixProvider')]

@@ -36,7 +36,8 @@ class TestStateRegistrarsTest extends TestCase
     #[Override]
     protected function tearDown(): void
     {
-        AfterEachTestCleanup::forgetCallbacks();
+        AfterEachTestCleanup::forget(PackageTestStateRegistrar::class);
+        AfterEachTestCleanup::forget(RootTestStateRegistrar::class);
         TestStateRegistrarRecorder::$calls = [];
         $this->filesystem->deleteDirectory($this->basePath);
 
@@ -317,7 +318,7 @@ class PackageTestStateRegistrar
      */
     public static function register(): void
     {
-        AfterEachTestCleanup::flushUsing('vendor/package', function (): void {
+        AfterEachTestCleanup::flushUsing(self::class, function (): void {
             TestStateRegistrarRecorder::$calls[] = 'package';
         });
     }
@@ -330,7 +331,7 @@ class ReplacementPackageTestStateRegistrar
      */
     public static function register(): void
     {
-        AfterEachTestCleanup::flushUsing('vendor/package', function (): void {
+        AfterEachTestCleanup::flushUsing(PackageTestStateRegistrar::class, function (): void {
             TestStateRegistrarRecorder::$calls[] = 'replacement';
         });
     }
@@ -343,7 +344,7 @@ class RootTestStateRegistrar
      */
     public static function register(): void
     {
-        AfterEachTestCleanup::flushUsing('app', function (): void {
+        AfterEachTestCleanup::flushUsing(self::class, function (): void {
             TestStateRegistrarRecorder::$calls[] = 'root';
         });
     }

@@ -8,6 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Process;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Support\artisan_binary;
@@ -37,16 +38,32 @@ class ApiInstallCommand extends Command
     public function handle(): void
     {
         $this->installSanctum();
+        $files = $this->hypervel->make(Filesystem::class);
+        $apiRoutesPath = $this->hypervel->basePath('routes/api.php');
 
-        if (file_exists($apiRoutesPath = $this->hypervel->basePath('routes/api.php'))
+        if ($files->exists($apiRoutesPath)
             && ! $this->option('force')) {
             $this->components->error('API routes file already exists.');
         } else {
-            $this->components->info('Published API routes file.');
+            $files->ensureDirectoryExists(dirname($apiRoutesPath));
 
-            copy(__DIR__ . '/stubs/api-routes.stub', $apiRoutesPath);
+            $mode = null;
+
+            if ($files->exists($apiRoutesPath)) {
+                $permissions = $files->chmod($apiRoutesPath);
+
+                if ($permissions === false) {
+                    throw new RuntimeException("Unable to determine permissions for [{$apiRoutesPath}].");
+                }
+
+                $mode = octdec($permissions);
+            }
+
+            $files->replace($apiRoutesPath, $files->get(__DIR__ . '/stubs/api-routes.stub'), $mode);
 
             $this->uncommentApiRoutesFile();
+
+            $this->components->info('Published API routes file.');
         }
 
         if (! $this->option('without-migration-prompt')) {
@@ -64,26 +81,35 @@ class ApiInstallCommand extends Command
     protected function uncommentApiRoutesFile(): void
     {
         $appBootstrapPath = $this->hypervel->bootstrapPath('app.php');
+        $files = $this->hypervel->make(Filesystem::class);
 
-        $content = file_get_contents($appBootstrapPath);
+        $content = $files->get($appBootstrapPath);
 
         if (str_contains($content, '// api: ')) {
-            (new Filesystem)->replaceInFile(
+            $content = str_replace(
                 '// api: ',
                 'api: ',
-                $appBootstrapPath,
+                $content,
             );
         } elseif (str_contains($content, "web: __DIR__ . '/../routes/web.php',")) {
-            (new Filesystem)->replaceInFile(
+            $content = str_replace(
                 "web: __DIR__ . '/../routes/web.php',",
                 "web: __DIR__ . '/../routes/web.php'," . PHP_EOL . "        api: __DIR__ . '/../routes/api.php',",
-                $appBootstrapPath,
+                $content,
             );
         } else {
             $this->components->warn("Unable to automatically add API route definition to [{$appBootstrapPath}]. API route file should be registered manually.");
 
             return;
         }
+
+        $permissions = $files->chmod($appBootstrapPath);
+
+        if ($permissions === false) {
+            throw new RuntimeException("Unable to determine permissions for [{$appBootstrapPath}].");
+        }
+
+        $files->replace($appBootstrapPath, $content, octdec($permissions));
     }
 
     /**
@@ -95,9 +121,19 @@ class ApiInstallCommand extends Command
             'hypervel/sanctum:^0.4',
         ]);
 
-        $migrationPublished = (new Collection(scandir($this->hypervel->databasePath('migrations'))))->contains(function ($migration) {
-            return preg_match('/\d{4}_\d{2}_\d{2}_\d{6}_create_personal_access_tokens_table.php/', $migration);
-        });
+        $migrationPath = $this->hypervel->databasePath('migrations');
+        $migrations = @scandir($migrationPath);
+
+        if ($migrations === false) {
+            throw new RuntimeException("Unable to read migration directory [{$migrationPath}].");
+        }
+
+        $migrationPublished = (new Collection($migrations))->contains(
+            static fn (string $migration): bool => preg_match(
+                '/\d{4}_\d{2}_\d{2}_\d{6}_create_personal_access_tokens_table.php/',
+                $migration
+            ) === 1
+        );
 
         if (! $migrationPublished) {
             Process::run([
@@ -106,7 +142,7 @@ class ApiInstallCommand extends Command
                 'vendor:publish',
                 '--provider',
                 'Hypervel\Sanctum\SanctumServiceProvider',
-            ]);
+            ])->throw();
         }
     }
 }

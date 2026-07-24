@@ -203,7 +203,7 @@ abstract class AbstractRouteCollection implements Countable, IteratorAggregate, 
             $name = null;
         }
 
-        if (! $name) {
+        if ($name === null || $name === '') {
             $route->name($this->generateRouteName());
 
             $this->add($route);

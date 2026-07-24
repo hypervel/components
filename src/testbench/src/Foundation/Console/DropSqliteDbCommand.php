@@ -50,7 +50,7 @@ class DropSqliteDbCommand extends Command
         /** @var null|string $database */
         $database = $this->option('database');
 
-        if (empty($database)) {
+        if ($database === null || $database === '') {
             $database = 'database';
         }
 

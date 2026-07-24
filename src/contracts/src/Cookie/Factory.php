@@ -15,7 +15,7 @@ interface Factory
     public function make(UnitEnum|string $name, ?string $value, int $minutes = 0, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie;
 
     /**
-     * Create a cookie that lasts "forever" (five years).
+     * Create a cookie that lasts "forever" (400 days).
      */
     public function forever(UnitEnum|string $name, string $value, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie;
 

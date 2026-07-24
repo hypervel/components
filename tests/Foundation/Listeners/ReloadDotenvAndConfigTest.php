@@ -27,20 +27,18 @@ class ReloadDotenvAndConfigTest extends TestCase
 
         DotenvManager::flushState();
         Env::flushState();
-        ReloadDotenvAndConfig::flushState();
     }
 
     protected function tearDown(): void
     {
         DotenvManager::flushState();
         Env::flushState();
-        ReloadDotenvAndConfig::flushState();
         $this->restoreAppName();
 
         parent::tearDown();
     }
 
-    public function testReloadsUsingApplicationEnvironmentFile()
+    public function testReloadsUsingApplicationEnvironmentFile(): void
     {
         $app = $this->createApp();
 
@@ -52,7 +50,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         $app->loadEnvironmentFrom('.env.testing');
 
         $event = m::mock(BeforeWorkerStart::class);
-        $listener = new ReloadDotenvAndConfig($app);
+        $listener = $app->make(ReloadDotenvAndConfig::class);
         $listener->handle($event);
 
         // After reload, values should come from .env.testing.
@@ -60,7 +58,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         $this->assertSame('testing_value', Env::get('TEST_KEY'));
     }
 
-    public function testSkipsReloadWhenEnvironmentFileDoesNotExist()
+    public function testMissingEnvironmentFileClearsPreviouslyLoadedValues(): void
     {
         $app = $this->createApp();
         $app->loadEnvironmentFrom('.env.nonexistent');
@@ -70,29 +68,84 @@ class ReloadDotenvAndConfigTest extends TestCase
         $this->assertSame('Hypervel', Env::get('APP_NAME'));
 
         $event = m::mock(BeforeWorkerStart::class);
-        $listener = new ReloadDotenvAndConfig($app);
+        $listener = $app->make(ReloadDotenvAndConfig::class);
         $listener->handle($event);
 
-        // Values should still be from the original .env since reload was skipped.
-        $this->assertSame('Hypervel', Env::get('APP_NAME'));
+        $this->assertNull(Env::get('APP_NAME'));
     }
 
-    public function testReloadConfigRebuildsARealRepositoryAndReplaysRuntimeMutations()
+    public function testReloadPreservesRepositoryIdentityAndMutationsMadeBeforeListenerResolution(): void
     {
         $app = $this->createApp();
-        $listener = new ReloadDotenvAndConfig($app);
         $originalConfig = $app->make(Repository::class);
 
         $originalConfig->set('app.name', 'Reloaded Hypervel');
 
-        $listener->handle(m::mock(BeforeWorkerStart::class));
+        $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
 
         $reloadedConfig = $app->make(Repository::class);
 
         $this->assertInstanceOf(Repository::class, $reloadedConfig);
         $this->assertNotInstanceOf(ConfigFacade::class, $reloadedConfig);
-        $this->assertNotSame($originalConfig, $reloadedConfig);
+        $this->assertSame($originalConfig, $reloadedConfig);
         $this->assertSame('Reloaded Hypervel', $reloadedConfig->get('app.name'));
+    }
+
+    public function testReloadReplaysOverlappingMutationsInTheirOriginalOrder(): void
+    {
+        $app = $this->createApp();
+        $config = $app->make(Repository::class);
+
+        $config->set('app', ['name' => 'First']);
+        $config->set('app.name', 'Second');
+        $config->set('app', ['name' => 'Last']);
+
+        $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
+
+        $this->assertSame(['name' => 'Last'], $config->get('app'));
+    }
+
+    public function testReloadPreservesUntouchedSiblingsWhenReplayingAChildMutation(): void
+    {
+        $app = $this->createApp();
+        $config = $app->make(Repository::class);
+        $environment = $config->get('app.env');
+
+        $config->set('app.name', 'Reloaded Hypervel');
+
+        $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
+
+        $this->assertSame('Reloaded Hypervel', $config->get('app.name'));
+        $this->assertSame($environment, $config->get('app.env'));
+    }
+
+    public function testTrackerSealsAfterReplayAndDoesNotRecordLaterMutations(): void
+    {
+        $app = $this->createApp();
+        $config = $app->make(Repository::class);
+        $listener = $app->make(ReloadDotenvAndConfig::class);
+
+        $config->set('app.name', 'Boot Mutation');
+        $listener->handle(m::mock(BeforeWorkerStart::class));
+
+        $config->set('app.name', 'Post Start Mutation');
+        $listener->handle(m::mock(BeforeWorkerStart::class));
+
+        $this->assertSame('Boot Mutation', $config->get('app.name'));
+    }
+
+    public function testTrackerSealsWhenThereAreNoBootMutations(): void
+    {
+        $app = $this->createApp();
+        $config = $app->make(Repository::class);
+        $listener = $app->make(ReloadDotenvAndConfig::class);
+        $originalName = $config->get('app.name');
+
+        $listener->handle(m::mock(BeforeWorkerStart::class));
+        $config->set('app.name', 'Post Start Mutation');
+        $listener->handle(m::mock(BeforeWorkerStart::class));
+
+        $this->assertSame($originalName, $config->get('app.name'));
     }
 
     protected function createApp(): Application

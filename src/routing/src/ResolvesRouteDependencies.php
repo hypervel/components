@@ -87,7 +87,7 @@ trait ResolvesRouteDependencies
     protected function transformDependency(ReflectionParameter $parameter, array $parameters, object $skippableValue): mixed
     {
         if ($attribute = Util::getContextualAttributeFromDependency($parameter)) {
-            return $this->container->resolveFromAttribute($attribute);
+            return $this->container->resolveFromAttribute($attribute, $parameter);
         }
 
         $className = Reflector::getParameterClassName($parameter);

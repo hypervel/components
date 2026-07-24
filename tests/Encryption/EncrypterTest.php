@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Encryption;
 use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Tests\TestCase;
+use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -62,6 +63,23 @@ class EncrypterTest extends TestCase
         $new = new Encrypter(str_repeat('a', 16));
         $new->previousKeys([str_repeat('b', 16)]);
         $this->assertSame('foo', $new->decryptString($encrypted));
+    }
+
+    public function testItValidatesEveryMacBeforeDecryptingWithTheFirstValidKey(): void
+    {
+        $currentKey = str_repeat('a', 16);
+        $validPreviousKey = str_repeat('b', 16);
+        $invalidPreviousKey = str_repeat('c', 16);
+        $encrypted = (new Encrypter($validPreviousKey))->encryptString('foo');
+
+        $encrypter = new TrackingEncrypter($currentKey);
+        $encrypter->previousKeys([$validPreviousKey, $invalidPreviousKey]);
+
+        $this->assertSame('foo', $encrypter->decryptString($encrypted));
+        $this->assertSame(
+            [$currentKey, $validPreviousKey, $invalidPreviousKey],
+            $encrypter->checkedKeys
+        );
     }
 
     public function testEncryptionUsingBase64EncodedKey()
@@ -130,6 +148,30 @@ class EncrypterTest extends TestCase
         $data->tag = substr($data->tag, 0, 4);
         $encrypted = base64_encode(json_encode($data));
         $e->decrypt($encrypted);
+    }
+
+    public function testThatAnAeadTagMustBePresent(): void
+    {
+        $encrypter = new Encrypter(str_repeat('b', 32), 'AES-256-GCM');
+        $payload = json_decode(base64_decode($encrypter->encrypt('foo')), true);
+        unset($payload['tag']);
+
+        $this->expectException(DecryptException::class);
+        $this->expectExceptionMessage('Could not decrypt the data.');
+
+        $encrypter->decrypt(base64_encode(json_encode($payload)));
+    }
+
+    public function testThatAnAeadTagMustNotBeEmpty(): void
+    {
+        $encrypter = new Encrypter(str_repeat('b', 32), 'AES-256-GCM');
+        $payload = json_decode(base64_decode($encrypter->encrypt('foo')), true);
+        $payload['tag'] = '';
+
+        $this->expectException(DecryptException::class);
+        $this->expectExceptionMessage('Could not decrypt the data.');
+
+        $encrypter->decrypt(base64_encode(json_encode($payload)));
     }
 
     public function testThatAnAeadTagCantBeModified()
@@ -298,5 +340,26 @@ class EncrypterTest extends TestCase
         $this->assertFalse(Encrypter::appearsEncrypted(123));
         $this->assertFalse(Encrypter::appearsEncrypted(['foo' => 'bar']));
         $this->assertFalse(Encrypter::appearsEncrypted(null));
+    }
+}
+
+class TrackingEncrypter extends Encrypter
+{
+    /**
+     * The keys checked while validating a payload.
+     *
+     * @var list<string>
+     */
+    public array $checkedKeys = [];
+
+    /**
+     * Determine if the MAC is valid for the given payload and key.
+     */
+    #[Override]
+    protected function validMacForKey(array $payload, string $key): bool
+    {
+        $this->checkedKeys[] = $key;
+
+        return parent::validMacForKey($payload, $key);
     }
 }

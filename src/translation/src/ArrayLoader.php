@@ -18,7 +18,7 @@ class ArrayLoader implements Loader
      */
     public function load(string $locale, string $group, ?string $namespace = null): array
     {
-        $namespace = $namespace ?: '*';
+        $namespace = $namespace === null || $namespace === '' ? '*' : $namespace;
 
         return $this->messages[$namespace][$locale][$group] ?? [];
     }
@@ -49,7 +49,7 @@ class ArrayLoader implements Loader
      */
     public function addMessages(string $locale, string $group, array $messages, ?string $namespace = null): static
     {
-        $namespace = $namespace ?: '*';
+        $namespace = $namespace === null || $namespace === '' ? '*' : $namespace;
 
         $this->messages[$namespace][$locale][$group] = $messages;
 

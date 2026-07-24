@@ -10,7 +10,7 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
@@ -548,8 +548,8 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function getCurrentTimestamp(): float
     {
-        return Carbon::hasTestNow()
-            ? Carbon::now()->getPreciseTimestamp(6) / 1000000
+        return CarbonImmutable::hasTestNow()
+            ? CarbonImmutable::now()->getPreciseTimestamp(6) / 1000000
             : microtime(true);
     }
 

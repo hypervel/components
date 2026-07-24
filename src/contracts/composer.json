@@ -29,7 +29,11 @@
         }
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "monolog/monolog": "^3.1",
+        "psr/container": "^2.0.1",
+        "psr/log": "^3.0",
+        "psr/simple-cache": "^3.0"
     },
     "config": {
         "sort-packages": true

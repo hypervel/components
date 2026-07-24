@@ -41,6 +41,8 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use ReflectionClass;
+use ReflectionException;
+use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
@@ -79,14 +81,14 @@ class Dispatcher implements DispatcherContract
     /**
      * The registered event listeners.
      *
-     * @var array<string, null|array|callable|class-string>
+     * @var array<string, array<int, null|array|callable|string>>
      */
     protected array $listeners = [];
 
     /**
      * The wildcard listeners.
      *
-     * @var array<string, array<int, array|Closure|string>>
+     * @var array<string, array<int, array|callable|string>>
      */
     protected array $wildcards = [];
 
@@ -123,14 +125,14 @@ class Dispatcher implements DispatcherContract
     /**
      * The registered event observers.
      *
-     * @var array<string, array<int, array|Closure|string>>
+     * @var array<string, array<int, array|callable|string>>
      */
     protected array $observers = [];
 
     /**
      * The wildcard observers.
      *
-     * @var array<string, array<int, array|Closure|string>>
+     * @var array<string, array<int, array|callable|string>>
      */
     protected array $observerWildcards = [];
 
@@ -752,6 +754,7 @@ class Dispatcher implements DispatcherContract
         }
 
         return $this->handlerShouldBeDispatchedAfterDatabaseTransactions($listener)
+                && ! in_array($method, ['creating', 'updating', 'saving', 'deleting', 'restoring', 'forceDeleting'])
             ? $this->createCallbackForListenerRunningAfterCommits($listener, $method)
             : [$listener, $method];
     }
@@ -789,7 +792,7 @@ class Dispatcher implements DispatcherContract
     {
         return function () use ($class, $method) {
             $arguments = array_map(function ($a) {
-                return is_object($a) ? clone $a : $a;
+                return is_object($a) && ! $a instanceof UnitEnum ? clone $a : $a;
             }, func_get_args());
 
             if ($this->handlerWantsToBeQueued($class, $arguments)) {
@@ -858,6 +861,10 @@ class Dispatcher implements DispatcherContract
             ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
             : $this->getAttributeValue($listener, Connection::class, 'connection');
 
+        if ($connectionName instanceof UnitEnum) {
+            $connectionName = (string) enum_value($connectionName);
+        }
+
         $connection = $this->resolveQueue()->connection(
             $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
         );
@@ -874,9 +881,13 @@ class Dispatcher implements DispatcherContract
             $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
         }
 
+        if ($queue instanceof UnitEnum) {
+            $queue = (string) enum_value($queue);
+        }
+
         is_null($delay)
-            ? $connection->pushOn(enum_value($queue), $job)
-            : $connection->laterOn(enum_value($queue), $delay, $job);
+            ? $connection->pushOn($queue, $job)
+            : $connection->laterOn($queue, $delay, $job);
     }
 
     /**
@@ -886,6 +897,8 @@ class Dispatcher implements DispatcherContract
      *
      * @param class-string<TListener> $class
      * @return array{TListener, CallQueuedListener}
+     *
+     * @throws ReflectionException
      */
     protected function createListenerAndJob(string $class, string $method, array $arguments): array
     {

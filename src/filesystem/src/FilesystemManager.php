@@ -15,6 +15,7 @@ use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
+use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
@@ -32,6 +33,8 @@ use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
+use ReflectionException;
+use RuntimeException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -43,6 +46,7 @@ use function Hypervel\Support\enum_value;
 class FilesystemManager implements FactoryContract
 {
     use HasPoolProxy;
+    use RebindsCallbacksToSelf;
 
     /**
      * The logical name used while resolving on-demand disks.
@@ -102,7 +106,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function drive(UnitEnum|string|null $name = null): mixed
+    public function drive(UnitEnum|string|null $name = null): Filesystem
     {
         return $this->disk($name);
     }
@@ -110,10 +114,12 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function disk(UnitEnum|string|null $name = null): mixed
+    public function disk(UnitEnum|string|null $name = null): Filesystem
     {
         $name = enum_value($name);
-        $name = $name === null ? $this->getDefaultDriver() : (string) $name;
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : (string) $name;
 
         return $this->disks[$name] = $this->get($name);
     }
@@ -124,7 +130,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Build an on-demand disk.
      */
-    public function build(array|string $config): mixed
+    public function build(array|string $config): Filesystem
     {
         return $this->resolve(self::ON_DEMAND_DISK_NAME, is_array($config) ? $config : [
             'driver' => 'local',
@@ -135,7 +141,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Attempt to get the disk from the local cache.
      */
-    protected function get(string $name): mixed
+    protected function get(string $name): Filesystem
     {
         return $this->disks[$name] ?? $this->resolve($name);
     }
@@ -145,7 +151,7 @@ class FilesystemManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name, ?array $config = null): mixed
+    protected function resolve(string $name, ?array $config = null): Filesystem
     {
         $config ??= $this->getConfig($name);
 
@@ -193,9 +199,17 @@ class FilesystemManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): mixed
+    protected function callCustomCreator(array $config): Filesystem
     {
-        return $this->customCreators[$config['driver']]($this->app, $config);
+        $filesystem = $this->customCreators[$config['driver']]($this->app, $config);
+
+        if (! $filesystem instanceof Filesystem) {
+            throw new InvalidArgumentException(
+                "Custom filesystem driver [{$config['driver']}] must return an instance of [" . Filesystem::class . '].'
+            );
+        }
+
+        return $filesystem;
     }
 
     /**
@@ -393,7 +407,7 @@ class FilesystemManager implements FactoryContract
             $config['visibility'] ?? Visibility::PUBLIC
         );
 
-        $streamReads = $s3Config['stream_reads'] ?? false;
+        $streamReads = $s3Config['stream_reads'];
 
         $adapter = new S3Adapter($client, $s3Config['bucket'], $root, $visibility, null, $config['options'] ?? [], $streamReads);
 
@@ -410,7 +424,10 @@ class FilesystemManager implements FactoryContract
      */
     protected function formatS3Config(array $config): array
     {
-        $config += ['version' => 'latest'];
+        $config += [
+            'stream_reads' => true,
+            'version' => 'latest',
+        ];
 
         if (! empty($config['key']) && ! empty($config['secret'])) {
             $config['credentials'] = Arr::only($config, ['key', 'secret']);
@@ -476,7 +493,9 @@ class FilesystemManager implements FactoryContract
             $client->bucket(Arr::get($gcsConfig, 'bucket')),
             Arr::get($gcsConfig, 'root'),
             Arr::get($gcsConfig, 'visibilityHandler') ? new $visibilityHandlerClass : null,
-            $defaultVisibility
+            $defaultVisibility,
+            null,
+            $gcsConfig['stream_reads'],
         );
 
         return new GoogleCloudStorageAdapter(
@@ -492,6 +511,8 @@ class FilesystemManager implements FactoryContract
      */
     protected function formatGcsConfig(array $config): array
     {
+        $config += ['stream_reads' => true];
+
         // Google's SDK expects camelCase keys, but we can use snake_case in the config.
         foreach ($config as $key => $value) {
             $config[Str::camel($key)] = $value;
@@ -742,7 +763,14 @@ class FilesystemManager implements FactoryContract
             $this->addPoolable($driver);
         }
 
-        $this->customCreators[$driver] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$driver] = $callback;
 
         return $this;
     }

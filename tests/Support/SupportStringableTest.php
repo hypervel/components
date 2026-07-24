@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Container\Container;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
@@ -123,6 +125,16 @@ class SupportStringableTest extends TestCase
     {
         $this->assertFalse($this->stringable('')->isNotEmpty());
         $this->assertTrue($this->stringable('A')->isNotEmpty());
+    }
+
+    public function testCounted(): void
+    {
+        $this->assertSame('1 order', (string) $this->stringable('order')->counted(1));
+        $this->assertSame('2 orders', (string) $this->stringable('order')->counted(2));
+        $this->assertSame('0 orders', (string) $this->stringable('order')->counted(0));
+        $this->assertSame('1,000 orders', (string) $this->stringable('order')->counted(1000));
+        $this->assertSame('1 order', (string) $this->stringable('order')->counted(['a']));
+        $this->assertSame('2 orders', (string) $this->stringable('order')->counted(['a', 'b']));
     }
 
     public function testPluralStudly()
@@ -1546,19 +1558,39 @@ class SupportStringableTest extends TestCase
         $this->assertSame('5551234567', (string) $this->stringable('(555) 123-4567')->numbers());
     }
 
-    public function testToDate()
+    public function testToDate(): void
     {
-        $current = Carbon::create(2020, 1, 1, 16, 30, 25);
+        $current = CarbonImmutable::create(2020, 1, 1, 16, 30, 25);
 
-        $this->assertEquals($current, $this->stringable('20-01-01 16:30:25')->toDate());
-        $this->assertEquals($current, $this->stringable('1577896225')->toDate('U'));
+        $parsed = $this->stringable('20-01-01 16:30:25')->toDate();
+        $formatted = $this->stringable('1577896225')->toDate('U');
+
+        $this->assertSame(CarbonImmutable::class, $parsed::class);
+        $this->assertSame(CarbonImmutable::class, $formatted::class);
+        $this->assertEquals($current, $parsed);
+        $this->assertEquals($current, $formatted);
         $this->assertEquals($current, $this->stringable('20-01-01 13:30:25')->toDate(null, 'America/Santiago'));
 
         $this->assertTrue($this->stringable('2020-01-01')->toDate()->isSameDay($current));
         $this->assertTrue($this->stringable('16:30:25')->toDate()->isSameSecond('16:30:25'));
     }
 
-    public function testToDateThrowsException()
+    public function testToDateUsesConfiguredMutableClass(): void
+    {
+        Date::use(Carbon::class);
+
+        $this->assertSame(Carbon::class, $this->stringable('2020-01-01')->toDate()::class);
+        $this->assertSame(Carbon::class, $this->stringable('2020-01-01')->toDate('Y-m-d')::class);
+    }
+
+    public function testToDateReturnsNullWhenFormattedCreationFailsInNonStrictMode(): void
+    {
+        Date::useStrictMode(false);
+
+        $this->assertNull($this->stringable('not a date')->toDate('Y-m-d'));
+    }
+
+    public function testToDateThrowsException(): void
     {
         $this->expectException(\Carbon\Exceptions\InvalidFormatException::class);
 

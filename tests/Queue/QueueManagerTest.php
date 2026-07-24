@@ -20,6 +20,40 @@ use Mockery as m;
 
 class QueueManagerTest extends TestCase
 {
+    public function testIntegerEnumConnectionNamesAreNormalizedWithoutTreatingZeroAsAbsent(): void
+    {
+        $container = $this->getContainer();
+        $config = $container->make('config');
+        $config->set('queue.default', 'sync');
+        $config->set('queue.connections.0', ['driver' => 'sync']);
+
+        $manager = new QueueManager($container);
+        $connector = m::mock(ConnectorInterface::class);
+        $queue = m::mock(Queue::class);
+        $queue->shouldReceive('setConnectionName')->once()->with('0')->andReturnSelf();
+        $queue->shouldReceive('setConfig')->once()->andReturnSelf();
+        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
+        $connector->shouldReceive('connect')->once()->with(['driver' => 'sync'])->andReturn($queue);
+        $manager->addConnector('sync', fn () => $connector);
+
+        $this->assertSame('sync', $manager->getName());
+        $this->assertSame('0', $manager->getName('0'));
+        $this->assertSame('sync', $manager->getName(''));
+
+        $manager->setDefaultDriver(QueueManagerTestIntIdentifier::Zero);
+
+        $this->assertSame('0', $manager->getDefaultDriver());
+        $this->assertSame($queue, $manager->connection());
+        $this->assertSame($queue, $manager->connection(QueueManagerTestIntIdentifier::Zero));
+        $this->assertSame($queue, $manager->connection(''));
+        $this->assertTrue($manager->connected(QueueManagerTestIntIdentifier::Zero));
+        $this->assertTrue($manager->connected(''));
+
+        $manager->purge('');
+
+        $this->assertFalse($manager->connected(QueueManagerTestIntIdentifier::Zero));
+    }
+
     public function testDefaultConnectionCanBeResolved(): void
     {
         $container = $this->getContainer();
@@ -309,6 +343,11 @@ class QueueManagerTest extends TestCase
 
         return $container;
     }
+}
+
+enum QueueManagerTestIntIdentifier: int
+{
+    case Zero = 0;
 }
 
 class QueueManagerTestJob extends Job

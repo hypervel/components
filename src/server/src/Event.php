@@ -52,9 +52,9 @@ class Event
     public const ON_CONNECT = 'connect';
 
     /**
-     * Swoole onHandShake event.
+     * Swoole onHandshake event.
      */
-    public const ON_HAND_SHAKE = 'handshake';
+    public const ON_HANDSHAKE = 'handshake';
 
     /**
      * Swoole onOpen event.

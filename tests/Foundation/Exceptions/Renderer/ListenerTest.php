@@ -42,4 +42,29 @@ class ListenerTest extends TestCase
         $this->assertEquals('select * from users where id = ?', $query['sql']);
         $this->assertEquals(['foo'], $query['bindings']);
     }
+
+    public function testLongQueriesAndBindingsAreBounded(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')
+            ->once()
+            ->with(['first', 'second', 'third'])
+            ->andReturn(['first', 'second', 'third']);
+
+        $listener = new Listener;
+        $listener->onQueryExecuted(new QueryExecuted(
+            str_repeat('é', 999) . '?' . str_repeat('é', 20) . '??',
+            ['first', 'second', 'third'],
+            5.2,
+            $connection,
+        ));
+
+        $query = $listener->queries()[0];
+
+        $this->assertLessThanOrEqual(2000, strlen($query['sql']));
+        $this->assertTrue(mb_check_encoding($query['sql'], 'UTF-8'));
+        $this->assertSame(1, substr_count($query['sql'], '?'));
+        $this->assertSame(['first'], $query['bindings']);
+    }
 }

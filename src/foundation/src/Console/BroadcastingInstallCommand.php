@@ -10,6 +10,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Process;
+use JsonException;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\confirm;
@@ -56,13 +58,36 @@ class BroadcastingInstallCommand extends Command
      */
     public function handle(): void
     {
-        $this->call('config:publish', ['name' => 'broadcasting']);
+        if ($this->call('config:publish', ['name' => 'broadcasting']) !== self::SUCCESS) {
+            throw new RuntimeException('Unable to publish the broadcasting configuration file.');
+        }
+
+        $files = $this->hypervel->make(Filesystem::class);
+        $broadcastingRoutesPath = $this->hypervel->basePath('routes/channels.php');
 
         // Install channel routes file...
-        if (! file_exists($broadcastingRoutesPath = $this->hypervel->basePath('routes/channels.php')) || $this->option('force')) {
-            $this->components->info("Published 'channels' route file.");
+        if (! $files->exists($broadcastingRoutesPath) || $this->option('force')) {
+            $files->ensureDirectoryExists(dirname($broadcastingRoutesPath));
 
-            copy(__DIR__ . '/stubs/broadcasting-routes.stub', $broadcastingRoutesPath);
+            $mode = null;
+
+            if ($files->exists($broadcastingRoutesPath)) {
+                $permissions = $files->chmod($broadcastingRoutesPath);
+
+                if ($permissions === false) {
+                    throw new RuntimeException("Unable to determine permissions for [{$broadcastingRoutesPath}].");
+                }
+
+                $mode = octdec($permissions);
+            }
+
+            $files->replace(
+                $broadcastingRoutesPath,
+                $files->get(__DIR__ . '/stubs/broadcasting-routes.stub'),
+                $mode
+            );
+
+            $this->components->info("Published 'channels' route file.");
         }
 
         $this->uncommentChannelsRoutesFile();
@@ -79,42 +104,50 @@ class BroadcastingInstallCommand extends Command
             $this->injectFrameworkSpecificConfiguration();
         } else {
             // Standard JavaScript implementation...
-            if (! file_exists($echoScriptPath = $this->hypervel->resourcePath('js/echo.js'))) {
-                if (! is_dir($directory = $this->hypervel->resourcePath('js'))) {
-                    mkdir($directory, 0755, true);
-                }
+            if (! $files->exists($echoScriptPath = $this->hypervel->resourcePath('js/echo.js'))) {
+                $files->ensureDirectoryExists($this->hypervel->resourcePath('js'));
 
                 $stubPath = __DIR__ . '/stubs/echo-js-' . $this->driver . '.stub';
 
-                if (! file_exists($stubPath)) {
+                if (! $files->exists($stubPath)) {
                     $stubPath = __DIR__ . '/stubs/echo-js-reverb.stub';
                 }
 
-                copy($stubPath, $echoScriptPath);
+                $files->replace($echoScriptPath, $files->get($stubPath));
             }
 
             // Only add the bootstrap import for the standard JS implementation...
-            if (file_exists($bootstrapScriptPath = $this->hypervel->resourcePath('js/bootstrap.js'))) {
-                $bootstrapScript = file_get_contents(
-                    $bootstrapScriptPath
-                );
+            if ($files->exists($bootstrapScriptPath = $this->hypervel->resourcePath('js/bootstrap.js'))) {
+                $bootstrapScript = $files->get($bootstrapScriptPath);
 
                 if (! str_contains($bootstrapScript, './echo')) {
-                    file_put_contents(
+                    $permissions = $files->chmod($bootstrapScriptPath);
+
+                    if ($permissions === false) {
+                        throw new RuntimeException("Unable to determine permissions for [{$bootstrapScriptPath}].");
+                    }
+
+                    $files->replace(
                         $bootstrapScriptPath,
-                        trim($bootstrapScript . PHP_EOL . file_get_contents(__DIR__ . '/stubs/echo-bootstrap-js.stub')) . PHP_EOL,
+                        trim($bootstrapScript . PHP_EOL . $files->get(__DIR__ . '/stubs/echo-bootstrap-js.stub')) . PHP_EOL,
+                        octdec($permissions)
                     );
                 }
-            } elseif (file_exists($appScriptPath = $this->hypervel->resourcePath('js/app.js'))) {
+            } elseif ($files->exists($appScriptPath = $this->hypervel->resourcePath('js/app.js'))) {
                 // If no bootstrap.js, try app.js...
-                $appScript = file_get_contents(
-                    $appScriptPath
-                );
+                $appScript = $files->get($appScriptPath);
 
                 if (! str_contains($appScript, './echo')) {
-                    file_put_contents(
+                    $permissions = $files->chmod($appScriptPath);
+
+                    if ($permissions === false) {
+                        throw new RuntimeException("Unable to determine permissions for [{$appScriptPath}].");
+                    }
+
+                    $files->replace(
                         $appScriptPath,
-                        trim($appScript . PHP_EOL . file_get_contents(__DIR__ . '/stubs/echo-bootstrap-js.stub')) . PHP_EOL,
+                        trim($appScript . PHP_EOL . $files->get(__DIR__ . '/stubs/echo-bootstrap-js.stub')) . PHP_EOL,
+                        octdec($permissions)
                     );
                 }
             }
@@ -131,32 +164,43 @@ class BroadcastingInstallCommand extends Command
     protected function uncommentChannelsRoutesFile(): void
     {
         $appBootstrapPath = $this->hypervel->bootstrapPath('app.php');
+        $files = $this->hypervel->make(Filesystem::class);
 
-        $content = file_get_contents($appBootstrapPath);
+        $content = $files->get($appBootstrapPath);
 
         if (str_contains($content, '// channels: ')) {
-            (new Filesystem)->replaceInFile(
+            $content = str_replace(
                 '// channels: ',
                 'channels: ',
-                $appBootstrapPath,
+                $content,
             );
         } elseif (str_contains($content, 'channels: ')) {
             return;
         } elseif (str_contains($content, "commands: __DIR__ . '/../routes/console.php',")) {
-            (new Filesystem)->replaceInFile(
+            $content = str_replace(
                 "commands: __DIR__ . '/../routes/console.php',",
                 "commands: __DIR__ . '/../routes/console.php'," . PHP_EOL . "        channels: __DIR__ . '/../routes/channels.php',",
-                $appBootstrapPath,
+                $content,
             );
         } elseif (str_contains($content, '->withRouting(')) {
-            (new Filesystem)->replaceInFile(
+            $content = str_replace(
                 '->withRouting(',
                 '->withRouting(' . PHP_EOL . "        channels: __DIR__ . '/../routes/channels.php',",
-                $appBootstrapPath,
+                $content,
             );
         } else {
             $this->components->error('Unable to register broadcast routes. Please register them manually in [' . $appBootstrapPath . '].');
+
+            return;
         }
+
+        $permissions = $files->chmod($appBootstrapPath);
+
+        if ($permissions === false) {
+            throw new RuntimeException("Unable to determine permissions for [{$appBootstrapPath}].");
+        }
+
+        $files->replace($appBootstrapPath, $content, octdec($permissions));
     }
 
     /**
@@ -254,12 +298,13 @@ class BroadcastingInstallCommand extends Command
      */
     protected function injectFrameworkSpecificConfiguration(): void
     {
+        $files = $this->hypervel->make(Filesystem::class);
         $filePaths = [
             $this->hypervel->resourcePath('js/app.tsx'),
             $this->hypervel->resourcePath('js/app.jsx'),
         ];
 
-        $filePath = Arr::first($filePaths, fn (string $path): bool => file_exists($path));
+        $filePath = Arr::first($filePaths, fn (string $path): bool => $files->exists($path));
 
         if (! $filePath) {
             $this->components->warn("Could not find file [{$filePaths[0]}]. Skipping automatic Echo configuration.");
@@ -267,7 +312,12 @@ class BroadcastingInstallCommand extends Command
             return;
         }
 
-        $contents = file_get_contents($filePath);
+        $contents = $files->get($filePath);
+        $permissions = $files->chmod($filePath);
+
+        if ($permissions === false) {
+            throw new RuntimeException("Unable to determine permissions for [{$filePath}].");
+        }
 
         $echoCode = <<<JS
         import { configureEcho } from '{$this->reactEchoPackage}';
@@ -283,7 +333,7 @@ class BroadcastingInstallCommand extends Command
             // Add the Echo configuration to the top of the file if no import statements are found...
             $newContents = $echoCode . PHP_EOL . $contents;
 
-            file_put_contents($filePath, $newContents);
+            $files->replace($filePath, $newContents, octdec($permissions));
         } else {
             // Add Echo configuration after the last import...
             $lastImport = array_last($matches[0]);
@@ -294,7 +344,7 @@ class BroadcastingInstallCommand extends Command
                 $insertPosition = $positionOfLastImport + strlen($lastImport);
                 $newContents = substr($contents, 0, $insertPosition) . PHP_EOL . $echoCode . substr($contents, $insertPosition);
 
-                file_put_contents($filePath, $newContents);
+                $files->replace($filePath, $newContents, octdec($permissions));
             }
         }
 
@@ -322,7 +372,7 @@ class BroadcastingInstallCommand extends Command
             php_binary(),
             artisan_binary(),
             'reverb:install',
-        ]);
+        ])->throw();
 
         $this->components->info('Reverb installed successfully.');
     }
@@ -340,12 +390,12 @@ class BroadcastingInstallCommand extends Command
 
         if (file_exists($this->hypervel->basePath('pnpm-lock.yaml'))) {
             $commands = [
-                'pnpm add --save-dev laravel-echo pusher-js',
+                'pnpm add --save-dev --ignore-scripts laravel-echo pusher-js',
                 'pnpm run build',
             ];
         } elseif (file_exists($this->hypervel->basePath('yarn.lock'))) {
             $commands = [
-                'yarn add --dev laravel-echo pusher-js',
+                'yarn add --dev --ignore-scripts laravel-echo pusher-js',
                 'yarn run build',
             ];
         } elseif (file_exists($this->hypervel->basePath('bun.lock')) || file_exists($this->hypervel->basePath('bun.lockb'))) {
@@ -355,7 +405,7 @@ class BroadcastingInstallCommand extends Command
             ];
         } else {
             $commands = [
-                'npm install --save-dev laravel-echo pusher-js',
+                'npm install --save-dev --ignore-scripts laravel-echo pusher-js',
                 'npm run build',
             ];
         }
@@ -367,7 +417,8 @@ class BroadcastingInstallCommand extends Command
         $command = Process::command(implode(' && ', $commands))
             ->path($this->hypervel->basePath());
 
-        if (! windows_os()) {
+        // Gate TTY on real support; the installer can run in containers or CI without a usable /dev/tty.
+        if (! windows_os() && $command->supportsTty()) {
             $command->tty(true);
         }
 
@@ -424,14 +475,24 @@ class BroadcastingInstallCommand extends Command
     protected function packageDependenciesInclude(string $package): bool
     {
         $packageJsonPath = $this->hypervel->basePath('package.json');
+        $files = $this->hypervel->make(Filesystem::class);
 
-        if (! file_exists($packageJsonPath)) {
+        if (! $files->exists($packageJsonPath)) {
             return false;
         }
 
-        $packageJson = json_decode(file_get_contents($packageJsonPath), true);
+        try {
+            $packageJson = json_decode($files->get($packageJsonPath), true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException("Unable to parse package file [{$packageJsonPath}].", previous: $exception);
+        }
 
-        return isset($packageJson['dependencies'][$package])
-            || isset($packageJson['devDependencies'][$package]);
+        if (! is_array($packageJson)
+            || ! is_array($dependencies = $packageJson['dependencies'] ?? [])
+            || ! is_array($devDependencies = $packageJson['devDependencies'] ?? [])) {
+            throw new RuntimeException("Package file [{$packageJsonPath}] does not contain valid dependency maps.");
+        }
+
+        return isset($dependencies[$package]) || isset($devDependencies[$package]);
     }
 }

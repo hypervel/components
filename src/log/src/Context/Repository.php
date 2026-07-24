@@ -532,9 +532,9 @@ class Repository implements ReplicableContext
     /**
      * Create an independent copy with the same data and hidden values.
      *
-     * Used by CoroutineContext::copyFrom() via ReplicableContext to ensure
-     * forked coroutines get their own instance rather than sharing an
-     * object reference with the parent.
+     * Used by coroutine context copying via ReplicableContext to ensure
+     * forked coroutines get their own instance rather than sharing an object
+     * reference with the parent.
      */
     public function replicate(): static
     {
@@ -548,6 +548,9 @@ class Repository implements ReplicableContext
     /**
      * Register a callback to execute before context is dehydrated for a job.
      *
+     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * per-request registration persists and affects subsequent requests.
+     *
      * @param (callable(self): void) $callback
      * @return $this
      */
@@ -560,6 +563,9 @@ class Repository implements ReplicableContext
 
     /**
      * Register a callback to execute after context has been hydrated from a job.
+     *
+     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * per-request registration persists and affects subsequent requests.
      *
      * @param (callable(self): void) $callback
      * @return $this

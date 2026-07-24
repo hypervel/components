@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Carbon\Carbon;
 use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
@@ -15,6 +14,7 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -181,7 +181,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testAddDoesNotUpdateHitMetadata(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state, SwooleStore::EVICTION_POLICY_LRU);
@@ -191,7 +191,7 @@ class CacheSwooleStoreTest extends TestCase
             'used_count' => 7,
         ]);
 
-        Carbon::setTestNow('2000-01-01 00:01:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:01:00');
 
         $this->assertFalse($store->add('foo', 'baz', 5));
 
@@ -239,7 +239,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testGetUnderLruPolicyUpdatesOnlyLastUsedAt(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state, SwooleStore::EVICTION_POLICY_LRU);
@@ -250,7 +250,7 @@ class CacheSwooleStoreTest extends TestCase
             'used_count' => 7,
         ]);
 
-        Carbon::setTestNow('2000-01-01 00:01:00.123456');
+        CarbonImmutable::setTestNow('2000-01-01 00:01:00.123456');
 
         $this->assertSame('bar', $store->get('foo'));
 
@@ -264,7 +264,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testGetUnderLfuPolicyUpdatesOnlyUsedCount(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state, SwooleStore::EVICTION_POLICY_LFU);
@@ -394,7 +394,7 @@ class CacheSwooleStoreTest extends TestCase
 
         $this->assertTrue(is_string($first = $store->get('foo')));
 
-        Carbon::setTestNow(now()->addMinutes(1));
+        CarbonImmutable::setTestNow(now()->addMinutes(1));
 
         $store->refreshIntervalCaches();
 
@@ -454,13 +454,13 @@ class CacheSwooleStoreTest extends TestCase
     {
         $store = $this->createStore();
 
-        Carbon::setTestNow('2000-01-01 00:00:00.500000');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.500000');
         $store->put('foo', 'bar', 1);
 
-        Carbon::setTestNow('2000-01-01 00:00:01.499999');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.499999');
         $this->assertSame('bar', $store->get('foo'));
 
-        Carbon::setTestNow('2000-01-01 00:00:01.500000');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.500000');
         $this->assertNull($store->get('foo'));
     }
 
@@ -490,7 +490,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testEvictRecordsFlushesRecordsExpiringAtCurrentTimestamp(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -642,7 +642,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testEvictionCandidateDoesNotDeleteRowMutatedByLruHit(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LRU, 0.05);
@@ -654,7 +654,7 @@ class CacheSwooleStoreTest extends TestCase
         ]);
         $fingerprint = $store->fingerprintFor($state->table()->get($tableKey));
 
-        Carbon::setTestNow('2000-01-01 00:01:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:01:00');
 
         $this->assertSame('bar', $store->get('foo'));
 
@@ -682,14 +682,14 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testEvictRecordsPrunesExpiredLockRows(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
 
         $this->assertTrue($store->lock('expired', 1)->acquire());
 
-        Carbon::setTestNow('2000-01-01 00:00:02');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:02');
 
         $store->evictRecords();
 
@@ -698,7 +698,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testTouchPreservesValueAndChangesExpiration(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -706,7 +706,7 @@ class CacheSwooleStoreTest extends TestCase
         $store->put('foo', 'bar', 30);
         $store->touch('foo', 60);
 
-        Carbon::setTestNow($now->addSeconds(45));
+        CarbonImmutable::setTestNow($now->addSeconds(45));
 
         $this->assertSame('bar', $store->get('foo'));
     }
@@ -806,13 +806,13 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testExpiredLocksCanBeAcquiredByNewOwner(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $store = $this->createStore();
 
         $this->assertTrue($store->lock('foo', 1, 'owner-1')->acquire());
 
-        Carbon::setTestNow('2000-01-01 00:00:02');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:02');
 
         $this->assertTrue($store->lock('foo', 60, 'owner-2')->acquire());
     }
@@ -849,14 +849,14 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testRefreshExtendsLiveOwnedLock(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $store = $this->createStore();
         $lock = $store->lock('foo', 10, 'owner-1');
 
         $this->assertTrue($lock->acquire());
 
-        Carbon::setTestNow('2000-01-01 00:00:05');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:05');
 
         $this->assertTrue($lock->refresh(20));
         $this->assertSame(20.0, $lock->getRemainingLifetime());
@@ -882,7 +882,7 @@ class CacheSwooleStoreTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsNullForMissingExpiredAndPermanentLocks(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $store = $this->createStore();
 
@@ -895,7 +895,7 @@ class CacheSwooleStoreTest extends TestCase
         $expiring = $store->lock('expiring', 1);
         $this->assertTrue($expiring->acquire());
 
-        Carbon::setTestNow('2000-01-01 00:00:02');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:02');
 
         $this->assertNull($expiring->getRemainingLifetime());
     }
@@ -953,7 +953,7 @@ class CacheSwooleStoreTest extends TestCase
 
     private function getCurrentTimestamp(): float
     {
-        return Carbon::now()->getPreciseTimestamp(6) / 1000000;
+        return CarbonImmutable::now()->getPreciseTimestamp(6) / 1000000;
     }
 }
 

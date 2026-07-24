@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use DateTimeInterface;
+use Carbon\CarbonInterface;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
 
 class Wormhole
 {
@@ -41,7 +42,7 @@ class Wormhole
      */
     public function microseconds($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addMicroseconds($this->value));
+        Carbon::setTestNow(Date::now()->addMicroseconds($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -65,7 +66,7 @@ class Wormhole
      */
     public function milliseconds($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addMilliseconds($this->value));
+        Carbon::setTestNow(Date::now()->addMilliseconds($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -89,7 +90,7 @@ class Wormhole
      */
     public function seconds($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addSeconds($this->value));
+        Carbon::setTestNow(Date::now()->addSeconds($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -113,7 +114,7 @@ class Wormhole
      */
     public function minutes($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addMinutes($this->value));
+        Carbon::setTestNow(Date::now()->addMinutes($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -137,7 +138,7 @@ class Wormhole
      */
     public function hours($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addHours($this->value));
+        Carbon::setTestNow(Date::now()->addHours($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -161,7 +162,7 @@ class Wormhole
      */
     public function days($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addDays($this->value));
+        Carbon::setTestNow(Date::now()->addDays($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -185,7 +186,7 @@ class Wormhole
      */
     public function weeks($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addWeeks($this->value));
+        Carbon::setTestNow(Date::now()->addWeeks($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -209,7 +210,7 @@ class Wormhole
      */
     public function months($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addMonths($this->value));
+        Carbon::setTestNow(Date::now()->addMonths($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -233,7 +234,7 @@ class Wormhole
      */
     public function years($callback = null)
     {
-        Carbon::setTestNow(Carbon::now()->addYears($this->value));
+        Carbon::setTestNow(Date::now()->addYears($this->value));
 
         return $this->handleCallback($callback);
     }
@@ -241,11 +242,11 @@ class Wormhole
     /**
      * Travel back to the current time.
      */
-    public static function back(): DateTimeInterface
+    public static function back(): CarbonInterface
     {
         Carbon::setTestNow();
 
-        return Carbon::now();
+        return Date::now();
     }
 
     /**
@@ -257,9 +258,11 @@ class Wormhole
     protected function handleCallback($callback)
     {
         if ($callback) {
-            return tap($callback(), function () {
+            try {
+                return $callback();
+            } finally {
                 Carbon::setTestNow();
-            });
+            }
         }
     }
 }

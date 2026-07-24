@@ -26,18 +26,4 @@ return [
     */
 
     'handlers' => [],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Signal Wait Timeout
-    |--------------------------------------------------------------------------
-    |
-    | The timeout in seconds for each signal wait iteration. The signal
-    | listener coroutine will wait for this duration before checking if
-    | the manager has been stopped. Lower values mean faster shutdown
-    | response but slightly more CPU usage.
-    |
-    */
-
-    'timeout' => 5.0,
 ];

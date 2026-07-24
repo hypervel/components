@@ -14,9 +14,8 @@ use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -29,8 +28,8 @@ use Hypervel\Testing\Constraints\SeeInOrder;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Testing\TestResponseAssert as PHPUnit;
 use LogicException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
-use Symfony\Component\HttpFoundation\StreamedJsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -475,10 +474,10 @@ class TestResponse implements ArrayAccess
             "Cookie [{$cookieName}] not present on response."
         );
 
-        $expiresAt = Carbon::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
+        $expiresAt = CarbonImmutable::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
 
         PHPUnit::withResponse($this)->assertTrue(
-            $cookie->getExpiresTime() !== 0 && $expiresAt->lessThan(Carbon::now()),
+            $cookie->getExpiresTime() !== 0 && $expiresAt->lessThan(CarbonImmutable::now()),
             "Cookie [{$cookieName}] is not expired, it expires at [{$expiresAt}]."
         );
 
@@ -495,10 +494,10 @@ class TestResponse implements ArrayAccess
             "Cookie [{$cookieName}] not present on response."
         );
 
-        $expiresAt = Carbon::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
+        $expiresAt = CarbonImmutable::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
 
         PHPUnit::withResponse($this)->assertTrue(
-            $cookie->getExpiresTime() === 0 || $expiresAt->greaterThan(Carbon::now()),
+            $cookie->getExpiresTime() === 0 || $expiresAt->greaterThan(CarbonImmutable::now()),
             "Cookie [{$cookieName}] is expired, it expired at [{$expiresAt}]."
         );
 
@@ -1602,18 +1601,14 @@ class TestResponse implements ArrayAccess
             return $this->streamedContent;
         }
 
-        if (! $this->isStreamedResponse()) {
+        if (! $this->isStreamedResponse()
+            && ! $this->baseResponse instanceof BinaryFileResponse) {
             PHPUnit::withResponse($this)->fail('The response is not a streamed response.');
         }
 
-        // Hypervel's direct Swoole streaming path writes to a FakeWritableConnection
-        // in test mode. Read the captured content from it instead of output buffering.
-        if ($this->baseResponse instanceof HypervelResponse && $this->baseResponse->isStreamed()) {
-            $connection = $this->baseResponse->getConnection();
-
-            if ($connection instanceof FakeWritableConnection) {
-                return $this->streamedContent = $connection->getWrittenContent();
-            }
+        if ($this->baseResponse instanceof StreamedResponse
+            && $this->baseRequest?->isMethod('HEAD')) {
+            return $this->streamedContent = '';
         }
 
         $level = ob_get_level();
@@ -1637,15 +1632,10 @@ class TestResponse implements ArrayAccess
 
     /**
      * Determine if the response is a streamed response.
-     *
-     * Covers both Symfony's StreamedResponse/StreamedJsonResponse and
-     * Hypervel's direct Swoole streaming via Response::stream().
      */
     protected function isStreamedResponse(): bool
     {
-        return $this->baseResponse instanceof StreamedResponse
-            || $this->baseResponse instanceof StreamedJsonResponse // @phpstan-ignore instanceof.alwaysFalse
-            || ($this->baseResponse instanceof HypervelResponse && $this->baseResponse->isStreamed());
+        return $this->baseResponse instanceof StreamedResponse;
     }
 
     /**

@@ -6,7 +6,7 @@ namespace Hypervel\Session;
 
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use SessionHandlerInterface;
 use Symfony\Component\Finder\Finder;
 
@@ -39,7 +39,7 @@ class FileSessionHandler implements SessionHandlerInterface
     public function read(string $sessionId): false|string
     {
         if ($this->files->isFile($path = $this->path . '/' . $sessionId)
-            && $this->files->lastModified($path) >= Carbon::now()->subMinutes($this->minutes)->getTimestamp()
+            && $this->files->lastModified($path) >= CarbonImmutable::now()->subMinutes($this->minutes)->getTimestamp()
         ) {
             try {
                 return $this->files->sharedGet($path);

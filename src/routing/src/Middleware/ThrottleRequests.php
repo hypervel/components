@@ -109,7 +109,11 @@ class ThrottleRequests
             $next,
             Collection::wrap($limiterResponse)->map(function ($limit) use ($limiterName) {
                 return (object) [
-                    'key' => self::$shouldHashKeys ? hash('xxh128', $limiterName . $limit->key) : $limiterName . ':' . $limit->key,
+                    'key' => $this->limiter->resolveNamedLimiterKey(
+                        $limiterName,
+                        $limit,
+                        self::$shouldHashKeys,
+                    ),
                     'maxAttempts' => $limit->maxAttempts,
                     'decaySeconds' => $limit->decaySeconds,
                     'afterCallback' => $limit->afterCallback,

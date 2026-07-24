@@ -7,8 +7,8 @@ namespace Hypervel\Redis\Pool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
-use Hypervel\Redis\Frequency;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConfig;
@@ -33,20 +33,16 @@ class RedisPool extends Pool
         $this->config = $configService->connectionConfig($name);
         $poolOptions = Arr::get($this->config, 'pool', []);
 
-        $this->frequency = new Frequency($this);
+        $this->frequency = new Frequency;
 
         parent::__construct($container, $name, $poolOptions);
 
+        if (! array_key_exists('timeout', $this->config)) {
+            $this->config['timeout'] = $this->option->getConnectTimeout();
+        }
+
         $this->heartbeatTimer = new Timer($this->getLogger());
         $this->startHeartbeat();
-    }
-
-    /**
-     * Destroy the Redis pool.
-     */
-    public function __destruct()
-    {
-        $this->clearHeartbeat();
     }
 
     /**
@@ -144,7 +140,7 @@ class RedisPool extends Pool
     protected function heartbeatConnection(RedisConnection $connection): void
     {
         try {
-            $now = microtime(true);
+            $now = hrtime(true) / 1e9;
 
             if ($connection->isLifetimeExpired($now)) {
                 $this->discardHeartbeatConnection($connection);

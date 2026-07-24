@@ -24,7 +24,10 @@
     ],
     "require": {
         "php": "^8.4",
-        "nesbot/carbon": "^3.8.4",
+        "ext-json": "*",
+        "ext-pcntl": "*",
+        "ext-posix": "*",
+        "nesbot/carbon": "^3.13.1",
         "hypervel/broadcasting": "^0.4",
         "hypervel/bus": "^0.4",
         "hypervel/cache": "^0.4",
@@ -35,6 +38,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/events": "^0.4",
+        "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/mail": "^0.4",
         "hypervel/notifications": "^0.4",
@@ -42,6 +46,7 @@
         "hypervel/redis": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/watcher": "^0.4",
+        "symfony/console": "^8.1",
         "symfony/process": "^8.1"
     },
     "autoload": {

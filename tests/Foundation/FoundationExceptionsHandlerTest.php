@@ -8,6 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RateLimiter;
@@ -20,8 +21,10 @@ use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
+use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
@@ -30,7 +33,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Session\Store;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Lottery;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
@@ -101,6 +104,40 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->report(new RuntimeException('Exception message'));
     }
 
+    public function testReportingStateIsLocalToTheCurrentCoroutine(): void
+    {
+        $logger = m::mock(LoggerInterface::class);
+        $this->container->instance(LoggerInterface::class, $logger);
+        $exception = new RuntimeException('Exception message');
+        $parentReporting = false;
+        $childReporting = true;
+        $completed = new Channel(1);
+
+        $logger->shouldReceive('error')->once()->andReturnUsing(
+            function () use (
+                $exception,
+                &$parentReporting,
+                &$childReporting,
+                $completed
+            ): void {
+                $parentReporting = $this->handler->isReporting($exception);
+
+                Coroutine::fork(function () use ($exception, &$childReporting, $completed): void {
+                    $childReporting = $this->handler->isReporting($exception);
+                    $completed->push(true);
+                });
+
+                $completed->pop();
+            }
+        );
+
+        $this->handler->report($exception);
+
+        $this->assertTrue($parentReporting);
+        $this->assertFalse($childReporting);
+        $this->assertFalse($this->handler->isReporting($exception));
+    }
+
     public function testHandlerCallsContextMethodIfPresent()
     {
         $logger = m::mock(LoggerInterface::class);
@@ -145,6 +182,109 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->ignore(RuntimeException::class);
 
         $this->handler->report(new RuntimeException('Exception message'));
+    }
+
+    public function testHandlerStopsRetriesForConfiguredExceptionTypes(): void
+    {
+        $this->handler->dontRetry([
+            InvalidArgumentException::class,
+            OutOfRangeException::class,
+        ]);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertTrue($this->handler->shouldStopRetries(new OutOfRangeException));
+        $this->assertFalse($this->handler->shouldStopRetries(new RuntimeException));
+    }
+
+    public function testHandlerStopsRetriesWhenConfiguredCallbackMatches(): void
+    {
+        $this->handler->dontRetryWhen(new StopRetriesForRuntimeExceptions);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new RuntimeException));
+        $this->assertFalse($this->handler->shouldStopRetries(new InvalidArgumentException));
+    }
+
+    public function testHandlerOnlyInvokesRetryCallbackForItsDeclaredExceptionType(): void
+    {
+        $invocations = 0;
+
+        $this->handler->dontRetryWhen(function (RuntimeException $exception) use (&$invocations): bool {
+            ++$invocations;
+
+            return true;
+        });
+
+        $this->assertFalse($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertSame(0, $invocations);
+        $this->assertTrue($this->handler->shouldStopRetries(new RuntimeException));
+        $this->assertSame(1, $invocations);
+    }
+
+    public function testHandlerInvokesThrowableTypedRetryCallbackForEveryException(): void
+    {
+        $this->handler->dontRetryWhen(static fn (Throwable $exception): bool => true);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+    }
+
+    public function testHandlerInvokesUntypedRetryCallbackForEveryException(): void
+    {
+        $exception = new InvalidArgumentException;
+        $received = null;
+
+        $this->handler->dontRetryWhen(function ($receivedException) use (&$received): bool {
+            $received = $receivedException;
+
+            return true;
+        });
+
+        $this->assertTrue($this->handler->shouldStopRetries($exception));
+        $this->assertSame($exception, $received);
+    }
+
+    public function testHandlerInvokesRetryCallbackWithoutParametersForEveryException(): void
+    {
+        $this->handler->dontRetryWhen(static fn (): bool => true);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+    }
+
+    public function testHandlerOnlyInvokesRetryCallbackWhenExceptionMatchesIntersectionType(): void
+    {
+        $invocations = 0;
+
+        $this->handler->dontRetryWhen(function (RuntimeException&RetryTerminalFailure $exception) use (&$invocations): bool {
+            ++$invocations;
+
+            return true;
+        });
+
+        $this->assertFalse($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertSame(0, $invocations);
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalRuntimeException));
+        $this->assertSame(1, $invocations);
+    }
+
+    public function testHandlerInvokesRetryCallbackWhenExceptionMatchesDnfType(): void
+    {
+        $this->handler->dontRetryWhen(
+            static fn ((RuntimeException&RetryTerminalFailure)|InvalidArgumentException $exception): bool => true
+        );
+
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalRuntimeException));
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertFalse($this->handler->shouldStopRetries(new OutOfRangeException));
+    }
+
+    public function testHandlerInvokesRetryCallbackWhenExceptionMatchesAllIntersectionDnfType(): void
+    {
+        $this->handler->dontRetryWhen(
+            static fn ((RuntimeException&RetryTerminalFailure)|(InvalidArgumentException&RetrySecondaryTerminalFailure) $exception): bool => true
+        );
+
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalRuntimeException));
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalInvalidArgumentException));
+        $this->assertFalse($this->handler->shouldStopRetries(new OutOfRangeException));
     }
 
     public function testHandlerCallsReportMethodWithDependencies()
@@ -218,6 +358,48 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertFalse($shouldReturnJson);
 
         $this->assertSame(6, Assert::getCount());
+    }
+
+    public function testUnauthenticatedJsonRequestReturnsJsonResponse(): void
+    {
+        $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
+
+        $response = $this->handler->render($this->request, new AuthenticationException);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            '{"message":"Unauthenticated."}',
+            (string) $response->getContent(),
+        );
+    }
+
+    public function testUnauthenticatedRequestWithoutRedirectReturnsNoContent(): void
+    {
+        AuthenticationException::redirectUsing(static fn (): null => null);
+        $this->request->shouldReceive('expectsJson')->once()->andReturn(false);
+
+        $response = $this->handler->render($this->request, new AuthenticationException);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('', $response->getContent());
+    }
+
+    public function testUnauthenticatedRequestWithRedirectReturnsGuestRedirect(): void
+    {
+        AuthenticationException::redirectUsing(static fn (): string => '/login');
+        $this->request->shouldReceive('expectsJson')->once()->andReturn(false);
+
+        $redirector = m::mock(Redirector::class);
+        $redirector->shouldReceive('guest')
+            ->once()
+            ->with('/login')
+            ->andReturn(new RedirectResponse('/login'));
+        $this->container->instance('redirect', $redirector);
+
+        $response = $this->handler->render($this->request, new AuthenticationException);
+
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame('/login', $response->headers->get('Location'));
     }
 
     public function testReturnsJsonWithStackTraceWhenAjaxRequestAndDebugTrue()
@@ -937,7 +1119,7 @@ class FoundationExceptionsHandlerTest extends TestCase
                 return parent::attempt(...func_get_args());
             }
         });
-        Carbon::setTestNow(Carbon::now()->startOfDay());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay());
 
         for ($i = 0; $i < 100; ++$i) {
             $handler->report(new Exception('Something in the app went wrong.'));
@@ -947,7 +1129,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertCount(7, $reported);
         $this->assertSame('Something in the app went wrong.', $reported[0]->getMessage());
 
-        Carbon::setTestNow(Carbon::now()->addMinute());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
 
         for ($i = 0; $i < 100; ++$i) {
             $handler->report(new Exception('Something in the app went wrong.'));
@@ -983,18 +1165,18 @@ class FoundationExceptionsHandlerTest extends TestCase
             }
         });
 
-        Carbon::setTestNow('2000-01-01 00:00:00.000');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.000');
         $handler->report(new Exception('Something in the app went wrong 1.'));
-        Carbon::setTestNow('2000-01-01 00:00:59.999');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:59.999');
         $handler->report(new Exception('Something in the app went wrong 1.'));
 
         $this->assertSame(2, $limiter->attempted);
         $this->assertCount(1, $reported);
         $this->assertSame('Something in the app went wrong 1.', $reported[0]->getMessage());
 
-        Carbon::setTestNow('2000-01-01 00:01:00.000');
+        CarbonImmutable::setTestNow('2000-01-01 00:01:00.000');
         $handler->report(new Exception('Something in the app went wrong 2.'));
-        Carbon::setTestNow('2000-01-01 00:01:59.999');
+        CarbonImmutable::setTestNow('2000-01-01 00:01:59.999');
         $handler->report(new Exception('Something in the app went wrong 2.'));
 
         $this->assertSame(4, $limiter->attempted);
@@ -1145,6 +1327,30 @@ class CustomRenderer
     {
         return response()->json(['response' => 'The CustomRenderer response']);
     }
+}
+
+class StopRetriesForRuntimeExceptions
+{
+    public function __invoke(Throwable $exception): bool
+    {
+        return $exception::class === RuntimeException::class;
+    }
+}
+
+interface RetryTerminalFailure
+{
+}
+
+interface RetrySecondaryTerminalFailure
+{
+}
+
+class RetryTerminalRuntimeException extends RuntimeException implements RetryTerminalFailure
+{
+}
+
+class RetryTerminalInvalidArgumentException extends InvalidArgumentException implements RetrySecondaryTerminalFailure
+{
 }
 
 interface ReportingService

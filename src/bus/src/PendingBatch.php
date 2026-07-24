@@ -81,7 +81,7 @@ class PendingBatch
                 return;
             }
 
-            if (! (static::$batchableClasses[$job::class] ?? false) && ! in_array(Batchable::class, class_uses_recursive($job))) {
+            if (! (static::$batchableClasses[$job::class] ?? false) && ! isset(class_uses_recursive($job)[Batchable::class])) {
                 static::$batchableClasses[$job::class] = false;
 
                 throw new RuntimeException(sprintf('Attempted to batch job [%s], but it does not use the Batchable trait.', $job::class));
@@ -248,7 +248,9 @@ class PendingBatch
      */
     public function onConnection(UnitEnum|string $connection): static
     {
-        $this->options['connection'] = enum_value($connection);
+        $this->options['connection'] = $connection instanceof UnitEnum
+            ? (string) enum_value($connection)
+            : $connection;
 
         return $this;
     }
@@ -266,7 +268,9 @@ class PendingBatch
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->options['queue'] = enum_value($queue);
+        $this->options['queue'] = $queue instanceof UnitEnum
+            ? (string) enum_value($queue)
+            : $queue;
 
         return $this;
     }
@@ -310,9 +314,11 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->make(EventDispatcher::class)->dispatch(
-            new BatchDispatched($batch)
-        );
+        $events = $this->container->make(EventDispatcher::class);
+
+        if ($events->hasListeners(BatchDispatched::class)) {
+            $events->dispatch(new BatchDispatched($batch));
+        }
 
         return $batch;
     }
@@ -346,9 +352,11 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->make(EventDispatcher::class)->dispatch(
-            new BatchDispatched($batch)
-        );
+        $events = $this->container->make(EventDispatcher::class);
+
+        if ($events->hasListeners(BatchDispatched::class)) {
+            $events->dispatch(new BatchDispatched($batch));
+        }
     }
 
     /**

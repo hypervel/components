@@ -10,12 +10,13 @@ use DateTimeInterface;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\PathNormalizer;
 use League\Flysystem\WhitespacePathNormalizer;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Isolate every filesystem path behind a dynamically resolved prefix.
@@ -89,6 +90,17 @@ class ScopedFilesystemProxy implements Filesystem
     {
         $prefix = $this->prefix();
         $this->call(__FUNCTION__, [$this->applyPrefix($prefix, $path)]);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the scoped disk contains no files.
+     */
+    public function assertEmpty(): static
+    {
+        $prefix = $this->prefix();
+        $this->call('assertDirectoryEmpty', [$prefix]);
 
         return $this;
     }
@@ -234,7 +246,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Get the contents of a scoped file as decoded JSON.
      */
-    public function json(string $path, int $flags = 0): ?array
+    public function json(string $path, int $flags = 0): array|bool|float|int|string|null
     {
         $prefix = $this->prefix();
 
@@ -249,7 +261,7 @@ class ScopedFilesystemProxy implements Filesystem
         ?string $name = null,
         array $headers = [],
         string $disposition = 'inline',
-    ): Response {
+    ): StreamedResponse {
         $prefix = $this->prefix();
 
         return $this->call(__FUNCTION__, [
@@ -278,7 +290,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Create a streamed download response for a scoped file.
      */
-    public function download(string $path, ?string $name = null, array $headers = []): Response
+    public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
         $prefix = $this->prefix();
 

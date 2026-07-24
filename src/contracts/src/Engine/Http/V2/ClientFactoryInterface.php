@@ -6,5 +6,13 @@ namespace Hypervel\Contracts\Engine\Http\V2;
 
 interface ClientFactoryInterface
 {
-    public function make(string $host, int $port = 80, bool $ssl = false): ClientInterface;
+    /**
+     * Create an HTTP/2 client.
+     */
+    public function make(
+        string $host,
+        int $port = 80,
+        bool $ssl = false,
+        array $settings = [],
+    ): ClientInterface;
 }

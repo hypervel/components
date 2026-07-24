@@ -35,7 +35,7 @@ use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -140,15 +140,25 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         })->all();
     }
 
+    /**
+     * Retrieve multiple items from the cache by key.
+     *
+     * @param iterable<string|UnitEnum> $keys
+     */
     public function getMultiple(iterable $keys, mixed $default = null): iterable
     {
-        $defaults = [];
+        $resolvedKeys = [];
 
         foreach ($keys as $key) {
-            $defaults[enum_value($key)] = $default;
+            $resolvedKeys[] = $key instanceof UnitEnum
+                ? (string) enum_value($key)
+                : (string) $key;
         }
 
-        return $this->many($defaults);
+        return array_map(
+            fn ($value) => $value ?? value($default),
+            $this->many($resolvedKeys)
+        );
     }
 
     /**
@@ -176,6 +186,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function string(UnitEnum|string $key, callable|string|null $default = null): string
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->get($key, $default);
 
         if (! is_string($value)) {
@@ -196,6 +207,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function integer(UnitEnum|string $key, callable|int|null $default = null): int
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->get($key, $default);
 
         if (is_int($value)) {
@@ -220,6 +232,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function float(UnitEnum|string $key, callable|float|null $default = null): float
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->get($key, $default);
 
         if (is_float($value)) {
@@ -244,6 +257,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function boolean(UnitEnum|string $key, callable|bool|null $default = null): bool
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->get($key, $default);
 
         if (! is_bool($value)) {
@@ -266,6 +280,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function array(UnitEnum|string $key, callable|array|null $default = null): array
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->get($key, $default);
 
         if (! is_array($value)) {
@@ -286,7 +301,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             return $this->putMany($key, $value);
         }
 
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -381,7 +396,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         $seconds = null;
 
@@ -419,7 +434,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->increment(enum_value($key), $value);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return $this->store->increment($key, $value);
     }
 
     /**
@@ -427,7 +444,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->decrement(enum_value($key), $value);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return $this->store->decrement($key, $value);
     }
 
     /**
@@ -435,7 +454,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function forever(UnitEnum|string $key, mixed $value): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value)));
 
@@ -594,7 +613,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function flexible(UnitEnum|string $key, array $ttl, mixed $callback, ?array $lock = null, bool $alwaysDefer = false): mixed
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $markerKey = "hypervel:cache:flexible:created:{$key}";
 
         [$key => $value, $markerKey => $created] = $this->manyRaw([$key, $markerKey]);
@@ -604,13 +623,13 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
             $this->putMany([
                 $key => $stored,
-                $markerKey => Carbon::now()->getTimestamp(),
+                $markerKey => CarbonImmutable::now()->getTimestamp(),
             ], $ttl[1]);
 
             return NullSentinel::unwrap($stored);
         }
 
-        if (($created + $this->getSeconds($ttl[0])) > Carbon::now()->getTimestamp()) {
+        if (($created + $this->getSeconds($ttl[0])) > CarbonImmutable::now()->getTimestamp()) {
             return NullSentinel::unwrap($value);
         }
 
@@ -628,7 +647,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
                 $this->putMany([
                     $key => value($callback),
-                    $markerKey => Carbon::now()->getTimestamp(),
+                    $markerKey => CarbonImmutable::now()->getTimestamp(),
                 ], $ttl[1]);
             });
         };
@@ -669,7 +688,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->getRaw($key);
 
         if (is_null($value)) {
@@ -693,7 +712,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function withoutOverlapping(UnitEnum|string $key, callable $callback, int $lockFor = 0, int $waitFor = 10, ?string $owner = null): mixed
     {
-        return $this->store->lock(enum_value($key), $lockFor, $owner)->block($waitFor, $callback); // @phpstan-ignore method.notFound (lock() is on LockProvider, not Store contract)
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return $this->store->lock($key, $lockFor, $owner)->block($waitFor, $callback); // @phpstan-ignore method.notFound (lock() is on LockProvider, not Store contract)
     }
 
     /**
@@ -705,7 +726,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             throw new BadMethodCallException('This cache store does not support locks.');
         }
 
-        return new ConcurrencyLimiterBuilder($this, enum_value($name));
+        $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
+
+        return new ConcurrencyLimiterBuilder($this, $name);
     }
 
     /**
@@ -713,7 +736,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function forget(UnitEnum|string $key): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         $this->event(ForgettingKey::class, fn (): ForgettingKey => new ForgettingKey($this->getName(), $key));
 
@@ -734,6 +757,11 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         return $this->forget($key);
     }
 
+    /**
+     * Delete multiple items from the cache by key.
+     *
+     * @param iterable<string|UnitEnum> $keys
+     */
     public function deleteMultiple(iterable $keys): bool
     {
         $result = true;
@@ -812,7 +840,10 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         }
 
         $names = is_array($names) ? $names : func_get_args();
-        $names = array_map(fn ($name) => enum_value($name), $names);
+        $names = array_map(
+            fn ($name) => $name instanceof UnitEnum ? (string) enum_value($name) : $name,
+            $names
+        );
 
         $cache = $store->tags($names);
 
@@ -1002,7 +1033,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         if ($duration instanceof DateTimeInterface) {
             $duration = (int) ceil(
-                Carbon::now()->diffInMilliseconds($duration, false) / 1000
+                CarbonImmutable::now()->diffInMilliseconds($duration, false) / 1000
             );
         }
 
@@ -1040,7 +1071,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function getRaw(UnitEnum|string $key): mixed
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
 

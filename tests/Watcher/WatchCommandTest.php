@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Watcher;
 
+use Closure;
 use Hypervel\Config\Repository;
-use Hypervel\Foundation\Application;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Watcher\Console\WatchCommand;
 use Hypervel\Watcher\Driver\DriverInterface;
@@ -13,6 +15,7 @@ use Hypervel\Watcher\Driver\ScanFileDriver;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\ServerRestartStrategy;
 use Hypervel\Watcher\Watcher;
+use Hypervel\Watcher\WatchPath;
 use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -27,12 +30,15 @@ class WatchCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testWatchCommandFailsFastWhenRunningInConsoleIsTrue()
+    public function testWatchCommandFailsFastWhenRunningInConsoleIsTrue(): void
     {
-        $command = new WatchCommand($this->app);
-        $command->setHypervel($this->app);
+        $container = m::mock(Container::class);
+        $application = m::mock(ApplicationContract::class);
+        $container->shouldReceive('make')->with(ApplicationContract::class)->once()->andReturn($application);
+        $application->shouldReceive('runningInConsole')->once()->andReturnTrue();
 
-        Application::getInstance()->setRunningInConsole(true);
+        $command = new WatchCommand($container);
+        $command->setHypervel($this->app);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.');
@@ -40,7 +46,7 @@ class WatchCommandTest extends TestCase
         $command->run(new ArrayInput([]), new NullOutput);
     }
 
-    public function testWatchCommandRunsWatcherWhenRunningInConsoleIsFalse()
+    public function testWatchCommandRunsWatcherWhenRunningInConsoleIsFalse(): void
     {
         $this->app->instance('config', new Repository([
             'watcher' => [
@@ -72,14 +78,14 @@ class WatchCommandTest extends TestCase
         $command = new WatchCommand($this->app);
         $command->setHypervel($this->app);
 
-        Application::getInstance()->setRunningInConsole(false);
+        $this->app->setRunningInConsole(false);
 
         $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
     }
 
-    public function testWatchCommandWithNoRestartPassesNullStrategy()
+    public function testWatchCommandWithNoRestartPassesNullStrategy(): void
     {
         $this->app->instance('config', new Repository([
             'watcher' => [
@@ -104,14 +110,46 @@ class WatchCommandTest extends TestCase
         $command = new WatchCommand($this->app);
         $command->setHypervel($this->app);
 
-        Application::getInstance()->setRunningInConsole(false);
+        $this->app->setRunningInConsole(false);
 
         $result = $command->run(new ArrayInput(['--no-restart' => true]), new NullOutput);
 
         $this->assertSame(0, $result);
     }
 
-    public function testWatchCommandWithExtraPaths()
+    public function testTerminationSignalStopsDriverBeforeRestartStrategy(): void
+    {
+        $driver = m::mock(DriverInterface::class);
+        $strategy = m::mock(ServerRestartStrategy::class);
+        $driver->shouldReceive('stop')->once()->ordered();
+        $strategy->shouldReceive('stop')->once()->ordered();
+
+        $command = $this->runSignalCapturingCommand($driver, $strategy);
+
+        $this->assertSame([SIGINT, SIGTERM, SIGQUIT], $command->signals);
+
+        $command->invokeSignalHandler(SIGTERM);
+    }
+
+    public function testTerminationSignalStopsRestartStrategyWhenDriverCleanupFails(): void
+    {
+        $failure = new RuntimeException('driver cleanup failed');
+        $driver = m::mock(DriverInterface::class);
+        $strategy = m::mock(ServerRestartStrategy::class);
+        $driver->shouldReceive('stop')->once()->andThrow($failure);
+        $strategy->shouldReceive('stop')->once();
+
+        $command = $this->runSignalCapturingCommand($driver, $strategy);
+
+        try {
+            $command->invokeSignalHandler(SIGTERM);
+            $this->fail('Expected driver cleanup to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
+    public function testWatchCommandWithExtraPaths(): void
     {
         $this->app->instance('config', new Repository([
             'watcher' => [
@@ -140,7 +178,7 @@ class WatchCommandTest extends TestCase
         $command = new WatchCommand($this->app);
         $command->setHypervel($this->app);
 
-        Application::getInstance()->setRunningInConsole(false);
+        $this->app->setRunningInConsole(false);
 
         $result = $command->run(
             new ArrayInput(['--path' => ['.env', 'composer.json']]),
@@ -151,14 +189,64 @@ class WatchCommandTest extends TestCase
         $this->assertInstanceOf(Option::class, $capturedOption);
 
         $paths = $capturedOption->getWatchPaths();
-        $pathStrings = array_map(fn ($p) => $p->path, $paths);
+        $pathStrings = array_map(fn (WatchPath $path): string => $path->path, $paths);
         $this->assertContains('.env', $pathStrings);
         $this->assertContains('composer.json', $pathStrings);
 
         // .env and composer.json should be File type (they're not directories)
         $filePaths = $capturedOption->getFilePaths();
-        $filePathStrings = array_map(fn ($p) => $p->path, $filePaths);
+        $filePathStrings = array_map(fn (WatchPath $path): string => $path->path, $filePaths);
         $this->assertContains('.env', $filePathStrings);
         $this->assertContains('composer.json', $filePathStrings);
+    }
+
+    /**
+     * Run a watch command that captures its termination signal handler.
+     */
+    protected function runSignalCapturingCommand(
+        DriverInterface $driver,
+        ServerRestartStrategy $strategy,
+    ): SignalCapturingWatchCommand {
+        $this->app->instance('config', new Repository([
+            'watcher' => [
+                'driver' => ScanFileDriver::class,
+                'scan_interval' => 1000,
+                'watch' => ['app/**/*.php'],
+            ],
+        ]));
+
+        $watcher = m::mock(Watcher::class);
+        $watcher->shouldReceive('run')->once();
+
+        $this->app->bind(ScanFileDriver::class, fn () => $driver);
+        $this->app->bind(ServerRestartStrategy::class, fn () => $strategy);
+        $this->app->bind(Watcher::class, fn () => $watcher);
+
+        $command = new SignalCapturingWatchCommand($this->app);
+        $command->setHypervel($this->app);
+        $this->app->setRunningInConsole(false);
+
+        $this->assertSame(0, $command->run(new ArrayInput([]), new NullOutput));
+
+        return $command;
+    }
+}
+
+class SignalCapturingWatchCommand extends WatchCommand
+{
+    /** @var int[] */
+    public array $signals = [];
+
+    public Closure $signalHandler;
+
+    public function trap(array|int $signo, callable $callback): void
+    {
+        $this->signals = (array) $signo;
+        $this->signalHandler = Closure::fromCallable($callback);
+    }
+
+    public function invokeSignalHandler(int $signal): void
+    {
+        ($this->signalHandler)($signal);
     }
 }

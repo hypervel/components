@@ -5,14 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Process;
 
 use Carbon\CarbonInterval;
+use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Process\Factory;
+use Hypervel\Process\FakeInvokedProcess;
+use Hypervel\Process\FakeProcessDescription;
+use Hypervel\Process\InvokedProcess;
+use Hypervel\Process\InvokedProcessPool;
+use Hypervel\Process\PendingProcess;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use OutOfBoundsException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use RuntimeException;
+use Symfony\Component\Process\Process as SymfonyProcess;
+use Throwable;
 
 class ProcessTest extends TestCase
 {
@@ -54,6 +63,15 @@ class ProcessTest extends TestCase
         $this->assertTrue($results->successful());
     }
 
+    public function testEmptyProcessPoolReturnsEmptyResults(): void
+    {
+        $pool = (new Factory)->pool(static function (): void {
+        })->start();
+
+        $this->assertCount(0, $pool);
+        $this->assertCount(0, $pool->wait()->collect());
+    }
+
     public function testProcessPoolFailed()
     {
         $factory = new Factory;
@@ -93,6 +111,171 @@ class ProcessTest extends TestCase
         // Laravel omits this, but Swoole's coroutine environment causes Symfony Process
         // destructors to fatal when processes are still running at shutdown.
         $pool->wait();
+    }
+
+    public function testProcessPoolRollsBackProcessesStartedBeforeCreationFailure(): void
+    {
+        $factory = new class extends Factory {
+            /** @var list<PendingProcess> */
+            public array $pendingProcesses = [];
+
+            public function newPendingProcess(): PendingProcess
+            {
+                return array_shift($this->pendingProcesses);
+            }
+        };
+        $startedProcess = new FakeInvokedProcess(
+            'first',
+            (new FakeProcessDescription)->runsFor(iterations: 10)
+        );
+        $creationFailure = new RuntimeException('Unable to start the second process.');
+        $factory->pendingProcesses = [
+            new class($factory, $startedProcess) extends PendingProcess {
+                public function __construct(Factory $factory, protected InvokedProcessContract $invokedProcess)
+                {
+                    parent::__construct($factory);
+                }
+
+                public function start(array|string|null $command = null, ?callable $output = null): InvokedProcessContract
+                {
+                    return $this->invokedProcess;
+                }
+            },
+            new class($factory, $creationFailure) extends PendingProcess {
+                public function __construct(Factory $factory, protected RuntimeException $failure)
+                {
+                    parent::__construct($factory);
+                }
+
+                public function start(array|string|null $command = null, ?callable $output = null): InvokedProcessContract
+                {
+                    throw $this->failure;
+                }
+            },
+        ];
+
+        try {
+            $factory->pool(function ($pool): void {
+                $pool->command('first');
+                $pool->command('second');
+            })->start();
+
+            $this->fail('The pool creation failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($creationFailure, $exception);
+        }
+
+        $this->assertFalse($startedProcess->running());
+    }
+
+    public function testProcessPoolWaitStopsEverySiblingAndPreservesTheWaitFailure(): void
+    {
+        $waitFailure = new RuntimeException('Unable to wait for the first process.');
+        $cleanupFailure = new RuntimeException('Unable to stop the first process.');
+        $failingProcess = new class($waitFailure, $cleanupFailure) extends FakeInvokedProcess {
+            public bool $stopAttempted = false;
+
+            public function __construct(
+                protected RuntimeException $waitFailure,
+                protected RuntimeException $cleanupFailure
+            ) {
+                parent::__construct('first', (new FakeProcessDescription)->runsFor(iterations: 10));
+            }
+
+            public function wait(?callable $output = null): ProcessResult
+            {
+                throw $this->waitFailure;
+            }
+
+            public function stop(float $timeout = 10, ?int $signal = null): ?int
+            {
+                $this->stopAttempted = true;
+                parent::stop($timeout, $signal);
+
+                throw $this->cleanupFailure;
+            }
+        };
+        $siblingProcess = new class extends FakeInvokedProcess {
+            public bool $stopAttempted = false;
+
+            public function __construct()
+            {
+                parent::__construct('second', (new FakeProcessDescription)->runsFor(iterations: 10));
+            }
+
+            public function stop(float $timeout = 10, ?int $signal = null): ?int
+            {
+                $this->stopAttempted = true;
+
+                return parent::stop($timeout, $signal);
+            }
+        };
+        $pool = new InvokedProcessPool([$failingProcess, $siblingProcess]);
+
+        try {
+            $pool->wait();
+
+            $this->fail('The pool wait failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($waitFailure, $exception);
+        }
+
+        $this->assertTrue($failingProcess->stopAttempted);
+        $this->assertTrue($siblingProcess->stopAttempted);
+        $this->assertFalse($siblingProcess->running());
+    }
+
+    public function testProcessPoolStopContinuesAfterARunningCheckFailure(): void
+    {
+        $runningFailure = new RuntimeException('Unable to inspect the first process.');
+        $failingProcess = new class($runningFailure) extends FakeInvokedProcess {
+            public bool $stopAttempted = false;
+
+            public function __construct(protected RuntimeException $failure)
+            {
+                parent::__construct('first', (new FakeProcessDescription)->runsFor(iterations: 10));
+            }
+
+            public function running(): bool
+            {
+                throw $this->failure;
+            }
+
+            public function stop(float $timeout = 10, ?int $signal = null): ?int
+            {
+                $this->stopAttempted = true;
+
+                return parent::stop($timeout, $signal);
+            }
+        };
+        $siblingProcess = new class extends FakeInvokedProcess {
+            public bool $stopAttempted = false;
+
+            public function __construct()
+            {
+                parent::__construct('second', (new FakeProcessDescription)->runsFor(iterations: 10));
+            }
+
+            public function stop(float $timeout = 10, ?int $signal = null): ?int
+            {
+                $this->stopAttempted = true;
+
+                return parent::stop($timeout, $signal);
+            }
+        };
+        $pool = new InvokedProcessPool([$failingProcess, $siblingProcess]);
+
+        try {
+            $pool->stop(0);
+
+            $this->fail('The running check failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($runningFailure, $exception);
+        }
+
+        $this->assertTrue($failingProcess->stopAttempted);
+        $this->assertTrue($siblingProcess->stopAttempted);
+        $this->assertFalse($siblingProcess->running());
     }
 
     public function testProcessPoolCanReceiveOutputForEachProcessViaStartMethod()
@@ -166,6 +349,124 @@ class ProcessTest extends TestCase
         });
 
         $this->assertTrue(str_contains(implode('', $output), 'ProcessTest.php'));
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testSynchronousOutputCallbackFailureStopsTheExactProcess(): void
+    {
+        $factory = new Factory;
+        $failure = new RuntimeException('Output callback failed.');
+        $processId = null;
+        $callbackInvocations = 0;
+        $command = <<<'SH'
+        printf '%s\n' "$$"; trap 'printf "stopping\n"; exit 0' TERM; while :; do sleep 1; done
+        SH;
+
+        try {
+            $factory->forever()->run($command, function (string $type, string $buffer) use (&$processId, &$callbackInvocations, $failure): void {
+                ++$callbackInvocations;
+
+                if (preg_match('/\d+/', $buffer, $matches) === 1) {
+                    $processId = (int) $matches[0];
+                }
+
+                throw $failure;
+            });
+
+            $this->fail('The output callback failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+            $this->assertNotNull($processId);
+            $this->assertFalse($this->processIsRunning($processId));
+        } finally {
+            $this->reapProcess($processId);
+        }
+
+        $this->assertSame(1, $callbackInvocations);
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testInvokedProcessWaitCallbackFailureStopsTheExactProcess(): void
+    {
+        $factory = new Factory;
+        $failure = new RuntimeException('Wait callback failed.');
+        $process = $factory->forever()->start("printf 'ready\\n'; sleep 60");
+        $processId = $process->id();
+
+        try {
+            $process->wait(static function () use ($failure): void {
+                throw $failure;
+            });
+
+            $this->fail('The wait callback failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+            $this->assertNotNull($processId);
+            $this->assertFalse($this->processIsRunning($processId));
+            $this->assertFalse($process->running());
+        } finally {
+            $this->reapProcess($processId, $process);
+        }
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testRealInvokedProcessWaitUntilWithoutCallbackWaitsForCompletion(): void
+    {
+        $process = (new Factory)->start("printf 'done\\n'");
+
+        $result = $process->waitUntil();
+
+        $this->assertTrue($result->successful());
+        $this->assertSame("done\n", $result->output());
+        $this->assertFalse($process->running());
+    }
+
+    public function testInvokedProcessSupportsMacros(): void
+    {
+        InvokedProcess::macro('summary', function (): string {
+            return 'Running: ' . $this->command();
+        });
+        $process = new InvokedProcess(SymfonyProcess::fromShellCommandline('echo hello'));
+
+        $this->assertSame('Running: echo hello', $process->summary());
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testRealInvokedProcessCanBeStoppedThroughContract(): void
+    {
+        $factory = new Factory;
+        $process = $factory->start('sleep 60');
+        $processId = $process->id();
+
+        try {
+            $process->ensureNotTimedOut();
+            $this->assertNotNull($processId);
+
+            $this->stopProcess($process);
+
+            $this->assertFalse($process->running());
+            $this->assertNull($process->id());
+        } finally {
+            $this->reapProcess($processId, $process);
+        }
+    }
+
+    public function testFakeInvokedProcessCanBeStoppedThroughContract(): void
+    {
+        $factory = new Factory;
+        $factory->fake([
+            '*' => $factory->describe()->runsFor(iterations: 10),
+        ]);
+        $process = $factory->start('sleep 60');
+
+        $process->ensureNotTimedOut();
+        $this->assertTrue($process->running());
+        $this->assertNotNull($process->id());
+
+        $this->stopProcess($process);
+
+        $this->assertFalse($process->running());
+        $this->assertNull($process->id());
     }
 
     public function testBasicProcessFake()
@@ -302,6 +603,22 @@ class ProcessTest extends TestCase
         $this->assertEquals("line 1\n\nline 2\n", $result->output());
     }
 
+    public function testProcessFakePreservesZeroCommandAndOutput(): void
+    {
+        $factory = new Factory;
+        $factory->fake(fn () => '0');
+
+        $result = $factory->run('0');
+
+        $this->assertSame("0\n", $result->output());
+        $factory->assertRan(fn ($process): bool => $process->command === '0');
+
+        $process = $factory->start('0');
+
+        $this->assertSame('0', $process->command());
+        $this->assertSame("0\n", $process->wait()->output());
+    }
+
     public function testProcessFakeWithErrorOutput()
     {
         $factory = new Factory;
@@ -363,6 +680,17 @@ class ProcessTest extends TestCase
 
         $result = $factory->run('cat composer.json');
         $this->assertEquals("cat command\n", $result->output());
+    }
+
+    public function testProcessFakeSequenceNormalizesSeededResults(): void
+    {
+        $factory = new Factory;
+        $factory->fake([
+            'echo *' => $factory->sequence(['first', ['second', 'third']]),
+        ]);
+
+        $this->assertSame("first\n", $factory->run('echo value')->output());
+        $this->assertSame("second\nthird\n", $factory->run('echo value')->output());
     }
 
     public function testProcessFakeSequencesCanReturnEmptyResultsWhenSequenceIsEmpty()
@@ -707,6 +1035,14 @@ class ProcessTest extends TestCase
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testRealProcessesPreserveZeroStandardInput(): void
+    {
+        $result = (new Factory)->input('0')->run('cat');
+
+        $this->assertSame('0', $result->output());
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testProcessPipe()
     {
         $factory = new Factory;
@@ -770,6 +1106,23 @@ class ProcessTest extends TestCase
         $this->assertTrue($pipe->failed());
     }
 
+    public function testEmptyCallbackPipeFailsDescriptively(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Process pipe must contain at least one pending process.');
+
+        (new Factory)->pipe(static function (): void {
+        });
+    }
+
+    public function testEmptyArrayPipeFailsDescriptively(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Process pipe must contain at least one pending process.');
+
+        (new Factory)->pipe([]);
+    }
+
     public function testFakeInvokedProcessOutputWithLatestOutput()
     {
         $factory = new Factory;
@@ -828,6 +1181,116 @@ class ProcessTest extends TestCase
         $this->assertTrue($result->successful());
         $this->assertContains("WAITING\n", $callbackInvoked);
         $this->assertContains("READY\n", $callbackInvoked);
+    }
+
+    public function testFakeInvokedProcessWaitUntilLeavesProcessRunningAndRestoresOutputHandler(): void
+    {
+        $factory = new Factory;
+        $factory->fake(fn () => $factory->describe()
+            ->output('WAITING')
+            ->output('READY')
+            ->output('DONE')
+            ->runsFor(iterations: 5));
+        $generalOutput = [];
+        $process = $factory->start('long-running-command', function (string $type, string $buffer) use (&$generalOutput): void {
+            $generalOutput[] = $buffer;
+        });
+
+        $process->waitUntil(static fn (string $type, string $buffer): bool => str_contains($buffer, 'READY'));
+
+        $this->assertNotNull($process->id());
+        $this->assertTrue($process->running());
+        $this->assertSame(["DONE\n"], $generalOutput);
+
+        $process->stop(0);
+    }
+
+    public function testFakeInvokedProcessReturnsEmptyOutputWhenNothingWasProduced(): void
+    {
+        $factory = new Factory;
+        $factory->fake(fn () => $factory->describe()->runsFor(iterations: 1));
+        $process = $factory->start('silent-command');
+
+        $this->assertSame('', $process->output());
+        $this->assertSame('', $process->errorOutput());
+
+        $process->stop(0);
+    }
+
+    public function testFakeInvokedProcessCallbackFailureIsTerminalAcrossEntryPoints(): void
+    {
+        $factory = new Factory;
+        $factory->fake(fn () => $factory->describe()
+            ->output('OUTPUT')
+            ->runsFor(iterations: 3));
+        $runningFailure = new RuntimeException('Running callback failed.');
+        $runningInvocations = 0;
+        $runningProcess = $factory->start('running-command', function () use ($runningFailure, &$runningInvocations): void {
+            ++$runningInvocations;
+
+            throw $runningFailure;
+        });
+
+        try {
+            $runningProcess->running();
+
+            $this->fail('The running callback failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($runningFailure, $exception);
+        }
+
+        $this->assertFalse($runningProcess->running());
+        $this->assertNull($runningProcess->id());
+        $this->assertSame(1, $runningInvocations);
+
+        $waitFailure = new RuntimeException('Wait callback failed.');
+        $waitInvocations = 0;
+        $waitProcess = $factory->start('wait-command');
+
+        try {
+            $waitProcess->wait(function () use ($waitFailure, &$waitInvocations): void {
+                ++$waitInvocations;
+
+                throw $waitFailure;
+            });
+
+            $this->fail('The wait callback failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($waitFailure, $exception);
+        }
+
+        $this->assertFalse($waitProcess->running());
+        $this->assertNull($waitProcess->id());
+        $this->assertSame(1, $waitInvocations);
+    }
+
+    public function testFakeInvokedProcessNormalizesCallableOutputHandlers(): void
+    {
+        $factory = new Factory;
+        $factory->fake(fn () => $factory->describe()
+            ->output('OUTPUT')
+            ->runsFor(iterations: 2));
+        $handler = new class {
+            /** @var list<array{string, string}> */
+            public array $received = [];
+
+            public function __invoke(string $type, string $buffer): void
+            {
+                $this->received[] = [$type, $buffer];
+            }
+        };
+        $runningProcess = $factory->start('running-command', $handler);
+
+        $this->assertTrue($runningProcess->running());
+        $runningProcess->stop(0);
+
+        $waitProcess = $factory->start('wait-command');
+        $waitProcess->wait($handler);
+
+        $this->assertSame([
+            ['out', "OUTPUT\n"],
+            ['out', "OUTPUT\n"],
+        ], $handler->received);
     }
 
     public function testFakeInvokedProcessWaitUntilWithNoCallback()
@@ -1154,6 +1617,30 @@ class ProcessTest extends TestCase
         $process = $factory->start('ls -la');
 
         $this->assertSame('ls -la', $process->command());
+    }
+
+    protected function stopProcess(InvokedProcessContract $process): ?int
+    {
+        return $process->stop(0);
+    }
+
+    protected function processIsRunning(int $processId): bool
+    {
+        return posix_kill($processId, 0);
+    }
+
+    protected function reapProcess(?int $processId, ?InvokedProcessContract $process = null): void
+    {
+        if ($processId !== null && $this->processIsRunning($processId)) {
+            posix_kill($processId, SIGKILL);
+        }
+
+        try {
+            $process?->stop(0);
+        } catch (Throwable) {
+        }
+
+        gc_collect_cycles();
     }
 
     protected function ls(): string

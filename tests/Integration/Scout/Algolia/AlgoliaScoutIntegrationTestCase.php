@@ -27,13 +27,7 @@ abstract class AlgoliaScoutIntegrationTestCase extends AlgoliaIntegrationTestCas
 
     protected function setUpInCoroutine(): void
     {
-        $this->initializeAlgolia();
         $this->engine = $this->app->make(EngineManager::class)->engine('algolia');
-    }
-
-    protected function tearDownInCoroutine(): void
-    {
-        $this->cleanupAlgoliaIndices();
     }
 
     protected function migrateFreshUsing(): array

@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Eloquent;
 
 use ArrayObject;
-use Carbon\Carbon;
-use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
@@ -114,22 +113,22 @@ class CastsTest extends DatabaseTestCase
 
     public function testDatetimeCast(): void
     {
-        $now = Carbon::now();
+        $now = CarbonImmutable::now();
         $model = CastModel::create(['name' => 'Test', 'published_at' => $now]);
 
-        $this->assertInstanceOf(CarbonInterface::class, $model->published_at);
+        $this->assertSame(CarbonImmutable::class, $model->published_at::class);
 
         $retrieved = CastModel::find($model->id);
-        $this->assertInstanceOf(CarbonInterface::class, $retrieved->published_at);
+        $this->assertSame(CarbonImmutable::class, $retrieved->published_at::class);
         $this->assertSame($now->format('Y-m-d H:i:s'), $retrieved->published_at->format('Y-m-d H:i:s'));
     }
 
     public function testDateCast(): void
     {
-        $date = Carbon::parse('1990-05-15');
+        $date = CarbonImmutable::parse('1990-05-15');
         $model = CastModel::create(['name' => 'Test', 'birth_date' => $date]);
 
-        $this->assertInstanceOf(CarbonInterface::class, $model->birth_date);
+        $this->assertSame(CarbonImmutable::class, $model->birth_date::class);
 
         $retrieved = CastModel::find($model->id);
         $this->assertSame('1990-05-15', $retrieved->birth_date->format('Y-m-d'));
@@ -139,7 +138,7 @@ class CastsTest extends DatabaseTestCase
     {
         $model = CastModel::create(['name' => 'Test', 'published_at' => '2024-01-15 10:30:00']);
 
-        $this->assertInstanceOf(CarbonInterface::class, $model->published_at);
+        $this->assertSame(CarbonImmutable::class, $model->published_at::class);
         $this->assertSame('2024-01-15', $model->published_at->format('Y-m-d'));
         $this->assertSame('10:30:00', $model->published_at->format('H:i:s'));
     }
@@ -148,8 +147,8 @@ class CastsTest extends DatabaseTestCase
     {
         $model = CastModel::create(['name' => 'Test']);
 
-        $this->assertInstanceOf(CarbonInterface::class, $model->created_at);
-        $this->assertInstanceOf(CarbonInterface::class, $model->updated_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
+        $this->assertSame(CarbonImmutable::class, $model->updated_at::class);
     }
 
     public function testEnumCast(): void
@@ -197,7 +196,7 @@ class CastsTest extends DatabaseTestCase
         $this->assertIsFloat($model->price);
         $this->assertIsBool($model->is_active);
         $this->assertIsArray($model->metadata);
-        $this->assertInstanceOf(CarbonInterface::class, $model->published_at);
+        $this->assertSame(CarbonImmutable::class, $model->published_at::class);
     }
 
     public function testArrayObjectCast(): void

@@ -31,7 +31,7 @@ class Watcher
         $driverFailure = null;
         $driverStarted = false;
         $exception = null;
-        $result = [];
+        $restartPending = false;
         $capture = static function (callable $callback) use (&$exception): void {
             try {
                 $callback();
@@ -49,38 +49,44 @@ class Watcher
                 } catch (Throwable $throwable) {
                     $driverFailure = $throwable;
                 } finally {
-                    $driverFinished->done();
+                    try {
+                        if (! $channel->isClosing()) {
+                            $channel->close();
+                        }
+                    } finally {
+                        $driverFinished->done();
+                    }
                 }
             });
             $driverStarted = true;
 
-            while ($driverFinished->count() > 0) {
-                $file = $channel->pop(0.001);
+            while (true) {
+                $file = $channel->pop($restartPending ? 0.001 : -1);
 
                 if ($file === false) {
-                    if ($result !== []) {
-                        $result = [];
+                    if ($channel->isTimeout()) {
+                        $restartPending = false;
                         $this->strategy?->restart();
+
+                        continue;
                     }
 
-                    continue;
+                    break;
+                }
+
+                if ($driverFailure !== null) {
+                    throw $driverFailure;
                 }
 
                 $this->output->writeln('<info>File changed:</info> ' . $file);
-                $result[] = $file;
+                $restartPending = true;
             }
 
             if ($driverFailure !== null) {
                 throw $driverFailure;
             }
 
-            while ($channel->getLength() > 0) {
-                $file = $channel->pop();
-                $this->output->writeln('<info>File changed:</info> ' . $file);
-                $result[] = $file;
-            }
-
-            if ($result !== []) {
+            if ($restartPending) {
                 $this->strategy?->restart();
             }
         } catch (Throwable $throwable) {

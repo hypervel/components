@@ -143,6 +143,61 @@ class SyncIndexSettingsCommandTest extends TestCase
         $this->assertSame(0, $result);
     }
 
+    public function testZeroDriverOptionIsNotReplacedByConfiguredDriver(): void
+    {
+        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+
+        $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('engine')
+            ->with('0')
+            ->once()
+            ->andReturn($engine);
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')
+            ->with('scout.0.index-settings', [])
+            ->andReturn([]);
+
+        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
+        $command->shouldReceive('option')
+            ->with('driver')
+            ->andReturn('0');
+        $command->shouldReceive('info')
+            ->once()
+            ->with('No index settings found for the "0" engine.');
+
+        $this->assertSame(0, $command->handle($manager, $config));
+    }
+
+    public function testEmptyDriverOptionUsesConfiguredDriver(): void
+    {
+        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+
+        $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('engine')
+            ->with('meilisearch')
+            ->once()
+            ->andReturn($engine);
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('string')
+            ->with('scout.driver')
+            ->andReturn('meilisearch');
+        $config->shouldReceive('array')
+            ->with('scout.meilisearch.index-settings', [])
+            ->andReturn([]);
+
+        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
+        $command->shouldReceive('option')
+            ->with('driver')
+            ->andReturn('');
+        $command->shouldReceive('info')
+            ->once()
+            ->with('No index settings found for the "meilisearch" engine.');
+
+        $this->assertSame(0, $command->handle($manager, $config));
+    }
+
     public function testIndexNameResolutionPrependsPrefix(): void
     {
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();

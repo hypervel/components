@@ -59,7 +59,7 @@ class Guard
             $guardName = self::getDefaultGuardNameProperty($class);
         }
 
-        if ($guardName) {
+        if ($guardName !== null && $guardName !== '') {
             return new Collection($guardName);
         }
 
@@ -167,6 +167,7 @@ class Guard
             })
             ->filter(fn ($model) => $class === $model)
             ->keys()
+            ->map(static fn (int|string $guard): string => (string) $guard)
             ->values()
             ->all());
     }
@@ -182,7 +183,7 @@ class Guard
 
         $provider = self::config()->get("auth.guards.{$guard}.provider");
 
-        if (! $provider) {
+        if ($provider === null || $provider === '') {
             return self::$modelsForGuards[$guard] = null;
         }
 
@@ -213,7 +214,9 @@ class Guard
             return $default;
         }
 
-        return $possibleGuards->first() ?: $default;
+        $first = $possibleGuards->first();
+
+        return $first === null || $first === '' ? $default : (string) $first;
     }
 
     /**
@@ -227,8 +230,7 @@ class Guard
             return null;
         }
 
-        /** @var string $passportGuard */
-        $passportGuard = $guards->keys()[0];
+        $passportGuard = (string) $guards->keys()[0];
 
         $authGuard = self::auth()->guard($passportGuard);
 
@@ -238,7 +240,7 @@ class Guard
 
         $client = $authGuard->client();
 
-        if (! $guard || ! $client) {
+        if ($guard === null || $guard === '' || ! $client) {
             return $client;
         }
 

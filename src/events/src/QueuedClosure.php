@@ -33,12 +33,14 @@ class QueuedClosure
     /**
      * The job "group" the job should be sent to.
      */
-    public ?string $messageGroup = null;
+    public int|string|null $messageGroup = null;
 
     /**
      * The job deduplicator callback the job should use to generate the deduplication ID.
+     *
+     * @var null|callable
      */
-    public ?SerializableClosure $deduplicator = null;
+    public mixed $deduplicator = null;
 
     /**
      * The number of seconds before the job should be made available.
@@ -63,7 +65,9 @@ class QueuedClosure
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = enum_value($connection);
+        $this->connection = $connection instanceof UnitEnum
+            ? (string) enum_value($connection)
+            : $connection;
 
         return $this;
     }
@@ -73,7 +77,9 @@ class QueuedClosure
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->queue = enum_value($queue);
+        $this->queue = $queue instanceof UnitEnum
+            ? (string) enum_value($queue)
+            : $queue;
 
         return $this;
     }
@@ -141,7 +147,7 @@ class QueuedClosure
                 ->onQueue($this->queue)
                 ->delay($this->delay)
                 ->onGroup($this->messageGroup)
-                ->withDeduplicator($this->deduplicator?->getClosure());
+                ->withDeduplicator($this->deduplicator);
         };
     }
 }

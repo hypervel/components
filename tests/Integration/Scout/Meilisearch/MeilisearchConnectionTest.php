@@ -11,11 +11,6 @@ use Hypervel\Tests\Support\MeilisearchIntegrationTestCase;
  */
 class MeilisearchConnectionTest extends MeilisearchIntegrationTestCase
 {
-    protected function setUpInCoroutine(): void
-    {
-        $this->initializeMeilisearch();
-    }
-
     public function testCanConnectToMeilisearch(): void
     {
         $health = $this->meilisearch->health();

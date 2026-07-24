@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bus;
 
-use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DebounceLock;
+use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Queue\PreparesForDispatch;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
-use Hypervel\Foundation\Queue\InteractsWithUniqueJobs;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Support\Traits\Conditionable;
@@ -24,7 +23,6 @@ use UnitEnum;
 class PendingDispatch
 {
     use Conditionable;
-    use InteractsWithUniqueJobs;
     use ReadsQueueAttributes;
 
     /**
@@ -65,7 +63,7 @@ class PendingDispatch
      *
      * This feature is only supported by some queues, such as Amazon SQS.
      */
-    public function onGroup(UnitEnum|string|null $group): static
+    public function onGroup(array|UnitEnum|string|int|null $group): static
     {
         if (! is_null($group)) {
             $this->job->onGroup($group);
@@ -79,7 +77,7 @@ class PendingDispatch
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
      */
-    public function withDeduplicator(?Closure $deduplicator): static
+    public function withDeduplicator(array|callable|null $deduplicator): static
     {
         $this->job->withDeduplicator($deduplicator);
 
@@ -159,9 +157,9 @@ class PendingDispatch
     /**
      * Indicate that the job should be dispatched after the response is sent to the browser.
      */
-    public function afterResponse(): static
+    public function afterResponse(bool $afterResponse = true): static
     {
-        $this->afterResponse = true;
+        $this->afterResponse = $afterResponse;
 
         return $this;
     }
@@ -237,12 +235,12 @@ class PendingDispatch
      */
     public function __destruct()
     {
-        $this->addUniqueJobInformationToContext($this->job);
-
         if (! $this->shouldDispatch()) {
-            $this->removeUniqueJobInformationFromContext($this->job);
-
             return;
+        }
+
+        if ($this->job instanceof ShouldBeUnique) {
+            UniqueJobPayloadContext::register($this->job);
         }
 
         $this->acquireDebounceLock();
@@ -256,7 +254,5 @@ class PendingDispatch
                 ->make(Dispatcher::class)
                 ->dispatch($this->job);
         }
-
-        $this->removeUniqueJobInformationFromContext($this->job);
     }
 }

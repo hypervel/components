@@ -8,6 +8,7 @@ use Hypervel\Encryption\Commands\KeyGenerateCommand;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Laravel\SerializableClosure\SerializableClosure;
+use SensitiveParameter;
 
 class EncryptionServiceProvider extends ServiceProvider
 {
@@ -34,7 +35,7 @@ class EncryptionServiceProvider extends ServiceProvider
 
             return (new Encrypter($this->parseKey($config), $config['cipher']))
                 ->previousKeys(array_map(
-                    fn ($key) => $this->parseKey(['key' => $key]),
+                    fn (#[SensitiveParameter] string $key) => $this->parseKey(['key' => $key]),
                     $config['previous_keys'] ?? []
                 ));
         });
@@ -47,17 +48,19 @@ class EncryptionServiceProvider extends ServiceProvider
     {
         $config = $this->app->make('config')->array('app');
 
-        if (! class_exists(SerializableClosure::class) || empty($config['key'])) {
+        if (! class_exists(SerializableClosure::class)) {
             return;
         }
 
-        SerializableClosure::setSecretKey($this->parseKey($config));
+        SerializableClosure::setSecretKey(
+            empty($config['key']) ? null : $this->parseKey($config)
+        );
     }
 
     /**
      * Parse the encryption key.
      */
-    protected function parseKey(array $config): string
+    protected function parseKey(#[SensitiveParameter] array $config): string
     {
         if (Str::startsWith($key = $this->key($config), $prefix = 'base64:')) {
             $key = base64_decode(Str::after($key, $prefix));
@@ -71,7 +74,7 @@ class EncryptionServiceProvider extends ServiceProvider
      *
      * @throws \Hypervel\Encryption\MissingAppKeyException
      */
-    protected function key(array $config): string
+    protected function key(#[SensitiveParameter] array $config): string
     {
         return tap($config['key'], function ($key) {
             if (empty($key)) {

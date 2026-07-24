@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Broadcasting;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
-use TypeError;
 
 enum InteractsWithBroadcastingTestConnectionStringEnum: string
 {
@@ -32,11 +32,6 @@ enum InteractsWithBroadcastingTestConnectionUnitEnum
 
 class InteractsWithBroadcastingTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-    }
-
     public function testBroadcastViaAcceptsStringBackedEnum(): void
     {
         $event = new TestBroadcastingEvent;
@@ -55,14 +50,26 @@ class InteractsWithBroadcastingTest extends TestCase
         $this->assertSame(['redis'], $event->broadcastConnections());
     }
 
-    public function testBroadcastViaWithIntBackedEnumStoresIntValue(): void
+    public function testBroadcastViaNormalizesIntegerBackedEnums(): void
     {
         $event = new TestBroadcastingEvent;
 
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
 
-        // Int value is stored as-is (no cast to string) - will fail downstream if string expected
-        $this->assertSame([1], $event->broadcastConnections());
+        $this->assertSame(['1'], $event->broadcastConnections());
+    }
+
+    public function testBroadcastViaNormalizesEveryArrayConnection(): void
+    {
+        $event = new TestBroadcastingEvent;
+
+        $event->broadcastVia([
+            InteractsWithBroadcastingTestConnectionIntEnum::Connection2,
+            InteractsWithBroadcastingTestConnectionUnitEnum::ably,
+            'custom',
+        ]);
+
+        $this->assertSame(['2', 'ably', 'custom'], $event->broadcastConnections());
     }
 
     public function testBroadcastViaAcceptsNull(): void
@@ -92,16 +99,18 @@ class InteractsWithBroadcastingTest extends TestCase
         $this->assertSame($event, $result);
     }
 
-    public function testBroadcastWithIntBackedEnumThrowsTypeErrorAtBroadcastTime(): void
+    public function testBroadcastWithIntegerBackedEnumUsesNormalizedConnection(): void
     {
         $event = new TestBroadcastableEvent;
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
 
         $broadcastEvent = new BroadcastEvent($event);
         $manager = m::mock(BroadcastingFactory::class);
+        $broadcaster = m::mock(Broadcaster::class);
 
-        // TypeError is thrown when BroadcastManager::connection() receives int instead of ?string
-        $this->expectException(TypeError::class);
+        $manager->shouldReceive('connection')->once()->with('1')->andReturn($broadcaster);
+        $broadcaster->shouldReceive('broadcast')->once();
+
         $broadcastEvent->handle($manager);
     }
 }

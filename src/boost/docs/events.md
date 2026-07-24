@@ -117,6 +117,34 @@ php artisan event:list
 
 To give your application a speed boost, you should cache a manifest of all of your application's listeners using the `optimize` or `event:cache` Artisan commands. Typically, this command should be run as part of your application's [deployment process](/docs/{{version}}/deployment#optimization). This manifest will be used by the framework to speed up the event registration process. The `event:clear` command may be used to destroy the event cache.
 
+<a name="dynamic-event-discovery"></a>
+#### Dynamic Event Discovery
+
+To dynamically control whether a given listener is discovered, you may implement the `ShouldBeDiscovered` interface on the listener class and define a `shouldBeDiscovered` method that returns a boolean value. If the method returns `false`, the listener will not be registered during event discovery:
+
+```php
+use Hypervel\Contracts\Events\ShouldBeDiscovered;
+
+class SendPodcastNotification implements ShouldBeDiscovered
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(PodcastProcessed $event): void
+    {
+        // ...
+    }
+
+    /**
+     * Determine if the listener should be discovered.
+     */
+    public static function shouldBeDiscovered(): bool
+    {
+        return app()->environment('production');
+    }
+}
+```
+
 <a name="manually-registering-events"></a>
 ### Manually Registering Events
 
@@ -763,7 +791,7 @@ class SendShipmentNotification implements ShouldQueue
 }
 ```
 
-If you require more complex logic for determining the listeners's backoff time, you may define a `backoff` method on your listener class:
+If you require more complex logic for determining the listener's backoff time, you may define a `backoff` method on your listener class:
 
 ```php
 /**
@@ -788,6 +816,8 @@ public function backoff(OrderShipped $event): array
     return [1, 5, 10];
 }
 ```
+
+You may also declare the sequence directly on the listener using either `#[Backoff([1, 5, 10])]` or `#[Backoff(1, 5, 10)]`.
 
 <a name="specifying-queued-listener-max-exceptions"></a>
 #### Specifying Queued Listener Max Exceptions

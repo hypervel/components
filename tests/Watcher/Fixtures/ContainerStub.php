@@ -14,6 +14,7 @@ class ContainerStub
     {
         $logger = m::mock(StdoutLoggerInterface::class);
         $logger->shouldReceive('debug')->andReturn(null);
+        $logger->shouldReceive('warning')->andReturn(null);
         $logger->shouldReceive('log')->andReturn(null);
 
         return $logger;

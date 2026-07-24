@@ -38,15 +38,15 @@ class SchemaConfigTest extends TestCase
         ]);
     }
 
-    public function testForbiddenPermissionUpdatesExistingCustomKeyAssignmentEdge(): void
+    public function testDeniedPermissionUpdatesExistingCustomKeyAssignmentEdge(): void
     {
         $this->testUser->givePermissionTo('edit-articles');
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         $this->testUser->refresh();
 
         $this->assertSame(1, $this->testUser->permissions()->count());
-        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermission('edit-articles'));
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
     }
 }

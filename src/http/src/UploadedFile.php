@@ -129,4 +129,12 @@ class UploadedFile extends SymfonyUploadedFile
 
         return $options;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

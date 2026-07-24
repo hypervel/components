@@ -11,25 +11,35 @@ use Hypervel\Contracts\Log\ContextLogProcessor;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Context\ResolvedContextLogProcessor;
+use Hypervel\Log\Handlers\FingersCrossedHandler;
+use Hypervel\Log\Handlers\RotatingFileHandler;
+use Hypervel\Log\Handlers\StreamHandler;
+use Hypervel\Log\Processors\UidProcessor;
 use Hypervel\Support\Collection;
+use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
-use Monolog\Handler\FingersCrossedHandler;
 use Monolog\Handler\FormattableHandlerInterface;
 use Monolog\Handler\HandlerInterface;
-use Monolog\Handler\RotatingFileHandler;
+use Monolog\Handler\RotatingFileHandler as MonologRotatingFileHandler;
 use Monolog\Handler\SlackWebhookHandler;
-use Monolog\Handler\StreamHandler;
+use Monolog\Handler\StreamHandler as MonologStreamHandler;
 use Monolog\Handler\SyslogHandler;
 use Monolog\Handler\WhatFailureGroupHandler;
 use Monolog\Logger as Monolog;
 use Monolog\Processor\ProcessorInterface;
 use Monolog\Processor\PsrLogMessageProcessor;
+use Monolog\Processor\UidProcessor as MonologUidProcessor;
 use Psr\Log\LoggerInterface;
+use ReflectionException;
+use RuntimeException;
 use Stringable;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Log\Logger
@@ -37,6 +47,7 @@ use Throwable;
 class LogManager implements LoggerInterface
 {
     use ParsesLogConfiguration;
+    use RebindsCallbacksToSelf;
 
     /**
      * Context key for shared log context across channels.
@@ -71,9 +82,7 @@ class LogManager implements LoggerInterface
      */
     public function build(array $config): LoggerInterface
     {
-        unset($this->channels['ondemand']);
-
-        return $this->get('ondemand', $config);
+        return $this->createLogger('ondemand', $config);
     }
 
     /**
@@ -81,7 +90,10 @@ class LogManager implements LoggerInterface
      */
     public function stack(array $channels, ?string $channel = null): LoggerInterface
     {
-        $monolog = $this->createStackDriver(compact('channels', 'channel'));
+        $monolog = $this->createStackDriver([
+            'channels' => $channels,
+            'name' => $channel,
+        ]);
 
         // On-demand stacks bypass get(), so push the propagated context
         // processor here to ensure it's present on every final logger.
@@ -98,7 +110,7 @@ class LogManager implements LoggerInterface
     /**
      * Get a log channel instance.
      */
-    public function channel(?string $channel = null): LoggerInterface
+    public function channel(UnitEnum|string|null $channel = null): LoggerInterface
     {
         return $this->driver($channel);
     }
@@ -106,8 +118,12 @@ class LogManager implements LoggerInterface
     /**
      * Get a log driver instance.
      */
-    public function driver(?string $driver = null): LoggerInterface
+    public function driver(UnitEnum|string|null $driver = null): LoggerInterface
     {
+        if ($driver instanceof UnitEnum) {
+            $driver = (string) enum_value($driver);
+        }
+
         return $this->get($this->parseDriver($driver));
     }
 
@@ -116,23 +132,41 @@ class LogManager implements LoggerInterface
      */
     protected function get(?string $name, ?array $config = null): LoggerInterface
     {
+        if (isset($this->channels[$name])) {
+            return $this->channels[$name];
+        }
+
+        return $this->createLogger($name, $config, true);
+    }
+
+    /**
+     * Create a configured logger, optionally retaining a named channel.
+     */
+    protected function createLogger(?string $name, ?array $config = null, bool $cache = false): LoggerInterface
+    {
         try {
-            return $this->channels[$name] ?? with($this->resolve($name, $config), function ($logger) use ($name) {
-                $loggerWithContext = $this->tap(
-                    $name,
-                    new Logger($logger, $this->app['events'])
-                )->withContext($this->sharedContext());
+            $config ??= $this->configurationFor($name);
 
-                // Push the context processor so log records automatically
-                // include data from the context repository.
-                $underlyingLogger = $loggerWithContext->getLogger();
+            if ($config === null) {
+                throw new InvalidArgumentException("Log [{$name}] is not defined.");
+            }
 
-                if (method_exists($underlyingLogger, 'pushProcessor')) {
-                    $underlyingLogger->pushProcessor($this->makeContextProcessor()); // @phpstan-ignore method.notFound
-                }
+            $logger = $this->tap(
+                $config,
+                new Logger($this->resolve($name, $config), $this->app['events'])
+            )->withContext($this->sharedContext());
 
-                return $this->channels[$name] = $loggerWithContext;
-            });
+            $underlyingLogger = $logger->getLogger();
+
+            if (method_exists($underlyingLogger, 'pushProcessor')) {
+                $underlyingLogger->pushProcessor($this->makeContextProcessor()); // @phpstan-ignore method.notFound
+            }
+
+            if ($cache) {
+                $this->channels[$name] = $logger;
+            }
+
+            return $logger;
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
                 $logger->emergency('Unable to create configured logger. Using emergency logger.', [
@@ -145,9 +179,9 @@ class LogManager implements LoggerInterface
     /**
      * Apply the configured taps for the logger.
      */
-    protected function tap(string $name, Logger $logger): Logger
+    protected function tap(array $config, Logger $logger): Logger
     {
-        foreach ($this->configurationFor($name)['tap'] ?? [] as $tap) {
+        foreach ($config['tap'] ?? [] as $tap) {
             [$class, $arguments] = $this->parseTap($tap);
 
             $this->app->make($class)->__invoke($logger, ...explode(',', $arguments));
@@ -187,14 +221,8 @@ class LogManager implements LoggerInterface
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(?string $name, ?array $config = null): LoggerInterface
+    protected function resolve(?string $name, array $config): LoggerInterface
     {
-        $config ??= $this->configurationFor($name);
-
-        if (is_null($config)) {
-            throw new InvalidArgumentException("Log [{$name}] is not defined.");
-        }
-
         if (isset($this->customCreators[$config['driver']])) {
             return $this->callCustomCreator($config);
         }
@@ -370,13 +398,28 @@ class LogManager implements LoggerInterface
             $config['handler_with'] ?? []
         );
 
+        $handlerClass = match ($config['handler']) {
+            MonologStreamHandler::class => StreamHandler::class,
+            MonologRotatingFileHandler::class => RotatingFileHandler::class,
+            default => $config['handler'],
+        };
+
         $handler = $this->prepareHandler(
-            $this->app->make($config['handler'], $with),
+            $this->app->make($handlerClass, $with),
             $config
         );
 
         $processors = Collection::make($config['processors'] ?? [])
-            ->map(fn ($processor) => $this->app->make($processor['processor'] ?? $processor, $processor['with'] ?? []))
+            ->map(function ($processor) {
+                $resolved = $this->app->make(
+                    $processor['processor'] ?? $processor,
+                    $processor['with'] ?? []
+                );
+
+                return get_class($resolved) === MonologUidProcessor::class
+                    ? new UidProcessor(strlen($resolved->getUid()))
+                    : $resolved;
+            })
             ->toArray();
 
         return new Monolog(
@@ -514,7 +557,7 @@ class LogManager implements LoggerInterface
     /**
      * Get the log connection configuration.
      */
-    protected function configurationFor(string $name): ?array
+    protected function configurationFor(?string $name): ?array
     {
         return $this->app->make('config')->get("logging.channels.{$name}");
     }
@@ -532,8 +575,12 @@ class LogManager implements LoggerInterface
      *
      * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $this->app->make('config')->set('logging.default', $name);
     }
 
@@ -547,7 +594,14 @@ class LogManager implements LoggerInterface
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$driver] = $callback;
 
         return $this;
     }

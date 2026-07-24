@@ -7,6 +7,7 @@ namespace Hypervel\Support;
 use Closure;
 use Composer\Autoload\ClassLoader;
 use Hypervel\Filesystem\Filesystem;
+use JsonException;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Process;
@@ -44,11 +45,12 @@ class Composer
     /**
      * Determine if the given Composer package is installed.
      *
+     * @throws JsonException
      * @throws RuntimeException
      */
     public function hasPackage(string $package): bool
     {
-        $composer = json_decode(file_get_contents($this->findComposerFile()), true);
+        $composer = json_decode($this->files->get($this->findComposerFile()), true, 512, JSON_THROW_ON_ERROR);
 
         return array_key_exists($package, $composer['require'] ?? [])
             || array_key_exists($package, $composer['require-dev'] ?? []);
@@ -107,22 +109,24 @@ class Composer
     /**
      * Modify the "composer.json" file contents using the given callback.
      *
-     * @param callable(array): array $callback
+     * @param callable(array<string, mixed>): array<string, mixed> $callback
      *
+     * @throws JsonException
      * @throws RuntimeException
      */
     public function modify(callable $callback): void
     {
         $composerFile = $this->findComposerFile();
 
-        $composer = json_decode(file_get_contents($composerFile), true, 512, JSON_THROW_ON_ERROR);
+        $composer = json_decode($this->files->get($composerFile), true, 512, JSON_THROW_ON_ERROR);
 
-        file_put_contents(
+        $this->files->replace(
             $composerFile,
             json_encode(
                 call_user_func($callback, $composer),
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-            )
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            ),
+            $this->fileMode($composerFile),
         );
     }
 
@@ -170,11 +174,27 @@ class Composer
     {
         $composerFile = "{$this->workingPath}/composer.json";
 
-        if (! file_exists($composerFile)) {
+        if (! $this->files->exists($composerFile)) {
             throw new RuntimeException("Unable to locate `composer.json` file at [{$this->workingPath}].");
         }
 
         return $composerFile;
+    }
+
+    /**
+     * Get the basic permission bits for the Composer file.
+     */
+    protected function fileMode(string $path): int
+    {
+        clearstatcache(true, $path);
+
+        $mode = @fileperms($path);
+
+        if ($mode === false) {
+            throw new RuntimeException("Unable to read permissions for Composer file [{$path}].");
+        }
+
+        return $mode & 0777;
     }
 
     /**

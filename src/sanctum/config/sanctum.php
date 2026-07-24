@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'stateful_domains' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
+    'stateful_domains' => explode(',', (string) env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s',
         'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
         env('APP_URL') ? ',' . parse_url(env('APP_URL'), PHP_URL_HOST) : ''
@@ -32,6 +32,18 @@ return [
     */
 
     'expiration' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Last Used Timestamp
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Sanctum records the time a personal access token last
+    | completed authentication successfully.
+    |
+    */
+
+    'last_used_at' => env('SANCTUM_LAST_USED_AT', true),
 
     /*
     |--------------------------------------------------------------------------

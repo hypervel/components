@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Hypervel\Bus\Events\BatchCanceled;
 use Hypervel\Bus\Events\BatchFinished;
+use Hypervel\Bus\Events\BatchStarted;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Arr;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use JsonSerializable;
@@ -65,10 +66,17 @@ class Batch implements Arrayable, JsonSerializable
 
                 $chain = $this->prepareBatchedChain($job);
 
-                return $chain->first()
-                    ->allOnQueue($this->options['queue'] ?? null)
-                    ->allOnConnection($this->options['connection'] ?? null)
-                    ->chain($chain->slice(1)->values()->all());
+                $first = $chain->first();
+
+                if (isset($this->options['queue'])) {
+                    $first->allOnQueue($this->options['queue']);
+                }
+
+                if (isset($this->options['connection'])) {
+                    $first->allOnConnection($this->options['connection']);
+                }
+
+                return $first->chain($chain->slice(1)->values()->all());
             }
             $job->withBatchId($this->id);
 
@@ -127,6 +135,22 @@ class Batch implements Arrayable, JsonSerializable
     {
         $counts = $this->decrementPendingJobs($jobId);
 
+        if ($counts === null) {
+            return;
+        }
+
+        if ($this->isFirstJobProcessed($counts)) {
+            $container = Container::getInstance();
+
+            if ($container->bound(Dispatcher::class)) {
+                $events = $container->make(Dispatcher::class);
+
+                if ($events->hasListeners(BatchStarted::class)) {
+                    $events->dispatch(new BatchStarted($this));
+                }
+            }
+        }
+
         if ($this->hasProgressCallbacks()) {
             $this->invokeCallbacks('progress');
         }
@@ -137,7 +161,11 @@ class Batch implements Arrayable, JsonSerializable
             $container = Container::getInstance();
 
             if ($container->bound(Dispatcher::class)) {
-                $container->make(Dispatcher::class)->dispatch(new BatchFinished($this));
+                $events = $container->make(Dispatcher::class);
+
+                if ($events->hasListeners(BatchFinished::class)) {
+                    $events->dispatch(new BatchFinished($this));
+                }
             }
         }
 
@@ -153,7 +181,7 @@ class Batch implements Arrayable, JsonSerializable
     /**
      * Decrement the pending jobs for the batch.
      */
-    public function decrementPendingJobs(string $jobId): UpdatedBatchJobCounts
+    public function decrementPendingJobs(string $jobId): ?UpdatedBatchJobCounts
     {
         return $this->repository->decrementPendingJobs($this->id, $jobId);
     }
@@ -164,6 +192,10 @@ class Batch implements Arrayable, JsonSerializable
     protected function invokeCallbacks(string $type, ?Throwable $e = null): void
     {
         $batch = $this->fresh();
+
+        if ($batch === null) {
+            return;
+        }
 
         foreach ($this->options[$type] ?? [] as $handler) {
             $this->invokeHandlerCallback($handler, $batch, $e);
@@ -217,8 +249,24 @@ class Batch implements Arrayable, JsonSerializable
     {
         $counts = $this->incrementFailedJobs($jobId);
 
+        if ($counts === null) {
+            return;
+        }
+
+        if ($this->isFirstJobProcessed($counts)) {
+            $container = Container::getInstance();
+
+            if ($container->bound(Dispatcher::class)) {
+                $events = $container->make(Dispatcher::class);
+
+                if ($events->hasListeners(BatchStarted::class)) {
+                    $events->dispatch(new BatchStarted($this));
+                }
+            }
+        }
+
         if ($counts->failedJobs === 1 && ! $this->allowsFailures()) {
-            $this->cancel();
+            $this->cancel($e);
         }
 
         if ($this->allowsFailures()) {
@@ -243,9 +291,17 @@ class Batch implements Arrayable, JsonSerializable
     /**
      * Increment the failed jobs for the batch.
      */
-    public function incrementFailedJobs(string $jobId): UpdatedBatchJobCounts
+    public function incrementFailedJobs(string $jobId): ?UpdatedBatchJobCounts
     {
         return $this->repository->incrementFailedJobs($this->id, $jobId);
+    }
+
+    /**
+     * Determine if this is the first job processed in the batch.
+     */
+    protected function isFirstJobProcessed(UpdatedBatchJobCounts $counts): bool
+    {
+        return $this->totalJobs - $counts->pendingJobs + $counts->failedJobs === 1;
     }
 
     /**
@@ -275,14 +331,18 @@ class Batch implements Arrayable, JsonSerializable
     /**
      * Cancel the batch.
      */
-    public function cancel(): void
+    public function cancel(?Throwable $exception = null): void
     {
         $this->repository->cancel($this->id);
 
         $container = Container::getInstance();
 
         if ($container->bound(Dispatcher::class)) {
-            $container->make(Dispatcher::class)->dispatch(new BatchCanceled($this));
+            $events = $container->make(Dispatcher::class);
+
+            if ($events->hasListeners(BatchCanceled::class)) {
+                $events->dispatch(new BatchCanceled($this, $exception));
+            }
         }
     }
 

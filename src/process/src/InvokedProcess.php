@@ -6,12 +6,17 @@ namespace Hypervel\Process;
 
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
+use Hypervel\Support\Traits\Macroable;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 
 class InvokedProcess implements InvokedProcessContract
 {
+    use GuardsProcessOutput;
+    use Macroable;
+
     /**
      * Create a new invoked process instance.
      *
@@ -117,7 +122,7 @@ class InvokedProcess implements InvokedProcessContract
     public function wait(?callable $output = null): ProcessResultContract
     {
         try {
-            $this->process->wait($output);
+            $this->process->wait($this->guardProcessOutput($this->process, $output));
 
             return new ProcessResult($this->process);
         } catch (SymfonyTimeoutException $e) {
@@ -132,12 +137,24 @@ class InvokedProcess implements InvokedProcessContract
      */
     public function waitUntil(?callable $output = null): ProcessResultContract
     {
+        if ($output === null) {
+            return $this->wait();
+        }
+
         try {
-            $this->process->waitUntil($output);
+            $this->process->waitUntil($this->guardProcessOutput($this->process, $output));
 
             return new ProcessResult($this->process);
         } catch (SymfonyTimeoutException $e) {
             throw new ProcessTimedOutException($e, new ProcessResult($this->process));
         }
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

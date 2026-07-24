@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Transport;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Sentry\HttpClient\HttpClient;
@@ -21,10 +20,9 @@ class Pool extends ObjectPool
 {
     public function __construct(
         protected Options $sentryOptions,
-        Container $container,
         PoolOptions $poolOptions,
     ) {
-        parent::__construct($container, $poolOptions);
+        parent::__construct($poolOptions);
     }
 
     protected function createObject(): HttpTransport

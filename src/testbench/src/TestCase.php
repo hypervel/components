@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
+use Closure;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 use Hypervel\Testbench\Pest\WithPest;
+use RuntimeException;
 use Swoole\Timer;
+use Throwable;
 
 /**
  * Base test case for package testing with testbench features.
@@ -68,13 +72,66 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             $this->setUpApplicationRoutes($this->app);
         });
 
-        parent::setUp();
+        /* @phpstan-ignore class.notFound */
+        if (static::usesTestingConcern(WithPest::class)) {
+            $this->setUpTheEnvironmentUsingPest(); /* @phpstan-ignore method.notFound */
+        }
 
-        $this->baseUrl = config('app.url', 'http://localhost');
+        $setupHasRun = false;
+        $setup = function () use (&$setupHasRun): void {
+            if ($setupHasRun) {
+                return;
+            }
 
-        // Execute BeforeEach attributes INSIDE coroutine context
-        // (matches where setUpTraits runs in Foundation TestCase)
-        $this->runInCoroutine(fn () => $this->setUpTheTestEnvironmentUsingTestCase());
+            $setupHasRun = true;
+
+            parent::setUp();
+
+            $this->preservePackageManifestCache();
+
+            $this->baseUrl = config('app.url', 'http://localhost');
+
+            // Execute BeforeEach attributes INSIDE coroutine context
+            // (matches where setUpTraits runs in Foundation TestCase)
+            $this->runInCoroutine(fn () => $this->setUpTheTestEnvironmentUsingTestCase());
+        };
+
+        if ($this->testCaseSetUpCallback instanceof Closure) {
+            ($this->testCaseSetUpCallback)($setup);
+        }
+
+        if (! $setupHasRun) {
+            $setup();
+        }
+    }
+
+    /**
+     * Preserve the package manifest cache for the duration of the test.
+     */
+    protected function preservePackageManifestCache(): void
+    {
+        $files = new Filesystem;
+        $path = $this->app->getCachedPackagesPath();
+        $existed = $files->isFile($path);
+        $contents = $existed ? $files->get($path) : '';
+
+        $this->beforeApplicationDestroyed(static function () use ($files, $path, $existed, $contents): void {
+            $exists = $files->isFile($path);
+
+            if (! $existed) {
+                if ($exists && ! $files->delete($path) && $files->isFile($path)) {
+                    throw new RuntimeException("Unable to delete the test-owned package manifest cache [{$path}].");
+                }
+
+                return;
+            }
+
+            if ($exists && $files->get($path) === $contents) {
+                return;
+            }
+
+            $files->replace($path, $contents);
+        });
     }
 
     /**
@@ -119,10 +176,66 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             return;
         }
 
-        // Execute AfterEach attributes INSIDE coroutine context
-        $this->runInCoroutine(fn () => $this->tearDownTheTestEnvironmentUsingTestCase());
+        $exception = null;
 
-        parent::tearDown();
+        /* @phpstan-ignore class.notFound */
+        if (static::usesTestingConcern(WithPest::class)) {
+            try {
+                $this->tearDownTheEnvironmentUsingPest(); /* @phpstan-ignore method.notFound */
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+        }
+
+        $teardownHasRun = false;
+        $teardown = function () use (&$teardownHasRun): void {
+            if ($teardownHasRun) {
+                return;
+            }
+
+            $teardownHasRun = true;
+            $exception = null;
+
+            try {
+                // Execute AfterEach attributes INSIDE coroutine context.
+                $this->runInCoroutine(fn () => $this->tearDownTheTestEnvironmentUsingTestCase());
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+
+            try {
+                parent::tearDown();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
+        };
+
+        try {
+            ($this->testCaseTearDownCallback ?? static function (Closure $parent): void {
+                $parent();
+            })($teardown);
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if (! $teardownHasRun) {
+            try {
+                $teardown();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        $this->testCaseSetUpCallback = null;
+        $this->testCaseTearDownCallback = null;
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -145,13 +258,31 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     public static function tearDownAfterClass(): void
     {
-        static::tearDownAfterClassUsingTestCase();
+        $exception = null;
+
+        try {
+            static::tearDownAfterClassUsingTestCase();
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
 
         /* @phpstan-ignore class.notFound */
         if (static::usesTestingConcern(WithPest::class)) {
-            static::tearDownAfterClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
+            try {
+                static::tearDownAfterClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
         }
 
-        static::tearDownAfterClassUsingPHPUnit();
+        try {
+            static::tearDownAfterClassUsingPHPUnit();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 }

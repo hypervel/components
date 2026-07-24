@@ -135,6 +135,51 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertSame($command, $app->get('test:attributed'));
     }
 
+    public function testResolveCommandsAcceptsOneArray(): void
+    {
+        $app = $this->createApp();
+
+        $app->resolveCommands([
+            StubAttributedCommand::class,
+            StubSignatureCommand::class,
+        ]);
+
+        $map = $this->getCommandMap($app);
+        $this->assertArrayHasKey('test:attributed', $map);
+        $this->assertArrayHasKey('test:signed', $map);
+    }
+
+    public function testResolveCommandsAcceptsMultipleScalarCommands(): void
+    {
+        $app = $this->createApp();
+
+        $app->resolveCommands(
+            StubAttributedCommand::class,
+            StubSignatureCommand::class,
+        );
+
+        $map = $this->getCommandMap($app);
+        $this->assertArrayHasKey('test:attributed', $map);
+        $this->assertArrayHasKey('test:signed', $map);
+    }
+
+    public function testResolveCommandsAcceptsMixedAndMultipleArrays(): void
+    {
+        $app = $this->createApp();
+
+        $app->resolveCommands(
+            [StubAttributedCommand::class],
+            StubSignatureCommand::class,
+            [StubNamedCommand::class, StubLateCommand::class],
+        );
+
+        $map = $this->getCommandMap($app);
+        $this->assertArrayHasKey('test:attributed', $map);
+        $this->assertArrayHasKey('test:signed', $map);
+        $this->assertArrayHasKey('test:named', $map);
+        $this->assertArrayHasKey('test:late', $map);
+    }
+
     // ---------------------------------------------------------------
     // Loader refresh
     // ---------------------------------------------------------------
@@ -170,7 +215,7 @@ class ConsoleApplicationResolveTest extends TestCase
     }
 
     // ---------------------------------------------------------------
-    // addCommand (container propagation)
+    // add (container propagation)
     // ---------------------------------------------------------------
 
     public function testAddCommandSetsHypervelOnHypervelCommands()

@@ -16,9 +16,10 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 use function Hypervel\Coroutine\run;
 
@@ -40,6 +41,42 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__background.test'][1]);
+    }
+
+    public function testPushSnapshotsMutableJobBeforeBackgroundExecution(): void
+    {
+        BackgroundQueueSnapshotHandler::$receivedValue = null;
+        $data = (object) ['value' => 'before'];
+        $background = new BackgroundQueue;
+        $background->setConnectionName('background');
+        $background->setContainer($this->getContainer());
+
+        run(function () use ($background, $data): void {
+            $background->push(BackgroundQueueSnapshotHandler::class, $data);
+            $data->value = 'after';
+        });
+
+        $this->assertSame('before', BackgroundQueueSnapshotHandler::$receivedValue);
+    }
+
+    public function testPushReportsSerializationFailuresSynchronously(): void
+    {
+        $exceptionHandled = false;
+        $background = new BackgroundQueue;
+        $background->setExceptionCallback(function () use (&$exceptionHandled): void {
+            $exceptionHandled = true;
+        });
+        $background->setConnectionName('background');
+        $background->setContainer($this->getContainer());
+
+        try {
+            $background->push(new UnserializableBackgroundQueueJob);
+            $this->fail('Expected job serialization to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Failed to serialize job', $exception->getMessage());
+        }
+
+        $this->assertFalse($exceptionHandled);
     }
 
     public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
@@ -159,8 +196,68 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__background.later.test'][1]);
     }
 
+    public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(): void
+    {
+        $scheduled = null;
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(5.0, m::type('Closure'))
+            ->andReturnUsing(function ($delay, $callback) use (&$scheduled) {
+                $scheduled = $callback;
+
+                return 1;
+            });
+
+        BackgroundQueueSnapshotHandler::$receivedValue = null;
+        $data = (object) ['value' => 'before'];
+        $background = new BackgroundQueue(timer: $timer);
+        $background->setConnectionName('background');
+        $background->setContainer($this->getContainer());
+
+        run(function () use ($background, $data, &$scheduled): void {
+            $background->later(5, BackgroundQueueSnapshotHandler::class, $data);
+            $data->value = 'after';
+            $scheduled();
+        });
+
+        $this->assertSame('before', BackgroundQueueSnapshotHandler::$receivedValue);
+    }
+
+    public function testPushSnapshotsAfterCommitJobWhenTheTransactionCommits(): void
+    {
+        $afterCommit = null;
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->andReturnUsing(function ($callback) use (&$afterCommit) {
+                $afterCommit = $callback;
+
+                return null;
+            });
+        $container->instance('db.transactions', $transactionManager);
+
+        BackgroundQueueSnapshotHandler::$receivedValue = null;
+        $data = (object) ['value' => 'before'];
+        $background = new BackgroundQueue(dispatchAfterCommit: true);
+        $background->setConnectionName('background');
+        $background->setContainer($container);
+
+        run(function () use ($background, $data, &$afterCommit): void {
+            $background->push(BackgroundQueueSnapshotHandler::class, $data);
+            $data->value = 'at-commit';
+            $afterCommit();
+            $data->value = 'after';
+        });
+
+        $this->assertSame('at-commit', BackgroundQueueSnapshotHandler::$receivedValue);
+    }
+
     public function testLaterWithDateInterval()
     {
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
+
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
             ->once()
@@ -180,11 +277,13 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.later.test'][0]);
         $this->assertEquals(['baz' => 'qux'], $_SERVER['__background.later.test'][1]);
+
+        CarbonImmutable::setTestNow();
     }
 
-    public function testLaterWithDateTime()
+    public function testLaterWithDateTime(): void
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
@@ -201,12 +300,12 @@ class QueueBackgroundQueueTest extends TestCase
 
         unset($_SERVER['__background.later.test']);
 
-        run(fn () => $background->later(Carbon::parse('2024-01-01 12:00:15'), BackgroundQueueLaterTestHandler::class, ['test' => 'data']));
+        run(fn () => $background->later(CarbonImmutable::parse('2024-01-01 12:00:15'), BackgroundQueueLaterTestHandler::class, ['test' => 'data']));
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.later.test'][0]);
         $this->assertEquals(['test' => 'data'], $_SERVER['__background.later.test'][1]);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testLaterAddsTransactionCallbackForAfterCommitJobs()
@@ -334,9 +433,9 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->later(-5, BackgroundQueueLaterTestHandler::class));
     }
 
-    public function testLaterClampsPastDateTimeInterface()
+    public function testLaterClampsPastDateTimeInterface(): void
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
@@ -345,9 +444,9 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $background->setContainer($this->getContainer());
 
-        run(fn () => $background->later(Carbon::parse('2024-01-01 11:59:50'), BackgroundQueueLaterTestHandler::class));
+        run(fn () => $background->later(CarbonImmutable::parse('2024-01-01 11:59:50'), BackgroundQueueLaterTestHandler::class));
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown()
@@ -508,5 +607,27 @@ class BackgroundQueueLaterTestHandler
     public function fire(SyncJob $job, mixed $data): void
     {
         $_SERVER['__background.later.test'] = func_get_args();
+    }
+}
+
+class BackgroundQueueSnapshotHandler
+{
+    public static ?string $receivedValue = null;
+
+    public function fire(SyncJob $job, array $data): void
+    {
+        static::$receivedValue = $data['value'];
+    }
+}
+
+class UnserializableBackgroundQueueJob
+{
+    public function __construct(public mixed $callback = null)
+    {
+        $this->callback = fn () => null;
+    }
+
+    public function handle(): void
+    {
     }
 }

@@ -138,7 +138,13 @@ trait ResolvesDumpSource
      */
     protected function getOriginalFileForCompiledView(string $file): string
     {
-        preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', file_get_contents($file), $matches);
+        $contents = @file_get_contents($file);
+
+        if ($contents === false) {
+            return $file;
+        }
+
+        preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', $contents, $matches);
 
         if (isset($matches[1])) {
             $file = $matches[1];
@@ -166,7 +172,9 @@ trait ResolvesDumpSource
             ? $editor['href']
             : ($this->editorHrefs[$editor['name'] ?? $editor] ?? sprintf('%s://open?file={file}&line={line}', $editor['name'] ?? $editor));
 
-        if ($basePath = $editor['base_path'] ?? false) {
+        $basePath = $editor['base_path'] ?? false;
+
+        if ($basePath !== false) {
             $file = Str::replaceStart($this->basePath, $basePath, $file);
         }
 

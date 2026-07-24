@@ -12,7 +12,7 @@ namespace Hypervel\Support\Facades;
  * @method static string refresh(string $token, bool $forceForever = false, bool $resetClaims = false, array $customClaims = [], int|false|null $ttl = false)
  * @method static bool invalidate(string $token, bool $forceForever = false)
  * @method static bool hasBlacklistEnabled()
- * @method static mixed driver(string|null $driver = null)
+ * @method static mixed driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Jwt\JwtManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()

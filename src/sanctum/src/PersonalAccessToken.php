@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
+use Carbon\CarbonInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -21,8 +22,8 @@ use function Hypervel\Support\now;
  * @property string $token
  * @property string $name
  * @property \Hypervel\Database\Eloquent\Model $tokenable
- * @property null|\Carbon\Carbon $last_used_at
- * @property null|\Carbon\Carbon $expires_at
+ * @property ?CarbonInterface $last_used_at
+ * @property ?CarbonInterface $expires_at
  * @method static \Hypervel\Database\Eloquent\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
  * @method static static|null find(mixed $id, array $columns = ['*'])
  */
@@ -117,8 +118,6 @@ class PersonalAccessToken extends Model implements HasAbilities
             return null;
         }
 
-        self::updateLastUsedAt($accessToken);
-
         return $accessToken;
     }
 
@@ -197,37 +196,42 @@ class PersonalAccessToken extends Model implements HasAbilities
     }
 
     /**
-     * Update last_used_at.
+     * Store the time the token was last used.
      */
-    protected static function updateLastUsedAt(self $token): void
+    public function updateLastUsedAt(): void
     {
-        // Caching disabled - update immediately
-        if (! config('sanctum.cache.enabled')) {
-            $token->forceFill(['last_used_at' => now()])->save();
+        $now = now();
+        $cacheEnabled = (bool) config('sanctum.cache.enabled');
+
+        if (
+            $cacheEnabled
+            && $this->last_used_at !== null
+            && $this->last_used_at->diffInSeconds($now)
+                < config('sanctum.cache.last_used_at_update_interval')
+        ) {
             return;
         }
 
-        // Caching enabled - use throttling
-        $updateInterval = config('sanctum.cache.last_used_at_update_interval');
-        $shouldUpdate = false;
+        $connection = $this->getConnection();
+        // A successful internal audit write should not change the application's sticky read routing.
+        $hasModifiedRecords = $connection->hasModifiedRecords();
+        $previousLastUsedAt = $this->getRawOriginal('last_used_at');
 
-        if (! $token->last_used_at) {
-            $shouldUpdate = true;
-        } else {
-            $secondsSinceLastUpdate = $token->last_used_at->diffInSeconds(now());
-            $shouldUpdate = $secondsSinceLastUpdate >= $updateInterval;
+        $saved = $this->forceFill(['last_used_at' => $now])->save();
+
+        if (! $saved) {
+            $this->setAttribute('last_used_at', $previousLastUsedAt);
+
+            return;
         }
 
-        if ($shouldUpdate) {
-            // Update last_used_at in database
-            $token->forceFill(['last_used_at' => now()])->save();
+        $connection->setRecordModificationState($hasModifiedRecords);
 
-            // Update cache
-            $cache = self::getCache();
-            $cache->put(
-                self::getCacheKey($token->id),
-                $token,
-                config('sanctum.cache.ttl')
+        if ($cacheEnabled) {
+            static::getCache()->put(
+                static::getCacheKey($this->id),
+                $this,
+                config('sanctum.cache.ttl'),
             );
         }
     }
@@ -239,7 +243,10 @@ class PersonalAccessToken extends Model implements HasAbilities
     {
         $cacheManager = Container::getInstance()->make('cache');
         $store = config('sanctum.cache.store');
-        return $store ? $cacheManager->store($store) : $cacheManager->store();
+
+        return $store !== null && $store !== ''
+            ? $cacheManager->store($store)
+            : $cacheManager->store();
     }
 
     /**

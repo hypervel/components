@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeInterface;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -35,10 +35,10 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function get(int $limit = 50, mixed $before = null): array
     {
-        return $this->connection()->table($this->table)
+        return $this->getConnection()->table($this->table)
             ->orderByDesc('id')
             ->limit($limit)
-            ->when($before, fn ($q) => $q->where('id', '<', $before))
+            ->when($before !== null && $before !== '', fn ($q) => $q->where('id', '<', $before))
             ->get()
             ->map(function ($batch) {
                 return $this->toBatch($batch);
@@ -51,7 +51,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function find(int|string $batchId): ?Batch
     {
-        $batch = $this->connection()->table($this->table)
+        $batch = $this->getConnection()->table($this->table)
             ->useWritePdo()
             ->where('id', $batchId)
             ->first();
@@ -66,7 +66,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     {
         $id = (string) Str::orderedUuid();
 
-        $this->connection()->table($this->table)->insert([
+        $this->getConnection()->table($this->table)->insert([
             'id' => $id,
             'name' => $batch->name,
             'total_jobs' => 0,
@@ -93,7 +93,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function incrementTotalJobs(int|string $batchId, int $amount): void
     {
-        $this->connection()->table($this->table)->where('id', $batchId)->update([
+        $this->getConnection()->table($this->table)->where('id', $batchId)->update([
             'total_jobs' => new Expression('total_jobs + ' . $amount),
             'pending_jobs' => new Expression('pending_jobs + ' . $amount),
             'finished_at' => null,
@@ -103,7 +103,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Decrement the total number of pending jobs for the batch.
      */
-    public function decrementPendingJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
+    public function decrementPendingJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
         $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId) {
             return [
@@ -113,7 +113,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             ];
         });
 
-        return new UpdatedBatchJobCounts(
+        return $values === null ? null : new UpdatedBatchJobCounts(
             $values['pending_jobs'],
             $values['failed_jobs']
         );
@@ -122,7 +122,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Increment the total number of failed jobs for the batch.
      */
-    public function incrementFailedJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
+    public function incrementFailedJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
         $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId) {
             return [
@@ -132,7 +132,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
             ];
         });
 
-        return new UpdatedBatchJobCounts(
+        return $values === null ? null : new UpdatedBatchJobCounts(
             $values['pending_jobs'],
             $values['failed_jobs']
         );
@@ -143,13 +143,13 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     protected function updateAtomicValues(int|string $batchId, Closure $callback): ?array
     {
-        return $this->connection()->transaction(function () use ($batchId, $callback) {
-            $batch = $this->connection()->table($this->table)->where('id', $batchId)
+        return $this->getConnection()->transaction(function () use ($batchId, $callback) {
+            $batch = $this->getConnection()->table($this->table)->where('id', $batchId)
                 ->lockForUpdate()
                 ->first();
 
-            return is_null($batch) ? [] : tap($callback($batch), function ($values) use ($batchId) {
-                $this->connection()->table($this->table)->where('id', $batchId)->update($values);
+            return is_null($batch) ? null : tap($callback($batch), function ($values) use ($batchId) {
+                $this->getConnection()->table($this->table)->where('id', $batchId)->update($values);
             });
         });
     }
@@ -159,7 +159,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function markAsFinished(int|string $batchId): void
     {
-        $this->connection()->table($this->table)->where('id', $batchId)->update([
+        $this->getConnection()->table($this->table)->where('id', $batchId)->update([
             'finished_at' => time(),
         ]);
     }
@@ -169,7 +169,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function cancel(int|string $batchId): void
     {
-        $this->connection()->table($this->table)->where('id', $batchId)->update([
+        $this->getConnection()->table($this->table)->where('id', $batchId)->update([
             'cancelled_at' => time(),
             'finished_at' => time(),
         ]);
@@ -180,7 +180,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function delete(int|string $batchId): void
     {
-        $this->connection()->table($this->table)->where('id', $batchId)->delete();
+        $this->getConnection()->table($this->table)->where('id', $batchId)->delete();
     }
 
     /**
@@ -188,7 +188,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function prune(DateTimeInterface $before): int
     {
-        $query = $this->connection()->table($this->table)
+        $query = $this->getConnection()->table($this->table)
             ->whereNotNull('finished_at')
             ->where('finished_at', '<', $before->getTimestamp());
 
@@ -208,7 +208,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function pruneUnfinished(DateTimeInterface $before): int
     {
-        $query = $this->connection()->table($this->table)
+        $query = $this->getConnection()->table($this->table)
             ->whereNull('finished_at')
             ->where('created_at', '<', $before->getTimestamp());
 
@@ -228,7 +228,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function pruneCancelled(DateTimeInterface $before): int
     {
-        $query = $this->connection()->table($this->table)
+        $query = $this->getConnection()->table($this->table)
             ->whereNotNull('cancelled_at')
             ->where('created_at', '<', $before->getTimestamp());
 
@@ -245,10 +245,15 @@ class DatabaseBatchRepository implements PrunableBatchRepository
 
     /**
      * Execute the given Closure within a storage specific transaction.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
      */
     public function transaction(Closure $callback): mixed
     {
-        return $this->connection()->transaction(fn () => $callback());
+        return $this->getConnection()->transaction(fn () => $callback());
     }
 
     /**
@@ -256,7 +261,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     public function rollBack(): void
     {
-        $this->connection()->rollBack();
+        $this->getConnection()->rollBack();
     }
 
     /**
@@ -266,7 +271,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     {
         $serialized = serialize($value);
 
-        return $this->connection() instanceof PostgresConnection
+        return $this->getConnection() instanceof PostgresConnection
             ? base64_encode($serialized)
             : $serialized;
     }
@@ -276,7 +281,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
      */
     protected function unserialize(string $serialized): mixed
     {
-        if ($this->connection() instanceof PostgresConnection
+        if ($this->getConnection() instanceof PostgresConnection
             && ! Str::contains($serialized, [':', ';'])
         ) {
             $serialized = base64_decode($serialized);
@@ -312,18 +317,10 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Get the underlying database connection.
      */
-    public function connection(): ConnectionInterface
+    public function getConnection(): ConnectionInterface
     {
         return $this->resolver->connection($this->connection);
     }
 
-    /**
-     * Set the connection name to be used.
-     */
-    public function setConnection(string $connection): static
-    {
-        $this->connection = $connection;
-
-        return $this;
-    }
+    // REMOVED: A mutable connection override would race across coroutines on this worker singleton.
 }

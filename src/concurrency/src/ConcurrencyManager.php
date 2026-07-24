@@ -7,6 +7,9 @@ namespace Hypervel\Concurrency;
 use Hypervel\Contracts\Concurrency\Driver;
 use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Support\MultipleInstanceManager;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin Driver
@@ -16,8 +19,12 @@ class ConcurrencyManager extends MultipleInstanceManager
     /**
      * Get a driver instance by name.
      */
-    public function driver(?string $name = null): mixed
+    public function driver(UnitEnum|string|null $name = null): mixed
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         return $this->instance($name);
     }
 
@@ -36,6 +43,9 @@ class ConcurrencyManager extends MultipleInstanceManager
     {
         return new ProcessDriver($this->app->make(ProcessFactory::class));
     }
+
+    // Laravel's fork driver is intentionally omitted because Swoole coroutines
+    // are Hypervel's native lightweight execution model.
 
     /**
      * Create an instance of the sync concurrency driver.

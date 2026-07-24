@@ -7,6 +7,7 @@ namespace Hypervel\Process;
 use Countable;
 use Hypervel\Contracts\Process\InvokedProcess;
 use Hypervel\Support\Collection;
+use Throwable;
 
 class InvokedProcessPool implements Countable
 {
@@ -32,7 +33,39 @@ class InvokedProcessPool implements Countable
      */
     public function stop(float $timeout = 10, ?int $signal = null): Collection
     {
-        return $this->running()->each->stop($timeout, $signal);
+        $running = [];
+        $exception = null;
+
+        foreach ($this->invokedProcesses as $process) {
+            // An inspection failure leaves ownership uncertain, so still attempt terminal cleanup.
+            $shouldStop = true;
+
+            try {
+                $shouldStop = $process->running();
+
+                if ($shouldStop) {
+                    $running[] = $process;
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            if (! $shouldStop) {
+                continue;
+            }
+
+            try {
+                $process->stop($timeout, $signal);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return new Collection($running);
     }
 
     /**
@@ -49,10 +82,24 @@ class InvokedProcessPool implements Countable
      */
     public function wait(): ProcessPoolResults
     {
-        return new ProcessPoolResults(
-            /* @phpstan-ignore-next-line */
-            (new Collection($this->invokedProcesses))->map->wait()->all()
-        );
+        $results = [];
+
+        try {
+            foreach ($this->invokedProcesses as $key => $process) {
+                $results[$key] = $process->wait();
+            }
+        } catch (Throwable $exception) {
+            try {
+                // Stopping bounds cleanup when a sibling depends on external progress that may never arrive.
+                $this->stop(0);
+            } catch (Throwable) {
+                // Preserve the wait failure.
+            }
+
+            throw $exception;
+        }
+
+        return new ProcessPoolResults($results);
     }
 
     /**

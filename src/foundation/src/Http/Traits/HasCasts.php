@@ -6,11 +6,11 @@ namespace Hypervel\Foundation\Http\Traits;
 
 use BackedEnum;
 use Carbon\CarbonInterface;
+use Carbon\Exceptions\InvalidFormatException;
 use DateTimeInterface;
 use Hypervel\Database\Eloquent\InvalidCastException;
 use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\Facades\Date;
@@ -482,7 +482,7 @@ trait HasCasts
         // Carbon instances from that format. Again, this provides for simple date
         // fields on the database, while still supporting Carbonized conversion.
         if ($this->isStandardDateFormat($value)) {
-            return Date::instance(Carbon::createFromFormat('Y-m-d', $value)->startOfDay());
+            return Date::parse($value)->startOfDay();
         }
 
         $format = $this->getDateFormat();
@@ -490,11 +490,14 @@ trait HasCasts
         // Finally, we will just assume this date is in the format used by default on
         // the database connection and use that format to create the Carbon object
         // that is returned back out to the developers after we convert it here.
-        if (Carbon::hasFormat($value, $format)) {
-            return Date::createFromFormat($format, $value);
+        try {
+            $date = Date::createFromFormat($format, $value);
+            // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
+        } catch (InvalidFormatException) {
+            $date = null;
         }
 
-        return Date::parse($value);
+        return $date ?? Date::parse($value);
     }
 
     /**

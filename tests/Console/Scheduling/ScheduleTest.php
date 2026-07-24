@@ -17,12 +17,11 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Application;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
-use TypeError;
 
 enum ScheduleTestQueueStringEnum: string
 {
@@ -106,6 +105,31 @@ class ScheduleTest extends TestCase
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
     }
 
+    public function testItCanFilterEventsByEnvironments(): void
+    {
+        $schedule = new Schedule;
+        $schedule->job(JobToTestWithSchedule::class)->environments('production')->daily();
+        $schedule->command('inspire')->environments(['staging', 'production'])->everyMinute();
+        $schedule->command('foobar', ['a' => 'b'])->environments(['local', 'uat'])->everyMinute();
+        $schedule->command('foobar')->hourly();
+
+        $filteredEvents = $schedule->eventsForEnvironments(['production', 'staging']);
+
+        self::assertCount(3, $filteredEvents);
+
+        self::assertSame(JobToTestWithSchedule::class, $filteredEvents[0]->description);
+        self::assertSame(['production'], $filteredEvents[0]->environments);
+        self::assertSame('0 0 * * *', $filteredEvents[0]->expression);
+
+        self::assertSame('inspire', $filteredEvents[1]->command);
+        self::assertSame(['staging', 'production'], $filteredEvents[1]->environments);
+        self::assertSame('* * * * *', $filteredEvents[1]->expression);
+
+        self::assertMatchesRegularExpression('/^foobar\b/', $filteredEvents[2]->command);
+        self::assertSame([], $filteredEvents[2]->environments);
+        self::assertSame('0 * * * *', $filteredEvents[2]->expression);
+    }
+
     public function testDueEventsAtUsesGivenTime()
     {
         $app = m::mock(ApplicationContract::class);
@@ -113,15 +137,15 @@ class ScheduleTest extends TestCase
         $app->shouldReceive('environment')->andReturn('production');
 
         try {
-            Carbon::setTestNow(Carbon::parse('2026-05-29 13:00:00'));
+            CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-29 13:00:00'));
 
             $schedule = new Schedule;
             $schedule->command('reports:generate')->dailyAt('13:00');
 
-            self::assertCount(0, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 12:59:59')));
-            self::assertCount(1, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 13:00:00')));
+            self::assertCount(0, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
+            self::assertCount(1, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 13:00:00')));
         } finally {
-            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
         }
     }
 
@@ -152,12 +176,10 @@ class ScheduleTest extends TestCase
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
     }
 
-    public function testJobWithIntBackedEnumStoresIntValue(): void
+    public function testJobAcceptsIntegerBackedEnumForQueueAndConnection(): void
     {
         $schedule = new Schedule;
 
-        // Int-backed enum values are stored as-is (no cast to string)
-        // TypeError will occur when the job is dispatched and dispatchToQueue() receives int
         $scheduledJob = $schedule->job(
             JobToTestWithSchedule::class,
             ScheduleTestQueueIntEnum::Priority1,
@@ -182,18 +204,18 @@ class ScheduleTest extends TestCase
         $schedule->useCache(ScheduleTestCacheStoreEnum::Redis);
     }
 
-    public function testUseCacheWithIntBackedEnumThrowsTypeError(): void
+    public function testUseCacheAcceptsIntegerBackedEnum(): void
     {
         $eventMutex = m::mock(EventMutex::class, CacheAware::class);
+        $eventMutex->shouldReceive('useStore')->once()->with('1');
+
         $schedulingMutex = m::mock(SchedulingMutex::class, CacheAware::class);
+        $schedulingMutex->shouldReceive('useStore')->once()->with('1');
 
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
 
         $schedule = new Schedule;
-
-        // TypeError is thrown when useStore() receives int instead of string
-        $this->expectException(TypeError::class);
         $schedule->useCache(ScheduleTestCacheStoreIntEnum::Store1);
     }
 

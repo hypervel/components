@@ -6,13 +6,13 @@ namespace Hypervel\Tests\Queue;
 
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
 class QueueListenerTest extends TestCase
 {
-    public function testRunProcessCallsProcess()
+    public function testRunProcessCallsProcess(): void
     {
         $process = m::mock(Process::class)->makePartial();
         $process->shouldReceive('run')->once();
@@ -22,7 +22,7 @@ class QueueListenerTest extends TestCase
         $listener->runProcess($process, 1);
     }
 
-    public function testListenerStopsWhenMemoryIsExceeded()
+    public function testListenerStopsWhenMemoryIsExceeded(): void
     {
         $process = m::mock(Process::class)->makePartial();
         $process->shouldReceive('run')->once();
@@ -33,7 +33,7 @@ class QueueListenerTest extends TestCase
         $listener->runProcess($process, 1);
     }
 
-    public function testMakeProcessCorrectlyFormatsCommandLine()
+    public function testMakeProcessCorrectlyFormatsCommandLine(): void
     {
         $listener = new Listener(__DIR__);
         $options = new ListenerOptions;
@@ -44,12 +44,12 @@ class QueueListenerTest extends TestCase
         $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
 
         $this->assertInstanceOf(Process::class, $process);
-        $this->assertEquals(__DIR__, $process->getWorkingDirectory());
-        $this->assertEquals(3, $process->getTimeout());
-        $this->assertEquals($escape . PHP_BINARY . $escape . " {$escape}artisan{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape}", $process->getCommandLine());
+        $this->assertSame(__DIR__, $process->getWorkingDirectory());
+        $this->assertSame(3.0, $process->getTimeout());
+        $this->assertSame($escape . PHP_BINARY . $escape . " {$escape}artisan{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape}", $process->getCommandLine());
     }
 
-    public function testMakeProcessCorrectlyFormatsCommandLineWithAnEnvironmentSpecified()
+    public function testMakeProcessCorrectlyFormatsCommandLineWithAnEnvironmentSpecified(): void
     {
         $listener = new Listener(__DIR__);
         $options = new ListenerOptions('default', 'test');
@@ -60,12 +60,12 @@ class QueueListenerTest extends TestCase
         $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
 
         $this->assertInstanceOf(Process::class, $process);
-        $this->assertEquals(__DIR__, $process->getWorkingDirectory());
-        $this->assertEquals(3, $process->getTimeout());
-        $this->assertEquals($escape . PHP_BINARY . $escape . " {$escape}artisan{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape} {$escape}--env=test{$escape}", $process->getCommandLine());
+        $this->assertSame(__DIR__, $process->getWorkingDirectory());
+        $this->assertSame(3.0, $process->getTimeout());
+        $this->assertSame($escape . PHP_BINARY . $escape . " {$escape}artisan{$escape} {$escape}queue:work{$escape} {$escape}connection{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape} {$escape}--env=test{$escape}", $process->getCommandLine());
     }
 
-    public function testMakeProcessCorrectlyFormatsCommandLineWhenTheConnectionIsNotSpecified()
+    public function testMakeProcessCorrectlyFormatsCommandLineWhenTheConnectionIsNotSpecified(): void
     {
         $listener = new Listener(__DIR__);
         $options = new ListenerOptions('default', 'test');
@@ -76,8 +76,8 @@ class QueueListenerTest extends TestCase
         $escape = '\\' === DIRECTORY_SEPARATOR ? '' : '\'';
 
         $this->assertInstanceOf(Process::class, $process);
-        $this->assertEquals(__DIR__, $process->getWorkingDirectory());
-        $this->assertEquals(3, $process->getTimeout());
-        $this->assertEquals($escape . PHP_BINARY . $escape . " {$escape}artisan{$escape} {$escape}queue:work{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape} {$escape}--env=test{$escape}", $process->getCommandLine());
+        $this->assertSame(__DIR__, $process->getWorkingDirectory());
+        $this->assertSame(3.0, $process->getTimeout());
+        $this->assertSame($escape . PHP_BINARY . $escape . " {$escape}artisan{$escape} {$escape}queue:work{$escape} {$escape}--once{$escape} {$escape}--name=default{$escape} {$escape}--queue=queue{$escape} {$escape}--backoff=1{$escape} {$escape}--memory=2{$escape} {$escape}--sleep=3{$escape} {$escape}--tries=1{$escape} {$escape}--env=test{$escape}", $process->getCommandLine());
     }
 }

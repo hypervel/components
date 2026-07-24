@@ -6,19 +6,16 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use BackedEnum;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
 use Hypervel\Foundation\Testing\RequestContextSynchronizer;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\Session\Store as SessionStore;
 use Hypervel\Support\Collection;
-use Hypervel\Testing\FakeWritableConnection;
 use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
 use Stringable;
@@ -160,7 +157,7 @@ trait MakesHttpRequests
      *
      * @param null|array|string $middleware
      */
-    protected function withoutMiddleware($middleware = null): static
+    public function withoutMiddleware($middleware = null): static
     {
         if (is_null($middleware)) {
             $this->app->instance('middleware.disable', true);
@@ -417,6 +414,29 @@ trait MakesHttpRequests
     }
 
     /**
+     * Visit the given URI with a QUERY request.
+     */
+    public function query(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
+    {
+        $server = $this->transformHeadersToServerVars($headers);
+        $cookies = $this->prepareCookiesForRequest();
+
+        return $this->call('QUERY', $uri, $data, $cookies, [], $server);
+    }
+
+    /**
+     * Visit the given URI with a QUERY request, expecting a JSON response.
+     */
+    public function queryJson(
+        Stringable|string $uri,
+        array $data = [],
+        array $headers = [],
+        int $options = 0,
+    ): TestResponse {
+        return $this->json('QUERY', $uri, $data, $headers, $options);
+    }
+
+    /**
      * Call the given URI with a JSON request.
      */
     public function json(string $method, Stringable|string $uri, array $data = [], array $headers = [], int $options = 0): TestResponse
@@ -446,9 +466,9 @@ trait MakesHttpRequests
      * Call the given URI and return the Response.
      *
      * Each test request runs in a fresh coroutine via the Waiter to ensure
-     * coroutine-local Context isolation. RequestContext and ResponseContext
-     * are seeded because tests bypass the HttpServer\Server adapter which
-     * normally does this in onRequest().
+     * coroutine-local Context isolation. RequestContext is seeded because
+     * tests bypass the HttpServer\Server adapter which normally does this
+     * in onRequest().
      */
     public function call(
         string $method,
@@ -477,15 +497,8 @@ trait MakesHttpRequests
             $request = $this->createTestRequest($symfonyRequest);
 
             // Seed coroutine Context — tests bypass the HttpServer\Server adapter
-            // which normally does this in onRequest(). The response gets a fake
-            // writable connection so Response::stream() works in test mode.
+            // which normally does this in onRequest().
             RequestContext::set($request);
-            $response = new Response;
-            $response->setConnection(new FakeWritableConnection);
-            if ($method === 'HEAD') {
-                $response->withoutBody();
-            }
-            ResponseContext::set($response);
 
             $this->dispatchRequestLifecycleEvent(
                 RequestReceived::class,

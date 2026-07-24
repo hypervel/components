@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
+use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Http\Request;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class RedisBroadcasterTest extends TestCase
@@ -167,6 +168,30 @@ class RedisBroadcasterTest extends TestCase
 
         $broadcaster = new RedisBroadcaster($this->container, $this->redis);
         $broadcaster->broadcast(['test-channel'], 'test-event', ['data' => 'value']);
+    }
+
+    public function testBroadcastFormatsChannelsBeforeAddingRedisPrefix(): void
+    {
+        Broadcaster::formatChannelsUsing(
+            static fn (array $channels): array => array_map(
+                static fn (mixed $channel): string => 'application.' . $channel,
+                $channels,
+            ),
+        );
+
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
+        $connection->shouldReceive('publish')
+            ->once()
+            ->with('redis.application.orders', m::type('string'));
+
+        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+
+        (new RedisBroadcaster(
+            $this->container,
+            $this->redis,
+            prefix: 'redis.',
+        ))->broadcast(['orders'], 'OrderCreated');
     }
 
     public function testBroadcastPayloadDoesNotDuplicateSocketInData()

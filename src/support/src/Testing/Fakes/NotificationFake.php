@@ -16,6 +16,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
+use UnitEnum;
 
 class NotificationFake implements Fake, NotificationDispatcher, NotificationFactory
 {
@@ -294,7 +295,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     /**
      * Get a channel instance by name.
      */
-    public function channel(?string $name = null): mixed
+    public function channel(UnitEnum|string|null $name = null): mixed
     {
         return null;
     }
@@ -333,5 +334,13 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     public function sentNotifications(): array
     {
         return $this->notifications;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

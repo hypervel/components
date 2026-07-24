@@ -57,6 +57,50 @@ class ClientEventTest extends ReverbTestCase
         ]);
     }
 
+    public function testClientMessagePreservesZeroUserIdInBroadcastAndWebhook(): void
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['client_event'],
+        ]);
+
+        $this->channels()->findOrCreate('presence-test-channel');
+
+        $connectionOne = collect(static::factory(data: ['user_info' => ['name' => 'Zero'], 'user_id' => 0]))->first();
+        $connectionTwo = collect(static::factory(data: ['user_info' => ['name' => 'Two'], 'user_id' => '2']))->first();
+
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn($connectionOne);
+        $this->channelConnectionManager->shouldReceive('all')
+            ->andReturn([$connectionOne, $connectionTwo]);
+
+        ClientEvent::handle(
+            $connectionOne->connection(),
+            [
+                'event' => 'client-test-message',
+                'channel' => 'presence-test-channel',
+                'data' => ['foo' => 'bar'],
+            ]
+        );
+
+        $connectionTwo->connection()->assertReceived([
+            'event' => 'client-test-message',
+            'channel' => 'presence-test-channel',
+            'data' => ['foo' => 'bar'],
+            'user_id' => '0',
+        ]);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            $event = $job->payload->events[0];
+
+            return $event['name'] === 'client_event'
+                && $event['user_id'] === '0'
+                && $event['channel'] === 'presence-test-channel';
+        });
+    }
+
     public function testRejectClientEventOnPublicChannelInMembersMode()
     {
         $this->channels()->findOrCreate('test-channel');

@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Foundation\Events\Dispatchable;
 use Hypervel\Tests\Events\Fixtures\CacheInvalidationEvent;
 use Hypervel\Tests\Events\Fixtures\ChildListenerEvent;
 use Hypervel\Tests\Events\Fixtures\InterfaceListenerEvent;
@@ -20,6 +21,7 @@ use Hypervel\Tests\Events\Fixtures\UnlistenedStringEvent;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
+use RuntimeException;
 
 class EventsDispatcherTest extends TestCase
 {
@@ -1279,6 +1281,50 @@ class EventsDispatcherTest extends TestCase
 
         $this->assertTrue(TestQueueableObserver::$invoked);
     }
+
+    public function testEventDispatchesUsingNamedArguments(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        Container::getInstance()->instance('events', $events);
+
+        $events->shouldReceive('dispatch')
+            ->once()
+            ->with(m::on(function ($event): bool {
+                $this->assertInstanceOf(DispatchableNamedArgumentsEvent::class, $event);
+                $this->assertSame('first-value', $event->first);
+                $this->assertSame('second-value', $event->second);
+
+                return true;
+            }))
+            ->andReturn(['dispatched']);
+
+        $this->assertSame(
+            ['dispatched'],
+            DispatchableNamedArgumentsEvent::dispatch(second: 'second-value', first: 'first-value')
+        );
+    }
+
+    public function testClosureListenerRejectsAnUntypedFirstParameterInsteadOfUsingALaterType(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('The first parameter of the given Closure is missing a type hint.');
+
+        (new Dispatcher)->listen(function ($untyped, ExampleEvent $event): void {});
+    }
+
+    public function testClosureListenerRegistersEveryTypeFromAFirstParameterUnion(): void
+    {
+        $events = [];
+        $dispatcher = new Dispatcher;
+        $dispatcher->listen(function (ExampleEvent|DeferTestEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        $dispatcher->dispatch($first = new ExampleEvent);
+        $dispatcher->dispatch($second = new DeferTestEvent);
+
+        $this->assertSame([$first, $second], $events);
+    }
 }
 
 class TestListenerLean
@@ -1425,6 +1471,17 @@ class DeferTestEvent
 
 class ImmediateTestEvent
 {
+}
+
+class DispatchableNamedArgumentsEvent
+{
+    use Dispatchable;
+
+    public function __construct(
+        public string $first,
+        public string $second,
+    ) {
+    }
 }
 
 class TestQueueableObserver implements ShouldQueue

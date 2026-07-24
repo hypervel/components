@@ -460,20 +460,24 @@ class PhotoController extends Controller
 {
     public function __construct(
         #[Auth('web')] protected Guard $auth,
-        #[Cache('redis')] protected Repository $cache,
+        #[Cache('redis', memo: true)] protected Repository $cache,
         #[Config('app.timezone')] protected string $timezone,
         #[Context('uuid')] protected string $uuid,
         #[Context('ulid', hidden: true)] protected string $ulid,
         #[DB('mysql')] protected Connection $connection,
         #[Give(DatabaseRepository::class)] protected UserRepository $users,
-        #[Log('daily')] protected LoggerInterface $log,
-        #[RouteParameter('photo')] protected Photo $photo,
+        #[Log('daily', name: 'photos')] protected LoggerInterface $log,
+        #[RouteParameter] protected Photo $photo,
         #[Tag('reports')] protected iterable $reports,
     ) {
         // ...
     }
 }
 ```
+
+The `RouteParameter` attribute resolves the route parameter matching the variable name. If needed, you may specify the route parameter name explicitly: `#[RouteParameter('photo')]`.
+
+Pass `memo: true` to `Cache` to inject a request-scoped memoized repository. The optional `name` argument on `Log` creates a named logger and is supported by Monolog-backed channels. Driver identifiers accepted by `Auth`, `Authenticated`, `Cache`, `Log`, and `Storage` may also be unit or backed enum cases; Hypervel uses the unit case name or backed value as the identifier.
 
 Furthermore, Hypervel provides `CurrentUser` and `Authenticated` attributes for injecting the currently authenticated user into a given route or class. `CurrentUser` requires that a user is authenticated; `Authenticated` returns `null` when no user is authenticated, which is useful for optional auth:
 
@@ -505,6 +509,7 @@ namespace App\Attributes;
 use Attribute;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Container\ContextualAttribute;
+use ReflectionParameter;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Config implements ContextualAttribute
@@ -521,14 +526,21 @@ class Config implements ContextualAttribute
      *
      * @param  self  $attribute
      * @param  \Hypervel\Contracts\Container\Container  $container
+     * @param  \ReflectionParameter  $parameter
      * @return mixed
      */
-    public static function resolve(self $attribute, Container $container)
+    public static function resolve(
+        self $attribute,
+        Container $container,
+        ReflectionParameter $parameter,
+    ): mixed
     {
         return $container->make('config')->get($attribute->key, $attribute->default);
     }
 }
 ```
+
+The current `ReflectionParameter` is passed as the third argument, allowing custom attributes to inspect the parameter name or type when resolving a value.
 
 <a name="binding-primitives"></a>
 ### Binding Primitives

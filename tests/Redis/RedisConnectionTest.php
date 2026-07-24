@@ -2261,7 +2261,7 @@ class RedisConnectionTest extends TestCase
         };
 
         $connection->invalidateForTest();
-        $connection->setLastReleaseTimeForTest(microtime(true));
+        $connection->setLastReleaseTimeForTest(hrtime(true) / 1e9);
 
         $this->assertFalse($connection->check());
     }
@@ -2290,7 +2290,7 @@ class RedisConnectionTest extends TestCase
             public function prepareForIdleCheck(): float
             {
                 $this->availableForReuse = true;
-                $this->lastReleaseTime = microtime(true);
+                $this->lastReleaseTime = hrtime(true) / 1e9;
 
                 return $this->lastUseTime;
             }

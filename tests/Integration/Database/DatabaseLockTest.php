@@ -9,7 +9,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -60,7 +60,7 @@ class DatabaseLockTest extends DatabaseTestCase
     {
         $lock = Cache::driver('database')->lock('foo');
         $this->assertTrue($lock->get());
-        DB::table('cache_locks')->update(['expiration' => Carbon::now()->subDay()->getTimestamp()]);
+        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
 
         $otherLock = Cache::driver('database')->lock('foo');
         $this->assertTrue($otherLock->get());
@@ -88,7 +88,7 @@ class DatabaseLockTest extends DatabaseTestCase
         $lock->get();
         $this->assertTrue($lock->isLocked());
 
-        DB::table('cache_locks')->update(['expiration' => Carbon::now()->subDay()->getTimestamp()]);
+        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
         $this->assertFalse($lock->isLocked());
     }
 
@@ -133,7 +133,7 @@ class DatabaseLockTest extends DatabaseTestCase
         $lock = Cache::driver('database')->lock('foo', 10);
         $this->assertTrue($lock->get());
 
-        DB::table('cache_locks')->update(['expiration' => Carbon::now()->subDay()->getTimestamp()]);
+        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
 
         $this->assertFalse($lock->refresh(20));
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Coordinator;
 
+use Hypervel\Engine\Coroutine;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -13,7 +14,19 @@ class Timer
 {
     public const STOP = 'stop';
 
-    private array $closures = [];
+    /**
+     * Timer IDs mapped to coroutine IDs, or zero until creation publishes the ID.
+     *
+     * @var array<int, int>
+     */
+    private array $coroutines = [];
+
+    /**
+     * Timer IDs currently blocked in a cancellable coordinator wait.
+     *
+     * @var array<int, true>
+     */
+    private array $waiting = [];
 
     private int $id = 0;
 
@@ -32,28 +45,37 @@ class Timer
     {
         $id = ++$this->id;
         $coordinator = CoordinatorManager::until($identifier);
-        $this->closures[$id] = true;
+        $this->coroutines[$id] = 0;
+        $startedAt = hrtime(true);
 
         try {
-            go(function () use ($timeout, $closure, $coordinator, $id): void {
+            $coroutineId = go(function () use ($timeout, $closure, $coordinator, $id, $startedAt): void {
+                if (! isset($this->coroutines[$id])) {
+                    return;
+                }
+
                 try {
                     ++Timer::$count;
                     $isClosing = match (true) {
-                        $timeout > 0 => $coordinator->yield($timeout), // Run after $timeout seconds.
+                        $timeout > 0 => $this->waitForInterval($id, $coordinator, $timeout, $startedAt), // Run after $timeout seconds.
                         $timeout === 0.0 => $coordinator->isClosing(), // Run immediately.
-                        default => $coordinator->yield(), // Run until $identifier resume.
+                        default => $this->waitForCoordinator($id, $coordinator), // Run until $identifier resume.
                     };
 
-                    if (isset($this->closures[$id])) {
+                    if (isset($this->coroutines[$id])) {
                         $closure($isClosing);
                     }
                 } finally {
-                    unset($this->closures[$id]);
+                    unset($this->coroutines[$id], $this->waiting[$id]);
                     --Timer::$count;
                 }
             });
+
+            if (isset($this->coroutines[$id])) {
+                $this->coroutines[$id] = $coroutineId;
+            }
         } catch (Throwable $exception) {
-            unset($this->closures[$id]);
+            unset($this->coroutines[$id], $this->waiting[$id]);
 
             throw $exception;
         }
@@ -68,19 +90,28 @@ class Timer
     {
         $id = ++$this->id;
         $coordinator = CoordinatorManager::until($identifier);
-        $this->closures[$id] = true;
+        $this->coroutines[$id] = 0;
 
         try {
-            go(function () use ($timeout, $closure, $coordinator, $id): void {
+            $coroutineId = go(function () use ($timeout, $closure, $coordinator, $id): void {
+                if (! isset($this->coroutines[$id])) {
+                    return;
+                }
+
                 $round = 0;
 
                 try {
                     ++Timer::$count;
 
-                    while (isset($this->closures[$id])) {
-                        $isClosing = $coordinator->yield(max($timeout, 0.000001));
+                    while (isset($this->coroutines[$id])) {
+                        $isClosing = $this->waitForInterval(
+                            $id,
+                            $coordinator,
+                            max($timeout, 0.000001),
+                            hrtime(true),
+                        );
 
-                        if (! isset($this->closures[$id])) {
+                        if (! isset($this->coroutines[$id])) {
                             break;
                         }
 
@@ -104,18 +135,47 @@ class Timer
                         ++Timer::$round;
                     }
                 } finally {
-                    unset($this->closures[$id]);
+                    unset($this->coroutines[$id], $this->waiting[$id]);
                     Timer::$round -= $round;
                     --Timer::$count;
                 }
             });
+
+            if (isset($this->coroutines[$id])) {
+                $this->coroutines[$id] = $coroutineId;
+            }
         } catch (Throwable $exception) {
-            unset($this->closures[$id]);
+            unset($this->coroutines[$id], $this->waiting[$id]);
 
             throw $exception;
         }
 
         return $id;
+    }
+
+    /**
+     * Wait for the timer interval or coordinator to resume.
+     */
+    private function waitForInterval(
+        int $id,
+        Coordinator $coordinator,
+        float $timeout,
+        int $startedAt,
+    ): bool {
+        while (isset($this->coroutines[$id])) {
+            $remaining = $timeout - ((hrtime(true) - $startedAt) / 1_000_000_000);
+
+            if ($remaining <= 0) {
+                return $coordinator->isClosing();
+            }
+
+            // A timed coordinator wait can return before the monotonic interval has elapsed.
+            if ($this->waitForCoordinator($id, $coordinator, $remaining)) {
+                return true;
+            }
+        }
+
+        return $coordinator->isClosing();
     }
 
     /**
@@ -131,7 +191,14 @@ class Timer
      */
     public function clear(int $id): void
     {
-        unset($this->closures[$id]);
+        $coroutineId = $this->coroutines[$id] ?? null;
+        unset($this->coroutines[$id]);
+
+        if ($coroutineId !== null && $coroutineId > 0 && isset($this->waiting[$id])) {
+            // Removing only the registration would retain the waiting coroutine
+            // and everything it captured until timeout or worker exit.
+            Coroutine::cancelById($coroutineId);
+        }
     }
 
     /**
@@ -139,7 +206,9 @@ class Timer
      */
     public function clearAll(): void
     {
-        $this->closures = [];
+        foreach (array_keys($this->coroutines) as $id) {
+            $this->clear($id);
+        }
     }
 
     /**
@@ -153,6 +222,20 @@ class Timer
             'num' => Timer::$count,
             'round' => Timer::$round,
         ];
+    }
+
+    /**
+     * Wait for the timer's coordinator while recording cancellable ownership.
+     */
+    private function waitForCoordinator(int $id, Coordinator $coordinator, float $timeout = -1): bool
+    {
+        $this->waiting[$id] = true;
+
+        try {
+            return $coordinator->yield($timeout);
+        } finally {
+            unset($this->waiting[$id]);
+        }
     }
 
     /**

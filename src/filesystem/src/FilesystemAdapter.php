@@ -13,7 +13,6 @@ use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
@@ -45,6 +44,8 @@ use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use ReflectionFunction;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
@@ -186,6 +187,16 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
+     * Assert that the disk contains no files.
+     */
+    public function assertEmpty(): static
+    {
+        PHPUnit::assertEmpty($this->allFiles(), 'Disk is not empty.');
+
+        return $this;
+    }
+
+    /**
      * Determine if a file or directory exists.
      */
     public function exists(string $path): bool
@@ -260,7 +271,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Get the contents of a file as decoded JSON.
      */
-    public function json(string $path, int $flags = 0): ?array
+    public function json(string $path, int $flags = 0): array|bool|float|int|string|null
     {
         $content = $this->get($path);
 
@@ -269,15 +280,13 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed response for a given file.
-     *
-     * This method is a Hypervel-specific replacement of Laravel's implementation.
-     * It uses Swoole's Response/StreamOutput for chunked streaming and supports
-     * HTTP range requests (206 Partial Content). Content-Length is intentionally
-     * not set as a default header — Swoole's streaming model handles it, and
-     * range requests may alter the actual content length sent.
      */
-    public function response(string $path, ?string $name = null, array $headers = [], string $disposition = 'inline'): Response
-    {
+    public function response(
+        string $path,
+        ?string $name = null,
+        array $headers = [],
+        string $disposition = 'inline',
+    ): StreamedResponse {
         return $this->buildFileResponse(
             Container::getInstance()->make(Request::class),
             $path,
@@ -300,7 +309,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Create a streamed download response for a given file.
      */
-    public function download(string $path, ?string $name = null, array $headers = []): Response
+    public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
         return $this->response($path, $name, $headers, 'attachment');
     }
@@ -314,12 +323,11 @@ class FilesystemAdapter implements CloudFilesystemContract
         ?string $name,
         array $headers,
         string $disposition,
-    ): Response {
+    ): StreamedResponse {
         $container = Container::getInstance();
 
         return $container->make(FileResponseBuilder::class)->build(
             $request,
-            $container->make(Response::class),
             $path,
             $name,
             $headers,
@@ -395,19 +403,27 @@ class FilesystemAdapter implements CloudFilesystemContract
             [$path, $file, $name, $options] = ['', $path, $file, $name ?? []];
         }
 
-        $stream = fopen(is_string($file) ? $file : $file->getRealPath(), 'r');
+        $path = trim($path . '/' . $name, '/');
+        $source = is_string($file) ? $file : $file->getRealPath();
+        $stream = $source === false ? false : @fopen($source, 'r');
+
+        if ($stream === false) {
+            $exception = UnableToWriteFile::atLocation($path, 'Unable to open the source file.');
+
+            throw_if($this->throwsExceptions(), $exception);
+
+            $this->report($exception);
+
+            return false;
+        }
 
         // Next, we will format the path of the file and store the file using a stream since
         // they provide better performance than alternatives. Once we write the file this
         // stream will get closed automatically by us so the developer doesn't have to.
-        $result = $this->put(
-            $path = trim($path . '/' . $name, '/'),
-            $stream,
-            $options
-        );
-
-        if (is_resource($stream)) {
-            fclose($stream);
+        try {
+            $result = $this->put($path, $stream, $options);
+        } finally {
+            @fclose($stream);
         }
 
         return $result ? $path : false;
@@ -449,7 +465,13 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function prepend(string $path, string $data, string $separator = PHP_EOL): bool
     {
         if ($this->fileExists($path)) {
-            return $this->put($path, $data . $separator . $this->get($path));
+            $contents = $this->get($path);
+
+            if ($contents === null) {
+                return false;
+            }
+
+            return $this->put($path, $data . $separator . $contents);
         }
 
         return $this->put($path, $data);
@@ -461,7 +483,13 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function append(string $path, string $data, string $separator = PHP_EOL): bool
     {
         if ($this->fileExists($path)) {
-            return $this->put($path, $this->get($path) . $separator . $data);
+            $contents = $this->get($path);
+
+            if ($contents === null) {
+                return false;
+            }
+
+            return $this->put($path, $contents . $separator . $data);
         }
 
         return $this->put($path, $data);

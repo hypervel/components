@@ -16,6 +16,7 @@ use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 class CacheStackStoreTagsTest extends TestCase
 {
@@ -174,6 +175,31 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertFalse($stack->tags(['tag'])->put('key', 'value', 60));
     }
 
+    public function testTaggedWriteRollsBackWrittenLayersWhenLowerLayerThrows(): void
+    {
+        $plain = $this->nonTaggableStore();
+        $taggable = $this->anyModeTaggableStore();
+        $taggedCache = m::mock(TaggedCache::class);
+        $exception = new RuntimeException('write failed');
+
+        $plain->shouldReceive('put')->once()->andReturnTrue();
+        $plain->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
+        $taggedCache->shouldReceive('put')->once()->andThrow($exception);
+
+        $stack = new StackStore([
+            new StackStoreProxy($plain),
+            new StackStoreProxy($taggable),
+        ]);
+
+        try {
+            $stack->tags(['tag'])->put('key', 'value', 60);
+            $this->fail('Expected the lower-layer exception to be thrown.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+    }
+
     public function testTaggedIncrementWritesThroughTaggedPath(): void
     {
         $taggable = $this->anyModeTaggableStore();
@@ -188,18 +214,41 @@ class CacheStackStoreTagsTest extends TestCase
         $this->assertSame(3, $stack->tags(['tag'])->increment('counter', 2));
     }
 
+    public function testTaggedIncrementDoesNotTreatFailedRepairAsMissingAndPreservesLowerValue(): void
+    {
+        $plain = $this->nonTaggableStore();
+        $taggable = $this->anyModeTaggableStore();
+        $taggedCache = m::mock(TaggedCache::class);
+        $record = ['value' => 5];
+        $incrementedRecord = ['value' => 6];
+
+        $plain->shouldReceive('get')->twice()->with('counter')->andReturnNull();
+        $taggable->shouldReceive('get')->twice()->with('counter')->andReturn($record);
+        $plain->shouldReceive('forever')->twice()->with('counter', $record)->andReturnFalse();
+
+        $plain->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnTrue();
+        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
+        $taggedCache->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnFalse();
+        $plain->shouldReceive('forget')->once()->with('counter')->andReturnTrue();
+
+        $stack = new StackStore([$plain, $taggable]);
+
+        $this->assertFalse($stack->tags(['tag'])->increment('counter'));
+        $this->assertSame(5, $stack->get('counter'));
+    }
+
     public function testTaggedRememberReadsPlainAndWritesTaggedOnMiss(): void
     {
         $taggable = $this->anyModeTaggableStore();
         $taggedCache = m::mock(TaggedCache::class);
 
-        $taggable->shouldReceive('get')->once()->with('key')->andReturnNull();
+        $taggable->shouldReceive('get')->once()->with('0')->andReturnNull();
         $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->andReturnTrue();
+        $taggedCache->shouldReceive('put')->once()->with('0', m::type('array'), 60)->andReturnTrue();
 
         $stack = new StackStore([$taggable]);
 
-        $this->assertSame('computed', $stack->tags(['tag'])->remember('key', 60, fn () => 'computed'));
+        $this->assertSame('computed', $stack->tags(['tag'])->remember(StackTaggedCacheKey::Zero, 60, fn () => 'computed'));
     }
 
     public function testTaggedRememberHitReadsPlainWithoutTaggedWrite(): void
@@ -271,4 +320,9 @@ class CacheStackStoreTagsTest extends TestCase
     {
         return m::mock(Store::class);
     }
+}
+
+enum StackTaggedCacheKey: int
+{
+    case Zero = 0;
 }

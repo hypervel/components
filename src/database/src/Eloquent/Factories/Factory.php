@@ -11,7 +11,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\Str;
@@ -777,7 +777,9 @@ abstract class Factory
      */
     public function getConnectionName(): ?string
     {
-        return enum_value($this->connection);
+        return $this->connection instanceof UnitEnum
+            ? (string) enum_value($this->connection)
+            : $this->connection;
     }
 
     /**
@@ -997,6 +999,7 @@ abstract class Factory
         static::$namespace = 'Database\Factories\\';
         static::$expandRelationshipsByDefault = true;
         static::$cachedModelAttributes = [];
+        static::flushMacros();
     }
 
     /**
@@ -1010,7 +1013,7 @@ abstract class Factory
 
         if ($method === 'trashed' && $this->modelName()::isSoftDeletable()) {
             return $this->state([
-                $this->newModel()->getDeletedAtColumn() => $parameters[0] ?? Carbon::now()->subDay(),
+                $this->newModel()->getDeletedAtColumn() => $parameters[0] ?? CarbonImmutable::now()->subDay(),
             ]);
         }
 

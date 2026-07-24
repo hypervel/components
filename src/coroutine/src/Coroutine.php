@@ -33,6 +33,9 @@ class Coroutine
 
     /**
      * Register a callback to be called after a coroutine is created.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs for every subsequently created coroutine.
      */
     public static function afterCreated(callable $callback): void
     {
@@ -116,13 +119,26 @@ class Coroutine
      */
     public static function fork(callable $callable, array $keys = []): int
     {
-        $cid = static::id();
-        $callable = static function () use ($callable, $cid, $keys) {
-            CoroutineContext::copyFrom($cid, $keys);
+        $context = CoroutineContext::captureFrom($keys);
+        $callable = static function () use ($callable, $context) {
+            CoroutineContext::setMany($context);
             $callable();
         };
 
         return static::create($callable);
+    }
+
+    /**
+     * Wait for the given coroutines to finish.
+     *
+     * A false return may mean that no supplied coroutine remained active or
+     * that the timeout elapsed. It is not a general failure signal.
+     *
+     * @param list<int> $coroutineIds
+     */
+    public static function join(array $coroutineIds, float $timeout = -1): bool
+    {
+        return Co::join($coroutineIds, $timeout);
     }
 
     /**
@@ -188,11 +204,18 @@ class Coroutine
             return;
         }
 
-        $container = Container::getInstance();
+        try {
+            $container = Container::getInstance();
 
-        if ($container->has(ExceptionHandlerContract::class)) {
-            $container->make(ExceptionHandlerContract::class)
-                ->report($throwable);
+            if ($container->has(ExceptionHandlerContract::class)) {
+                $container->make(ExceptionHandlerContract::class)
+                    ->report($throwable);
+            }
+        } catch (Throwable) {
+            try {
+                error_log((string) $throwable);
+            } catch (Throwable) {
+            }
         }
     }
 }

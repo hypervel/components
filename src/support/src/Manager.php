@@ -8,9 +8,14 @@ use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use InvalidArgumentException;
+use ReflectionException;
+use RuntimeException;
+use UnitEnum;
 
 abstract class Manager
 {
+    use RebindsCallbacksToSelf;
+
     /**
      * The configuration repository instance.
      */
@@ -45,9 +50,15 @@ abstract class Manager
      *
      * @throws InvalidArgumentException
      */
-    public function driver(?string $driver = null): mixed
+    public function driver(UnitEnum|string|null $driver = null): mixed
     {
-        $driver = $driver ?: $this->getDefaultDriver();
+        if ($driver instanceof UnitEnum) {
+            $driver = (string) enum_value($driver);
+        }
+
+        $driver = $driver === null || $driver === ''
+            ? $this->getDefaultDriver()
+            : $driver;
 
         // If the given driver has not been created before, we will create the instances
         // here and cache it so we can return it next time very quickly. If there is
@@ -100,6 +111,13 @@ abstract class Manager
      */
     public function extend(string $driver, Closure $callback): static
     {
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
         $this->customCreators[$driver] = $callback;
 
         return $this;

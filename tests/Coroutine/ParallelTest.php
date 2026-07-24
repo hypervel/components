@@ -10,8 +10,10 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Engine\Channel;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Swoole\Coroutine as SwooleCoroutine;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -39,6 +41,11 @@ class ParallelTest extends TestCase
         $result = $parallel->wait();
         $id = $result[0];
         $this->assertSame([$id, $id + 1, $id + 2], $result);
+    }
+
+    public function testParallelAcceptsAnEmptyCallbackList(): void
+    {
+        $this->assertSame([], parallel([]));
     }
 
     public function testParallelConcurrent()
@@ -82,6 +89,27 @@ class ParallelTest extends TestCase
         $res = parallel($callbacks, 2);
         sort($res);
         $this->assertSame([12, 13, 14, 14], array_values($res));
+    }
+
+    public function testParallelReturnsAfterChildCoroutinesExit(): void
+    {
+        $childCoroutineId = null;
+        $cleanupCompleted = false;
+        $parallel = new Parallel;
+        $parallel->add(function () use (&$childCoroutineId, &$cleanupCompleted): string {
+            $childCoroutineId = Coroutine::id();
+            Coroutine::defer(function () use (&$cleanupCompleted): void {
+                Coroutine::sleep(0.001);
+                $cleanupCompleted = true;
+            });
+
+            return 'result';
+        });
+
+        $this->assertSame(['result'], $parallel->wait());
+        $this->assertTrue($cleanupCompleted);
+        $this->assertIsInt($childCoroutineId);
+        $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
     public function testParallelCallbackCount()
@@ -174,6 +202,32 @@ class ParallelTest extends TestCase
         }
         $this->expectException(ParallelExecutionException::class);
         $res = $parallel->wait();
+    }
+
+    public function testParallelThrowsAfterChildCoroutinesExit(): void
+    {
+        $childCoroutineId = null;
+        $cleanupCompleted = false;
+        $parallel = new Parallel;
+        $parallel->add(function () use (&$childCoroutineId, &$cleanupCompleted): void {
+            $childCoroutineId = Coroutine::id();
+            Coroutine::defer(function () use (&$cleanupCompleted): void {
+                Coroutine::sleep(0.001);
+                $cleanupCompleted = true;
+            });
+
+            throw new RuntimeException('something bad happened');
+        });
+
+        try {
+            $parallel->wait();
+            $this->fail('The parallel executor should throw after its child exits.');
+        } catch (ParallelExecutionException) {
+        }
+
+        $this->assertTrue($cleanupCompleted);
+        $this->assertIsInt($childCoroutineId);
+        $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
     public function testParallelResultsAndThrows()
@@ -540,6 +594,36 @@ class ParallelTest extends TestCase
         ], 0, copyContext: true);
 
         $this->assertSame('value', $channel->pop());
+    }
+
+    public function testContextReplicationFailureDoesNotStrandParallelBookkeeping(): void
+    {
+        $result = new Channel(1);
+        $runner = Coroutine::create(static function () use ($result): void {
+            CoroutineContext::set('throwing', new ThrowingReplicableContext);
+            $parallel = new Parallel(1, copyContext: true);
+            $parallel->add(static fn (): string => 'never', 'first');
+            $parallel->add(static fn (): string => 'never', 'second');
+
+            try {
+                $parallel->wait();
+            } catch (ParallelExecutionException $exception) {
+                $result->push($exception);
+            }
+        });
+
+        $outcome = $result->pop(0.1);
+
+        if ($outcome === false && Coroutine::exists($runner)) {
+            SwooleCoroutine::cancel($runner, true);
+        }
+
+        $this->assertInstanceOf(ParallelExecutionException::class, $outcome);
+        $this->assertSame(['first', 'second'], array_keys($outcome->getThrowables()));
+
+        foreach ($outcome->getThrowables() as $throwable) {
+            $this->assertSame('Unable to replicate context.', $throwable->getMessage());
+        }
     }
 
     public function returnCoroutineId(): int

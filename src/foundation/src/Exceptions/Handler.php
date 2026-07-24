@@ -19,6 +19,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Debug\ShouldntReport;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\RecordNotFoundException;
@@ -46,6 +47,10 @@ use Hypervel\Validation\ValidationException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use ReflectionFunction;
+use ReflectionIntersectionType;
+use ReflectionType;
+use ReflectionUnionType;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -76,6 +81,11 @@ class Handler implements ExceptionHandlerContract
     public const AFTER_RESPONSE_CONTEXT_KEY = '__foundation.errors.after_response';
 
     /**
+     * Context key for the exception currently being reported.
+     */
+    public const CURRENTLY_REPORTING_CONTEXT_KEY = '__foundation.errors.currently_reporting';
+
+    /**
      * A list of the exception types that are not reported.
      *
      * @var array<int, class-string<Throwable>>
@@ -100,6 +110,20 @@ class Handler implements ExceptionHandlerContract
      * @var Closure[]
      */
     protected array $dontReportCallbacks = [];
+
+    /**
+     * A list of the exception types that should stop job retries.
+     *
+     * @var array<int, class-string<Throwable>>
+     */
+    protected array $dontRetry = [];
+
+    /**
+     * The callbacks that inspect exceptions to determine if they should stop job retries.
+     *
+     * @var array<int, Closure>
+     */
+    protected array $dontRetryCallbacks = [];
 
     /**
      * The callbacks that should be used to throttle reportable exceptions.
@@ -292,6 +316,99 @@ class Handler implements ExceptionHandlerContract
     }
 
     /**
+     * Indicate that jobs should stop retrying for the given exception types.
+     *
+     * Boot-only. The exception types persist on the shared handler and affect
+     * every subsequently failed job in the worker.
+     */
+    public function dontRetry(array|string $exceptions): static
+    {
+        $exceptions = Arr::wrap($exceptions);
+
+        $this->dontRetry = array_values(array_unique(array_merge($this->dontRetry, $exceptions)));
+
+        return $this;
+    }
+
+    /**
+     * Register a callback to determine if jobs should stop retrying for an exception.
+     *
+     * Boot-only. The callback persists on the shared handler and is considered for
+     * every subsequently failed job in the worker.
+     *
+     * @template TException of Throwable
+     *
+     * @param callable(TException): bool $dontRetryWhen
+     */
+    public function dontRetryWhen(callable $dontRetryWhen): static
+    {
+        if (! $dontRetryWhen instanceof Closure) {
+            $dontRetryWhen = Closure::fromCallable($dontRetryWhen);
+        }
+
+        $this->dontRetryCallbacks[] = $dontRetryWhen;
+
+        return $this;
+    }
+
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        if (Arr::first(
+            $this->dontRetry,
+            static fn (string $type): bool => $e instanceof $type,
+        ) !== null) {
+            return true;
+        }
+
+        foreach ($this->dontRetryCallbacks as $dontRetryCallback) {
+            $parameters = (new ReflectionFunction($dontRetryCallback))->getParameters();
+
+            if ($parameters !== []) {
+                $parameter = $parameters[0];
+                $reflectionType = $parameter->getType();
+                $classNames = Reflector::getParameterClassNames($parameter);
+
+                // Intersections retain AND semantics; flattening them would turn DNF types into ordinary unions.
+                $intersections = match (true) {
+                    $reflectionType instanceof ReflectionIntersectionType => [$reflectionType],
+                    $reflectionType instanceof ReflectionUnionType => array_values(array_filter(
+                        $reflectionType->getTypes(),
+                        static fn (ReflectionType $member): bool => $member instanceof ReflectionIntersectionType,
+                    )),
+                    default => [],
+                };
+
+                $matchesClass = array_any(
+                    $classNames,
+                    static fn (string $className): bool => is_a($e, $className),
+                );
+                $matchesIntersection = array_any(
+                    $intersections,
+                    static fn (ReflectionIntersectionType $intersection): bool => array_all(
+                        $intersection->getTypes(),
+                        static fn (ReflectionType $member): bool => is_a($e, (string) $member),
+                    ),
+                );
+
+                if (($classNames !== [] || $intersections !== [])
+                    && ! $matchesClass
+                    && ! $matchesIntersection) {
+                    continue;
+                }
+            }
+
+            if ($dontRetryCallback($e) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Indicate that the given attributes should never be flashed to the session on validation errors.
      */
     public function dontFlash(array|string $attributes): static
@@ -363,11 +480,37 @@ class Handler implements ExceptionHandlerContract
 
         $level = $this->mapLogLevel($e);
 
-        $context = $this->buildExceptionContext($e);
+        $hadPrevious = CoroutineContext::has(self::CURRENTLY_REPORTING_CONTEXT_KEY);
+        $previous = CoroutineContext::get(self::CURRENTLY_REPORTING_CONTEXT_KEY);
 
-        method_exists($logger, $level)
-            ? $logger->{$level}($e->getMessage(), $context)
-            : $logger->log($level, $e->getMessage(), $context);
+        CoroutineContext::set(self::CURRENTLY_REPORTING_CONTEXT_KEY, [
+            'coroutineId' => Coroutine::id(),
+            'exception' => $e,
+        ]);
+
+        try {
+            $context = $this->buildExceptionContext($e);
+
+            method_exists($logger, $level)
+                ? $logger->{$level}($e->getMessage(), $context)
+                : $logger->log($level, $e->getMessage(), $context);
+        } finally {
+            $hadPrevious
+                ? CoroutineContext::set(self::CURRENTLY_REPORTING_CONTEXT_KEY, $previous)
+                : CoroutineContext::forget(self::CURRENTLY_REPORTING_CONTEXT_KEY);
+        }
+    }
+
+    /**
+     * Determine if the given exception is being reported by this coroutine.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        $reporting = CoroutineContext::get(self::CURRENTLY_REPORTING_CONTEXT_KEY);
+
+        return is_array($reporting)
+            && ($reporting['coroutineId'] ?? null) === Coroutine::id()
+            && ($reporting['exception'] ?? null) === $e;
     }
 
     /**
@@ -512,10 +655,20 @@ class Handler implements ExceptionHandlerContract
     protected function buildExceptionContext(Throwable $e): array
     {
         return array_merge(
-            $this->exceptionContext($e),
+            $this->buildContextForException($e),
             $this->context(),
             ['exception' => $e]
         );
+    }
+
+    /**
+     * Create the context for the given exception.
+     *
+     * @return array<array-key, mixed>
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return $this->exceptionContext($e);
     }
 
     /**
@@ -720,9 +873,17 @@ class Handler implements ExceptionHandlerContract
      */
     protected function unauthenticated(Request $request, AuthenticationException $exception): Response|JsonResponse|RedirectResponse
     {
-        return $this->shouldReturnJson($request, $exception)
-            ? response()->json(['message' => $exception->getMessage()], 401)
-            : redirect()->guest($exception->redirectTo($request) ?? route('login'));
+        if ($this->shouldReturnJson($request, $exception)) {
+            return response()->json(['message' => $exception->getMessage()], 401);
+        }
+
+        $redirectTo = $exception->redirectTo($request);
+
+        if (! $redirectTo) {
+            return response()->noContent(401);
+        }
+
+        return redirect()->guest($redirectTo);
     }
 
     /**

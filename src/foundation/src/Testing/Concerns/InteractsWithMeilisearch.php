@@ -8,24 +8,11 @@ use Meilisearch\Client as MeilisearchClient;
 use Throwable;
 
 /**
- * Provides Meilisearch integration testing support.
+ * Add Meilisearch support to an integration test.
  *
- * Auto-called by TestCase via setUpTraits():
- * - setUpInteractsWithMeilisearch() runs after app boots
- * - tearDownInteractsWithMeilisearch() runs via beforeApplicationDestroyed()
- *
- * Features:
- * - Opt-in skip: Skips unless MEILISEARCH_HOST is set
- * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
- * - Auto-cleanup: Removes test indexes in teardown
- *
- * Usage: Add `use InteractsWithMeilisearch;` to your test case.
- *
- * Environment Variables:
- * - MEILISEARCH_HOST: Host; must be set to enable Meilisearch integration tests
- * - MEILISEARCH_PORT: Port (default: 7700)
- * - MEILISEARCH_KEY: API key (optional)
- * - TEST_TOKEN: Parallel test token from paratest (auto-set)
+ * Use this trait on a test case and set MEILISEARCH_HOST. MEILISEARCH_PORT
+ * and MEILISEARCH_KEY may also be configured. Test indexes are isolated and
+ * cleaned up using a TEST_TOKEN-based prefix.
  */
 trait InteractsWithMeilisearch
 {
@@ -51,6 +38,10 @@ trait InteractsWithMeilisearch
             $this->markTestSkipped(
                 'Set MEILISEARCH_HOST to run Meilisearch integration tests for ' . static::class
             );
+        }
+
+        if ($this->meilisearchTestPrefix === '') {
+            $this->computeMeilisearchTestPrefix();
         }
 
         $this->initializeMeilisearchClient();

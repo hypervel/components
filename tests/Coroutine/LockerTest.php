@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Coroutine;
 use Hypervel\Coroutine\Locker;
 use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
+use ReflectionProperty;
 
 use function Hypervel\Coroutine\go;
 
@@ -54,6 +55,22 @@ class LockerTest extends TestCase
             Locker::flushState();
 
             $this->assertTrue(Locker::lock('held'));
+        } finally {
+            Locker::flushState();
+        }
+    }
+
+    public function testUnlockRemovesReleasedKeys(): void
+    {
+        try {
+            $this->assertTrue(Locker::lock('dynamic'));
+
+            Locker::unlock('dynamic');
+
+            $this->assertArrayNotHasKey(
+                'dynamic',
+                (new ReflectionProperty(Locker::class, 'channels'))->getValue(),
+            );
         } finally {
             Locker::flushState();
         }

@@ -12,8 +12,12 @@ class ClientFactory implements ClientFactoryInterface
     /**
      * Create a new HTTP/2 client instance.
      */
-    public function make(string $host, int $port = 80, bool $ssl = false): ClientInterface
-    {
-        return new Client($host, $port, $ssl);
+    public function make(
+        string $host,
+        int $port = 80,
+        bool $ssl = false,
+        array $settings = [],
+    ): ClientInterface {
+        return new Client($host, $port, $ssl, $settings);
     }
 }

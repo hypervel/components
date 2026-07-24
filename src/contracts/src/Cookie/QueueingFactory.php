@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Cookie;
 
+use Symfony\Component\HttpFoundation\Cookie;
 use UnitEnum;
 
 interface QueueingFactory extends Factory
@@ -16,7 +17,7 @@ interface QueueingFactory extends Factory
     /**
      * Get a cookie value from the current request.
      */
-    public function get(UnitEnum|string $key, ?string $default = null): ?string;
+    public function get(UnitEnum|string $key, string|array|null $default = null): string|array|null;
 
     /**
      * Queue a cookie to send with the next response.
@@ -40,6 +41,8 @@ interface QueueingFactory extends Factory
 
     /**
      * Get the cookies which have been queued for the next request.
+     *
+     * @return array<int, Cookie>
      */
     public function getQueuedCookies(): array;
 }

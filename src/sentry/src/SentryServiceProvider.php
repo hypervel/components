@@ -179,7 +179,6 @@ class SentryServiceProvider extends ServiceProvider
             $transport = new HttpPoolTransport(
                 new Pool(
                     $clientBuilder->getOptions(),
-                    $this->app,
                     $this->sentryPoolOptions($poolConfig),
                 )
             );

@@ -7,17 +7,22 @@ namespace Hypervel\Tests\Integration\Queue\CallQueuedHandlerTest;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Queue\Events\JobDebounced;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use stdClass;
 
 class CallQueuedHandlerTest extends TestCase
 {
@@ -210,6 +215,73 @@ class CallQueuedHandlerTest extends TestCase
         $instance->call($job, [
             'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
         ]);
+    }
+
+    public function testDebouncedJobEventIsSkippedWithoutListeners(): void
+    {
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobDebounced::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $this->app->instance('events', $events);
+
+        $job = m::mock(Job::class);
+        $job->shouldNotReceive('getConnectionName');
+        $job->shouldReceive('delete')->once();
+
+        $handler = new TestableCallQueuedHandler(new Dispatcher($this->app), $this->app);
+        $handler->deleteDebounced($job, new stdClass);
+    }
+
+    public function testDebouncedJobOwnerIsCheckedWithOneCacheRead(): void
+    {
+        $command = new class {
+            public string $debounceOwner = 'old-owner';
+
+            public function debounceId(): string
+            {
+                return 'entity-1';
+            }
+        };
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')->once()->with(DebounceLock::getKey($command))->andReturn('new-owner');
+        $this->app->instance(Cache::class, $cache);
+
+        $handler = new TestableCallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $this->assertTrue($handler->shouldDebounce($command));
+    }
+
+    public function testDebouncedJobEventRemainsVisibleToEventFake(): void
+    {
+        Event::fake([JobDebounced::class]);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('getConnectionName')->once()->andReturn('database');
+        $job->shouldReceive('delete')->once();
+
+        $command = new stdClass;
+        $handler = new TestableCallQueuedHandler(new Dispatcher($this->app), $this->app);
+        $handler->deleteDebounced($job, $command);
+
+        Event::assertDispatched(JobDebounced::class, function (JobDebounced $event) use ($job, $command): bool {
+            return $event->connectionName === 'database'
+                && $event->job === $job
+                && $event->command === $command;
+        });
+    }
+}
+
+class TestableCallQueuedHandler extends CallQueuedHandler
+{
+    public function shouldDebounce(mixed $command): bool
+    {
+        return $this->commandShouldBeDebounced($command);
+    }
+
+    public function deleteDebounced(Job $job, mixed $command): void
+    {
+        $this->deleteDebouncedJob($job, $command);
     }
 }
 

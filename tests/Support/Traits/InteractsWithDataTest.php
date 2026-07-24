@@ -9,7 +9,9 @@ use Carbon\Unit;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\InteractsWithData;
 use Hypervel\Tests\TestCase;
 use TypeError;
@@ -54,8 +56,18 @@ class InteractsWithDataTest extends TestCase
 
         $result = $instance->date('date');
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('2024-01-15 10:30:00', $result->format('Y-m-d H:i:s'));
+    }
+
+    public function testDateHonorsTheMutableDateFactoryOptOut(): void
+    {
+        Date::use(Carbon::class);
+        $instance = new TestInteractsWithDataClass(['date' => '2024-01-15 10:30:00']);
+
+        $result = $instance->date('date');
+
+        $this->assertSame(Carbon::class, $result::class);
     }
 
     public function testDateParsesWithFormat(): void
@@ -64,7 +76,7 @@ class InteractsWithDataTest extends TestCase
 
         $result = $instance->date('date', 'd/m/Y');
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('2024-01-15', $result->format('Y-m-d'));
     }
 
@@ -74,7 +86,7 @@ class InteractsWithDataTest extends TestCase
 
         $result = $instance->date('date', null, 'America/New_York');
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
@@ -84,7 +96,7 @@ class InteractsWithDataTest extends TestCase
 
         $result = $instance->date('date', null, InteractsWithDataTestStringEnum::NewYork);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('America/New_York', $result->timezone->getName());
     }
 
@@ -95,7 +107,7 @@ class InteractsWithDataTest extends TestCase
         // UnitEnum uses ->name, so 'UTC' will be the timezone
         $result = $instance->date('date', null, InteractsWithDataTestUnitEnum::UTC);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         $this->assertEquals('UTC', $result->timezone->getName());
     }
 
@@ -107,7 +119,7 @@ class InteractsWithDataTest extends TestCase
         // This tests that enum_value() is called and passes the value to Carbon
         $result = $instance->date('date', null, InteractsWithDataTestIntEnum::One);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
         // Carbon interprets int as UTC offset, so timezone offset will be +01:00
         $this->assertEquals('+01:00', $result->timezone->getName());
     }
@@ -118,7 +130,7 @@ class InteractsWithDataTest extends TestCase
 
         $result = $instance->date('date', null, null);
 
-        $this->assertInstanceOf(Carbon::class, $result);
+        $this->assertSame(CarbonImmutable::class, $result::class);
     }
 
     public function testIntervalMethod(): void

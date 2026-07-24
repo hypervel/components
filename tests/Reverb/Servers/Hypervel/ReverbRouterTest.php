@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
+use Hypervel\Routing\UrlGenerator;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class ReverbRouterTest extends ReverbTestCase
 {
-    public function testReverbRouterIsSeparateFromGlobalRouter()
+    public function testReverbRouterIsSeparateFromGlobalRouter(): void
     {
         $reverbRouter = $this->app->make(ReverbRouter::class);
         $globalRouter = $this->app->make('router');
@@ -17,7 +18,7 @@ class ReverbRouterTest extends ReverbTestCase
         $this->assertNotSame($reverbRouter, $globalRouter);
     }
 
-    public function testReverbRouterContainsExpectedRoutes()
+    public function testReverbRouterContainsExpectedRoutes(): void
     {
         $router = $this->app->make(ReverbRouter::class);
         $routes = $router->getRoutes()->getRoutes();
@@ -35,7 +36,7 @@ class ReverbRouterTest extends ReverbTestCase
         $this->assertContains('GET up', $uris);
     }
 
-    public function testGlobalRouterDoesNotContainReverbRoutes()
+    public function testGlobalRouterDoesNotContainReverbRoutes(): void
     {
         $globalRouter = $this->app->make('router');
         $routes = $globalRouter->getRoutes()->getRoutes();
@@ -47,11 +48,29 @@ class ReverbRouterTest extends ReverbTestCase
         $this->assertNotContains('up', $uris);
     }
 
-    public function testReverbRouterIsSingleton()
+    public function testReverbRouterIsSingleton(): void
     {
         $first = $this->app->make(ReverbRouter::class);
         $second = $this->app->make(ReverbRouter::class);
 
         $this->assertSame($first, $second);
+    }
+
+    public function testCompilingReverbRoutesPreservesTheGlobalCollectionAndUrlGenerator(): void
+    {
+        $globalRouter = $this->app->make('router');
+        $globalRouter->get('/application-only', static fn (): string => 'application')
+            ->name('application-only');
+        $globalRoutes = $globalRouter->getRoutes();
+        $globalRoutes->refreshNameLookups();
+        $url = $this->app->make('url');
+
+        $this->assertInstanceOf(UrlGenerator::class, $url);
+        $this->assertSame($globalRoutes, $this->app->make('routes'));
+
+        $this->app->make(ReverbRouter::class)->compileAndWarm();
+
+        $this->assertSame($globalRoutes, $this->app->make('routes'));
+        $this->assertStringEndsWith('/application-only', $url->route('application-only'));
     }
 }

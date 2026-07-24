@@ -14,7 +14,7 @@ use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Redis\RedisProxy;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -24,8 +24,8 @@ class QueueRedisQueueTest extends TestCase
 {
     public function testPushProperlyPushesJobOntoRedis(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
@@ -44,8 +44,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testPushProperlyPushesJobOntoRedisWithCustomPayloadHook(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
@@ -70,8 +70,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testJobQueueingAndQueuedEventsAreSkippedWhenNoListenersAreRegistered(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
@@ -98,8 +98,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testPushProperlyPushesJobOntoRedisWithTwoCustomPayloadHook(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
@@ -128,8 +128,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testDelayedPushProperlyPushesJobOntoRedis(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['availableAt', 'getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
@@ -156,11 +156,11 @@ class QueueRedisQueueTest extends TestCase
 
     public function testDelayedPushWithDateTimeProperlyPushesJobOntoRedis(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
-        $date = Carbon::now();
+        $date = CarbonImmutable::now()->addSeconds(5);
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['availableAt', 'getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->setContainer($container = m::spy(Container::class));
         $queue->setConnectionName('default');
@@ -178,7 +178,7 @@ class QueueRedisQueueTest extends TestCase
         );
         $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
 
-        $queue->later($date->addSeconds(5), 'foo', ['data']);
+        $queue->later($date, 'foo', ['data']);
         $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
@@ -187,6 +187,8 @@ class QueueRedisQueueTest extends TestCase
         $queue = new RedisQueue(m::mock(Redis::class), 'default', 'default');
 
         $this->assertSame('queues:default', $queue->getQueue(null));
+        $this->assertSame('queues:default', $queue->getQueue(''));
+        $this->assertSame('queues:0', $queue->getQueue('0'));
         $this->assertSame('queues:emails', $queue->getQueue('emails'));
     }
 
@@ -198,6 +200,8 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->never();
 
         $this->assertSame('queues:default', $queue->getQueue(null));
+        $this->assertSame('queues:default', $queue->getQueue(''));
+        $this->assertSame('queues:0', $queue->getQueue('0'));
         $this->assertSame('queues:emails', $queue->getQueue('emails'));
     }
 
@@ -209,6 +213,8 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->once()->andReturn($redisProxy);
 
         $this->assertSame('queues:default', $queue->testGetQueueRedisKey(null));
+        $this->assertSame('queues:default', $queue->testGetQueueRedisKey(''));
+        $this->assertSame('queues:0', $queue->testGetQueueRedisKey('0'));
         $this->assertSame('queues:emails', $queue->testGetQueueRedisKey('emails'));
     }
 
@@ -220,6 +226,8 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->once()->andReturn($redisProxy);
 
         $this->assertSame('queues:{default}', $queue->testGetQueueRedisKey(null));
+        $this->assertSame('queues:{default}', $queue->testGetQueueRedisKey(''));
+        $this->assertSame('queues:{0}', $queue->testGetQueueRedisKey('0'));
         $this->assertSame('queues:{emails}', $queue->testGetQueueRedisKey('emails'));
     }
 
@@ -250,8 +258,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testPushUsesClusterSafeRedisKeyForLuaScript(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)
@@ -279,8 +287,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testPushPassesLogicalQueueToPayloadCallbacksOnCluster(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)
@@ -315,8 +323,8 @@ class QueueRedisQueueTest extends TestCase
 
     public function testLaterUsesClusterSafeRedisKeyForDelayedSet(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)
@@ -399,6 +407,33 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->times(4)->andReturn($redisProxy);
 
         $this->assertNull($queue->pop());
+    }
+
+    public function testPoppedJobPreservesZeroQueueAndDefaultsEmptyQueue(): void
+    {
+        $payload = json_encode([
+            'id' => 'job-id',
+            'job' => 'job',
+            'attempts' => 0,
+            'data' => [],
+        ], JSON_THROW_ON_ERROR);
+
+        foreach ([['0', '0'], ['', 'default']] as [$requested, $expected]) {
+            $queue = $this->getMockBuilder(RedisQueue::class)
+                ->onlyMethods(['getQueueRedisKey', 'migrate', 'retrieveNextJob'])
+                ->setConstructorArgs([m::mock(Redis::class), 'default', 'default'])
+                ->getMock();
+            $queue->setContainer(new Container);
+            $queue->setConnectionName('redis');
+            $queue->expects($this->once())->method('getQueueRedisKey')->with($requested)->willReturn("queues:{$expected}");
+            $queue->expects($this->once())->method('migrate')->with("queues:{$expected}");
+            $queue->expects($this->once())->method('retrieveNextJob')->with("queues:{$expected}", true)->willReturn([$payload, $payload]);
+
+            $job = $queue->pop($requested);
+
+            $this->assertInstanceOf(RedisJob::class, $job);
+            $this->assertSame($expected, $job->getQueue());
+        }
     }
 
     public function testDeleteReservedUsesClusterSafeRedisKey(): void

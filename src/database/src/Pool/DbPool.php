@@ -70,9 +70,10 @@ class DbPool extends Pool
             ['testing_enabled'],
         );
 
-        $this->frequency = new Frequency($this);
+        $this->frequency = new Frequency;
 
         parent::__construct($container, $name, $poolOptions);
+        $this->configureConnectTimeout();
 
         $this->heartbeatTimer = new Timer($this->getLogger());
 
@@ -83,14 +84,6 @@ class DbPool extends Pool
         }
 
         $this->startHeartbeat();
-    }
-
-    /**
-     * Destroy the database pool.
-     */
-    public function __destruct()
-    {
-        $this->clearHeartbeat();
     }
 
     /**
@@ -107,6 +100,27 @@ class DbPool extends Pool
     protected function createConnection(): ConnectionInterface
     {
         return new PooledConnection($this->container, $this, $this->config);
+    }
+
+    /**
+     * Apply the pool connection deadline through the native driver setting.
+     */
+    private function configureConnectTimeout(): void
+    {
+        $connectTimeout = (int) ceil($this->option->getConnectTimeout());
+        $driver = $this->config['driver'] ?? null;
+
+        if (in_array($driver, ['mysql', 'mariadb'], true)) {
+            /** @var array<int, mixed> $options */
+            $options = $this->config['options'] ?? [];
+
+            if (! array_key_exists(PDO::ATTR_TIMEOUT, $options)) {
+                $options[PDO::ATTR_TIMEOUT] = $connectTimeout;
+                $this->config['options'] = $options;
+            }
+        } elseif ($driver === 'pgsql' && ! array_key_exists('connect_timeout', $this->config)) {
+            $this->config['connect_timeout'] = $connectTimeout;
+        }
     }
 
     /**
@@ -234,7 +248,7 @@ class DbPool extends Pool
     protected function heartbeatConnection(PooledConnection $connection): void
     {
         try {
-            $now = microtime(true);
+            $now = hrtime(true) / 1e9;
 
             if ($connection->isLifetimeExpired($now)) {
                 $this->discardHeartbeatConnection($connection);

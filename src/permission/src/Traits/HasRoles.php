@@ -15,6 +15,8 @@ use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Support\PermissionPartition;
+use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use TypeError;
@@ -29,12 +31,12 @@ trait HasRoles
     private ?string $roleClass = null;
 
     /**
-     * @var array<int, array{roles: array<int, int|string>, pivot: array<string, mixed>}>
+     * @var array<string, array{roles: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}>
      */
     private array $queuedRoleAssignments = [];
 
     /**
-     * Boot the role relation cleanup and queued assignment callbacks.
+     * Boot role cleanup.
      */
     public static function bootHasRoles(): void
     {
@@ -46,30 +48,37 @@ trait HasRoles
             $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
             if ($model instanceof Permission) {
-                $model->getConnection()
-                    ->table(Config::modelHasPermissionsTable())
-                    ->where($registrar->pivotPermission, $model->getKey())
-                    ->delete();
+                static::deletePermissionRecordAssignments(
+                    $model,
+                    Config::modelHasPermissionsTable(),
+                    $registrar->pivotPermission,
+                );
 
-                $model->getConnection()
-                    ->table(Config::roleHasPermissionsTable())
-                    ->where($registrar->pivotPermission, $model->getKey())
-                    ->delete();
+                return;
+            }
+
+            if ($model instanceof Role) {
+                return;
+            }
+
+            $contexts = static::deleteSubjectAssignments(
+                $model,
+                Config::modelHasRolesTable(),
+            );
+
+            if ($contexts === null) {
+                $registrar->forgetModelRoleCache($model);
             } else {
-                $model->getConnection()
-                    ->table(Config::modelHasRolesTable())
-                    ->where(Config::morphKey(), $model->getKey())
-                    ->where('model_type', $model->getMorphClass())
-                    ->delete();
-
-                $registrar->forgetModelAssignmentCache($model);
+                foreach ($contexts as $context) {
+                    $registrar->forgetModelRoleCacheFor(
+                        $model,
+                        $context->partition,
+                        $context->team,
+                    );
+                }
             }
-        });
 
-        static::saved(function (Model $model): void {
-            if (method_exists($model, 'attachQueuedRoleAssignments')) {
-                $model->attachQueuedRoleAssignments();
-            }
+            $registrar->forgetLoadedRelationProvenance($model, 'roles');
         });
     }
 
@@ -90,24 +99,40 @@ trait HasRoles
      */
     public function roles(): BelongsToMany
     {
-        $relation = $this->morphToMany(
+        return $this->roleAssignmentRelation();
+    }
+
+    /**
+     * Build the role assignment relation for a captured context.
+     */
+    protected function roleAssignmentRelation(
+        ?PermissionRelationContext $context = null,
+    ): BelongsToMany {
+        $registrar = $this->permissionRegistrar();
+        $teamScoped = $registrar->teams && ! $this instanceof Permission;
+
+        $relation = $this->permissionMorphToMany(
             Config::roleModel(),
-            'model',
             Config::modelHasRolesTable(),
             Config::morphKey(),
-            $this->permissionRegistrar()->pivotRole
+            $registrar->pivotRole,
+            'roles',
+            teamScoped: $teamScoped,
+            context: $context,
         );
 
-        if (! Config::teamsEnabled()) {
+        if (! $teamScoped) {
             return $relation;
         }
 
-        $teamsKey = Config::teamForeignKey();
-        $relation->withPivot($teamsKey);
-        $teamField = Config::rolesTable() . '.' . $teamsKey;
+        $teamField = Config::rolesTable() . '.' . $registrar->teamsKey;
+        $team = $context === null
+            ? $registrar->getPermissionsTeamId()
+            : $context->team;
 
-        return $relation->wherePivot($teamsKey, getPermissionsTeamId())
-            ->where(fn ($q) => $q->whereNull($teamField)->orWhere($teamField, getPermissionsTeamId()));
+        return $relation->where(
+            fn ($query) => $query->whereNull($teamField)->orWhere($teamField, $team),
+        );
     }
 
     /**
@@ -116,16 +141,22 @@ trait HasRoles
     protected function getCachedRoles(): Collection
     {
         $model = $this;
+        $registrar = $this->permissionRegistrar();
+        $context = $this->roleAssignmentContext($registrar);
 
-        if ($this instanceof Permission || ! $model->exists || $this->relationLoaded('roles')) {
-            return $this->relationCollection($this->loadMissing('roles'), 'roles');
+        if ($model->relationLoaded('roles')
+            && ! $registrar->loadedRelationIsCurrent($model, 'roles')) {
+            $model->unsetRelation('roles');
         }
 
-        $registrar = $this->permissionRegistrar();
+        if ($this instanceof Permission || ! $model->exists || $this->relationLoaded('roles')) {
+            return $this->relationCollection($this, 'roles');
+        }
+
         $roleKey = Guard::getModelKeyName($this->getRoleClass());
         $assignments = $registrar->rememberModelRoleAssignments(
             $model,
-            fn (): array => $this->roles()
+            fn (): array => $this->roleAssignmentRelation($context)
                 ->get()
                 ->map(fn (Model $role): array => [$roleKey => $role->getKey()])
                 ->values()
@@ -148,8 +179,12 @@ trait HasRoles
             $roles = $roles->all();
         }
 
-        $roles = array_map(function ($role) use ($guard) {
+        $partition = $this->permissionRegistrar()->resolvePartition();
+
+        $roles = array_map(function ($role) use ($guard, $partition) {
             if ($role instanceof Role) {
+                $this->ensureRoleMatchesPartition($role, $partition);
+
                 return $role;
             }
 
@@ -157,7 +192,13 @@ trait HasRoles
 
             $method = is_int($role) || PermissionRegistrar::isUid($role) ? 'findById' : 'findByName';
 
-            return $this->getRoleClass()::{$method}($role, $guard ?: $this->getDefaultGuardName());
+            $role = $this->getRoleClass()::{$method}(
+                $role,
+                $guard === null || $guard === '' ? $this->getDefaultGuardName() : $guard
+            );
+            $this->ensureRoleMatchesPartition($role, $partition);
+
+            return $role;
         }, Arr::wrap($roles));
 
         $key = Guard::getModelKeyName($this->getRoleClass());
@@ -189,12 +230,12 @@ trait HasRoles
     public function teams(): BelongsToMany
     {
         if (! Config::teamsEnabled()) {
-            $relation = $this->morphToMany(
+            $relation = $this->permissionMorphToMany(
                 Config::permissionModel(),
-                'model',
                 Config::modelHasRolesTable(),
                 Config::morphKey(),
-                Config::teamForeignKey()
+                Config::teamForeignKey(),
+                'teams',
             );
 
             $relation->whereRaw('1 = 0');
@@ -202,12 +243,12 @@ trait HasRoles
             return $relation;
         }
 
-        $relation = $this->morphToMany(
+        $relation = $this->permissionMorphToMany(
             Config::teamModel(),
-            'model',
             Config::modelHasRolesTable(),
             Config::morphKey(),
-            Config::teamForeignKey()
+            Config::teamForeignKey(),
+            'teams',
         );
 
         $relation->distinct();
@@ -236,13 +277,19 @@ trait HasRoles
         $pivotTable = Config::modelHasRolesTable();
         $morphKey = Config::morphKey();
         $teamsKey = Config::teamForeignKey();
+        $partition = $this->permissionRegistrar()->resolvePartition();
 
         $query->{! $without ? 'whereExists' : 'whereNotExists'}(
-            fn ($subQuery) => $subQuery
-                ->from($pivotTable)
-                ->whereColumn($morphKey, $query->getModel()->getQualifiedKeyName())
-                ->where('model_type', $query->getModel()->getMorphClass())
-                ->whereIn($teamsKey, $teamIds)
+            function ($subQuery) use ($pivotTable, $morphKey, $query, $teamsKey, $teamIds, $partition) {
+                $subQuery->from($pivotTable)
+                    ->whereColumn($morphKey, $query->getModel()->getQualifiedKeyName())
+                    ->where('model_type', $query->getModel()->getMorphClass())
+                    ->whereIn($teamsKey, $teamIds);
+
+                if ($partition) {
+                    $subQuery->where($partition->column, $partition->value);
+                }
+            }
         );
 
         return $query;
@@ -263,16 +310,18 @@ trait HasRoles
      *
      * @param array|Collection|int|Role|string|UnitEnum $roles
      */
-    private function collectRoles(...$roles): array
-    {
-        return collect($roles)
+    private function collectRoles(
+        mixed $roles,
+        ?PermissionPartition $partition,
+    ): array {
+        return collect(Arr::wrap($roles))
             ->flatten()
-            ->reduce(function ($array, $role) {
+            ->reduce(function ($array, $role) use ($partition) {
                 if ($role === null || $role === '') {
                     return $array;
                 }
 
-                $role = $this->getStoredRole($role);
+                $role = $this->getStoredRole($role, $partition);
 
                 if (! in_array($role->getKey(), $array, true)) {
                     $this->ensureModelSharesGuard($role);
@@ -291,38 +340,50 @@ trait HasRoles
      */
     public function assignRole(...$roles): static
     {
-        $roles = $this->collectRoles($roles);
-
-        $model = $this;
         $registrar = $this->permissionRegistrar();
-        $teamPivot = $registrar->teams && ! $this instanceof Permission
-            ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
-        $cacheCleared = false;
+        $context = $this->roleAssignmentContext($registrar);
+        $roles = $this->collectRoles($roles, $context->partition);
 
-        if ($model->exists) {
-            if ($registrar->teams) {
-                // explicit reload in case team has been changed since last load
-                $this->load('roles');
-            }
+        if ($roles === []) {
+            $this->dispatchRoleAttachedEvent($roles);
 
-            $currentRoles = $this->getCachedRoles()->map(fn ($role) => $role->getKey())->toArray();
-
-            $this->roles()->attach(array_diff($roles, $currentRoles), $teamPivot);
-            $model->unsetRelation('roles');
-        } else {
-            $this->queueRoleAssignments($roles, $teamPivot);
+            return $this;
         }
+
+        $pivot = $this->roleAssignmentPivot($context);
+
+        if (! $this->exists) {
+            $this->queueRoleAssignments($roles, $pivot, $context);
+            $this->dispatchRoleAttachedEvent($roles);
+
+            return $this;
+        }
+
+        $currentRoles = $this->getCachedRoles()
+            ->map(fn (Model $role): int|string => $role->getKey())
+            ->all();
+        $attachedRoles = array_values(array_filter(
+            $roles,
+            fn (int|string $role): bool => ! in_array($role, $currentRoles, true),
+        ));
+
+        if ($attachedRoles === []) {
+            $this->dispatchRoleAttachedEvent($roles);
+
+            return $this;
+        }
+
+        $this->roleAssignmentRelation($context)->attach($attachedRoles, $pivot);
+        $this->unsetRelation('roles');
 
         if ($this instanceof Permission) {
-            $this->forgetCachedPermissions();
-            $cacheCleared = true;
-        } elseif ($model->exists) {
-            $registrar->forgetModelRoleCache($model);
-            $cacheCleared = true;
-        }
-
-        if (! $cacheCleared) {
-            $this->forgetWildcardPermissionIndex();
+            $registrar->forgetCachedPermissionsFor($context->partition);
+        } else {
+            $registrar->forgetModelRoleCacheFor(
+                $this,
+                $context->partition,
+                $context->team,
+            );
         }
 
         $this->dispatchRoleAttachedEvent($roles);
@@ -336,36 +397,154 @@ trait HasRoles
      * @param array<int, int|string> $roles
      * @param array<string, mixed> $pivot
      */
-    protected function queueRoleAssignments(array $roles, array $pivot): void
-    {
-        $this->queuedRoleAssignments[] = [
-            'roles' => $roles,
+    protected function queueRoleAssignments(
+        array $roles,
+        array $pivot,
+        PermissionRelationContext $context,
+    ): void {
+        $identity = $context->identity();
+        $queuedRoles = $this->queuedRoleAssignments[$identity]['roles'] ?? [];
+
+        foreach ($roles as $role) {
+            if (! in_array($role, $queuedRoles, true)) {
+                $queuedRoles[] = $role;
+            }
+        }
+
+        $this->queuedRoleAssignments[$identity] = [
+            'roles' => $queuedRoles,
             'pivot' => $pivot,
+            'context' => $context,
         ];
     }
 
     /**
-     * Attach role assignments queued before the model was saved.
+     * Replace role assignments queued for a captured context.
+     *
+     * @param array<int, int|string> $roles
+     * @param array<string, mixed> $pivot
      */
-    protected function attachQueuedRoleAssignments(): void
+    protected function replaceQueuedRoleAssignments(
+        array $roles,
+        array $pivot,
+        PermissionRelationContext $context,
+    ): bool {
+        $identity = $context->identity();
+
+        if ($roles === []) {
+            if (! isset($this->queuedRoleAssignments[$identity])) {
+                return false;
+            }
+
+            unset($this->queuedRoleAssignments[$identity]);
+
+            return true;
+        }
+
+        $current = $this->queuedRoleAssignments[$identity] ?? null;
+
+        if ($current !== null
+            && $current['roles'] === $roles
+            && $current['pivot'] === $pivot) {
+            return false;
+        }
+
+        $this->queuedRoleAssignments[$identity] = [
+            'roles' => $roles,
+            'pivot' => $pivot,
+            'context' => $context,
+        ];
+
+        return true;
+    }
+
+    /**
+     * Remove role assignments queued for a captured context.
+     *
+     * @param array<int, int|string> $roles
+     */
+    protected function removeQueuedRoleAssignments(
+        array $roles,
+        PermissionRelationContext $context,
+    ): bool {
+        $identity = $context->identity();
+        $assignment = $this->queuedRoleAssignments[$identity] ?? null;
+
+        if ($assignment === null) {
+            return false;
+        }
+
+        $remainingRoles = array_values(array_filter(
+            $assignment['roles'],
+            fn (int|string $role): bool => ! in_array($role, $roles, true),
+        ));
+
+        if ($remainingRoles === $assignment['roles']) {
+            return false;
+        }
+
+        if ($remainingRoles === []) {
+            unset($this->queuedRoleAssignments[$identity]);
+
+            return true;
+        }
+
+        $assignment['roles'] = $remainingRoles;
+        $this->queuedRoleAssignments[$identity] = $assignment;
+
+        return true;
+    }
+
+    /**
+     * Flush all assignments queued before the model was saved.
+     */
+    protected function flushQueuedPermissionAssignments(): void
     {
-        if ($this->queuedRoleAssignments === []) {
+        $roleAssignments = array_values($this->queuedRoleAssignments);
+        $permissionAssignments = $this->collapseQueuedPermissionAssignments();
+
+        if ($roleAssignments === [] && $permissionAssignments === []) {
             return;
+        }
+
+        $this->getConnection()->transaction(function () use ($roleAssignments, $permissionAssignments): void {
+            foreach ($roleAssignments as $assignment) {
+                $this->roleAssignmentRelation($assignment['context'])
+                    ->attach($assignment['roles'], $assignment['pivot']);
+            }
+
+            $this->attachQueuedPermissionAssignmentBatches($permissionAssignments);
+        });
+
+        $this->queuedRoleAssignments = [];
+        $this->clearQueuedPermissionAssignments();
+
+        if ($roleAssignments !== []) {
+            $this->unsetRelation('roles');
+        }
+
+        if ($permissionAssignments !== []) {
+            $this->unsetRelation('permissions');
+        }
+
+        $contexts = [];
+
+        foreach ([...$roleAssignments, ...$permissionAssignments] as $assignment) {
+            $contexts[$assignment['context']->identity()] = $assignment['context'];
         }
 
         $registrar = $this->permissionRegistrar();
 
-        foreach ($this->queuedRoleAssignments as $assignment) {
-            $this->roles()->attach($assignment['roles'], $assignment['pivot']);
-        }
-
-        $this->queuedRoleAssignments = [];
-        $this->unsetRelation('roles');
-
-        if ($this instanceof Permission) {
-            $this->forgetCachedPermissions();
-        } else {
-            $registrar->forgetModelRoleCache($this);
+        foreach ($contexts as $context) {
+            if ($this instanceof Permission) {
+                $registrar->forgetCachedPermissionsFor($context->partition);
+            } else {
+                $registrar->forgetModelAssignmentCacheFor(
+                    $this,
+                    $context->partition,
+                    $context->team,
+                );
+            }
         }
     }
 
@@ -376,15 +555,20 @@ trait HasRoles
      */
     protected function dispatchRoleAttachedEvent(array $roles): void
     {
-        if (! Config::eventsEnabled()) {
+        if (! $this->roleAttachedEventIsListenedFor()) {
             return;
         }
 
-        $events = $this->eventDispatcher();
+        $this->eventDispatcher()->dispatch(new RoleAttachedEvent($this, $roles));
+    }
 
-        if ($events->hasListeners(RoleAttachedEvent::class)) {
-            $events->dispatch(new RoleAttachedEvent($this, $roles));
-        }
+    /**
+     * Determine whether the role attached event has listeners.
+     */
+    protected function roleAttachedEventIsListenedFor(): bool
+    {
+        return Config::eventsEnabled()
+            && $this->eventDispatcher()->hasListeners(RoleAttachedEvent::class);
     }
 
     /**
@@ -395,16 +579,38 @@ trait HasRoles
      */
     public function removeRole(...$role): static
     {
-        $roles = $this->collectRoles($role);
+        $registrar = $this->permissionRegistrar();
+        $context = $this->roleAssignmentContext($registrar);
+        $roles = $this->collectRoles($role, $context->partition);
 
-        $this->roles()->detach($roles);
+        if ($roles === []) {
+            $this->dispatchRoleDetachedEvent($roles);
 
-        $this->unsetRelation('roles');
+            return $this;
+        }
 
-        if ($this instanceof Permission) {
-            $this->forgetCachedPermissions();
-        } else {
-            $this->permissionRegistrar()->forgetModelRoleCache($this);
+        if (! $this->exists) {
+            $this->removeQueuedRoleAssignments($roles, $context);
+            $this->dispatchRoleDetachedEvent($roles);
+
+            return $this;
+        }
+
+        $relation = $this->roleAssignmentRelation($context);
+        $detached = $relation->detach($roles);
+
+        if ($detached > 0) {
+            $this->unsetRelation('roles');
+
+            if ($this instanceof Permission) {
+                $registrar->forgetCachedPermissionsFor($context->partition);
+            } else {
+                $registrar->forgetModelRoleCacheFor(
+                    $this,
+                    $context->partition,
+                    $context->team,
+                );
+            }
         }
 
         $this->dispatchRoleDetachedEvent($roles);
@@ -419,15 +625,20 @@ trait HasRoles
      */
     protected function dispatchRoleDetachedEvent(array $roles): void
     {
-        if (! Config::eventsEnabled()) {
+        if (! $this->roleDetachedEventIsListenedFor()) {
             return;
         }
 
-        $events = $this->eventDispatcher();
+        $this->eventDispatcher()->dispatch(new RoleDetachedEvent($this, $roles));
+    }
 
-        if ($events->hasListeners(RoleDetachedEvent::class)) {
-            $events->dispatch(new RoleDetachedEvent($this, $roles));
-        }
+    /**
+     * Determine whether the role detached event has listeners.
+     */
+    protected function roleDetachedEventIsListenedFor(): bool
+    {
+        return Config::eventsEnabled()
+            && $this->eventDispatcher()->hasListeners(RoleDetachedEvent::class);
     }
 
     /**
@@ -438,36 +649,61 @@ trait HasRoles
      */
     public function syncRoles(...$roles): static
     {
-        if (! $this->exists) {
-            return $this->assignRole($roles);
-        }
-
-        $roles = $this->collectRoles($roles);
-
-        if (Config::eventsEnabled()) {
-            $currentRoles = $this->roles()->get();
-            if ($currentRoles->isNotEmpty()) {
-                $this->removeRole($currentRoles);
-            }
-        } else {
-            $this->roles()->detach();
-            $this->setRelation('roles', collect());
-        }
-
         $registrar = $this->permissionRegistrar();
-        $teamPivot = $registrar->teams && ! $this instanceof Permission
-            ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
+        $context = $this->roleAssignmentContext($registrar);
+        $roles = $this->collectRoles($roles, $context->partition);
 
-        if ($roles !== []) {
-            $this->roles()->attach($roles, $teamPivot);
+        if (! $this->exists) {
+            $this->replaceQueuedRoleAssignments(
+                $roles,
+                $this->roleAssignmentPivot($context),
+                $context,
+            );
+            $this->dispatchRoleAttachedEvent($roles);
+
+            return $this;
         }
+
+        $relation = $this->roleAssignmentRelation($context);
+        $detachedRoles = [];
+
+        if ($this->roleDetachedEventIsListenedFor()) {
+            $relatedPivotKey = $relation->getRelatedPivotKeyName();
+
+            foreach ($this->readCurrentAssignmentPivots($relation, [$relatedPivotKey]) as $pivot) {
+                $detachedRoles[] = $this->normalizeRelatedPivotId(
+                    $relation,
+                    $pivot->{$relatedPivotKey},
+                );
+            }
+        }
+
+        $pivot = $this->roleAssignmentPivot($context);
+
+        $this->getConnection()->transaction(function () use ($pivot, $relation, $roles): void {
+            $relation->detach(null, false);
+
+            if ($roles !== []) {
+                $relation->attach($roles, $pivot, false);
+            }
+
+            $relation->touchIfTouching();
+        });
 
         $this->unsetRelation('roles');
 
         if ($this instanceof Permission) {
-            $this->forgetCachedPermissions();
+            $registrar->forgetCachedPermissionsFor($context->partition);
         } else {
-            $registrar->forgetModelRoleCache($this);
+            $registrar->forgetModelRoleCacheFor(
+                $this,
+                $context->partition,
+                $context->team,
+            );
+        }
+
+        if ($detachedRoles !== []) {
+            $this->dispatchRoleDetachedEvent($detachedRoles);
         }
 
         $this->dispatchRoleAttachedEvent($roles);
@@ -495,13 +731,13 @@ trait HasRoles
         if (is_int($roles) || PermissionRegistrar::isUid($roles)) {
             $key = Guard::getModelKeyName($this->getRoleClass());
 
-            return $guard
+            return $guard !== null && $guard !== ''
                 ? $roleCollection->where('guard_name', $guard)->contains($key, $roles)
                 : $roleCollection->contains($key, $roles);
         }
 
         if (is_string($roles)) {
-            $roleNames = $guard
+            $roleNames = $guard !== null && $guard !== ''
                 ? $roleCollection->where('guard_name', $guard)->pluck('name')
                 : $roleCollection->pluck('name');
 
@@ -509,6 +745,11 @@ trait HasRoles
         }
 
         if ($roles instanceof Role) {
+            $this->ensureRoleMatchesPartition(
+                $roles,
+                $this->permissionRegistrar()->resolvePartition(),
+            );
+
             return $roleCollection->contains($roles->getKeyName(), $roles->getKey());
         }
 
@@ -523,7 +764,11 @@ trait HasRoles
         }
 
         if ($roles instanceof Collection) {
-            return $roles->intersect($guard ? $roleCollection->where('guard_name', $guard) : $roleCollection)->isNotEmpty();
+            $this->ensureRoleCollectionMatchesPartition($roles);
+
+            return $roles->intersect(
+                $guard !== null && $guard !== '' ? $roleCollection->where('guard_name', $guard) : $roleCollection
+            )->isNotEmpty();
         }
 
         throw new TypeError('Unsupported type for $roles parameter to hasRole().');
@@ -561,12 +806,19 @@ trait HasRoles
         }
 
         if ($roles instanceof Role) {
+            $this->ensureRoleMatchesPartition(
+                $roles,
+                $this->permissionRegistrar()->resolvePartition(),
+            );
+
             return $roleCollection->contains($roles->getKeyName(), $roles->getKey());
         }
 
-        $roles = collect()->make($roles)->map(fn ($role) => $role instanceof Role ? $role->name : enum_value($role));
+        $roles = collect()->make($roles);
+        $this->ensureRoleCollectionMatchesPartition($roles);
+        $roles = $roles->map(fn ($role) => $role instanceof Role ? $role->name : enum_value($role));
 
-        $roleNames = $guard
+        $roleNames = $guard !== null && $guard !== ''
             ? $roleCollection->where('guard_name', $guard)->pluck('name')
             : $this->getRoleNames();
 
@@ -593,10 +845,17 @@ trait HasRoles
         }
 
         if ($roles instanceof Role) {
+            $this->ensureRoleMatchesPartition(
+                $roles,
+                $this->permissionRegistrar()->resolvePartition(),
+            );
+
             $roles = [$roles->name];
         }
 
-        $roles = collect()->make($roles)->map(
+        $roles = collect()->make($roles);
+        $this->ensureRoleCollectionMatchesPartition($roles);
+        $roles = $roles->map(
             fn ($role) => $role instanceof Role ? $role->name : enum_value($role)
         );
 
@@ -623,19 +882,105 @@ trait HasRoles
      * Get a stored role instance.
      * @param mixed $role
      */
-    protected function getStoredRole($role): Role
-    {
+    protected function getStoredRole(
+        $role,
+        ?PermissionPartition $partition = null,
+    ): Role {
+        $partition ??= $this->permissionRegistrar()->resolvePartition();
         $role = enum_value($role);
 
         if (is_int($role) || PermissionRegistrar::isUid($role)) {
-            return $this->getRoleClass()::findById($role, $this->getDefaultGuardName());
+            $role = $this->getRoleClass()::findById($role, $this->getDefaultGuardName());
+            $this->ensureRoleMatchesPartition($role, $partition);
+
+            return $role;
         }
 
         if (is_string($role)) {
-            return $this->getRoleClass()::findByName($role, $this->getDefaultGuardName());
+            $role = $this->getRoleClass()::findByName($role, $this->getDefaultGuardName());
+            $this->ensureRoleMatchesPartition($role, $partition);
+
+            return $role;
         }
 
+        $this->ensureRoleMatchesPartition($role, $partition);
+
         return $role;
+    }
+
+    /**
+     * Capture the partition and team for a role assignment operation.
+     */
+    private function roleAssignmentContext(PermissionRegistrar $registrar): PermissionRelationContext
+    {
+        $partition = $registrar->resolvePartition();
+
+        if ($partition) {
+            $attributes = $this->getAttributes();
+
+            if ($this instanceof Permission
+                || (array_key_exists($partition->column, $attributes)
+                    && $attributes[$partition->column] !== null)) {
+                $registrar->ensureModelMatchesPartition($this, $partition);
+            }
+        }
+
+        $teamScoped = $registrar->teams && ! $this instanceof Permission;
+
+        return new PermissionRelationContext(
+            $partition,
+            $teamScoped,
+            $teamScoped ? $registrar->getPermissionsTeamId() : null,
+        );
+    }
+
+    /**
+     * Build role assignment pivot attributes for a captured context.
+     *
+     * @return array<string, null|int|string>
+     */
+    private function roleAssignmentPivot(PermissionRelationContext $context): array
+    {
+        $pivot = [];
+
+        if ($context->partition) {
+            $pivot[$context->partition->column] = $context->partition->value;
+        }
+
+        if ($context->teamScoped) {
+            $pivot[$this->permissionRegistrar()->teamsKey] = $context->team;
+        }
+
+        return $pivot;
+    }
+
+    /**
+     * Ensure a supplied role belongs to the captured partition.
+     */
+    private function ensureRoleMatchesPartition(Role $role, ?PermissionPartition $partition): void
+    {
+        if ($partition && $role instanceof Model) {
+            $this->permissionRegistrar()->ensureModelMatchesPartition($role, $partition);
+        }
+    }
+
+    /**
+     * Ensure supplied Role models belong to the current permission partition.
+     */
+    private function ensureRoleCollectionMatchesPartition(Collection $roles): void
+    {
+        if (! PermissionRegistrar::partitioningEnabled()
+            || ! $roles->contains(fn ($role): bool => $role instanceof Role)) {
+            return;
+        }
+
+        $partition = $this->permissionRegistrar()->resolvePartition();
+
+        foreach ($roles as $role) {
+            if ($role instanceof Role) {
+                $this->ensureRoleMatchesPartition($role, $partition);
+            }
+        }
     }
 
     /**

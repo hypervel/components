@@ -42,7 +42,7 @@ class AboutCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
         $this->gatherApplicationInformation();
 
@@ -249,7 +249,9 @@ class AboutCommand extends Command
      */
     protected function hasPhpFiles(string $path, string $extension = 'php'): bool
     {
-        return count(glob($path . "/*.{$extension}")) > 0;
+        $files = @glob($path . "/*.{$extension}");
+
+        return $files !== false && $files !== [];
     }
 
     /**

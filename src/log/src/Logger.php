@@ -12,6 +12,7 @@ use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Traits\Conditionable;
+use Monolog\Logger as Monolog;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Stringable;
@@ -21,17 +22,25 @@ class Logger implements LoggerInterface
     use Conditionable;
 
     /**
-     * The CoroutineContext key prefix for per-instance logger context.
+     * The CoroutineContext key prefix for per-channel logger context.
      */
-    protected const CONTEXT_KEY_PREFIX = '__log.channel_context.';
+    protected const CONTEXT_KEY_PREFIX = '__log.logger_state.';
 
     /**
-     * The coroutine-local key for this logger instance's context.
+     * The next worker-unique logger family identifier.
      *
-     * Each Logger gets its own CoroutineContext slot so that
-     * withContext() on one channel does not leak into others.
+     * This is an identity generator, not resettable state. Resetting it can
+     * alias a new logger to context retained under a destroyed logger's key.
      */
-    protected readonly string $contextKey;
+    protected static int $nextFamilyId = 0;
+
+    /**
+     * The coroutine-local key for this logger channel's context.
+     *
+     * Named variants share their source channel's slot so context added through
+     * either wrapper remains channel-local without leaking to other channels.
+     */
+    protected readonly string $stateKey;
 
     /**
      * Create a new log writer instance.
@@ -40,7 +49,13 @@ class Logger implements LoggerInterface
         protected LoggerInterface $logger,
         protected ?Dispatcher $dispatcher = null
     ) {
-        $this->contextKey = self::CONTEXT_KEY_PREFIX . spl_object_id($this);
+        $this->stateKey = self::CONTEXT_KEY_PREFIX . ++self::$nextFamilyId;
+
+        if ($this->logger instanceof Monolog) {
+            // Monolog's fallback detector is instance-global outside Fibers.
+            // The wrapper below tracks recursion in coroutine-local state.
+            $this->logger->useLoggingLoopDetection(false);
+        }
     }
 
     /**
@@ -134,12 +149,49 @@ class Logger implements LoggerInterface
             return;
         }
 
-        $this->logger->{$level}(
-            $message = $this->formatMessage($message),
-            $context = array_merge($this->getContext(), $context)
-        );
+        $state = $this->state();
+        ++$state->depth;
 
-        $this->fireLogEvent($level, $message, $context);
+        try {
+            if ($state->depth === 3) {
+                $this->logger->warning(
+                    'A possible infinite logging loop was detected and aborted. It appears some of your handler code is triggering logging, see the previous log record for a hint as to what may be the cause.'
+                );
+
+                return;
+            }
+
+            // Depth four is reserved for logging the warning above.
+            if ($state->depth >= 5) {
+                return;
+            }
+
+            $this->logger->{$level}(
+                $message = $this->formatMessage($message),
+                $context = array_merge($state->context, $context)
+            );
+
+            $this->fireLogEvent($level, $message, $context);
+        } finally {
+            --$state->depth;
+        }
+    }
+
+    /**
+     * Return a named variant of the logger.
+     *
+     * @throws RuntimeException
+     */
+    public function withName(string $name): self
+    {
+        if (! $this->logger instanceof Monolog) {
+            throw new RuntimeException('Named loggers are only supported by Monolog drivers.');
+        }
+
+        $logger = clone $this;
+        $logger->logger = $this->logger->withName($name);
+
+        return $logger;
     }
 
     /**
@@ -149,9 +201,8 @@ class Logger implements LoggerInterface
      */
     public function withContext(array $context = []): self
     {
-        CoroutineContext::override($this->contextKey, function ($currentContext) use ($context) {
-            return array_merge($currentContext ?: [], $context);
-        });
+        $state = $this->state();
+        $state->context = array_merge($state->context, $context);
 
         return $this;
     }
@@ -164,12 +215,12 @@ class Logger implements LoggerInterface
      */
     public function withoutContext(?array $keys = null): self
     {
+        $state = $this->state();
+
         if (is_array($keys)) {
-            CoroutineContext::override($this->contextKey, function ($currentContext) use ($keys) {
-                return array_diff_key($currentContext ?: [], array_flip($keys));
-            });
+            $state->context = array_diff_key($state->context, array_flip($keys));
         } else {
-            CoroutineContext::forget($this->contextKey);
+            $state->context = [];
         }
 
         return $this;
@@ -182,11 +233,27 @@ class Logger implements LoggerInterface
      */
     public function getContext(): array
     {
-        return (array) CoroutineContext::get($this->contextKey, []);
+        $state = CoroutineContext::get($this->stateKey);
+
+        return $state instanceof LoggerState ? $state->context : [];
+    }
+
+    /**
+     * Get the state for this logger family in the current coroutine.
+     */
+    protected function state(): LoggerState
+    {
+        return CoroutineContext::getOrSet(
+            $this->stateKey,
+            static fn () => new LoggerState
+        );
     }
 
     /**
      * Register a new callback handler for when a log event is triggered.
+     *
+     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * per-request registration persists and affects subsequent requests.
      *
      * @throws RuntimeException
      */

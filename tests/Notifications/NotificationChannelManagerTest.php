@@ -26,6 +26,7 @@ use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
@@ -52,6 +53,16 @@ class NotificationChannelManagerTest extends TestCase
         $manager->extend('test', fn () => $channel);
 
         $this->assertSame($channel, $manager->channel('test'));
+    }
+
+    public function testIntegerEnumChannelNamesAreNormalizedByTheManagerAndFake(): void
+    {
+        $manager = new ChannelManager($this->getContainer());
+        $channel = m::mock('customChannel');
+        $manager->extend('0', fn () => $channel);
+
+        $this->assertSame($channel, $manager->channel(NotificationChannelManagerTestIntIdentifier::Zero));
+        $this->assertNull((new NotificationFake)->channel(NotificationChannelManagerTestIntIdentifier::Zero));
     }
 
     public function testSlackChannelResolvesDirectly(): void
@@ -474,6 +485,11 @@ class TestSendQueuedNotifications implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
     use SerializesModels;
+}
+
+enum NotificationChannelManagerTestIntIdentifier: int
+{
+    case Zero = 0;
 }
 
 class NotificationChannelManagerTestNotifiable

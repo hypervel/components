@@ -105,7 +105,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         try {
             $file->getExclusiveLock();
-        } catch (LockTimeoutException) { // @phpstan-ignore catch.neverThrown (thrown inside closure)
+        } catch (LockTimeoutException) {
             $file->close();
 
             return false;

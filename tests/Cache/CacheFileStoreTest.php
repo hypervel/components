@@ -9,7 +9,7 @@ use Hypervel\Cache\FileStore;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -114,7 +114,7 @@ class CacheFileStoreTest extends TestCase
         $files = $this->mockFilesystem();
         $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration', 'get', 'getPayload'])->setConstructorArgs([$files, __DIR__])->getMock();
 
-        $now = Carbon::now();
+        $now = CarbonImmutable::now();
 
         $key = 'foo';
         $content = 'Hello World';
@@ -125,11 +125,11 @@ class CacheFileStoreTest extends TestCase
         $store->expects($this->once())
             ->method('expiration')
             ->with($this->equalTo($ttl))
-            ->willReturn($now->clone()->addSeconds($ttl)->getTimestamp());
+            ->willReturn($now->addSeconds($ttl)->getTimestamp());
         $store->expects($this->once())
             ->method('getPayload')
             ->with($key)
-            ->willReturn(['data' => $content, 'expiration' => $now->clone()->addSeconds($ttl)->getTimestamp()]);
+            ->willReturn(['data' => $content, 'expiration' => $now->addSeconds($ttl)->getTimestamp()]);
         $files->expects($this->once())
             ->method('put')
             ->with(
@@ -204,6 +204,27 @@ class CacheFileStoreTest extends TestCase
         }
     }
 
+    public function testRefreshReturnsFalseWhenFileLockCannotBeAcquired(): void
+    {
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh');
+        mkdir($tempDir, 0777, true);
+
+        $store = new FileStore(new Filesystem, $tempDir);
+        $path = $store->path('foo');
+        mkdir(dirname($path), 0777, true);
+        file_put_contents($path, (time() + 60) . serialize('owner'));
+        $lockableFile = new LockableFile($path, 'c+');
+
+        try {
+            $lockableFile->getExclusiveLock();
+
+            $this->assertFalse($store->refreshIfOwned('foo', 'owner', 10));
+        } finally {
+            $lockableFile->close();
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
     public function testForeversAreStoredWithHighTimestamp()
     {
         $files = $this->mockFilesystem();
@@ -229,11 +250,11 @@ class CacheFileStoreTest extends TestCase
 
     public function testIncrementExpiredKeys()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $filePath = $this->getCachePath('foo');
         $files = $this->mockFilesystem();
-        $now = Carbon::now()->getTimestamp();
+        $now = CarbonImmutable::now()->getTimestamp();
         $initialValue = ($now - 10) . serialize(77);
         $valueAfterIncrement = '9999999999' . serialize(3);
         $store = new FileStore($files, __DIR__);
@@ -307,10 +328,10 @@ class CacheFileStoreTest extends TestCase
 
     public function testIncrementDoesNotExtendCacheLife()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $files = $this->mockFilesystem();
-        $expiration = Carbon::now()->addSeconds(50)->getTimestamp();
+        $expiration = CarbonImmutable::now()->addSeconds(50)->getTimestamp();
         $initialValue = $expiration . serialize(1);
         $valueAfterIncrement = $expiration . serialize(2);
         $store = new FileStore($files, __DIR__);

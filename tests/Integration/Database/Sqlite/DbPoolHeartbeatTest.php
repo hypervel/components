@@ -76,7 +76,7 @@ class DbPoolHeartbeatTest extends TestCase
             'heartbeat' => -1,
         ]);
 
-        $this->assertSame(0, $pool->heartbeatTimerClosureCount());
+        $this->assertSame(0, $pool->heartbeatTimerCount());
     }
 
     public function testEnabledHeartbeatStartsTimerAndCloseClearsIt(): void
@@ -85,11 +85,11 @@ class DbPoolHeartbeatTest extends TestCase
             'heartbeat' => 0.001,
         ]);
 
-        $this->assertSame(1, $pool->heartbeatTimerClosureCount());
+        $this->assertSame(1, $pool->heartbeatTimerCount());
 
         run(fn () => $pool->close());
 
-        $this->assertSame(0, $pool->heartbeatTimerClosureCount());
+        $this->assertSame(0, $pool->heartbeatTimerCount());
     }
 
     public function testHeartbeatKeepsMinimumConnectionsWarmAndEvictsExpiredExtras(): void
@@ -429,18 +429,18 @@ class DbPoolHeartbeatTest extends TestCase
         $lastReleaseTime = new ReflectionProperty(PooledConnection::class, 'lastReleaseTime');
         $lastUseTime = new ReflectionProperty(PooledConnection::class, 'lastUseTime');
 
-        $lastReleaseTime->setValue($connection, microtime(true) - 5.0);
-        $lastUseTime->setValue($connection, microtime(true) - 5.0);
+        $lastReleaseTime->setValue($connection, hrtime(true) / 1e9 - 5.0);
+        $lastUseTime->setValue($connection, hrtime(true) / 1e9 - 5.0);
     }
 
     protected function ageConnectionGeneration(PooledConnection $connection): void
     {
-        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
 
         $lifetimeExpiresAt = new ReflectionProperty(PooledConnection::class, 'lifetimeExpiresAt');
 
         if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
-            $lifetimeExpiresAt->setValue($connection, microtime(true) - 1.0);
+            $lifetimeExpiresAt->setValue($connection, hrtime(true) / 1e9 - 1.0);
         }
     }
 }
@@ -452,11 +452,11 @@ class InspectableHeartbeatDbPool extends DbPool
         $this->heartbeat();
     }
 
-    public function heartbeatTimerClosureCount(): int
+    public function heartbeatTimerCount(): int
     {
         $timer = (new ReflectionProperty(DbPool::class, 'heartbeatTimer'))->getValue($this);
 
-        return $timer === null ? 0 : count((new ClassInvoker($timer))->closures);
+        return $timer === null ? 0 : count((new ClassInvoker($timer))->coroutines);
     }
 }
 

@@ -11,7 +11,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\UniqueConstraintViolationException;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
@@ -22,12 +22,12 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow('2023-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2023-01-01 00:00:00');
     }
 
     protected function tearDown(): void
     {
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
 
         parent::tearDown();
     }

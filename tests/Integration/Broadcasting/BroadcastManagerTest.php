@@ -98,7 +98,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        $lockKey = 'laravel_unique_job:' . TestEventUnique::class . ':';
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUnique::class) . ':';
         $lock = m::mock(\Hypervel\Contracts\Cache\Lock::class);
         $lock->shouldReceive('get')->once()->andReturn(true);
         $cache = m::mock(Cache::class);
@@ -121,7 +121,7 @@ class BroadcastManagerTest extends TestCase
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
 
-        $lockKey = 'laravel_unique_job:' . TestEventUniqueWithIdProperty::class . ':unique-id-property';
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueWithIdProperty::class) . ':unique-id-property';
         $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
@@ -135,7 +135,7 @@ class BroadcastManagerTest extends TestCase
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
 
-        $lockKey = 'laravel_unique_job:' . TestEventUniqueWithIdMethod::class . ':unique-id-method';
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueWithIdMethod::class) . ':unique-id-method';
         $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
@@ -158,6 +158,45 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager = new BroadcastManager($app);
 
         $broadcastManager->connection('alien_connection');
+    }
+
+    public function testEnumIdentifiersResolveSetDefaultsAndPurge(): void
+    {
+        $app = new Container;
+        $app->instance('config', new Repository([
+            'broadcasting' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'null'],
+                    'Primary' => ['driver' => 'null'],
+                    'primary' => ['driver' => 'null'],
+                    '1' => ['driver' => 'null'],
+                    '0' => ['driver' => 'null'],
+                ],
+            ],
+        ]));
+
+        $manager = new BroadcastManager($app);
+
+        $this->assertSame($manager->connection(BroadcastUnitIdentifier::Primary), $manager->connection('Primary'));
+        $this->assertSame($manager->connection(BroadcastStringIdentifier::Primary), $manager->connection('primary'));
+        $this->assertSame($manager->connection(BroadcastIntegerIdentifier::Primary), $manager->connection('1'));
+        $zero = $manager->connection(BroadcastIntegerIdentifier::Zero);
+        $this->assertSame($zero, $manager->connection('0'));
+
+        $manager->setDefaultDriver(BroadcastIntegerIdentifier::Zero);
+        $this->assertSame($manager->connection('0'), $manager->connection());
+        $this->assertSame($manager->connection('0'), $manager->connection(''));
+
+        $manager->purge('');
+        $this->assertSame($zero, $manager->connection('0'));
+
+        $manager->purge(BroadcastIntegerIdentifier::Zero);
+        $replacement = $manager->connection('0');
+        $this->assertNotSame($zero, $replacement);
+
+        $manager->purge(null);
+        $this->assertNotSame($replacement, $manager->connection('0'));
     }
 
     public function testRoutesExcludesCsrfMiddleware(): void
@@ -542,4 +581,20 @@ class ManagerUserAuthenticationBroadcaster extends BaseBroadcaster
     public function broadcast(array $channels, string $event, array $payload = []): void
     {
     }
+}
+
+enum BroadcastUnitIdentifier
+{
+    case Primary;
+}
+
+enum BroadcastStringIdentifier: string
+{
+    case Primary = 'primary';
+}
+
+enum BroadcastIntegerIdentifier: int
+{
+    case Primary = 1;
+    case Zero = 0;
 }

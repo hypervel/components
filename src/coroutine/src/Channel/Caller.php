@@ -55,8 +55,12 @@ class Caller
      */
     public function initInstance(): void
     {
-        $this->channel?->close();
-        $this->channel = new Channel(1);
-        $this->channel->push($this->closure->__invoke());
+        $instance = $this->closure->__invoke();
+        $channel = new Channel(1);
+        $channel->push($instance);
+
+        $previous = $this->channel;
+        $this->channel = $channel;
+        $previous?->close();
     }
 }

@@ -7,6 +7,9 @@ namespace Hypervel\Session;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Session\Store
@@ -119,7 +122,8 @@ class SessionManager extends Manager
      */
     protected function createCacheHandler(string $driver): CacheBasedSessionHandler
     {
-        $store = $this->config->get('session.store') ?: $driver;
+        $store = $this->config->get('session.store');
+        $store = $store === null || $store === '' ? $driver : $store;
 
         return new CacheBasedSessionHandler(
             clone $this->container->make('cache')->store($store),
@@ -209,8 +213,12 @@ class SessionManager extends Manager
      *
      * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $this->config->set('session.driver', $name);
     }
 }

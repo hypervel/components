@@ -11,9 +11,9 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @method static mixed drive(\UnitEnum|string|null $name = null)
- * @method static mixed disk(\UnitEnum|string|null $name = null)
- * @method static mixed build(array|string $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem drive(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem disk(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem build(array|string $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createLocalDriver(array $config, string $name = 'local')
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createSftpDriver(array $config)
@@ -56,19 +56,20 @@ use function Hypervel\Support\enum_value;
  * @method static array allDirectories(string|null $directory = null)
  * @method static bool makeDirectory(string $path)
  * @method static bool deleteDirectory(string $directory)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem assertExists(array|string $path, string|null $content = null)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem assertCount(string $path, int $count, bool $recursive = false)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem assertMissing(array|string $path)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem assertDirectoryEmpty(string $path)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertExists(array|string $path, string|null $content = null)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertCount(string $path, int $count, bool $recursive = false)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertMissing(array|string $path)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertDirectoryEmpty(string $path)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertEmpty()
  * @method static bool missing(string $path)
  * @method static bool fileExists(string $path)
  * @method static bool fileMissing(string $path)
  * @method static bool directoryExists(string $path)
  * @method static bool directoryMissing(string $path)
- * @method static array|null json(string $path, int $flags = 0)
- * @method static \Hypervel\Http\Response response(string $path, string|null $name = null, array $headers = [], string $disposition = 'inline')
- * @method static \Hypervel\Http\Response serve(\Hypervel\Http\Request $request, string $path, string|null $name = null, array $headers = [])
- * @method static \Hypervel\Http\Response download(string $path, string|null $name = null, array $headers = [])
+ * @method static array|bool|float|int|string|null json(string $path, int $flags = 0)
+ * @method static \Symfony\Component\HttpFoundation\StreamedResponse response(string $path, string|null $name = null, array $headers = [], string $disposition = 'inline')
+ * @method static \Symfony\Component\HttpFoundation\Response serve(\Hypervel\Http\Request $request, string $path, string|null $name = null, array $headers = [])
+ * @method static \Symfony\Component\HttpFoundation\StreamedResponse download(string $path, string|null $name = null, array $headers = [])
  * @method static string|false checksum(string $path, array $options = [])
  * @method static string|false mimeType(string $path)
  * @method static string url(string $path)
@@ -109,7 +110,14 @@ class Storage extends Facade
      */
     public static function fake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $root = self::getRootPath($disk = enum_value($disk) ?: static::$app['config']->get('filesystems.default'));
+        if ($disk instanceof UnitEnum) {
+            $disk = (string) enum_value($disk);
+        }
+
+        $disk = $disk === null || $disk === ''
+            ? static::$app['config']->get('filesystems.default')
+            : $disk;
+        $root = self::getRootPath($disk);
 
         if ($token = ParallelTesting::token()) {
             $root = "{$root}_test_{$token}";
@@ -143,7 +151,13 @@ class Storage extends Facade
      */
     public static function persistentFake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $disk = enum_value($disk) ?: static::$app['config']->get('filesystems.default');
+        if ($disk instanceof UnitEnum) {
+            $disk = (string) enum_value($disk);
+        }
+
+        $disk = $disk === null || $disk === ''
+            ? static::$app['config']->get('filesystems.default')
+            : $disk;
 
         static::set($disk, $fake = static::createLocalDriver(
             self::buildDiskConfiguration($disk, $config, root: self::getRootPath($disk))

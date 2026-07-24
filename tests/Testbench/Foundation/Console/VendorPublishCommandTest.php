@@ -69,7 +69,7 @@ class VendorPublishCommandTest extends TestCase
     }
 
     #[Test]
-    public function itDisplaysPublishedPathsRelativeToThePackageRoot()
+    public function itDisplaysPublishedPathsRelativeToThePackageRoot(): void
     {
         $source = join_paths($this->workingDirectory, 'source.php');
         $destination = join_paths($this->workingDirectory, 'published.php');

@@ -15,7 +15,6 @@ use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
-use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\WithFaker;
 use Hypervel\Foundation\Testing\WithoutEvents;
@@ -101,46 +100,76 @@ trait InteractsWithTestCaseLifecycle
      */
     protected function tearDownTheTestEnvironment(): void
     {
-        if ($this->app) {
-            $this->runInCoroutine(
-                fn () => $this->callBeforeApplicationDestroyedCallbacks()
-            );
+        $exception = null;
+        $app = $this->app;
 
-            $this->runInCoroutine(
-                fn () => DatabaseConnectionResolver::flushCachedConnections()
-            );
-
-            // Flush the DB connection pool in a separate coroutine so the
-            // pooled connections checked out during the destroyed callbacks
-            // (e.g. migrate:rollback) are first released by their Coroutine::defer
-            // when the previous coroutine ends. This lets close() drain them
-            // immediately; any genuinely late release is still destroyed by
-            // the closed pool rather than returned to circulation.
-            // The resolved() gate skips the work for tests that never touched
-            // the DB pool factory.
-            if ($this->app->resolved(PoolFactory::class)) {
+        if ($app !== null) {
+            try {
                 $this->runInCoroutine(
-                    fn () => $this->app->make(PoolFactory::class)->flushAll()
+                    fn () => $this->callBeforeApplicationDestroyedCallbacks()
                 );
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
             }
 
-            ParallelTesting::callTearDownTestCaseCallbacks($this);
+            $exception ??= $this->callbackException;
 
-            $this->app->flush();
+            try {
+                $this->runInCoroutine(
+                    fn () => DatabaseConnectionResolver::flushCachedConnections()
+                );
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
 
-            $this->app = null;
+            try {
+                // Flush the DB connection pool in a separate coroutine so the
+                // pooled connections checked out during the destroyed callbacks
+                // (e.g. migrate:rollback) are first released by their Coroutine::defer
+                // when the previous coroutine ends. This lets close() drain them
+                // immediately; any genuinely late release is still destroyed by
+                // the closed pool rather than returned to circulation.
+                // The resolved() gate skips the work for tests that never touched
+                // the DB pool factory.
+                if ($app->resolved(PoolFactory::class)) {
+                    $this->runInCoroutine(
+                        fn () => $app->make(PoolFactory::class)->flushAll()
+                    );
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            try {
+                ParallelTesting::callTearDownTestCaseCallbacks($this);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            try {
+                $app->flush();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        } else {
+            $exception = $this->callbackException;
         }
 
+        try {
+            HandleExceptions::flushState($this);
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        $this->app = null;
         $this->afterApplicationCreatedCallbacks = [];
         $this->beforeApplicationDestroyedCallbacks = [];
-
-        if ($this->callbackException) {
-            throw $this->callbackException;
-        }
-
-        HandleExceptions::flushState($this);
-
+        $this->callbackException = null;
         $this->setUpHasRun = false;
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -198,10 +227,6 @@ trait InteractsWithTestCaseLifecycle
     protected function setUpDatabaseTraits(array $uses): void
     {
         if (isset($uses[RefreshDatabase::class])) {
-            $this->refreshDatabase(); // @phpstan-ignore method.notFound
-        }
-
-        if (isset($uses[LazilyRefreshDatabase::class])) {
             $this->refreshDatabase(); // @phpstan-ignore method.notFound
         }
 

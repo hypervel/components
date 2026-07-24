@@ -214,6 +214,8 @@ Callbacks registered by your application run after package cleanup callbacks and
 
 Do not call `AfterEachTestCleanup::forgetCallbacks()` from ordinary application tests. That method clears all registered callbacks for the current PHPUnit worker, including callbacks discovered from application and package metadata.
 
+To remove a specific callback that your test registered, call `AfterEachTestCleanup::forget($name)` instead.
+
 <a name="macro-state"></a>
 ### Macro State
 
@@ -310,6 +312,8 @@ This applies whether the test calls the service directly or reaches it through t
 These traits are required for external-service tests to work correctly under ParaTest. Parallel test workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.
 
 The traits handle service-specific setup and cleanup. If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
+
+The search traits create a worker-specific prefix from `TEST_TOKEN`. Prefix test indexes and collections with `$this->meilisearchTestPrefix`, `$this->typesenseTestPrefix`, or `$this->algoliaTestPrefix`. Cleanup only removes resources that start with the matching prefix.
 
 <a name="parallel-testing-and-redis"></a>
 #### Parallel Testing and Redis

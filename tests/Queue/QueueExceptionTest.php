@@ -7,24 +7,24 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\MaxAttemptsExceededException;
 use Hypervel\Queue\TimeoutExceededException;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class QueueExceptionTest extends TestCase
 {
-    public function testItCanCreateTimeoutExceptionForJob()
+    public function testItCanCreateTimeoutExceptionForJob(): void
     {
-        $e = TimeoutExceededException::forJob($job = new MyFakeRedisJob);
+        $exception = TimeoutExceededException::forJob($job = new MyFakeRedisJob);
 
-        $this->assertSame('App\Jobs\UnderlyingJob has timed out.', $e->getMessage());
-        $this->assertSame($job, $e->job);
+        $this->assertSame('App\Jobs\UnderlyingJob has timed out.', $exception->getMessage());
+        $this->assertSame($job, $exception->job);
     }
 
-    public function testItCanCreateMaxAttemptsExceptionForJob()
+    public function testItCanCreateMaxAttemptsExceptionForJob(): void
     {
-        $e = MaxAttemptsExceededException::forJob($job = new MyFakeRedisJob);
+        $exception = MaxAttemptsExceededException::forJob($job = new MyFakeRedisJob);
 
-        $this->assertSame('App\Jobs\UnderlyingJob has been attempted too many times.', $e->getMessage());
-        $this->assertSame($job, $e->job);
+        $this->assertSame('App\Jobs\UnderlyingJob has been attempted too many times.', $exception->getMessage());
+        $this->assertSame($job, $exception->job);
     }
 }
 

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Translation;
 
 use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Translation\Fixtures\Enums\Bar;
@@ -276,7 +276,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo ', $translator->get('foo :message', ['message' => null]));
     }
 
-    public function testGetJsonReplacesWithStringable()
+    public function testGetJsonReplacesWithStringable(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()
@@ -285,14 +285,14 @@ class TranslationTranslatorTest extends TestCase
             ->with('en', '*', '*')
             ->andReturn(['test' => 'the date is :date']);
 
-        $date = Carbon::createFromTimestamp(0);
+        $date = CarbonImmutable::createFromTimestamp(0);
 
         $this->assertSame(
             'the date is 1970-01-01 00:00:00',
             $translator->get('test', ['date' => $date])
         );
 
-        $translator->stringable(function (Carbon $carbon) {
+        $translator->stringable(function (CarbonImmutable $carbon) {
             return $carbon->format('jS M Y');
         });
         $this->assertSame(
@@ -391,14 +391,20 @@ class TranslationTranslatorTest extends TestCase
             return "missing:{$key}";
         });
 
-        [$hasMissingKey, $translatedMissingKey] = parallel([
-            fn (): bool => $translator->has('messages.first', 'en'),
-            function () use ($translator): string {
-                usleep(2500);
+        $results = null;
 
-                return $translator->get('messages.second', [], 'fr');
-            },
-        ]);
+        run(function () use ($translator, &$results): void {
+            $results = parallel([
+                fn (): bool => $translator->has('messages.first', 'en'),
+                function () use ($translator): string {
+                    usleep(2500);
+
+                    return $translator->get('messages.second', [], 'fr');
+                },
+            ]);
+        });
+
+        [$hasMissingKey, $translatedMissingKey] = $results;
 
         $this->assertFalse($hasMissingKey);
         $this->assertSame('missing:messages.second', $translatedMissingKey);

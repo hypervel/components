@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Routing;
 
-use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
@@ -24,14 +23,14 @@ class ImplicitRouteBinding
     protected static array $signatureCache = [];
 
     /**
-     * Cached signature parameters keyed by closure object.
+     * Cached signature parameters keyed by callable object.
      *
-     * WeakMap ensures signature metadata disappears with the closure, preventing
-     * stale binding metadata from leaking to later closures that reuse an object ID.
+     * WeakMap ensures signature metadata disappears with the callable, preventing
+     * stale binding metadata from leaking to later objects that reuse an object ID.
      *
-     * @var null|WeakMap<Closure, array{0: array, 1: array}>
+     * @var null|WeakMap<object, array{0: array, 1: array}>
      */
-    protected static ?WeakMap $closureSignatureCache = null;
+    protected static ?WeakMap $objectSignatureCache = null;
 
     /**
      * Flush the static signature cache.
@@ -42,7 +41,7 @@ class ImplicitRouteBinding
     public static function flushCache(): void
     {
         static::$signatureCache = [];
-        static::$closureSignatureCache = new WeakMap;
+        static::$objectSignatureCache = new WeakMap;
     }
 
     /**
@@ -58,27 +57,27 @@ class ImplicitRouteBinding
         $action = $route->getAction('uses');
 
         if (is_string($action)) {
-            [$urlRoutableParams, $backedEnumParams] = static::$signatureCache[$action]
+            [$urlRoutableParameters, $backedEnumParameters] = static::$signatureCache[$action]
                 ??= [
                     $route->signatureParameters(['subClass' => UrlRoutable::class]),
                     $route->signatureParameters(['backedEnum' => true]),
                 ];
         } else {
-            $closureSignatureCache = static::$closureSignatureCache ??= new WeakMap;
+            $objectSignatureCache = static::$objectSignatureCache ??= new WeakMap;
 
-            if (! isset($closureSignatureCache[$action])) {
-                $closureSignatureCache[$action] = [
+            if (! isset($objectSignatureCache[$action])) {
+                $objectSignatureCache[$action] = [
                     $route->signatureParameters(['subClass' => UrlRoutable::class]),
                     $route->signatureParameters(['backedEnum' => true]),
                 ];
             }
 
-            [$urlRoutableParams, $backedEnumParams] = $closureSignatureCache[$action];
+            [$urlRoutableParameters, $backedEnumParameters] = $objectSignatureCache[$action];
         }
 
-        static::resolveBackedEnumsForRoute($route, $parameters, $backedEnumParams);
+        static::resolveBackedEnumsForRoute($route, $parameters, $backedEnumParameters);
 
-        foreach ($urlRoutableParams as $parameter) {
+        foreach ($urlRoutableParameters as $parameter) {
             if (! $parameterName = static::getParameterName($parameter->getName(), $parameters)) {
                 continue;
             }
@@ -124,9 +123,9 @@ class ImplicitRouteBinding
      *
      * @throws \Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException
      */
-    protected static function resolveBackedEnumsForRoute(Route $route, array $parameters, array $backedEnumParams): void
+    protected static function resolveBackedEnumsForRoute(Route $route, array $parameters, array $backedEnumParameters): void
     {
-        foreach ($backedEnumParams as $parameter) {
+        foreach ($backedEnumParameters as $parameter) {
             if (! $parameterName = static::getParameterName($parameter->getName(), $parameters)) {
                 continue;
             }

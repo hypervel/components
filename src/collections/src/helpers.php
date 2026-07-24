@@ -258,7 +258,7 @@ if (! function_exists('value')) {
      * @template TValue
      * @template TArgs
      *
-     * @param \Closure(TArgs): TValue|TValue $value
+     * @param (\Closure(TArgs): TValue)|TValue $value
      * @param TArgs ...$args
      * @return TValue
      */
@@ -272,10 +272,14 @@ if (! function_exists('when')) {
     /**
      * Return a value if the given condition is true.
      *
+     * @template TValue
+     * @template TArgs
+     * @template TDefault
+     *
      * @param mixed $condition
-     * @param \Closure|mixed $value
-     * @param \Closure|mixed $default
-     * @return mixed
+     * @param (\Closure(TArgs): TValue)|TValue $value
+     * @param (\Closure(): TDefault)|TDefault $default
+     * @return ($condition is non-empty-array|non-falsy-string|positive-int|true ? TValue : ($condition is callable ? TDefault|TValue : TDefault))
      */
     function when($condition, $value, $default = null)
     {

@@ -61,7 +61,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
             return $this->putMany($key, $value);
         }
 
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -121,7 +121,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($ttl === null) {
             // Default to 1 year for "null" TTL on add
@@ -142,7 +142,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function forever(UnitEnum|string $key, mixed $value): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
 
@@ -158,7 +158,9 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->anyTagOps()->increment()->execute(enum_value($key), $value, $this->tags->getNames());
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return $this->store->anyTagOps()->increment()->execute($key, $value, $this->tags->getNames());
     }
 
     /**
@@ -166,7 +168,9 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->anyTagOps()->decrement()->execute(enum_value($key), $value, $this->tags->getNames());
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return $this->store->anyTagOps()->decrement()->execute($key, $value, $this->tags->getNames());
     }
 
     /**
@@ -198,7 +202,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
             return $this->rememberForever($key, $callback);
         }
 
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
@@ -236,7 +240,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         [$value, $wasHit] = $this->store->anyTagOps()->rememberForever()->execute(
             $key,

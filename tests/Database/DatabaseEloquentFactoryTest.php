@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentFactoryTest;
 
 use BadMethodCallException;
-use Carbon\Carbon;
 use Faker\Generator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
@@ -20,6 +19,7 @@ use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use Hypervel\Tests\TestCase;
@@ -49,6 +49,13 @@ class DatabaseEloquentFactoryTest extends TestCase
 
         $this->createSchema();
         Factory::expandRelationshipsByDefault();
+    }
+
+    public function testIntegerBackedConnectionEnumIsExposedAsAString(): void
+    {
+        $factory = (new UserFactory)->connection(FactoryConnectionName::Zero);
+
+        $this->assertSame('0', $factory->getConnectionName());
     }
 
     /**
@@ -820,29 +827,29 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testDynamicTrashedStateForSoftdeletesModels()
     {
-        $now = Carbon::create(2020, 6, 7, 8, 9);
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::create(2020, 6, 7, 8, 9);
+        CarbonImmutable::setTestNow($now);
         $post = PostFactory::new()->trashed()->create();
 
         $this->assertTrue($post->deleted_at->equalTo($now->subDay()));
 
-        $deleted_at = Carbon::create(2020, 1, 2, 3, 4, 5);
+        $deleted_at = CarbonImmutable::create(2020, 1, 2, 3, 4, 5);
         $post = PostFactory::new()->trashed($deleted_at)->create();
 
         $this->assertTrue($deleted_at->equalTo($post->deleted_at));
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testDynamicTrashedStateRespectsExistingState()
     {
-        $now = Carbon::create(2020, 6, 7, 8, 9);
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::create(2020, 6, 7, 8, 9);
+        CarbonImmutable::setTestNow($now);
         $comment = CommentFactory::new()->trashed()->create();
 
         $this->assertTrue($comment->deleted_at->equalTo($now->subWeek()));
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testDynamicTrashedStateThrowsExceptionWhenNotASoftdeletesModel()
@@ -1139,8 +1146,8 @@ class DatabaseEloquentFactoryTest extends TestCase
         $users = DB::table('users')->get();
         foreach ($users as $user) {
             $this->assertEquals(['rtj'], json_decode($user->options, true));
-            $createdAt = Carbon::parse($user->created_at);
-            $updatedAt = Carbon::parse($user->updated_at);
+            $createdAt = CarbonImmutable::parse($user->created_at);
+            $updatedAt = CarbonImmutable::parse($user->updated_at);
             $this->assertEquals($updatedAt, $createdAt);
         }
     }
@@ -1177,6 +1184,11 @@ class UserFactory extends Factory
             'options' => null,
         ];
     }
+}
+
+enum FactoryConnectionName: int
+{
+    case Zero = 0;
 }
 
 class User extends Eloquent
@@ -1291,7 +1303,7 @@ class CommentFactory extends Factory
     public function trashed()
     {
         return $this->state([
-            'deleted_at' => Carbon::now()->subWeek(),
+            'deleted_at' => CarbonImmutable::now()->subWeek(),
         ]);
     }
 }

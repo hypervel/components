@@ -172,7 +172,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
 
         collect($connections)->each(fn ($connection) => $connection->assertReceived([
             'event' => 'pusher_internal:member_removed',
-            'data' => json_encode(['user_id' => 1]),
+            'data' => json_encode(['user_id' => '1']),
             'channel' => 'presence-cache-test-channel',
         ]));
     }

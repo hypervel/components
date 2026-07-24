@@ -32,9 +32,9 @@ class HigherOrderWhenProxy
     /**
      * Set the condition on the proxy.
      */
-    public function condition(bool $condition): static
+    public function condition(mixed $condition): static
     {
-        [$this->condition, $this->hasCondition] = [$condition, true];
+        [$this->condition, $this->hasCondition] = [(bool) $condition, true];
 
         return $this;
     }

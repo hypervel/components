@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\PHPUnit;
 
+use Closure;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Tests\TestCase;
 use Override;
@@ -11,10 +12,12 @@ use RuntimeException;
 
 class AfterEachTestCleanupTest extends TestCase
 {
+    private const string CALLBACK_NAME = self::class;
+
     #[Override]
     protected function tearDown(): void
     {
-        AfterEachTestCleanup::forgetCallbacks();
+        AfterEachTestCleanupStateStub::forgetCallbacks();
 
         parent::tearDown();
     }
@@ -23,11 +26,11 @@ class AfterEachTestCleanupTest extends TestCase
     {
         $calls = [];
 
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/package', function () use (&$calls): void {
             $calls[] = 'package';
         });
 
-        AfterEachTestCleanup::runCallbacks();
+        AfterEachTestCleanupStateStub::runCallbacks();
 
         $this->assertSame(['package'], $calls);
     }
@@ -36,14 +39,14 @@ class AfterEachTestCleanupTest extends TestCase
     {
         $calls = [];
 
-        AfterEachTestCleanup::flushUsing('vendor/first', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/first', function () use (&$calls): void {
             $calls[] = 'first';
         });
-        AfterEachTestCleanup::flushUsing('vendor/second', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/second', function () use (&$calls): void {
             $calls[] = 'second';
         });
 
-        AfterEachTestCleanup::runCallbacks();
+        AfterEachTestCleanupStateStub::runCallbacks();
 
         $this->assertSame(['first', 'second'], $calls);
     }
@@ -52,12 +55,12 @@ class AfterEachTestCleanupTest extends TestCase
     {
         $calls = [];
 
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/package', function () use (&$calls): void {
             $calls[] = 'package';
         });
 
-        AfterEachTestCleanup::runCallbacks();
-        AfterEachTestCleanup::runCallbacks();
+        AfterEachTestCleanupStateStub::runCallbacks();
+        AfterEachTestCleanupStateStub::runCallbacks();
 
         $this->assertSame(['package', 'package'], $calls);
     }
@@ -66,14 +69,14 @@ class AfterEachTestCleanupTest extends TestCase
     {
         $calls = [];
 
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/package', function () use (&$calls): void {
             $calls[] = 'first';
         });
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/package', function () use (&$calls): void {
             $calls[] = 'second';
         });
 
-        AfterEachTestCleanup::runCallbacks();
+        AfterEachTestCleanupStateStub::runCallbacks();
 
         $this->assertSame(['second'], $calls);
     }
@@ -82,14 +85,14 @@ class AfterEachTestCleanupTest extends TestCase
     {
         $calls = [];
 
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/package', function () use (&$calls): void {
             $calls[] = 'package';
         });
-        AfterEachTestCleanup::flushUsing('app', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('app', function () use (&$calls): void {
             $calls[] = 'app';
         });
 
-        AfterEachTestCleanup::runCallbacks();
+        AfterEachTestCleanupStateStub::runCallbacks();
 
         $this->assertSame(['package', 'app'], $calls);
     }
@@ -98,14 +101,51 @@ class AfterEachTestCleanupTest extends TestCase
     {
         $calls = [];
 
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/package', function () use (&$calls): void {
             $calls[] = 'package';
         });
 
-        AfterEachTestCleanup::forgetCallbacks();
-        AfterEachTestCleanup::runCallbacks();
+        AfterEachTestCleanupStateStub::forgetCallbacks();
+        AfterEachTestCleanupStateStub::runCallbacks();
 
         $this->assertSame([], $calls);
+    }
+
+    public function testForgetRemovesOnlyTheNamedCallback(): void
+    {
+        $calls = [];
+
+        AfterEachTestCleanupStateStub::flushUsing('vendor/first', function () use (&$calls): void {
+            $calls[] = 'first';
+        });
+        AfterEachTestCleanupStateStub::flushUsing('vendor/second', function () use (&$calls): void {
+            $calls[] = 'second';
+        });
+
+        AfterEachTestCleanupStateStub::forget('vendor/first');
+        AfterEachTestCleanupStateStub::runCallbacks();
+
+        $this->assertSame(['second'], $calls);
+    }
+
+    public function testIsolatedRegistryResetDoesNotForgetWorkerCallbacks(): void
+    {
+        $calls = [];
+
+        AfterEachTestCleanup::flushUsing(self::CALLBACK_NAME, function () use (&$calls): void {
+            $calls[] = 'worker';
+        });
+
+        try {
+            AfterEachTestCleanupStateStub::flushUsing('temporary', static function (): void {
+            });
+            AfterEachTestCleanupStateStub::forgetCallbacks();
+            AfterEachTestCleanup::runCallbacks();
+
+            $this->assertSame(['worker'], $calls);
+        } finally {
+            AfterEachTestCleanup::forget(self::CALLBACK_NAME);
+        }
     }
 
     public function testRunCallbacksContinuesAfterExceptionAndRethrowsFirstException(): void
@@ -113,17 +153,17 @@ class AfterEachTestCleanupTest extends TestCase
         $calls = [];
         $firstException = new RuntimeException('first');
 
-        AfterEachTestCleanup::flushUsing('vendor/first', function () use (&$calls, $firstException): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/first', function () use (&$calls, $firstException): void {
             $calls[] = 'first';
 
             throw $firstException;
         });
-        AfterEachTestCleanup::flushUsing('vendor/second', function () use (&$calls): void {
+        AfterEachTestCleanupStateStub::flushUsing('vendor/second', function () use (&$calls): void {
             $calls[] = 'second';
         });
 
         try {
-            AfterEachTestCleanup::runCallbacks();
+            AfterEachTestCleanupStateStub::runCallbacks();
 
             $this->fail('Expected callback exception was not thrown.');
         } catch (RuntimeException $exception) {
@@ -132,4 +172,14 @@ class AfterEachTestCleanupTest extends TestCase
 
         $this->assertSame(['first', 'second'], $calls);
     }
+}
+
+class AfterEachTestCleanupStateStub extends AfterEachTestCleanup
+{
+    /**
+     * The isolated callback registry for this test class.
+     *
+     * @var array<string, Closure(): void>
+     */
+    protected static array $callbacks = [];
 }

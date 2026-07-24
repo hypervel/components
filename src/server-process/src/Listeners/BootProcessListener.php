@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\ServerProcess\Listeners;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\ServerProcess\ProcessInterface;
 use Hypervel\Core\Events\BeforeMainServerStart;
@@ -12,10 +11,8 @@ use Hypervel\ServerProcess\ProcessManager;
 
 class BootProcessListener
 {
-    public function __construct(
-        private Container $container,
-        private Repository $config,
-    ) {
+    public function __construct(private Container $container)
+    {
     }
 
     /**
@@ -27,11 +24,10 @@ class BootProcessListener
         $serverConfig = $event->serverConfig;
 
         $serverProcesses = $serverConfig['processes'] ?? [];
-        $configProcesses = $this->config->array('processes', []);
 
         ProcessManager::setRunning(true);
 
-        $processes = array_merge($serverProcesses, $configProcesses, ProcessManager::all());
+        $processes = array_merge($serverProcesses, ProcessManager::all());
         $seenClasses = [];
         $seen = [];
         foreach ($processes as $process) {
@@ -56,7 +52,7 @@ class BootProcessListener
             }
             $seen[$id] = true;
 
-            $instance->isEnable($server) && $instance->bind($server);
+            $instance->isEnabled($server) && $instance->bind($server);
         }
     }
 }

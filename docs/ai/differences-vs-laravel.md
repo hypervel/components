@@ -25,6 +25,7 @@ Write Hypervel apps like Laravel apps, except for these differences. Most stem f
 
 - Workers are long-lived; many requests run concurrently as coroutines inside one worker process.
 - Anything on a static property or singleton service is shared across all concurrent requests in that worker — treat it like global state.
+- Routes retain caller-supplied closures, invokable objects, and object-method callables for the worker lifetime. Prefer `[Controller::class, 'method']` when the container should control the controller's singleton, scoped, or transient lifetime.
 
 ## Per-request state
 
@@ -65,6 +66,10 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 
 - Supported drivers exclude Memcached, DynamoDB, MongoDB.
 
+## Dates
+
+- Hypervel's `Date` facade, `now()` / `today()` helpers, and ordinary Eloquent date casts return `Hypervel\Support\CarbonImmutable` by default. Assign date-modifier results (`$date = $date->addDay()`) when retaining the changed value. Applications that deliberately need Laravel's mutable default may configure `Date::use(Hypervel\Support\Carbon::class)` during boot.
+
 ## Event Dispatch
 
 - **`hasListeners()` guards skip event construction when no listeners exist.** Framework code checks `hasListeners()` before constructing event objects. If nothing is listening, the event is never created or dispatched. This is a Hypervel-specific performance optimization — Laravel always constructs and dispatches events regardless of listeners.
@@ -76,5 +81,5 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 - Extend `Hypervel\Foundation\Testing\TestCase` (standard) or `Hypervel\Testbench\TestCase` (when the test writes files / needs a cloned app skeleton). Never `PHPUnit\Framework\TestCase` directly.
 - Tests run inside coroutines automatically (via `RunTestsInCoroutine`, inherited from the base classes). Opt out with `protected bool $runTestsInCoroutine = false;`.
 - `setUp()` / `tearDown()` run outside the test's coroutine. Use `setUpInCoroutine()` / `tearDownInCoroutine()` for code that must run inside it.
-- Request and Response are coroutine-local. The `'request'` and `Hypervel\Http\Response::class` container bindings are `bind()` closures that read from `RequestContext` / `ResponseContext`. The Laravel pattern `$this->app->instance('request', $r)` (or `instance(Response::class, $r)`) doesn't apply — it overrides the closure with a worker-global value and bypasses the production resolution path. Use `RequestContext::set($r)` / `ResponseContext::set($r)` instead.
+- Request is coroutine-local. The `'request'` container binding reads from `RequestContext`, so the Laravel pattern `$this->app->instance('request', $request)` doesn't apply — it replaces the binding with a worker-global value. Use `RequestContext::set($request)` instead. `Hypervel\Http\Response::class` is bound transiently because responses are mutable, so each container resolution returns a fresh response.
 - After seeding via `RequestContext::set(...)`, `request()->merge([...])` works as in Laravel. Without seeding, each `request()` call returns a throwaway, so `merge()` is lost.

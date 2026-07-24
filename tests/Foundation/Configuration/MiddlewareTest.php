@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Configuration;
 
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
@@ -45,8 +46,8 @@ class MiddlewareTest extends TestCase
 
         $request = $middleware->handle($request, fn (Request $request) => $request);
 
-        $this->assertSame('  123  ', $request->get('aaa'));
-        $this->assertNull($request->get('bbb'));
+        $this->assertSame('  123  ', $request->input('aaa'));
+        $this->assertNull($request->input('bbb'));
 
         $symfonyRequest = new SymfonyRequest([
             'aaa' => '  123  ',
@@ -58,8 +59,8 @@ class MiddlewareTest extends TestCase
 
         $request = $middleware->handle($request, fn (Request $request) => $request);
 
-        $this->assertSame('  123  ', $request->get('aaa'));
-        $this->assertSame('', $request->get('bbb'));
+        $this->assertSame('  123  ', $request->input('aaa'));
+        $this->assertSame('', $request->input('bbb'));
 
         $symfonyRequest = new SymfonyRequest([
             'aaa' => '  123  ',
@@ -71,8 +72,8 @@ class MiddlewareTest extends TestCase
 
         $request = $middleware->handle($request, fn (Request $request) => $request);
 
-        $this->assertSame('  123  ', $request->get('aaa'));
-        $this->assertSame('', $request->get('bbb'));
+        $this->assertSame('  123  ', $request->input('aaa'));
+        $this->assertSame('', $request->input('bbb'));
     }
 
     public function testTrimStrings()
@@ -95,9 +96,9 @@ class MiddlewareTest extends TestCase
 
         $request = $middleware->handle($request, fn (Request $request) => $request);
 
-        $this->assertSame('  123  ', $request->get('aaa'));
-        $this->assertSame('456', $request->get('bbb'));
-        $this->assertSame('789', $request->get('ccc'));
+        $this->assertSame('  123  ', $request->input('aaa'));
+        $this->assertSame('456', $request->input('bbb'));
+        $this->assertSame('789', $request->input('ccc'));
 
         $symfonyRequest = new SymfonyRequest([
             'aaa' => '  123  ',
@@ -110,9 +111,9 @@ class MiddlewareTest extends TestCase
 
         $request = $middleware->handle($request, fn (Request $request) => $request);
 
-        $this->assertSame('  123  ', $request->get('aaa'));
-        $this->assertSame('  456  ', $request->get('bbb'));
-        $this->assertSame('  789  ', $request->get('ccc'));
+        $this->assertSame('  123  ', $request->input('aaa'));
+        $this->assertSame('  456  ', $request->input('bbb'));
+        $this->assertSame('  789  ', $request->input('ccc'));
     }
 
     public function testTrustProxies()
@@ -254,6 +255,17 @@ class MiddlewareTest extends TestCase
         $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
     }
 
+    public function testRedirectGuestsToNullRegistersNullCallback(): void
+    {
+        (new Middleware)->redirectGuestsTo(null);
+
+        $callback = (new ReflectionClass(Authenticate::class))
+            ->getProperty('redirectToCallback')->getValue();
+
+        $this->assertNotNull($callback);
+        $this->assertNull($callback(null));
+    }
+
     public function testRedirectUsersToConfiguresAuthenticationRedirects(): void
     {
         (new Middleware)->redirectUsersTo('/panel');
@@ -289,6 +301,8 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($method->invoke($middleware, $request));
     }
 
+    // REMOVED: validateCsrfTokens() is a deprecated alias for
+    // preventRequestForgery().
     public function testPreventRequestForgery()
     {
         $configuration = new Middleware;

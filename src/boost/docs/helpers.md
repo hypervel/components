@@ -204,6 +204,7 @@ Hypervel includes a variety of global "helper" PHP functions. Many of these func
 [fake](#method-fake)
 [filled](#method-filled)
 [info](#method-info)
+[lazy](#method-lazy)
 [literal](#method-literal)
 [logger](#method-logger)
 [method_field](#method-method-field)
@@ -212,6 +213,7 @@ Hypervel includes a variety of global "helper" PHP functions. Many of these func
 [once](#method-once)
 [optional](#method-optional)
 [policy](#method-policy)
+[proxy](#method-proxy)
 [redirect](#method-redirect)
 [report](#method-report)
 [report_if](#method-report-if)
@@ -402,7 +404,7 @@ $flattened = Arr::dot($array);
 <a name="method-array-every"></a>
 #### `Arr::every()` {.collection-method}
 
-The `Arr::every` method ensures that all values in the array pass a given truth test:
+The `Arr::every` method ensures that all values in an iterable pass a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -416,6 +418,20 @@ Arr::every($array, fn ($i) => $i > 0);
 Arr::every($array, fn ($i) => $i > 2);
 
 // false
+```
+
+The method also accepts any iterable, including generators:
+
+```php
+$values = function () {
+    yield 1;
+    yield 2;
+    yield 3;
+};
+
+Arr::every($values(), fn (int $value) => $value > 0);
+
+// true
 ```
 
 <a name="method-array-except"></a>
@@ -482,7 +498,7 @@ $exists = Arr::exists($array, 'salary');
 <a name="method-array-first"></a>
 #### `Arr::first()` {.collection-method}
 
-The `Arr::first` method returns the first element of an array passing a given truth test:
+The `Arr::first` method returns the first element of an iterable passing a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -495,6 +511,8 @@ $first = Arr::first($array, function (int $value, int $key) {
 
 // 200
 ```
+
+The first argument may be any iterable, including a generator.
 
 A default value may also be passed as the third parameter to the method. This value will be returned if no value passes the truth test:
 
@@ -754,7 +772,7 @@ $keyed = Arr::keyBy($array, 'product_id');
 <a name="method-array-last"></a>
 #### `Arr::last()` {.collection-method}
 
-The `Arr::last` method returns the last element of an array passing a given truth test:
+The `Arr::last` method returns the last element of an iterable passing a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -775,6 +793,8 @@ use Hypervel\Support\Arr;
 
 $last = Arr::last($array, $callback, $default);
 ```
+
+The first argument may be any iterable, including a generator.
 
 <a name="method-array-map"></a>
 #### `Arr::map()` {.collection-method}
@@ -1164,7 +1184,7 @@ $value = Arr::sole($array, fn (string $value) => $value === 'Desk');
 <a name="method-array-some"></a>
 #### `Arr::some()` {.collection-method}
 
-The `Arr::some` method ensures that at least one of the values in the array passes a given truth test:
+The `Arr::some` method ensures that at least one of the values in an iterable passes a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -1175,6 +1195,8 @@ Arr::some($array, fn ($i) => $i > 2);
 
 // true
 ```
+
+The first argument may be any iterable, including a generator.
 
 <a name="method-array-sort"></a>
 #### `Arr::sort()` {.collection-method}
@@ -2758,6 +2780,58 @@ An array of contextual data may also be passed to the function:
 info('User login attempt failed.', ['id' => $user->id]);
 ```
 
+<a name="method-lazy"></a>
+#### `lazy()` {.collection-method}
+
+The `lazy` function creates a lazy ghost object. The object has the requested class immediately, but its initializer does not run until a non-eager property is first accessed:
+
+```php
+class Report
+{
+    public function __construct(
+        public string $path,
+        public string $format = 'csv',
+    ) {
+    }
+}
+
+$report = lazy(Report::class, fn () => [
+    'path' => storage_path('reports/monthly.csv'),
+    'format' => 'csv',
+]);
+
+// The initializer runs when the property is first accessed...
+$path = $report->path;
+```
+
+When the initializer returns an array, its values are passed to the class constructor as positional or named arguments. Alternatively, the initializer may construct the lazy instance directly:
+
+```php
+$report = lazy(Report::class, function (Report $report) {
+    $report->__construct(storage_path('reports/monthly.csv'));
+});
+```
+
+The class name may be inferred from the initializer's first parameter type:
+
+```php
+$report = lazy(fn (Report $report) => [
+    storage_path('reports/monthly.csv'),
+]);
+```
+
+Properties passed through the `eager` argument are available without triggering initialization:
+
+```php
+$report = lazy(
+    Report::class,
+    fn () => [storage_path('reports/monthly.csv')],
+    eager: ['format' => 'csv'],
+);
+
+$format = $report->format; // Does not initialize the object...
+```
+
 <a name="method-literal"></a>
 #### `literal()` {.collection-method}
 
@@ -2808,7 +2882,7 @@ The `method_field` function generates an HTML `hidden` input field containing th
 <a name="method-now"></a>
 #### `now()` {.collection-method}
 
-The `now` function creates a new `Hypervel\Support\Carbon` instance for the current time:
+The `now` function creates a new `Hypervel\Support\CarbonImmutable` instance for the current time:
 
 ```php
 $now = now();
@@ -2902,6 +2976,39 @@ The `policy` method retrieves a [policy](/docs/{{version}}/authorization#creatin
 
 ```php
 $policy = policy(App\Models\User::class);
+```
+
+<a name="method-proxy"></a>
+#### `proxy()` {.collection-method}
+
+The `proxy` function creates a lazy proxy. Unlike a [lazy ghost](#method-lazy), which initializes the same object, a proxy's factory returns the real object that replaces the proxy when it is first used:
+
+```php
+$report = proxy(Report::class, function (Report $proxy) {
+    return new Report(storage_path('reports/monthly.csv'));
+});
+
+// The factory runs and returns the real Report instance...
+$path = $report->path;
+```
+
+The class may be inferred from the callback's return type or, when no usable return type is declared, its first parameter type:
+
+```php
+$report = proxy(fn (): Report => new Report(
+    storage_path('reports/monthly.csv'),
+));
+```
+
+As with `lazy`, the optional `eager` argument makes selected proxy properties available before initialization. The factory receives those values as its second argument so it may copy them to the real object when required:
+
+```php
+$report = proxy(Report::class, function (Report $proxy, array $eager) {
+    return new Report(
+        storage_path('reports/monthly.csv'),
+        $eager['format'],
+    );
+}, eager: ['format' => 'csv']);
 ```
 
 <a name="method-redirect"></a>
@@ -3160,7 +3267,7 @@ throw_unless(
 <a name="method-today"></a>
 #### `today()` {.collection-method}
 
-The `today` function creates a new `Hypervel\Support\Carbon` instance for the current date:
+The `today` function creates a new `Hypervel\Support\CarbonImmutable` instance for the current date:
 
 ```php
 $today = today();
@@ -3324,21 +3431,21 @@ Sometimes, you may want to benchmark the execution of a callback while still obt
 <a name="dates"></a>
 ### Dates and Time
 
-Hypervel includes [Carbon](https://carbon.nesbot.com/guide/getting-started/introduction.html), a powerful date and time manipulation library. To create a new `Carbon` instance, you may invoke the `now` function. This function is globally available within your Hypervel application:
+Hypervel includes [Carbon](https://carbon.nesbot.com/guide/getting-started/introduction.html), a powerful date and time manipulation library. Hypervel uses immutable Carbon instances by default. To create a new `CarbonImmutable` instance, you may invoke the `now` function. This function is globally available within your Hypervel application:
 
 ```php
 $now = now();
 ```
 
-Or, you may create a new `Carbon` instance using the `Hypervel\Support\Carbon` class:
+Or, you may create a new instance using the `Hypervel\Support\CarbonImmutable` class:
 
 ```php
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 
-$now = Carbon::now();
+$now = CarbonImmutable::now();
 ```
 
-Hypervel also augments `Carbon` instances with `plus` and `minus` methods, allowing easy manipulation of the instance's date and time:
+Hypervel also augments its mutable and immutable Carbon classes with `plus` and `minus` methods, allowing easy manipulation of the instance's date and time:
 
 ```php
 return now()->plus(minutes: 5);
@@ -3348,6 +3455,22 @@ return now()->plus(weeks: 4);
 return now()->minus(minutes: 5);
 return now()->minus(hours: 8);
 return now()->minus(weeks: 4);
+```
+
+Since the default date is immutable, assign the result of a modifier when you want to retain the changed value:
+
+```php
+$expiresAt = now();
+$expiresAt = $expiresAt->addMinutes(5);
+```
+
+Applications that deliberately require mutable dates may configure the date factory during boot:
+
+```php
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+
+Date::use(Carbon::class);
 ```
 
 For a thorough discussion of Carbon and its features, please consult the [official Carbon documentation](https://carbon.nesbot.com/guide/getting-started/introduction.html).

@@ -8,8 +8,8 @@ use BackedEnum;
 use Brick\Math\BigDecimal;
 use Brick\Math\Exception\MathException as BrickMathException;
 use Brick\Math\RoundingMode;
-use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Carbon\Exceptions\InvalidFormatException;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Hypervel\Contracts\Database\Eloquent\Castable;
@@ -35,6 +35,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\LazyLoadingViolationException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Exceptions\MathException;
@@ -1397,8 +1398,6 @@ trait HasAttributes
 
     /**
      * Return a timestamp as DateTime object with time set to 00:00:00.
-     *
-     * @return \Hypervel\Support\Carbon
      */
     protected function asDate(mixed $value): CarbonInterface
     {
@@ -1407,8 +1406,6 @@ trait HasAttributes
 
     /**
      * Return a timestamp as DateTime object.
-     *
-     * @return \Hypervel\Support\Carbon
      */
     protected function asDateTime(mixed $value): CarbonInterface
     {
@@ -1440,7 +1437,7 @@ trait HasAttributes
         // Carbon instances from that format. Again, this provides for simple date
         // fields on the database, while still supporting Carbonized conversion.
         if ($this->isStandardDateFormat($value)) {
-            return Date::instance(Carbon::createFromFormat('Y-m-d', $value)->startOfDay());
+            return Date::parse($value)->startOfDay();
         }
 
         $format = $this->getDateFormat();
@@ -1450,12 +1447,12 @@ trait HasAttributes
         // that is returned back out to the developers after we convert it here.
         try {
             $date = Date::createFromFormat($format, $value);
-            // @phpstan-ignore catch.neverThrown (defensive: some Carbon versions/configs may throw)
-        } catch (InvalidArgumentException) {
+            // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
+        } catch (InvalidFormatException) {
             $date = null;
         }
 
-        return $date ?: Date::parse($value);
+        return $date ?? Date::parse($value);
     }
 
     /**

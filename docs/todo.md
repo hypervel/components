@@ -17,7 +17,13 @@
 
 ## Broadcasting
 
-- Review whether Pusher and Ably broadcaster pooling manages state that cannot safely be shared like the unpooled Reverb broadcaster. Their current pooling behavior remains unchanged; see `docs/plans/2026-07-10-object-pool-lifecycle-and-client-pooled-filesystems.md` for the state-ownership evidence and Reverb decision.
+- Review whether Pusher and Ably broadcaster pooling manages state that cannot safely be shared like the unpooled Reverb broadcaster. Their current pooling behavior remains unchanged; see `docs/plans/2026-07-10-1040-object-pool-lifecycle-and-client-pooled-filesystems.md` for the state-ownership evidence and Reverb decision.
+
+## Framework-wide
+
+- Convert the remaining tests that extend `PHPUnit\Framework\TestCase` to `Hypervel\Tests\TestCase` as required by `AGENTS.md`, verifying each file individually under coroutine execution and opting out only when the test explicitly exercises coroutine transitions.
+- Convert container array access to `make()` across `src/`. About 40 files use `$app['...']` (e.g. `LogManager`, `ViewServiceProvider`, `TranslationServiceProvider`), carried over from upstream Laravel. `offsetGet()` always returns `mixed`, while `make()` has class-string generics phpstan can follow, so the conversion makes static analysis strictly more useful. Approved modernization per the Porting Packages policy in `AGENTS.md`; new code already follows the rule.
+- Convert untyped `$config->get()` calls across `src/` to the typed getters (`string()`, `integer()`, `float()`, `boolean()`, `array()`) without call-site defaults, for every key that isn't genuinely nullable. Defaults live in the merged config files — declare any key currently defaulted only at a call site in its package's config file as part of the conversion. Typed getters throw `InvalidArgumentException` naming the key on misconfiguration instead of letting a wrong type propagate silently, and give phpstan real return types. Bootstrap code that runs before config merging keeps its call-site defaults. Approved modernization per the Porting Packages policy in `AGENTS.md`; new code already follows the rule.
 
 ## Documentation
 

@@ -12,6 +12,11 @@ enum TestBackedEnum: string
     case Foo = 'foo-value';
 }
 
+enum TestIntBackedEnum: int
+{
+    case Zero = 0;
+}
+
 enum TestUnitEnum
 {
     case Baz;
@@ -54,6 +59,9 @@ class OncePropTest extends TestCase
 
         $onceProp->as(TestBackedEnum::Foo);
         $this->assertSame('foo-value', $onceProp->getKey());
+
+        $onceProp->as(TestIntBackedEnum::Zero);
+        $this->assertSame('0', $onceProp->getKey());
 
         $onceProp->as(TestUnitEnum::Baz);
         $this->assertSame('Baz', $onceProp->getKey());

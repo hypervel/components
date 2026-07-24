@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\WebSocketServer;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\Coroutine;
@@ -14,11 +16,14 @@ use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketMessageStub;
 use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketStub;
 use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketThrowingStub;
 use Hypervel\WebSocketServer\Collector\FdCollector;
+use Hypervel\WebSocketServer\Context as WebSocketContext;
 use Hypervel\WebSocketServer\Events\ConnectionClosed;
 use Hypervel\WebSocketServer\Events\ConnectionOpened;
 use Hypervel\WebSocketServer\Events\MessageReceived;
 use Hypervel\WebSocketServer\Server;
-use Mockery;
+use Mockery as m;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Server as SwooleServer;
 use Swoole\WebSocket\Frame;
@@ -28,8 +33,8 @@ class ServerTest extends TestCase
 {
     protected function tearDown(): void
     {
-        FdCollector::flushState();
         WebSocketMessageStub::flushState();
+        WebSocketStub::$coroutineId = 0;
 
         parent::tearDown();
     }
@@ -39,40 +44,33 @@ class ServerTest extends TestCase
      * the calling coroutine exits, and that onOpen is invoked on
      * OnOpenInterface implementors.
      */
-    public function testDeferOnOpenCallsOnOpen()
+    public function testDeferOnOpenCallsOnOpen(): void
     {
         WebSocketStub::$coroutineId = 0;
 
         $container = $this->createContainer();
-        $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn(new WebSocketStub);
-
         $server = new Server($container);
 
         $invoker = new ClassInvoker($server);
-        $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         // Run deferOnOpen inside a child coroutine so that defer() fires
         // when that coroutine exits, before we make our assertions.
-        $channel = new \Swoole\Coroutine\Channel(1);
-        Coroutine::create(function () use ($invoker, $swooleServer, $channel) {
-            $invoker->deferOnOpen(new SwooleRequest, WebSocketStub::class, $swooleServer, 1);
-            $channel->push(true);
+        $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
         });
-        $channel->pop();
-
-        // Yield to allow the deferred callback to execute.
-        usleep(1000);
+        $this->waitForCoroutine($coroutineId);
 
         $this->assertNotSame(0, WebSocketStub::$coroutineId, 'onOpen should have been called');
         $this->assertNotSame(Coroutine::id(), WebSocketStub::$coroutineId, 'onOpen should run in a different coroutine');
     }
 
-    public function testDeferOnOpenLogsExceptionFromOnOpen()
+    public function testDeferOnOpenLogsExceptionFromOnOpen(): void
     {
         $logged = false;
 
-        $logger = Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
-        $logger->shouldReceive('error')->once()->with(Mockery::on(
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldReceive('error')->once()->with(m::on(
             function (string $message) use (&$logged): bool {
                 $logged = str_contains($message, 'onOpen failed');
 
@@ -81,32 +79,25 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer($logger);
-        $container->shouldReceive('make')->with(WebSocketThrowingStub::class)->andReturn(new WebSocketThrowingStub);
-
         $server = new Server($container);
         $invoker = new ClassInvoker($server);
-        $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
 
-        $channel = new \Swoole\Coroutine\Channel(1);
-        Coroutine::create(function () use ($invoker, $swooleServer, $channel) {
-            $invoker->deferOnOpen(new SwooleRequest, WebSocketThrowingStub::class, $swooleServer, 1);
-            $channel->push(true);
+        $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketThrowingStub, $swooleServer, 1);
         });
-        $channel->pop();
-
-        // Yield to allow the deferred callback to execute.
-        usleep(1000);
+        $this->waitForCoroutine($coroutineId);
 
         $this->assertTrue($logged);
     }
 
-    public function testConnectionOpenedEventIsDispatched()
+    public function testConnectionOpenedEventIsDispatched(): void
     {
         $dispatched = false;
 
-        $dispatcher = Mockery::mock(EventDispatcherContract::class);
+        $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionOpened::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(Mockery::on(
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
             function (ConnectionOpened $event) use (&$dispatched) {
                 $dispatched = ($event->fd === 1 && $event->server === 'websocket');
                 return $dispatched;
@@ -114,28 +105,23 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn(new WebSocketStub);
-
         $server = new Server($container);
         $invoker = new ClassInvoker($server);
-        $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
 
-        $channel = new \Swoole\Coroutine\Channel(1);
-        Coroutine::create(function () use ($invoker, $swooleServer, $channel) {
-            $invoker->deferOnOpen(new SwooleRequest, WebSocketStub::class, $swooleServer, 1);
-            $channel->push(true);
+        $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
         });
-        $channel->pop();
-        usleep(1000);
+        $this->waitForCoroutine($coroutineId);
 
         $this->assertTrue($dispatched);
     }
 
-    public function testConnectionOpenedEventNotDispatchedWithoutListeners()
+    public function testConnectionOpenedEventNotDispatchedWithoutListeners(): void
     {
         $hasListenersChecked = false;
 
-        $dispatcher = Mockery::mock(EventDispatcherContract::class);
+        $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionOpened::class)->andReturnUsing(
             function () use (&$hasListenersChecked): bool {
                 $hasListenersChecked = true;
@@ -146,33 +132,28 @@ class ServerTest extends TestCase
         $dispatcher->shouldNotReceive('dispatch');
 
         $container = $this->createContainer(dispatcher: $dispatcher);
-        $container->shouldReceive('make')->with(WebSocketStub::class)->andReturn(new WebSocketStub);
-
         $server = new Server($container);
         $invoker = new ClassInvoker($server);
-        $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
 
-        $channel = new \Swoole\Coroutine\Channel(1);
-        Coroutine::create(function () use ($invoker, $swooleServer, $channel) {
-            $invoker->deferOnOpen(new SwooleRequest, WebSocketStub::class, $swooleServer, 1);
-            $channel->push(true);
+        $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
         });
-        $channel->pop();
-        usleep(1000);
+        $this->waitForCoroutine($coroutineId);
 
         $this->assertTrue($hasListenersChecked);
     }
 
-    public function testConnectionOpenedEventDispatchedEvenWhenOnOpenThrows()
+    public function testConnectionOpenedEventDispatchedEvenWhenOnOpenThrows(): void
     {
         $dispatched = false;
 
-        $logger = Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
         $logger->shouldReceive('error')->once();
 
-        $dispatcher = Mockery::mock(EventDispatcherContract::class);
+        $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionOpened::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(Mockery::on(
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
             function (ConnectionOpened $event) use (&$dispatched) {
                 $dispatched = ($event->fd === 1);
                 return $dispatched;
@@ -180,28 +161,46 @@ class ServerTest extends TestCase
         ));
 
         $container = $this->createContainer($logger, $dispatcher);
-        $container->shouldReceive('make')->with(WebSocketThrowingStub::class)->andReturn(new WebSocketThrowingStub);
-
         $server = new Server($container);
         $invoker = new ClassInvoker($server);
-        $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
 
-        $channel = new \Swoole\Coroutine\Channel(1);
-        Coroutine::create(function () use ($invoker, $swooleServer, $channel) {
-            $invoker->deferOnOpen(new SwooleRequest, WebSocketThrowingStub::class, $swooleServer, 1);
-            $channel->push(true);
+        $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketThrowingStub, $swooleServer, 1);
         });
-        $channel->pop();
-        usleep(1000);
+        $this->waitForCoroutine($coroutineId);
 
         $this->assertTrue($dispatched);
     }
 
-    public function testMessageReceivedEventIsDispatched()
+    public function testOnOpenRunsWhenConnectionOpenedEventThrows(): void
     {
-        $dispatcher = Mockery::mock(EventDispatcherContract::class);
+        WebSocketStub::$coroutineId = 0;
+
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldReceive('error')->once()->with(m::type('string'));
+
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionOpened::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('event failed'));
+
+        $server = new Server($this->createContainer($logger, $dispatcher));
+        $invoker = new ClassInvoker($server);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
+
+        $coroutineId = Coroutine::create(function () use ($invoker, $swooleServer) {
+            $invoker->deferOnOpen(new SwooleRequest, new WebSocketStub, $swooleServer, 1);
+        });
+        $this->waitForCoroutine($coroutineId);
+
+        $this->assertNotSame(0, WebSocketStub::$coroutineId);
+    }
+
+    public function testMessageReceivedEventIsDispatched(): void
+    {
+        $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(MessageReceived::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(Mockery::on(
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
             fn (MessageReceived $event) => $event->fd === 1 && $event->server === 'websocket'
         ));
 
@@ -211,7 +210,7 @@ class ServerTest extends TestCase
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $server = new Server($container);
-        $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         $frame = new Frame;
         $frame->fd = 1;
@@ -222,9 +221,9 @@ class ServerTest extends TestCase
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
 
-    public function testMessageReceivedEventNotDispatchedWithoutListeners()
+    public function testMessageReceivedEventNotDispatchedWithoutListeners(): void
     {
-        $dispatcher = Mockery::mock(EventDispatcherContract::class);
+        $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(MessageReceived::class)->andReturnFalse();
         $dispatcher->shouldNotReceive('dispatch');
 
@@ -234,7 +233,7 @@ class ServerTest extends TestCase
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $server = new Server($container);
-        $swooleServer = Mockery::mock(WebSocketSwooleServer::class);
+        $swooleServer = m::mock(WebSocketSwooleServer::class);
 
         $frame = new Frame;
         $frame->fd = 1;
@@ -245,11 +244,74 @@ class ServerTest extends TestCase
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
 
-    public function testConnectionClosedEventIsDispatched()
+    public function testMessageHandlerRunsWhenMessageReceivedEventThrows(): void
     {
-        $dispatcher = Mockery::mock(EventDispatcherContract::class);
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldReceive('error')->once()->with(m::type('string'));
+
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(MessageReceived::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('event failed'));
+
+        $container = $this->createContainer($logger, $dispatcher);
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        $frame = new Frame;
+        $frame->fd = 1;
+
+        (new Server($container))->onMessage(m::mock(WebSocketSwooleServer::class), $frame);
+
+        $this->assertTrue(WebSocketMessageStub::$messageHandled);
+    }
+
+    public function testMessageHandlerFailuresAreReportedWithoutEscaping(): void
+    {
+        $exception = new RuntimeException('message failed');
+        WebSocketMessageStub::$messageException = $exception;
+
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldNotReceive('error');
+
+        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $exceptionHandler->shouldReceive('report')->once()->with($exception);
+
+        $container = $this->createContainer($logger, exceptionHandler: $exceptionHandler);
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        $frame = new Frame;
+        $frame->fd = 1;
+
+        (new Server($container))->onMessage(m::mock(WebSocketSwooleServer::class), $frame);
+
+        $this->assertTrue(WebSocketMessageStub::$messageHandled);
+    }
+
+    public function testMessageHandlerCancellationIsContained(): void
+    {
+        WebSocketMessageStub::$messageException = new CanceledException;
+
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldNotReceive('error');
+
+        $container = $this->createContainer($logger);
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        $frame = new Frame;
+        $frame->fd = 1;
+
+        (new Server($container))->onMessage(m::mock(WebSocketSwooleServer::class), $frame);
+
+        $this->assertTrue(WebSocketMessageStub::$messageHandled);
+    }
+
+    public function testConnectionClosedEventIsDispatched(): void
+    {
+        $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(Mockery::on(
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
             fn (ConnectionClosed $event) => $event->fd === 1 && $event->reactorId === 0 && $event->server === 'websocket'
         ));
 
@@ -259,16 +321,16 @@ class ServerTest extends TestCase
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $server = new Server($container);
-        $swooleServer = Mockery::mock(SwooleServer::class);
+        $swooleServer = m::mock(SwooleServer::class);
 
         $server->onClose($swooleServer, 1, 0);
 
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
     }
 
-    public function testConnectionClosedEventNotDispatchedWithoutListeners()
+    public function testConnectionClosedEventNotDispatchedWithoutListeners(): void
     {
-        $dispatcher = Mockery::mock(EventDispatcherContract::class);
+        $dispatcher = m::mock(EventDispatcherContract::class);
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnFalse();
         $dispatcher->shouldNotReceive('dispatch');
 
@@ -278,11 +340,106 @@ class ServerTest extends TestCase
         FdCollector::set(1, WebSocketMessageStub::class);
 
         $server = new Server($container);
-        $swooleServer = Mockery::mock(SwooleServer::class);
+        $swooleServer = m::mock(SwooleServer::class);
 
         $server->onClose($swooleServer, 1, 0);
 
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
+    }
+
+    public function testCloseWithoutCollectorStillReleasesConnectionContext(): void
+    {
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('connection.id', 'one');
+
+        (new Server($this->createContainer()))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
+    }
+
+    public function testCloseHandlerFailureDoesNotSkipEventOrCleanup(): void
+    {
+        WebSocketMessageStub::$closeException = new RuntimeException('close failed');
+
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldReceive('error')->once()->with(m::type('string'));
+
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once();
+
+        $container = $this->createContainer($logger, $dispatcher);
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('connection.id', 'one');
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertTrue(WebSocketMessageStub::$closeHandled);
+        $this->assertNull(FdCollector::get(1));
+        $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
+    }
+
+    public function testCloseEventFailureDoesNotSkipCleanup(): void
+    {
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldReceive('error')->once()->with(m::type('string'));
+
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->andThrow(new RuntimeException('event failed'));
+
+        $container = $this->createContainer($logger, $dispatcher);
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('connection.id', 'one');
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertTrue(WebSocketMessageStub::$closeHandled);
+        $this->assertNull(FdCollector::get(1));
+        $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
+    }
+
+    public function testCloseCancellationIsContainedAfterCleanup(): void
+    {
+        WebSocketMessageStub::$closeException = new CanceledException;
+
+        $logger = m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger->shouldNotReceive('error');
+
+        $container = $this->createContainer($logger);
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('connection.id', 'one');
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertTrue(WebSocketMessageStub::$closeHandled);
+        $this->assertNull(FdCollector::get(1));
+        $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
+    }
+
+    /**
+     * Wait for a child coroutine and its deferred callbacks to finish.
+     */
+    private function waitForCoroutine(int $coroutineId, float $timeout = 1.0): void
+    {
+        $deadline = hrtime(true) + (int) ($timeout * 1_000_000_000);
+
+        while (Coroutine::exists($coroutineId)) {
+            if (hrtime(true) >= $deadline) {
+                $this->fail("Coroutine {$coroutineId} did not finish within {$timeout} seconds.");
+            }
+
+            usleep(1_000);
+        }
     }
 
     /**
@@ -291,11 +448,18 @@ class ServerTest extends TestCase
     protected function createContainer(
         ?StdoutLoggerInterface $logger = null,
         ?EventDispatcherContract $dispatcher = null,
+        ?ExceptionHandlerContract $exceptionHandler = null,
     ): Container&\Mockery\MockInterface {
-        $logger ??= Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
+        $logger ??= m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
 
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn($logger);
+
+        if ($exceptionHandler !== null) {
+            $container->shouldReceive('make')
+                ->with(ExceptionHandlerContract::class)
+                ->andReturn($exceptionHandler);
+        }
 
         if ($dispatcher) {
             $container->shouldReceive('bound')->with('events')->andReturnTrue();

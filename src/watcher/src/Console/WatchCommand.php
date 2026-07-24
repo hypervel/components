@@ -7,7 +7,7 @@ namespace Hypervel\Watcher\Console;
 use Hypervel\Console\Command;
 use Hypervel\Console\Concerns\NullDisableEventDispatcher;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\ServerRestartStrategy;
 use Hypervel\Watcher\Watcher;
@@ -33,13 +33,13 @@ class WatchCommand extends Command
      */
     public function handle(): void
     {
-        if (Application::getInstance()->runningInConsole()) {
+        if ($this->container->make(ApplicationContract::class)->runningInConsole()) {
             throw new RuntimeException(
                 'Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.'
             );
         }
 
-        $config = $this->container->make('config')->array('watcher', []);
+        $config = $this->container->make('config')->array('watcher');
 
         $option = Option::fromConfig(
             config: $config,
@@ -61,6 +61,14 @@ class WatchCommand extends Command
             'output' => $this->output,
             'strategy' => $strategy,
         ]);
+
+        $this->trap([SIGINT, SIGTERM, SIGQUIT], function () use ($driver, $strategy): void {
+            try {
+                $driver->stop();
+            } finally {
+                $strategy?->stop();
+            }
+        });
 
         $watcher->run();
     }

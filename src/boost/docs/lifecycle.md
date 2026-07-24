@@ -45,7 +45,7 @@ Essentially every major feature offered by Hypervel is bootstrapped and configur
 <a name="handling-requests"></a>
 ### Handling Requests
 
-Once the Swoole server is running, each incoming HTTP request is converted into a `Hypervel\Http\Request` instance and handed to the HTTP kernel. The current request and response are stored in coroutine-local context so concurrent requests handled by the same worker resolve the correct request, response, and related state.
+Once the Swoole server is running, each incoming HTTP request is converted into a `Hypervel\Http\Request` instance and handed to the HTTP kernel. The current request is stored in coroutine-local context so concurrent requests handled by the same worker resolve the correct request and related state. The response remains in the request's control flow as it travels back through middleware to the HTTP server.
 
 The method signature for the HTTP kernel's `handle` method is quite simple: it receives a `Request` and returns a `Response`. Think of the kernel as being a big black box that represents your entire application. Feed it HTTP requests and it will return HTTP responses.
 

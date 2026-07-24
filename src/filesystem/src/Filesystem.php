@@ -7,12 +7,11 @@ namespace Hypervel\Filesystem;
 use ErrorException;
 use FilesystemIterator;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
-use Hypervel\Coroutine\Coroutine;
-use Hypervel\Coroutine\Locker;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
+use SensitiveParameter;
 use SplFileObject;
 use Symfony\Component\Filesystem\Filesystem as SymfonyFilesystem;
 use Symfony\Component\Finder\Finder;
@@ -27,6 +26,8 @@ class Filesystem
 
     /**
      * Determine if a file or directory exists.
+     *
+     * @phpstan-impure
      */
     public function exists(string $path): bool
     {
@@ -76,34 +77,55 @@ class Filesystem
      */
     public function sharedGet(string $path): string
     {
-        return $this->atomic($path, function ($path) {
-            $handle = @fopen($path, 'rb');
+        $handle = @fopen($path, 'rb');
 
-            if ($handle === false) {
-                throw new FileNotFoundException("Unable to read file at path {$path}.");
+        if ($handle === false) {
+            throw new FileNotFoundException("Unable to read file at path {$path}.");
+        }
+
+        $contents = '';
+        $exception = null;
+        $locked = false;
+
+        try {
+            if (! @flock($handle, LOCK_SH)) {
+                throw new RuntimeException("Unable to acquire a shared lock for file at path [{$path}].");
             }
 
-            $wouldBlock = false;
-            flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
-            while ($wouldBlock) {
-                usleep(1000);
-                flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
-            }
-
-            try {
-                clearstatcache(true, $path);
-                $contents = @stream_get_contents($handle);
-            } finally {
-                flock($handle, LOCK_UN);
-                fclose($handle);
-            }
+            $locked = true;
+            clearstatcache(true, $path);
+            $contents = @stream_get_contents($handle);
 
             if ($contents === false) {
                 throw new FileNotFoundException("Unable to read file at path {$path}.");
             }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
 
-            return $contents;
-        });
+        if ($locked) {
+            try {
+                if (! @flock($handle, LOCK_UN)) {
+                    throw new RuntimeException("Unable to release the shared lock for file at path [{$path}].");
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        try {
+            if (! @fclose($handle)) {
+                throw new RuntimeException("Unable to close file at path [{$path}].");
+            }
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return $contents;
     }
 
     /**
@@ -180,48 +202,23 @@ class Filesystem
      */
     public function hash(string $path, string $algorithm = 'xxh128'): string|false
     {
-        return hash_file($algorithm, $path);
+        return @hash_file($algorithm, $path);
     }
 
     /**
      * Write the contents of a file.
      *
      * @param resource|string $contents
-     * @return bool|int
      */
-    public function put(string $path, $contents, bool $lock = false)
+    public function put(string $path, $contents, bool $lock = false): int|false
     {
-        if ($lock) {
-            return $this->atomic($path, function ($path) use ($contents) {
-                $handle = fopen($path, 'c+');
-                if ($handle) {
-                    $wouldBlock = false;
-                    flock($handle, LOCK_EX | LOCK_NB, $wouldBlock);
-                    while ($wouldBlock) {
-                        usleep(1000);
-                        flock($handle, LOCK_EX | LOCK_NB, $wouldBlock);
-                    }
-                    try {
-                        ftruncate($handle, 0);
-                        rewind($handle);
-
-                        return is_resource($contents)
-                            ? stream_copy_to_stream($contents, $handle)
-                            : fwrite($handle, $contents);
-                    } finally {
-                        flock($handle, LOCK_UN);
-                        fclose($handle);
-                    }
-                }
-            });
-        }
-        return file_put_contents($path, $contents);
+        return file_put_contents($path, $contents, $lock ? LOCK_EX : 0);
     }
 
     /**
      * Write the contents of a file, replacing it atomically if it already exists.
      */
-    public function replace(string $path, string $content, ?int $mode = null): void
+    public function replace(string $path, #[SensitiveParameter] string $content, ?int $mode = null): void
     {
         // If the path already exists and is a symlink, get the real path...
         clearstatcache(true, $path);
@@ -259,13 +256,23 @@ class Filesystem
      */
     public function replaceInFile(array|string $search, array|string $replace, string $path): void
     {
-        file_put_contents($path, str_replace($search, $replace, file_get_contents($path)));
+        $contents = @file_get_contents($path);
+
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read file at path [{$path}].");
+        }
+
+        $contents = str_replace($search, $replace, $contents);
+
+        if (@file_put_contents($path, $contents) !== strlen($contents)) {
+            throw new RuntimeException("Unable to write the complete contents of file at path [{$path}].");
+        }
     }
 
     /**
      * Prepend to a file.
      */
-    public function prepend(string $path, string $data): int
+    public function prepend(string $path, string $data): int|false
     {
         if ($this->exists($path)) {
             return $this->put($path, $data . $this->get($path));
@@ -277,7 +284,7 @@ class Filesystem
     /**
      * Append to a file.
      */
-    public function append(string $path, string $data, bool $lock = false): int
+    public function append(string $path, string $data, bool $lock = false): int|false
     {
         return file_put_contents($path, $data, FILE_APPEND | ($lock ? LOCK_EX : 0));
     }
@@ -287,17 +294,21 @@ class Filesystem
      */
     public function chmod(string $path, ?int $mode = null): string|bool
     {
-        if ($mode) {
+        if ($mode !== null) {
             return chmod($path, $mode);
         }
 
-        return substr(sprintf('%o', fileperms($path)), -4);
+        $permissions = @fileperms($path);
+
+        return $permissions === false ? false : substr(sprintf('%o', $permissions), -4);
     }
 
     /**
      * Delete the file at a given path.
      *
      * @param array|string $paths
+     *
+     * @phpstan-impure
      */
     public function delete($paths): bool
     {
@@ -307,13 +318,13 @@ class Filesystem
 
         foreach ($paths as $path) {
             try {
-                if (@unlink($path)) {
-                    clearstatcache(false, $path);
-                } else {
+                if (! @unlink($path)) {
                     $success = false;
                 }
             } catch (ErrorException) {
                 $success = false;
+            } finally {
+                clearstatcache(false, $path);
             }
         }
 
@@ -372,7 +383,9 @@ class Filesystem
 
         $relativeTarget = (new SymfonyFilesystem)->makePathRelative($target, dirname($link));
 
-        $this->link($this->isFile($target) ? rtrim($relativeTarget, '/') : $relativeTarget, $link);
+        if ($this->link($this->isFile($target) ? rtrim($relativeTarget, '/') : $relativeTarget, $link) === false) {
+            throw new RuntimeException("Unable to create a relative link from [{$link}] to [{$target}].");
+        }
     }
 
     /**
@@ -420,15 +433,17 @@ class Filesystem
             );
         }
 
-        return (new MimeTypes)->getExtensions($this->mimeType($path))[0] ?? null;
+        $mimeType = $this->mimeType($path);
+
+        return $mimeType === false ? null : (new MimeTypes)->getExtensions($mimeType)[0] ?? null;
     }
 
     /**
      * Get the file type of a given file.
      */
-    public function type(string $path): string
+    public function type(string $path): string|false
     {
-        return filetype($path);
+        return @filetype($path);
     }
 
     /**
@@ -436,27 +451,31 @@ class Filesystem
      */
     public function mimeType(string $path): string|false
     {
-        return finfo_file(finfo_open(FILEINFO_MIME_TYPE), $path);
+        $fileInfo = @finfo_open(FILEINFO_MIME_TYPE);
+
+        return $fileInfo === false ? false : @finfo_file($fileInfo, $path);
     }
 
     /**
      * Get the file size of a given file.
      */
-    public function size(string $path): int
+    public function size(string $path): int|false
     {
-        return filesize($path);
+        return @filesize($path);
     }
 
     /**
      * Get the file's last modification time.
      */
-    public function lastModified(string $path): int
+    public function lastModified(string $path): int|false
     {
-        return filemtime($path);
+        return @filemtime($path);
     }
 
     /**
      * Determine if the given path is a directory.
+     *
+     * @phpstan-impure
      */
     public function isDirectory(string $directory): bool
     {
@@ -508,9 +527,9 @@ class Filesystem
     /**
      * Find path names matching a given pattern.
      */
-    public function glob(string $pattern, int $flags = 0): array
+    public function glob(string $pattern, int $flags = 0): array|false
     {
-        return glob($pattern, $flags);
+        return @glob($pattern, $flags);
     }
 
     /**
@@ -563,8 +582,12 @@ class Filesystem
      */
     public function ensureDirectoryExists(string $path, int $mode = 0755, bool $recursive = true): void
     {
-        if (! $this->isDirectory($path)) {
-            $this->makeDirectory($path, $mode, $recursive);
+        if ($this->isDirectory($path)) {
+            return;
+        }
+
+        if (! $this->makeDirectory($path, $mode, $recursive, true) && ! $this->isDirectory($path)) {
+            throw new RuntimeException("Unable to create directory [{$path}].");
         }
     }
 
@@ -647,30 +670,35 @@ class Filesystem
         }
 
         $items = new FilesystemIterator($directory);
+        $success = true;
 
         foreach ($items as $item) {
             // If the item is a directory, we can just recurse into the function and
             // delete that sub-directory otherwise we'll just delete the file and
             // keep iterating through each file until the directory is cleaned.
             if ($item->isDir() && ! $item->isLink()) {
-                $this->deleteDirectory($item->getPathname());
+                if (! $this->deleteDirectory($item->getPathname())) {
+                    $success = false;
+                }
             }
 
             // If the item is just a file, we can go ahead and delete it since we're
             // just looping through and waxing all of the files in this directory
             // and calling directories recursively, so we delete the real path.
             else {
-                $this->delete($item->getPathname());
+                if (! $this->delete($item->getPathname())) {
+                    $success = false;
+                }
             }
         }
 
         unset($items);
 
-        if (! $preserve) {
-            @rmdir($directory);
+        if (! $preserve && ! @rmdir($directory)) {
+            $success = false;
         }
 
-        return true;
+        return $success;
     }
 
     /**
@@ -681,11 +709,15 @@ class Filesystem
         $allDirectories = $this->directories($directory);
 
         if (! empty($allDirectories)) {
+            $success = true;
+
             foreach ($allDirectories as $directoryName) {
-                $this->deleteDirectory($directoryName);
+                if (! $this->deleteDirectory($directoryName)) {
+                    $success = false;
+                }
             }
 
-            return true;
+            return $success;
         }
 
         return false;
@@ -705,25 +737,6 @@ class Filesystem
     public function clearStatCache(string $path): void
     {
         clearstatcache(true, $path);
-    }
-
-    /**
-     * Execute a callback with coroutine-safe file locking.
-     */
-    protected function atomic(string $path, callable $callback): mixed
-    {
-        if (Coroutine::inCoroutine()) {
-            try {
-                while (! Locker::lock($path)) {
-                    usleep(1000);
-                }
-                return $callback($path);
-            } finally {
-                Locker::unlock($path);
-            }
-        }
-
-        return $callback($path);
     }
 
     /**

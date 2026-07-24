@@ -19,7 +19,9 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
@@ -37,11 +39,16 @@ use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Queue\WorkerStopReason;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class QueueWorkerTest extends TestCase
 {
@@ -74,6 +81,72 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+    }
+
+    public function testProcessingAndAttemptedEventsSurroundSuccessfulJobExecution(): void
+    {
+        $order = [];
+        $attemptedEvent = null;
+        $this->events->shouldReceive('dispatch')->andReturnUsing(
+            function (object $event) use (&$order, &$attemptedEvent): void {
+                if ($event instanceof JobProcessing) {
+                    $order[] = 'processing';
+                }
+
+                if ($event instanceof JobAttempted) {
+                    $order[] = 'attempted';
+                    $attemptedEvent = $event;
+                }
+            }
+        );
+
+        $job = new WorkerFakeJob(function () use (&$order): void {
+            $order[] = 'fire';
+        });
+
+        $this->getWorker()->process('default', $job, new WorkerOptions);
+
+        $this->assertSame(['processing', 'fire', 'attempted'], $order);
+        $this->assertSame($job, $attemptedEvent->job);
+        $this->assertNull($attemptedEvent->exception);
+        $this->assertTrue($attemptedEvent->successful());
+    }
+
+    public function testAttemptedEventRunsAfterThrownJobExecution(): void
+    {
+        $order = [];
+        $attemptedEvent = null;
+        $exception = new RuntimeException('Job failed.');
+        $this->events->shouldReceive('dispatch')->andReturnUsing(
+            function (object $event) use (&$order, &$attemptedEvent): void {
+                if ($event instanceof JobProcessing) {
+                    $order[] = 'processing';
+                }
+
+                if ($event instanceof JobAttempted) {
+                    $order[] = 'attempted';
+                    $attemptedEvent = $event;
+                }
+            }
+        );
+
+        $job = new WorkerFakeJob(function () use (&$order, $exception): never {
+            $order[] = 'fire';
+
+            throw $exception;
+        });
+
+        try {
+            $this->getWorker()->process('default', $job, new WorkerOptions);
+            $this->fail('Expected job exception was not thrown.');
+        } catch (RuntimeException $thrown) {
+            $this->assertSame($exception, $thrown);
+        }
+
+        $this->assertSame(['processing', 'fire', 'attempted'], $order);
+        $this->assertSame($job, $attemptedEvent->job);
+        $this->assertSame($exception, $attemptedEvent->exception);
+        $this->assertFalse($attemptedEvent->successful());
     }
 
     public function testWorkerOptionsCoroutineContextIsScopedToJob()
@@ -395,6 +468,29 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
+    public function testJobIsFailedIfExceptionHandlerSaysItShouldNotRetry(): void
+    {
+        $exception = new RuntimeException;
+        $job = new WorkerFakeJob(static function () use ($exception): never {
+            throw $exception;
+        });
+        $this->exceptionHandler = new ShouldntRetryExceptionHandler;
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
+
+        $this->assertNull($job->releaseAfter);
+        $this->assertTrue($job->deleted);
+        $this->assertSame($exception, $job->failedWith);
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobExceptionOccurred
+                && $event->job === $job
+                && $event->exception === $exception
+                && $event->job->hasFailed(),
+        ))->once();
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobReleasedAfterException::class)]);
+    }
+
     public function testJobIsNotReleasedIfItHasExceededMaxAttempts()
     {
         $e = new RuntimeException;
@@ -419,7 +515,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
-    public function testJobIsNotReleasedIfItHasExpired()
+    public function testJobIsNotReleasedIfItHasExpired(): void
     {
         $e = new RuntimeException;
 
@@ -434,8 +530,8 @@ class QueueWorkerTest extends TestCase
 
         $job->attempts = 0;
 
-        Carbon::setTestNow(
-            Carbon::now()->addSeconds(1)
+        CarbonImmutable::setTestNow(
+            CarbonImmutable::now()->addSeconds(1)
         );
 
         $worker = $this->getWorker('default', ['queue' => [$job]]);
@@ -468,18 +564,18 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
-    public function testJobIsFailedIfItHasAlreadyExpired()
+    public function testJobIsFailedIfItHasAlreadyExpired(): void
     {
         $job = new WorkerFakeJob(function ($job) {
             ++$job->attempts;
         });
 
-        $job->retryUntil = Carbon::now()->addSeconds(2)->getTimestamp();
+        $job->retryUntil = CarbonImmutable::now()->addSeconds(2)->getTimestamp();
 
         $job->attempts = 1;
 
-        Carbon::setTestNow(
-            Carbon::now()->addSeconds(3)
+        CarbonImmutable::setTestNow(
+            CarbonImmutable::now()->addSeconds(3)
         );
 
         $worker = $this->getWorker('default', ['queue' => [$job]]);
@@ -1010,8 +1106,12 @@ class WorkerFakeManager extends QueueManager
         $this->connections[$name] = $connection;
     }
 
-    public function connection(?string $name = null): Queue
+    public function connection(UnitEnum|string|null $name = null): Queue
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         return $this->connections[$name];
     }
 }
@@ -1128,6 +1228,36 @@ class BrokenQueueConnection implements Queue
     public function getConnectionName(): string
     {
         return $this->connectionName;
+    }
+}
+
+class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
+{
+    public function report(Throwable $e): void
+    {
+    }
+
+    public function shouldReport(Throwable $e): bool
+    {
+        return true;
+    }
+
+    public function render(Request $request, Throwable $e): Response
+    {
+        return new Response;
+    }
+
+    public function renderForConsole(OutputInterface $output, Throwable $e): void
+    {
+    }
+
+    public function afterResponse(callable $callback): void
+    {
+    }
+
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        return true;
     }
 }
 

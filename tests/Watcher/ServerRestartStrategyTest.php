@@ -6,31 +6,29 @@ namespace Hypervel\Tests\Watcher;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Filesystem\FileNotFoundException;
-use Hypervel\Filesystem\Filesystem;
+use Hypervel\Engine\Channel;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Watcher\Events\BeforeServerRestart;
 use Hypervel\Watcher\ServerRestartStrategy;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Output\NullOutput;
+use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 class ServerRestartStrategyTest extends TestCase
 {
-    public function testConstructorThrowsWhenPidFileNotConfigured(): void
+    public function testConstructorDoesNotRequirePidFileConfiguration(): void
     {
         $this->app->instance('config', new Repository([
-            'server' => ['settings' => ['pid_file' => '', 'daemonize' => false]],
+            'server' => ['settings' => ['daemonize' => false]],
             'watcher' => ['bin' => PHP_BINARY, 'command' => ['artisan', 'serve']],
         ]));
 
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('The config of pid_file is not found.');
+        $strategy = new ServerRestartStrategy($this->app, new NullOutput);
 
-        new ServerRestartStrategy($this->app, new NullOutput);
+        $this->assertInstanceOf(ServerRestartStrategy::class, $strategy);
     }
 
     public function testConstructorThrowsWhenDaemonizeIsTrue(): void
@@ -44,18 +42,6 @@ class ServerRestartStrategyTest extends TestCase
         $this->expectExceptionMessage('Please set `server.settings.daemonize` to false');
 
         new ServerRestartStrategy($this->app, new NullOutput);
-    }
-
-    public function testConstructorSucceedsWithValidConfig(): void
-    {
-        $this->app->instance('config', new Repository([
-            'server' => ['settings' => ['pid_file' => '/tmp/test.pid', 'daemonize' => false]],
-            'watcher' => ['bin' => PHP_BINARY, 'command' => ['artisan', 'serve']],
-        ]));
-
-        $strategy = new ServerRestartStrategy($this->app, new NullOutput);
-
-        $this->assertInstanceOf(ServerRestartStrategy::class, $strategy);
     }
 
     public function testServerCommandPreservesEveryArgumentLiterally(): void
@@ -116,87 +102,9 @@ class ServerRestartStrategyTest extends TestCase
         ];
     }
 
-    #[DataProvider('invalidPidProvider')]
-    public function testStopNeverSignalsAnInvalidPid(string $contents): void
+    public function testStopIsIdempotentWithoutAnOwnedProcess(): void
     {
         $strategy = $this->createProbeStrategy();
-        $strategy->useFilesystem(new PidFileFilesystem(true, $contents));
-
-        $strategy->stop();
-
-        $this->assertSame([], $strategy->signals);
-    }
-
-    public static function invalidPidProvider(): array
-    {
-        return [
-            'empty' => [''],
-            'whitespace' => [" \n\t"],
-            'zero' => ['0'],
-            'negative' => ['-1'],
-            'non-numeric' => ['not-a-pid'],
-            'numeric prefix' => ['123garbage'],
-        ];
-    }
-
-    public function testStopProbesButDoesNotTerminateAnAlreadyStoppedProcess(): void
-    {
-        $strategy = $this->createProbeStrategy();
-        $strategy->useFilesystem(new PidFileFilesystem(true, '123'));
-        $strategy->processIsRunning = false;
-
-        $strategy->stop();
-
-        $this->assertSame([[123, 0]], $strategy->signals);
-    }
-
-    public function testStopDispatchesAnIntegerPidAndTerminatesALiveProcess(): void
-    {
-        $strategy = $this->createProbeStrategy();
-        $strategy->useFilesystem(new PidFileFilesystem(true, " 123\n"));
-        $events = [];
-        $this->app->make('events')->listen(
-            BeforeServerRestart::class,
-            function (BeforeServerRestart $event) use (&$events): void {
-                $events[] = $event;
-            },
-        );
-
-        $strategy->stop();
-
-        $this->assertSame([[123, 0], [123, SIGTERM]], $strategy->signals);
-        $this->assertCount(1, $events);
-        $this->assertSame(123, $events[0]->pid);
-    }
-
-    public function testStopSkipsTheRestartEventWhenItHasNoListeners(): void
-    {
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(BeforeServerRestart::class)->andReturnFalse();
-        $events->shouldNotReceive('dispatch');
-        $this->app->instance('events', $events);
-        $strategy = $this->createProbeStrategy();
-        $strategy->useFilesystem(new PidFileFilesystem(true, '123'));
-
-        $strategy->stop();
-
-        $this->assertSame([[123, 0], [123, SIGTERM]], $strategy->signals);
-    }
-
-    public function testStopToleratesThePidFileDisappearingBeforeItIsRead(): void
-    {
-        $strategy = $this->createProbeStrategy();
-        $strategy->useFilesystem(new DisappearingPidFileFilesystem);
-
-        $strategy->stop();
-
-        $this->assertSame([], $strategy->signals);
-    }
-
-    public function testStopIsIdempotentWhenThePidFileDoesNotExist(): void
-    {
-        $strategy = $this->createProbeStrategy();
-        $strategy->useFilesystem(new PidFileFilesystem(false, ''));
 
         $strategy->stop();
         $strategy->stop();
@@ -204,47 +112,229 @@ class ServerRestartStrategyTest extends TestCase
         $this->assertSame([], $strategy->signals);
     }
 
-    public function testOpenFailureRestoresTheLaunchTokenAndAllowsRetry(): void
+    public function testStopSignalsTheExactOwnedProcess(): void
     {
-        $failure = m::mock(ExceptionHandlerContract::class);
-        $failure->shouldReceive('report')
-            ->twice()
+        $strategy = $this->createProbeStrategy();
+        [$entered, $resume] = $strategy->blockNextClose();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->stop();
+
+            $this->assertSame([[1000, SIGTERM]], $strategy->signals);
+
+            $resume->push(true);
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
+    public function testRepeatedRestartsCoalesceIntoOneRelaunch(): void
+    {
+        $strategy = $this->createProbeStrategy();
+        [$entered, $resume] = $strategy->blockNextClose();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->restart();
+            $strategy->restart();
+            $strategy->restart();
+            $resume->push(true);
+
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $this->assertSame(2, $strategy->openCalls);
+            $this->assertSame(
+                [[1000, SIGTERM], [1000, SIGTERM], [1000, SIGTERM]],
+                $strategy->signals,
+            );
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
+    public function testRestartBeforePidPublicationTerminatesThenRelaunchesTheNewProcess(): void
+    {
+        $strategy = $this->createProbeStrategy();
+        [$entered, $resume] = $strategy->blockNextOpen();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->restart();
+            $this->assertSame([], $strategy->signals);
+
+            $resume->push(true);
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $this->assertSame([[1000, SIGTERM]], $strategy->signals);
+            $this->assertSame(2, $strategy->openCalls);
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
+    public function testStopBeforePidPublicationTerminatesWithoutRelaunching(): void
+    {
+        $strategy = $this->createProbeStrategy();
+        [$entered, $resume] = $strategy->blockNextOpen();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->stop();
+            $this->assertSame([], $strategy->signals);
+
+            $resume->push(true);
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $this->assertSame([[1000, SIGTERM]], $strategy->signals);
+            $this->assertSame(1, $strategy->openCalls);
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
+    public function testFinalStopClearsAPendingRestart(): void
+    {
+        $strategy = $this->createProbeStrategy();
+        [$entered, $resume] = $strategy->blockNextClose();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->restart();
+            $strategy->stop();
+            $resume->push(true);
+
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $this->assertSame(1, $strategy->openCalls);
+            $this->assertSame([[1000, SIGTERM], [1000, SIGTERM]], $strategy->signals);
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
+    public function testRestartAfterFinalStopDoesNotRelaunch(): void
+    {
+        $strategy = $this->createProbeStrategy();
+        [$entered, $resume] = $strategy->blockNextClose();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->stop();
+            $resume->push(true);
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $strategy->restart();
+
+            $this->assertFalse($strategy->lifecycleIsRunning());
+            $this->assertSame(1, $strategy->openCalls);
+
+            $strategy->start();
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $this->assertSame(2, $strategy->openCalls);
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
+    public function testOpenFailureClearsLifecycleOwnershipAndAllowsRetry(): void
+    {
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldReceive('report')
+            ->once()
             ->with(m::on(
                 fn (mixed $exception): bool => $exception instanceof RuntimeException
                     && $exception->getMessage() === 'Unable to launch the watched server process.',
             ));
-        $this->app->instance(ExceptionHandlerContract::class, $failure);
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
         $strategy = $this->createProbeStrategy();
-        $strategy->openMode = 'fail';
+        $strategy->openModes = ['fail', 'success'];
 
         $strategy->start();
-        $this->assertSame(1, $strategy->launchTokenCount());
+        $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
 
         $strategy->start();
+        $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
 
         $this->assertSame(2, $strategy->openCalls);
-        $this->assertSame(1, $strategy->launchTokenCount());
+        $this->assertSame(2, $strategy->reloadCalls);
     }
 
-    public function testCloseFailureRestoresTheLaunchTokenAndAllowsRetry(): void
+    public function testCloseFailureClearsLifecycleOwnershipAndAllowsRetry(): void
     {
         $failure = new RuntimeException('expected close failure');
         $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->twice()->with($failure);
+        $handler->shouldReceive('report')->once()->with($failure);
         $this->app->instance(ExceptionHandlerContract::class, $handler);
         $strategy = $this->createProbeStrategy();
-        $strategy->closeFailure = $failure;
+        $strategy->closeFailures = [$failure, null];
 
         $strategy->start();
-        $this->assertSame(1, $strategy->launchTokenCount());
+        $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
 
         $strategy->start();
+        $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
 
         $this->assertSame(2, $strategy->openCalls);
-        $this->assertSame(1, $strategy->launchTokenCount());
     }
 
-    public function testNormalServerExitRestoresTheLaunchToken(): void
+    public function testMalformedEnvironmentDuringRestartClearsOwnershipAndAllowsRetry(): void
+    {
+        $failure = new RuntimeException('malformed environment');
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldReceive('report')->once()->with($failure);
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+        $strategy = $this->createProbeStrategy();
+        $strategy->reloadFailures = [null, $failure, null];
+        [$entered, $resume] = $strategy->blockNextClose();
+
+        try {
+            $strategy->start();
+            $this->assertTrue($entered->pop(0.1));
+
+            $strategy->restart();
+            $resume->push(true);
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $strategy->restart();
+            $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+            $this->assertSame(3, $strategy->reloadCalls);
+            $this->assertSame(2, $strategy->openCalls);
+        } finally {
+            $resume->push(true, 0.001);
+            $entered->close();
+            $resume->close();
+        }
+    }
+
+    public function testNormalServerExitClearsLifecycleOwnership(): void
     {
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldNotReceive('report');
@@ -252,19 +342,59 @@ class ServerRestartStrategyTest extends TestCase
         $strategy = $this->createProbeStrategy();
 
         $strategy->start();
+        $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
 
         $this->assertSame(1, $strategy->openCalls);
-        $this->assertSame(1, $strategy->launchTokenCount());
+        $this->assertSame(1, $strategy->reloadCalls);
     }
 
-    private function createProbeStrategy(): ServerRestartStrategyProbe
+    public function testProcessIdIsUnpublishedBeforePostReapOutput(): void
+    {
+        $output = new class extends NullOutput {
+            public ?ServerRestartStrategyProbe $strategy = null;
+
+            public ?int $processIdAtExit = -1;
+
+            public function writeln(
+                string|iterable $messages,
+                int $options = self::OUTPUT_NORMAL,
+            ): void {
+                if ($messages === 'Server exited.') {
+                    $this->processIdAtExit = $this->strategy?->publishedProcessId();
+                }
+            }
+        };
+        $strategy = $this->createProbeStrategy($output);
+        $output->strategy = $strategy;
+
+        $strategy->start();
+        $this->waitFor(fn (): bool => ! $strategy->lifecycleIsRunning());
+
+        $this->assertNull($output->processIdAtExit);
+    }
+
+    /**
+     * Wait for a lifecycle assertion without relying on scheduler luck.
+     */
+    private function waitFor(callable $condition): void
+    {
+        $deadline = hrtime(true) + 200_000_000;
+
+        while (! $condition() && hrtime(true) < $deadline) {
+            usleep(1_000);
+        }
+
+        $this->assertTrue($condition(), 'The server lifecycle did not reach the expected state.');
+    }
+
+    private function createProbeStrategy(?OutputInterface $output = null): ServerRestartStrategyProbe
     {
         $this->app->instance('config', new Repository([
-            'server' => ['settings' => ['pid_file' => '/tmp/test.pid', 'daemonize' => false]],
+            'server' => ['settings' => ['daemonize' => false]],
             'watcher' => ['bin' => PHP_BINARY, 'command' => ['artisan', 'serve']],
         ]));
 
-        return new ServerRestartStrategyProbe($this->app, new NullOutput);
+        return new ServerRestartStrategyProbe($this->app, $output ?? new NullOutput);
     }
 }
 
@@ -273,29 +403,44 @@ class ServerRestartStrategyProbe extends ServerRestartStrategy
     /** @var list<array{int, int}> */
     public array $signals = [];
 
-    public bool $processIsRunning = true;
-
     public int $openCalls = 0;
 
-    public string $openMode = 'success';
+    public int $reloadCalls = 0;
 
-    public ?RuntimeException $closeFailure = null;
+    /** @var list<string> */
+    public array $openModes = [];
 
-    public function useFilesystem(Filesystem $filesystem): void
-    {
-        $this->filesystem = $filesystem;
-    }
+    /** @var list<null|Throwable> */
+    public array $closeFailures = [];
 
-    public function launchTokenCount(): int
-    {
-        return $this->channel->getLength();
-    }
+    /** @var list<null|Throwable> */
+    public array $reloadFailures = [];
+
+    protected int $nextPid = 1000;
+
+    protected int $blockedOpenCalls = 0;
+
+    protected int $blockedCloseCalls = 0;
+
+    protected ?Channel $openEntered = null;
+
+    protected ?Channel $openResume = null;
+
+    protected ?Channel $closeEntered = null;
+
+    protected ?Channel $closeResume = null;
 
     protected function openProcess(array $descriptorSpec, array &$pipes): mixed
     {
         ++$this->openCalls;
 
-        if ($this->openMode === 'fail') {
+        if ($this->blockedOpenCalls > 0) {
+            --$this->blockedOpenCalls;
+            $this->openEntered?->push(true);
+            $this->openResume?->pop();
+        }
+
+        if (array_shift($this->openModes) === 'fail') {
             return false;
         }
 
@@ -304,55 +449,82 @@ class ServerRestartStrategyProbe extends ServerRestartStrategy
 
     protected function closeProcess(mixed $process): int
     {
+        if ($this->blockedCloseCalls > 0) {
+            --$this->blockedCloseCalls;
+            $this->closeEntered?->push(true);
+            $this->closeResume?->pop();
+        }
+
         fclose($process);
 
-        if ($this->closeFailure !== null) {
-            throw $this->closeFailure;
+        $failure = array_shift($this->closeFailures);
+        if ($failure !== null) {
+            throw $failure;
         }
 
         return 0;
+    }
+
+    protected function processStatus(mixed $process): array
+    {
+        return ['pid' => $this->nextPid++];
     }
 
     protected function signalProcess(int $pid, int $signal): bool
     {
         $this->signals[] = [$pid, $signal];
 
-        return $signal === 0 ? $this->processIsRunning : true;
-    }
-}
-
-class PidFileFilesystem extends Filesystem
-{
-    public function __construct(
-        protected bool $pidFileExists,
-        protected string $contents,
-    ) {
-    }
-
-    public function exists(string $path): bool
-    {
-        return $this->pidFileExists;
-    }
-
-    public function get(string $path, bool $lock = false): string
-    {
-        if (! $this->pidFileExists) {
-            throw new FileNotFoundException("File does not exist at path {$path}.");
-        }
-
-        return $this->contents;
-    }
-}
-
-class DisappearingPidFileFilesystem extends Filesystem
-{
-    public function exists(string $path): bool
-    {
         return true;
     }
 
-    public function get(string $path, bool $lock = false): string
+    protected function reloadEnvironment(): void
     {
-        throw new FileNotFoundException("File does not exist at path {$path}.");
+        ++$this->reloadCalls;
+
+        $failure = array_shift($this->reloadFailures);
+        if ($failure !== null) {
+            throw $failure;
+        }
+    }
+
+    public function lifecycleIsRunning(): bool
+    {
+        return $this->lifecycleRunning;
+    }
+
+    /**
+     * Return the currently published process ID.
+     */
+    public function publishedProcessId(): ?int
+    {
+        return $this->processId;
+    }
+
+    /**
+     * Block the next process creation before PID publication.
+     *
+     * @return array{Channel, Channel}
+     */
+    public function blockNextOpen(): array
+    {
+        ++$this->blockedOpenCalls;
+        $this->openEntered = new Channel(1);
+        $this->openResume = new Channel(1);
+
+        return [$this->openEntered, $this->openResume];
+    }
+
+    /**
+     * Block the next process close after PID publication.
+     *
+     * @return array{Channel, Channel}
+     */
+    public function blockNextClose(): array
+    {
+        ++$this->blockedCloseCalls;
+        $this->closeEntered = new Channel(1);
+        $this->closeResume = new Channel(1);
+
+        return [$this->closeEntered, $this->closeResume];
     }
 }

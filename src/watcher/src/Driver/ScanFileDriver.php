@@ -8,6 +8,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Watcher\Option;
+use Symfony\Component\Finder\Exception\DirectoryNotFoundException;
 use Symfony\Component\Finder\SplFileInfo;
 
 class ScanFileDriver extends AbstractDriver
@@ -56,6 +57,9 @@ class ScanFileDriver extends AbstractDriver
 
             // Deleted files (in last but not in current).
             $deletedFiles = array_diff_key($this->lastFileHashes, $currentFileHashes);
+            foreach (array_keys($deletedFiles) as $pathName) {
+                $channel->push($pathName);
+            }
 
             // Modified files (same path, different hash).
             $modifiedFiles = [];
@@ -74,12 +78,8 @@ class ScanFileDriver extends AbstractDriver
                 count($deletedFiles),
             ));
 
-            if (count($deletedFiles) === 0) {
-                foreach ($modifiedFiles as $pathName) {
-                    $channel->push($pathName);
-                }
-            } else {
-                $this->logger->warning('Delete files must be restarted manually to take effect.');
+            foreach ($modifiedFiles as $pathName) {
+                $channel->push($pathName);
             }
         }
 
@@ -94,14 +94,23 @@ class ScanFileDriver extends AbstractDriver
     protected function getWatchFileHashes(): array
     {
         $fileHashes = [];
-        $basePath = base_path();
+        $basePath = null;
 
         // Scan watched directories.
-        foreach ($this->option->getDirectoryPaths() as $watchPath) {
-            $allFiles = $this->filesystem->allFiles(base_path($watchPath->path));
+        $directoryPaths = $this->option->getDirectoryPaths();
+        $directoryTargets = $this->resolveTargets($directoryPaths);
+
+        foreach ($directoryPaths as $index => $watchPath) {
+            try {
+                $allFiles = $this->filesystem->allFiles($directoryTargets[$index]);
+            } catch (DirectoryNotFoundException) {
+                continue;
+            }
+
             /** @var SplFileInfo $obj */
             foreach ($allFiles as $obj) {
                 $pathName = $obj->getPathName();
+                $basePath ??= base_path();
                 $relativePath = substr($pathName, strlen($basePath) + 1);
                 if (! $watchPath->matches($relativePath)) {
                     continue;
@@ -114,8 +123,7 @@ class ScanFileDriver extends AbstractDriver
         }
 
         // Check individual watched files.
-        foreach ($this->option->getFilePaths() as $watchPath) {
-            $pathName = base_path($watchPath->path);
+        foreach ($this->resolveTargets($this->option->getFilePaths()) as $pathName) {
             if (file_exists($pathName)) {
                 $fileHash = $this->hashFile($pathName);
                 if ($fileHash !== null) {

@@ -11,6 +11,7 @@ use Hypervel\Concurrency\ProcessDriver;
 use Hypervel\Encryption\EncryptionServiceProvider;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
+use RuntimeException;
 use Throwable;
 
 class ComposerScripts
@@ -89,12 +90,24 @@ class ComposerScripts
     {
         $hypervel = new Application(getcwd());
 
-        if (is_file($configPath = $hypervel->getCachedConfigPath())) {
-            @unlink($configPath);
+        if (is_file($configPath = $hypervel->getCachedConfigPath())
+            && ! @unlink($configPath)) {
+            // Another process may have removed the file after the first check.
+            clearstatcache(false, $configPath);
+
+            if (is_file($configPath)) {
+                throw new RuntimeException("Unable to delete the configuration cache file [{$configPath}].");
+            }
         }
 
-        if (is_file($packagesPath = $hypervel->getCachedPackagesPath())) {
-            @unlink($packagesPath);
+        if (is_file($packagesPath = $hypervel->getCachedPackagesPath())
+            && ! @unlink($packagesPath)) {
+            // Another process may have removed the file after the first check.
+            clearstatcache(false, $packagesPath);
+
+            if (is_file($packagesPath)) {
+                throw new RuntimeException("Unable to delete the compiled packages file [{$packagesPath}].");
+            }
         }
     }
 }

@@ -18,6 +18,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
 use Hypervel\Routing\Events\RouteMatched;
@@ -371,9 +372,11 @@ class Router implements BindingRegistrar, RegistrarContract
             // Once we have updated the group stack, we'll load the provided routes and
             // merge in the group's attributes when the routes are created. After we
             // have created the routes, we will pop the attributes off the stack.
-            $this->loadRoutes($groupRoutes);
-
-            array_pop($this->groupStack);
+            try {
+                $this->loadRoutes($groupRoutes);
+            } finally {
+                array_pop($this->groupStack);
+            }
         }
 
         return $this;
@@ -468,11 +471,12 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     protected function actionReferencesController(mixed $action): bool
     {
-        if (! $action instanceof Closure) {
-            return is_string($action) || (isset($action['uses']) && is_string($action['uses']));
+        if ($action instanceof Closure || is_object($action)) {
+            return false;
         }
 
-        return false;
+        return is_string($action)
+            || (is_array($action) && isset($action['uses']) && is_string($action['uses']));
     }
 
     /**
@@ -628,16 +632,11 @@ class Router implements BindingRegistrar, RegistrarContract
             $this->events->dispatch(new RouteMatched($route, $request));
         }
 
-        $shouldSkipMiddleware = $this->container->bound('middleware.disable')
-            && $this->container->make('middleware.disable') === true;
-
-        $middleware = $shouldSkipMiddleware ? [] : $this->gatherRouteMiddleware($route);
-
         return $this->prepareResponse(
             $request,
-            (new Pipeline($this->container))
+            $this->newPipeline()
                 ->send($request)
-                ->through($middleware)
+                ->through($this->middlewareFor($route))
                 ->then($callback)
         );
     }
@@ -682,21 +681,39 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     protected function runRouteWithinStack(Route $route, Request $request): mixed
     {
-        $shouldSkipMiddleware = $this->container->bound('middleware.disable')
-                                && $this->container->make('middleware.disable') === true;
-
-        $middleware = $shouldSkipMiddleware ? [] : $this->gatherRouteMiddleware($route);
+        $middleware = $this->middlewareFor($route);
 
         if ($middleware === []) {
             return $route->run();
         }
 
-        return (new Pipeline($this->container))
+        return $this->newPipeline()
             ->send($request)
             ->through($middleware)
             ->then(function ($request) use ($route) {
                 return $this->prepareResponse($request, $route->run());
             });
+    }
+
+    /**
+     * Create the middleware pipeline used to dispatch a route.
+     */
+    protected function newPipeline(): BasePipeline
+    {
+        return new Pipeline($this->container);
+    }
+
+    /**
+     * Resolve middleware for one route dispatch.
+     *
+     * @return array<int, mixed>
+     */
+    protected function middlewareFor(Route $route): array
+    {
+        $disabled = $this->container->bound('middleware.disable')
+            && $this->container->make('middleware.disable') === true;
+
+        return $disabled ? [] : $this->gatherRouteMiddleware($route);
     }
 
     /**
@@ -1259,7 +1276,9 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function setRoutes(RouteCollection $routes): void
     {
-        $this->flushRoutingCaches();
+        if ($this->ownsGlobalRouteState()) {
+            $this->flushRoutingCaches();
+        }
 
         foreach ($routes as $route) {
             $route->setRouter($this)->setContainer($this->container);
@@ -1267,7 +1286,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
         $this->routes = $routes;
 
-        $this->container->instance('routes', $this->routes);
+        if ($this->ownsGlobalRouteState()) {
+            $this->container->instance('routes', $this->routes);
+        }
     }
 
     /**
@@ -1279,13 +1300,25 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function setCompiledRoutes(array $routes): void
     {
-        $this->flushRoutingCaches();
+        if ($this->ownsGlobalRouteState()) {
+            $this->flushRoutingCaches();
+        }
 
         $this->routes = (new CompiledRouteCollection($routes['compiled'], $routes['attributes']))
             ->setRouter($this)
             ->setContainer($this->container);
 
-        $this->container->instance('routes', $this->routes);
+        if ($this->ownsGlobalRouteState()) {
+            $this->container->instance('routes', $this->routes);
+        }
+    }
+
+    /**
+     * Determine whether this router owns the application's global route state.
+     */
+    protected function ownsGlobalRouteState(): bool
+    {
+        return true;
     }
 
     /**
@@ -1364,13 +1397,8 @@ class Router implements BindingRegistrar, RegistrarContract
                 $route->gatherMiddleware();
             }
 
-            // 3. Pre-warm RouteSignatureParameters cache for controller actions.
-            // Only controller routes (string 'Class@method') — RouteSignatureParameters::fromAction()
-            // uses ReflectionFunction internally which fails for array callables and
-            // invokable objects.
-            if ($class !== null) {
-                RouteSignatureParameters::fromAction($route->getAction());
-            }
+            // 3. Pre-warm route signature reflection for every supported action shape.
+            RouteSignatureParameters::fromAction($route->getAction());
 
             // 4. Pre-warm ControllerDispatcher reflection cache for controller actions
             if ($class !== null) {

@@ -31,11 +31,11 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",
         "hypervel/coroutine": "^0.4",
-        "hypervel/engine": "^0.4"
+        "hypervel/engine": "^0.4",
+        "psr/log": "^3.0"
     },
     "config": {
         "sort-packages": true

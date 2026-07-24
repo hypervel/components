@@ -36,10 +36,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Server Processes
+    |--------------------------------------------------------------------------
+    |
+    | Here you may define the custom Swoole processes that should run alongside
+    | the application server. Each process class will be resolved through the
+    | service container and attached when the server starts.
+    |
+    */
+
+    'processes' => [],
+
+    /*
+    |--------------------------------------------------------------------------
     | Server Settings
     |--------------------------------------------------------------------------
     |
-    | Swoole server options passed directly to $server->set(). See:
+    | Swoole server options passed directly to $server->set(). The event_object
+    | option is not supported; use Hypervel lifecycle events instead. See:
     | https://wiki.swoole.com/en/#/server/setting
     |
     */
@@ -48,8 +62,11 @@ return [
         'document_root' => base_path('public'),
         'enable_static_handler' => (bool) env('SERVER_STATIC_FILE_HANDLER', true),
         Constant::OPTION_ENABLE_COROUTINE => true,
+        Constant::OPTION_TASK_ENABLE_COROUTINE => false,
+        Constant::OPTION_TASK_WORKER_NUM => 0,
         Constant::OPTION_WORKER_NUM => env('SERVER_WORKERS', swoole_cpu_num()),
         Constant::OPTION_PID_FILE => storage_path('framework/hypervel.pid'),
+        Constant::OPTION_DAEMONIZE => false,
         Constant::OPTION_OPEN_TCP_NODELAY => true,
         Constant::OPTION_MAX_COROUTINE => 100000,
         Constant::OPTION_OPEN_HTTP2_PROTOCOL => (bool) env('SERVER_HTTP2', true),

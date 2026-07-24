@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Encryption;
 
+use SensitiveParameter;
+
 interface Encrypter
 {
     /**
@@ -11,7 +13,7 @@ interface Encrypter
      *
      * @throws \Hypervel\Contracts\Encryption\EncryptException
      */
-    public function encrypt(mixed $value, bool $serialize = true): string;
+    public function encrypt(#[SensitiveParameter] mixed $value, bool $serialize = true): string;
 
     /**
      * Decrypt the given value.

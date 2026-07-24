@@ -224,7 +224,9 @@ $this->aspects(ProfileReports::class, TraceHttpRequests::class);
 
 Hypervel generates AOP proxy classes automatically during application bootstrap. Generated proxies are written to the `storage/framework/aop` directory.
 
-If no aspects have been registered, proxy generation does nothing. When a proxy file already exists, Hypervel compares the proxy file modification time against the original class file and regenerates the proxy when the original class is newer.
+If no aspects have been registered, proxy generation does nothing. Existing proxies are reused only while their content fingerprint still matches the source path and contents, aspect rules, registered AST visitors, generator implementation, PHP parser, and PHP version. Changes to any of those inputs regenerate the affected proxy during the next application bootstrap.
+
+Each targeted source file must declare exactly one named class, interface, trait, or enum. Nested anonymous classes are supported, but multiple named class-like declarations should be split into separate files before applying an aspect. Methods that return by reference cannot be intercepted because the aspect pipeline returns values rather than reference identities.
 
 The `cache:clear` Artisan command removes generated AOP proxies:
 

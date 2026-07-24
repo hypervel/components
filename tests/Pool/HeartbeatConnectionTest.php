@@ -88,10 +88,10 @@ class HeartbeatConnectionTest extends TestCase
         $connection = $pool->get();
         $connection->reconnect();
         $timer = $connection->timer;
-        $this->assertSame(1, count((new ClassInvoker($timer))->closures));
+        $this->assertSame(1, count((new ClassInvoker($timer))->coroutines));
         $this->assertTrue($connection->check());
         $connection->close();
-        $this->assertSame(0, count((new ClassInvoker($timer))->closures));
+        $this->assertSame(0, count((new ClassInvoker($timer))->coroutines));
         $this->assertFalse($connection->check());
         $this->assertSame('close protocol', CoroutineContext::get('test.pool.heartbeat_connection')['close']);
     }
@@ -109,7 +109,7 @@ class HeartbeatConnectionTest extends TestCase
         $timer = $connection->timer;
 
         $this->assertTrue($connection->check());
-        $this->assertSame(0, count((new ClassInvoker($timer))->closures));
+        $this->assertSame(0, count((new ClassInvoker($timer))->coroutines));
 
         Coroutine::sleep(0.01);
 
@@ -156,6 +156,7 @@ class HeartbeatConnectionTest extends TestCase
             Coroutine::sleep(0.01);
 
             $this->assertFalse($connection->check());
+            $this->assertSame(1, $connection->closeCount);
             $contents = file_get_contents($errorLog);
             $this->assertIsString($contents);
             $this->assertStringContainsString('heartbeat fallback failed', $contents);

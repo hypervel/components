@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Databases;
 
-use Carbon\Carbon;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Hash;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -22,7 +22,7 @@ class MigrateWithHypervelMigrationsUsingDatabaseMigrationsTest extends TestCase
     #[Test]
     public function itLoadsTheMigrations(): void
     {
-        $now = Carbon::now();
+        $now = CarbonImmutable::now();
 
         DB::table('users')->insert([
             'name' => 'Orchestra',

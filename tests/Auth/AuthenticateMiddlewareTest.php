@@ -170,6 +170,46 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->assertSame($this->auth, $boundTo);
     }
 
+    public function testAuthManagerCanResolveBackedEnumGuard(): void
+    {
+        $driver = $this->registerAuthDriver('default', true);
+
+        $guard1 = $this->auth->guard(GuardName::Default);
+        $guard2 = $this->auth->guard('default');
+
+        $this->assertSame($guard1, $guard2);
+        $this->assertSame($driver, $guard1);
+    }
+
+    public function testAuthManagerCanResolveZeroBackedEnumGuard(): void
+    {
+        $driver = $this->registerAuthDriver('0', true);
+
+        $guard1 = $this->auth->guard(NumericGuardName::Zero);
+        $guard2 = $this->auth->guard('0');
+
+        $this->assertSame($guard1, $guard2);
+        $this->assertSame($driver, $guard1);
+    }
+
+    public function testShouldUseAcceptsBackedEnum(): void
+    {
+        $this->registerAuthDriver('default', true);
+        $secondary = $this->registerAuthDriver('secondary', true);
+
+        $this->auth->shouldUse(GuardName::Secondary);
+
+        $this->assertSame('secondary', $this->auth->getDefaultDriver());
+        $this->assertSame($secondary, $this->auth->guard());
+    }
+
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        $this->auth->setDefaultDriver(GuardName::Secondary);
+
+        $this->assertSame('secondary', $this->auth->getDefaultDriver());
+    }
+
     /**
      * Create a new config repository instance.
      */
@@ -181,6 +221,7 @@ class AuthenticateMiddlewareTest extends TestCase
                 'guards' => [
                     'default' => ['driver' => 'default'],
                     'secondary' => ['driver' => 'secondary'],
+                    '0' => ['driver' => '0'],
                     __CLASS__ => ['driver' => __CLASS__],
                 ],
             ],
@@ -235,4 +276,15 @@ class AuthenticateMiddlewareTest extends TestCase
 
         $this->assertSame($request, $nextParam);
     }
+}
+
+enum GuardName: string
+{
+    case Default = 'default';
+    case Secondary = 'secondary';
+}
+
+enum NumericGuardName: int
+{
+    case Zero = 0;
 }

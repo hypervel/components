@@ -12,11 +12,12 @@ use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Filesystem\FileResponseBuilder;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Traits\Conditionable;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 trait InteractsWithPooledFilesystem
 {
@@ -64,6 +65,16 @@ trait InteractsWithPooledFilesystem
     public function assertDirectoryEmpty(string $path): static
     {
         $this->invoke(__FUNCTION__, [$path]);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the disk contains no files.
+     */
+    public function assertEmpty(): static
+    {
+        $this->invoke(__FUNCTION__, []);
 
         return $this;
     }
@@ -183,7 +194,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Get the contents of a file as decoded JSON.
      */
-    public function json(string $path, int $flags = 0): ?array
+    public function json(string $path, int $flags = 0): array|bool|float|int|string|null
     {
         return $this->invoke(__FUNCTION__, [$path, $flags]);
     }
@@ -196,7 +207,7 @@ trait InteractsWithPooledFilesystem
         ?string $name = null,
         array $headers = [],
         string $disposition = 'inline',
-    ): Response {
+    ): StreamedResponse {
         return $this->buildFileResponse(
             Container::getInstance()->make(Request::class),
             $path,
@@ -219,7 +230,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Create a streamed download response for a given file.
      */
-    public function download(string $path, ?string $name = null, array $headers = []): Response
+    public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
         return $this->response($path, $name, $headers, 'attachment');
     }
@@ -587,12 +598,11 @@ trait InteractsWithPooledFilesystem
         ?string $name,
         array $headers,
         string $disposition,
-    ): Response {
+    ): StreamedResponse {
         $container = Container::getInstance();
 
         return $container->make(FileResponseBuilder::class)->build(
             $request,
-            $container->make(Response::class),
             $path,
             $name,
             $headers,

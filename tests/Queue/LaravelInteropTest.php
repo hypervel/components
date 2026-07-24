@@ -38,6 +38,21 @@ class LaravelInteropTest extends TestCase
         $this->assertSame('laravel-queue-overlap:', $middleware->prefix);
     }
 
+    public function testWithoutOverlappingDisplayNameKeyMatchesLaravel(): void
+    {
+        $job = new class {
+            public function displayName(): string
+            {
+                return 'App\Jobs\InteropJob';
+            }
+        };
+
+        $this->assertSame(
+            'laravel-queue-overlap:' . hash('xxh128', 'App\Jobs\InteropJob') . ':test',
+            (new WithoutOverlapping('test'))->getLockKey($job)
+        );
+    }
+
     public function testThrottlesExceptionsPrefixMatchesLaravel()
     {
         $middleware = new ThrottlesExceptions;
@@ -47,18 +62,24 @@ class LaravelInteropTest extends TestCase
         $this->assertSame('laravel_throttles_exceptions:', $reflection->getValue($middleware));
     }
 
-    public function testUniqueLockKeyPrefixMatchesLaravel()
+    public function testUniqueLockDisplayNameKeyMatchesLaravel(): void
     {
         $job = new class implements ShouldQueue, ShouldBeUnique {
             public function uniqueId(): string
             {
                 return 'test-id';
             }
+
+            public function displayName(): string
+            {
+                return 'App\Jobs\InteropJob';
+            }
         };
 
-        $key = UniqueLock::getKey($job);
-
-        $this->assertStringStartsWith('laravel_unique_job:', $key);
+        $this->assertSame(
+            'laravel_unique_job:' . hash('xxh128', 'App\Jobs\InteropJob') . ':test-id',
+            UniqueLock::getKey($job)
+        );
     }
 
     public function testCallQueuedHandlerClassAliasIsRegistered()

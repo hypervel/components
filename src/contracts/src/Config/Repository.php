@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Config;
 
 use Closure;
+use InvalidArgumentException;
 
 interface Repository
 {
@@ -22,6 +23,7 @@ interface Repository
      * Get the specified string configuration value.
      *
      * @param null|(Closure():(null|string))|string $default
+     * @throws InvalidArgumentException
      */
     public function string(string $key, mixed $default = null): string;
 
@@ -29,6 +31,7 @@ interface Repository
      * Get the specified integer configuration value.
      *
      * @param null|(Closure():(null|int))|int $default
+     * @throws InvalidArgumentException
      */
     public function integer(string $key, mixed $default = null): int;
 
@@ -36,6 +39,7 @@ interface Repository
      * Get the specified float configuration value.
      *
      * @param null|(Closure():(null|float))|float $default
+     * @throws InvalidArgumentException
      */
     public function float(string $key, mixed $default = null): float;
 
@@ -43,6 +47,7 @@ interface Repository
      * Get the specified boolean configuration value.
      *
      * @param null|bool|(Closure():(null|bool)) $default
+     * @throws InvalidArgumentException
      */
     public function boolean(string $key, mixed $default = null): bool;
 
@@ -51,6 +56,7 @@ interface Repository
      *
      * @param null|array<array-key, mixed>|(Closure():(null|array<array-key, mixed>)) $default
      * @return array<array-key, mixed>
+     * @throws InvalidArgumentException
      */
     public function array(string $key, mixed $default = null): array;
 
@@ -67,15 +73,6 @@ interface Repository
      * request.
      */
     public function set(array|string $key, mixed $value = null): void;
-
-    /**
-     * Set callback after calling `set` function.
-     *
-     * Boot or tests only. The callback persists on the singleton config
-     * repository for the worker lifetime and applies to every subsequent
-     * `set` call.
-     */
-    public function afterSettingCallback(?Closure $callback): void;
 
     /**
      * Prepend a value onto an array configuration value.

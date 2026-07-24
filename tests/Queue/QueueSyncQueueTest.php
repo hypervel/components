@@ -18,12 +18,15 @@ use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
+use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 class QueueSyncQueueTest extends TestCase
 {
@@ -34,14 +37,6 @@ class QueueSyncQueueTest extends TestCase
         if (! class_exists('Illuminate\Queue\CallQueuedHandler', autoload: false)) {
             class_alias(CallQueuedHandler::class, 'Illuminate\Queue\CallQueuedHandler');
         }
-    }
-
-    protected function tearDown(): void
-    {
-        SyncQueue::createPayloadUsing(null);
-        Container::setInstance(null);
-
-        parent::tearDown();
     }
 
     public function testPushShouldFireJobInstantly()
@@ -76,6 +71,74 @@ class QueueSyncQueueTest extends TestCase
             $sync->push(FailingSyncQueueTestHandler::class, ['foo' => 'bar']);
         } catch (Exception) {
             $this->assertTrue($_SERVER['__sync.failed']);
+        }
+    }
+
+    public function testProcessingAndAttemptedEventsSurroundSuccessfulSyncJob(): void
+    {
+        SyncQueueEventOrder::reset();
+
+        try {
+            $sync = new SyncQueue;
+            $sync->setConnectionName('sync');
+            $container = $this->getContainer();
+            $events = new EventsDispatcher($container);
+            $events->listen(JobProcessing::class, function (): void {
+                SyncQueueEventOrder::$events[] = 'processing';
+            });
+            $events->listen(JobAttempted::class, function (JobAttempted $event): void {
+                SyncQueueEventOrder::$events[] = 'attempted';
+                SyncQueueEventOrder::$attempted = $event;
+            });
+            $container->instance('events', $events);
+            $container->instance(EventDispatcher::class, $events);
+            $sync->setContainer($container);
+
+            $sync->push(OrderedSyncQueueTestHandler::class);
+
+            $this->assertSame(['processing', 'fire', 'attempted'], SyncQueueEventOrder::$events);
+            $this->assertNotNull(SyncQueueEventOrder::$attempted);
+            $this->assertNull(SyncQueueEventOrder::$attempted->exception);
+            $this->assertTrue(SyncQueueEventOrder::$attempted->successful());
+        } finally {
+            SyncQueueEventOrder::reset();
+        }
+    }
+
+    public function testAttemptedEventRunsAfterThrownSyncJob(): void
+    {
+        SyncQueueEventOrder::reset();
+
+        try {
+            $sync = new SyncQueue;
+            $sync->setConnectionName('sync');
+            $container = $this->getContainer();
+            $events = new EventsDispatcher($container);
+            $events->listen(JobProcessing::class, function (): void {
+                SyncQueueEventOrder::$events[] = 'processing';
+            });
+            $events->listen(JobAttempted::class, function (JobAttempted $event): void {
+                SyncQueueEventOrder::$events[] = 'attempted';
+                SyncQueueEventOrder::$attempted = $event;
+            });
+            $container->instance('events', $events);
+            $container->instance(EventDispatcher::class, $events);
+            $sync->setContainer($container);
+
+            try {
+                $sync->push(FailingOrderedSyncQueueTestHandler::class);
+                $this->fail('Expected sync job exception was not thrown.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Sync job failed.', $exception->getMessage());
+            }
+
+            $this->assertSame(['processing', 'fire', 'attempted'], SyncQueueEventOrder::$events);
+            $this->assertNotNull(SyncQueueEventOrder::$attempted);
+            $this->assertInstanceOf(RuntimeException::class, SyncQueueEventOrder::$attempted->exception);
+            $this->assertSame('Sync job failed.', SyncQueueEventOrder::$attempted->exception->getMessage());
+            $this->assertFalse(SyncQueueEventOrder::$attempted->successful());
+        } finally {
+            SyncQueueEventOrder::reset();
         }
     }
 
@@ -245,6 +308,42 @@ class FailingSyncQueueTestHandler
     public function failed()
     {
         $_SERVER['__sync.failed'] = true;
+    }
+}
+
+class FailingOrderedSyncQueueTestHandler
+{
+    public function fire(): never
+    {
+        SyncQueueEventOrder::$events[] = 'fire';
+
+        throw new RuntimeException('Sync job failed.');
+    }
+
+    public function failed(): void
+    {
+    }
+}
+
+class OrderedSyncQueueTestHandler
+{
+    public function fire(): void
+    {
+        SyncQueueEventOrder::$events[] = 'fire';
+    }
+}
+
+class SyncQueueEventOrder
+{
+    /** @var list<string> */
+    public static array $events = [];
+
+    public static ?JobAttempted $attempted = null;
+
+    public static function reset(): void
+    {
+        self::$events = [];
+        self::$attempted = null;
     }
 }
 

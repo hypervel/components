@@ -7,6 +7,7 @@ namespace Hypervel\Pipeline;
 use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pipeline\Hub as HubContract;
+use InvalidArgumentException;
 
 class Hub implements HubContract
 {
@@ -58,7 +59,11 @@ class Hub implements HubContract
      */
     public function pipe(mixed $object, ?string $pipeline = null): mixed
     {
-        $pipeline = $pipeline ?: 'default';
+        $pipeline = $pipeline === null || $pipeline === '' ? 'default' : $pipeline;
+
+        if (! isset($this->pipelines[$pipeline])) {
+            throw new InvalidArgumentException("Pipeline [{$pipeline}] is not defined.");
+        }
 
         return call_user_func(
             $this->pipelines[$pipeline],

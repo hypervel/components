@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Database\MySql;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schema;
 
 class EloquentCastTest extends MySqlTestCase
@@ -36,9 +36,9 @@ class EloquentCastTest extends MySqlTestCase
         Schema::drop('users');
     }
 
-    public function testItCastTimestampsCreatedByTheBuilderWhenTimeHasNotPassed()
+    public function testItCastTimestampsCreatedByTheBuilderWhenTimeHasNotPassed(): void
     {
-        Carbon::setTestNow(now());
+        CarbonImmutable::setTestNow(now());
         $createdAt = now()->timestamp;
 
         $castUser = UserWithIntTimestampsViaCasts::create([
@@ -79,9 +79,9 @@ class EloquentCastTest extends MySqlTestCase
         $this->assertSame($createdAt, $mutatorUser->fresh()->updated_at->timestamp);
     }
 
-    public function testItCastTimestampsCreatedByTheBuilderWhenTimeHasPassed()
+    public function testItCastTimestampsCreatedByTheBuilderWhenTimeHasPassed(): void
     {
-        Carbon::setTestNow(now());
+        CarbonImmutable::setTestNow(now());
         $createdAt = now()->timestamp;
 
         $castUser = UserWithIntTimestampsViaCasts::create([
@@ -101,7 +101,7 @@ class EloquentCastTest extends MySqlTestCase
         $this->assertSame($createdAt, $mutatorUser->created_at->timestamp);
         $this->assertSame($createdAt, $mutatorUser->updated_at->timestamp);
 
-        Carbon::setTestNow(now()->addSecond());
+        CarbonImmutable::setTestNow(now()->addSecond());
         $updatedAt = now()->timestamp;
 
         $castUser->update([
@@ -125,9 +125,9 @@ class EloquentCastTest extends MySqlTestCase
         $this->assertSame($updatedAt, $mutatorUser->fresh()->updated_at->timestamp);
     }
 
-    public function testItCastTimestampsUpdatedByAMutator()
+    public function testItCastTimestampsUpdatedByAMutator(): void
     {
-        Carbon::setTestNow(now());
+        CarbonImmutable::setTestNow(now());
 
         $mutatorUser = UserWithUpdatedAtViaMutator::create([
             'email' => fake()->unique()->email,
@@ -135,7 +135,7 @@ class EloquentCastTest extends MySqlTestCase
 
         $this->assertNull($mutatorUser->updated_at);
 
-        Carbon::setTestNow(now()->addSecond());
+        CarbonImmutable::setTestNow(now()->addSecond());
         $updatedAt = now()->timestamp;
 
         $mutatorUser->update([
@@ -161,14 +161,14 @@ class UserWithIntTimestampsViaCasts extends Model
 
 class UnixTimeStampToCarbon implements CastsAttributes
 {
-    public function get($model, string $key, $value, array $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
-        return Carbon::parse($value);
+        return CarbonImmutable::parse($value);
     }
 
-    public function set($model, string $key, $value, array $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
-        return Carbon::parse($value)->timestamp;
+        return CarbonImmutable::parse($value)->timestamp;
     }
 }
 
@@ -181,16 +181,16 @@ class UserWithIntTimestampsViaAttribute extends Model
     protected function updatedAt(): Attribute
     {
         return Attribute::make(
-            get: fn ($value) => Carbon::parse($value),
-            set: fn ($value) => Carbon::parse($value)->timestamp,
+            get: fn ($value) => CarbonImmutable::parse($value),
+            set: fn ($value) => CarbonImmutable::parse($value)->timestamp,
         );
     }
 
     protected function createdAt(): Attribute
     {
         return Attribute::make(
-            get: fn ($value) => Carbon::parse($value),
-            set: fn ($value) => Carbon::parse($value)->timestamp,
+            get: fn ($value) => CarbonImmutable::parse($value),
+            set: fn ($value) => CarbonImmutable::parse($value)->timestamp,
         );
     }
 }
@@ -203,22 +203,22 @@ class UserWithIntTimestampsViaMutator extends Model
 
     protected function getUpdatedAtAttribute($value)
     {
-        return Carbon::parse($value);
+        return CarbonImmutable::parse($value);
     }
 
     protected function setUpdatedAtAttribute($value)
     {
-        $this->attributes['updated_at'] = Carbon::parse($value)->timestamp;
+        $this->attributes['updated_at'] = CarbonImmutable::parse($value)->timestamp;
     }
 
     protected function getCreatedAtAttribute($value)
     {
-        return Carbon::parse($value);
+        return CarbonImmutable::parse($value);
     }
 
     protected function setCreatedAtAttribute($value)
     {
-        $this->attributes['created_at'] = Carbon::parse($value)->timestamp;
+        $this->attributes['created_at'] = CarbonImmutable::parse($value)->timestamp;
     }
 }
 

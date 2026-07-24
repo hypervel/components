@@ -10,7 +10,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
@@ -76,7 +76,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
     public function testBasicCreateAndRetrieve()
     {
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -141,7 +141,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
     public function testCustomPivotClass()
     {
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -171,7 +171,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
     public function testCustomPivotClassUsingSync()
     {
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -196,7 +196,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
     public function testCustomPivotClassUsingUpdateExistingPivot()
     {
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $post = Post::create(['title' => Str::random()]);
         $tag = TagWithCustomPivot::create(['name' => Str::random()]);
@@ -223,7 +223,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
     public function testCustomPivotClassUpdatesTimestamps()
     {
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $post = Post::create(['title' => Str::random()]);
         $tag = TagWithCustomPivot::create(['name' => Str::random()]);
@@ -236,7 +236,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
             ],
         ]);
 
-        Carbon::setTestNow('2017-10-10 10:10:20'); // +10 seconds
+        CarbonImmutable::setTestNow('2017-10-10 10:10:20'); // +10 seconds
 
         $this->assertEquals(
             1,
@@ -972,7 +972,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
         $this->assertNotSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
 
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $tag->update(['name' => $tag->name]);
         $this->assertNotSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
@@ -990,7 +990,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
         $this->assertNotSame('2017-10-10 10:10:10', $tag->fresh()->updated_at->toDateTimeString());
 
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $tag->posts()->sync([$post->id]);
 
@@ -1007,7 +1007,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertNotSame('2017-10-10 10:10:10', $post->fresh()->updated_at->toDateTimeString());
         $this->assertNotSame('2017-10-10 10:10:10', $tag->fresh()->updated_at->toDateTimeString());
 
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $tag->posts()->sync([$post->id]);
 
@@ -1048,7 +1048,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
             ['post_id' => $post->id, 'tag_id' => 3, 'flag' => ''],
         ]);
 
-        Carbon::setTestNow('2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
 
         $post->tags()->touch();
 
@@ -1667,7 +1667,7 @@ class PostTagPivot extends Pivot
 
     public function getCreatedAtAttribute(mixed $value): string
     {
-        return Carbon::parse($value)->format('U');
+        return CarbonImmutable::parse($value)->format('U');
     }
 }
 

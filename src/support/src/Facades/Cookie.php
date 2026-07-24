@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
+
 /**
  * @method static \Symfony\Component\HttpFoundation\Cookie make(\UnitEnum|string $name, string|null $value, int $minutes = 0, string|null $path = null, string|null $domain = null, bool|null $secure = null, bool $httpOnly = true, bool $raw = false, string|null $sameSite = null)
  * @method static \Symfony\Component\HttpFoundation\Cookie forever(\UnitEnum|string $name, string $value, string|null $path = null, string|null $domain = null, bool|null $secure = null, bool $httpOnly = true, bool $raw = false, string|null $sameSite = null)
  * @method static \Symfony\Component\HttpFoundation\Cookie forget(\UnitEnum|string $name, string|null $path = null, string|null $domain = null)
  * @method static bool hasQueued(\UnitEnum|string $key, string|null $path = null)
- * @method static \Symfony\Component\HttpFoundation\Cookie|null queued(\UnitEnum|string $key, mixed $default = null, string|null $path = null)
+ * @method static ($default is null ? \Symfony\Component\HttpFoundation\Cookie|null : mixed) queued(\UnitEnum|string $key, mixed $default = null, string|null $path = null)
  * @method static void queue(mixed ...$parameters)
  * @method static void expire(\UnitEnum|string $name, string|null $path = null, string|null $domain = null)
  * @method static void unqueue(\UnitEnum|string $name, string|null $path = null)
  * @method static \Hypervel\Cookie\CookieJar setDefaultPathAndDomain(string $path, string|null $domain, bool|null $secure = false, string|null $sameSite = null)
- * @method static array getQueuedCookies()
+ * @method static \Symfony\Component\HttpFoundation\Cookie[] getQueuedCookies()
  * @method static \Hypervel\Cookie\CookieJar flushQueuedCookies()
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
@@ -28,17 +32,23 @@ class Cookie extends Facade
     /**
      * Determine if a cookie exists on the request.
      */
-    public static function has(string $key): bool
+    public static function has(UnitEnum|string $key): bool
     {
-        return ! is_null(static::$app['request']->cookie($key, null));
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return ! is_null(static::$app['request']->cookie($key));
     }
 
     /**
      * Retrieve a cookie from the request.
+     *
+     * @phpstan-return ($default is null ? string|array|null : mixed)
      */
-    public static function get(?string $key = null, mixed $default = null): string|array|null
+    public static function get(UnitEnum|string|null $key = null, mixed $default = null): mixed
     {
-        return static::$app['request']->cookie($key, $default);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return static::$app['request']->cookie($key) ?? $default;
     }
 
     /**

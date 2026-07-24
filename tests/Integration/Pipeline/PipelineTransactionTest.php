@@ -28,7 +28,7 @@ class PipelineTransactionTest extends TestCase
         ]);
     }
 
-    public function testPipelineTransaction()
+    public function testPipelineTransaction(): void
     {
         Event::fake();
 
@@ -40,13 +40,13 @@ class PipelineTransactionTest extends TestCase
             ])
             ->thenReturn();
 
-        $this->assertEquals('some string', $result);
+        $this->assertSame('some string', $result);
         Event::assertDispatchedTimes(TransactionBeginning::class, 1);
         Event::assertDispatchedTimes(TransactionCommitted::class, 1);
     }
 
     #[DataProvider('transactionConnectionDataProvider')]
-    public function testConnection($connection, $connectionName)
+    public function testConnection($connection, $connectionName): void
     {
         Event::fake();
         config(['database.connections.testing2' => config('database.connections.testing')]);
@@ -61,9 +61,9 @@ class PipelineTransactionTest extends TestCase
             ])
             ->thenReturn();
 
-        $this->assertEquals('some string', $result);
-        Event::dispatched(TransactionBeginning::class, function (TransactionBeginning $event) use ($connectionName) {
-            return $event->connection === $connectionName;
+        $this->assertSame('some string', $result);
+        Event::assertDispatched(TransactionBeginning::class, function (TransactionBeginning $event) use ($connectionName) {
+            return $event->connectionName === $connectionName;
         });
     }
 
@@ -76,7 +76,7 @@ class PipelineTransactionTest extends TestCase
         ];
     }
 
-    public function testExceptionThrownRollsBackTransaction()
+    public function testExceptionThrownRollsBackTransaction(): void
     {
         Event::fake();
 

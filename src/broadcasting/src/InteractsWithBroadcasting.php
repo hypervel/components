@@ -21,11 +21,12 @@ trait InteractsWithBroadcasting
      */
     public function broadcastVia(UnitEnum|array|string|null $connection = null): static
     {
-        $connection = is_null($connection) ? null : enum_value($connection);
-
         $this->broadcastConnection = is_null($connection)
             ? [null]
-            : Arr::wrap($connection);
+            : array_map(
+                fn ($value) => $value instanceof UnitEnum ? (string) enum_value($value) : $value,
+                Arr::wrap($connection)
+            );
 
         return $this;
     }
