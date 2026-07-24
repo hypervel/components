@@ -18,6 +18,7 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use RuntimeException;
 
 /**
  * Tests for RedisManager — the named connection manager.
@@ -107,23 +108,96 @@ class RedisManagerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testPurgeReleasesContextPinnedConnection()
+    public function testPurgeDiscardsContextPinnedConnection(): void
     {
         $pinnedConnection = m::mock(PhpRedisConnection::class);
-        $pinnedConnection->shouldReceive('release')->once();
-
-        // Pin a connection in context (simulating an active multi/pipeline)
-        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $pinnedConnection);
+        $pinnedConnection->expects('discard');
 
         $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('flushPool')->with('default');
-
+        $poolFactory->expects('flushPool')->with('default');
         $manager = $this->createManager(['default'], poolFactory: $poolFactory);
+        $manager->connection('default');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $pinnedConnection);
 
         $manager->purge('default');
 
-        // Context should be cleared after release
         $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
+    }
+
+    public function testReleaseConnectionsExhaustsProxiesAndPreservesFirstFailure(): void
+    {
+        $firstException = new RuntimeException('First release failed.');
+        $first = m::mock(RedisProxy::class);
+        $first->expects('releaseContextConnection')->andThrow($firstException);
+        $second = m::mock(RedisProxy::class);
+        $second->expects('releaseContextConnection');
+        $manager = $this->createManager(['first', 'second']);
+        $manager->extend('first', static fn () => $first);
+        $manager->extend('second', static fn () => $second);
+        $manager->connection('first');
+        $manager->connection('second');
+
+        try {
+            $manager->releaseConnections();
+            $this->fail('Expected the first release failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($firstException, $throwable);
+        }
+    }
+
+    public function testDiscardConnectionsExhaustsEveryCreatedProxy(): void
+    {
+        $first = m::mock(RedisProxy::class);
+        $first->expects('discardContextConnection');
+        $second = m::mock(RedisProxy::class);
+        $second->expects('discardContextConnection');
+        $manager = $this->createManager(['first', 'second']);
+        $manager->extend('first', static fn () => $first);
+        $manager->extend('second', static fn () => $second);
+        $manager->connection('first');
+        $manager->connection('second');
+
+        $manager->discardConnections();
+    }
+
+    public function testPurgeUsesTheResolvedProxysActualPoolIdentity(): void
+    {
+        $proxy = m::mock(RedisProxy::class);
+        $proxy->expects('getName')->andReturn('physical');
+        $proxy->expects('discardContextConnection');
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->expects('flushPool')->with('physical');
+        $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
+        $manager->extend('alias', static fn () => $proxy);
+        $manager->connection('alias');
+
+        $manager->purge('alias');
+
+        $this->assertSame([], $manager->connections());
+    }
+
+    public function testPurgeFlushesPoolAfterDiscardFailureAndPreservesFirstFailure(): void
+    {
+        $discardException = new RuntimeException('Discard failed.');
+        $proxy = m::mock(RedisProxy::class);
+        $proxy->expects('getName')->andReturn('physical');
+        $proxy->expects('discardContextConnection')->andThrow($discardException);
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->expects('flushPool')
+            ->with('physical')
+            ->andThrow(new RuntimeException('Flush failed.'));
+        $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
+        $manager->extend('alias', static fn () => $proxy);
+        $manager->connection('alias');
+
+        try {
+            $manager->purge('alias');
+            $this->fail('Expected the discard failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($discardException, $throwable);
+        }
+
+        $this->assertSame([], $manager->connections());
     }
 
     public function testExtendOverridesConnectionResolution()
