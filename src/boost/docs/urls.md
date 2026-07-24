@@ -160,6 +160,8 @@ URL::resolveOriginUsing(
 );
 ```
 
+The resolver does not change the scheme used by generated URLs. If your application should always generate HTTPS URLs, set `FORCE_HTTPS` to `true`.
+
 The resolver runs when Hypervel generates a URL. An origin set with `useOrigin` takes priority, followed by the resolver and then the current request. Routes that declare their own domain continue to use that domain.
 
 The resolver does not apply to asset URLs. Use the `ASSET_URL` environment variable or `useAssetOrigin` method to customize asset origins.
