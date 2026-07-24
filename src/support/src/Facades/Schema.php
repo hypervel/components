@@ -32,6 +32,7 @@ namespace Hypervel\Support\Facades;
  * @method static array getIndexes(string $table)
  * @method static array getIndexListing(string $table)
  * @method static bool hasIndex(string $table, array|string $index, string|null $type = null)
+ * @method static bool hasForeignKey(string $table, array|string $foreignKey)
  * @method static array getForeignKeys(string $table)
  * @method static void table(string $table, \Closure $callback)
  * @method static void create(string $table, \Closure $callback)

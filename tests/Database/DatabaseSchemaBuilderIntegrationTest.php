@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseSchemaBuilderIntegrationTest extends TestCase
@@ -72,6 +73,37 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertTrue($this->schemaBuilder()->hasIndex('table1', 'example_table1_name_index'));
     }
 
+    public function testHasForeignKeyWithSQLiteForeignKeys(): void
+    {
+        $this->schemaBuilder()->create('users', function (Blueprint $table) {
+            $table->id();
+        });
+
+        $this->schemaBuilder()->create('posts', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id');
+            $table->foreign('user_id', 'posts_user_id_foreign')->references('id')->on('users');
+        });
+
+        $this->assertTrue($this->schemaBuilder()->hasForeignKey('posts', ['user_id']));
+        $this->assertFalse($this->schemaBuilder()->hasForeignKey('posts', ['missing_id']));
+    }
+
+    public function testHasForeignKeyCanMatchForeignKeyNamesAndColumns(): void
+    {
+        $builder = new ForeignKeySchemaBuilderStub([
+            [
+                'name' => 'posts_user_id_foreign',
+                'columns' => ['user_id'],
+            ],
+        ]);
+
+        $this->assertTrue($builder->hasForeignKey('posts', 'posts_user_id_foreign'));
+        $this->assertTrue($builder->hasForeignKey('posts', ['user_id']));
+        $this->assertFalse($builder->hasForeignKey('posts', 'posts_missing_foreign'));
+        $this->assertFalse($builder->hasForeignKey('posts', ['missing_id']));
+    }
+
     public function testDropColumnWithTablePrefix()
     {
         $this->db->connection()->setTablePrefix('test_');
@@ -95,8 +127,20 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertFalse($this->schemaBuilder()->hasColumn('pandemic_table', 'covid19'));
     }
 
-    private function schemaBuilder(): \Hypervel\Database\Schema\Builder
+    private function schemaBuilder(): Builder
     {
         return $this->db->connection()->getSchemaBuilder();
+    }
+}
+
+class ForeignKeySchemaBuilderStub extends Builder
+{
+    public function __construct(protected array $foreignKeys)
+    {
+    }
+
+    public function getForeignKeys(string $table): array
+    {
+        return $this->foreignKeys;
     }
 }

@@ -296,6 +296,14 @@ abstract class Grammar extends BaseGrammar
     }
 
     /**
+     * Create the column definition for a tsvector type.
+     */
+    protected function typeTsvector(Fluent $column): string
+    {
+        throw new RuntimeException('This database driver does not support the tsvector type.');
+    }
+
+    /**
      * Create the column definition for a raw column type.
      */
     protected function typeRaw(Fluent $column): string

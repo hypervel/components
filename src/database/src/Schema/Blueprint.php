@@ -8,8 +8,10 @@ use BadMethodCallException;
 use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Grammars\Grammar;
+use Hypervel\Database\Schema\Grammars\MariaDbGrammar;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
 use Hypervel\Support\Collection;
@@ -148,6 +150,9 @@ class Blueprint
     protected function ensureCommandsAreValid(): void
     {
     }
+
+    // REMOVED: Laravel's deprecated commandsNamed() helper is omitted;
+    // filter getCommands() when command inspection is needed.
 
     /**
      * Add the commands that are implied by the blueprint's state.
@@ -567,7 +572,11 @@ class Blueprint
      */
     public function vectorIndex(string $column, ?string $name = null): Fluent
     {
-        return $this->indexCommand('vectorIndex', $column, $name, 'hnsw', 'vector_cosine_ops');
+        [$algorithm, $operatorClass] = $this->grammar instanceof MariaDbGrammar
+            ? [null, 'M=6 DISTANCE=cosine']
+            : ['hnsw', 'vector_cosine_ops'];
+
+        return $this->indexCommand('vectorIndex', $column, $name, $algorithm, $operatorClass);
     }
 
     /**
@@ -824,6 +833,20 @@ class Blueprint
         }
 
         return $this->foreignUuid($column)
+            ->table($model->getTable())
+            ->referencesModelColumn($model->getKeyName());
+    }
+
+    /**
+     * Create a foreign UUID column for the given model.
+     */
+    public function foreignUuidFor(Model|string $model, ?string $column = null): ForeignIdColumnDefinition
+    {
+        if (is_string($model)) {
+            $model = new $model;
+        }
+
+        return $this->foreignUuid($column ?: $model->getForeignKey())
             ->table($model->getTable())
             ->referencesModelColumn($model->getKeyName());
     }
@@ -1155,6 +1178,14 @@ class Blueprint
     }
 
     /**
+     * Create a new tsvector column on the table.
+     */
+    public function tsvector(string $column): ColumnDefinition
+    {
+        return $this->addColumn('tsvector', $column);
+    }
+
+    /**
      * Add the proper columns for a polymorphic table.
      */
     public function morphs(string $name, ?string $indexName = null, ?string $after = null): void
@@ -1441,6 +1472,9 @@ class Blueprint
         return $this->table;
     }
 
+    // REMOVED: Laravel's deprecated getPrefix() forwarding is omitted;
+    // use the connection's getTablePrefix() method.
+
     /**
      * Get the columns on the blueprint.
      *
@@ -1488,6 +1522,9 @@ class Blueprint
             return ! $column->change;
         });
     }
+
+    // REMOVED: Laravel's deprecated getChangedColumns() helper is omitted;
+    // filter getColumns() by each definition's change flag.
 
     /**
      * Get the default time precision.
