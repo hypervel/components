@@ -21,7 +21,7 @@ class AsEncryptedArrayObject implements Castable
             public function get(mixed $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (isset($attributes[$key])) {
-                    return new ArrayObject(Json::decode(Crypt::decryptString($attributes[$key])));
+                    return new ArrayObject(Json::decode(Crypt::decryptString($attributes[$key])), ArrayObject::ARRAY_AS_PROPS);
                 }
 
                 return null;

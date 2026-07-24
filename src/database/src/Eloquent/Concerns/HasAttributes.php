@@ -535,7 +535,9 @@ trait HasAttributes
      */
     protected function getAttributeFromArray(string $key): mixed
     {
-        return $this->getAttributes()[$key] ?? null;
+        $this->mergeAttributeFromCachedCasts($key);
+
+        return $this->attributes[$key] ?? null;
     }
 
     /**
@@ -684,6 +686,8 @@ trait HasAttributes
      */
     protected function mutateAttribute(string $key, mixed $value): mixed
     {
+        $this->mergeAttributesFromCachedCasts();
+
         return $this->{'get' . StrCache::studly($key) . 'Attribute'}($value);
     }
 
@@ -695,6 +699,8 @@ trait HasAttributes
         if (array_key_exists($key, $this->attributeCastCache)) {
             return $this->attributeCastCache[$key];
         }
+
+        $this->mergeAttributesFromCachedCasts();
 
         $attribute = $this->{StrCache::camel($key)}();
 
@@ -1100,6 +1106,8 @@ trait HasAttributes
      */
     protected function setMutatedAttributeValue(string $key, mixed $value): mixed
     {
+        $this->mergeAttributesFromCachedCasts();
+
         return $this->{'set' . StrCache::studly($key) . 'Attribute'}($value);
     }
 
@@ -1108,6 +1116,8 @@ trait HasAttributes
      */
     protected function setAttributeMarkedMutatedAttributeValue(string $key, mixed $value): mixed
     {
+        $this->mergeAttributesFromCachedCasts();
+
         $attribute = $this->{StrCache::camel($key)}();
 
         $callback = $attribute->set ?: function ($value) use ($key) {
@@ -1552,7 +1562,7 @@ trait HasAttributes
     /**
      * Get the attributes that should be cast.
      *
-     * @return array<string, string>
+     * @return array<string, string|Stringable>
      */
     protected function casts(): array
     {
@@ -1755,20 +1765,42 @@ trait HasAttributes
     }
 
     /**
+     * Merge the cast class and attribute cast attribute back into the model.
+     */
+    protected function mergeAttributeFromCachedCasts(string $key): void
+    {
+        $this->mergeAttributeFromClassCasts($key);
+        $this->mergeAttributeFromAttributeCasts($key);
+    }
+
+    /**
      * Merge the cast class attributes back into the model.
      */
     protected function mergeAttributesFromClassCasts(): void
     {
         foreach ($this->classCastCache as $key => $value) {
-            $caster = $this->resolveCasterClass($key);
-
-            $this->attributes = array_merge(
-                $this->attributes,
-                $caster instanceof CastsInboundAttributes
-                    ? [$key => $value]
-                    : $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes))
-            );
+            $this->mergeAttributeFromClassCasts($key);
         }
+    }
+
+    /**
+     * Merge the cast class attribute back into the model.
+     */
+    protected function mergeAttributeFromClassCasts(string $key): void
+    {
+        if (! isset($this->classCastCache[$key])) {
+            return;
+        }
+
+        $value = $this->classCastCache[$key];
+        $caster = $this->resolveCasterClass($key);
+
+        $this->attributes = array_merge(
+            $this->attributes,
+            $caster instanceof CastsInboundAttributes
+                ? [$key => $value]
+                : $this->normalizeCastClassResponse($key, $caster->set($this, $key, $value, $this->attributes))
+        );
     }
 
     /**
@@ -1777,24 +1809,37 @@ trait HasAttributes
     protected function mergeAttributesFromAttributeCasts(): void
     {
         foreach ($this->attributeCastCache as $key => $value) {
-            $attribute = $this->{StrCache::camel($key)}();
-
-            if ($attribute->get && ! $attribute->set) {
-                continue;
-            }
-
-            $callback = $attribute->set ?: function ($value) use ($key) {
-                $this->attributes[$key] = $value;
-            };
-
-            $this->attributes = array_merge(
-                $this->attributes,
-                $this->normalizeCastClassResponse(
-                    $key,
-                    $callback($value, $this->attributes)
-                )
-            );
+            $this->mergeAttributeFromAttributeCasts($key);
         }
+    }
+
+    /**
+     * Merge the cast class attribute back into the model.
+     */
+    protected function mergeAttributeFromAttributeCasts(string $key): void
+    {
+        if (! isset($this->attributeCastCache[$key])) {
+            return;
+        }
+
+        $value = $this->attributeCastCache[$key];
+        $attribute = $this->{StrCache::camel($key)}();
+
+        if ($attribute->get && ! $attribute->set) {
+            return;
+        }
+
+        $callback = $attribute->set ?: function ($value) use ($key) {
+            $this->attributes[$key] = $value;
+        };
+
+        $this->attributes = array_merge(
+            $this->attributes,
+            $this->normalizeCastClassResponse(
+                $key,
+                $callback($value, $this->attributes)
+            )
+        );
     }
 
     /**

@@ -191,7 +191,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('{"key1":"value1"}')
             ->andReturn('encrypted-secret-collection-string-1');
         $this->encrypter->expects('encryptString')
-            ->times(10)
+            ->times(9)
             ->with('{"key1":"value1","key2":"value2"}')
             ->andReturn('encrypted-secret-collection-string-2');
         $this->encrypter->expects('decryptString')
@@ -241,7 +241,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('[{"key1":"value1"}]')
             ->andReturn('encrypted-secret-collection-string-1');
         $this->encrypter->expects('encryptString')
-            ->times(12)
+            ->times(11)
             ->with('[{"key1":"value1"},{"key2":"value2"}]')
             ->andReturn('encrypted-secret-collection-string-2');
         $this->encrypter->expects('decryptString')
@@ -297,7 +297,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-array-string-1')
             ->andReturn('{"key1":"value1"}');
         $this->encrypter->expects('encryptString')
-            ->times(10)
+            ->times(9)
             ->with('{"key1":"value1","key2":"value2"}')
             ->andReturn('encrypted-secret-array-string-2');
         $this->encrypter->expects('decryptString')
@@ -325,7 +325,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         $subject = $subject->fresh();
 
         $this->assertInstanceOf(ArrayObject::class, $subject->secret_array);
-        $this->assertSame('value1', $subject->secret_array['key1']);
+        $this->assertSame('value1', $subject->secret_array->key1);
         $this->assertSame('value2', $subject->secret_array['key2']);
 
         $subject->secret_array = null;
