@@ -263,8 +263,11 @@ class ParallelTesting
     public static function tempDir(string $suffix = ''): string
     {
         $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
+        // Canonicalize the temp root so this path matches values derived via realpath() or __DIR__;
+        // macOS resolves /var to /private/var, which would otherwise differ.
+        $temporaryDirectory = realpath(sys_get_temp_dir()) ?: sys_get_temp_dir();
 
-        return sys_get_temp_dir() . '/hypervel-test-' . $token . '-' . getmypid() . ($suffix ? '-' . $suffix : '');
+        return $temporaryDirectory . '/hypervel-test-' . $token . '-' . getmypid() . ($suffix ? '-' . $suffix : '');
     }
 
     /**

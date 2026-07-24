@@ -125,12 +125,21 @@ class LeasedStreamTest extends TestCase
         $this->assertSame(0, stream_set_write_buffer($stream, 8192));
         $this->assertSame(0, stream_set_write_buffer($stream, 0));
         $this->assertSame(-1, stream_set_read_buffer($stream, 0));
+        $options = RecordingStreamWrapper::$options;
+
+        $this->assertCount(4, $options);
         $this->assertSame([
             [STREAM_OPTION_BLOCKING, 0, null],
             [STREAM_OPTION_READ_TIMEOUT, 1, 500_000],
             [STREAM_OPTION_WRITE_BUFFER, STREAM_BUFFER_FULL, 8192],
-            [STREAM_OPTION_WRITE_BUFFER, STREAM_BUFFER_NONE, 8192],
-        ], RecordingStreamWrapper::$options);
+        ], array_slice($options, 0, 3));
+        // PHP forwards C BUFSIZ (8192 on glibc, 1024 on macOS libc) as the third value for
+        // STREAM_BUFFER_NONE, even though LeasedStream ignores it. Assert only the option and mode
+        // because the size is platform-owned and semantically unused.
+        $this->assertSame(
+            [STREAM_OPTION_WRITE_BUFFER, STREAM_BUFFER_NONE],
+            array_slice($options[3], 0, 2),
+        );
 
         fclose($stream);
         $pool->close();
