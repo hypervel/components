@@ -103,6 +103,9 @@ abstract class Factory
      */
     public static string $namespace = 'Database\Factories\\';
 
+    // REMOVED: Laravel's deprecated singular model-name resolver is omitted;
+    // use the class-keyed modelNameResolvers map.
+
     /**
      * The default model name resolvers.
      *
