@@ -2,7 +2,7 @@
 
 ## Status
 
-Plan drafted after the Database audit and pre-implementation second-opinion consensus. Owner approval has been received for every additive capability and performance-sensitive change in that consensus. A fresh source, test, documentation, metadata, lifecycle, performance, and overengineering review is complete; it added `redis-06` through `redis-08`, whose minimal Redis command/release hot-path work must be included in the final owner review before implementation. Independent plan review is pending. Implementation has not started.
+Plan drafted after the Database audit and pre-implementation second-opinion consensus. Owner approval has been received for every additive capability and performance-sensitive change in that consensus. A fresh source, test, documentation, metadata, lifecycle, performance, and overengineering review added `redis-06` through `redis-08`, and independent plan review signed off the complete design. After sign-off, Hyperf issue #7733 and pull request #7734 exposed one missed `redis-03` defer-retention path; focused source review and second-opinion consensus settled the bounded amendment below. Refreshed independent plan review signed off the amendment. During the full validation gate, Laravel 13's model boot guard exposed stale pre-publication model construction in the current Scout and NestedSet consumers; focused upstream review and second-opinion consensus added the bounded compatibility corrections in Section 10. Fresh post-implementation review added two concise migration-guide notes for the new schema-dump option and migration-event name while deliberately excluding low-level exception metadata and lazy-value overload inventory, and closed one missed transaction failure-precedence path already required by Section 8. Implementation, the full validation gate, fresh self-review, audit-record updates, and independent post-implementation code review are complete.
 
 ## Scope
 
@@ -12,6 +12,7 @@ The final implementation must:
 
 - release exact Database and Redis leases at the end of non-coroutine Swoole tasks;
 - prevent parent-created Database and Redis resources from crossing Swoole process forks;
+- bound Redis same-connection terminal cleanup to one defer per pool per coroutine while preserving immediate callback-form release;
 - make Redis command-event cleanup failure-safe and preserve exact connection ownership for optimistic transactions;
 - make Redis release safe for abandoned native transaction, pipeline, and watch state;
 - give one physical in-memory SQLite PDO exactly one concurrent owner;
@@ -33,6 +34,7 @@ This is not a redesign of Database around a new transaction engine, cleanup regi
 | Swoole task completion | `TaskCallback` owns a final `TaskTerminated` phase after action dispatch and result finishing |
 | Non-coroutine Database task leases | `ConnectionResolver` retains the exact borrowed `PooledConnection` wrappers until `TaskTerminated` |
 | Non-coroutine Redis task leases | Each `RedisProxy` owns its context identity; `RedisManager` exhausts already-created proxies at `TaskTerminated` |
+| Coroutine Redis same-connection leases | Each `RedisProxy` records the coroutine ID owning at most one terminal deferred release per pool; callback-form operations still release newly pinned wrappers immediately, and copied child context cannot inherit false ownership |
 | Final parent pre-fork boundary | `Server::start()` dispatches `BeforeServerFork` immediately before native `start()` |
 | Database process cleanup | One Database lifecycle listener discards exact resolver leases and independently flushes already-resolved pools |
 | Redis process cleanup | One Redis lifecycle listener discards exact proxy leases and independently flushes already-resolved pools |
@@ -57,7 +59,7 @@ This is not a redesign of Database around a new transaction engine, cleanup regi
 | `database-11` | Supported current Laravel parity | Major/Minor | Current Query, Eloquent, Schema, migration, connector, provider, exception, and metadata behavior is absent or stale | Port the complete current supported upstream surface discovered through originating changes |
 | `database-12` | Performance improvement | Improvement | Ordinary attribute reads merge every cached cast; raw SQL substitution removes bindings quadratically | Port current Laravel's per-key cast merge and indexed binding substitution |
 | `database-13` | Metadata and documentation defect | Major | Split dependencies, provenance, deliberate deprecated omissions, and accepted public APIs are incomplete or undiscoverable | Correct manifests, add metadata coverage, record omissions, and update task-first guides |
-| `redis-03` | Cross-package defect | Major | Non-coroutine same-connection commands call coroutine defer outside a coroutine and pin the lease across tasks | Gate defer registration and release exact proxy-owned context at `TaskTerminated` |
+| `redis-03` | Cross-package defect | Major | Non-coroutine same-connection commands call coroutine defer outside a coroutine and pin the lease across tasks; repeated callback-form operations in one long-lived coroutine immediately release their wrappers but retain one redundant defer closure per call until coroutine exit | Gate non-coroutine defer registration, register at most one terminal defer per pool per coroutine, preserve immediate callback release, and release exact proxy-owned task context at `TaskTerminated` |
 | `redis-04` | Cross-package defect | Major | Abandoned native MULTI/PIPELINE clients are requeued and silently queue commands for the next borrower | Detect native mode at release and discard terminally |
 | `redis-05` | Cross-package defect | Major | Redis sockets, heartbeat timers, pools, and pinned fallback context share Database's pre-fork inheritance defect | Consume `BeforeServerFork` and `BeforeWorkerStart` through exact discard plus resolved pool flush |
 | `redis-06` | Cross-package defect | Major | A throwing `CommandExecuted` listener exits the proxy's `finally` block before release or context handoff, leaking the borrowed pool slot | Capture event failure, complete the same ownership handoff or cleanup, then preserve existing Laravel event-failure precedence |
@@ -146,16 +148,27 @@ The documentation reference is the current local Laravel Docs `13.x` checkout at
 | `391d540182` | Merge only the requested cached cast on ordinary attribute access; retain full merges where mutators can inspect siblings |
 | `e4223623a0` | Use a binding index rather than `array_shift()` per raw SQL placeholder |
 
+### Hyperf Redis lifecycle correction
+
+Hyperf issue #7733 and merged pull request #7734 are discovery evidence for the callback-form defer-retention defect. Hyperf's final correction uses an eager-release context marker to suppress defer registration while preserving immediate release from callback-form pipeline and transaction operations. Hypervel keeps that ownership contract but uses the lower registration boundary: one terminal deferred release per Redis pool per coroutine.
+
+The immediate-release behavior is non-negotiable. Deferring callback-form release until coroutine exit can exhaust a small Redis pool in long-running or highly concurrent coroutines. The single terminal defer no-ops when no wrapper remains pinned, but it also owns any later raw same-connection pin in the same coroutine. This removes per-call closure growth without a callback-specific marker or another release path.
+
+Swoole 6.2.2's `swoole_coroutine_defer` has no catchable failure after a valid callable is accepted inside a live coroutine. Register the terminal defer before publishing its owner ID. This establishes ownership by statement order without a rollback branch; a non-positive coroutine ID excludes the outside-coroutine defer failure.
+
 ### Verified Hypervel runtime facts
 
 - `server.settings.task_enable_coroutine` defaults to `false`.
 - Swoole executes default non-coroutine task-worker callbacks sequentially within one task worker.
 - `ConnectionResolver` currently installs deferred release only in a coroutine. The bare `Connection` retains the wrapper incidentally through the bound reconnector closure, but nothing owns release in non-coroutine tasks.
 - `RedisProxy` currently calls `Coroutine::defer()` after successful `multi`, `pipeline`, or `select` even outside a coroutine; native Swoole rejects that call.
+- Each callback-form `pipeline()` or `transaction()` with no existing pin currently registers a fresh terminal defer in `RedisProxy::__call()`, then `MultiExec::executeMultiExec()` immediately releases and forgets the wrapper. Repeating the operation in a long-lived coroutine therefore retains one additional no-op closure per call until coroutine exit.
+- `Coroutine::fork()`, `go(..., true)`, and `parallel(..., copyContext: true)` copy scalar context values into a child but do not copy the native defer stack. A boolean deduplication flag would therefore create a false owner in the child. Storing the owning coroutine ID makes the inherited parent value stale and forces the child to register its own defer.
+- `RedisProxy::withPinnedConnection()` is defer-free and releases its own newly pinned wrapper in `finally`; it does not share the accumulation defect.
 - `RedisProxy` dispatches `CommandExecuted` before its release/context-handoff branch inside one `finally`; a throwing listener therefore skips ownership cleanup. `CommandFailed` listener failure already replaces the command failure as current Laravel does, while the wrapper is still released.
 - `RedisProxy::shouldUseSameConnection()` omits `watch`, although Redis optimistic transactions require `WATCH`, the intervening reads, `MULTI`, and `EXEC` to use one native client. Native phpredis `getMode()` remains `Redis::ATOMIC` while only watched, so queue-mode detection cannot discover this state.
 - `RedisConnection` inherits the pool lifecycle method `discard(): void`. Consequently, `RedisProxy::__call('discard')` never reaches phpredis `DISCARD`; it removes the borrowed wrapper from pool ownership, returns `null`, and leaves the transaction context referring to a destroyed wrapper. Callback-form transactions call `discard()` on the native phpredis object and are unaffected.
-- Callback-form Redis transaction/pipeline operations release a newly pinned connection in `MultiExec::executeMultiExec()` and therefore need no terminal double-release. A callback-form transaction that reuses a wrapper pinned by `WATCH` calls native `exec()` directly, so `MultiExec` must clear the wrapper's watch flag after that native call returns successfully.
+- Callback-form Redis transaction/pipeline operations release a newly pinned connection immediately in `MultiExec::executeMultiExec()`. One pool-scoped terminal defer may later no-op or release a subsequent raw pin, but callback completion never waits for coroutine exit. A callback-form transaction that reuses a wrapper pinned by `WATCH` calls native `exec()` directly, so `MultiExec` must clear the wrapper's watch flag after that native call returns successfully.
 - `RedisConnection::release()` can send `SELECT` while restoring the configured database. Fork cleanup must discard, not release, inherited sockets.
 - `PhpRedisConnection` and `PhpRedisClusterConnection` expose the authoritative native mode through `getMode()`; this is local extension state, not a Redis network command.
 - `Pool::discard()` validates exact borrowed ownership. `destroyConnection()` contains native close failure and always removes managed/borrowed bookkeeping and signals capacity.
@@ -163,6 +176,7 @@ The documentation reference is the current local Laravel Docs `13.x` checkout at
 - `PoolFactory` is an auto-singletoned resolvable concrete for both Database and Redis and can own pools even when the canonical manager key is unresolved.
 - SQLite `pragma_database_list` returns an empty main path for in-memory databases and a canonical filesystem path for file-backed URI connections.
 - Native SQLite probes confirm lowercase `file:` handling, percent-decoded paths/query values, case-sensitive `mode`, and last-value-wins duplicate `mode` behavior.
+- Current Laravel splits RefreshDatabase's aggregate and named in-memory checks, but its named check still recognizes only literal `:memory:`. Hypervel must route that live refresh-connection hook and every named transaction connection through the settled SQLite classifier so mixed file/memory connection sets cache only their physical memory PDOs.
 - `Filesystem::put()` returns `int|false`; it does not guarantee an exception on write failure.
 - In-memory `DbPool` deliberately shares one PDO among wrappers. Capacity greater than one therefore advertises owners that are not physically independent.
 - `Mutex` is a class-keyed worker-static `Channel(1)` map. Test cleanup closes Mutex channels before resetting `Model`.
@@ -181,7 +195,9 @@ The owner approved:
 
 No other planned change adds successful request/query hot-path work.
 
-The fresh self-review additionally found `redis-06` through `redis-08` in `RedisProxy::__call()`, which this work already modifies. The direct event-cleanup slots, successful-command state update, and release-time boolean read are source-proven hot-path work. They remove a pool-slot leak and restore Redis `WATCH` / `DISCARD` correctness without a registry, wrapper, network check, or transaction abstraction, but still require explicit owner approval under the audit's performance gate before implementation.
+The fresh self-review additionally found `redis-06` through `redis-08` in `RedisProxy::__call()`, which this work already modifies. The direct event-cleanup slots, successful-command state update, and release-time boolean read are source-proven hot-path work. They remove a pool-slot leak and restore Redis `WATCH` / `DISCARD` correctness without a registry, wrapper, network check, or transaction abstraction. The owner approved these bounded costs together with the other implementation gates.
+
+The owner separately required callback-form Redis connections to keep returning to the pool immediately after their closure finishes. The `redis-03` amendment preserves that behavior and replaces the already-planned coroutine-presence read with one coroutine-ID read plus one context owner comparison when a successful same-connection command publishes a new pin.
 
 ## Implementation order
 
@@ -404,11 +420,22 @@ Add one instance property on the concrete pooled resolver:
 protected array $nonCoroutineConnections = [];
 ```
 
-The key is `ConnectionName::requested`, including `::read` and `::write`; never reconstruct wrappers later from configured base names.
+The owner key is normally `ConnectionName::requested`, including `::read` and `::write`; never reconstruct wrappers later from configured base names. The one exception is aliases backed by the same shared in-memory SQLite PDO: base, read, and write requests must use the pool's canonical name because only one wrapper can own that PDO. Genuine read/write pools retain their exact requested-name owners.
 
 `connection()` publishes the bare connection and exactly one terminal owner transactionally:
 
 ```php
+$connectionOwnerName = $connectionName->requested;
+$contextKey = $this->getContextKey($connectionOwnerName);
+$pool = $this->factory->getPool($connectionName->requested);
+
+if ($pool->getSharedInMemorySqlitePdo() !== null) {
+    $connectionOwnerName = $pool->getName();
+    $contextKey = $this->getContextKey($connectionOwnerName);
+
+    // Return an existing canonical owner before borrowing the sole wrapper.
+}
+
 $pooledConnection = $pool->get();
 
 try {
@@ -426,11 +453,11 @@ try {
             $pooledConnection->release();
         });
     } else {
-        $this->nonCoroutineConnections[$connectionName->requested] = $pooledConnection;
+        $this->nonCoroutineConnections[$connectionOwnerName] = $pooledConnection;
     }
 } catch (Throwable $exception) {
     CoroutineContext::forget($contextKey);
-    unset($this->nonCoroutineConnections[$connectionName->requested]);
+    unset($this->nonCoroutineConnections[$connectionOwnerName]);
 
     try {
         $pooledConnection->discard();
@@ -473,7 +500,7 @@ The shared protected helper is justified because both public lifecycle operation
 
 1. snapshot `$nonCoroutineConnections`;
 2. clear the property;
-3. forget every exact requested-name connection key;
+3. forget every exact owner-name connection key;
 4. forget `DEFAULT_CONNECTION_CONTEXT_KEY`;
 5. only then release or discard every wrapper;
 6. continue after each failure and throw the earliest one.
@@ -540,7 +567,7 @@ Cover:
 - context/default override detached before any release callback can re-enter;
 - every wrapper released despite one failure, with earliest failure preserved;
 - discard path uses exact wrappers and exhausts failures;
-- setup failure at connection retrieval, role configuration, context publication, and defer registration discards exactly once and preserves the primary failure;
+- setup failure at connection retrieval or write-role configuration discards exactly once and preserves the primary failure; successful context publication is terminally owned by either the coroutine defer or non-coroutine task map;
 - coroutine borrows remain defer-owned and never enter terminal task cleanup;
 - provider task registration only when task coroutines are disabled;
 - unresolved resolver/factory stay unresolved at lifecycle boundaries;
@@ -569,21 +596,46 @@ A custom non-coroutine daemon process can hold one resolver connection for its l
 - Modify `tests/Redis/RedisServiceProviderTest.php`.
 - Add or extend external Redis integration tests using `InteractsWithRedis`.
 
-### Gate defer only where same-connection state is published
+### Register one terminal defer per pool and coroutine
 
-After a successful `multi`, `pipeline`, `select`, or `watch`, retain the connection in context exactly as today, but install defer only in a coroutine:
+After a successful `multi`, `pipeline`, `select`, or `watch`, retain the connection in context exactly as today. Outside a coroutine, register no defer. Inside a coroutine, register at most one terminal deferred release for that pool:
 
 ```php
 CoroutineContext::set($this->getContextKey(), $connection);
 
-if (Coroutine::inCoroutine()) {
-    Coroutine::defer(function (): void {
-        $this->releaseContextConnection();
-    });
+$coroutineId = Coroutine::id();
+
+if ($coroutineId > 0) {
+    $deferredReleaseOwnerContextKey = $this->getDeferredReleaseOwnerContextKey();
+
+    if (CoroutineContext::get($deferredReleaseOwnerContextKey) !== $coroutineId) {
+        Coroutine::defer(function (): void {
+            $this->releaseContextConnection();
+        });
+
+        CoroutineContext::set($deferredReleaseOwnerContextKey, $coroutineId);
+    }
 }
 ```
 
-This branch runs only after successful same-connection commands. Ordinary Redis commands gain no coroutine check.
+Use one private key helper and the repository naming convention:
+
+```php
+private const DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
+
+private function getDeferredReleaseOwnerContextKey(): string
+{
+    return self::DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX . $this->poolName;
+}
+```
+
+The order is load-bearing: register the terminal owner before publishing its coroutine ID. Do not wrap the native defer call in rollback handling; the guarded in-coroutine Swoole path has no catchable registration failure. Keep the owner ID for the context lifetime, including after callback-form immediate release, manager purge, and later re-pinning. The one existing defer releases whichever wrapper remains pinned at coroutine exit.
+
+The ID is required by Hypervel's supported context-copy behavior. A copy-all child inherits the parent's scalar owner value but has a different coroutine ID and no inherited native defer, so it registers and publishes its own terminal owner. Sibling children and later generations behave the same. Do not use a boolean, a coroutine-ID key suffix that accumulates copied ancestor keys, a `ReplicableContext` sentinel object, or a proxy-owned `WeakMap`/registry.
+
+This branch runs only after successful same-connection commands. Ordinary Redis commands gain no coroutine or context check. Do not add Hyperf's callback-specific eager-release marker, marker helper trio, or marker cleanup choreography.
+
+Database has no deduplication analog: every Database coroutine borrow registers its own defer, so no copyable false-owner slot exists. Explicitly copying a context while a live Database or Redis connection object is pinned continues to share that object by the context API's documented reference semantics. This amendment neither creates that deliberate lifetime escape nor justifies a generic connection-cloning or context-filtering mechanism.
 
 ### Complete command events before ownership cleanup
 
@@ -660,7 +712,7 @@ After either the first native attempt or a retry succeeds, update only the state
 if ($name === 'watch' && $result !== false) {
     $this->watching = true;
 } elseif (
-    in_array($name, ['exec', 'discard', 'reset'], true)
+    in_array($name, ['exec', 'reset'], true)
     || ($name === 'unwatch' && $result !== false)
 ) {
     $this->watching = false;
@@ -768,7 +820,7 @@ public function discardContextConnection(): void
 
 The proxy is the only owner of its actual pool/context identity. Do not expose the key or pooled connection and do not add these internal methods to Laravel-facing Redis contracts.
 
-Update `withPinnedConnection()` and any sibling terminal path touched by this work to forget, rather than store null, when ownership ends. Keep callback-form `MultiExec` release ownership unchanged; only settle the watched-state flag at its direct native-`exec()` boundary.
+Update `withPinnedConnection()` and any sibling terminal path touched by this work to forget, rather than store null, when ownership ends. `withPinnedConnection()` remains defer-free. Keep callback-form `MultiExec` immediate-release ownership unchanged; the one pool-scoped terminal defer later no-ops unless another raw pin remains, and `MultiExec` otherwise changes only to settle the watched-state flag at its direct native-`exec()` boundary.
 
 ### Manager aggregation
 
@@ -825,7 +877,12 @@ Cover:
 - successful non-coroutine `watch` pins the exact wrapper without attempting coroutine defer;
 - `Redis::discard()` invokes native DISCARD, returns its native result, clears native transaction/watch state, and does not discard the pool wrapper;
 - raw same-connection commands remain pinned through one non-coroutine task and release at termination;
-- callback-form transaction/pipeline releases a newly pinned wrapper in its own `finally` and terminal cleanup is a no-op;
+- repeated callback-form transaction/pipeline calls in one child coroutine release each newly pinned wrapper in their own `finally` and produce exactly one context-absent terminal `releaseContextConnection()` call for the pool after the child exits;
+- callback-form success and callback/native-exec failure both return a newly pinned wrapper immediately rather than retaining it until coroutine exit;
+- the existing limited-pool concurrency integration still completes while each child remains alive after its callback, proving immediate release rather than coroutine-terminal release;
+- a raw same-connection pin after one or more callback-form calls is released by the already-registered terminal defer;
+- a pre-pinned raw connection and nested callback-form operations gain no duplicate terminal defer and retain their original owner;
+- a parent that has completed a callback-form operation can copy all context into a child; the child's inherited parent owner ID is rejected, the child publishes its own ID, and its distinct raw same-connection wrapper releases exactly once at child exit;
 - `WATCH` followed by callback-form `transaction()` reuses the pinned wrapper, clears tracked watch state after any non-throwing native `exec()` result, requeues the healthy wrapper, and emits no false WATCH-state critical log;
 - both a successful result and `exec() === false` consume the tracked watch, while a thrown `exec()` leaves it set so terminal release discards the unknown generation;
 - callback-form pipeline execution does not clear a prior watch;
@@ -843,6 +900,8 @@ Cover:
 - cleanup failure remains observable without replacing the command failure when no event listener failed;
 - `WATCH`, intervening reads, `MULTI`, and `EXEC` use the same native client;
 - successful `UNWATCH`, `EXEC`, and `DISCARD` clear the tracked watch state, while a new generation begins unwatched.
+
+Keep the defer-count and copied-context regressions in `tests/Redis/RedisProxyTest.php`. Use a test-only `RedisProxy` subclass at the already-planned public `@internal` `releaseContextConnection()` boundary to count context-absent terminal calls after joining an explicitly created child; do not add a production defer hook. Keep the real limited-pool pipeline/transaction cases in `tests/Integration/Redis/RedisProxyIntegrationTest.php`; they prove actual wrappers return to the pool while each caller coroutine remains alive.
 
 External Redis behavior tests must use the existing per-ParaTest-worker Redis isolation trait.
 
@@ -959,8 +1018,16 @@ Every successful phpredis pooled release gains one native local `getMode()` call
 - Modify `src/database/src/Connectors/SQLiteConnector.php`.
 - Modify `src/database/src/Schema/SqliteSchemaState.php`.
 - Modify `src/database/src/Schema/SQLiteBuilder.php`.
+- Modify `src/foundation/src/Testing/RefreshDatabase.php`.
+- Modify `src/foundation/src/Testing/Concerns/InteractsWithParallelDatabase.php`.
+- Modify `src/testing/src/Concerns/TestDatabases.php`.
+- Modify `src/testbench/src/Concerns/HandlesDatabases.php`.
+- Modify `src/testbench/src/Concerns/Database/InteractsWithSqliteDatabaseFile.php`.
+- Modify `src/boost/docs/testing.md`.
 - Add `tests/Database/SQLiteDatabaseTest.php`.
 - Modify SQLite connector, pool, builder, and schema-state tests.
+- Modify `tests/Foundation/Testing/RefreshDatabaseTest.php`.
+- Modify focused Foundation, Testing, and Testbench SQLite/parallel-database tests.
 
 ### Internal classifier
 
@@ -1063,9 +1130,50 @@ public function refreshDatabaseFile(?string $path = null): void
 
 Do not atomically replace this file; that would leave the live PDO connected to the old unlinked inode.
 
+### Parallel testing and filesystem management boundaries
+
+Every Testbench and parallel-testing memory check delegates to `SQLiteDatabase::isInMemory()`. URI memory databases remain unchanged because each worker process already owns distinct memory. Automatic parallel database management requires a plain SQLite filesystem path: both the early Testbench configuration rewrite and its post-`defineEnvironment()` ensure phase, plus the application test runner's common database-management choke point, reject a non-memory `file:` URI with a message directing callers to configure a plain path or use `--without-databases`. Both parallel systems honor that option before classification.
+
+`SQLiteBuilder::createDatabase()` and `dropDatabaseIfExists()` similarly reject memory and URI names before calling PHP filesystem APIs. They operate on plain paths only; treating a URI as a PHP path either creates a stray literal filename or reports successful deletion without touching the database.
+
+Do not add URI suffixing, URI-to-path decoding, or another database-name abstraction. Supporting URI-backed automatic parallel isolation honestly would require coordinated rewriting and cleanup across both parallel systems, URL handling, schema creation/drop, Testbench file swapping, and query parameters. The plain-path boundary prevents silent worker sharing without that unused machinery.
+
+### Mixed RefreshDatabase connection ownership
+
+Match current Laravel's aggregate/named split while retaining Hypervel's live default-refresh hook:
+
+```php
+protected function usingInMemoryDatabases(): bool
+{
+    foreach ($this->connectionsToTransact() as $name) {
+        if ($this->usingInMemoryDatabase($name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+protected function usingInMemoryDatabase(?string $name = null): bool
+{
+    $config = $this->app->make('config');
+    $name ??= $this->getRefreshConnection();
+
+    return SQLiteDatabase::isInMemory(
+        $config->string("database.connections.{$name}.database")
+    );
+}
+```
+
+Use `usingInMemoryDatabases()` for the restore decision and pass the loop's `$name` when caching PDOs in `beginDatabaseTransactionWork()`. A file-backed default with a named memory connection must cache only the named memory PDO; otherwise the next test can skip migrations after receiving a fresh empty memory PDO. Keep `getRefreshConnection()` as the no-argument owner because package test suites override or consume that live refresh boundary.
+
+Do not alter restore ordering, coroutine setup, migration publication, transaction cleanup, or the existing `$migrated` / `$inMemoryConnections` lockstep.
+
 ### Tests
 
-Cover the full classifier matrix, connector standalone use without `base_path()`, valid file URI acceptance, nonexistent plain paths, CLI routing, canonical URI path refresh, memory rebuild, and a checked `Filesystem::put()` false result.
+Cover the full classifier matrix, connector standalone use without `base_path()`, valid file URI acceptance, nonexistent plain paths, CLI routing, canonical URI path refresh, memory rebuild, and a checked `Filesystem::put()` false result. Prove both parallel systems skip `file::memory:`, reject a non-memory URI, honor `--without-databases`, and keep suffixing plain paths. Prove SQLite schema create/drop reject memory and URI names before filesystem access. Prove RefreshDatabase's no-argument check uses the live default-refresh connection, its aggregate check finds memory on any named transaction connection, and mixed file/memory transaction setup caches only the memory PDO.
+
+The shared SQLite integration harness must use `SQLiteDatabase` for configured in-memory detection and must not pass URI names to PHP file-management APIs. The WAL migration test similarly skips configurations that are not plain filesystem paths because its fixture deletes and recreates the database file directly.
 
 Use `ParallelTesting::tempDir()` for every database file. Do not write fixtures into the committed test tree.
 
@@ -1120,6 +1228,8 @@ one shared PDO
 
 Do not add another Mutex, shared-cache URI, wrapper coordinator, connection registry, or driver-specific wait path.
 
+Resolvers must also treat unsplit base, `::read`, and `::write` aliases as one owner when their pool exposes the shared PDO. Production context and Testbench wrapper caches use the pool's canonical name only for this case. Testbench named flush resolves that canonical key only through an already-created pool, so cleanup never creates a pool merely to destroy it.
+
 ### Tests
 
 Replace any test that treats multiple wrappers as independent owners with deterministic one-owner behavior:
@@ -1128,6 +1238,9 @@ Replace any test that treats multiple wrappers as independent owners with determ
 - a second coroutine waits through the existing pool wait boundary;
 - release or discard transfers capacity;
 - state is visible through the same shared PDO after reuse;
+- unsplit base/read/write aliases reuse one bare connection and one wrapper without waiting on their own pool slot;
+- Testbench alias flush discards the canonical wrapper and restores capacity;
+- query-log assertions clear the existing log before opening each alias-specific observation window;
 - pool close and persistence tests release their first wrapper before another borrow;
 - every valid URI memory form receives maximum one;
 - ordinary file-backed SQLite retains configured capacity;
@@ -1260,6 +1373,28 @@ $this->transactions = max(0, $this->transactions - 1);
 
 This includes current Laravel's physical cleanup before deadlock retry and improves it by never retrying after failed cleanup.
 
+The same cleanup gate applies when the transaction callback or `committing` listener fails. Attempt rollback, preserve that earlier failure if physical rollback, manager rollback callbacks, or the rolled-back event fails, and retry a concurrency failure only after completely successful cleanup:
+
+```php
+$cleanedUp = true;
+
+try {
+    $this->rollBack();
+} catch (Throwable) {
+    $cleanedUp = false;
+}
+
+if ($cleanedUp
+    && $this->causedByConcurrencyError($e)
+    && $currentAttempt < $maxAttempts) {
+    return;
+}
+
+throw $e;
+```
+
+The nested concurrency branch similarly preserves its intended `DeadlockException` if transaction-manager rollback callbacks fail. It still invalidates the exact session memo and decrements the logical level before manager cleanup; no additional event or retry path is introduced.
+
 ### Explicit `commit()` remains caller-owned before physical success
 
 Do not route explicit `commit()` through the retry handler. If its `committing` listener or physical commit throws:
@@ -1277,15 +1412,15 @@ Nested explicit commits retain existing event behavior and member order.
 `rollBack()` must:
 
 1. validate the requested target;
-2. attempt physical rollback/savepoint rollback;
-3. on success, invalidate memoized session configuration and publish the new logical level;
+2. attempt physical rollback/savepoint rollback while invalidating the exact PDO's memoized session configuration at the physical boundary on every outcome;
+3. on success, publish the new logical level;
 4. independently run manager rollback callbacks and `TransactionRolledBack`;
 5. preserve the earliest manager/event failure.
 
 If physical rollback fails:
 
-- non-lost failure keeps the old logical level and manager records, marks the session unknown, and rethrows;
-- lost failure sets level zero, detaches manager state, clears PDO/read PDO without retrying physical rollback, and rethrows the physical failure;
+- non-lost failure keeps the old logical level and manager records, marks the session unknown after invalidating its memo, and rethrows;
+- lost failure invalidates the dead PDO's memo without marking it unknown, sets level zero, detaches manager state, clears PDO/read PDO without retrying physical rollback, and rethrows the physical failure;
 - do not fire the rolled-back event because no successful physical rollback was observed.
 
 After physical success, manager and event are independent terminal phases:
@@ -1348,7 +1483,9 @@ Build focused failure injection for:
 - before-start callback failure before physical begin;
 - manager begin and began-event failure after physical begin;
 - rollback cleanup failure preserving begin failure;
-- user callback failure;
+- user callback failure, including rollback cleanup failure preserving the callback failure;
+- retryable callback failure with rollback cleanup failure preventing retry;
+- nested concurrency failure preserving its `DeadlockException` when manager rollback cleanup fails;
 - throwing `TransactionCommitting` listener, including the real old pooled-corruption reproduction;
 - physical commit concurrency failure with successful cleanup and retry;
 - physical commit cleanup failure preventing retry while preserving the commit failure;
@@ -1462,6 +1599,8 @@ Cover:
 - Modify `tests/Database/DatabaseEloquentModelTest.php`.
 - Modify or add focused coroutine boot tests under `tests/Database/Eloquent/`.
 - Modify `tests/Database/DatabaseEloquentModelAttributesTest.php`.
+- Modify `src/scout/src/Searchable.php` and focused Scout feature coverage.
+- Modify `src/nested-set/src/HasNode.php` and `tests/NestedSet/NestedSetTest.php`.
 
 ### Owner state
 
@@ -1575,6 +1714,15 @@ foreach ($reflection->getTraits() as $trait) {
 
 Keep Hypervel's cache key as `class@attributeClass` and continue selecting `$property` after retrieving the cached attribute object. Do not port Laravel `#60815`; its property-key collision cannot occur in this cache shape.
 
+### Keep model-boot consumers out of the pre-publication recursion guard
+
+The full gate proved two current package consumers still construct their model while `bootIfNotBooted()` is deliberately incomplete:
+
+- Scout's `bootSearchable()` creates `(new static)` to register collection macros. Current Scout PR `#965` moved that instance work and observer registration into `whenBooted()`. Port that boundary without its obsolete `method_exists()` compatibility branch, while retaining Hypervel's class-string observer and collection behavior.
+- NestedSet's `usesSoftDelete()` calls `method_exists(new static, ...)` from `bootHasNode()`. Match current upstream's no-instantiation trait check through `class_uses_recursive(static::class)` and the existing typed cache. Keep listener registration in the boot phase: it is not recursive in Hypervel, and moving the whole block to `whenBooted()` would change established listener order without fixing another verified failure. Record that ordering reason in one short source comment where a future upstream sync will compare the block.
+
+Do not relax the Model recursion guard or add another boot phase. The consumers must stop constructing an unpublished model at the exact operation that does so.
+
 ### Tests
 
 Cover:
@@ -1589,6 +1737,8 @@ Cover:
 - `clearBootedModels()` and `flushState()` clear owner state;
 - class attributes declared directly, on a trait, on a parent, and on a parent trait resolve with current precedence;
 - attribute object cache/property selection remains collision-free.
+- first construction of a Searchable model completes, then registers its observer and collection macros through the post-publication callback;
+- plain and soft-deleting NestedSet models boot successfully and classify SoftDeletes without nested model construction.
 
 Use explicit channels for boot interleaving; do not rely on timing sleeps.
 
@@ -1887,6 +2037,7 @@ Port and adapt every test changed by the originating commits. At minimum prove:
 - literal question marks in column operators;
 - PostgreSQL Expression date/time compilation;
 - aggregate alias delimiting;
+- Telescope's query watcher expects the same delimited aggregate alias as the grammar;
 - PostgreSQL precomputed vector full-text SQL;
 - Query/Eloquent/relation update subqueries and binding order;
 - the current relative-date integration matrix on every configured supported driver.
@@ -2541,7 +2692,7 @@ if ($char === '?' && ! $isStringLiteral) {
 }
 ```
 
-Keep the current literal/escaped-question-mark parser and binding escaping unchanged. This removes repeated array reindexing and makes substitution linear in the number of bindings.
+Keep the current literal/escaped-question-mark parser and ordinary binding escaping unchanged. Current Laravel's resource-binding correction is incomplete: it routes live and closed resources through driver binary escapers that still call `bin2hex()` and therefore throw. Normalize resource handles to their stable `Resource id #N` identity string at this observational raw-SQL boundary, then quote that identity as an ordinary string. Do not consume, rewind, or claim to reproduce stream contents that may already have been read or closed. This also removes repeated array reindexing and makes substitution linear in the number of bindings.
 
 ### Tests
 
@@ -2551,7 +2702,7 @@ Port the originating behavior/performance regressions:
 - legacy and `Attribute` get/set mutators still see sibling cached-cast state;
 - encrypted unrelated casts are not decrypted/serialized on another attribute read;
 - mutable custom and date-like casts still synchronize back to raw attributes correctly;
-- raw SQL substitution preserves quoted question marks, escaped question marks, resources, missing bindings, and binding order;
+- raw SQL substitution preserves quoted question marks, escaped question marks, missing bindings, and binding order, and renders live or closed resources as quoted `Resource id #N` identity placeholders without reading them;
 - a long binding list produces identical SQL without asserting implementation timing.
 
 No benchmark is required unless implementation uncovers uncertainty. Both changes remove source-proven work without adding machinery or changing results.
@@ -2691,6 +2842,11 @@ At the available column types/indexes sections:
 - document MariaDB `vectorIndex()` and its supported-driver boundary;
 - keep the existing PostgreSQL `vector`/pgvector documentation distinct.
 
+At the existing schema-dump and migration-event sections:
+
+- document `schema:dump --without-migration-data` as omitting migration-table rows while retaining the schema;
+- state that `MigrationStarted` and `MigrationEnded` expose the migration filename through `$name`.
+
 ### Query builder
 
 Add brief sections at the natural existing headings:
@@ -2740,6 +2896,8 @@ After editing:
 - ensure no unsupported SQL Server/direct-connection/deprecated surface appears;
 - ensure internal task, fork, pool, transaction, mutex, and URI-classifier mechanics stay out of user docs.
 
+Do not add a new exception-metadata section solely to inventory `UniqueConstraintViolationException::$index` and `$columns`; the typed, tested class is the natural reference for that specialized surface. Do not inventory every `Closure|array` lazy-value overload on established Eloquent methods.
+
 ## 17. Remove every superseded path
 
 The implementation is incomplete until the old ownership model is gone.
@@ -2749,6 +2907,7 @@ Delete:
 - `src/database/src/Listeners/UnsetContextInTaskWorkerListener.php`;
 - its reflective listener tests and configured-base-name cleanup assumptions;
 - duplicate SQLite memory/URI substring checks replaced by `SQLiteDatabase`;
+- RefreshDatabase's default-only literal `:memory:` check and per-loop default reuse;
 - tests that expect multiple independently borrowed wrappers around one shared in-memory PDO;
 - transaction-manager callback-before-detach paths;
 - any rollback retry path that can run before physical/logical cleanup succeeds;
@@ -2758,6 +2917,7 @@ Delete:
 Replace rather than retain:
 
 - `CoroutineContext::set($key, null)` terminal cleanup with `forget($key)`;
+- one deferred release registration per successful Redis same-connection pin with one registration per pool per coroutine;
 - manager-name-derived Redis context cleanup with proxy-owned key derivation;
 - release-before-pool-destruction purge/fork cleanup with exact discard;
 - raw SQLite filename reuse with canonical attached-database lookup;
@@ -2773,6 +2933,8 @@ Do not leave:
 - a transaction state machine/finalizer/callback executor;
 - a second SQLite lock, shared-cache URI rewrite, or wrapper coordinator;
 - a PHP mirror of native Redis queue mode;
+- a callback-specific eager-release marker or marker helper trio;
+- a `WeakMap`, registry, per-coroutine key suffix, or `ReplicableContext` object for deferred-release ownership;
 - a mark-invalid fallback that masks `Pool::discard()` ownership failure;
 - comments documenting abandoned designs;
 - placeholder or implementation-detail-only tests.
@@ -2786,13 +2948,14 @@ Before validation, run repository-wide searches for every removed class, helper,
 | Boundary | Success coverage | Failure coverage |
 |---|---|---|
 | `TaskCallback` | OnTask result finishing followed by terminal event | OnTask failure, finish failure, terminal failure, and all combinations preserve the earliest throwable while still attempting terminal cleanup |
-| Database task cleanup | Exact base/read/write wrappers release once at task end | Partial acquisition/publication/defer failure discards exact wrapper; one release failure does not skip siblings |
+| Database task cleanup | Exact base/read/write wrappers release once at task end; aliases of one shared in-memory SQLite PDO reuse one canonical owner | Partial acquisition or write-role configuration failure discards the exact wrapper; one release failure does not skip siblings |
 | Database fork cleanup | Resolved wrapper discard plus resolved pool flush | Unresolved owners stay unresolved; resolver failure does not skip factory flush; earliest failure wins |
-| Redis task cleanup | Raw same-connection state remains pinned through one task then releases; callback-form transaction completion settles a consumed watch | Callback-form newly pinned release/no-op, divergent proxy name, release failure exhaustion, no double release, no false WATCH discard/log after successful callback transaction |
+| Redis task/coroutine cleanup | Raw same-connection state remains pinned through one task then releases; one terminal defer per pool/coroutine owns raw pins while callback-form operations release immediately; copied child context publishes its own defer owner; callback-form transaction completion settles a consumed watch | Repeated callback calls produce one terminal no-op rather than unbounded deferred closures; callback-then-raw and copied-child raw pins remain terminally owned; divergent proxy name, release failure exhaustion, no double release, and no false WATCH discard/log after successful callback transaction |
 | Redis fork/purge | Exact proxy discard and actual proxy pool flush | Manager/factory independently unresolved or failing; invariant failure propagates |
 | Redis command events | Listener observation precedes ownership handoff | Success/failure listener exceptions cannot skip release or same-connection handoff; existing event precedence and cleanup failures remain truthful |
 | Redis transaction state | ATOMIC, unwatched clients restore selected database and requeue; WATCH through EXEC stays on one native client | MULTI/PIPELINE/abandoned WATCH discards; log failure cannot prevent discard; mode/restore failure invalidates; discard ownership failure cannot fall through to requeue |
 | SQLite classifier | Literal memory, encoded memory, named memory, file URIs, canonical attached path | Invalid/mixed-case modes follow native behavior; duplicate `mode` uses final value; write false throws descriptively |
+| RefreshDatabase SQLite ownership | Any named memory connection triggers restore; mixed connection sets cache only their memory PDOs | A file-backed default cannot suppress named-memory restore/caching, and a memory default cannot make named file PDOs process-static |
 | In-memory pool | One owner serializes through existing channel | Invalid option types/counts still fail in `PoolOption`; no normalization masks configuration errors |
 | Transaction begin | Physical begin and logical/manager/event publication agree | Manager/event publication failure rolls back to prior level and preserves the primary error |
 | Managed `transaction()` commit | Listener, physical commit, manager callbacks, and event publish in order | Pre-commit failure rolls back; deadlock retry only after cleanup; lost commit detaches terminally; cleanup failure prevents retry and never replaces primary |
@@ -2831,6 +2994,13 @@ Run the changed files individually while implementing:
 ./vendor/bin/phpunit --no-progress tests/Redis/RedisConnectionTest.php
 ./vendor/bin/phpunit --no-progress tests/Redis/RedisProxyTest.php
 ./vendor/bin/phpunit --no-progress tests/Redis/RedisManagerTest.php
+./vendor/bin/phpunit --no-progress tests/Scout/Feature/SearchableModelTest.php
+./vendor/bin/phpunit --no-progress tests/NestedSet
+./vendor/bin/phpunit --no-progress tests/Telescope/Watchers/QueryWatcherTest.php
+./vendor/bin/phpunit --no-progress tests/Integration/Database/Sqlite/Console/MigrateFreshCommandWithJournalModeWalTest.php
+./vendor/bin/phpunit --no-progress tests/Foundation/Testing/Concerns/InteractsWithParallelDatabaseTest.php
+./vendor/bin/phpunit --no-progress tests/Testing/Concerns/TestDatabasesTest.php
+./vendor/bin/phpunit --no-progress tests/Testbench/DefaultConfigurationTest.php
 ```
 
 Then run focused package groups:
@@ -2855,8 +3025,6 @@ The Redis and database integration tests must use the repository's worker-isolat
 After focused tests are green:
 
 ```bash
-./vendor/bin/php-cs-fixer fix
-./vendor/bin/phpstan
 composer fix
 ```
 
@@ -2877,9 +3045,10 @@ After `composer fix` passes, review the entire diff without trusting this plan:
 7. Trace Eloquent first boot through same-owner recursion, sibling waiting, publication, post-publication hooks, failure, reset, and test cleanup order.
 8. Compare every ported method, signature, member position, test, and doc example with current Laravel `13.x`, not historical diffs.
 9. Search the whole repository for every changed contract, event, method, context key, deprecated omission, and documentation claim.
-10. Re-check package dependency ownership from imports after all deletions/additions.
-11. Check hot paths for new container resolution, locks, context calls, allocations, logging, yields, retries, and retained worker memory.
-12. Check for dead helpers, duplicate cleanup, defensive guards that mask invariants, stale comments, and mechanisms with only hypothetical consumers.
+10. Re-run both the literal `':memory:'` comparison sweep and the `mode=memory` family sweep; production classification outside `SQLiteDatabase` must be absent.
+11. Re-check package dependency ownership from imports after all deletions/additions.
+12. Check hot paths for new container resolution, locks, context calls, allocations, logging, yields, retries, and retained worker memory.
+13. Check for dead helpers, duplicate cleanup, defensive guards that mask invariants, stale comments, and mechanisms with only hypothetical consumers.
 
 Fix straightforward omissions immediately and rerun proportionate tests. Any newly discovered design issue goes through the required second-opinion workflow.
 
@@ -2891,10 +3060,12 @@ Then request a code review of the complete implementation, tests, docs, metadata
 
 | Change | Frequency | Effect |
 |---|---|---|
+| Database shared-memory alias ownership | First requested-name resolution in an execution context | One local shared-PDO property read; only unsplit in-memory SQLite aliases add a canonical context lookup, preventing self-exhaustion without query or network I/O |
 | Eloquent boot owner `isset()` | Every normal model construction | One static array lookup; owner-approved correctness cost |
 | Redis native `getMode()` | Every successful phpredis pooled release | One local extension-state read, no network I/O; owner-approved correctness cost |
-| Redis event cleanup slots | Every Redis proxy command | Three local throwable slots and direct branches around work already performed; fresh-review owner gate |
-| Redis transaction-state routing | Every Redis wrapper/proxy command and release | Exact string comparisons for WATCH/DISCARD state and one boolean release read; callback-form multi-exec adds one string/boolean branch, while only an already-pinned successful transaction performs one context lookup and boolean clear; no lock or network I/O; fresh-review owner gate |
+| Redis deferred-release deduplication | Each successful same-connection publication with no current pin | One coroutine-ID read in place of the planned coroutine-presence read plus one context owner comparison; one integer write and one closure registration per pool per coroutine, with no ordinary-command or network work; owner-approved correctness cost |
+| Redis event cleanup slots | Every Redis proxy command | Three local throwable slots and direct branches around work already performed; owner-approved correctness cost |
+| Redis transaction-state routing | Every Redis wrapper/proxy command and release | Exact string comparisons for WATCH/DISCARD state and one boolean release read; callback-form multi-exec adds one string/boolean branch, while only an already-pinned successful transaction performs one context lookup and boolean clear; no lock or network I/O; owner-approved correctness cost |
 | Per-key cached-cast merge | Ordinary Eloquent attribute reads | Removes unrelated cached-cast iteration/serialization; performance improvement |
 | Indexed raw SQL substitution | Query SQL formatting/logging | Removes repeated array reindexing; performance improvement |
 
@@ -2903,7 +3074,7 @@ The Eloquent coroutine-ID lookup and Mutex acquisition occur only during incompl
 ### Retained worker memory
 
 - One bounded `PooledConnection` entry per requested Database connection name only while a non-coroutine task owns it.
-- Existing Redis proxies own their already-required pinned context; no parallel registry is added.
+- Existing Redis proxies own their already-required pinned context; a coroutine that uses same-connection commands retains one integer owner-ID context slot and one terminal closure per pool until it exits, with no parallel registry or per-call growth.
 - One boolean belongs to each already-existing Redis connection wrapper and describes only that native generation's unobservable watch state.
 - One integer boot owner only while a model class is publishing.
 - One existing Mutex channel per model class first booted in a coroutine remains for the worker lifetime; non-coroutine first boot creates none.
@@ -2915,6 +3086,7 @@ The Eloquent coroutine-ID lookup and Mutex acquisition occur only during incompl
 - The SQLite classifier has four real consumers and deletes duplicated incompatible checks.
 - The transaction implementation uses direct phase-specific control flow; no generic abstraction is introduced.
 - The Redis proxy owns its real context identity; the manager only aggregates existing proxies.
+- One coroutine-ID-owned terminal Redis defer per pool replaces duplicate per-pin registration while callback-form release stays immediate and copied child context self-registers; no eager-release marker, object sentinel, registry, or second cleanup path is added.
 - Redis command-event cleanup uses direct local throwable slots, watch state is one wrapper boolean because phpredis exposes no equivalent getter, and native DISCARD gets one explicit route around the existing Pool method collision.
 - Public contracts are unchanged except for supported current Laravel API parity. Concrete internal lifecycle methods remain off contracts.
 - Directly deprecated Laravel compatibility surfaces remain omitted rather than reintroduced.
@@ -2930,7 +3102,7 @@ This work unit is complete only when:
 - every accepted `database-05` through `database-13` and `redis-03` through `redis-08` finding is implemented at the specified owner;
 - both lifecycle events have Database and Redis consumers, deterministic failure precedence, and focused tests;
 - no pooled Database or Redis resource can cross the supported terminal task or process boundary unowned;
-- no Redis client in native MULTI/PIPELINE or abandoned WATCH state can be requeued, callback-form optimistic transactions clear consumed watch state without false discard/logging, native `Redis::discard()` reaches phpredis rather than Pool lifecycle teardown, and command-listener failure cannot leak its borrowed wrapper;
+- no Redis client in native MULTI/PIPELINE or abandoned WATCH state can be requeued, repeated callback-form operations can accumulate only one terminal defer per pool/coroutine while still releasing immediately, callback-then-raw and copied-child raw pins remain terminally owned by the correct coroutine ID, callback-form optimistic transactions clear consumed watch state without false discard/logging, native `Redis::discard()` reaches phpredis rather than Pool lifecycle teardown, and command-listener failure cannot leak its borrowed wrapper;
 - every supported SQLite URI/memory form is classified consistently and one in-memory PDO has one owner;
 - physical transaction state, logical state, manager records, callbacks, events, retry decisions, and pooled reuse remain truthful on every covered edge;
 - Eloquent first boot is recursive-safe, coroutine-safe, retryable before publication, and Laravel-compatible after publication;
