@@ -384,6 +384,11 @@ abstract class RedisConnection extends BaseConnection
     protected ?int $database = null;
 
     /**
+     * Determine if the native connection is watching keys.
+     */
+    protected bool $watching = false;
+
+    /**
      * Determine if the connection calls should be transformed to Laravel style.
      */
     protected bool $shouldTransform = false;
@@ -402,10 +407,21 @@ abstract class RedisConnection extends BaseConnection
     public function __call($name, $arguments)
     {
         try {
-            return $this->executeCommand($name, $arguments);
+            $result = $this->executeCommand($name, $arguments);
         } catch (RedisException $exception) {
-            return $this->retry($name, $arguments, $exception);
+            $result = $this->retry($name, $arguments, $exception);
         }
+
+        if ($name === 'watch' && $result !== false) {
+            $this->watching = true;
+        } elseif (
+            in_array($name, ['exec', 'reset'], true)
+            || ($name === 'unwatch' && $result !== false)
+        ) {
+            $this->watching = false;
+        }
+
+        return $result;
     }
 
     /**
@@ -526,6 +542,7 @@ abstract class RedisConnection extends BaseConnection
             $this->pool->getOption()->getMaxLifetime()
         );
         $this->availableForReuse = false;
+        $this->watching = false;
         $this->markValid();
     }
 
@@ -637,6 +654,7 @@ abstract class RedisConnection extends BaseConnection
         }
 
         $this->connection = null;
+        $this->watching = false;
 
         return true;
     }
@@ -682,18 +700,90 @@ abstract class RedisConnection extends BaseConnection
         $this->shouldTransform = false;
 
         try {
-            $defaultDb = (int) ($this->config['database'] ?? 0);
-            if ($this->database !== null && $this->database !== $defaultDb) {
-                $this->select($defaultDb);
+            $queueing = $this->isQueueingMode();
+        } catch (Throwable $exception) {
+            $this->markInvalid();
+
+            try {
+                $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+            } catch (Throwable) {
+                // Reporting must not prevent terminal ownership cleanup.
+            }
+
+            $this->database = null;
+            $this->watching = false;
+            $this->availableForReuse = true;
+            parent::release();
+
+            return;
+        }
+
+        if ($queueing || $this->watching) {
+            try {
+                $this->log(
+                    $queueing
+                        ? 'Discarding Redis connection left in MULTI or PIPELINE mode.'
+                        : 'Discarding Redis connection left in WATCH state.',
+                    LogLevel::CRITICAL
+                );
+            } catch (Throwable) {
+                // Reporting must not prevent terminal ownership cleanup.
+            }
+
+            $this->database = null;
+            $this->watching = false;
+            $this->availableForReuse = false;
+            $this->discard();
+
+            return;
+        }
+
+        try {
+            $defaultDatabase = (int) ($this->config['database'] ?? 0);
+
+            if ($this->database !== null && $this->database !== $defaultDatabase) {
+                $this->select($defaultDatabase);
             }
         } catch (Throwable $exception) {
-            $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
             $this->markInvalid();
+
+            try {
+                $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+            } catch (Throwable) {
+                // Reporting must not prevent terminal ownership cleanup.
+            }
         } finally {
             $this->database = null;
+            $this->watching = false;
             $this->availableForReuse = true;
             parent::release();
         }
+    }
+
+    /**
+     * Execute the native Redis DISCARD command.
+     *
+     * @internal
+     */
+    public function discardTransaction(): bool|Redis
+    {
+        $result = $this->connection->discard();
+
+        if ($result !== false) {
+            $this->watching = false;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Clear the tracked watch state after callback-form transaction completion.
+     *
+     * @internal
+     */
+    public function clearWatchState(): void
+    {
+        $this->watching = false;
     }
 
     /**

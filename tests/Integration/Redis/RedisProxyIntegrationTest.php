@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Redis;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
@@ -444,6 +445,161 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertSame('3', $redis->get($key));
     }
 
+    public function testAbandonedMultiDiscardsTheNativeGeneration(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_abandoned_multi',
+            ['prefix' => ''],
+        ));
+        $redis->flushdb();
+
+        $abandoned = $redis->multi();
+        $redis->releaseContextConnection();
+        $replacement = $this->nativeClient($redis);
+
+        $this->assertNotSame($abandoned, $replacement);
+        $this->assertSame(PhpRedis::ATOMIC, $replacement->getMode());
+        $this->assertTrue($redis->set('after:multi', 'healthy'));
+        $this->assertSame('healthy', $redis->get('after:multi'));
+    }
+
+    public function testAbandonedPipelineDiscardsTheNativeGeneration(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_abandoned_pipeline',
+            ['prefix' => ''],
+        ));
+        $redis->flushdb();
+
+        $abandoned = $redis->pipeline();
+        $redis->releaseContextConnection();
+        $replacement = $this->nativeClient($redis);
+
+        $this->assertNotSame($abandoned, $replacement);
+        $this->assertSame(PhpRedis::ATOMIC, $replacement->getMode());
+        $this->assertTrue($redis->set('after:pipeline', 'healthy'));
+        $this->assertSame('healthy', $redis->get('after:pipeline'));
+    }
+
+    public function testAbandonedWatchDiscardsTheNativeGeneration(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_abandoned_watch',
+            ['prefix' => ''],
+        ));
+        $redis->flushdb();
+
+        $this->assertTrue($redis->watch('watched:key'));
+        $abandoned = $this->nativeClient($redis);
+        $redis->releaseContextConnection();
+        $replacement = $this->nativeClient($redis);
+
+        $this->assertNotSame($abandoned, $replacement);
+        $this->assertSame(PhpRedis::ATOMIC, $replacement->getMode());
+        $this->assertTrue($redis->set('after:watch', 'healthy'));
+        $this->assertSame('healthy', $redis->get('after:watch'));
+    }
+
+    public function testWatchAndCallbackTransactionUseOneHealthyNativeClient(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_watch_transaction',
+            ['prefix' => ''],
+        ));
+        $redis->flushdb();
+        $key = 'watch:transaction';
+        $redis->set($key, 'before');
+
+        $this->assertTrue($redis->watch($key));
+        $watched = $this->nativeClient($redis);
+        $result = $redis->transaction(function (PhpRedis $transaction) use ($key, $watched): void {
+            $this->assertSame($watched, $transaction);
+            $transaction->get($key);
+            $transaction->set($key, 'after');
+        });
+
+        $this->assertSame(['before', true], $result);
+
+        $redis->releaseContextConnection();
+
+        $this->assertSame($watched, $this->nativeClient($redis));
+        $this->assertSame('after', $redis->get($key));
+    }
+
+    public function testWatchConflictClearsConsumedStateAndReusesNativeClient(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_watch_conflict',
+            ['prefix' => ''],
+        ));
+        $other = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_watch_conflict_other',
+            ['prefix' => ''],
+        ));
+        $redis->flushdb();
+        $key = 'watch:conflict';
+        $redis->set($key, 'before');
+
+        $this->assertTrue($redis->watch($key));
+        $watched = $this->nativeClient($redis);
+        $other->set($key, 'changed');
+        $result = $redis->transaction(static function (PhpRedis $transaction) use ($key): void {
+            $transaction->set($key, 'after');
+        });
+
+        $this->assertFalse($result);
+
+        $redis->releaseContextConnection();
+
+        $this->assertSame($watched, $this->nativeClient($redis));
+        $this->assertSame('changed', $redis->get($key));
+    }
+
+    public function testCallbackPipelineDoesNotConsumeWatchState(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_watch_pipeline',
+            ['prefix' => ''],
+        ));
+        $redis->flushdb();
+        $redis->set('watch:pipeline', 'value');
+
+        $this->assertTrue($redis->watch('watch:pipeline'));
+        $watched = $this->nativeClient($redis);
+        $this->assertSame(
+            ['value'],
+            $redis->pipeline(static function (PhpRedis $pipeline): void {
+                $pipeline->get('watch:pipeline');
+            })
+        );
+
+        $redis->releaseContextConnection();
+
+        $this->assertNotSame($watched, $this->nativeClient($redis));
+    }
+
+    public function testNativeDiscardKeepsTheHealthyWrapperReusable(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            'test_native_discard',
+            ['prefix' => ''],
+        ));
+        $redis->flushdb();
+        $key = 'discard:key';
+
+        $this->assertTrue($redis->watch($key));
+        $native = $this->nativeClient($redis);
+        $redis->multi();
+        $redis->set($key, 'discarded');
+
+        $this->assertTrue($redis->discard());
+
+        $redis->releaseContextConnection();
+
+        $this->assertSame($native, $this->nativeClient($redis));
+        $this->assertNull($redis->get($key));
+    }
+
     public function testWithConnectionTransformFalseSupportsPipelineCallbacks(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
@@ -612,5 +768,18 @@ class RedisProxyIntegrationTest extends TestCase
             $redis->del("concurrent_transaction_test_{$i}");
             $redis->del("concurrent_transaction_test_{$i}_counter");
         }
+    }
+
+    /**
+     * Get the exact native client held by a Redis proxy.
+     */
+    private function nativeClient(RedisProxy $redis): PhpRedis
+    {
+        return $redis->withConnection(function (RedisConnection $connection): PhpRedis {
+            $client = $connection->client();
+            $this->assertInstanceOf(PhpRedis::class, $client);
+
+            return $client;
+        });
     }
 }
