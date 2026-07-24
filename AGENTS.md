@@ -274,6 +274,10 @@ For rare core services that must be available before normal providers are regist
 
 It is safe to have the same provider listed in both `registerBaseServiceProviders()` and `extra.hypervel.providers` when early loading is genuinely needed. `Application::register()` deduplicates providers by class name, and the discovery entry ensures standalone installs still load the provider.
 
+### Boot-time callbacks and resolvers
+
+For callbacks and resolvers registered during provider boot, inject worker-safe dependencies into `boot()` and capture them in the closure. Do not repeatedly resolve them from the container when the callback runs. Event listeners are the exception described below: resolve listeners at event time so application and test rebindings are honored.
+
 ### Listener registration
 
 Register listeners in the service provider's `boot()` method using closures that resolve the listener from the container:
