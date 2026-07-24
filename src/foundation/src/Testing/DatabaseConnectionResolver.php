@@ -14,6 +14,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\FlushableConnectionResolver;
+use Hypervel\Database\Pool\DbPool;
 use LogicException;
 use Throwable;
 use UnitEnum;
@@ -129,18 +130,38 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
     }
 
     /**
+     * Resolve the cache key that owns the pooled wrapper.
+     */
+    protected function connectionCacheKey(string $name, ?DbPool $pool = null): string
+    {
+        if ($pool === null) {
+            if (! $this->factory->hasPool($name)) {
+                return $name;
+            }
+
+            $pool = $this->factory->getPool($name);
+        }
+
+        return $pool->getSharedInMemorySqlitePdo() !== null
+            ? $pool->getName()
+            : $name;
+    }
+
+    /**
      * Flush a cached connection.
      *
      * Discard the owning pooled wrapper before clearing the bare connection.
      */
     public function flush(string $name): void
     {
+        $cacheKey = $this->connectionCacheKey($name);
+
         try {
-            if (isset(static::$pooledConnections[$name])) {
-                static::$pooledConnections[$name]->discard();
+            if (isset(static::$pooledConnections[$cacheKey])) {
+                static::$pooledConnections[$cacheKey]->discard();
             }
         } finally {
-            unset(static::$pooledConnections[$name], static::$connections[$name]);
+            unset(static::$pooledConnections[$cacheKey], static::$connections[$cacheKey]);
         }
     }
 
@@ -179,7 +200,20 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
             return $connection;
         }
 
-        $pooled = $this->factory->getPool($connectionName->requested)->get();
+        $pool = $this->factory->getPool($connectionName->requested);
+        $cacheKey = $this->connectionCacheKey($connectionName->requested, $pool);
+
+        if ($cacheKey !== $connectionName->requested
+            && $connection = static::$connections[$cacheKey] ?? null
+        ) {
+            if ($connectionName->isWrite() && $connection instanceof Connection) {
+                $connection->useWriteConnectionWhenReading();
+            }
+
+            return $connection;
+        }
+
+        $pooled = $pool->get();
 
         try {
             $connection = $pooled->getConnection();
@@ -197,9 +231,9 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
             $connection->useWriteConnectionWhenReading();
         }
 
-        static::$pooledConnections[$connectionName->requested] = $pooled;
+        static::$pooledConnections[$cacheKey] = $pooled;
 
-        return static::$connections[$connectionName->requested] = $connection;
+        return static::$connections[$cacheKey] = $connection;
     }
 
     /**

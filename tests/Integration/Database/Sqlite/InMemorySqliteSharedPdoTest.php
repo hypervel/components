@@ -7,16 +7,18 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Connectors\SQLiteConnector;
-use Hypervel\Database\Pool\DbPool;
-use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use InvalidArgumentException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
-use ReflectionMethod;
+use Throwable;
+use TypeError;
 
+use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
 /**
@@ -64,12 +66,8 @@ class InMemorySqliteSharedPdoTest extends TestCase
         return $this->app->make(PoolFactory::class);
     }
 
-    // =========================================================================
-    // DbPool::isInMemorySqlite() detection tests
-    // =========================================================================
-
     #[DataProvider('inMemoryDatabaseProvider')]
-    public function testIsInMemorySqliteDetection(string $database, bool $expected): void
+    public function testPoolCapacityFollowsSQLiteClassification(string $database, bool $inMemory): void
     {
         $config = $this->app->make('config');
 
@@ -89,27 +87,27 @@ class InMemorySqliteSharedPdoTest extends TestCase
         $factory = $this->getPoolFactory();
         $pool = $factory->getPool($configKey);
 
-        // Use reflection to test the protected method
-        $method = new ReflectionMethod(DbPool::class, 'isInMemorySqlite');
-
-        $this->assertSame($expected, $method->invoke($pool));
-
-        // Cleanup
+        $this->assertSame($inMemory ? 1 : 2, $pool->getOption()->getMaxConnections());
+        $this->assertSame($inMemory, $pool->getSharedInMemorySqlitePdo() instanceof PDO);
         $factory->flushPool($configKey);
     }
 
+    /**
+     * @return array<string, array{string, bool}>
+     */
     public static function inMemoryDatabaseProvider(): array
     {
         return [
             'standard :memory:' => [':memory:', true],
-            'query string mode=memory' => ['file:test?mode=memory', true],
-            'ampersand mode=memory' => ['file:test?cache=shared&mode=memory', true],
-            'mode=memory at end' => ['file:test?other=value&mode=memory', true],
+            'memory URI path' => ['file::memory:', true],
+            'encoded memory URI path' => ['file:%3Amemory%3A', true],
+            'empty URI path in memory mode' => ['file:?mode=memory', true],
+            'named URI in memory mode' => ['file:test?mode=memory', true],
+            'encoded memory mode' => ['file:test?mode=%6demory', true],
             'regular file path' => ['/tmp/database.sqlite', false],
-            'relative path' => ['database.sqlite', false],
-            'empty string' => ['', false],
-            'memory in path name' => ['/tmp/memory.sqlite', false],
-            'mode_memory without equals' => ['file:test?mode_memory', false],
+            'file URI' => ['file:/tmp/database.sqlite', false],
+            'uppercase mode key' => ['file:test?MODE=memory', false],
+            'last duplicate mode wins' => ['file:test?mode=memory&mode=rwc', false],
         ];
     }
 
@@ -133,11 +131,97 @@ class InMemorySqliteSharedPdoTest extends TestCase
         $factory = $this->getPoolFactory();
         $pool = $factory->getPool('mysql_memory_test');
 
-        $method = new ReflectionMethod(DbPool::class, 'isInMemorySqlite');
-
-        $this->assertFalse($method->invoke($pool));
+        $this->assertSame(2, $pool->getOption()->getMaxConnections());
+        $this->assertNull($pool->getSharedInMemorySqlitePdo());
 
         $factory->flushPool('mysql_memory_test');
+    }
+
+    public function testDerivedReadPoolRejectsUriInMemoryDatabase(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('database.connections.uri_read_memory_test', [
+            'driver' => 'sqlite',
+            'database' => '/tmp/database.sqlite',
+            'prefix' => '',
+            'read' => [
+                'database' => 'file::memory:',
+            ],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Database connection [uri_read_memory_test::read] cannot use a derived read pool for in-memory SQLite.'
+        );
+
+        $this->getPoolFactory()->getPool('uri_read_memory_test::read');
+    }
+
+    public function testInMemoryPoolPreservesAZeroManagedConnectionFloor(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('database.connections.zero_floor_memory_test', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 0,
+                'max_connections' => 5,
+            ],
+        ]);
+
+        $pool = $this->getPoolFactory()->getPool('zero_floor_memory_test');
+
+        $this->assertSame(0, $pool->getOption()->getMinConnections());
+        $this->assertSame(1, $pool->getOption()->getMaxConnections());
+    }
+
+    /**
+     * @param array<string, mixed> $poolOptions
+     * @param class-string<Throwable> $exception
+     */
+    #[DataProvider('invalidPoolOptionProvider')]
+    public function testInMemoryPoolDoesNotMaskInvalidConnectionCounts(
+        array $poolOptions,
+        string $exception
+    ): void {
+        $config = $this->app->make('config');
+        $connection = 'invalid_memory_test_' . hash('xxh128', serialize($poolOptions));
+        $config->set("database.connections.{$connection}", [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'pool' => $poolOptions,
+        ]);
+
+        $this->expectException($exception);
+
+        $this->getPoolFactory()->getPool($connection);
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>, class-string<Throwable>}>
+     */
+    public static function invalidPoolOptionProvider(): array
+    {
+        return [
+            'negative minimum' => [
+                ['min_connections' => -1, 'max_connections' => 5],
+                InvalidArgumentException::class,
+            ],
+            'zero maximum' => [
+                ['min_connections' => 0, 'max_connections' => 0],
+                InvalidArgumentException::class,
+            ],
+            'minimum exceeds maximum' => [
+                ['min_connections' => 2, 'max_connections' => 1],
+                InvalidArgumentException::class,
+            ],
+            'non-integer minimum' => [
+                ['min_connections' => '1', 'max_connections' => 5],
+                TypeError::class,
+            ],
+        ];
     }
 
     // =========================================================================
@@ -187,27 +271,41 @@ class InMemorySqliteSharedPdoTest extends TestCase
         }
     }
 
-    public function testAllPoolSlotsShareSamePdoForInMemorySqlite(): void
+    public function testInMemorySqlitePoolSerializesOneSharedPdoOwner(): void
     {
         $factory = $this->getPoolFactory();
         $pool = $factory->getPool('memory_test');
 
-        run(function () use ($pool) {
-            // Get multiple pooled connections
-            $pooled1 = $pool->get();
-            $pooled2 = $pool->get();
+        run(function () use ($pool): void {
+            $secondAttempted = new Channel(1);
+            $secondAcquired = new Channel(1);
 
-            $connection1 = $pooled1->getConnection();
-            $connection2 = $pooled2->getConnection();
+            [$firstPdo, $secondPdo] = parallel([
+                function () use ($pool, $secondAttempted, $secondAcquired): PDO {
+                    $pooledConnection = $pool->get();
+                    $pdo = $pooledConnection->getConnection()->getPdo();
 
-            // Both connections should have the same underlying PDO
-            $pdo1 = $connection1->getPdo();
-            $pdo2 = $connection2->getPdo();
+                    $secondAttempted->pop();
+                    $this->assertFalse($secondAcquired->pop(0.01));
+                    $pooledConnection->release();
 
-            $this->assertSame($pdo1, $pdo2, 'All pool slots should share the same PDO for in-memory SQLite');
+                    return $pdo;
+                },
+                function () use ($pool, $secondAttempted, $secondAcquired): PDO {
+                    $secondAttempted->push(true);
+                    $pooledConnection = $pool->get();
+                    $secondAcquired->push(true);
 
-            $pooled1->release();
-            $pooled2->release();
+                    try {
+                        return $pooledConnection->getConnection()->getPdo();
+                    } finally {
+                        $pooledConnection->release();
+                    }
+                },
+            ]);
+
+            $this->assertSame(1, $pool->getOption()->getMaxConnections());
+            $this->assertSame($firstPdo, $secondPdo);
         });
     }
 
@@ -328,6 +426,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
             // Close the pooled connection (should NOT disconnect the shared PDO)
             $pooled->close();
+            $pooled->release();
 
             // The shared PDO should still be functional
             // Get another pooled connection and verify data still exists

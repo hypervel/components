@@ -125,6 +125,7 @@ class DatabaseConnectionsTest extends DatabaseTestCase
 
         $events = collect();
         $connection->listen($events->push(...));
+        $connection->flushQueryLog();
         $connection->enableQueryLog();
 
         $connection->statement('select 1');
