@@ -967,7 +967,10 @@ class Connection implements ConnectionInterface
             }
         } catch (Throwable $throwable) {
             $this->markSessionStateUnknown($pdo);
-            $exception = $throwable;
+
+            if (! $this->causedByLostConnection($throwable)) {
+                $exception = $throwable;
+            }
         }
 
         try {

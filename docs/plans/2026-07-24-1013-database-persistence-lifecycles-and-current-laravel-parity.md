@@ -1454,9 +1454,9 @@ if ($exception !== null) {
 - publish logical level zero;
 - ask the transaction manager to detach all records even when the logical counter was already zero;
 - clear write and read PDO references unconditionally;
-- preserve the earliest physical or manager/callback failure.
+- preserve the earliest non-lost physical or manager/callback failure.
 
-The PDO references are cleared in a terminal `finally`-equivalent boundary. Physical rollback failure marks the old physical session unknown before dropping it. Do not retry physical rollback after a lost-connection failure.
+The PDO references are cleared in a terminal `finally`-equivalent boundary. Physical rollback failure marks the old physical session unknown before dropping it. A lost-connection failure during disconnect means the physical session is already terminal and must not prevent manager cleanup or reconnection; a manager/callback failure remains observable after that classification. Preserve every non-lost physical failure, and do not retry physical rollback after a lost-connection failure.
 
 Use a small protected helper only if the commit-lost and rollback-lost paths otherwise duplicate the same non-trivial manager/PDO terminal detach. It may not hide physical I/O or become a generic finalizer.
 
@@ -1496,7 +1496,7 @@ Build focused failure injection for:
 - lost rollback terminal detachment without a second physical rollback;
 - manager rollback failure still attempting the event;
 - event failure after successful manager cleanup;
-- disconnect physical failure, callback failure, PDO clearing, and earliest throwable;
+- disconnect non-lost physical failure, already-terminal lost physical cleanup, callback failure, PDO clearing, and exact failure precedence;
 - `withFreshQueryLog()` success and exception restoration;
 - pooled release after every failure class, proving no false reusable state.
 
@@ -2961,7 +2961,7 @@ Before validation, run repository-wide searches for every removed class, helper,
 | Managed `transaction()` commit | Listener, physical commit, manager callbacks, and event publish in order | Pre-commit failure rolls back; deadlock retry only after cleanup; lost commit detaches terminally; cleanup failure prevents retry and never replaces primary |
 | Explicit `commit()` | Physical commit before logical decrement | Committing listener or physical failure leaves active caller-owned state |
 | Rollback | Logical level updates after physical success | Non-lost failure keeps truthful active state; lost failure detaches terminally; manager/event failures run independently after physical success |
-| Disconnect | Physical rollback, manager detach, and PDO nulling all complete | Every phase is attempted, both PDOs become null, and earliest failure wins even from logical level zero |
+| Disconnect | Physical rollback, manager detach, and PDO nulling all complete | Every phase is attempted and both PDOs become null; lost physical cleanup is already terminal, manager failure remains observable, and non-lost physical failure stays primary even from logical level zero |
 | Transaction records | Full/partial rollback detach the exact record set before callbacks | Re-entry cannot see detached records; rollback callbacks exhaust deepest-first; commit callbacks retain upstream stop-on-first |
 | Eloquent boot | First owner publishes once; sibling waits; post-publication recursion returns | Pre-publication recursion throws; pre-publication failure retries; post-publication failure remains booted while clearing owner/lock |
 

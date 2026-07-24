@@ -1192,6 +1192,63 @@ class DatabaseConnectionTest extends TestCase
         $this->assertNull($connection->getRawReadPdo());
     }
 
+    public function testDisconnectTreatsLostPhysicalRollbackFailureAsAlreadyTerminal(): void
+    {
+        $pdo = $this->getMockBuilder(PDOStub::class)
+            ->onlyMethods(['inTransaction', 'rollBack'])
+            ->getMock();
+        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
+        $pdo->expects($this->once())->method('rollBack')->willThrowException(
+            new PDOException('SQLSTATE[HY000]: General error: 7 no connection to the server')
+        );
+
+        $connection = $this->getMockConnection([], $pdo);
+        $connection->setReadPdo(new PDOStub);
+        $manager = new DatabaseTransactionsManager;
+        $connection->setTransactionManager($manager);
+        $manager->begin('test', 1);
+
+        $connection->disconnect();
+
+        $this->assertSame(0, $connection->transactionLevel());
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertNull($connection->getRawPdo());
+        $this->assertNull($connection->getRawReadPdo());
+    }
+
+    public function testDisconnectPreservesManagerFailureAfterLostPhysicalRollbackFailure(): void
+    {
+        $callbackFailure = new RuntimeException('rollback callback failure');
+        $pdo = $this->getMockBuilder(PDOStub::class)
+            ->onlyMethods(['inTransaction', 'rollBack'])
+            ->getMock();
+        $pdo->expects($this->once())->method('inTransaction')->willReturn(true);
+        $pdo->expects($this->once())->method('rollBack')->willThrowException(
+            new PDOException('SQLSTATE[HY000]: General error: 7 no connection to the server')
+        );
+
+        $connection = $this->getMockConnection([], $pdo);
+        $connection->setReadPdo(new PDOStub);
+        $manager = new DatabaseTransactionsManager;
+        $connection->setTransactionManager($manager);
+        $manager->begin('test', 1);
+        $manager->addCallbackForRollback(static function () use ($callbackFailure): never {
+            throw $callbackFailure;
+        });
+
+        try {
+            $connection->disconnect();
+            $this->fail('Expected disconnect manager cleanup to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($callbackFailure, $exception);
+        }
+
+        $this->assertSame(0, $connection->transactionLevel());
+        $this->assertCount(0, $manager->getPendingTransactions());
+        $this->assertNull($connection->getRawPdo());
+        $this->assertNull($connection->getRawReadPdo());
+    }
+
     public function testPretendOnlyLogsQueries()
     {
         $connection = $this->getMockConnection();
