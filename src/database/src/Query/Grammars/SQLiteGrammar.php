@@ -57,6 +57,14 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
+     * Compile a "where null safe equals" clause.
+     */
+    protected function whereNullSafeEquals(Builder $query, array $where): string
+    {
+        return $this->wrap($where['column']) . ' is ' . $this->parameter($where['value']);
+    }
+
+    /**
      * Compile a "where like" clause.
      */
     protected function whereLike(Builder $query, array $where): string
@@ -223,6 +231,19 @@ class SQLiteGrammar extends Grammar
     public function compileInsertOrIgnore(Builder $query, array $values): string
     {
         return Str::replaceFirst('insert', 'insert or ignore', $this->compileInsert($query, $values));
+    }
+
+    /**
+     * Compile an insert or ignore statement with a returning clause into SQL.
+     */
+    public function compileInsertOrIgnoreReturning(Builder $query, array $values, array $returning, ?array $uniqueBy): string
+    {
+        $insert = $this->compileInsert($query, $values);
+
+        return match ($uniqueBy) {
+            null => "{$insert} on conflict do nothing returning {$this->columnize($returning)}",
+            default => "{$insert} on conflict ({$this->columnize($uniqueBy)}) do nothing returning {$this->columnize($returning)}",
+        };
     }
 
     /**

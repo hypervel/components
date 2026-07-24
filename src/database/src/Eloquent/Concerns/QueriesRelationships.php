@@ -615,8 +615,11 @@ trait QueriesRelationships
                 $model = array_search($model, $morphMap, true);
             }
 
-            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
-            return $this->whereNot($relation->qualifyColumn($relation->getMorphType()), '<=>', $model, $boolean);
+            return $this->whereNot(fn ($query) => $query->whereNullSafeEquals(
+                // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
+                $relation->qualifyColumn($relation->getMorphType()),
+                $model
+            ), null, null, $boolean);
         }
 
         $models = BaseCollection::wrap($model);
@@ -629,7 +632,7 @@ trait QueriesRelationships
             $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
                 $query->orWhere(function ($query) use ($relation, $models) {
                     // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
-                    $query->where($relation->qualifyColumn($relation->getMorphType()), '<=>', $models->first()->getMorphClass())
+                    $query->whereNullSafeEquals($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
                         // @phpstan-ignore method.notFound (getForeignKeyName exists on MorphTo, not base Relation)
                         ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map->getKey());
                 });
