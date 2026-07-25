@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -27,7 +28,7 @@ class DisabledWatcherTest extends FeatureTestCase
             'hidden' => [],
         ],
     ])]
-    public function testDisabledCacheWatcherDoesNotEnableCacheEvents()
+    public function testDisabledCacheWatcherDoesNotEnableCacheEvents(): void
     {
         $config = $this->app->make('config');
 
@@ -47,14 +48,16 @@ class DisabledWatcherTest extends FeatureTestCase
     #[WithConfig('database.redis.foo', [
         'host' => '127.0.0.1',
         'port' => 6379,
-        'db' => 0,
+        'database' => 0,
+        'event' => [
+            'enable' => false,
+        ],
     ])]
-    public function testDisabledRedisWatcherDoesNotEnableRedisEvents()
+    public function testDisabledRedisWatcherDoesNotEnableRedisEvents(): void
     {
-        $config = $this->app->make('config');
-
         $this->assertFalse(
-            $config->get('database.redis.foo.event.enable', false),
+            $this->app->make(RedisConfig::class)
+                ->connectionConfig('foo')['event']['enable'],
             'Redis connection should not have events enabled when RedisWatcher is disabled.'
         );
     }
