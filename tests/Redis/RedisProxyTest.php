@@ -13,11 +13,16 @@ use Hypervel\Engine\Channel;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\RedisSentinelFactory;
+use Hypervel\Redis\Subscriber\CommandBuilder;
+use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis as PhpRedis;
@@ -37,15 +42,6 @@ use function Hypervel\Coroutine\go;
  */
 class RedisProxyTest extends TestCase
 {
-    protected bool $isOlderThan6 = false;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->isOlderThan6 = version_compare((string) phpversion('redis'), '6.0.0', '<');
-    }
-
     protected function tearDown(): void
     {
         parent::tearDown();
@@ -66,36 +62,71 @@ class RedisProxyTest extends TestCase
         $this->assertSame('bar', $result);
     }
 
+    public function testMacroRegistrationMethodsDoNotCheckoutRedis(): void
+    {
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->never();
+        $redis = new RedisProxy($factory, 'default', $this->sentinelFactory());
+
+        $redis->macro('greeting', fn (string $name) => "Hello {$name}");
+        $redis->mixin(new class {
+            protected function farewell(): callable
+            {
+                return fn (string $name) => "Goodbye {$name}";
+            }
+        });
+
+        $this->assertTrue($redis->hasMacro('greeting'));
+        $this->assertTrue($redis->hasMacro('farewell'));
+
+        $redis->flushMacros();
+
+        $this->assertFalse($redis->hasMacro('greeting'));
+        $this->assertFalse($redis->hasMacro('farewell'));
+    }
+
+    public function testMixedCaseSubscriptionsUseDedicatedProxyRoute(): void
+    {
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->never();
+        $redis = new class($factory, 'default', $this->sentinelFactory()) extends RedisProxy {
+            public array $subscriptions = [];
+
+            protected function handleSubscribe(string $name, array $arguments): void
+            {
+                $this->subscriptions[] = [$name, $arguments];
+            }
+        };
+        $callback = static function (): void {
+        };
+
+        $redis->__call('SUBSCRIBE', [['channel'], $callback]);
+        $redis->__call('PSUBSCRIBE', [['channel:*'], $callback]);
+
+        $this->assertSame(
+            [
+                ['subscribe', [['channel'], $callback]],
+                ['psubscribe', [['channel:*'], $callback]],
+            ],
+            $redis->subscriptions,
+        );
+    }
+
     public function testConnectionBoundMethodsCannotBeCalledThroughProxy(): void
     {
-        $redis = new RedisProxy(m::mock(PoolFactory::class), 'default');
+        $redis = new RedisProxy(
+            m::mock(PoolFactory::class),
+            'default',
+            $this->sentinelFactory(),
+        );
+        $methods = (new ReflectionClass(RedisProxy::class))
+            ->getReflectionConstant('CONNECTION_BOUND_METHODS')
+            ?->getValue();
+        $this->assertIsArray($methods);
 
-        foreach ([
-            'auth',
-            'check',
-            'client',
-            'clearWatchState',
-            'close',
-            'connect',
-            'discardTransaction',
-            'getActiveConnection',
-            'getConnection',
-            'getCreatedAt',
-            'getLastReleaseTime',
-            'getLastUseTime',
-            'getShouldTransform',
-            'heartbeatCheck',
-            'isIdleExpired',
-            'isLifetimeExpired',
-            'masters',
-            'reconnect',
-            'release',
-            'safeScan',
-            'setDatabase',
-            'setOption',
-            'shouldTransform',
-            'pconnect',
-        ] as $method) {
+        foreach ($methods as $method) {
+            $method = strtoupper($method);
+
             try {
                 $redis->{$method}();
                 $this->fail(sprintf('Method [%s] was not blocked.', $method));
@@ -108,7 +139,7 @@ class RedisProxyTest extends TestCase
         }
     }
 
-    public function testConnectionIsStoredInContextForMulti(): void
+    public function testMixedCaseMultiStoresConnectionInContext(): void
     {
         $multiInstance = m::mock(PhpRedis::class);
 
@@ -119,14 +150,14 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $result = $redis->multi();
+        $result = $redis->__call('MULTI', []);
 
         $this->assertSame($multiInstance, $result);
         // Connection should be stored in context
         $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
-    public function testConnectionIsStoredInContextForPipeline(): void
+    public function testMixedCasePipelineStoresConnectionInContext(): void
     {
         $pipelineInstance = m::mock(PhpRedis::class);
 
@@ -137,13 +168,13 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $result = $redis->pipeline();
+        $result = $redis->__call('PIPELINE', []);
 
         $this->assertSame($pipelineInstance, $result);
         $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
-    public function testConnectionIsStoredInContextForSelect(): void
+    public function testMixedCaseSelectStoresConnectionInContext(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('select')->once()->with(1)->andReturn(true);
@@ -153,7 +184,7 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $result = $redis->select(1);
+        $result = $redis->__call('SELECT', [1]);
 
         $this->assertTrue($result);
         $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
@@ -174,7 +205,7 @@ class RedisProxyTest extends TestCase
         $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
-    public function testConnectionIsStoredInContextForWatch(): void
+    public function testMixedCaseWatchStoresConnectionInContext(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('watch')->once()->with('key')->andReturn(true);
@@ -182,7 +213,7 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $this->assertTrue($redis->watch('key'));
+        $this->assertTrue($redis->__call('WATCH', ['key']));
         $this->assertSame(
             $connection,
             CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
@@ -199,7 +230,7 @@ class RedisProxyTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $this->assertTrue($redis->discard());
+        $this->assertTrue($redis->__call('DISCARD', []));
         $this->assertSame(
             $connection,
             CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default')
@@ -319,7 +350,7 @@ class RedisProxyTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        $redis = new RedisProxy($poolFactory, 'default');
+        $redis = new RedisProxy($poolFactory, 'default', $this->sentinelFactory());
 
         $this->assertSame('db:0 name:set argument:xxxx,yyyy', $redis->set('xxxx', 'yyyy'));
         $this->assertTrue($redis->select(2));
@@ -354,7 +385,7 @@ class RedisProxyTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        $redis = new RedisProxy($poolFactory, 'default');
+        $redis = new RedisProxy($poolFactory, 'default', $this->sentinelFactory());
 
         $redis->multi();
         $redis->set('id', '123');
@@ -960,6 +991,266 @@ class RedisProxyTest extends TestCase
         $this->assertTrue(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
     }
 
+    public function testSubscriberUsesTheCompleteStandaloneConfiguration(): void
+    {
+        $server = new RespServer;
+        $server->start(static function ($client): void {
+            fread($client, 1);
+        });
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn([
+            'host' => $server->endpoint(),
+            'port' => 6379,
+            'timeout' => 2.5,
+            'options' => ['prefix' => 'app:'],
+        ]);
+        $pool->shouldNotReceive('get');
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->with('default')->andReturn($pool);
+        $subscriber = (new RedisProxy(
+            $factory,
+            'default',
+            $this->sentinelFactory(),
+        ))->subscriber();
+
+        try {
+            $this->assertSame($server->endpoint(), $subscriber->host);
+            $this->assertSame(2.5, $subscriber->timeout);
+            $this->assertSame('app:', $subscriber->prefix);
+        } finally {
+            $subscriber->close();
+            $server->wait();
+        }
+    }
+
+    public function testSubscriberResolvesSentinelMasterFreshWithConnectionCredentials(): void
+    {
+        $command = CommandBuilder::build(['auth', '0', '0']);
+        $servers = [new RespServer, new RespServer];
+
+        foreach ($servers as $server) {
+            $server->start(function ($client) use ($command): void {
+                $this->readExact($client, strlen($command));
+                fwrite($client, "+OK\r\n");
+                fread($client, 1);
+            });
+        }
+
+        [$firstHost, $firstPort] = $servers[0]->hostAndPort();
+        [$secondHost, $secondPort] = $servers[1]->hostAndPort();
+        $config = [
+            'sentinel' => ['enable' => true],
+            'username' => '0',
+            'password' => '0',
+            'timeout' => 1.0,
+            'options' => ['prefix' => 'sentinel:'],
+        ];
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->twice()->andReturn($config);
+        $pool->shouldNotReceive('get');
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->twice()->with('default')->andReturn($pool);
+        $sentinelFactory = m::mock(RedisSentinelFactory::class);
+        $sentinelFactory->expects('resolveMaster')
+            ->twice()
+            ->with($config)
+            ->andReturn([$firstHost, $firstPort], [$secondHost, $secondPort]);
+        $proxy = new RedisProxy($factory, 'default', $sentinelFactory);
+        $first = $proxy->subscriber();
+        $second = $proxy->subscriber();
+
+        try {
+            $this->assertSame($firstPort, $first->port);
+            $this->assertSame($secondPort, $second->port);
+            $this->assertSame('sentinel:', $first->prefix);
+        } finally {
+            $first->close();
+            $second->close();
+
+            foreach ($servers as $server) {
+                $server->wait();
+            }
+        }
+    }
+
+    public function testClusterSubscriberUsesClusterContextAndReleasesDiscoveryConnectionBeforeEndpointFallback(): void
+    {
+        $released = false;
+        $server = new RespServer;
+        $server->start(static function ($client) use (&$released): void {
+            if (! $released) {
+                throw new RuntimeException('Cluster discovery connection was not released before subscriber dial.');
+            }
+
+            fread($client, 1);
+        });
+        [$host, $port] = $server->hostAndPort();
+        $config = [
+            'cluster' => [
+                'enable' => true,
+                'seeds' => ['tcp://127.0.0.1:1'],
+                'context' => [],
+            ],
+            'context' => ['stream' => ['verify_peer' => false]],
+            'timeout' => 0.1,
+            'options' => ['prefix' => 'cluster:'],
+        ];
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('getConnection')->andReturnSelf();
+        $connection->expects('masters')->andReturn([
+            ['127.0.0.1', 1],
+            [$host, $port],
+        ]);
+        $connection->expects('release')->andReturnUsing(static function () use (&$released): void {
+            $released = true;
+        });
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn($config);
+        $pool->expects('get')->andReturn($connection);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->with('default')->andReturn($pool);
+        $subscriber = (new RedisProxy(
+            $factory,
+            'default',
+            $this->sentinelFactory(),
+        ))->subscriber();
+
+        try {
+            $this->assertTrue($released);
+            $this->assertSame($port, $subscriber->port);
+            $this->assertSame('cluster:', $subscriber->prefix);
+            $this->assertSame([], $subscriber->context);
+        } finally {
+            $subscriber->close();
+            $server->wait();
+        }
+    }
+
+    public function testClusterSubscriberUsesOnlyClusterContextForMasterTransport(): void
+    {
+        $released = false;
+        $clientOptions = [
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+            'allow_self_signed' => true,
+        ];
+        $server = new RespServer('tls://127.0.0.1:0', [
+            'ssl' => [
+                'local_cert' => __DIR__ . '/Fixtures/Tls/server.crt',
+                'local_pk' => __DIR__ . '/Fixtures/Tls/server.key',
+                'allow_self_signed' => true,
+            ],
+        ]);
+        $server->start(static function ($client) use (&$released): void {
+            if (! $released) {
+                throw new RuntimeException(
+                    'Cluster discovery connection was not released before subscriber dial.'
+                );
+            }
+
+            fread($client, 1);
+        });
+        [$host, $port] = $server->hostAndPort();
+        $config = [
+            'scheme' => 'tcp',
+            'cluster' => [
+                'enable' => true,
+                'seeds' => ['tcp://127.0.0.1:1'],
+                'context' => $clientOptions,
+            ],
+            'timeout' => 0.1,
+        ];
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('getConnection')->andReturnSelf();
+        $connection->expects('masters')->andReturn([[$host, $port]]);
+        $connection->expects('release')->andReturnUsing(static function () use (&$released): void {
+            $released = true;
+        });
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn($config);
+        $pool->expects('get')->andReturn($connection);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->with('default')->andReturn($pool);
+        $subscriber = (new RedisProxy(
+            $factory,
+            'default',
+            $this->sentinelFactory(),
+        ))->subscriber();
+
+        try {
+            $this->assertTrue($released);
+            $this->assertSame($clientOptions, $subscriber->context);
+        } finally {
+            $subscriber->close();
+            $server->wait();
+        }
+    }
+
+    public function testClusterSubscriberAggregatesEndpointFailures(): void
+    {
+        $config = [
+            'cluster' => [
+                'enable' => true,
+                'seeds' => ['tcp://127.0.0.1:1'],
+            ],
+            'timeout' => 0.01,
+        ];
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('getConnection')->andReturnSelf();
+        $connection->expects('masters')->andReturn([
+            ['127.0.0.1', 1],
+            ['127.0.0.1', 2],
+        ]);
+        $connection->expects('release');
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn($config);
+        $pool->expects('get')->andReturn($connection);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->with('default')->andReturn($pool);
+
+        try {
+            (new RedisProxy(
+                $factory,
+                'default',
+                $this->sentinelFactory(),
+            ))->subscriber();
+            $this->fail('Expected every Cluster subscriber endpoint to fail.');
+        } catch (InvalidRedisConnectionException $exception) {
+            $this->assertStringContainsString('[127.0.0.1:1]', $exception->getMessage());
+            $this->assertStringContainsString('[127.0.0.1:2]', $exception->getMessage());
+        }
+    }
+
+    public function testClusterDiscoveryFailureRemainsPrimaryOverReleaseFailure(): void
+    {
+        $discoveryException = new RuntimeException('Master discovery failed.');
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('getConnection')->andReturnSelf();
+        $connection->expects('masters')->andThrow($discoveryException);
+        $connection->expects('release')->andThrow(new RuntimeException('Release failed.'));
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn([
+            'cluster' => [
+                'enable' => true,
+                'seeds' => ['127.0.0.1:6379'],
+            ],
+        ]);
+        $pool->expects('get')->andReturn($connection);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('getPool')->with('default')->andReturn($pool);
+
+        try {
+            (new RedisProxy(
+                $factory,
+                'default',
+                $this->sentinelFactory(),
+            ))->subscriber();
+            $this->fail('Expected Cluster discovery to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($discoveryException, $exception);
+        }
+    }
+
     public function testRedisClusterConstructorSignature(): void
     {
         $reflection = new ReflectionClass(RedisCluster::class);
@@ -983,11 +1274,6 @@ class RedisProxyTest extends TestCase
                 continue;
             }
 
-            if ($this->isOlderThan6) {
-                $this->assertNull($parameter->getType());
-                continue;
-            }
-
             if (is_array($type)) {
                 foreach ($parameter->getType()?->getTypes() ?? [] as $namedType) {
                     $this->assertTrue(in_array($namedType->getName(), $type, true));
@@ -1004,20 +1290,8 @@ class RedisProxyTest extends TestCase
     {
         $reflection = new ReflectionClass(RedisSentinel::class);
         $method = $reflection->getMethod('__construct');
-        $count = count($method->getParameters());
-
-        if (! $this->isOlderThan6) {
-            $this->assertSame(1, $count);
-            $this->assertSame('options', $method->getParameters()[0]->getName());
-
-            return;
-        }
-
-        if ($count === 6) {
-            $this->markTestIncomplete('RedisSentinel does not support auth in this extension variant.');
-        }
-
-        $this->assertSame(7, $count);
+        $this->assertCount(1, $method->getParameters());
+        $this->assertSame('options', $method->getParameters()[0]->getName());
     }
 
     public function testShuffleNodesMaintainsNodeCount(): void
@@ -1058,7 +1332,7 @@ class RedisProxyTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        $redis = new RedisProxy($poolFactory, 'default');
+        $redis = new RedisProxy($poolFactory, 'default', $this->sentinelFactory());
 
         $this->assertFalse($redis->isCluster());
     }
@@ -1074,7 +1348,7 @@ class RedisProxyTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('cache')->andReturn($pool);
 
-        $proxy = new RedisProxy($poolFactory, 'cache');
+        $proxy = new RedisProxy($poolFactory, 'cache', $this->sentinelFactory());
 
         $this->assertTrue($proxy->isCluster());
     }
@@ -1092,7 +1366,7 @@ class RedisProxyTest extends TestCase
         // Expect 'cache' pool to be requested, not 'default'
         $poolFactory->shouldReceive('getPool')->with('cache')->andReturn($cachePool);
 
-        $proxy = new RedisProxy($poolFactory, 'cache');
+        $proxy = new RedisProxy($poolFactory, 'cache', $this->sentinelFactory());
 
         $result = $proxy->get('key');
 
@@ -1112,7 +1386,7 @@ class RedisProxyTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('cache')->andReturn($pool);
 
-        $proxy = new RedisProxy($poolFactory, 'cache');
+        $proxy = new RedisProxy($poolFactory, 'cache', $this->sentinelFactory());
 
         $proxy->pipeline();
 
@@ -1146,7 +1420,7 @@ class RedisProxyTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        return new RedisProxy($poolFactory, 'default');
+        return new RedisProxy($poolFactory, 'default', $this->sentinelFactory());
     }
 
     /**
@@ -1162,7 +1436,11 @@ class RedisProxyTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
 
-        return new RedisProxyReleaseCountingStub($poolFactory, 'default');
+        return new RedisProxyReleaseCountingStub(
+            $poolFactory,
+            'default',
+            $this->sentinelFactory(),
+        );
     }
 
     /**
@@ -1197,6 +1475,33 @@ class RedisProxyTest extends TestCase
             });
 
         return $mockRedisConnection;
+    }
+
+    /**
+     * Read an exact number of bytes from a test stream.
+     *
+     * @param resource $stream
+     */
+    private function readExact(mixed $stream, int $length): string
+    {
+        $value = '';
+
+        while (strlen($value) < $length) {
+            $chunk = fread($stream, $length - strlen($value));
+
+            if ($chunk === false || $chunk === '') {
+                throw new RuntimeException('Failed to read the complete test command.');
+            }
+
+            $value .= $chunk;
+        }
+
+        return $value;
+    }
+
+    private function sentinelFactory(): RedisSentinelFactory
+    {
+        return m::mock(RedisSentinelFactory::class);
     }
 }
 

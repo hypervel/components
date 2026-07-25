@@ -15,6 +15,7 @@ use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -127,15 +128,15 @@ class RedisManagerTest extends TestCase
     public function testReleaseConnectionsExhaustsProxiesAndPreservesFirstFailure(): void
     {
         $firstException = new RuntimeException('First release failed.');
-        $first = m::mock(RedisProxy::class);
-        $first->expects('releaseContextConnection')->andThrow($firstException);
-        $second = m::mock(RedisProxy::class);
-        $second->expects('releaseContextConnection');
+        $first = m::mock(PhpRedisConnection::class);
+        $first->expects('release')->andThrow($firstException);
+        $second = m::mock(PhpRedisConnection::class);
+        $second->expects('release');
         $manager = $this->createManager(['first', 'second']);
-        $manager->extend('first', static fn () => $first);
-        $manager->extend('second', static fn () => $second);
         $manager->connection('first');
         $manager->connection('second');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'first', $first);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'second', $second);
 
         try {
             $manager->releaseConnections();
@@ -147,48 +148,31 @@ class RedisManagerTest extends TestCase
 
     public function testDiscardConnectionsExhaustsEveryCreatedProxy(): void
     {
-        $first = m::mock(RedisProxy::class);
-        $first->expects('discardContextConnection');
-        $second = m::mock(RedisProxy::class);
-        $second->expects('discardContextConnection');
+        $first = m::mock(PhpRedisConnection::class);
+        $first->expects('discard');
+        $second = m::mock(PhpRedisConnection::class);
+        $second->expects('discard');
         $manager = $this->createManager(['first', 'second']);
-        $manager->extend('first', static fn () => $first);
-        $manager->extend('second', static fn () => $second);
         $manager->connection('first');
         $manager->connection('second');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'first', $first);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'second', $second);
 
         $manager->discardConnections();
-    }
-
-    public function testPurgeUsesTheResolvedProxysActualPoolIdentity(): void
-    {
-        $proxy = m::mock(RedisProxy::class);
-        $proxy->expects('getName')->andReturn('physical');
-        $proxy->expects('discardContextConnection');
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->expects('flushPool')->with('physical');
-        $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
-        $manager->extend('alias', static fn () => $proxy);
-        $manager->connection('alias');
-
-        $manager->purge('alias');
-
-        $this->assertSame([], $manager->connections());
     }
 
     public function testPurgeFlushesPoolAfterDiscardFailureAndPreservesFirstFailure(): void
     {
         $discardException = new RuntimeException('Discard failed.');
-        $proxy = m::mock(RedisProxy::class);
-        $proxy->expects('getName')->andReturn('physical');
-        $proxy->expects('discardContextConnection')->andThrow($discardException);
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->expects('discard')->andThrow($discardException);
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->expects('flushPool')
-            ->with('physical')
+            ->with('alias')
             ->andThrow(new RuntimeException('Flush failed.'));
         $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
-        $manager->extend('alias', static fn () => $proxy);
         $manager->connection('alias');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'alias', $connection);
 
         try {
             $manager->purge('alias');
@@ -200,90 +184,48 @@ class RedisManagerTest extends TestCase
         $this->assertSame([], $manager->connections());
     }
 
-    public function testExtendOverridesConnectionResolution()
+    public function testConnectorDriverExtensionsAreIntentionallyUnavailable(): void
     {
+        // REMOVED: Hypervel has one phpredis pooled transport rather than switchable connector drivers.
         $manager = $this->createManager(['default']);
 
-        $custom = m::mock(RedisProxy::class);
-
-        $manager->extend('custom', function ($app, $name) use ($custom) {
-            return $custom;
-        });
-
-        $this->assertSame($custom, $manager->connection('custom'));
+        $this->assertFalse(method_exists($manager, 'extend'));
+        $this->assertFalse(method_exists($manager, 'forgetExtension'));
+        $this->assertFalse(method_exists($manager, 'setDriver'));
     }
 
-    public function testExtendDoesNotAffectOtherConnections()
+    public function testEnableEventsDelegatesToRedisConfigWithoutTouchingPools(): void
     {
-        $manager = $this->createManager(['default']);
+        $app = m::mock(ContainerContract::class);
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->expects('getPool')->never();
+        $config = m::mock(RedisConfig::class);
+        $config->expects('enableEvents');
+        $manager = new RedisManager(
+            $app,
+            $poolFactory,
+            $config,
+            m::mock(RedisSentinelFactory::class),
+        );
 
-        $custom = m::mock(RedisProxy::class);
-
-        $manager->extend('custom', function () use ($custom) {
-            return $custom;
-        });
-
-        $default = $manager->connection('default');
-
-        $this->assertInstanceOf(RedisProxy::class, $default);
-        $this->assertNotSame($custom, $default);
+        $manager->enableEvents();
     }
 
-    public function testExtendInvalidatesCachedConnection()
+    public function testDisableEventsDelegatesToRedisConfigWithoutTouchingPools(): void
     {
-        $manager = $this->createManager(['default']);
+        $app = m::mock(ContainerContract::class);
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->expects('getPool')->never();
+        $config = m::mock(RedisConfig::class);
+        $config->expects('disableEvents');
+        $manager = new RedisManager(
+            $app,
+            $poolFactory,
+            $config,
+            m::mock(RedisSentinelFactory::class),
+        );
 
-        // Resolve default first — caches a normal proxy
-        $original = $manager->connection('default');
-
-        // Now extend default — should invalidate the cached proxy
-        $custom = m::mock(RedisProxy::class);
-        $manager->extend('default', function () use ($custom) {
-            return $custom;
-        });
-
-        // Next connection() should return the custom one, not the cached original
-        $this->assertSame($custom, $manager->connection('default'));
-        $this->assertNotSame($original, $manager->connection('default'));
-    }
-
-    public function testForgetExtensionRemovesCustomResolver()
-    {
-        $manager = $this->createManager(['default']);
-
-        $custom = m::mock(RedisProxy::class);
-        $manager->extend('default', function () use ($custom) {
-            return $custom;
-        });
-
-        $this->assertSame($custom, $manager->connection('default'));
-
-        $manager->forgetExtension('default');
-
-        // Should go through normal resolution now
-        $result = $manager->connection('default');
-        $this->assertNotSame($custom, $result);
-        $this->assertInstanceOf(RedisProxy::class, $result);
-    }
-
-    public function testForgetExtensionInvalidatesCachedConnection()
-    {
-        $manager = $this->createManager(['default']);
-
-        // Extend, resolve (caches the custom proxy)
-        $custom = m::mock(RedisProxy::class);
-        $manager->extend('default', function () use ($custom) {
-            return $custom;
-        });
-        $this->assertSame($custom, $manager->connection('default'));
-
-        // Forget — should invalidate the cached custom proxy
-        $manager->forgetExtension('default');
-
-        // Next connection() should return a normal proxy
-        $result = $manager->connection('default');
-        $this->assertNotSame($custom, $result);
-        $this->assertInstanceOf(RedisProxy::class, $result);
+        $manager->disableEvents();
     }
 
     public function testCallDelegatesToDefaultConnection()
@@ -309,7 +251,8 @@ class RedisManagerTest extends TestCase
         $manager = new RedisManager(
             $app,
             m::mock(PoolFactory::class),
-            $this->createRedisConfig(['default'])
+            $this->createRedisConfig(['default']),
+            m::mock(RedisSentinelFactory::class),
         );
 
         $manager->listen(function () {});
@@ -329,7 +272,8 @@ class RedisManagerTest extends TestCase
         $manager = new RedisManager(
             $app,
             m::mock(PoolFactory::class),
-            $this->createRedisConfig(['default'])
+            $this->createRedisConfig(['default']),
+            m::mock(RedisSentinelFactory::class),
         );
 
         $manager->listenForFailures(function () {});
@@ -364,7 +308,12 @@ class RedisManagerTest extends TestCase
         $poolFactory ??= m::mock(PoolFactory::class);
         $config = $this->createRedisConfig($configuredConnections);
 
-        return new RedisManager($app, $poolFactory, $config);
+        return new RedisManager(
+            $app,
+            $poolFactory,
+            $config,
+            m::mock(RedisSentinelFactory::class),
+        );
     }
 
     /**

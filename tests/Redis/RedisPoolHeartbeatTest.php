@@ -16,6 +16,7 @@ use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -505,7 +506,11 @@ class RedisPoolHeartbeatTest extends TestCase
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('heartbeat_test')->andReturn($pool);
 
-        return new RedisProxy($poolFactory, 'heartbeat_test');
+        return new RedisProxy(
+            $poolFactory,
+            'heartbeat_test',
+            m::mock(RedisSentinelFactory::class),
+        );
     }
 
     protected function ageReleasedConnection(RedisConnection $connection): void
