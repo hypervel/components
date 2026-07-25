@@ -12,6 +12,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
+use RuntimeException;
 
 class MetricsHandlerTest extends ReverbTestCase
 {
@@ -342,9 +343,8 @@ class MetricsHandlerTest extends ReverbTestCase
 
     public function testScalingResolvesImmediatelyWhenResponsesArriveBeforePop()
     {
-        // This tests the race condition fix (Decision 16e): if all responses
-        // arrive during publish() (before pop()), the handler should resolve
-        // immediately without blocking on the coroutine channel.
+        // Responses may arrive during publish(), before the handler knows how
+        // many subscribers must respond.
         $app = $this->app->make(ApplicationProvider::class)->all()->first();
 
         $handler = $this->scalingMetricsHandler([
@@ -358,5 +358,65 @@ class MetricsHandlerTest extends ReverbTestCase
 
         $this->assertTrue($result['occupied']);
         $this->assertSame(5, $result['subscription_count']);
+    }
+
+    public function testScalingPublishFailureRemovesPendingMetricAndListener(): void
+    {
+        $app = $this->app->make(ApplicationProvider::class)->all()->first();
+        $failure = new RuntimeException('Redis publish failed.');
+        $serverManager = m::mock(ServerProviderManager::class);
+        $serverManager->expects('subscribesToEvents')->andReturnTrue();
+        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub->expects('on');
+        $pubSub->expects('publish')->andThrow($failure);
+        $pubSub->expects('stopListening');
+        $handler = new MetricsHandlerProbe(
+            $serverManager,
+            $this->app->make(ChannelManager::class),
+            $pubSub,
+        );
+
+        try {
+            $handler->gather($app, 'connections');
+            $this->fail('Expected metrics publishing to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame([], $handler->metricsForTest());
+    }
+
+    public function testScalingPublishFailureRemainsPrimaryWhenListenerCleanupFails(): void
+    {
+        $app = $this->app->make(ApplicationProvider::class)->all()->first();
+        $failure = new RuntimeException('Redis publish failed.');
+        $serverManager = m::mock(ServerProviderManager::class);
+        $serverManager->expects('subscribesToEvents')->andReturnTrue();
+        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub->expects('on');
+        $pubSub->expects('publish')->andThrow($failure);
+        $pubSub->expects('stopListening')->andThrow(new RuntimeException('Listener cleanup failed.'));
+        $handler = new MetricsHandlerProbe(
+            $serverManager,
+            $this->app->make(ChannelManager::class),
+            $pubSub,
+        );
+
+        try {
+            $handler->gather($app, 'connections');
+            $this->fail('Expected metrics publishing to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame([], $handler->metricsForTest());
+    }
+}
+
+class MetricsHandlerProbe extends MetricsHandler
+{
+    public function metricsForTest(): array
+    {
+        return $this->metrics;
     }
 }

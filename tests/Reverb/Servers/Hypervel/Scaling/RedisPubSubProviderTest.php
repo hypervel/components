@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
-use Hypervel\Engine\Channel;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Reverb\Contracts\Logger;
@@ -13,6 +12,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisPubSubProvider;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use JsonException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
@@ -93,48 +93,47 @@ class RedisPubSubProviderTest extends ReverbTestCase
         $this->assertTrue($subscriber->closed);
     }
 
-    public function testQueuedPublishesDropInvalidJsonAndRetainTransientFailuresInOrder(): void
+    public function testPublishUsesIndependentRedisConnectionWithoutSubscriber(): void
     {
-        $firstSubscriber = $this->subscriber();
-        $firstSubscriber->shouldReceive('subscribe')->once()->with('reverb');
-        $firstSubscriber->shouldReceive('close')->once()->andReturnUsing(function () use ($firstSubscriber): void {
-            $firstSubscriber->closed = true;
-        });
-
-        $secondSubscriber = $this->subscriber();
-        $secondSubscriber->shouldReceive('subscribe')->once()->with('reverb');
-        $secondSubscriber->shouldReceive('channel')->once()->andReturnUsing(static function (): Channel {
-            $channel = new Channel(1);
-            $channel->close();
-
-            return $channel;
-        });
-        $secondSubscriber->shouldReceive('close')->once()->andReturnUsing(function () use ($secondSubscriber): void {
-            $secondSubscriber->closed = true;
-        });
-
         $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('subscriber')->twice()->andReturn($firstSubscriber, $secondSubscriber);
-        $redis->shouldReceive('publish')
-            ->once()
-            ->with('reverb', '{"id":1}')
-            ->andThrow(new RuntimeException('transient publish failure'));
-        $redis->shouldReceive('publish')->once()->with('reverb', '{"id":1}')->andReturn(1);
-        $redis->shouldReceive('publish')->once()->with('reverb', '{"id":2}')->andReturn(1);
+        $redis->expects('publish')->with('reverb', '{"id":1}')->andReturn(3);
         $provider = $this->provider($redis);
+
+        $this->assertSame(3, $provider->publish(['id' => 1]));
+        $this->assertNull($provider->subscriberForTest());
+    }
+
+    public function testPublishFailureDoesNotRetainThePayload(): void
+    {
+        $failure = new RuntimeException('redis unavailable');
+        $redis = m::mock(RedisProxy::class);
+        $redis->expects('publish')
+            ->with('reverb', '{"id":1}')
+            ->andThrow($failure);
+        $redis->expects('publish')
+            ->with('reverb', '{"id":2}')
+            ->andReturn(1);
+        $provider = $this->provider($redis);
+
+        try {
+            $provider->publish(['id' => 1]);
+            $this->fail('Expected Redis publishing to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(1, $provider->publish(['id' => 2]));
+    }
+
+    public function testPublishPropagatesEncodingFailureWithoutCallingRedis(): void
+    {
+        $redis = m::mock(RedisProxy::class);
+        $redis->shouldNotReceive('publish');
+        $provider = $this->provider($redis);
+
+        $this->expectException(JsonException::class);
+
         $provider->publish(['invalid' => NAN]);
-        $provider->publish(['id' => 1]);
-        $provider->publish(['id' => 2]);
-
-        $provider->connect();
-
-        $this->assertSame([['id' => 1], ['id' => 2]], $provider->queuedPublishesForTest());
-
-        $provider->connect();
-
-        $this->assertSame([], $provider->queuedPublishesForTest());
-        $this->assertTrue($firstSubscriber->closed);
-        $this->assertTrue($secondSubscriber->closed);
     }
 
     protected function provider(RedisProxy $redis): RedisPubSubProviderProbe
@@ -163,11 +162,6 @@ class RedisPubSubProviderProbe extends RedisPubSubProvider
     public function subscriberForTest(): ?Subscriber
     {
         return $this->subscriber;
-    }
-
-    public function queuedPublishesForTest(): array
-    {
-        return $this->queuedPublishes;
     }
 
     protected function reconnect(): void
