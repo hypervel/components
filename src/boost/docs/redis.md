@@ -12,6 +12,8 @@
     - [Connection Pooling](#connection-pooling)
 - [Interacting With Redis](#interacting-with-redis)
     - [Using Multiple Redis Connections](#using-multiple-redis-connections)
+    - [Registering Redis Macros](#registering-redis-macros)
+    - [Redis Command Events](#redis-command-events)
     - [Holding a Pooled Connection](#holding-a-pooled-connection)
     - [Pinned Connections](#pinned-connections)
     - [Checking Cluster Connections](#checking-cluster-connections)
@@ -128,10 +130,12 @@ By default, Redis connections will use the `tcp` scheme when connecting to your 
 ],
 ```
 
+When no scheme is specified, a non-empty `context` configuration also selects TLS.
+
 <a name="phpredis"></a>
 ### PhpRedis
 
-Hypervel communicates with Redis using the PhpRedis extension. In addition to the default configuration options, Hypervel supports the following connection parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `timeout`, `retry_interval`, `read_timeout`, `context`, `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`.
+Hypervel communicates with Redis using the PhpRedis extension. In addition to the default configuration options, Hypervel supports the following connection parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `name`, `timeout`, `retry_interval`, `read_timeout`, `context`, `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`.
 
 ```php
 'default' => [
@@ -144,13 +148,16 @@ Hypervel communicates with Redis using the PhpRedis extension. In addition to th
     'timeout' => 5.0,
     'retry_interval' => 0,
     'read_timeout' => 60,
+    'name' => 'hypervel',
     'context' => [
         // 'stream' => ['verify_peer' => false],
     ],
 ],
 ```
 
-The `read_timeout` value is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. If you need to configure PhpRedis options such as a serializer, compression, or key prefix, add them to the `options` array.
+The `read_timeout` value is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. The optional `name` value sets the client name on standalone Redis connections.
+
+The `context` option accepts stream options directly or nested under an `ssl` or `stream` key. If you need to configure PhpRedis options such as `prefix`, `scan`, `serializer`, `compression`, `compression_level`, `tcp_keepalive`, or `pack_ignore_numbers`, add them to the `options` array. The `pack_ignore_numbers` option requires PhpRedis 6.2 or later and applies only to standalone connections. Connection options override shared options, while a top-level connection `prefix` takes final precedence.
 
 <a name="retry-and-backoff-configuration"></a>
 #### Retry and Backoff Configuration
@@ -172,7 +179,7 @@ The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` option
 ],
 ```
 
-Hypervel also reconnects and retries a failed Redis command once when PhpRedis throws a `RedisException` from a pooled connection.
+These settings control PhpRedis' native connection retry behavior. Hypervel does not replay a failed command because Redis may already have committed it before the failure became visible to the client.
 
 <a name="unix-socket-connections"></a>
 #### Unix Socket Connections
@@ -228,6 +235,8 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
 
 The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so the `database` option is ignored for clustered connections.
 
+Cluster context accepts stream options directly or nested under an `ssl` or `stream` key. You may configure `failover` in the connection's `options` array using one of PhpRedis' `RedisCluster::FAILOVER_*` constants.
+
 Hypervel automatically hash-tags Redis queue storage keys and Redis funnel slot keys when a clustered connection is used and the configured queue or funnel name does not already contain a valid Redis Cluster hash tag. This keeps all keys used by Hypervel's multi-key Lua scripts on the same hash slot. You may still provide your own hash tag, such as `{orders}:high`, when you need to control key placement.
 
 <a name="sentinel"></a>
@@ -249,11 +258,31 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
         'persistent' => '',
         'read_timeout' => 5.0,
         'auth' => env('REDIS_SENTINEL_PASSWORD'),
+        'context' => [
+            // 'ssl' => ['verify_peer' => false],
+        ],
     ],
 ],
 ```
 
 When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `auth` value in the `sentinel` array is used to authenticate with Sentinel itself; Redis authentication still uses the connection's top-level `username` and `password` values.
+
+Sentinel nodes may use `tcp://` or `tls://` schemes. IPv6 addresses must use brackets, including when TLS is enabled:
+
+```php
+'sentinel' => [
+    'enable' => true,
+    'master_name' => 'mymaster',
+    'nodes' => ['tls://[::1]:26379'],
+    'context' => [
+        'ssl' => [
+            'verify_peer' => true,
+        ],
+    ],
+],
+```
+
+The `sentinel.context` option accepts TLS stream options directly or nested under an `ssl` or `stream` key. These options secure the Sentinel connection; the top-level connection scheme and context configure the resolved Redis master.
 
 <a name="connection-pooling"></a>
 ### Connection Pooling
@@ -344,6 +373,35 @@ You may disconnect a named Redis connection and flush its pool using the `purge`
 ```php
 Redis::purge('cache');
 ```
+
+<a name="registering-redis-macros"></a>
+#### Registering Redis Macros
+
+You may register custom Redis connection methods using the `macro` method:
+
+```php
+use Hypervel\Support\Facades\Redis;
+
+Redis::macro('getMany', function (array $keys): array {
+    return $this->mget($keys);
+});
+
+$values = Redis::getMany(['first', 'second']);
+```
+
+Macros should be registered during application boot. A macro call is recorded as one Redis command event; native commands executed by the macro are not recorded separately.
+
+<a name="redis-command-events"></a>
+#### Redis Command Events
+
+Redis command events may be enabled or disabled during application boot:
+
+```php
+Redis::enableEvents();
+Redis::disableEvents();
+```
+
+Redis pools snapshot their event configuration when they are created, so these methods should be called before any Redis connection is used. Existing pools are not changed.
 
 <a name="holding-a-pooled-connection"></a>
 #### Holding a Pooled Connection
@@ -549,6 +607,9 @@ Redis::pipeline(function (\Redis $pipe): void {
 > [!NOTE]
 > In Hypervel, the closure form of `pipeline` returns the pooled connection as soon as the pipeline is executed. Calling `Redis::pipeline()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.
 
+> [!WARNING]
+> The native `reset()` command is not available on pooled connections because it clears authentication and selected database state owned by the pool. Use `discard()` to abandon a transaction, `unwatch()` to stop watching keys, or `exec()` to complete a pipeline.
+
 <a name="advanced-helpers"></a>
 ### Advanced Helpers
 
@@ -645,7 +706,7 @@ Route::get('/publish', function () {
 });
 ```
 
-Hypervel's pooled Redis connections cannot execute raw `subscribe` or `psubscribe` commands directly because pub/sub requires a long-lived dedicated socket. The `Redis::subscribe`, `Redis::psubscribe`, and `Redis::subscriber` methods create a dedicated subscriber socket instead of using the connection pool.
+Hypervel's pooled Redis connections cannot execute raw `subscribe`, `psubscribe`, or `ssubscribe` commands directly because Pub/Sub requires a long-lived dedicated socket. The `Redis::subscribe`, `Redis::psubscribe`, and `Redis::subscriber` methods create a dedicated subscriber socket instead of using the connection pool. Sharded Pub/Sub is not supported.
 
 <a name="wildcard-subscriptions"></a>
 #### Wildcard Subscriptions
@@ -685,4 +746,4 @@ try {
 }
 ```
 
-The subscriber supports `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`, `ping`, `channel`, and `close` methods. Messages received from pattern subscriptions include the matched pattern on the message's `pattern` property.
+The subscriber supports `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`, `ping`, `channel`, and `close` methods. It uses the selected connection's standalone, Sentinel, or Cluster topology and supports TCP, TLS, IPv4, IPv6, and Unix sockets. Message payloads are returned as the exact bytes sent by Redis, including embedded newlines and null bytes. Messages received from pattern subscriptions include the matched pattern on the message's `pattern` property.
