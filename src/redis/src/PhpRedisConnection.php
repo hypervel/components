@@ -7,9 +7,8 @@ namespace Hypervel\Redis;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exceptions\ConnectionException;
-use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Support\Str;
-use Psr\Log\LogLevel;
+use InvalidArgumentException;
 use Redis;
 use RedisException;
 use Throwable;
@@ -48,14 +47,23 @@ class PhpRedisConnection extends RedisConnection
         $this->setOptions($redis);
 
         $auth = $this->config['password'] ?? null;
-        if (isset($auth) && $auth !== '') {
+        if ($auth !== null && $auth !== '') {
             $username = $this->config['username'] ?? null;
-            $redis->auth($username ? [$username, $auth] : $auth);
+            $redis->auth(
+                $username !== null && $username !== '' && is_string($auth)
+                    ? [$username, $auth]
+                    : $auth
+            );
         }
 
         $database = $this->database ?? (int) ($this->config['database'] ?? 0);
         if ($database > 0) {
             $redis->select($database);
+        }
+
+        $name = $this->config['name'] ?? null;
+        if ($name !== null && $name !== '') {
+            $redis->client('SETNAME', $name);
         }
 
         $this->connection = $redis;
@@ -115,7 +123,7 @@ class PhpRedisConnection extends RedisConnection
         ];
 
         if (! empty($config['context'])) {
-            $parameters[] = $config['context'];
+            $parameters[] = $this->normalizeContext($config['context']);
         }
 
         $redis = new Redis;
@@ -133,11 +141,48 @@ class PhpRedisConnection extends RedisConnection
      */
     protected function formatHost(array $config): string
     {
-        if (isset($config['scheme'])) {
-            return Str::start($config['host'], "{$config['scheme']}://");
+        $host = $config['host'] ?? null;
+
+        if (! is_string($host) || $host === '') {
+            throw new InvalidArgumentException('Redis host must be a non-empty string.');
         }
 
-        return $config['host'];
+        $hostScheme = parse_url($host, PHP_URL_SCHEME);
+
+        if (isset($config['scheme'])) {
+            if (is_string($hostScheme)) {
+                if (strcasecmp($hostScheme, $config['scheme']) !== 0) {
+                    throw new InvalidArgumentException(
+                        'The scheme configured in the Redis host option must match the scheme option.'
+                    );
+                }
+
+                return $host;
+            }
+
+            return Str::start($host, "{$config['scheme']}://");
+        }
+
+        return $host;
+    }
+
+    /**
+     * Normalize the SSL context for a standalone Redis connection.
+     *
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    protected function normalizeContext(array $context): array
+    {
+        if (isset($context['stream'])) {
+            return $context;
+        }
+
+        if (isset($context['ssl']) && is_array($context['ssl'])) {
+            return ['stream' => $context['ssl']];
+        }
+
+        return ['stream' => $context];
     }
 
     /**
@@ -148,60 +193,20 @@ class PhpRedisConnection extends RedisConnection
     protected function createRedisSentinel(): Redis
     {
         try {
-            $nodes = $this->config['sentinel']['nodes'] ?? [];
-            $timeout = $this->config['timeout'] ?? 0;
-            $persistent = $this->config['sentinel']['persistent'] ?? null;
-            $retryInterval = $this->config['retry_interval'] ?? 0;
-            $readTimeout = $this->config['sentinel']['read_timeout'] ?? 0;
-            $masterName = $this->config['sentinel']['master_name'] ?? '';
-            $auth = $this->config['sentinel']['auth'] ?? null;
+            [$host, $port] = $this->container
+                ->make(RedisSentinelFactory::class)
+                ->resolveMaster($this->config);
 
-            shuffle($nodes);
-
-            $host = null;
-            $port = null;
-            foreach ($nodes as $node) {
-                try {
-                    $resolved = parse_url($node);
-                    if (! isset($resolved['host'], $resolved['port'])) {
-                        $this->log(sprintf('The redis sentinel node [%s] is invalid.', $node), LogLevel::ERROR);
-                        continue;
-                    }
-
-                    $options = [
-                        'host' => $resolved['host'],
-                        'port' => (int) $resolved['port'],
-                        'connectTimeout' => $timeout,
-                        'persistent' => $persistent,
-                        'retryInterval' => $retryInterval,
-                        'readTimeout' => $readTimeout,
-                        ...($auth ? ['auth' => $auth] : []),
-                    ];
-
-                    $sentinel = $this->container->make(RedisSentinelFactory::class)->create($options);
-                    $masterInfo = $sentinel->getMasterAddrByName($masterName);
-                    if (is_array($masterInfo) && count($masterInfo) >= 2) {
-                        [$host, $port] = $masterInfo;
-                        break;
-                    }
-                } catch (Throwable $exception) {
-                    $this->log('Redis sentinel connection failed, caused by ' . $exception->getMessage());
-                    continue;
-                }
-            }
-
-            if ($host === null && $port === null) {
-                throw new InvalidRedisConnectionException('Connect sentinel redis server failed.');
-            }
-
-            $redis = $this->createRedis(array_filter([
+            $redis = $this->createRedis([
                 'scheme' => $this->config['scheme'] ?? null,
                 'host' => $host,
                 'port' => $port,
-                'timeout' => $timeout,
-                'retry_interval' => $retryInterval,
-                'read_timeout' => $readTimeout,
-            ]));
+                'timeout' => $this->config['timeout'] ?? 0,
+                'reserved' => $this->config['reserved'] ?? null,
+                'retry_interval' => $this->config['retry_interval'] ?? 0,
+                'read_timeout' => $this->config['sentinel']['read_timeout'] ?? 0,
+                'context' => $this->config['context'] ?? [],
+            ]);
         } catch (Throwable $exception) {
             throw new ConnectionException('Connection reconnect failed ' . $exception->getMessage());
         }

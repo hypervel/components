@@ -32,19 +32,13 @@ class RedisManager implements FactoryContract, ConnectionContract
     protected array $connections = [];
 
     /**
-     * The registered custom connection creators.
-     *
-     * @var array<string, callable>
-     */
-    protected array $customCreators = [];
-
-    /**
      * Create a new Redis manager instance.
      */
     public function __construct(
         protected ContainerContract $app,
         protected PoolFactory $factory,
-        protected RedisConfig $config
+        protected RedisConfig $config,
+        protected RedisSentinelFactory $sentinelFactory,
     ) {
     }
 
@@ -63,19 +57,15 @@ class RedisManager implements FactoryContract, ConnectionContract
             return $this->connections[$name];
         }
 
-        if (isset($this->customCreators[$name])) {
-            return $this->connections[$name] = call_user_func(
-                $this->customCreators[$name],
-                $this->app,
-                $name
-            );
-        }
-
         // Validate the connection exists in config before creating the proxy.
         // Throws InvalidArgumentException if the name is not configured.
         $this->config->connectionConfig($name);
 
-        return $this->connections[$name] = new RedisProxy($this->factory, $name);
+        return $this->connections[$name] = new RedisProxy(
+            $this->factory,
+            $name,
+            $this->sentinelFactory,
+        );
     }
 
     /**
@@ -132,6 +122,30 @@ class RedisManager implements FactoryContract, ConnectionContract
     }
 
     /**
+     * Enable Redis command events.
+     *
+     * Boot-only. Existing pools retain their snapshotted event configuration;
+     * calling this after pool creation can leave generations with different behavior.
+     */
+    public function enableEvents(): void
+    {
+        $this->config->enableEvents();
+    }
+
+    /**
+     * Disable Redis command events.
+     *
+     * Boot-only. Existing pools retain their snapshotted event configuration;
+     * calling this after pool creation can leave generations with different behavior.
+     */
+    public function disableEvents(): void
+    {
+        $this->config->disableEvents();
+    }
+
+    // REMOVED: Connector-driver extend()/setDriver() do not apply to Hypervel's phpredis-only pooled transport.
+
+    /**
      * Release connections retained by non-coroutine task execution.
      *
      * @internal
@@ -179,41 +193,6 @@ class RedisManager implements FactoryContract, ConnectionContract
         if ($exception !== null) {
             throw $exception;
         }
-    }
-
-    /**
-     * Register a custom connection creator.
-     *
-     * The callback receives the container and connection name, and must
-     * return a RedisProxy instance (or subclass).
-     *
-     * Boot-only. The resolver persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent connection.
-     *
-     * @param callable(ContainerContract, string): RedisProxy $resolver
-     */
-    public function extend(string $name, callable $resolver): static
-    {
-        $this->customCreators[$name] = $resolver;
-
-        // Invalidate any cached proxy so the next connection() call uses the new creator
-        unset($this->connections[$name]);
-
-        return $this;
-    }
-
-    /**
-     * Remove a custom connection creator.
-     *
-     * Boot or tests only. Mutates the singleton's customCreators and connections
-     * caches; concurrent coroutines may already hold a proxy reference that next
-     * resolution will not share.
-     */
-    public function forgetExtension(string $name): void
-    {
-        unset($this->customCreators[$name], $this->connections[$name]);
-
-        // Invalidate cached proxy so the next connection() call goes through normal resolution
     }
 
     /**

@@ -8,8 +8,8 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string|null $name = null)
  * @method static void purge(\UnitEnum|string|null $name = null)
  * @method static array<string, \Hypervel\Redis\RedisProxy> connections()
- * @method static \Hypervel\Redis\RedisManager extend(string $name, callable $resolver)
- * @method static void forgetExtension(string $name)
+ * @method static void enableEvents()
+ * @method static void disableEvents()
  * @method static void listen(\Closure $callback)
  * @method static void listenForFailures(\Closure $callback)
  * @method static void subscribe(array|string $channels, \Closure $callback)
@@ -19,6 +19,10 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder funnel(string $name)
  * @method static string getName()
  * @method static bool isCluster()
+ * @method static void macro(string $name, callable|object $macro)
+ * @method static void mixin(object $mixin, bool $replace = true)
+ * @method static bool hasMacro(string $name)
+ * @method static void flushMacros()
  * @method static void scan(mixed $cursor, mixed ...$arguments)
  * @method static void hScan(mixed $key, mixed $cursor, mixed ...$arguments)
  * @method static void zScan(mixed $key, mixed $cursor, mixed ...$arguments)
@@ -205,7 +209,6 @@ namespace Hypervel\Support\Facades;
  * @method static mixed rawcommand(string $command, mixed ...$args)
  * @method static (bool|\Redis) rename(string $old_name, string $new_name)
  * @method static (bool|\Redis) renameNx(string $key_src, string $key_dst)
- * @method static (bool|\Redis) reset()
  * @method static (bool|\Redis) restore(string $key, int $ttl, string $value, (array|null) $options = null)
  * @method static mixed role()
  * @method static (false|\Redis|string) rpoplpush(string $srckey, string $dstkey)
@@ -236,7 +239,6 @@ namespace Hypervel\Support\Facades;
  * @method static mixed slowlog(string $operation, int $length = 0)
  * @method static mixed sort(string $key, (array|null) $options = null)
  * @method static mixed sort_ro(string $key, (array|null) $options = null)
- * @method static bool ssubscribe(array $channels, callable $cb)
  * @method static (false|int|\Redis) strlen(string $key)
  * @method static (array|bool|\Redis) sunsubscribe(array $channels)
  * @method static (bool|\Redis) swapdb(int $src, int $dst)
@@ -316,8 +318,10 @@ class Redis extends Facade
             'auth',
             'check',
             'client',
+            'clearWatchState',
             'close',
             'connect',
+            'discardTransaction',
             'getActiveConnection',
             'getConnection',
             'getCreatedAt',
@@ -331,10 +335,12 @@ class Redis extends Facade
             'pconnect',
             'reconnect',
             'release',
+            'reset',
             'safeScan',
             'setDatabase',
             'setOption',
             'shouldTransform',
+            'ssubscribe',
         ];
     }
 
