@@ -5,181 +5,211 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis\Subscriber;
 
 use Hypervel\Engine\Channel;
+use Hypervel\Redis\Subscriber\CommandBuilder;
 use Hypervel\Redis\Subscriber\CommandInvoker;
 use Hypervel\Redis\Subscriber\Exceptions\SubscribeException;
-use Hypervel\Redis\Subscriber\Exceptions\UnsubscribeException;
 use Hypervel\Redis\Subscriber\Subscriber;
+use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
+use RuntimeException;
 
 class SubscriberTest extends TestCase
 {
-    public function testSubscribeDelegatesToCommandInvoker()
+    public function testSubscribeDelegatesToCommandInvoker(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['subscribe', 'foo', 'bar'], 2)
-            ->andReturn([['subscribe'], ['subscribe']]);
+            ->andReturn([
+                ['subscribe', 'foo', 1],
+                ['subscribe', 'bar', 2],
+            ]);
 
         $subscriber = $this->createSubscriber($invoker);
         $subscriber->subscribe('foo', 'bar');
     }
 
-    public function testSubscribePrependsPrefix()
+    public function testSubscribePrependsPrefix(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['subscribe', 'app:foo', 'app:bar'], 2)
-            ->andReturn([['subscribe'], ['subscribe']]);
+            ->andReturn([
+                ['subscribe', 'app:foo', 1],
+                ['subscribe', 'app:bar', 2],
+            ]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->subscribe('foo', 'bar');
     }
 
-    public function testSubscribeThrowsOnFailure()
+    public function testSubscribeRejectsAnEmptyChannelListBeforeSending(): void
     {
         $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
-            ->with(['subscribe', 'foo'], 1)
-            ->andReturn([false]);
-        $invoker->shouldReceive('interrupt')->once();
+        $invoker->shouldNotReceive('invoke');
 
         $subscriber = $this->createSubscriber($invoker);
 
         $this->expectException(SubscribeException::class);
-        $this->expectExceptionMessage('Subscribe failed');
+        $this->expectExceptionMessage('At least one Redis channel is required');
 
-        $subscriber->subscribe('foo');
+        $subscriber->subscribe();
     }
 
-    public function testUnsubscribeDelegatesToCommandInvoker()
+    public function testUnsubscribeDelegatesToCommandInvoker(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['unsubscribe', 'foo'], 1)
-            ->andReturn([['unsubscribe']]);
+            ->andReturn([['unsubscribe', 'foo', 0]]);
 
         $subscriber = $this->createSubscriber($invoker);
         $subscriber->unsubscribe('foo');
     }
 
-    public function testUnsubscribePrependsPrefix()
+    public function testUnsubscribePrependsPrefix(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['unsubscribe', 'app:foo'], 1)
-            ->andReturn([['unsubscribe']]);
+            ->andReturn([['unsubscribe', 'app:foo', 0]]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->unsubscribe('foo');
     }
 
-    public function testUnsubscribeThrowsOnFailure()
+    public function testUnsubscribeAllWaitsForEveryTrackedChannelAndKeepsPatternsSeparate(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
-            ->with(['unsubscribe', 'foo'], 1)
-            ->andReturn([false]);
-        $invoker->shouldReceive('interrupt')->once();
+            ->with(['subscribe', 'app:one', 'app:two'], 2)
+            ->andReturn([
+                ['subscribe', 'app:one', 1],
+                ['subscribe', 'app:two', 2],
+            ]);
+        $invoker->shouldReceive('invoke')
+            ->once()
+            ->with(['psubscribe', 'app:events.*'], 1)
+            ->andReturn([['psubscribe', 'app:events.*', 3]]);
+        $invoker->shouldReceive('invoke')
+            ->once()
+            ->with(['unsubscribe'], 2)
+            ->andReturn([
+                ['unsubscribe', 'app:one', 2],
+                ['unsubscribe', 'app:two', 1],
+            ]);
+        $invoker->shouldReceive('invoke')
+            ->once()
+            ->with(['unsubscribe'], 1)
+            ->andReturn([['unsubscribe', null, 1]]);
+        $invoker->shouldReceive('invoke')
+            ->once()
+            ->with(['punsubscribe'], 1)
+            ->andReturn([['punsubscribe', 'app:events.*', 0]]);
 
-        $subscriber = $this->createSubscriber($invoker);
-
-        $this->expectException(UnsubscribeException::class);
-        $this->expectExceptionMessage('Unsubscribe failed');
-
-        $subscriber->unsubscribe('foo');
+        $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
+        $subscriber->subscribe('one', 'two');
+        $subscriber->psubscribe('events.*');
+        $subscriber->unsubscribe();
+        $subscriber->unsubscribe();
+        $subscriber->punsubscribe();
     }
 
-    public function testPsubscribeDelegatesToCommandInvoker()
+    public function testAllUnsubscribeWithNoTrackedChannelsWaitsForOneAcknowledgement(): void
+    {
+        $invoker = m::mock(CommandInvoker::class);
+        $invoker->shouldReceive('invoke')
+            ->once()
+            ->with(['unsubscribe'], 1)
+            ->andReturn([['unsubscribe', null, 0]]);
+
+        $this->createSubscriber($invoker)->unsubscribe();
+    }
+
+    public function testPsubscribeDelegatesToCommandInvoker(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['psubscribe', 'foo.*', 'bar.*'], 2)
-            ->andReturn([['psubscribe'], ['psubscribe']]);
+            ->andReturn([
+                ['psubscribe', 'foo.*', 1],
+                ['psubscribe', 'bar.*', 2],
+            ]);
 
         $subscriber = $this->createSubscriber($invoker);
         $subscriber->psubscribe('foo.*', 'bar.*');
     }
 
-    public function testPsubscribePrependsPrefix()
+    public function testPsubscribePrependsPrefix(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['psubscribe', 'app:events.*'], 1)
-            ->andReturn([['psubscribe']]);
+            ->andReturn([['psubscribe', 'app:events.*', 1]]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->psubscribe('events.*');
     }
 
-    public function testPsubscribeThrowsOnFailure()
+    public function testPsubscribeRejectsAnEmptyPatternListBeforeSending(): void
     {
         $invoker = m::mock(CommandInvoker::class);
-        $invoker->shouldReceive('invoke')
-            ->once()
-            ->with(['psubscribe', 'foo.*'], 1)
-            ->andReturn([false]);
-        $invoker->shouldReceive('interrupt')->once();
+        $invoker->shouldNotReceive('invoke');
 
         $subscriber = $this->createSubscriber($invoker);
 
         $this->expectException(SubscribeException::class);
-        $this->expectExceptionMessage('Psubscribe failed');
+        $this->expectExceptionMessage('At least one Redis channel pattern is required');
 
-        $subscriber->psubscribe('foo.*');
+        $subscriber->psubscribe();
     }
 
-    public function testPunsubscribeDelegatesToCommandInvoker()
+    public function testPunsubscribeDelegatesToCommandInvoker(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['punsubscribe', 'foo.*'], 1)
-            ->andReturn([['punsubscribe']]);
+            ->andReturn([['punsubscribe', 'foo.*', 0]]);
 
         $subscriber = $this->createSubscriber($invoker);
         $subscriber->punsubscribe('foo.*');
     }
 
-    public function testPunsubscribePrependsPrefix()
+    public function testPunsubscribePrependsPrefix(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
             ->with(['punsubscribe', 'app:foo.*'], 1)
-            ->andReturn([['punsubscribe']]);
+            ->andReturn([['punsubscribe', 'app:foo.*', 0]]);
 
         $subscriber = $this->createSubscriber($invoker, prefix: 'app:');
         $subscriber->punsubscribe('foo.*');
     }
 
-    public function testPunsubscribeThrowsOnFailure()
+    public function testAllPunsubscribeWithNoTrackedPatternsWaitsForOneAcknowledgement(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('invoke')
             ->once()
-            ->with(['punsubscribe', 'foo.*'], 1)
-            ->andReturn([false]);
-        $invoker->shouldReceive('interrupt')->once();
+            ->with(['punsubscribe'], 1)
+            ->andReturn([['punsubscribe', null, 0]]);
 
-        $subscriber = $this->createSubscriber($invoker);
-
-        $this->expectException(UnsubscribeException::class);
-        $this->expectExceptionMessage('Punsubscribe failed');
-
-        $subscriber->punsubscribe('foo.*');
+        $this->createSubscriber($invoker)->punsubscribe();
     }
 
-    public function testChannelDelegatesToCommandInvoker()
+    public function testChannelDelegatesToCommandInvoker(): void
     {
         $channel = new Channel(1);
         $invoker = m::mock(CommandInvoker::class);
@@ -190,7 +220,7 @@ class SubscriberTest extends TestCase
         $this->assertSame($channel, $subscriber->channel());
     }
 
-    public function testCloseSetsClosedAndInterrupts()
+    public function testCloseSetsClosedAndInterrupts(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('interrupt')->once()->andReturn(true);
@@ -204,7 +234,7 @@ class SubscriberTest extends TestCase
         $this->assertTrue($subscriber->closed);
     }
 
-    public function testPingDelegatesToCommandInvoker()
+    public function testPingDelegatesToCommandInvoker(): void
     {
         $invoker = m::mock(CommandInvoker::class);
         $invoker->shouldReceive('ping')->once()->with(2.5)->andReturn('pong');
@@ -212,6 +242,73 @@ class SubscriberTest extends TestCase
         $subscriber = $this->createSubscriber($invoker);
 
         $this->assertSame('pong', $subscriber->ping(2.5));
+    }
+
+    #[DataProvider('credentialProvider')]
+    public function testConnectForwardsCompleteCredentialShapes(
+        string|array $password,
+        ?string $username,
+        array $expectedCredentials,
+    ): void {
+        $command = CommandBuilder::build(['auth', ...$expectedCredentials]);
+        $received = '';
+        $server = new RespServer;
+        $server->start(function ($client) use ($command, &$received): void {
+            $received = $this->readExact($client, strlen($command));
+            fwrite($client, "+OK\r\n");
+            fread($client, 1);
+        });
+        $subscriber = new Subscriber(
+            host: $server->endpoint(),
+            password: $password,
+            username: $username,
+        );
+
+        try {
+            $this->assertSame($command, $received);
+        } finally {
+            $subscriber->close();
+            $server->wait();
+        }
+    }
+
+    public static function credentialProvider(): array
+    {
+        return [
+            'scalar password' => ['secret', null, ['secret']],
+            'zero password' => ['0', null, ['0']],
+            'credential array' => [['user', 'secret'], null, ['user', 'secret']],
+            'zero credential array' => [['0', '0'], null, ['0', '0']],
+            'zero username and password' => ['0', '0', ['0', '0']],
+        ];
+    }
+
+    #[DataProvider('absentCredentialProvider')]
+    public function testConnectDoesNotAuthenticateWithoutCredentials(?string $password): void
+    {
+        $received = null;
+        $server = new RespServer;
+        $server->start(static function ($client) use (&$received): void {
+            $received = fread($client, 1);
+        });
+        $subscriber = new Subscriber(
+            host: $server->endpoint(),
+            password: $password,
+            username: 'unused',
+        );
+
+        $subscriber->close();
+        $server->wait();
+
+        $this->assertSame('', $received);
+    }
+
+    public static function absentCredentialProvider(): array
+    {
+        return [
+            'null' => [null],
+            'empty string' => [''],
+        ];
     }
 
     /**
@@ -224,13 +321,38 @@ class SubscriberTest extends TestCase
 
         $subscriber->host = '127.0.0.1';
         $subscriber->port = 6379;
-        $subscriber->password = '';
+        $subscriber->password = null;
         $subscriber->timeout = 5.0;
         $subscriber->prefix = $prefix;
+        $subscriber->username = null;
+        $subscriber->scheme = null;
+        $subscriber->context = [];
         $subscriber->closed = false;
 
         $reflection->getProperty('commandInvoker')->setValue($subscriber, $invoker);
 
         return $subscriber;
+    }
+
+    /**
+     * Read an exact number of bytes from a test stream.
+     *
+     * @param resource $stream
+     */
+    private function readExact(mixed $stream, int $length): string
+    {
+        $value = '';
+
+        while (strlen($value) < $length) {
+            $chunk = fread($stream, $length - strlen($value));
+
+            if ($chunk === false || $chunk === '') {
+                throw new RuntimeException('Failed to read the complete test command.');
+            }
+
+            $value .= $chunk;
+        }
+
+        return $value;
     }
 }

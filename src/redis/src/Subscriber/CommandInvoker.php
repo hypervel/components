@@ -23,8 +23,18 @@ class CommandInvoker
 
     private ?int $shutdownTimerId = null;
 
-    public function __construct(protected Connection $connection, protected ?StdoutLoggerInterface $logger = null)
-    {
+    private ?Throwable $receiveFailure = null;
+
+    private bool $interrupted = false;
+
+    /**
+     * Create a new Redis subscriber command invoker.
+     */
+    public function __construct(
+        protected Connection $connection,
+        protected ?StdoutLoggerInterface $logger = null,
+        protected float $timeout = 5.0,
+    ) {
         $this->resultChannel = new Channel;
         $this->pingChannel = new Channel;
         $this->messageChannel = new Channel(100);
@@ -44,31 +54,81 @@ class CommandInvoker
         }
     }
 
+    /**
+     * Invoke a Redis subscriber command.
+     */
     public function invoke(int|string|array|null $command, int $number): array
     {
+        if ($this->interrupted) {
+            throw $this->receiveFailure
+                ?? new SocketException('The Redis subscriber connection is closed.');
+        }
+
         try {
             $this->connection->send(CommandBuilder::build($command));
-        } catch (Throwable $e) {
-            $this->interrupt();
-            throw $e;
+        } catch (Throwable $exception) {
+            try {
+                $this->interrupt();
+            } catch (Throwable) {
+                // The command-send failure remains primary after cleanup.
+            }
+
+            throw $exception;
         }
 
         $result = [];
 
         for ($i = 0; $i < $number; ++$i) {
-            $result[] = $this->resultChannel->pop();
+            $value = $this->resultChannel->pop($this->timeout > 0 ? $this->timeout : -1);
+
+            if ($value !== false) {
+                $result[] = $value;
+                continue;
+            }
+
+            if ($this->receiveFailure !== null) {
+                throw $this->receiveFailure;
+            }
+
+            if ($this->resultChannel->isTimeout()) {
+                try {
+                    $this->interrupt();
+                } catch (Throwable) {
+                    // The acknowledgement timeout remains primary after cleanup.
+                }
+
+                throw new SocketException(
+                    'Timed out waiting for a Redis subscriber command acknowledgement.'
+                );
+            }
+
+            throw new SocketException(
+                'The Redis subscriber command acknowledgement channel was closed.'
+            );
         }
 
         return $result;
     }
 
+    /**
+     * Get the subscriber message channel.
+     */
     public function channel(): Channel
     {
         return $this->messageChannel;
     }
 
+    /**
+     * Interrupt the subscriber connection.
+     */
     public function interrupt(): bool
     {
+        if ($this->interrupted) {
+            return true;
+        }
+
+        $this->interrupted = true;
+
         if ($this->shutdownTimerId !== null) {
             $this->timer->clear($this->shutdownTimerId);
             $this->shutdownTimerId = null;
@@ -85,101 +145,201 @@ class CommandInvoker
         return true;
     }
 
+    /**
+     * Ping the Redis subscriber connection.
+     */
     public function ping(float $timeout = 1): string|bool
     {
-        $this->connection->send(CommandBuilder::build('ping'));
-        return $this->pingChannel->pop($timeout);
+        if ($this->interrupted) {
+            throw $this->receiveFailure
+                ?? new SocketException('The Redis subscriber connection is closed.');
+        }
+
+        try {
+            $this->connection->send(CommandBuilder::build('ping'));
+        } catch (Throwable $exception) {
+            try {
+                $this->interrupt();
+            } catch (Throwable) {
+                // The PING send failure remains primary after cleanup.
+            }
+
+            throw $exception;
+        }
+
+        $result = $this->pingChannel->pop($timeout > 0 ? $timeout : -1);
+
+        if ($result !== false) {
+            return $result;
+        }
+
+        if ($this->receiveFailure !== null) {
+            throw $this->receiveFailure;
+        }
+
+        if ($this->pingChannel->isTimeout()) {
+            try {
+                $this->interrupt();
+            } catch (Throwable) {
+                // The PING timeout remains primary after cleanup.
+            }
+
+            throw new SocketException('Timed out waiting for a Redis subscriber PONG response.');
+        }
+
+        throw new SocketException('The Redis subscriber PING channel was closed.');
     }
 
     /**
-     * @throws SocketException
+     * Receive Redis subscriber responses.
      */
     protected function receive(Connection $connection): void
     {
-        /** @var null|array $buffer */
-        $buffer = null;
+        try {
+            while (true) { // @phpstan-ignore while.alwaysTrue (receive or routing failure terminates the loop)
+                $this->route($connection->receive());
+            }
+        } catch (Throwable $exception) {
+            if (! $this->interrupted) {
+                $this->receiveFailure = $exception;
+            }
 
-        while (true) {
-            $line = $connection->recv();
-
-            if ($line === false || $line === '') {
+            try {
                 $this->interrupt();
-                break;
-            }
-
-            $line = substr($line, 0, -strlen(Constants::CRLF));
-
-            if ($line === '+OK') {
-                $this->resultChannel->push($line);
-                continue;
-            }
-
-            if ($line === '*3') {
-                if (! empty($buffer)) {
-                    $this->resultChannel->push($buffer);
-                    $buffer = null;
-                }
-                $buffer[] = $line;
-                continue;
-            }
-
-            $buffer[] = $line;
-            $type = $buffer[2] ?? false;
-
-            if ($type === 'subscribe' && count($buffer) === 6) {
-                $this->resultChannel->push($buffer);
-                $buffer = null;
-                continue;
-            }
-
-            if ($type === 'unsubscribe' && count($buffer) === 6) {
-                $this->resultChannel->push($buffer);
-                $buffer = null;
-                continue;
-            }
-
-            if ($type === 'message' && count($buffer) === 7) {
-                $message = new Message(channel: $buffer[4], payload: $buffer[6]);
-                $timerID = $this->timer->after(30.0, function () use ($message) {
-                    $this->logger?->error(sprintf('Message channel (%s) is 30 seconds full, disconnected', $message->channel));
-                    $this->interrupt();
-                });
-                $this->messageChannel->push($message);
-                $this->timer->clear($timerID);
-                $buffer = null;
-                continue;
-            }
-
-            if ($type === 'psubscribe' && count($buffer) === 6) {
-                $this->resultChannel->push($buffer);
-                $buffer = null;
-                continue;
-            }
-
-            if ($type === 'punsubscribe' && count($buffer) === 6) {
-                $this->resultChannel->push($buffer);
-                $buffer = null;
-                continue;
-            }
-
-            if ($type === 'pmessage' && count($buffer) === 9) {
-                $message = new Message(pattern: $buffer[4], channel: $buffer[6], payload: $buffer[8]);
-                $timerID = $this->timer->after(30.0, function () use ($message) {
-                    $this->logger?->error(sprintf('Message channel (%s) is 30 seconds full, disconnected', $message->channel));
-                    $this->interrupt();
-                });
-                $this->messageChannel->push($message);
-                $this->timer->clear($timerID);
-                $buffer = null;
-                continue;
-            }
-
-            if ($type === 'pong' && count($buffer) === 5) {
-                $this->pingChannel->push('pong');
-                $buffer = null;
-                continue;
+            } catch (Throwable) {
+                // The terminal cause remains primary after cleanup.
             }
         }
+    }
+
+    /**
+     * Route one decoded RESP value.
+     */
+    private function route(mixed $response): void
+    {
+        if (is_string($response)) {
+            if (strcasecmp($response, 'PONG') === 0) {
+                if (! $this->pingChannel->push('pong')) {
+                    throw new SocketException('The Redis subscriber PING channel was closed.');
+                }
+
+                return;
+            }
+
+            if (! $this->resultChannel->push($response)) {
+                throw new SocketException(
+                    'The Redis subscriber command acknowledgement channel was closed.'
+                );
+            }
+
+            return;
+        }
+
+        if (! is_array($response) || ! isset($response[0]) || ! is_string($response[0])) {
+            throw new SocketException('Received a malformed Redis subscriber response.');
+        }
+
+        $type = strtolower($response[0]);
+
+        if (in_array($type, ['subscribe', 'unsubscribe', 'psubscribe', 'punsubscribe'], true)) {
+            if (count($response) !== 3
+                || (
+                    ! is_string($response[1])
+                    && ! (
+                        in_array($type, ['unsubscribe', 'punsubscribe'], true)
+                        && $response[1] === null
+                    )
+                )
+                || ! is_int($response[2])) {
+                throw new SocketException(
+                    "Received a malformed Redis {$type} acknowledgement."
+                );
+            }
+
+            if (! $this->resultChannel->push($response)) {
+                throw new SocketException(
+                    'The Redis subscriber command acknowledgement channel was closed.'
+                );
+            }
+
+            return;
+        }
+
+        if ($type === 'message') {
+            if (count($response) !== 3
+                || ! is_string($response[1])
+                || ! is_string($response[2])) {
+                throw new SocketException('Received a malformed Redis message.');
+            }
+
+            $this->pushMessage(new Message(
+                channel: $response[1],
+                payload: $response[2],
+            ));
+            return;
+        }
+
+        if ($type === 'pmessage') {
+            if (count($response) !== 4
+                || ! is_string($response[1])
+                || ! is_string($response[2])
+                || ! is_string($response[3])) {
+                throw new SocketException('Received a malformed Redis pattern message.');
+            }
+
+            $this->pushMessage(new Message(
+                channel: $response[2],
+                payload: $response[3],
+                pattern: $response[1],
+            ));
+            return;
+        }
+
+        if ($type === 'pong') {
+            if (count($response) !== 2
+                || (! is_string($response[1]) && $response[1] !== null)) {
+                throw new SocketException('Received a malformed Redis PONG response.');
+            }
+
+            if (! $this->pingChannel->push('pong')) {
+                throw new SocketException('The Redis subscriber PING channel was closed.');
+            }
+
+            return;
+        }
+
+        throw new SocketException(
+            "Received an unsupported Redis subscriber response [{$response[0]}]."
+        );
+    }
+
+    /**
+     * Push a message into the bounded consumer channel.
+     */
+    private function pushMessage(Message $message): void
+    {
+        if ($this->messageChannel->push($message, 30.0)) {
+            return;
+        }
+
+        if (! $this->messageChannel->isTimeout()) {
+            throw new SocketException('The Redis subscriber message channel was closed.');
+        }
+
+        $exception = new SocketException(
+            "Redis subscriber message channel [{$message->channel}] remained full for 30 seconds."
+        );
+
+        try {
+            $this->logger?->error(sprintf(
+                'Message channel (%s) is 30 seconds full, disconnected',
+                $message->channel,
+            ));
+        } catch (Throwable) {
+            // Reporting must not replace the channel-capacity failure.
+        }
+
+        throw $exception;
     }
 
     /**
@@ -197,6 +357,9 @@ class CommandInvoker
         });
     }
 
+    /**
+     * Start the Redis subscriber receive loop.
+     */
     protected function loop(): void
     {
         Coroutine::create(function (): void {

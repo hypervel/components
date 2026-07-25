@@ -4,94 +4,91 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Subscriber;
 
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Engine\Channel;
+use Hypervel\Redis\Subscriber\CommandBuilder;
 use Hypervel\Redis\Subscriber\CommandInvoker;
 use Hypervel\Redis\Subscriber\Connection;
+use Hypervel\Redis\Subscriber\Exceptions\ServerException;
 use Hypervel\Redis\Subscriber\Exceptions\SocketException;
 use Hypervel\Redis\Subscriber\Message;
+use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use ReflectionProperty;
+use RuntimeException;
+use stdClass;
+use Throwable;
+
+use function Hypervel\Coroutine\go;
 
 class CommandInvokerTest extends TestCase
 {
-    public function testInvokeSendsCommandAndCollectsResults()
+    public function testInvokeSendsCommandAndCollectsDecodedResults(): void
     {
-        // Simulate a subscribe confirmation response:
-        // *3\r\n $9\r\n subscribe\r\n $3\r\n foo\r\n :1\r\n
-        $responses = [
-            "*3\r\n",
-            "\$9\r\n",
-            "subscribe\r\n",
-            "\$3\r\n",
-            "foo\r\n",
-            ":1\r\n",
-            // After the subscribe response, return false to end the loop
-            false,
-        ];
+        $command = CommandBuilder::build(['subscribe', 'foo']);
+        $server = new RespServer;
+        $server->start(function ($client) use ($command): void {
+            $this->readExact($client, strlen($command));
+            fwrite($client, "*3\r\n$9\r\nsubscribe\r\n$3\r\nfoo\r\n:1\r\n");
+            fread($client, 1);
+        });
+        $invoker = new CommandInvoker(new Connection($server->endpoint()));
 
-        $connection = $this->createMockConnection($responses);
-        $connection->shouldReceive('send')->once();
-        $connection->shouldReceive('close')->atLeast()->once();
-
-        $invoker = new CommandInvoker($connection);
-        $result = $invoker->invoke(['subscribe', 'foo'], 1);
-
-        $this->assertCount(1, $result);
-        $this->assertIsArray($result[0]);
+        try {
+            $this->assertSame(
+                [['subscribe', 'foo', 1]],
+                $invoker->invoke(['subscribe', 'foo'], 1),
+            );
+        } finally {
+            $invoker->interrupt();
+            $server->wait();
+        }
     }
 
-    public function testInvokeInterruptsAndRethrowsOnSendFailure()
+    public function testInvokeInterruptsAndPreservesSendFailure(): void
     {
-        $connection = $this->createMockConnection([false]);
-        $connection->shouldReceive('send')
-            ->once()
-            ->andThrow(new SocketException('Connection lost'));
-        $connection->shouldReceive('close')->atLeast()->once();
-
+        $exception = new SocketException('Connection lost');
+        $connection = new ControlledConnection($exception);
         $invoker = new CommandInvoker($connection);
 
         try {
             $invoker->invoke(['subscribe', 'foo'], 1);
-            $this->fail('Expected SocketException was not thrown');
-        } catch (SocketException $e) {
-            $this->assertSame('Connection lost', $e->getMessage());
+            $this->fail('Expected the send failure to be rethrown.');
+        } catch (SocketException $caught) {
+            $this->assertSame($exception, $caught);
         }
 
-        // interrupt() should have closed the message channel
+        $this->assertTrue($connection->wasClosed());
         $this->assertFalse($invoker->channel()->pop(0.01));
     }
 
-    public function testChannelReturnsMessageChannel()
+    public function testChannelReturnsMessageChannel(): void
     {
-        $connection = $this->createMockConnection([false]);
-        $connection->shouldReceive('close')->atLeast()->once();
-
+        $connection = new ControlledConnection;
         $invoker = new CommandInvoker($connection);
-        $channel = $invoker->channel();
 
-        $this->assertInstanceOf(\Hypervel\Engine\Channel::class, $channel);
+        try {
+            $this->assertInstanceOf(Channel::class, $invoker->channel());
+        } finally {
+            $invoker->interrupt();
+        }
     }
 
-    public function testInterruptClosesAllChannels()
+    public function testInterruptIsIdempotentAndClosesAllChannels(): void
     {
-        $connection = $this->createMockConnection([false]);
-        $connection->shouldReceive('close')->atLeast()->once();
-
+        $connection = new ControlledConnection;
         $invoker = new CommandInvoker($connection);
 
-        // Give the background coroutine time to start and exit
-        usleep(10_000);
-
-        $result = $invoker->interrupt();
-        $this->assertTrue($result);
-
-        // Channel should be closed — pop returns false
+        $this->assertTrue($invoker->interrupt());
+        $this->assertTrue($invoker->interrupt());
+        $this->assertSame(1, $connection->closeCount);
         $this->assertFalse($invoker->channel()->pop(0.01));
     }
 
-    public function testShutdownWatcherInterruptsOnWorkerExit()
+    public function testShutdownWatcherInterruptsOnWorkerExit(): void
     {
         $connection = new BlockingConnection;
 
@@ -105,157 +102,442 @@ class CommandInvokerTest extends TestCase
         $this->assertFalse($invoker->channel()->pop(0.01));
     }
 
-    public function testReceiveRoutesMessageToMessageChannel()
+    public function testSimplePongDoesNotPoisonTheNextAcknowledgement(): void
     {
-        // Simulate: subscribe confirmation, then a message, then disconnect
-        $responses = [
-            // Subscribe confirmation (*3 array)
-            "*3\r\n",
-            "\$9\r\n",
-            "subscribe\r\n",
-            "\$3\r\n",
-            "foo\r\n",
-            ":1\r\n",
-            // Message (*3 array with 'message' type — 7 lines total)
-            "*3\r\n",
-            "\$7\r\n",
-            "message\r\n",
-            "\$3\r\n",
-            "foo\r\n",
-            "\$5\r\n",
-            "hello\r\n",
-            // Disconnect
-            false,
-        ];
+        $ping = CommandBuilder::build('ping');
+        $subscribe = CommandBuilder::build(['subscribe', 'foo']);
+        $server = new RespServer;
+        $server->start(function ($client) use ($ping, $subscribe): void {
+            $this->readExact($client, strlen($ping));
+            fwrite($client, "+PONG\r\n");
+            $this->readExact($client, strlen($subscribe));
+            fwrite($client, "*3\r\n$9\r\nsubscribe\r\n$3\r\nfoo\r\n:1\r\n");
+            fread($client, 1);
+        });
+        $invoker = new CommandInvoker(new Connection($server->endpoint()));
 
-        $connection = $this->createMockConnection($responses);
-        $connection->shouldReceive('send')->once();
-        $connection->shouldReceive('close')->atLeast()->once();
-
-        $invoker = new CommandInvoker($connection);
-
-        // Send subscribe to consume the confirmation
-        $invoker->invoke(['subscribe', 'foo'], 1);
-
-        // Pop the message from the message channel
-        $message = $invoker->channel()->pop(1.0);
-
-        $this->assertInstanceOf(Message::class, $message);
-        $this->assertSame('foo', $message->channel);
-        $this->assertSame('hello', $message->payload);
-        $this->assertNull($message->pattern);
+        try {
+            $this->assertSame('pong', $invoker->ping());
+            $this->assertSame(
+                [['subscribe', 'foo', 1]],
+                $invoker->invoke(['subscribe', 'foo'], 1),
+            );
+        } finally {
+            $invoker->interrupt();
+            $server->wait();
+        }
     }
 
-    public function testReceiveRoutesPmessageToMessageChannel()
+    public function testArrayPongRoutesAfterSubscription(): void
     {
-        // Simulate: psubscribe confirmation, then a pmessage, then disconnect
-        $responses = [
-            // Psubscribe confirmation (*3 array)
-            "*3\r\n",
-            "\$10\r\n",
-            "psubscribe\r\n",
-            "\$5\r\n",
-            "foo.*\r\n",
-            ":1\r\n",
-            // Pmessage (*4 array with 'pmessage' type — 9 lines total)
-            "*4\r\n",
-            "\$8\r\n",
-            "pmessage\r\n",
-            "\$5\r\n",
-            "foo.*\r\n",
-            "\$7\r\n",
-            "foo.bar\r\n",
-            "\$4\r\n",
-            "data\r\n",
-            // Disconnect
-            false,
-        ];
-
-        $connection = $this->createMockConnection($responses);
-        $connection->shouldReceive('send')->once();
-        $connection->shouldReceive('close')->atLeast()->once();
-
+        $connection = new ControlledConnection;
         $invoker = new CommandInvoker($connection);
 
-        // Send psubscribe to consume the confirmation
-        $invoker->invoke(['psubscribe', 'foo.*'], 1);
+        try {
+            $connection->pushResponse(['subscribe', 'foo', 1]);
+            $this->assertSame(
+                [['subscribe', 'foo', 1]],
+                $invoker->invoke(['subscribe', 'foo'], 1),
+            );
 
-        // Pop the pmessage from the message channel
-        $message = $invoker->channel()->pop(1.0);
-
-        $this->assertInstanceOf(Message::class, $message);
-        $this->assertSame('foo.bar', $message->channel);
-        $this->assertSame('data', $message->payload);
-        $this->assertSame('foo.*', $message->pattern);
+            $connection->pushResponse(['pong', '']);
+            $this->assertSame('pong', $invoker->ping());
+        } finally {
+            $invoker->interrupt();
+        }
     }
 
-    public function testReceiveRoutesPongToPingChannel()
+    public function testAllUnsubscribeAcknowledgementAcceptsANullChannel(): void
     {
-        // Simulate: pong response, then disconnect
-        $responses = [
-            // Pong (*1 array — 5 lines: *1, $4, pong, $0, empty)
-            // Actually looking at the code: type = buffer[2], pong check is count==5
-            // So it needs: *-something, $4, pong, $0, (empty)
-            "*1\r\n",
-            "\$4\r\n",
-            "pong\r\n",
-            "\$0\r\n",
-            "\r\n",
-            // Disconnect
-            false,
-        ];
-
-        $connection = $this->createMockConnection($responses);
-        $connection->shouldReceive('send')->once();
-        $connection->shouldReceive('close')->atLeast()->once();
-
+        $connection = new ControlledConnection;
         $invoker = new CommandInvoker($connection);
 
-        // Send ping — the result should come from the ping channel
-        $result = $invoker->ping(1.0);
+        try {
+            $connection->pushResponse(['unsubscribe', null, 0]);
 
-        $this->assertSame('pong', $result);
+            $this->assertSame(
+                [['unsubscribe', null, 0]],
+                $invoker->invoke(['unsubscribe'], 1),
+            );
+        } finally {
+            $invoker->interrupt();
+        }
     }
 
-    public function testReceiveDisconnectsOnEmptyLine()
+    public function testSubscribeAcknowledgementRejectsANullChannel(): void
     {
-        $connection = $this->createMockConnection(['']);
-        $connection->shouldReceive('close')->atLeast()->once();
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $connection->pushResponse(['subscribe', null, 0]);
 
+        $this->expectException(SocketException::class);
+        $this->expectExceptionMessage('malformed Redis subscribe acknowledgement');
+
+        $invoker->invoke(['subscribe'], 1);
+    }
+
+    public function testReceiveRoutesMessagesAndPatternMessages(): void
+    {
+        $connection = new ControlledConnection;
         $invoker = new CommandInvoker($connection);
 
-        // Give the background coroutine time to process
-        usleep(10_000);
+        try {
+            $connection->pushResponse(['message', 'foo', "hello\0world"]);
+            $connection->pushResponse(['pmessage', 'foo.*', 'foo.bar', 'data']);
 
-        // Message channel should be closed
+            $message = $invoker->channel()->pop(1.0);
+            $patternMessage = $invoker->channel()->pop(1.0);
+
+            $this->assertEquals(
+                new Message(channel: 'foo', payload: "hello\0world"),
+                $message,
+            );
+            $this->assertEquals(
+                new Message(channel: 'foo.bar', payload: 'data', pattern: 'foo.*'),
+                $patternMessage,
+            );
+        } finally {
+            $invoker->interrupt();
+        }
+    }
+
+    public function testServerFailurePropagatesToWaitingCommand(): void
+    {
+        $exception = new ServerException('ERR authentication failed');
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $connection->pushResponse($exception);
+
+        try {
+            $invoker->invoke(['auth', 'secret'], 1);
+            $this->fail('Expected the server failure to propagate.');
+        } catch (ServerException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+    }
+
+    public function testReceiveFailureClosesEveryChannelAndRemainsPrimary(): void
+    {
+        $exception = new SocketException('truncated response');
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $connection->pushResponse($exception);
+
+        try {
+            $invoker->invoke(['subscribe', 'foo'], 1);
+            $this->fail('Expected the receive failure to propagate.');
+        } catch (SocketException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertTrue($connection->wasClosed());
         $this->assertFalse($invoker->channel()->pop(0.01));
     }
 
-    /**
-     * Create a mock Connection that returns the given responses from recv().
-     *
-     * Uses andReturnUsing with usleep before the final false response so the
-     * background coroutine yields, giving the test coroutine time to pop
-     * messages from the channel before interrupt() closes it.
-     *
-     * @param array<false|string> $responses
-     */
-    private function createMockConnection(array $responses): Connection
+    public function testInvokeAfterReceiveFailureRethrowsTheCauseWithoutSending(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('recv')
-            ->andReturnUsing(function () use (&$responses) {
-                $response = array_shift($responses);
-                if ($response === false || $response === null) {
-                    // Yield before disconnecting so the test coroutine
-                    // can pop any buffered messages from the channel.
-                    usleep(50_000);
-                    return false;
-                }
-                return $response;
-            });
+        $exception = new SocketException('truncated response');
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $connection->pushResponse($exception);
+        $this->waitUntil(fn (): bool => $connection->wasClosed());
 
-        return $connection;
+        try {
+            $invoker->invoke(['subscribe', 'foo'], 1);
+            $this->fail('Expected the receive failure to propagate.');
+        } catch (SocketException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(0, $connection->sendCount);
+    }
+
+    public function testPingAfterReceiveFailureRethrowsTheCauseWithoutSending(): void
+    {
+        $exception = new SocketException('truncated response');
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $connection->pushResponse($exception);
+        $this->waitUntil(fn (): bool => $connection->wasClosed());
+
+        try {
+            $invoker->ping();
+            $this->fail('Expected the receive failure to propagate.');
+        } catch (SocketException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(0, $connection->sendCount);
+    }
+
+    public function testInvokeAfterCloseThrowsANamedFailureWithoutSending(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $invoker->interrupt();
+
+        try {
+            $invoker->invoke(['subscribe', 'foo'], 1);
+            $this->fail('Expected the closed connection failure to propagate.');
+        } catch (SocketException $exception) {
+            $this->assertSame('The Redis subscriber connection is closed.', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $connection->sendCount);
+    }
+
+    public function testPingAfterCloseThrowsANamedFailureWithoutSending(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $invoker->interrupt();
+
+        try {
+            $invoker->ping();
+            $this->fail('Expected the closed connection failure to propagate.');
+        } catch (SocketException $exception) {
+            $this->assertSame('The Redis subscriber connection is closed.', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $connection->sendCount);
+    }
+
+    public function testInvokeBlockedAcrossCloseThrowsTheChannelFailure(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $result = new Channel(1);
+        go(function () use ($invoker, $result): void {
+            try {
+                $invoker->invoke(['subscribe', 'foo'], 1);
+            } catch (Throwable $exception) {
+                $result->push($exception);
+            }
+        });
+
+        $this->waitUntil(fn (): bool => $connection->sendCount === 1);
+        $invoker->interrupt();
+        $exception = $result->pop(1.0);
+
+        $this->assertInstanceOf(SocketException::class, $exception);
+        $this->assertSame(
+            'The Redis subscriber command acknowledgement channel was closed.',
+            $exception->getMessage(),
+        );
+        $this->assertSame(1, $connection->sendCount);
+    }
+
+    public function testAcknowledgementTimeoutInterruptsWhileIdleReceiveIsUnbounded(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection, timeout: 0.01);
+
+        usleep(20_000);
+        $this->assertFalse($connection->wasClosed());
+
+        $this->expectException(SocketException::class);
+        $this->expectExceptionMessage('Timed out waiting');
+
+        try {
+            $invoker->invoke(['subscribe', 'foo'], 1);
+        } finally {
+            $this->assertTrue($connection->wasClosed());
+        }
+    }
+
+    public function testPingTimeoutInterruptsTheConnection(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+
+        $this->expectException(SocketException::class);
+        $this->expectExceptionMessage('PONG');
+
+        try {
+            $invoker->ping(0.01);
+        } finally {
+            $this->assertTrue($connection->wasClosed());
+        }
+    }
+
+    public function testZeroPingTimeoutWaitsWithoutPolling(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+
+        go(function () use ($connection): void {
+            usleep(10_000);
+            $connection->pushResponse('PONG');
+        });
+
+        try {
+            $this->assertSame('pong', $invoker->ping(0));
+        } finally {
+            $invoker->interrupt();
+        }
+    }
+
+    public function testMessageCapacityFailureLogsOnceAndRemainsPrimaryWhenLoggingFails(): void
+    {
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('error')
+            ->once()
+            ->andThrow(new RuntimeException('logger failed'));
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection, $logger);
+        $messageChannel = m::mock(Channel::class);
+        $messageChannel->shouldReceive('push')->once()->with(m::type(Message::class), 30.0)->andReturn(false);
+        $messageChannel->shouldReceive('isTimeout')->once()->andReturn(true);
+        $messageChannel->shouldReceive('close')->once()->andReturn(true);
+        (new ReflectionProperty(CommandInvoker::class, 'messageChannel'))
+            ->setValue($invoker, $messageChannel);
+        $connection->pushResponse(['message', 'foo', 'payload']);
+
+        $this->waitUntil(fn (): bool => $connection->wasClosed());
+
+        try {
+            $invoker->invoke(['subscribe', 'foo'], 1);
+            $this->fail('Expected the channel-capacity failure to propagate.');
+        } catch (SocketException $exception) {
+            $this->assertStringContainsString('remained full for 30 seconds', $exception->getMessage());
+        }
+    }
+
+    public function testConcurrentMessageChannelCloseIsTerminalWithoutLoggingCapacityFailure(): void
+    {
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldNotReceive('error');
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection, $logger);
+        $messageChannel = $invoker->channel();
+
+        for ($index = 0; $index < $messageChannel->getCapacity(); ++$index) {
+            $messageChannel->push(new Message('buffer', (string) $index));
+        }
+
+        $result = new Channel(1);
+        go(function () use ($invoker, $result): void {
+            try {
+                $invoker->invoke(['subscribe', 'foo'], 1);
+            } catch (Throwable $exception) {
+                $result->push($exception);
+            }
+        });
+
+        $this->waitUntil(fn (): bool => $connection->sendCount === 1);
+
+        $connection->pushResponse(['message', 'foo', 'payload']);
+        $this->waitUntil(fn (): bool => $connection->receiveCount === 1);
+        $messageChannel->close();
+
+        $exception = $result->pop(1.0);
+
+        $this->assertInstanceOf(SocketException::class, $exception);
+        $this->assertSame(
+            'The Redis subscriber message channel was closed.',
+            $exception->getMessage(),
+        );
+        $this->assertTrue($connection->wasClosed());
+    }
+
+    public function testClosedResultChannelTerminatesRoutingWithoutASecondReceive(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $resultChannel = (new ReflectionProperty(CommandInvoker::class, 'resultChannel'))
+            ->getValue($invoker);
+        $resultChannel->push('occupied');
+        $connection->pushResponse(['subscribe', 'foo', 1]);
+        $this->waitUntil(fn (): bool => $connection->receiveCount === 1);
+        $resultChannel->close();
+        $this->waitUntil(fn (): bool => $connection->wasClosed());
+
+        try {
+            $invoker->invoke(['subscribe', 'foo'], 1);
+            $this->fail('Expected the result channel failure to propagate.');
+        } catch (SocketException $exception) {
+            $this->assertSame(
+                'The Redis subscriber command acknowledgement channel was closed.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(1, $connection->receiveCount);
+    }
+
+    public function testClosedPingChannelTerminatesRoutingWithoutASecondReceive(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $pingChannel = (new ReflectionProperty(CommandInvoker::class, 'pingChannel'))
+            ->getValue($invoker);
+        $pingChannel->push('occupied');
+        $connection->pushResponse('PONG');
+        $this->waitUntil(fn (): bool => $connection->receiveCount === 1);
+        $pingChannel->close();
+        $this->waitUntil(fn (): bool => $connection->wasClosed());
+
+        try {
+            $invoker->ping();
+            $this->fail('Expected the PING channel failure to propagate.');
+        } catch (SocketException $exception) {
+            $this->assertSame(
+                'The Redis subscriber PING channel was closed.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(1, $connection->receiveCount);
+    }
+
+    public function testMalformedResponseTerminatesTheSubscriberWithItsCause(): void
+    {
+        $connection = new ControlledConnection;
+        $invoker = new CommandInvoker($connection);
+        $connection->pushResponse(['message', 'foo', new stdClass]);
+
+        $this->expectException(SocketException::class);
+        $this->expectExceptionMessage('malformed Redis message');
+
+        $invoker->invoke(['subscribe', 'foo'], 1);
+    }
+
+    /**
+     * Read an exact number of bytes from a test stream.
+     *
+     * @param resource $stream
+     */
+    private function readExact(mixed $stream, int $length): string
+    {
+        $value = '';
+
+        while (strlen($value) < $length) {
+            $chunk = fread($stream, $length - strlen($value));
+
+            if ($chunk === false || $chunk === '') {
+                throw new RuntimeException('Failed to read the complete test command.');
+            }
+
+            $value .= $chunk;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Wait for a test condition.
+     */
+    private function waitUntil(callable $condition): void
+    {
+        for ($attempt = 0; $attempt < 100; ++$attempt) {
+            if ($condition()) {
+                return;
+            }
+
+            usleep(1_000);
+        }
+
+        $this->fail('Timed out waiting for the test condition.');
     }
 }
 
@@ -270,15 +552,87 @@ class BlockingConnection extends Connection
         $this->gate = new Channel(1);
     }
 
-    public function recv(float $timeout = -1): string|bool
+    public function receive(): mixed
     {
-        return $this->gate->pop($timeout);
+        $value = $this->gate->pop();
+
+        if ($value === false) {
+            throw new SocketException('Connection closed.');
+        }
+
+        return $value;
     }
 
     public function close(): void
     {
         $this->wasClosed = true;
         $this->gate->close();
+    }
+
+    public function wasClosed(): bool
+    {
+        return $this->wasClosed;
+    }
+}
+
+class ControlledConnection extends Connection
+{
+    private readonly Channel $responses;
+
+    private bool $wasClosed = false;
+
+    public int $closeCount = 0;
+
+    public int $receiveCount = 0;
+
+    public int $sendCount = 0;
+
+    public function __construct(private ?Throwable $sendFailure = null)
+    {
+        $this->responses = new Channel(10);
+    }
+
+    public function send(string $data): bool
+    {
+        ++$this->sendCount;
+
+        if ($this->sendFailure !== null) {
+            throw $this->sendFailure;
+        }
+
+        return true;
+    }
+
+    public function receive(): mixed
+    {
+        $response = $this->responses->pop();
+        ++$this->receiveCount;
+
+        if ($response instanceof Throwable) {
+            throw $response;
+        }
+
+        if ($response === false) {
+            throw new SocketException('Connection closed.');
+        }
+
+        return $response;
+    }
+
+    public function pushResponse(mixed $response): void
+    {
+        $this->responses->push($response);
+    }
+
+    public function close(): void
+    {
+        if ($this->wasClosed) {
+            return;
+        }
+
+        $this->wasClosed = true;
+        ++$this->closeCount;
+        $this->responses->close();
     }
 
     public function wasClosed(): bool
