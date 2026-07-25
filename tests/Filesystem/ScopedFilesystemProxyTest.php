@@ -75,6 +75,32 @@ class ScopedFilesystemProxyTest extends TestCase
         $this->assertSame(1, $prefixCalls);
     }
 
+    #[DataProvider('mappedMethodProvider')]
+    public function testEveryMappedMethodResolvesTheDiskExactlyOnce(
+        string $method,
+        array $arguments,
+        array $innerArguments,
+        mixed $innerResult,
+        mixed $expectedResult,
+    ): void {
+        $inner = m::mock(FilesystemAdapter::class);
+        $inner->shouldReceive($method)->once()->with(...$innerArguments)->andReturn($innerResult);
+        $diskCalls = 0;
+        $proxy = new ScopedFilesystemProxy(
+            function () use ($inner, &$diskCalls): FilesystemContract {
+                ++$diskCalls;
+
+                return $inner;
+            },
+            static fn (): string => 'tenant',
+        );
+
+        $result = $proxy->{$method}(...$arguments);
+
+        $this->assertSame($expectedResult, $result);
+        $this->assertSame(1, $diskCalls);
+    }
+
     public static function mappedMethodProvider(): array
     {
         $request = Request::create('/file.txt');
@@ -247,6 +273,28 @@ class ScopedFilesystemProxyTest extends TestCase
         $this->assertSame(['driver' => 'local'], $proxy->getConfig());
     }
 
+    public function testNoPathMethodsResolveTheDiskOncePerCallWithoutResolvingThePrefix(): void
+    {
+        $inner = m::mock(FilesystemAdapter::class);
+        $inner->shouldReceive('providesTemporaryUrls')->once()->andReturnTrue();
+        $inner->shouldReceive('providesTemporaryUploadUrls')->once()->andReturnFalse();
+        $inner->shouldReceive('getConfig')->once()->andReturn(['driver' => 'local']);
+        $diskCalls = 0;
+        $proxy = new ScopedFilesystemProxy(
+            function () use ($inner, &$diskCalls): FilesystemContract {
+                ++$diskCalls;
+
+                return $inner;
+            },
+            static fn (): never => throw new RuntimeException('prefix must not be resolved'),
+        );
+
+        $this->assertTrue($proxy->providesTemporaryUrls());
+        $this->assertFalse($proxy->providesTemporaryUploadUrls());
+        $this->assertSame(['driver' => 'local'], $proxy->getConfig());
+        $this->assertSame(3, $diskCalls);
+    }
+
     public function testEveryAssertionMapsPathsAndReturnsTheScopedProxy(): void
     {
         $inner = m::mock(FilesystemAdapter::class);
@@ -383,9 +431,83 @@ class ScopedFilesystemProxyTest extends TestCase
         $this->assertSame('second', $this->disk->get('second/file.txt'));
     }
 
+    public function testDiskIsResolvedPerOperation(): void
+    {
+        $first = m::mock(FilesystemContract::class);
+        $first->shouldReceive('get')->once()->with('tenant/file.txt')->andReturn('first');
+        $second = m::mock(FilesystemContract::class);
+        $second->shouldReceive('get')->once()->with('tenant/file.txt')->andReturn('second');
+        $current = $first;
+        $diskCalls = 0;
+        $proxy = new ScopedFilesystemProxy(
+            function () use (&$current, &$diskCalls): FilesystemContract {
+                ++$diskCalls;
+
+                return $current;
+            },
+            static fn (): string => 'tenant',
+        );
+
+        $this->assertSame('first', $proxy->get('file.txt'));
+        $current = $second;
+        $this->assertSame('second', $proxy->get('file.txt'));
+        $this->assertSame(2, $diskCalls);
+    }
+
+    public function testDiskResolverIsIsolatedAcrossCoroutines(): void
+    {
+        $firstAdapter = new LocalFilesystemAdapter($this->tempDir . '/first-disk');
+        $first = new FilesystemAdapter(
+            new Filesystem($firstAdapter),
+            $firstAdapter,
+            ['root' => $this->tempDir . '/first-disk'],
+        );
+        $secondAdapter = new LocalFilesystemAdapter($this->tempDir . '/second-disk');
+        $second = new FilesystemAdapter(
+            new Filesystem($secondAdapter),
+            $secondAdapter,
+            ['root' => $this->tempDir . '/second-disk'],
+        );
+        $proxy = new ScopedFilesystemProxy(
+            static fn (): FilesystemContract => match (CoroutineContext::get('filesystem.disk')) {
+                'first' => $first,
+                'second' => $second,
+            },
+            static fn (): string => 'tenant',
+        );
+
+        parallel([
+            function () use ($proxy): void {
+                CoroutineContext::set('filesystem.disk', 'first');
+                usleep(5000);
+                $proxy->put('file.txt', 'first');
+            },
+            function () use ($proxy): void {
+                CoroutineContext::set('filesystem.disk', 'second');
+                usleep(5000);
+                $proxy->put('file.txt', 'second');
+            },
+        ]);
+
+        $this->assertSame('first', $first->get('tenant/file.txt'));
+        $this->assertSame('second', $second->get('tenant/file.txt'));
+    }
+
     public function testWrongResolverReturnTypeFailsNaturally(): void
     {
         $proxy = new ScopedFilesystemProxy($this->disk, static fn (): array => []);
+
+        $this->expectException(TypeError::class);
+
+        $proxy->exists('file.txt');
+    }
+
+    public function testWrongDiskResolverReturnTypeFailsNaturally(): void
+    {
+        $proxy = new ScopedFilesystemProxy(
+            static fn (): array => [],
+            static fn (): string => 'tenant',
+        );
 
         $this->expectException(TypeError::class);
 
@@ -432,6 +554,49 @@ class ScopedFilesystemProxyTest extends TestCase
         $proxy->missing('file.txt');
     }
 
+    public function testDiskResolverCannotExposeInternalsOrUnknownMethods(): void
+    {
+        $diskCalls = 0;
+        $proxy = new ScopedFilesystemProxy(
+            function () use (&$diskCalls): FilesystemContract {
+                ++$diskCalls;
+
+                return $this->disk;
+            },
+            static fn (): string => 'tenant',
+        );
+
+        try {
+            $proxy->getDriver();
+            $this->fail('Expected inner driver access to be rejected.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('unscoped internals', $exception->getMessage());
+        }
+
+        try {
+            $proxy->listContents('');
+            $this->fail('Expected the unknown method to be rejected.');
+        } catch (BadMethodCallException $exception) {
+            $this->assertStringContainsString('unmapped calls could bypass', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $diskCalls);
+    }
+
+    public function testResolvedDiskWithoutMappedCapabilityIsRejected(): void
+    {
+        $inner = m::mock(FilesystemContract::class);
+        $proxy = new ScopedFilesystemProxy(
+            static fn (): FilesystemContract => $inner,
+            static fn (): string => 'tenant',
+        );
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('does not support [missing]');
+
+        $proxy->missing('file.txt');
+    }
+
     public function testCloudVariantMapsUrlAndResolvesPrefixOnce(): void
     {
         $inner = m::mock(Cloud::class);
@@ -445,5 +610,36 @@ class ScopedFilesystemProxyTest extends TestCase
 
         $this->assertSame('https://example.test/file.txt', $proxy->url('file.txt'));
         $this->assertSame(1, $prefixCalls);
+    }
+
+    public function testCloudVariantResolvesTheDiskOnce(): void
+    {
+        $inner = m::mock(Cloud::class);
+        $inner->shouldReceive('url')->once()->with('tenant/file.txt')->andReturn('https://example.test/file.txt');
+        $diskCalls = 0;
+        $proxy = new ScopedCloudFilesystemProxy(
+            function () use ($inner, &$diskCalls): Cloud {
+                ++$diskCalls;
+
+                return $inner;
+            },
+            static fn (): string => 'tenant',
+        );
+
+        $this->assertSame('https://example.test/file.txt', $proxy->url('file.txt'));
+        $this->assertSame(1, $diskCalls);
+    }
+
+    public function testCloudVariantRejectsANonCloudResolvedDisk(): void
+    {
+        $inner = m::mock(FilesystemContract::class);
+        $proxy = new ScopedCloudFilesystemProxy(
+            static fn (): FilesystemContract => $inner,
+            static fn (): string => 'tenant',
+        );
+
+        $this->expectException(TypeError::class);
+
+        $proxy->url('file.txt');
     }
 }

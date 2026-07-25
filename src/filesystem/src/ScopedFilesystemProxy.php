@@ -19,11 +19,14 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Isolate every filesystem path behind a dynamically resolved prefix.
+ * Isolate every filesystem path behind a dynamically resolved prefix on a
+ * fixed disk or one resolved for each operation.
  *
  * This class deliberately maps the complete path-bearing adapter surface and
  * rejects every unknown call. Percent-encoded segments remain literal names;
  * URL decoding belongs at the HTTP boundary and must happen exactly once.
+ *
+ * @template TFilesystem of Filesystem
  */
 class ScopedFilesystemProxy implements Filesystem
 {
@@ -34,10 +37,11 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Create a dynamically scoped filesystem.
      *
+     * @param (Closure(): TFilesystem)|TFilesystem $disk
      * @param Closure(): string $prefixResolver
      */
     public function __construct(
-        protected Filesystem $disk,
+        protected Filesystem|Closure $disk,
         protected Closure $prefixResolver,
         protected bool $allowRootPassthrough = false,
     ) {
@@ -729,18 +733,31 @@ class ScopedFilesystemProxy implements Filesystem
     }
 
     /**
+     * Resolve the inner filesystem for one public operation.
+     *
+     * @return TFilesystem
+     */
+    protected function resolveDisk(): Filesystem
+    {
+        return $this->disk instanceof Closure
+            ? ($this->disk)()
+            : $this->disk;
+    }
+
+    /**
      * Forward one audited method to the inner disk.
      */
     protected function call(string $method, array $arguments): mixed
     {
-        $declared = method_exists($this->disk, $method);
+        $disk = $this->resolveDisk();
+        $declared = method_exists($disk, $method);
 
-        if (! $declared && ! is_callable([$this->disk, $method])) {
+        if (! $declared && ! is_callable([$disk, $method])) {
             throw new BadMethodCallException("The scoped disk's inner filesystem does not support [{$method}].");
         }
 
         try {
-            return $this->disk->{$method}(...$arguments);
+            return $disk->{$method}(...$arguments);
         } catch (BadMethodCallException $exception) {
             if (! $declared) {
                 throw new BadMethodCallException(
