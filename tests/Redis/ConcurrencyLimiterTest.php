@@ -96,6 +96,54 @@ class ConcurrencyLimiterTest extends TestCase
         });
     }
 
+    public function testBlockPropagatesReleaseFailureAfterSuccessfulCallback(): void
+    {
+        $redis = $this->mockRedis();
+        $releaseException = new RuntimeException('release failed');
+
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andReturn('test-lock1');
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andThrow($releaseException);
+
+        $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
+
+        try {
+            $limiter->block(5, fn (): string => 'callback-result');
+
+            $this->fail('Expected the release failure to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($releaseException, $exception);
+        }
+    }
+
+    public function testBlockPreservesCallbackFailureWhenReleaseAlsoFails(): void
+    {
+        $redis = $this->mockRedis();
+        $callbackException = new RuntimeException('callback failed');
+
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andReturn('test-lock1');
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andThrow(new RuntimeException('release failed'));
+
+        $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
+
+        try {
+            $limiter->block(5, function () use ($callbackException): never {
+                throw $callbackException;
+            });
+
+            $this->fail('Expected the callback failure to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($callbackException, $exception);
+        }
+    }
+
     public function testBlockThrowsTimeoutExceptionWhenCannotAcquire(): void
     {
         $redis = $this->mockRedis();
