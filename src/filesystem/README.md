@@ -11,4 +11,4 @@ Hypervel omits Laravel's legacy `Storage::cloud()` / `filesystem.cloud` default-
 
 Hypervel pools S3 and Google Cloud Storage SDK clients rather than complete disk adapters. Disks with equivalent client construction config share the expensive client pool while retaining their own bucket, root, visibility, and callback behavior. Pooled disks expose raw internals only through borrow-scoped `withClient()`, `withDriver()`, and `withAdapter()` callbacks.
 
-Hypervel also provides `ScopedFilesystemProxy` and `ScopedCloudFilesystemProxy` for prefixes resolved independently on every operation. These decorators fail closed on empty prefixes and reject unmapped calls so request- or tenant-scoped boundaries cannot be bypassed.
+Hypervel also provides `ScopedFilesystemProxy` and `ScopedCloudFilesystemProxy` for prefixes resolved independently on every operation. The underlying disk may be fixed or resolved once per operation when its configuration varies with the current context. These decorators fail closed on empty prefixes and reject unmapped calls so request- or tenant-scoped boundaries cannot be bypassed.
