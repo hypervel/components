@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
@@ -20,6 +21,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use ReflectionMethod;
+use stdClass;
 use TypeError;
 
 class CacheSwooleStoreTest extends TestCase
@@ -105,6 +107,45 @@ class CacheSwooleStoreTest extends TestCase
         $store->put('foo', 'bar', 5);
 
         $this->assertEquals('bar', $store->get('foo'));
+    }
+
+    public function testPutRejectsClassesDuringUnserializationWhenConfigured(): void
+    {
+        $store = new SwooleStore(
+            $this->createState(),
+            0.05,
+            SwooleStore::EVICTION_POLICY_TTL,
+            0.05,
+            false,
+        );
+
+        $store->put('foo', new stdClass, 5);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('foo'));
+    }
+
+    public function testPutAllowsConfiguredClassesDuringUnserialization(): void
+    {
+        $store = new SwooleStore(
+            $this->createState(),
+            0.05,
+            SwooleStore::EVICTION_POLICY_TTL,
+            0.05,
+            [stdClass::class],
+        );
+
+        $store->put('foo', new stdClass, 5);
+
+        $this->assertInstanceOf(stdClass::class, $store->get('foo'));
+    }
+
+    public function testPutAllowsClassesByDefaultWhenConstructedDirectly(): void
+    {
+        $store = $this->createStore();
+
+        $store->put('foo', new stdClass, 5);
+
+        $this->assertInstanceOf(stdClass::class, $store->get('foo'));
     }
 
     public function testNullSentinelRoundTripsThroughSwooleStore(): void
@@ -352,11 +393,16 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertSame((float) $expiration, $row['expiration']);
     }
 
-    public function testIncrementCreatesMissingCounter(): void
+    public function testIncrementCreatesPermanentMissingCounter(): void
     {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
         $store = $this->createStore();
 
         $this->assertSame(1, $store->increment('counter'));
+
+        CarbonImmutable::setTestNow('2002-01-01 00:00:00');
+
         $this->assertSame(1, $store->get('counter'));
     }
 
@@ -377,24 +423,30 @@ class CacheSwooleStoreTest extends TestCase
         }
     }
 
-    public function testForeverStoresValueInTable(): void
+    public function testForeverStoresValueIndefinitely(): void
     {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
         $store = $this->createStore();
 
         $store->forever('foo', 'bar');
+
+        CarbonImmutable::setTestNow('2002-01-01 00:00:00');
 
         $this->assertEquals('bar', $store->get('foo'));
     }
 
     public function testIntervalsCanBeRefreshed(): void
     {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
         $store = $this->createStore();
 
         $store->interval('foo', fn () => Str::random(10), 1);
 
         $this->assertTrue(is_string($first = $store->get('foo')));
 
-        CarbonImmutable::setTestNow(now()->addMinutes(1));
+        CarbonImmutable::setTestNow('2002-01-01 00:00:00');
 
         $store->refreshIntervalCaches();
 
@@ -862,12 +914,21 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertSame(20.0, $lock->getRemainingLifetime());
     }
 
-    public function testRefreshPermanentLockWithoutExplicitTtlIsNoOp(): void
+    public function testPermanentLockSurvivesAndRefreshVerifiesOwnership(): void
     {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
         $lock = $this->createStore()->lock('foo', 0);
 
         $this->assertTrue($lock->acquire());
+
+        CarbonImmutable::setTestNow('2002-01-01 00:00:00');
+
         $this->assertTrue($lock->refresh());
+
+        $lock->forceRelease();
+
+        $this->assertFalse($lock->refresh());
     }
 
     public function testRefreshRejectsExplicitNonPositiveTtl(): void

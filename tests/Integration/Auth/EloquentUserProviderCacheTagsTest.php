@@ -41,6 +41,7 @@ class EloquentUserProviderCacheTagsTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
+        $app->make('config')->set('cache.serializable_classes', [User::class]);
         $app->make('config')->set('cache.stores.' . self::STORE_NAME, [
             'driver' => 'redis',
             'connection' => 'default',
