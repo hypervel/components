@@ -257,6 +257,51 @@ class CacheStackStoreTest extends TestCase
         }
     }
 
+    public function testPutCompensatesCompletedLayersInReverseOrder(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $middle = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+
+        $top->shouldReceive('put')->once()->andReturnTrue();
+        $middle->shouldReceive('put')->once()->andReturnTrue();
+        $bottom->shouldReceive('put')->once()->andReturnFalse();
+        $middle->shouldReceive('forget')->once()->with('foo')->ordered()->andReturnTrue();
+        $top->shouldReceive('forget')->once()->with('foo')->ordered()->andReturnTrue();
+
+        $this->assertFalse((new StackStore([$top, $middle, $bottom]))->put('foo', 'bar', 60));
+    }
+
+    public function testPutPreservesFalseResultWhenCompensationThrows(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+
+        $top->shouldReceive('put')->once()->andReturnTrue();
+        $bottom->shouldReceive('put')->once()->andReturnFalse();
+        $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('cleanup failed'));
+
+        $this->assertFalse((new StackStore([$top, $bottom]))->put('foo', 'bar', 60));
+    }
+
+    public function testPutPreservesWriteFailureWhenCompensationAlsoThrows(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $exception = new RuntimeException('write failed');
+
+        $top->shouldReceive('put')->once()->andReturnTrue();
+        $bottom->shouldReceive('put')->once()->andThrow($exception);
+        $top->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('cleanup failed'));
+
+        try {
+            (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
+            $this->fail('Expected the write failure to be thrown.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+    }
+
     public function testPutDoesNotCompensateLayerWhoseWriteThrows(): void
     {
         $top = m::mock(ArrayStore::class);
@@ -450,7 +495,7 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('forget')->once()->with('foo')->andReturn(true);
         $this->redis->shouldReceive('forget')->once()->with('foo')->andReturn(true);
 
-        $this->assertTrue($this->store->forget('foo', 'bar'));
+        $this->assertTrue($this->store->forget('foo'));
     }
 
     public function testForgetFailed()
@@ -460,7 +505,26 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('forget')->once()->with('foo')->andReturn(false);
         $this->redis->shouldReceive('forget')->once()->with('foo')->andReturn(true);
 
-        $this->assertTrue($this->store->forget('foo', 'bar'));
+        $this->assertFalse($this->store->forget('foo'));
+    }
+
+    public function testForgetAttemptsEveryLayerAndPreservesTheEarliestFailure(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $middle = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $exception = new RuntimeException('first failure');
+
+        $top->shouldReceive('forget')->once()->with('foo')->andThrow($exception);
+        $middle->shouldReceive('forget')->once()->with('foo')->andReturnFalse();
+        $bottom->shouldReceive('forget')->once()->with('foo')->andThrow(new RuntimeException('second failure'));
+
+        try {
+            (new StackStore([$top, $middle, $bottom]))->forget('foo');
+            $this->fail('Expected the first forget failure to be thrown.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
     }
 
     public function testFlush()
@@ -470,7 +534,7 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('flush')->once()->withNoArgs()->andReturn(true);
         $this->redis->shouldReceive('flush')->once()->withNoArgs()->andReturn(true);
 
-        $this->assertTrue($this->store->flush('foo', 'bar'));
+        $this->assertTrue($this->store->flush());
     }
 
     public function testFlushFailed()
@@ -480,7 +544,26 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('flush')->once()->withNoArgs()->andReturn(false);
         $this->redis->shouldReceive('flush')->once()->withNoArgs()->andReturn(true);
 
-        $this->assertTrue($this->store->flush('foo', 'bar'));
+        $this->assertFalse($this->store->flush());
+    }
+
+    public function testFlushAttemptsEveryLayerAndPreservesTheEarliestFailure(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $middle = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $exception = new RuntimeException('first failure');
+
+        $top->shouldReceive('flush')->once()->withNoArgs()->andThrow($exception);
+        $middle->shouldReceive('flush')->once()->withNoArgs()->andReturnFalse();
+        $bottom->shouldReceive('flush')->once()->withNoArgs()->andThrow(new RuntimeException('second failure'));
+
+        try {
+            (new StackStore([$top, $middle, $bottom]))->flush();
+            $this->fail('Expected the first flush failure to be thrown.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
     }
 
     public function testThreeStores()
