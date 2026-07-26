@@ -55,7 +55,25 @@ interface Repository extends CacheInterface
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed;
+    public function remember(
+        UnitEnum|string $key,
+        Closure|DateInterval|DateTimeInterface|int|null $ttl,
+        Closure $callback,
+    ): mixed;
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result.
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     * @return array{TCacheValue, bool} the cached value and whether it was warm
+     */
+    public function rememberWithWarmth(
+        UnitEnum|string $key,
+        Closure|DateInterval|DateTimeInterface|int|null $ttl,
+        Closure $callback,
+    ): array;
 
     /**
      * Get an item from the cache, or execute the given Closure and store the result forever.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use ArrayIterator;
 use BadMethodCallException;
 use DateInterval;
@@ -20,7 +21,6 @@ use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\Lock;
 use Hypervel\Cache\NullSentinel;
-use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
@@ -36,6 +36,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use stdClass;
 
 class CacheRepositoryTest extends TestCase
 {
@@ -140,6 +141,55 @@ class CacheRepositoryTest extends TestCase
             return 'qux';
         });
         $this->assertSame('qux', $result);
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->andReturn(null);
+        $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 10);
+        $result = $repo->remember('foo', function ($value) {
+            $this->assertSame('bar', $value);
+
+            return 10;
+        }, fn () => 'bar');
+        $this->assertSame('bar', $result);
+    }
+
+    public function testRememberWithWarmthReturnsCachedValue(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('bar');
+        $repo->getStore()->shouldNotReceive('put');
+
+        $result = $repo->rememberWithWarmth('foo', 10, function () {
+            $this->fail('The cache callback should not be called.');
+        });
+
+        $this->assertSame(['bar', true], $result);
+    }
+
+    public function testRememberWithWarmthCallsPutAndReturnsColdValue(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 10);
+
+        $result = $repo->rememberWithWarmth('foo', function ($value) {
+            $this->assertSame('bar', $value);
+
+            return 10;
+        }, fn () => 'bar');
+
+        $this->assertSame(['bar', false], $result);
+    }
+
+    public function testRememberWithWarmthTreatsNullableSentinelAsWarm(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(NullSentinel::VALUE);
+        $repo->getStore()->shouldNotReceive('put');
+
+        $this->assertSame([null, true], $repo->rememberWithWarmth('foo', 10, function () {
+            $this->fail('The cache callback should not be called.');
+        }));
     }
 
     public function testRememberForeverMethodCallsForeverAndReturnsDefault()
@@ -151,6 +201,80 @@ class CacheRepositoryTest extends TestCase
             return 'bar';
         });
         $this->assertSame('bar', $result);
+    }
+
+    public function testGetReturnsIncompleteClassWhenNoHandlerRegistered(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(
+            unserialize(serialize(new stdClass), ['allowed_classes' => false])
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $repo->get('foo'));
+    }
+
+    public function testGetCallsHandlerWithKeyAndClassForIncompleteClass(): void
+    {
+        $handled = [];
+
+        Repository::handleUnserializableClassUsing(function ($key, $class) use (&$handled): void {
+            $handled[] = [$key, $class];
+        });
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(
+            unserialize(serialize(new stdClass), ['allowed_classes' => false])
+        );
+
+        $repo->get('foo');
+
+        $this->assertSame([['foo', 'stdClass']], $handled);
+    }
+
+    public function testIncompleteClassHandlerAcceptsCallableAndCanBeCleared(): void
+    {
+        $handler = new class {
+            public array $handled = [];
+
+            public function handle(string $key, ?string $class): void
+            {
+                $this->handled[] = [$key, $class];
+            }
+        };
+
+        Repository::handleUnserializableClassUsing([$handler, 'handle']);
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->twice()->with('foo')->andReturn(
+            unserialize(serialize(new stdClass), ['allowed_classes' => false])
+        );
+
+        $repo->get('foo');
+
+        Repository::handleUnserializableClassUsing(null);
+
+        $repo->get('foo');
+
+        $this->assertSame([['foo', 'stdClass']], $handler->handled);
+    }
+
+    public function testManyCallsHandlerForEachIncompleteClass(): void
+    {
+        $handled = [];
+
+        Repository::handleUnserializableClassUsing(function ($key, $class) use (&$handled): void {
+            $handled[] = [$key, $class];
+        });
+
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('many')->once()->with(['foo', 'bar'])->andReturn([
+            'foo' => unserialize(serialize(new stdClass), ['allowed_classes' => false]),
+            'bar' => 'baz',
+        ]);
+
+        $repo->many(['foo', 'bar']);
+
+        $this->assertSame([['foo', 'stdClass']], $handled);
     }
 
     public function testRememberNullableStoresAndReturnsNonNullValue()
@@ -855,7 +979,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testNonFlushableLockRepositoryDoesNotSupportFlushingLocks()
     {
-        $nonFlushable = m::mock(NullStore::class);
+        $nonFlushable = m::mock(Store::class);
         $nonFlushableRepo = new Repository($nonFlushable);
 
         $this->assertFalse($nonFlushableRepo->supportsFlushingLocks());
@@ -865,7 +989,7 @@ class CacheRepositoryTest extends TestCase
     {
         $this->expectException(BadMethodCallException::class);
 
-        $nonFlushable = m::mock(NullStore::class);
+        $nonFlushable = m::mock(Store::class);
         $nonFlushableRepo = new Repository($nonFlushable);
 
         $nonFlushableRepo->flushLocks();
@@ -1211,12 +1335,10 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(['default'], $repo->array('foo', ['default']));
     }
 
-    public function testRememberFiresEventsWithPinnableStore()
+    public function testRememberFiresEventsWithRedisStore()
     {
         $store = m::mock(RedisStore::class);
-        $store->shouldReceive('withPinnedConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldNotReceive('withPinnedConnection');
         $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
         $store->shouldReceive('put')->once()->with('foo', 'bar', 10);
 
@@ -1232,12 +1354,10 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('bar', $result);
     }
 
-    public function testRememberForeverFiresEventsWithPinnableStore()
+    public function testRememberForeverFiresEventsWithRedisStore()
     {
         $store = m::mock(RedisStore::class);
-        $store->shouldReceive('withPinnedConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldNotReceive('withPinnedConnection');
         $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
         $store->shouldReceive('forever')->once()->with('foo', 'bar');
 
@@ -1253,12 +1373,10 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('bar', $result);
     }
 
-    public function testRememberHitFiresEventsWithPinnableStore()
+    public function testRememberHitFiresEventsWithRedisStore()
     {
         $store = m::mock(RedisStore::class);
-        $store->shouldReceive('withPinnedConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldNotReceive('withPinnedConnection');
         $store->shouldReceive('get')->once()->with('foo')->andReturn('cached');
 
         $events = m::mock(Dispatcher::class);
@@ -1276,9 +1394,7 @@ class CacheRepositoryTest extends TestCase
     public function testRememberSkipsDispatchWhenCacheEventsHaveNoListeners()
     {
         $store = m::mock(RedisStore::class);
-        $store->shouldReceive('withPinnedConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldNotReceive('withPinnedConnection');
         $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
         $store->shouldReceive('put')->once()->with('foo', 'bar', 10);
 
@@ -1297,9 +1413,7 @@ class CacheRepositoryTest extends TestCase
     public function testRememberNullableFiresEventsWithNullPayloadOnCacheMiss()
     {
         $store = m::mock(RedisStore::class);
-        $store->shouldReceive('withPinnedConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldNotReceive('withPinnedConnection');
         $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
         $store->shouldReceive('put')->once()->with('foo', NullSentinel::VALUE, 10)->andReturn(true);
 
@@ -1334,9 +1448,7 @@ class CacheRepositoryTest extends TestCase
     public function testRememberForeverNullableFiresEventsWithNullPayloadOnCacheMiss()
     {
         $store = m::mock(RedisStore::class);
-        $store->shouldReceive('withPinnedConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldNotReceive('withPinnedConnection');
         $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
         $store->shouldReceive('forever')->once()->with('foo', NullSentinel::VALUE)->andReturn(true);
 
@@ -1417,9 +1529,7 @@ class CacheRepositoryTest extends TestCase
     public function testRememberNullableFiresHitEventWithNullPayloadOnSentinelRetrieval()
     {
         $store = m::mock(RedisStore::class);
-        $store->shouldReceive('withPinnedConnection')
-            ->once()
-            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldNotReceive('withPinnedConnection');
         $store->shouldReceive('get')->once()->with('foo')->andReturn(NullSentinel::VALUE);
 
         $captured = [];
