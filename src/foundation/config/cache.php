@@ -20,6 +20,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate Limiter Cache Store
+    |--------------------------------------------------------------------------
+    |
+    | This option controls the cache store used by the rate limiter. When
+    | this option is not configured, the default cache store is used.
+    |
+    */
+
+    'limiter' => env('CACHE_LIMITER'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |
@@ -28,7 +40,7 @@ return [
     | same cache driver to group types of items stored in your caches.
     |
     | Supported drivers: "array", "worker-array", "database", "file",
-    |                    "redis", "swoole", "stack", "session",
+    |                    "storage", "redis", "swoole", "stack", "session",
     |                    "failover", "null"
     |
     */
@@ -63,6 +75,12 @@ return [
             'driver' => 'file',
             'path' => storage_path('framework/cache/data'),
             'lock_path' => storage_path('framework/cache/data'),
+        ],
+
+        'storage' => [
+            'driver' => 'storage',
+            'disk' => env('CACHE_STORAGE_DISK'),
+            'path' => env('CACHE_STORAGE_PATH', 'framework/cache/data'),
         ],
 
         'redis' => [
@@ -100,6 +118,21 @@ return [
             ],
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Serializable Classes
+    |--------------------------------------------------------------------------
+    |
+    | This value determines the classes that can be unserialized from cache
+    | storage. By default, no PHP classes will be unserialized from your
+    | cache to prevent gadget chain attacks if your APP_KEY is leaked.
+    | If the Redis cache connection uses a native PhpRedis serializer, that
+    | serializer handles deserialization and this setting does not apply.
+    |
+    */
+
+    'serializable_classes' => false,
 
     /*
     |--------------------------------------------------------------------------

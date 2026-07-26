@@ -11,6 +11,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
 use Hypervel\Support\RebindsCallbacksToSelf;
@@ -106,7 +107,8 @@ class CacheManager implements FactoryContract
      */
     protected function createMemoizedRepository(string $driver): CacheRepository
     {
-        $isSpy = isset($this->app['cache']) && $this->app['cache'] instanceof LegacyMockInterface;
+        $isSpy = $this->app->bound('cache')
+            && $this->app->make('cache') instanceof LegacyMockInterface;
 
         /** @var Repository $store */
         $store = $this->store($driver);
@@ -194,7 +196,7 @@ class CacheManager implements FactoryContract
      */
     protected function createDatabaseDriver(array $config): Repository
     {
-        $connectionResolver = $this->app['db'];
+        $connectionResolver = $this->app->make('db');
 
         $store = new DatabaseStore(
             $connectionResolver,
@@ -233,7 +235,7 @@ class CacheManager implements FactoryContract
     {
         return $this->repository(
             (new FileStore(
-                $this->app['files'],
+                $this->app->make('files'),
                 $config['path'],
                 $config['permission'] ?? null,
                 $this->getSerializableClasses($config),
@@ -241,6 +243,19 @@ class CacheManager implements FactoryContract
                 ->setLockDirectory($config['lock_path'] ?? null),
             $config
         );
+    }
+
+    /**
+     * Create an instance of the storage cache driver.
+     */
+    protected function createStorageDriver(array $config): Repository
+    {
+        return $this->repository(new StorageStore(
+            $this->app->make('filesystem')->disk($config['disk'] ?? null),
+            $config['path'] ?? '',
+            $this->getPrefix($config),
+            $this->getSerializableClasses($config),
+        ), $config);
     }
 
     /**
@@ -256,7 +271,8 @@ class CacheManager implements FactoryContract
      */
     protected function createRedisDriver(array $config): Repository
     {
-        $redis = $this->app['redis'];
+        /** @var RedisFactory $redis */
+        $redis = $this->app->make('redis');
 
         $connection = $config['connection'] ?? 'default';
 
@@ -312,7 +328,8 @@ class CacheManager implements FactoryContract
             $tableState,
             $config['memory_limit_buffer'] ?? 0.05,
             $config['eviction_policy'] ?? SwooleStore::EVICTION_POLICY_LRU,
-            $config['eviction_proportion'] ?? 0.05
+            $config['eviction_proportion'] ?? 0.05,
+            $this->getSerializableClasses($config),
         );
 
         return $this->repository($store, $config);
@@ -359,7 +376,7 @@ class CacheManager implements FactoryContract
         }
 
         $repository->setEventDispatcher(
-            $this->app[DispatcherContract::class]
+            $this->app->make(DispatcherContract::class)
         );
     }
 
@@ -409,7 +426,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->make('config')->string('cache.default', 'null');
+        return $this->app->make('config')->string('cache.default');
     }
 
     /**
@@ -423,7 +440,7 @@ class CacheManager implements FactoryContract
             $name = (string) enum_value($name);
         }
 
-        $this->app['config']['cache.default'] = $name;
+        $this->app->make('config')->set('cache.default', $name);
     }
 
     /**
@@ -500,6 +517,17 @@ class CacheManager implements FactoryContract
         $this->app = $app;
 
         return $this;
+    }
+
+    /**
+     * Register a callback to be invoked when an unserializable class is encountered.
+     *
+     * Boot or tests only. The callback persists for the worker lifetime and
+     * affects every subsequent cache read.
+     */
+    public function handleUnserializableClassUsing(?callable $callback): void
+    {
+        Repository::handleUnserializableClassUsing($callback);
     }
 
     /**

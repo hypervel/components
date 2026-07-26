@@ -4,26 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\StorageStore;
+use Hypervel\Cache\SwooleStore;
+use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\TagMode;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Events\Dispatcher as Event;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
 use Redis;
+use stdClass;
 
 class CacheManagerTest extends TestCase
 {
@@ -84,6 +91,38 @@ class CacheManagerTest extends TestCase
         $this->assertInstanceOf(NullStore::class, $nullCache->getStore());
     }
 
+    public function testItCanCreateStorageDriver(): void
+    {
+        $disk = new ArrayFilesystem;
+
+        $filesystem = m::mock(FilesystemFactory::class);
+        $filesystem->shouldReceive('disk')->with('s3')->once()->andReturn($disk);
+
+        $app = $this->getApp([
+            'cache' => [
+                'prefix' => 'cache:',
+                'serializable_classes' => false,
+                'stores' => [
+                    'storage' => [
+                        'driver' => 'storage',
+                        'disk' => 's3',
+                        'path' => 'cache',
+                    ],
+                ],
+            ],
+        ]);
+        $app->instance('filesystem', $filesystem);
+
+        $store = (new CacheManager($app))->store('storage')->getStore();
+
+        $this->assertInstanceOf(StorageStore::class, $store);
+        $this->assertSame($disk, $store->getDisk());
+        $this->assertSame('cache', $store->getDirectory());
+        $this->assertSame('cache:', $store->getPrefix());
+        $this->assertTrue($store->put('foo', new stdClass, 60));
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('foo'));
+    }
+
     public function testItCanBuildWorkerArrayRepositories(): void
     {
         $app = $this->getApp([]);
@@ -92,6 +131,35 @@ class CacheManagerTest extends TestCase
         $repository = $cacheManager->build(['driver' => 'worker-array']);
 
         $this->assertInstanceOf(WorkerArrayStore::class, $repository->getStore());
+    }
+
+    public function testSwooleDriverUsesConfiguredSerializableClasses(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'serializable_classes' => false,
+                'stores' => [
+                    'swoole' => [
+                        'driver' => 'swoole',
+                        'table' => 'default',
+                    ],
+                ],
+                'swoole_tables' => [
+                    'default' => [
+                        'rows' => 128,
+                        'bytes' => 10240,
+                        'conflict_proportion' => 0.2,
+                    ],
+                ],
+            ],
+        ]);
+        $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
+
+        $store = (new CacheManager($app))->store('swoole')->getStore();
+
+        $this->assertInstanceOf(SwooleStore::class, $store);
+        $this->assertTrue($store->put('foo', new stdClass, 60));
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('foo'));
     }
 
     public function testItResolvesMultiWordInternalDriversUsingStudlyNames(): void
@@ -665,7 +733,8 @@ class CacheManagerTest extends TestCase
     protected function getApp(array $userConfig): Container
     {
         $app = new Container;
-        $app->instance('config', new ConfigRepository($userConfig));
+        $config = new ConfigRepository($userConfig);
+        $app->instance('config', $config);
 
         return $app;
     }

@@ -78,6 +78,9 @@ class DefaultConfigurationTest extends TestCase
     public function itPopulatesExpectedCacheDefaults(): void
     {
         $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'database' : 'array', $this->app['config']['cache.default']);
+        $this->assertTrue($this->app['config']->has('cache.limiter'));
+        $this->assertNull($this->app['config']['cache.limiter']);
+        $this->assertFalse($this->app['config']['cache.serializable_classes']);
     }
 
     #[Test]
