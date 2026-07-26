@@ -15,7 +15,7 @@ abstract class BaseListener
 
     protected function swooleStores(): Collection
     {
-        $config = $this->container->make('config')->array('cache.stores', []);
+        $config = $this->container->make('config')->array('cache.stores');
 
         return collect($config)->where('driver', 'swoole');
     }

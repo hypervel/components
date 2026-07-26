@@ -7,7 +7,15 @@ namespace Hypervel\Cache;
 use BadMethodCallException;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\ForgettingKey;
+use Hypervel\Cache\Events\KeyForgetFailed;
+use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\RetrievingKey;
 use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * Tagged cache for any-mode tag semantics.
@@ -117,5 +125,56 @@ abstract class AnyModeTaggedCache extends TaggedCache
             'Cannot touch items via tags in any mode. Re-put the item through tags() to change '
             . 'its TTL; a direct Cache::touch() uses the store\'s plain-key semantics.'
         );
+    }
+
+    /**
+     * Retrieve a plain-key item without exposing reads through the any-mode API.
+     */
+    protected function getPlainRaw(UnitEnum|string $key): mixed
+    {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
+
+        $value = $this->handleIncompleteClass($key, $this->store->get($key));
+
+        if (is_null($value)) {
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
+        } else {
+            $this->event(
+                CacheHit::class,
+                fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Retrieve a plain-key item for remember operations.
+     */
+    protected function getRawForRemember(UnitEnum|string $key): mixed
+    {
+        return $this->getPlainRaw($key);
+    }
+
+    /**
+     * Remove a plain-key item without exposing deletes through the any-mode API.
+     */
+    protected function forgetPlainKey(UnitEnum|string $key): bool
+    {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        $this->event(ForgettingKey::class, fn (): ForgettingKey => new ForgettingKey($this->getName(), $key));
+
+        $result = $this->store->forget($key);
+
+        if ($result) {
+            $this->event(KeyForgotten::class, fn (): KeyForgotten => new KeyForgotten($this->getName(), $key));
+        } else {
+            $this->event(KeyForgetFailed::class, fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key));
+        }
+
+        return $result;
     }
 }

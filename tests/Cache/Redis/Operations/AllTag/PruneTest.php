@@ -316,6 +316,38 @@ class PruneTest extends RedisCacheTestCase
         $this->assertContains('key2', $zRemCalls[0]['members']);
     }
 
+    public function testPruneContinuesAfterAnEmptyNonterminalMemberPage(): void
+    {
+        $fakeClient = new FakeRedisClient(
+            scanResults: [
+                ['keys' => ['_all:tag:users:entries'], 'iterator' => 0],
+            ],
+            zRemRangeByScoreResults: [
+                '_all:tag:users:entries' => 0,
+            ],
+            zScanResults: [
+                '_all:tag:users:entries' => [
+                    ['members' => [], 'iterator' => 42],
+                    ['members' => ['key1' => 1234567890.0], 'iterator' => 0],
+                ],
+            ],
+            execResults: [
+                [1],
+            ],
+            zCardResults: [
+                '_all:tag:users:entries' => 1,
+            ],
+        );
+
+        $store = $this->createStoreWithFakeClient($fakeClient);
+        $operation = new Prune($store->getContext());
+
+        $result = $operation->execute();
+
+        $this->assertSame(1, $result['entries_checked']);
+        $this->assertCount(2, $fakeClient->getZScanCalls());
+    }
+
     /**
      * @test
      */

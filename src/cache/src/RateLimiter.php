@@ -190,9 +190,9 @@ class RateLimiter
 
         $hits = (int) $this->cache->increment($key, $amount);
 
-        if (! $added && $hits === 1) {
+        if (! $added && $hits === $amount) {
             $this->withoutSerializationOrCompression(
-                fn () => $this->cache->put($key, 1, $decaySeconds)
+                fn () => $this->cache->put($key, $amount, $decaySeconds)
             );
         }
 

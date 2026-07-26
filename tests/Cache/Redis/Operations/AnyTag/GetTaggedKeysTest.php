@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 
@@ -53,6 +54,7 @@ class GetTaggedKeysTest extends RedisCacheTestCase
         $connection->shouldReceive('hscan')
             ->once()
             ->withArgs(function ($key, &$iterator, $pattern, $count) {
+                $this->assertSame(PhpRedis::initialScanCursor(), $iterator);
                 $iterator = 0; // Done after first iteration
                 return true;
             })
@@ -125,5 +127,26 @@ class GetTaggedKeysTest extends RedisCacheTestCase
 
         // Verify all 3 HSCAN batches were called
         $this->assertSame(3, $fakeClient->getHScanCallCount());
+    }
+
+    public function testGetTaggedKeysContinuesAfterAnEmptyNonterminalPage(): void
+    {
+        $tagKey = 'prefix:_any:tag:users:entries';
+        $fakeClient = new FakeRedisClient(
+            hLenResults: [$tagKey => 5000],
+            hScanResults: [
+                $tagKey => [
+                    ['fields' => [], 'iterator' => 100],
+                    ['fields' => ['key1' => '1'], 'iterator' => 0],
+                ],
+            ],
+        );
+
+        $store = $this->createStoreWithFakeClient($fakeClient, tagMode: 'any');
+
+        $keys = iterator_to_array($store->anyTagOps()->getTaggedKeys()->execute('users'));
+
+        $this->assertSame(['key1'], $keys);
+        $this->assertSame(2, $fakeClient->getHScanCallCount());
     }
 }

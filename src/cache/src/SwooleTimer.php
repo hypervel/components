@@ -16,4 +16,12 @@ class SwooleTimer
     {
         return Timer::tick($milliseconds, $callback);
     }
+
+    /**
+     * Clear a Swoole timer.
+     */
+    public function clear(int $timerId): bool
+    {
+        return Timer::clear($timerId);
+    }
 }

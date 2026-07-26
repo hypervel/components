@@ -231,6 +231,19 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertSame('bar', $refresherStore->get('foo'));
     }
 
+    public function testSerializableClassPolicyDoesNotApplyToIntervalResolvers(): void
+    {
+        $state = $this->createState();
+        $workerStore = $this->createStore($state, serializableClasses: false);
+        $refresherStore = $this->createStore($state, serializableClasses: false);
+
+        $workerStore->interval('foo', fn () => 'bar', 5);
+
+        $refresherStore->refreshIntervalCaches();
+
+        $this->assertSame('bar', $refresherStore->get('foo'));
+    }
+
     public function testRefresherStoreRefreshesMultipleIntervalsFromSharedIndex(): void
     {
         $state = $this->createState();
@@ -528,7 +541,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertSame(0, $count);
     }
 
-    public function testIndexRowsAreTouchedDuringRefreshDiscovery(): void
+    public function testIndexRowsArePermanentWhenRegistered(): void
     {
         CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
@@ -537,13 +550,8 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $store->interval('foo', fn () => 'bar', 5);
         $indexKey = $this->indexKey($store, $this->metadataKey($store, 'foo'));
-        $before = $state->table()->get($indexKey)['expiration'];
 
-        CarbonImmutable::setTestNow('2000-01-01 00:00:10');
-
-        $store->refreshIntervalCaches();
-
-        $this->assertGreaterThan($before, $state->table()->get($indexKey)['expiration']);
+        $this->assertSame(PHP_FLOAT_MAX, $state->table()->get($indexKey)['expiration']);
     }
 
     public function testStaleCleanupAndEvictionSkipIntervalControlRows(): void
@@ -712,13 +720,15 @@ PHP);
         ?SwooleTableState $state = null,
         string $policy = SwooleStore::EVICTION_POLICY_TTL,
         float $memoryLimitBuffer = 0.05,
-        float $evictionProportion = 0.05
+        float $evictionProportion = 0.05,
+        array|bool|null $serializableClasses = null,
     ): SwooleStore {
         return new SwooleStore(
             $state ?? $this->createState(),
             $memoryLimitBuffer,
             $policy,
-            $evictionProportion
+            $evictionProportion,
+            $serializableClasses,
         );
     }
 

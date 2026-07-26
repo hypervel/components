@@ -26,7 +26,7 @@ class CacheServiceProvider extends ServiceProvider
     {
         $this->app->singleton('cache', fn ($app) => new CacheManager($app));
 
-        $this->app->singleton('cache.store', fn ($app) => $app['cache']->driver());
+        $this->app->singleton('cache.store', fn ($app) => $app->make('cache')->driver());
 
         $this->app->singleton(RateLimiter::class, fn ($app) => new RateLimiter(
             $app->make('cache')->driver(

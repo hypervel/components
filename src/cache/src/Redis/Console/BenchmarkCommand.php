@@ -569,7 +569,7 @@ class BenchmarkCommand extends Command
         $this->line('   Option 2 - Clear only benchmark keys (preserves other cache):');
         $cachePrefix = $config->string(
             "cache.stores.{$this->storeName}.prefix",
-            $config->string('cache.prefix', ''),
+            $config->string('cache.prefix'),
         );
         $this->line('   <fg=cyan>redis-cli KEYS "' . $cachePrefix . BenchmarkContext::KEY_PREFIX . '*" | xargs redis-cli DEL</>');
     }

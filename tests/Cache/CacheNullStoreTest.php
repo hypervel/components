@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Tests\TestCase;
 
 class CacheNullStoreTest extends TestCase
@@ -57,5 +58,15 @@ class CacheNullStoreTest extends TestCase
         });
 
         $this->assertSame(2, $count);
+    }
+
+    public function testLocksCanBeFlushed(): void
+    {
+        $store = new NullStore;
+
+        $this->assertInstanceOf(CanFlushLocks::class, $store);
+        $this->assertTrue($store->supportsFlushingLocks());
+        $this->assertTrue($store->flushLocks());
+        $this->assertFalse($store->hasSeparateLockStore());
     }
 }

@@ -207,6 +207,16 @@ You may enable the cache per Eloquent provider in your application's `config/aut
 ],
 ```
 
+Because the supported stores serialize cached user models, add every configured user model to the `serializable_classes` option in your application's `config/cache.php` file:
+
+```php
+'serializable_classes' => [
+    App\Models\User::class,
+],
+```
+
+Keep the allowlist limited to the user model classes your authentication cache needs. For supported stores and Redis serializer requirements, see [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects).
+
 When `store` is `null`, Hypervel uses your default cache store. For a single Redis-backed deployment, you may enable the cache like this:
 
 ```ini

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use BadMethodCallException;
 use Hypervel\Cache\Events\CacheFailedOver;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RawReadable;
@@ -17,7 +19,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class FailoverStore extends TaggableStore implements LockProvider, RawReadable
+class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider, RawReadable
 {
     /**
      * Context key prefix for the caches which failed on the last action.
@@ -169,8 +171,7 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
 
     /**
      * Remove all expired tag set entries.
-     */
-    /**
+     *
      * @return null|array<string, int>
      */
     public function flushStaleTags(): ?array
@@ -184,6 +185,89 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
         }
 
         return null;
+    }
+
+    /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        $stores = $this->lockStores();
+
+        if ($stores === []) {
+            return false;
+        }
+
+        foreach ($stores as $store) {
+            if (! $store instanceof CanFlushLocks || ! $store->supportsFlushingLocks()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Flush all locks managed by the store.
+     *
+     * @throws BadMethodCallException
+     * @throws Throwable
+     */
+    public function flushLocks(): bool
+    {
+        $stores = $this->lockStores();
+
+        if ($stores === []) {
+            throw new BadMethodCallException('This failover cache store has no lock-providing stores to flush.');
+        }
+
+        foreach ($stores as $store) {
+            if (! $store instanceof CanFlushLocks || ! $store->supportsFlushingLocks()) {
+                throw new BadMethodCallException(sprintf(
+                    'The failover cache store [%s] does not support flushing locks.',
+                    $store::class
+                ));
+            }
+        }
+
+        $result = true;
+        $exception = null;
+
+        foreach ($stores as $store) {
+            try {
+                if (! $store->flushLocks()) {
+                    $result = false;
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
+        $stores = $this->lockStores();
+
+        if ($stores === []) {
+            return false;
+        }
+
+        foreach ($stores as $store) {
+            if (! $store instanceof CanFlushLocks || ! $store->hasSeparateLockStore()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -216,7 +300,7 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
 
                     $failedCaches[] = $store;
 
-                    if (! in_array($store, $failingCaches) && $this->events->hasListeners(CacheFailedOver::class)) {
+                    if (! in_array($store, $failingCaches, true) && $this->events->hasListeners(CacheFailedOver::class)) {
                         $this->events->dispatch(new CacheFailedOver($store, $e));
                     }
                 }
@@ -234,5 +318,25 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
     protected function store(string $store): RepositoryContract
     {
         return $this->cache->store($store);
+    }
+
+    /**
+     * Get every lock-capable backing store.
+     *
+     * @return list<LockProvider>
+     */
+    protected function lockStores(): array
+    {
+        $stores = [];
+
+        foreach ($this->stores as $store) {
+            $underlyingStore = $this->store($store)->getStore();
+
+            if ($underlyingStore instanceof LockProvider) {
+                $stores[] = $underlyingStore;
+            }
+        }
+
+        return $stores;
     }
 }

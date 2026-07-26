@@ -38,6 +38,16 @@ Per-provider config in `config/auth.php`:
 ],
 ```
 
+Allow every configured user model to be unserialized in `config/cache.php`:
+
+```php
+'serializable_classes' => [
+    App\Models\User::class,
+],
+```
+
+For supported stores and Redis serializer requirements, see [Serializable Cached Objects](https://hypervel.org/docs/cache#serializable-cached-objects).
+
 Minimum env setup for single Redis node:
 
 ```env
@@ -278,6 +288,8 @@ Cache::store('auth')->tags(['tenant:5'])->flush();    // just tenant 5's users
 - **The whitelist only checks the outer store.** `stack = [array, redis]` passes the check because the outer class is `StackStore`. Responsibility for sensible tier selection is yours.
 
 ### Threat model
+
+Keep `cache.serializable_classes` limited to the user model classes this cache needs. Broad allowlists expand PHP's unserialization surface.
 
 For auth-sensitive contexts (admin panels, financial actions), consider:
 

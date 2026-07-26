@@ -162,8 +162,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $store = new RedisStore(
             $redis,
             'prefix:',
-            'default',
-            $this->createPoolFactory($this->mockConnection())
+            'default'
         );
         $store->setLockConnection('locks');
 

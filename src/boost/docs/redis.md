@@ -210,6 +210,8 @@ The PhpRedis extension may also be configured to use a variety of serializers an
 
 Currently supported serializers include: `Redis::SERIALIZER_NONE` (default), `Redis::SERIALIZER_PHP`, `Redis::SERIALIZER_JSON`, `Redis::SERIALIZER_IGBINARY`, and `Redis::SERIALIZER_MSGPACK`.
 
+When relying on Cache's [serializable class allowlist](/docs/{{version}}/cache#serializable-cached-objects), configure the connection used by the Redis cache store with `Redis::SERIALIZER_NONE`. Options in the shared `options` array also apply to that connection.
+
 Supported compression algorithms include: `Redis::COMPRESSION_NONE` (default), `Redis::COMPRESSION_LZF`, `Redis::COMPRESSION_ZSTD`, and `Redis::COMPRESSION_LZ4`.
 
 <a name="clusters"></a>

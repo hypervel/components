@@ -13,8 +13,6 @@ use Hypervel\Redis\RedisConnection;
  *
  * Uses Redis SET with NX flag for atomic "add if not exists" operation.
  * Only adds tag entries if the cache key was successfully created.
- *
- * Performance: Uses atomic HSETEX for tag entries after successful add.
  */
 class Add
 {
@@ -32,11 +30,11 @@ class Add
      *
      * @param string $key The cache key (without prefix)
      * @param mixed $value The value to store (will be serialized)
-     * @param int $seconds TTL in seconds (must be > 0)
+     * @param null|int $seconds TTL in seconds, or null for no expiration
      * @param array<int, int|string> $tags Array of tag names (will be cast to strings)
      * @return bool True if item was added, false if it already exists
      */
-    public function execute(string $key, mixed $value, int $seconds, array $tags): bool
+    public function execute(string $key, mixed $value, ?int $seconds, array $tags): bool
     {
         // 1. Cluster Mode: Must use sequential commands
         if ($this->context->isCluster()) {
@@ -50,16 +48,20 @@ class Add
     /**
      * Execute for cluster using sequential commands.
      */
-    private function executeCluster(string $key, mixed $value, int $seconds, array $tags): bool
+    private function executeCluster(string $key, mixed $value, ?int $seconds, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tags) {
             $prefix = $this->context->prefix();
 
             // First try to add the key with NX flag
+            $options = $seconds === null
+                ? ['NX']
+                : ['EX' => max(1, $seconds), 'NX'];
+
             $added = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
-                ['EX' => max(1, $seconds), 'NX']
+                $options
             );
 
             if (! $added) {
@@ -77,19 +79,30 @@ class Add
                 // Use multi() for reverse index updates (same slot)
                 $multi = $connection->multi();
                 $multi->sadd($tagsKey, ...$tags);
-                $multi->expire($tagsKey, max(1, $seconds));
+
+                if ($seconds !== null) {
+                    $multi->expire($tagsKey, max(1, $seconds));
+                }
+
                 $multi->exec();
             }
 
-            // Add to tags with field expiration (using HSETEX for atomic operation)
-            // And update the Tag Registry
+            // Add each tag reference, applying field expiration only to expiring items.
+            // Then update the tag registry.
             $registryKey = $this->context->registryKey();
-            $expiry = time() + $seconds;
+            $expiry = $seconds === null
+                ? StoreContext::MAX_EXPIRY
+                : time() + $seconds;
 
             // 1. Update Tag Hashes (Cross-slot, must be sequential)
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $connection->hsetex($this->context->tagHashKey($tag), [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $seconds]);
+
+                if ($seconds === null) {
+                    $connection->hSet($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
+                } else {
+                    $connection->hsetex($this->context->tagHashKey($tag), [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $seconds]);
+                }
             }
 
             // 2. Update Registry (Same slot, single command optimization)
@@ -112,7 +125,7 @@ class Add
     /**
      * Execute using Lua script for better performance.
      */
-    private function executeUsingLua(string $key, mixed $value, int $seconds, array $tags): bool
+    private function executeUsingLua(string $key, mixed $value, ?int $seconds, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tags) {
             $prefix = $this->context->prefix();
@@ -124,7 +137,7 @@ class Add
 
             $args = [
                 $this->serialization->serializeForLua($connection, $value), // ARGV[1]
-                max(1, $seconds),                            // ARGV[2]
+                $seconds === null ? 0 : max(1, $seconds),    // ARGV[2]
                 $this->context->fullTagPrefix(),             // ARGV[3]
                 $this->context->fullRegistryKey(),           // ARGV[4]
                 time(),                                      // ARGV[5]
@@ -145,7 +158,7 @@ class Add
      * KEYS[1] - The cache key (prefixed)
      * KEYS[2] - The reverse index key (tracks which tags this key belongs to)
      * ARGV[1] - Serialized value
-     * ARGV[2] - TTL in seconds
+     * ARGV[2] - TTL in seconds, or zero for no expiration
      * ARGV[3] - Tag prefix for building tag hash keys
      * ARGV[4] - Tag registry key
      * ARGV[5] - Current timestamp
@@ -165,11 +178,17 @@ class Add
             local now = ARGV[5]
             local rawKey = ARGV[6]
             local tagHashSuffix = ARGV[7]
-            local expiry = now + ttl
+            local permanent = tonumber(ttl) == 0
+            local expiry = permanent and 253402300799 or (now + ttl) -- Must match StoreContext::MAX_EXPIRY.
 
             -- 1. Try to add key (SET NX)
             -- redis.call returns a table/object for OK, or false/nil
-            local added = redis.call('SET', key, val, 'EX', ttl, 'NX')
+            local added
+            if permanent then
+                added = redis.call('SET', key, val, 'NX')
+            else
+                added = redis.call('SET', key, val, 'EX', ttl, 'NX')
+            end
 
             if not added then
                 return false
@@ -183,15 +202,21 @@ class Add
 
             if #newTagsList > 0 then
                 redis.call('SADD', tagsKey, unpack(newTagsList))
-                redis.call('EXPIRE', tagsKey, ttl)
+
+                if not permanent then
+                    redis.call('EXPIRE', tagsKey, ttl)
+                end
             end
 
             -- 3. Add to Tag Hashes & Registry
             for _, tag in ipairs(newTagsList) do
                 local tagHash = tagPrefix .. tag .. tagHashSuffix
-                -- Use HSET + HEXPIRE instead of HSETEX to avoid potential Lua argument issues
-                redis.call('HSET', tagHash, rawKey, '1')
-                redis.call('HEXPIRE', tagHash, ttl, 'FIELDS', 1, rawKey)
+                if permanent then
+                    redis.call('HSET', tagHash, rawKey, '1')
+                else
+                    redis.call('HSETEX', tagHash, 'EX', ttl, 'FIELDS', 1, rawKey, '1')
+                end
+
                 redis.call('ZADD', registryKey, 'GT', expiry, tag)
             end
 

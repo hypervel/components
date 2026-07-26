@@ -9,7 +9,7 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisProxy;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis;
 use RuntimeException;
@@ -199,11 +199,11 @@ class StoreContextTest extends TestCase
         string $prefix = 'prefix:',
         TagMode $tagMode = TagMode::Any
     ): StoreContext {
-        return new StoreContext($connectionName, $prefix, $tagMode);
+        return new StoreContext(m::mock(RedisFactory::class), $connectionName, $prefix, $tagMode);
     }
 
     /**
-     * Create a context with RedisFactory mocked in the container.
+     * Create a context with a mocked Redis factory.
      */
     private function createContextWithRedisFactory(
         string $expectedConnectionName,
@@ -226,9 +226,6 @@ class StoreContextTest extends TestCase
             ->with($expectedConnectionName)
             ->andReturn($redisProxy);
 
-        // Register mock in the testbench container
-        $this->instance(RedisFactory::class, $redisFactory);
-
-        return new StoreContext($contextConnectionName, $prefix, TagMode::Any);
+        return new StoreContext($redisFactory, $contextConnectionName, $prefix, TagMode::Any);
     }
 }

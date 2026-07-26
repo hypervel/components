@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Operations\AnyTag;
 
 use Generator;
 use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -14,9 +15,6 @@ use Hypervel\Redis\RedisConnection;
  * Uses adaptive scanning strategy based on hash size:
  * - At or below threshold: Uses HKEYS (faster, loads all into memory)
  * - Above threshold: Uses HSCAN (memory-efficient streaming)
- *
- * IMPORTANT: This implementation uses per-batch connection checkouts for HSCAN
- * to avoid a race condition in Swoole coroutine environments. See FIXES.md for details.
  */
 class GetTaggedKeys
 {
@@ -80,15 +78,14 @@ class GetTaggedKeys
     /**
      * Create a generator using HSCAN for memory-efficient iteration.
      *
-     * Acquires a connection per-batch to avoid race conditions in Swoole coroutine
-     * environments. The connection is released between HSCAN iterations, ensuring
-     * it won't be used by another coroutine while the generator is paused.
+     * Each page owns a short connection checkout so yielding a key never retains a
+     * pooled connection across arbitrary caller work.
      *
      * @return Generator<string>
      */
     private function hscanGenerator(string $tagKey, int $count): Generator
     {
-        $iterator = null;
+        $iterator = PhpRedis::initialScanCursor();
 
         do {
             // Acquire connection just for this HSCAN batch
@@ -98,12 +95,14 @@ class GetTaggedKeys
                 }
             );
 
-            if ($fields !== false && ! empty($fields)) {
-                // HSCAN returns key-value pairs, we only need keys
-                foreach (array_keys($fields) as $key) {
-                    yield $key;
-                }
+            if ($fields === false || ! is_array($fields)) {
+                break;
             }
-        } while ($iterator > 0); // @phpstan-ignore greater.alwaysFalse (phpredis updates $iterator by reference)
+
+            // HSCAN returns key-value pairs, we only need keys.
+            foreach (array_keys($fields) as $key) {
+                yield $key;
+            }
+        } while ($iterator !== 0);
     }
 }

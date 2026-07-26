@@ -10,6 +10,7 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use RuntimeException;
+use Throwable;
 
 use function Hypervel\Support\now;
 
@@ -75,10 +76,18 @@ abstract class Lock implements LockContract
 
         if ($result && is_callable($callback)) {
             try {
-                return $callback();
-            } finally {
-                $this->release();
+                $result = $callback();
+            } catch (Throwable $throwable) {
+                try {
+                    $this->release();
+                } catch (Throwable) {
+                    // Preserve the callback failure as primary.
+                }
+
+                throw $throwable;
             }
+
+            $this->release();
         }
 
         return $result;
@@ -107,10 +116,20 @@ abstract class Lock implements LockContract
 
         if (is_callable($callback)) {
             try {
-                return $callback();
-            } finally {
-                $this->release();
+                $result = $callback();
+            } catch (Throwable $throwable) {
+                try {
+                    $this->release();
+                } catch (Throwable) {
+                    // Preserve the callback failure as primary.
+                }
+
+                throw $throwable;
             }
+
+            $this->release();
+
+            return $result;
         }
 
         return true;

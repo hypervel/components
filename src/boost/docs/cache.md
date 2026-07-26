@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Configuration](#configuration)
     - [Array Cache Stores](#array-cache-stores)
+    - [Serializable Cached Objects](#serializable-cached-objects)
     - [Driver Prerequisites](#driver-prerequisites)
     - [Swoole Table Cache](#swoole-table-cache)
     - [Building Cache Stacks](#building-cache-stacks)
@@ -47,7 +48,7 @@ Thankfully, Hypervel provides an expressive, unified API for various cache backe
 <a name="configuration"></a>
 ## Configuration
 
-Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Hypervel supports Redis, relational databases, file storage, Swoole tables, session storage, cache stacks, failover stores, and the `array`, `worker-array`, and `null` stores that are convenient for automated tests and in-memory cache data.
+Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Hypervel supports Redis, relational databases, local files, filesystem disks, Swoole tables, session storage, cache stacks, failover stores, and the `array`, `worker-array`, and `null` stores that are convenient for automated tests and in-memory cache data.
 
 The cache configuration file also contains a variety of other options that you may review. By default, Hypervel is configured to use the `database` cache driver, which stores serialized cache values in your application's database.
 
@@ -77,6 +78,31 @@ Use `array` for request-local test and scratch data. Use `worker-array` only whe
     ],
 ],
 ```
+
+<a name="serializable-cached-objects"></a>
+### Serializable Cached Objects
+
+By default, Hypervel cache stores that serialize values do not instantiate PHP classes while unserializing them. If your application intentionally caches objects, list the classes that may be unserialized using the `serializable_classes` option:
+
+```php
+'serializable_classes' => [
+    App\Data\UserProfile::class,
+],
+```
+
+This applies to database, file, Redis, storage, and Swoole stores, as well as stacks containing them. Array and worker-array stores configured with `'serialize' => false` keep values in memory and do not use this setting.
+
+You may register a callback during application boot to observe cached objects whose classes are not allowed or available:
+
+```php
+use Hypervel\Support\Facades\Cache;
+
+Cache::handleUnserializableClassUsing(function (string $key, ?string $class) {
+    // ...
+});
+```
+
+If you use Redis and rely on this allowlist, configure the connection used by your cache store with the default `Redis::SERIALIZER_NONE` serializer. Native PhpRedis serializers handle cached values before Hypervel can apply the allowlist; `Redis::SERIALIZER_PHP` and `Redis::SERIALIZER_IGBINARY` may instantiate PHP classes when reading cached values. With a native serializer, the callback may still report unavailable classes, but it cannot report classes excluded by the allowlist. Other Redis connections may continue using any supported serializer.
 
 <a name="driver-prerequisites"></a>
 ### Driver Prerequisites
@@ -112,6 +138,19 @@ You may run the `cache:redis-doctor` command to verify your Redis cache configur
 
 ```shell
 php artisan cache:redis-doctor
+```
+
+<a name="storage"></a>
+#### Storage
+
+The `storage` cache driver allows you to store cached values on any configured [filesystem disk](/docs/{{version}}/filesystem). This can be useful when you want to use an existing disk, such as an S3 disk, as a key / value cache store:
+
+```php
+'storage' => [
+    'driver' => 'storage',
+    'disk' => env('CACHE_STORAGE_DISK'),
+    'path' => env('CACHE_STORAGE_PATH', 'framework/cache/data'),
+],
 ```
 
 <a name="swoole-table-cache"></a>
@@ -316,6 +355,14 @@ $value = Cache::remember('users', $seconds, function () {
 
 If the item does not exist in the cache, the closure passed to the `remember` method will be executed and its result will be placed in the cache.
 
+If you need to know whether the item was retrieved from the cache instead of by executing the given closure, you may use the `rememberWithWarmth` method. This method returns an array containing the cached value and a boolean indicating whether the item was "warm", meaning it was retrieved from the cache and not resolved from the closure:
+
+```php
+[$value, $warm] = Cache::rememberWithWarmth('users', $seconds, function () {
+    return DB::table('users')->get();
+});
+```
+
 You may use the `rememberForever` method to retrieve an item from the cache or store it forever if it does not exist:
 
 ```php
@@ -432,7 +479,7 @@ Cache::forever('key', 'value');
 ```
 
 > [!NOTE]
-> If you are using the `swoole` driver, items stored using the `forever` method are stored with a long expiration time and may still expire or be evicted when the table reaches its capacity, depending on the configured eviction policy.
+> If you are using the `swoole` driver, items stored using the `forever` method do not expire based on time, but may still be evicted when the table reaches its capacity, depending on the configured eviction policy.
 
 <a name="removing-items-from-the-cache"></a>
 ### Removing Items From the Cache
@@ -538,7 +585,7 @@ cache()->remember('users', $seconds, function () {
 ## Cache Tags
 
 > [!WARNING]
-> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `database`, `swoole`, `session`, or `memo` drivers.
+> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, `session`, or `memo` drivers.
 
 <a name="redis-tag-modes"></a>
 ### Redis Tag Modes
@@ -1046,6 +1093,9 @@ Hypervel includes several Artisan commands for working with cache stores:
 ## Events
 
 To execute code on every cache operation, you may listen for various [events](/docs/{{version}}/events) dispatched by the cache:
+
+> [!NOTE]
+> Cache additions handled by a store's native atomic `add` operation do not dispatch cache events. Redis `any` tag mode performs `add` atomically with or without a time-to-live.
 
 <div class="overflow-auto">
 

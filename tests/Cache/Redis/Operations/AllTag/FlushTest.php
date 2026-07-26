@@ -6,6 +6,10 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Operations\AllTag\Flush;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Redis\PhpRedis;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
@@ -156,6 +160,72 @@ class FlushTest extends RedisCacheTestCase
 
         $store = $this->createStore($connection);
         $operation = new Flush($store->getContext(), $getEntries);
+
+        $operation->execute(['_all:tag:users:entries'], ['users']);
+    }
+
+    public function testFlushReleasesScanConnectionsBeforeCheckingOutEachDeletionChunk(): void
+    {
+        $connection = $this->mockConnection();
+        $entries = [];
+
+        for ($i = 1; $i <= 1001; ++$i) {
+            $entries["key{$i}"] = 1;
+        }
+
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->andReturnUsing(function ($key, &$cursor) use ($entries) {
+                $cursor = 0;
+
+                return $entries;
+            });
+
+        $firstChunk = [];
+        for ($i = 1; $i <= 1000; ++$i) {
+            $firstChunk[] = "prefix:key{$i}";
+        }
+
+        $connection->shouldReceive('del')
+            ->once()
+            ->with(...$firstChunk)
+            ->andReturn(1000);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:key1001')
+            ->andReturn(1);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:users:entries')
+            ->andReturn(1);
+
+        $active = false;
+        $proxy = m::mock(RedisProxy::class);
+        $proxy->shouldReceive('isCluster')->once()->andReturnFalse();
+        $proxy->shouldReceive('withConnection')
+            ->times(4)
+            ->with(m::type('callable'), false)
+            ->andReturnUsing(function (callable $callback) use ($connection, &$active) {
+                $this->assertFalse($active);
+                $active = true;
+
+                try {
+                    return $callback($connection);
+                } finally {
+                    $active = false;
+                }
+            });
+
+        $redis = m::mock(RedisFactory::class);
+        $redis->shouldReceive('connection')
+            ->times(5)
+            ->with('default')
+            ->andReturn($proxy);
+
+        $store = new RedisStore($redis, 'prefix:', 'default');
+        $context = $store->getContext();
+        $operation = new Flush($context, new GetEntries($context));
 
         $operation->execute(['_all:tag:users:entries'], ['users']);
     }

@@ -8,6 +8,8 @@ use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTimer;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
+use RuntimeException;
+use Throwable;
 
 class CreateSwooleTimers extends BaseListener
 {
@@ -25,17 +27,43 @@ class CreateSwooleTimers extends BaseListener
             return;
         }
 
-        $this->swooleStores()->each(function (array $config, string $name) {
-            $this->timer->tick(
-                $config['eviction_interval'] ?? 10000,
-                fn () => $this->store($name)->evictRecords(),
-            );
+        $timerIds = [];
 
-            $this->timer->tick(
-                $config['interval_refresh_interval'] ?? 1000,
-                fn () => $this->store($name)->refreshIntervalCaches(),
-            );
-        });
+        try {
+            foreach ($this->swooleStores() as $name => $config) {
+                $timerId = $this->timer->tick(
+                    $config['eviction_interval'] ?? 10000,
+                    fn () => $this->store($name)->evictRecords(),
+                );
+
+                if ($timerId === false) {
+                    throw new RuntimeException("Unable to register the Swoole cache eviction timer for store [{$name}].");
+                }
+
+                $timerIds[] = $timerId;
+
+                $timerId = $this->timer->tick(
+                    $config['interval_refresh_interval'] ?? 1000,
+                    fn () => $this->store($name)->refreshIntervalCaches(),
+                );
+
+                if ($timerId === false) {
+                    throw new RuntimeException("Unable to register the Swoole cache interval refresh timer for store [{$name}].");
+                }
+
+                $timerIds[] = $timerId;
+            }
+        } catch (Throwable $throwable) {
+            for ($index = count($timerIds) - 1; $index >= 0; --$index) {
+                try {
+                    $this->timer->clear($timerIds[$index]);
+                } catch (Throwable) {
+                    // Preserve the timer registration failure.
+                }
+            }
+
+            throw $throwable;
+        }
     }
 
     /**

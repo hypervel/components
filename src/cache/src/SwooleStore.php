@@ -26,8 +26,6 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
     public const EVICTION_POLICY_NOEVICTION = 'noeviction';
 
-    protected const ONE_YEAR = 31536000;
-
     protected const USER_PREFIX = 'u:';
 
     protected const INTERVAL_PREFIX = 'i:';
@@ -61,7 +59,8 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         protected SwooleTableState $state,
         protected float $memoryLimitBuffer,
         protected string $evictionPolicy,
-        protected float $evictionProportion
+        protected float $evictionProportion,
+        protected array|bool|null $serializableClasses = null,
     ) {
         $this->table = $this->state->table();
     }
@@ -77,7 +76,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         if (! $this->recordIsFalseOrExpired($record)) {
             $this->recordHit($tableKey);
 
-            return unserialize($record['value']);
+            return $this->unserialize($record['value']);
         }
 
         if ($this->hasLocalInterval($key)) {
@@ -119,18 +118,11 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
-        $tableKey = $this->userKey($key);
-        $serialized = serialize($value);
-        $expiration = $this->expiration($seconds);
-
-        $result = $this->state->withRowLock(
-            $tableKey,
-            fn (): bool => $this->rawPutSerialized($tableKey, $serialized, $expiration),
+        return $this->putSerialized(
+            $this->userKey($key),
+            serialize($value),
+            $this->expiration($seconds),
         );
-
-        $this->evictRecordsIfNeeded();
-
-        return $result;
     }
 
     /**
@@ -186,11 +178,12 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
             if ($this->recordIsFalseOrExpired($record)) {
                 $wroteNewRecord = true;
-                $this->rawPutSerialized($tableKey, serialize($value), $this->expiration(static::ONE_YEAR));
+                $this->rawPutSerialized($tableKey, serialize($value), PHP_FLOAT_MAX);
 
                 return $value;
             }
 
+            // Counters never deserialize classes, regardless of the user-value policy.
             $incremented = (int) (unserialize($record['value'], ['allowed_classes' => false]) + $value);
 
             $this->rawPutSerialized($tableKey, serialize($incremented), $record['expiration']);
@@ -218,7 +211,22 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     public function forever(string $key, mixed $value): bool
     {
-        return $this->put($key, $value, static::ONE_YEAR);
+        return $this->putSerialized($this->userKey($key), serialize($value), PHP_FLOAT_MAX);
+    }
+
+    /**
+     * Store a serialized user value.
+     */
+    private function putSerialized(string $tableKey, string $serialized, float $expiration): bool
+    {
+        $result = $this->state->withRowLock(
+            $tableKey,
+            fn (): bool => $this->rawPutSerialized($tableKey, $serialized, $expiration),
+        );
+
+        $this->evictRecordsIfNeeded();
+
+        return $result;
     }
 
     /**
@@ -411,7 +419,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             return $this->rawPutSerialized($key, serialize([
                 'owner' => $owner,
                 'expiresAt' => $expiresAt,
-            ]), $this->expiration(static::ONE_YEAR));
+            ]), PHP_FLOAT_MAX);
         });
     }
 
@@ -469,7 +477,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
             $lock['expiresAt'] = $this->expiration($seconds);
 
-            return $this->rawPutSerialized($key, serialize($lock), $this->expiration(static::ONE_YEAR));
+            return $this->rawPutSerialized($key, serialize($lock), PHP_FLOAT_MAX);
         });
     }
 
@@ -818,7 +826,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
             $index[$metadataKey] = true;
 
-            return $this->rawPutSerialized($indexKey, serialize($index), $this->expiration(static::ONE_YEAR));
+            return $this->rawPutSerialized($indexKey, serialize($index), PHP_FLOAT_MAX);
         });
 
         if (! $result) {
@@ -844,8 +852,6 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             foreach (array_keys(unserialize($record['value'])) as $metadataKey) {
                 $metadataKeys[$metadataKey] = true;
             }
-
-            $this->touchInternalRow($indexKey);
         }
 
         return array_keys($metadataKeys);
@@ -1021,19 +1027,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function putIntervalMetadataByInternalKey(string $metadataKey, array $metadata): bool
     {
-        return $this->rawPutSerialized($metadataKey, serialize($metadata), $this->expiration(static::ONE_YEAR));
-    }
-
-    /**
-     * Touch an internal row.
-     */
-    protected function touchInternalRow(string $key): void
-    {
-        $this->state->withRowLock($key, function () use ($key): void {
-            if ($this->rawGet($key) !== false) {
-                $this->table->set($key, ['expiration' => $this->expiration(static::ONE_YEAR)]);
-            }
-        });
+        return $this->rawPutSerialized($metadataKey, serialize($metadata), PHP_FLOAT_MAX);
     }
 
     /**
@@ -1058,6 +1052,18 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
     protected function expiration(int $seconds): float
     {
         return $this->getCurrentTimestamp() + $seconds;
+    }
+
+    /**
+     * Unserialize a cached user value.
+     */
+    protected function unserialize(string $value): mixed
+    {
+        if ($this->serializableClasses !== null) {
+            return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
+        }
+
+        return unserialize($value);
     }
 
     /**

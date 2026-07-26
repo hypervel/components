@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis;
 
-use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
-use Hypervel\Cache\Events\CacheHit;
-use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\WritingKey;
+use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\NamespacedTaggedCache;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
@@ -69,17 +69,7 @@ class AllTaggedCache extends NamespacedTaggedCache
 
         // Null TTL: non-atomic get + forever (matches Repository::add behavior)
         if (is_null($this->get($key))) {
-            $result = $this->store->allTagOps()->forever()->execute(
-                $this->itemKey($key),
-                $value,
-                $this->tags->tagIds()
-            );
-
-            if ($result) {
-                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
-            }
-
-            return $result;
+            return $this->forever($key, $value);
         }
 
         return false;
@@ -106,6 +96,11 @@ class AllTaggedCache extends NamespacedTaggedCache
             return $this->forget($key);
         }
 
+        $this->event(
+            WritingKey::class,
+            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+        );
+
         $result = $this->store->allTagOps()->put()->execute(
             $this->itemKey($key),
             $value,
@@ -114,7 +109,15 @@ class AllTaggedCache extends NamespacedTaggedCache
         );
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
+            $this->event(
+                KeyWritten::class,
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
+        } else {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
         }
 
         return $result;
@@ -135,6 +138,16 @@ class AllTaggedCache extends NamespacedTaggedCache
             return $this->deleteMultiple(array_map(static fn ($key) => (string) $key, array_keys($values)));
         }
 
+        $this->event(
+            WritingManyKeys::class,
+            fn (): WritingManyKeys => new WritingManyKeys(
+                $this->getName(),
+                array_map(static fn ($key): string => (string) $key, array_keys($values)),
+                array_map(NullSentinel::unwrap(...), array_values($values)),
+                $seconds
+            )
+        );
+
         $result = $this->store->allTagOps()->putMany()->execute(
             $values,
             $seconds,
@@ -142,9 +155,17 @@ class AllTaggedCache extends NamespacedTaggedCache
             $this->taggedItemKeyPrefix()
         );
 
-        if ($result) {
-            foreach ($values as $key => $value) {
-                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, (string) $key, NullSentinel::unwrap($value), $seconds));
+        foreach ($values as $key => $value) {
+            if ($result) {
+                $this->event(
+                    KeyWritten::class,
+                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                );
+            } else {
+                $this->event(
+                    KeyWriteFailed::class,
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                );
             }
         }
 
@@ -209,6 +230,12 @@ class AllTaggedCache extends NamespacedTaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
+        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey(
+            $this->getName(),
+            $key,
+            NullSentinel::unwrap($value)
+        ));
+
         $result = $this->store->allTagOps()->forever()->execute(
             $this->itemKey($key),
             $value,
@@ -216,7 +243,15 @@ class AllTaggedCache extends NamespacedTaggedCache
         );
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
+            $this->event(
+                KeyWritten::class,
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+        } else {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+            );
         }
 
         return $result;
@@ -227,11 +262,11 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function flush(): bool
     {
-        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing(null));
+        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
 
         $this->store->allTagOps()->flush()->execute($this->tags->tagIds(), $this->tags->getNames());
 
-        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed(null));
+        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
 
         return true;
     }
@@ -244,80 +279,6 @@ class AllTaggedCache extends NamespacedTaggedCache
         $this->store->allTagOps()->flushStale()->execute($this->tags->tagIds());
 
         return true;
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result.
-     *
-     * Optimized to use a single connection for both GET and PUT operations,
-     * avoiding double pool overhead for cache misses. Also ensures tag tracking
-     * entries are properly created (which the parent implementation bypasses).
-     *
-     * @template TCacheValue
-     *
-     * @param Closure(): TCacheValue $callback
-     * @return TCacheValue
-     */
-    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
-    {
-        if ($ttl === null) {
-            return $this->rememberForever($key, $callback);
-        }
-
-        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $seconds = $this->getSeconds($ttl);
-
-        if ($seconds <= 0) {
-            // Invalid TTL, just execute callback without caching
-            return $callback();
-        }
-
-        [$value, $wasHit] = $this->store->allTagOps()->remember()->execute(
-            $this->itemKey($key),
-            $seconds,
-            $callback,
-            $this->tags->tagIds()
-        );
-
-        if ($wasHit) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-        } else {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
-        }
-
-        return NullSentinel::unwrap($value);
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result forever.
-     *
-     * Optimized to use a single connection for both GET and SET operations,
-     * avoiding double pool overhead for cache misses.
-     *
-     * @template TCacheValue
-     *
-     * @param Closure(): TCacheValue $callback
-     * @return TCacheValue
-     */
-    public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
-    {
-        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-
-        [$value, $wasHit] = $this->store->allTagOps()->rememberForever()->execute(
-            $this->itemKey($key),
-            $callback,
-            $this->tags->tagIds()
-        );
-
-        if ($wasHit) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-        } else {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
-        }
-
-        return NullSentinel::unwrap($value);
     }
 
     /**

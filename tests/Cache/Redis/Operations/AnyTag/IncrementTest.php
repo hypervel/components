@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
+use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
@@ -24,6 +25,7 @@ class IncrementTest extends RedisCacheTestCase
             ->withArgs(function ($script, $keys, $args) {
                 $this->assertStringContainsString('INCRBY', $script);
                 $this->assertStringContainsString('TTL', $script);
+                $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
                 $this->assertCount(2, $keys);
 
                 return true;
