@@ -21,7 +21,6 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Terminal;
 use Throwable;
 
 use function Termwind\terminal;
@@ -106,7 +105,8 @@ class WorkCommand extends Command
         // connection being run for the queue operation currently being executed.
         $queue = $this->getQueue($connection);
 
-        if (! $this->outputUsingJson() && Terminal::hasSttyAvailable()) {
+        // Use the input TTY directly; Symfony's stty availability probe shells out inside this coroutine.
+        if (! $this->outputUsingJson() && defined('STDIN') && stream_isatty(STDIN)) {
             $this->info(
                 sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(count(explode(',', $queue))))
             );
