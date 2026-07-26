@@ -121,8 +121,12 @@ class RedisPrefixTest extends IntegrationTestCase
         );
     }
 
-    public function testClusterConnectionUsesHashTaggedFallbackPrefix(): void
+    public function testClusterConnectionUsesConfiguredApplicationPrefix(): void
     {
+        $applicationId = 'application';
+        $prefix = "{$applicationId}_horizon:";
+        $taggedPrefix = "{{$prefix}}";
+
         config([
             'database.redis.horizon-cluster' => [
                 'cluster' => [
@@ -131,12 +135,13 @@ class RedisPrefixTest extends IntegrationTestCase
                     'seeds' => ['redis.example.com:6379'],
                 ],
             ],
-            'horizon.prefix' => '',
+            'horizon.prefix' => $prefix,
         ]);
 
         Horizon::use('horizon-cluster');
 
-        $this->assertSame('{horizon:}', config('horizon.prefix'));
-        $this->assertSame('{horizon:}', config('database.redis.horizon.options.prefix'));
+        $this->assertSame($taggedPrefix, config('horizon.prefix'));
+        $this->assertSame($taggedPrefix, config('database.redis.horizon.prefix'));
+        $this->assertSame($taggedPrefix, config('database.redis.horizon.options.prefix'));
     }
 }

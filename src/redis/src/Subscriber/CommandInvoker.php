@@ -13,6 +13,8 @@ use Throwable;
 
 class CommandInvoker
 {
+    private const float MESSAGE_PUSH_TIMEOUT = 30.0;
+
     protected Channel $resultChannel;
 
     protected Channel $messageChannel;
@@ -318,7 +320,7 @@ class CommandInvoker
      */
     private function pushMessage(Message $message): void
     {
-        if ($this->messageChannel->push($message, 30.0)) {
+        if ($this->messageChannel->push($message, self::MESSAGE_PUSH_TIMEOUT)) {
             return;
         }
 
@@ -326,14 +328,17 @@ class CommandInvoker
             throw new SocketException('The Redis subscriber message channel was closed.');
         }
 
-        $exception = new SocketException(
-            "Redis subscriber message channel [{$message->channel}] remained full for 30 seconds."
-        );
+        $exception = new SocketException(sprintf(
+            'Redis subscriber message channel [%s] remained full for %s seconds.',
+            $message->channel,
+            self::MESSAGE_PUSH_TIMEOUT,
+        ));
 
         try {
             $this->logger?->error(sprintf(
-                'Message channel (%s) is 30 seconds full, disconnected',
+                'Message channel (%s) is %s seconds full, disconnected',
                 $message->channel,
+                self::MESSAGE_PUSH_TIMEOUT,
             ));
         } catch (Throwable) {
             // Reporting must not replace the channel-capacity failure.

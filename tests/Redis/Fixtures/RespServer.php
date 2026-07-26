@@ -92,6 +92,28 @@ class RespServer
     }
 
     /**
+     * Read an exact number of bytes from a test stream.
+     *
+     * @param resource $stream
+     */
+    public static function readExact(mixed $stream, int $length): string
+    {
+        $value = '';
+
+        while (strlen($value) < $length) {
+            $chunk = fread($stream, $length - strlen($value));
+
+            if ($chunk === false || $chunk === '') {
+                throw new RuntimeException('Failed to read the complete test command.');
+            }
+
+            $value .= $chunk;
+        }
+
+        return $value;
+    }
+
+    /**
      * Handle one client connection in a coroutine.
      *
      * @param callable(resource): void $handler

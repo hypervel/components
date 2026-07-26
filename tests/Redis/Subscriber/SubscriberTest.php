@@ -14,7 +14,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
-use RuntimeException;
 
 class SubscriberTest extends TestCase
 {
@@ -254,7 +253,7 @@ class SubscriberTest extends TestCase
         $received = '';
         $server = new RespServer;
         $server->start(function ($client) use ($command, &$received): void {
-            $received = $this->readExact($client, strlen($command));
+            $received = RespServer::readExact($client, strlen($command));
             fwrite($client, "+OK\r\n");
             fread($client, 1);
         });
@@ -332,27 +331,5 @@ class SubscriberTest extends TestCase
         $reflection->getProperty('commandInvoker')->setValue($subscriber, $invoker);
 
         return $subscriber;
-    }
-
-    /**
-     * Read an exact number of bytes from a test stream.
-     *
-     * @param resource $stream
-     */
-    private function readExact(mixed $stream, int $length): string
-    {
-        $value = '';
-
-        while (strlen($value) < $length) {
-            $chunk = fread($stream, $length - strlen($value));
-
-            if ($chunk === false || $chunk === '') {
-                throw new RuntimeException('Failed to read the complete test command.');
-            }
-
-            $value .= $chunk;
-        }
-
-        return $value;
     }
 }

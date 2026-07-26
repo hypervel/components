@@ -87,7 +87,7 @@ class Horizon
             throw new Exception("Redis connection [{$connection}] has not been configured.");
         }
 
-        $prefix = config('horizon.prefix') ?: 'horizon:';
+        $prefix = config()->string('horizon.prefix');
 
         if (($config['cluster']['enable'] ?? false)
             && ! RedisConnection::hasHashTag($prefix)) {

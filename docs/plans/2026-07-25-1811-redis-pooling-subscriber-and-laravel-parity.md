@@ -64,7 +64,7 @@ Hyperf parity is not a goal. Laravel remains the public API and documentation re
 | `redis-13` | Supported current Laravel parity and defects | Major/Minor | Host, scheme, context, option, ACL, prefix, client-name, and Cluster failover behavior is missing, stale, or falsey-zero unsafe | Port current PhpRedis behavior into existing pooled connection classes |
 | `redis-14` | Supported current Laravel parity | Improvement | Redis connections lack current Laravel macros | Add Macroable to exact wrappers, register without a Redis checkout, preserve proxy event granularity, and flush static state after tests |
 | `redis-15` | API/configuration correction | Major | Telescope and Sentry duplicate destructive config loops, while Hypervel's `extend()` uses Laravel's name for an incompatible named-proxy API | Add boot-only manager event controls through a tri-state config override and delete the false extension API |
-| `horizon-01` | Defect and parity defect | Major | `Horizon::use()` reads a dead top-level cluster shape, can reduce a Cluster to one seed, and fails to hash-tag or publish the resolved prefix | Copy the complete named Hypervel config and normalize the Cluster prefix |
+| `horizon-01` | Defect and parity defect | Major | `Horizon::use()` reads a dead top-level cluster shape, can reduce a Cluster to one seed, duplicates a drifted prefix default, and fails to hash-tag or publish the resolved prefix | Copy the complete named Hypervel config, keep the application-scoped default in Horizon config, and normalize the Cluster prefix |
 | `redis-16` | Defect and intentional difference | Major | Advertised pooled `ssubscribe()` can capture a wrapper indefinitely in native sharded-subscriber mode | Reject it beside subscribe/psubscribe and remove its advertised surface |
 | `redis-17` | Metadata defect | Minor | Proxy-bound methods and generated facade exclusions have already drifted apart | Enforce one production-owner subset invariant and derive proxy test cases from the production constant |
 | `redis-18` | Dead compatibility and duplicate-normalization defect | Minor | Redis 6.0 source/test compatibility is unreachable at the declared 6.1 floor, and config-name validation bypasses the canonical normalizer | Delete the unsupported branches and route both config paths through one parser |
@@ -617,8 +617,8 @@ Cover:
   endpoint remains TCP at the endpoint-formatting boundary.
 
 Close client streams in `finally`. `RespServer::wait()` is the terminal fixture operation and closes
-the listener in its own `finally`; it also owns host/port parsing for consumers. The fixture must not
-use a fixed port or shared path.
+the listener in its own `finally`; it also owns host/port parsing and the exact test-stream reader
+shared by its consumers. The fixture must not use a fixed port or shared path.
 
 ## 4. Make subscriber command routing and topology exact
 
@@ -702,10 +702,13 @@ rather than allowing another read from the closed stream.
 
 Delete the per-message `Timer::after()` allocation.
 
+Define one private typed constant for the 30-second message-channel push policy
+and derive both timeout diagnostics from it.
+
 Use:
 
 ```php
-if ($this->messageChannel->push($message, 30.0)) {
+if ($this->messageChannel->push($message, self::MESSAGE_PUSH_TIMEOUT)) {
     return;
 }
 
@@ -1232,7 +1235,9 @@ Record this closed omission at the exact README, source, and test positions spec
 
 ### Files
 
+- `src/horizon/config/horizon.php`
 - `src/horizon/src/Horizon.php`
+- `tests/Horizon/HorizonConfigTest.php` (new)
 - `tests/Integration/Horizon/Feature/RedisPrefixTest.php`
 
 ### Final behavior
@@ -1247,10 +1252,25 @@ if (! is_array($config)) {
 }
 ```
 
-Resolve the prefix:
+Normalize missing and blank environment input in the shipped configuration file,
+which is the sole default owner:
 
 ```php
-$prefix = config('horizon.prefix') ?: 'horizon:';
+$prefix = env('HORIZON_PREFIX');
+
+return [
+    // ...
+    'prefix' => $prefix === null || $prefix === ''
+        ? app_id() . '_horizon:'
+        : $prefix,
+    // ...
+];
+```
+
+Consume the configured prefix without a second fallback:
+
+```php
+$prefix = config()->string('horizon.prefix');
 
 if (($config['cluster']['enable'] ?? false)
     && ! RedisConnection::hasHashTag($prefix)) {
@@ -1280,17 +1300,22 @@ gives the top-level connection key final precedence, so leaving the source
 connection's old top-level value intact would override Horizon's nested option.
 
 Do not copy Laravel's top-level clusters model or its `supportsClustering()` version shim.
+Do not repair post-load empty config mutations in `Horizon::use()`; the shipped
+config owns defaulting, and the typed getter rejects missing or malformed values.
 
 ### Tests
 
 Cover:
 
+- missing and blank `HORIZON_PREFIX` values resolve to the application-scoped
+  default in the shipped config file, with exception-safe environment restoration;
 - missing connection;
 - standalone complete config copy;
 - Cluster complete config copy;
 - untagged clustered prefix becomes tagged;
 - already-tagged prefix remains unchanged;
-- resolved prefix is identical in `horizon.prefix` and Redis connection options;
+- the configured application-scoped Cluster prefix is published identically in
+  `horizon.prefix`, the top-level Redis connection prefix, and Redis connection options;
 - source top-level prefixes cannot override the resolved standalone or Cluster prefix;
 - nested topology/pool values remain intact;
 - Horizon multi-key operations remain Cluster-slot safe.
@@ -1669,6 +1694,7 @@ The detailed implementation sections define the complete regression matrix. Run 
 ./vendor/bin/phpunit --no-progress tests/Redis/Subscriber/SubscriberTest.php
 ./vendor/bin/phpunit --no-progress tests/Reverb/Servers/Hypervel/Scaling/RedisPubSubProviderTest.php
 ./vendor/bin/phpunit --no-progress tests/Reverb/Protocols/Pusher/MetricsHandlerTest.php
+./vendor/bin/phpunit --no-progress tests/Horizon/HorizonConfigTest.php
 ./vendor/bin/phpunit --no-progress tests/Integration/Horizon/Feature/RedisPrefixTest.php
 ./vendor/bin/phpunit --no-progress tests/Telescope/Watchers/RedisWatcherTest.php
 ./vendor/bin/phpunit --no-progress tests/Telescope/Watchers/DisabledWatcherTest.php

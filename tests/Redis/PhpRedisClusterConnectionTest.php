@@ -228,17 +228,11 @@ class PhpRedisClusterConnectionTest extends TestCase
         );
         $bytes = null;
         $failure = null;
+        [$host, $port] = $server->hostAndPort();
         $server->start(static function ($client) use (&$bytes): void {
             $bytes = stream_get_contents($client, 2);
             fwrite($client, "-ERR test endpoint is not a Redis Cluster\r\n");
         });
-        $endpoint = $server->endpoint();
-        $host = parse_url($endpoint, PHP_URL_HOST);
-        $port = parse_url($endpoint, PHP_URL_PORT);
-
-        if (! is_string($host) || ! is_int($port)) {
-            throw new InvalidArgumentException("Invalid RESP test endpoint [{$endpoint}].");
-        }
 
         try {
             new PhpRedisClusterConnection(

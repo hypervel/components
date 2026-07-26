@@ -1030,7 +1030,7 @@ class RedisProxyTest extends TestCase
 
         foreach ($servers as $server) {
             $server->start(function ($client) use ($command): void {
-                $this->readExact($client, strlen($command));
+                RespServer::readExact($client, strlen($command));
                 fwrite($client, "+OK\r\n");
                 fread($client, 1);
             });
@@ -1475,28 +1475,6 @@ class RedisProxyTest extends TestCase
             });
 
         return $mockRedisConnection;
-    }
-
-    /**
-     * Read an exact number of bytes from a test stream.
-     *
-     * @param resource $stream
-     */
-    private function readExact(mixed $stream, int $length): string
-    {
-        $value = '';
-
-        while (strlen($value) < $length) {
-            $chunk = fread($stream, $length - strlen($value));
-
-            if ($chunk === false || $chunk === '') {
-                throw new RuntimeException('Failed to read the complete test command.');
-            }
-
-            $value .= $chunk;
-        }
-
-        return $value;
     }
 
     private function sentinelFactory(): RedisSentinelFactory

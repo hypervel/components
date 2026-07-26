@@ -31,7 +31,7 @@ class CommandInvokerTest extends TestCase
         $command = CommandBuilder::build(['subscribe', 'foo']);
         $server = new RespServer;
         $server->start(function ($client) use ($command): void {
-            $this->readExact($client, strlen($command));
+            RespServer::readExact($client, strlen($command));
             fwrite($client, "*3\r\n$9\r\nsubscribe\r\n$3\r\nfoo\r\n:1\r\n");
             fread($client, 1);
         });
@@ -108,9 +108,9 @@ class CommandInvokerTest extends TestCase
         $subscribe = CommandBuilder::build(['subscribe', 'foo']);
         $server = new RespServer;
         $server->start(function ($client) use ($ping, $subscribe): void {
-            $this->readExact($client, strlen($ping));
+            RespServer::readExact($client, strlen($ping));
             fwrite($client, "+PONG\r\n");
-            $this->readExact($client, strlen($subscribe));
+            RespServer::readExact($client, strlen($subscribe));
             fwrite($client, "*3\r\n$9\r\nsubscribe\r\n$3\r\nfoo\r\n:1\r\n");
             fread($client, 1);
         });
@@ -500,28 +500,6 @@ class CommandInvokerTest extends TestCase
         $this->expectExceptionMessage('malformed Redis message');
 
         $invoker->invoke(['subscribe', 'foo'], 1);
-    }
-
-    /**
-     * Read an exact number of bytes from a test stream.
-     *
-     * @param resource $stream
-     */
-    private function readExact(mixed $stream, int $length): string
-    {
-        $value = '';
-
-        while (strlen($value) < $length) {
-            $chunk = fread($stream, $length - strlen($value));
-
-            if ($chunk === false || $chunk === '') {
-                throw new RuntimeException('Failed to read the complete test command.');
-            }
-
-            $value .= $chunk;
-        }
-
-        return $value;
     }
 
     /**
