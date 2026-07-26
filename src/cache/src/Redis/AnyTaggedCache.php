@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis;
 
-use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Generator;
 use Hypervel\Cache\AnyModeTaggedCache;
-use Hypervel\Cache\Events\CacheHit;
-use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\WritingKey;
+use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
@@ -23,8 +23,7 @@ use function Hypervel\Support\enum_value;
 /**
  * Any-mode tagged cache for Redis 8.0+ enhanced tagging.
  *
- * Uses Redis hashes with field expiration and single-connection operations
- * for tagged writes and remember-style cache misses.
+ * Uses Redis hashes with field expiration for tagged writes.
  */
 class AnyTaggedCache extends AnyModeTaggedCache
 {
@@ -70,13 +69,26 @@ class AnyTaggedCache extends AnyModeTaggedCache
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
-            return $this->store->forget($key);
+            return $this->forgetPlainKey($key);
         }
+
+        $this->event(
+            WritingKey::class,
+            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+        );
 
         $result = $this->store->anyTagOps()->put()->execute($key, $value, $seconds, $this->tags->getNames());
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
+            $this->event(
+                KeyWritten::class,
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
+        } else {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
         }
 
         return $result;
@@ -97,7 +109,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
             $result = true;
 
             foreach (array_keys($values) as $key) {
-                if (! $this->store->forget((string) $key)) {
+                if (! $this->forgetPlainKey((string) $key)) {
                     $result = false;
                 }
             }
@@ -105,11 +117,29 @@ class AnyTaggedCache extends AnyModeTaggedCache
             return $result;
         }
 
+        $this->event(
+            WritingManyKeys::class,
+            fn (): WritingManyKeys => new WritingManyKeys(
+                $this->getName(),
+                array_map(static fn ($key): string => (string) $key, array_keys($values)),
+                array_map(NullSentinel::unwrap(...), array_values($values)),
+                $seconds
+            )
+        );
+
         $result = $this->store->anyTagOps()->putMany()->execute($values, $seconds, $this->tags->getNames());
 
-        if ($result) {
-            foreach ($values as $key => $value) {
-                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, (string) $key, NullSentinel::unwrap($value), $seconds));
+        foreach ($values as $key => $value) {
+            if ($result) {
+                $this->event(
+                    KeyWritten::class,
+                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                );
+            } else {
+                $this->event(
+                    KeyWriteFailed::class,
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                );
             }
         }
 
@@ -123,10 +153,9 @@ class AnyTaggedCache extends AnyModeTaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        if ($ttl === null) {
-            // Default to 1 year for "null" TTL on add
-            $seconds = 31536000;
-        } else {
+        $seconds = null;
+
+        if ($ttl !== null) {
             $seconds = $this->getSeconds($ttl);
 
             if ($seconds <= 0) {
@@ -144,10 +173,24 @@ class AnyTaggedCache extends AnyModeTaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
+        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey(
+            $this->getName(),
+            $key,
+            NullSentinel::unwrap($value)
+        ));
+
         $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
+            $this->event(
+                KeyWritten::class,
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+        } else {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+            );
         }
 
         return $result;
@@ -183,79 +226,6 @@ class AnyTaggedCache extends AnyModeTaggedCache
     public function items(): Generator
     {
         return $this->store->anyTagOps()->getTagItems()->execute($this->tags->getNames());
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result.
-     *
-     * Optimized to use a single connection for both GET and PUT operations,
-     * avoiding double pool overhead for cache misses.
-     *
-     * @template TCacheValue
-     *
-     * @param Closure(): TCacheValue $callback
-     * @return TCacheValue
-     */
-    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
-    {
-        if ($ttl === null) {
-            return $this->rememberForever($key, $callback);
-        }
-
-        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $seconds = $this->getSeconds($ttl);
-
-        if ($seconds <= 0) {
-            // Invalid TTL, just execute callback without caching
-            return $callback();
-        }
-
-        [$value, $wasHit] = $this->store->anyTagOps()->remember()->execute(
-            $key,
-            $seconds,
-            $callback,
-            $this->tags->getNames()
-        );
-
-        if ($wasHit) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-        } else {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
-        }
-
-        return NullSentinel::unwrap($value);
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result forever.
-     *
-     * Optimized to use a single connection for both GET and SET operations,
-     * avoiding double pool overhead for cache misses.
-     *
-     * @template TCacheValue
-     *
-     * @param Closure(): TCacheValue $callback
-     * @return TCacheValue
-     */
-    public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
-    {
-        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-
-        [$value, $wasHit] = $this->store->anyTagOps()->rememberForever()->execute(
-            $key,
-            $callback,
-            $this->tags->getNames()
-        );
-
-        if ($wasHit) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-        } else {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
-        }
-
-        return NullSentinel::unwrap($value);
     }
 
     /**
