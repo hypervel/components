@@ -306,7 +306,7 @@ class DoctorCommand extends Command
 
         // Cache Store
         $config = $this->hypervel->make('config');
-        $defaultStore = $config->string('cache.default', 'file');
+        $defaultStore = $config->string('cache.default');
         $this->line("  Default Cache Store: <fg=cyan>{$defaultStore}</>");
 
         // Redis/Valkey Service
