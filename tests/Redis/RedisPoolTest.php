@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
@@ -62,6 +63,39 @@ class RedisPoolTest extends TestCase
         $pool = new RedisPool($container, 'default');
 
         $this->assertSame($connectionConfig, $pool->getConfig());
+    }
+
+    public function testEventOverrideDoesNotRetrofitExistingPoolConfiguration(): void
+    {
+        $redisConfig = new RedisConfig(new Repository([
+            'database' => [
+                'redis' => [
+                    'default' => [
+                        'host' => 'redis',
+                        'port' => 16379,
+                        'database' => 0,
+                        'event' => ['enable' => false],
+                        'pool' => [
+                            'min_connections' => 1,
+                            'max_connections' => 30,
+                            'connect_timeout' => 1.25,
+                            'wait_timeout' => 3.0,
+                            'heartbeat' => -1,
+                            'max_idle_time' => 1,
+                        ],
+                    ],
+                ],
+            ],
+        ]));
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->with(RedisConfig::class)->once()->andReturn($redisConfig);
+        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
+        $pool = new RedisPool($container, 'default');
+
+        $redisConfig->enableEvents();
+
+        $this->assertFalse($pool->getConfig()['event']['enable']);
+        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
     }
 
     public function testLowFrequencyFlushClosesIdleConnections(): void
