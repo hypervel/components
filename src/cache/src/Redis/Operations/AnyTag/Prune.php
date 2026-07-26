@@ -97,9 +97,6 @@ class Prune
                 if ($result['deleted']) {
                     ++$stats['empty_hashes_deleted'];
                 }
-
-                // Small sleep to let Redis breathe between tag hashes
-                usleep(5000); // 5ms
             }
 
             return $stats;
@@ -149,9 +146,6 @@ class Prune
                 if ($result['deleted']) {
                     ++$stats['empty_hashes_deleted'];
                 }
-
-                // Small sleep to let Redis breathe between tag hashes
-                usleep(5000); // 5ms
             }
 
             return $stats;
@@ -174,8 +168,12 @@ class Prune
             // HSCAN returns [field => value, ...] array
             $fields = $connection->hScan($tagHash, $iterator, '*', $scanCount);
 
-            if ($fields === false || ! is_array($fields) || empty($fields)) {
+            if ($fields === false || ! is_array($fields)) {
                 break;
+            }
+
+            if ($fields === []) {
+                continue;
             }
 
             $fieldKeys = array_keys($fields);
@@ -201,7 +199,7 @@ class Prune
                 $connection->hDel($tagHash, ...$orphanedFields);
                 $removed += count($orphanedFields);
             }
-        } while ($iterator > 0);
+        } while ($iterator !== 0);
 
         // Check if hash is now empty and delete it
         $deleted = false;
@@ -234,8 +232,12 @@ class Prune
             // HSCAN returns [field => value, ...] array
             $fields = $connection->hScan($tagHash, $iterator, '*', $scanCount);
 
-            if ($fields === false || ! is_array($fields) || empty($fields)) {
+            if ($fields === false || ! is_array($fields)) {
                 break;
+            }
+
+            if ($fields === []) {
+                continue;
             }
 
             $fieldKeys = array_keys($fields);
@@ -254,7 +256,7 @@ class Prune
                 $connection->hDel($tagHash, ...$orphanedFields);
                 $removed += count($orphanedFields);
             }
-        } while ($iterator > 0);
+        } while ($iterator !== 0);
 
         // Check if hash is now empty and delete it
         $deleted = false;

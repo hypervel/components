@@ -5,16 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\LazyCollection;
 
-/**
- * Retrieves all cache key entries from all tag sorted sets.
- *
- * Uses ZSCAN for efficient cursor-based iteration over potentially large
- * sorted sets. Each tag's entries are collected within a single connection
- * hold for efficiency.
- */
 class GetEntries
 {
     public function __construct(
@@ -33,40 +27,34 @@ class GetEntries
         $context = $this->context;
         $prefix = $this->context->prefix();
 
-        // phpredis 6.1.0+ uses null as initial cursor value, older versions use '0'
-        $defaultCursorValue = match (true) {
-            version_compare(phpversion('redis'), '6.1.0', '>=') => null,
-            default => '0',
-        };
-
-        return new LazyCollection(function () use ($context, $prefix, $tagIds, $defaultCursorValue) {
+        return new LazyCollection(function () use ($context, $prefix, $tagIds) {
             foreach ($tagIds as $tagId) {
-                // Collect all entries for this tag within one connection hold
-                $tagEntries = $context->withConnection(function (RedisConnection $connection) use ($prefix, $tagId, $defaultCursorValue) {
-                    $cursor = $defaultCursorValue;
-                    $allEntries = [];
+                $cursor = PhpRedis::initialScanCursor();
+                $seen = [];
 
-                    do {
-                        $entries = $connection->zscan(
-                            $prefix . $tagId,
-                            $cursor,
-                            '*',
-                            1000
-                        );
+                do {
+                    $entries = $context->withConnection(
+                        function (RedisConnection $connection) use ($prefix, $tagId, &$cursor) {
+                            return $connection->zscan($prefix . $tagId, $cursor, '*', 1000);
+                        }
+                    );
 
-                        if (! is_array($entries)) {
-                            break;
+                    if (! is_array($entries)) {
+                        break;
+                    }
+
+                    foreach (array_keys($entries) as $entry) {
+                        $entry = (string) $entry;
+
+                        if (isset($seen[$entry])) {
+                            continue;
                         }
 
-                        $allEntries = array_merge($allEntries, array_keys($entries));
-                    } while (((string) $cursor) !== $defaultCursorValue);
+                        $seen[$entry] = true;
 
-                    return array_unique($allEntries);
-                });
-
-                foreach ($tagEntries as $entry) {
-                    yield $entry;
-                }
+                        yield $entry;
+                    }
+                } while ($cursor !== 0);
             }
         });
     }

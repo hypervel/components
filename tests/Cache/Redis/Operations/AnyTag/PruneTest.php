@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Mockery as m;
@@ -69,6 +70,7 @@ class PruneTest extends RedisCacheTestCase
         $connection->shouldReceive('hScan')
             ->once()
             ->andReturnUsing(function ($tagHash, &$iterator, $match, $count) {
+                $this->assertSame(PhpRedis::initialScanCursor(), $iterator);
                 $iterator = 0;
                 return [
                     'key1' => '1',
@@ -438,6 +440,37 @@ class PruneTest extends RedisCacheTestCase
         $this->assertSame(1, $result['hashes_scanned']);
         $this->assertSame(3, $result['fields_checked']); // 2 + 1 fields
         $this->assertSame(2, $result['orphans_removed']); // key2 + key3
+    }
+
+    public function testPruneContinuesAfterAnEmptyNonterminalHashPage(): void
+    {
+        $registryKey = 'prefix:_any:tag:registry';
+        $tagHashKey = 'prefix:_any:tag:users:entries';
+        $fakeClient = new FakeRedisClient(
+            execResults: [
+                [1],
+            ],
+            hScanResults: [
+                $tagHashKey => [
+                    ['fields' => [], 'iterator' => 100],
+                    ['fields' => ['key1' => '1'], 'iterator' => 0],
+                ],
+            ],
+            zRangeResults: [
+                $registryKey => ['users'],
+            ],
+            hLenResults: [
+                $tagHashKey => 1,
+            ],
+        );
+
+        $store = $this->createStoreWithFakeClient($fakeClient, tagMode: 'any');
+        $operation = new Prune($store->getContext());
+
+        $result = $operation->execute();
+
+        $this->assertSame(1, $result['fields_checked']);
+        $this->assertSame(2, $fakeClient->getHScanCallCount());
     }
 
     /**
