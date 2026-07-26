@@ -6,6 +6,6 @@ namespace Hypervel\Redis\Subscriber\Exceptions;
 
 use RuntimeException;
 
-class UnsubscribeException extends RuntimeException
+class ServerException extends RuntimeException
 {
 }

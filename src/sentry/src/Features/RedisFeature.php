@@ -11,6 +11,7 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisConfig;
+use Hypervel\Redis\RedisManager;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
 use Hypervel\Support\Str;
 use Sentry\SentrySdk;
@@ -36,12 +37,7 @@ class RedisFeature extends Feature
 
     public function onBoot(): void
     {
-        $config = $this->container->make('config');
-        $redisConfig = $this->container->make(RedisConfig::class);
-
-        foreach ($redisConfig->connectionNames() as $connection) {
-            $config->set("database.redis.{$connection}.event.enable", true);
-        }
+        $this->container->make(RedisManager::class)->enableEvents();
 
         $dispatcher = $this->container->make('events');
         $dispatcher->listen(CommandExecuted::class, [$this, 'handleRedisCommands']);
@@ -79,7 +75,7 @@ class RedisFeature extends Feature
             'db.system' => 'redis',
             'db.statement' => $redisStatement,
             'db.redis.connection' => $event->connectionName,
-            'db.redis.database_index' => $config['db'] ?? 0,
+            'db.redis.database_index' => (int) ($config['database'] ?? 0),
             'db.redis.parameters' => $event->parameters,
             'db.redis.pool.name' => $event->connectionName,
             'db.redis.pool.max' => $pool->getOption()->getMaxConnections(),
@@ -143,7 +139,7 @@ class RedisFeature extends Feature
             'db.system' => 'redis',
             'db.statement' => $redisStatement,
             'db.redis.connection' => $event->connectionName,
-            'db.redis.database_index' => $config['db'] ?? 0,
+            'db.redis.database_index' => (int) ($config['database'] ?? 0),
             'db.redis.parameters' => $event->parameters,
             'db.redis.pool.name' => $event->connectionName,
             'db.redis.pool.max' => $pool->getOption()->getMaxConnections(),

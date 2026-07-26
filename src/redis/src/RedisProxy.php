@@ -54,27 +54,27 @@ class RedisProxy implements ConnectionContract
         'auth',
         'check',
         'client',
-        'clearWatchState',
+        'clearwatchstate',
         'close',
         'connect',
-        'discardTransaction',
-        'getActiveConnection',
-        'getConnection',
-        'getCreatedAt',
-        'getLastReleaseTime',
-        'getLastUseTime',
-        'getShouldTransform',
-        'heartbeatCheck',
-        'isIdleExpired',
-        'isLifetimeExpired',
+        'discardtransaction',
+        'getactiveconnection',
+        'getconnection',
+        'getcreatedat',
+        'getlastreleasetime',
+        'getlastusetime',
+        'getshouldtransform',
+        'heartbeatcheck',
+        'isidleexpired',
+        'islifetimeexpired',
         'masters',
         'pconnect',
         'reconnect',
         'release',
-        'safeScan',
-        'setDatabase',
-        'setOption',
-        'shouldTransform',
+        'safescan',
+        'setdatabase',
+        'setoption',
+        'shouldtransform',
     ];
 
     /**
@@ -82,7 +82,8 @@ class RedisProxy implements ConnectionContract
      */
     public function __construct(
         protected PoolFactory $factory,
-        protected string $poolName
+        protected string $poolName,
+        protected RedisSentinelFactory $sentinelFactory,
     ) {
     }
 
@@ -102,6 +103,44 @@ class RedisProxy implements ConnectionContract
         $config = $this->factory->getPool($this->poolName)->getConfig();
 
         return $config['cluster']['enable'] ?? false;
+    }
+
+    /**
+     * Register a custom Redis connection macro.
+     *
+     * Boot-only. Macros persist for the worker lifetime and affect every Redis connection.
+     */
+    public function macro(string $name, callable|object $macro): void
+    {
+        RedisConnection::macro($name, $macro);
+    }
+
+    /**
+     * Mix another object into the Redis connection.
+     *
+     * Boot-only. Registered macros persist for the worker lifetime and affect every Redis connection.
+     */
+    public function mixin(object $mixin, bool $replace = true): void
+    {
+        RedisConnection::mixin($mixin, $replace);
+    }
+
+    /**
+     * Determine if a Redis connection macro is registered.
+     */
+    public function hasMacro(string $name): bool
+    {
+        return RedisConnection::hasMacro($name);
+    }
+
+    /**
+     * Flush the registered Redis connection macros.
+     *
+     * Boot or tests only. Concurrent coroutines may resolve different methods during a flush.
+     */
+    public function flushMacros(): void
+    {
+        RedisConnection::flushMacros();
     }
 
     /**
@@ -151,13 +190,20 @@ class RedisProxy implements ConnectionContract
         return $this->__call('sScan', [$key, $cursor, ...$arguments]);
     }
 
+    /**
+     * Pass dynamic method calls to a pooled Redis connection.
+     * @param mixed $name
+     * @param mixed $arguments
+     */
     public function __call($name, $arguments)
     {
-        if (in_array($name, ['subscribe', 'psubscribe'], true)) {
-            return $this->handleSubscribe($name, $arguments); // @phpstan-ignore method.void
+        $command = strtolower($name);
+
+        if (in_array($command, ['subscribe', 'psubscribe'], true)) {
+            return $this->handleSubscribe($command, $arguments); // @phpstan-ignore method.void
         }
 
-        if (in_array($name, self::CONNECTION_BOUND_METHODS, true)) {
+        if (in_array($command, self::CONNECTION_BOUND_METHODS, true)) {
             throw new BadMethodCallException(sprintf(
                 'Redis connection method [%s] must be called on a held Redis connection. Use Redis::withConnection(...) or Redis::withPinnedConnection(...).',
                 $name
@@ -176,7 +222,7 @@ class RedisProxy implements ConnectionContract
         try {
             /** @var RedisConnection $connection */
             $connection = $connection->getConnection();
-            $result = $name === 'discard'
+            $result = $command === 'discard'
                 ? $connection->discardTransaction()
                 : $connection->{$name}(...$arguments);
         } catch (Throwable $throwable) {
@@ -210,9 +256,9 @@ class RedisProxy implements ConnectionContract
         try {
             if ($hasContextConnection) {
                 // Connection is already in context, don't release
-            } elseif ($commandException === null && $this->shouldUseSameConnection($name)) {
+            } elseif ($commandException === null && $this->shouldUseSameConnection($command)) {
                 // On success with same-connection command: store in context for reuse
-                if ($name === 'select' && array_key_exists(0, $arguments)) {
+                if ($command === 'select' && array_key_exists(0, $arguments)) {
                     $connection->setDatabase((int) $arguments[0]);
                 }
 
@@ -462,15 +508,125 @@ class RedisProxy implements ConnectionContract
      */
     public function subscriber(): Subscriber
     {
-        $config = $this->factory->getPool($this->poolName)->getConfig();
-        $options = $config['options'] ?? [];
+        $pool = $this->factory->getPool($this->poolName);
+        $config = $pool->getConfig();
+
+        if ($config['sentinel']['enable'] ?? false) {
+            [$host, $port] = $this->sentinelFactory->resolveMaster($config);
+
+            return $this->createSubscriber(
+                $config,
+                $host,
+                $port,
+                $config['scheme'] ?? null,
+                $config['context'] ?? [],
+            );
+        }
+
+        if (! ($config['cluster']['enable'] ?? false)) {
+            return $this->createSubscriber(
+                $config,
+                $config['host'],
+                (int) $config['port'],
+                $config['scheme'] ?? null,
+                $config['context'] ?? [],
+            );
+        }
+
+        $connection = $pool->get();
+        $discoveryException = null;
+        $masters = [];
+
+        try {
+            if (! $connection instanceof PhpRedisClusterConnection) {
+                throw new InvalidRedisConnectionException(
+                    'The Redis Cluster pool returned an invalid connection.'
+                );
+            }
+
+            $connection->getConnection();
+            $masters = $connection->masters();
+        } catch (Throwable $exception) {
+            $discoveryException = $exception;
+        }
+
+        try {
+            $connection->release();
+        } catch (Throwable $exception) {
+            if ($discoveryException === null) {
+                throw $exception;
+            }
+        }
+
+        if ($discoveryException !== null) {
+            throw $discoveryException;
+        }
+
+        $context = $config['cluster']['context'] ?? [];
+        $failures = [];
+
+        foreach ($masters as $master) {
+            if (! is_array($master)
+                || ! isset($master[0], $master[1])
+                || ! is_string($master[0])
+                || $master[0] === ''
+                || (! is_int($master[1]) && ! (is_string($master[1]) && ctype_digit($master[1])))) {
+                $failures[] = '[invalid master]: invalid endpoint';
+                continue;
+            }
+
+            try {
+                return $this->createSubscriber(
+                    $config,
+                    $master[0],
+                    (int) $master[1],
+                    null,
+                    $context,
+                );
+            } catch (Throwable $exception) {
+                $failures[] = sprintf(
+                    '[%s:%d]: %s',
+                    $master[0],
+                    $master[1],
+                    $exception->getMessage(),
+                );
+            }
+        }
+
+        throw new InvalidRedisConnectionException(sprintf(
+            'Unable to connect a Redis subscriber to any Cluster master: %s.',
+            implode('; ', $failures),
+        ));
+    }
+
+    /**
+     * Create a dedicated subscriber from a resolved endpoint.
+     *
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $context
+     */
+    private function createSubscriber(
+        array $config,
+        string $host,
+        int $port,
+        ?string $scheme,
+        array $context,
+    ): Subscriber {
+        /** @var null|array|string $password */
+        $password = $config['password'] ?? null;
+
+        /** @var null|string $username */
+        $username = $config['username'] ?? null;
 
         return new Subscriber(
-            host: $config['host'],
-            port: (int) $config['port'],
-            password: (string) ($config['password'] ?? ''),
+            host: $host,
+            port: $port,
+            password: $password,
             timeout: (float) ($config['timeout'] ?? 5.0),
-            prefix: (string) ($options['prefix'] ?? ''),
+            prefix: (string) (($config['options'] ?? [])['prefix'] ?? ''),
+            username: $username,
+            scheme: $scheme,
+            context: $context,
         );
     }
 

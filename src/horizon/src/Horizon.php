@@ -7,6 +7,7 @@ namespace Hypervel\Horizon;
 use Closure;
 use Exception;
 use Hypervel\Http\Request;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
 use RuntimeException;
@@ -80,15 +81,27 @@ class Horizon
      */
     public static function use(string $connection): void
     {
-        if (! is_null($config = config("database.redis.clusters.{$connection}.0"))) {
-            config(["database.redis.{$connection}" => $config]);
-        } elseif (is_null($config = config("database.redis.{$connection}"))) {
+        $config = config("database.redis.{$connection}");
+
+        if (! is_array($config)) {
             throw new Exception("Redis connection [{$connection}] has not been configured.");
         }
 
-        $config['options']['prefix'] = config('horizon.prefix') ?: 'horizon:';
+        $prefix = config()->string('horizon.prefix');
 
-        config(['database.redis.horizon' => $config]);
+        if (($config['cluster']['enable'] ?? false)
+            && ! RedisConnection::hasHashTag($prefix)) {
+            $prefix = '{' . $prefix . '}';
+        }
+
+        // RedisConfig gives the top-level connection prefix final precedence.
+        $config['prefix'] = $prefix;
+        $config['options']['prefix'] = $prefix;
+
+        config([
+            'horizon.prefix' => $prefix,
+            'database.redis.horizon' => $config,
+        ]);
     }
 
     /**

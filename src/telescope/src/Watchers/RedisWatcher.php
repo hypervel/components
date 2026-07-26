@@ -7,8 +7,7 @@ namespace Hypervel\Telescope\Watchers;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Redis\Events\CommandExecuted;
-use Hypervel\Redis\RedisConfig;
-use Hypervel\Support\Collection;
+use Hypervel\Redis\RedisManager;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 
@@ -36,18 +35,14 @@ class RedisWatcher extends Watcher
      * Enable Redis events.
      *
      * Boot-only. Must be called before Redis connections are created. Mutates
-     * process-global config and a static flag; runtime use races across
-     * coroutines.
+     * a worker-wide Redis event override and a static flag; runtime use races
+     * across coroutines.
      *
      * This function needs to be called before the Redis connection is created.
      */
     public static function enableRedisEvents(Application $app): void
     {
-        $config = $app->make('config');
-        $redisConfig = $app->make(RedisConfig::class);
-        foreach ($redisConfig->connectionNames() as $connection) {
-            $config->set("database.redis.{$connection}.event.enable", true);
-        }
+        $app->make(RedisManager::class)->enableEvents();
 
         static::$eventsEnabled = true;
     }
@@ -73,32 +68,44 @@ class RedisWatcher extends Watcher
      */
     private function formatCommand(string $command, array $parameters): string
     {
-        $parameters = Collection::make($parameters)->map(function ($parameter) {
-            if (is_array($parameter)) {
-                return Collection::make($parameter)->map(function ($value, $key) {
-                    if (is_array($value)) {
-                        return json_encode($value);
-                    }
+        $formatted = [];
 
-                    return is_int($key) ? $value : "{$key} {$value}";
-                })->implode(' ');
+        foreach ($parameters as $parameter) {
+            $formatted[] = $this->formatParameter($parameter);
+        }
+
+        return $command . ' ' . implode(' ', $formatted);
+    }
+
+    /**
+     * Format one Redis command parameter.
+     */
+    private function formatParameter(mixed $parameter): string
+    {
+        if (is_array($parameter)) {
+            $values = [];
+
+            foreach ($parameter as $key => $value) {
+                $formatted = $this->formatParameter($value);
+                $values[] = is_int($key) ? $formatted : "{$key} {$formatted}";
             }
 
-            return $parameter;
-        })->implode(' ');
+            return implode(' ', $values);
+        }
 
-        return "{$command} {$parameters}";
+        if ($parameter === null || is_scalar($parameter)) {
+            return (string) $parameter;
+        }
+
+        return get_debug_type($parameter);
     }
 
     /**
      * Determine if the event should be ignored.
      */
-    private function shouldIgnore(mixed $event): bool
+    private function shouldIgnore(CommandExecuted $event): bool
     {
-        return in_array($event->command, [
-            'pipeline',
-            'transaction',
-        ]);
+        return in_array(strtolower($event->command), ['pipeline', 'multi'], true);
     }
 
     /**

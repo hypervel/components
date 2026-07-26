@@ -45,6 +45,29 @@ class SubscriberIntegrationTest extends TestCase
         }
     }
 
+    public function testSubscribePreservesBinaryPayloadBytes(): void
+    {
+        $channelName = 'test_binary_' . uniqid();
+        $payload = "before\r\nafter\0tail";
+        $subscriber = $this->createTestSubscriber();
+
+        try {
+            $subscriber->subscribe($channelName);
+
+            go(function () use ($channelName, $payload): void {
+                usleep(50_000);
+                $this->publishViaRawClient($channelName, $payload);
+            });
+
+            $message = $subscriber->channel()->pop(5.0);
+
+            $this->assertNotFalse($message, 'Timed out waiting for binary message');
+            $this->assertSame($payload, $message->payload);
+        } finally {
+            $subscriber->close();
+        }
+    }
+
     public function testSubscribeToMultipleChannels(): void
     {
         $channel1 = 'test_multi_a_' . uniqid();
@@ -188,11 +211,42 @@ class SubscriberIntegrationTest extends TestCase
         $channelName = 'test_ping_' . uniqid();
         $subscriber = $this->createTestSubscriber();
 
-        // Must subscribe first — Redis only responds to PING with a multi-bulk
-        // pong in subscribe mode. In normal mode it sends +PONG which the
-        // RESP parser doesn't handle.
         try {
             $subscriber->subscribe($channelName);
+
+            $this->assertSame('pong', $subscriber->ping(5.0));
+        } finally {
+            $subscriber->close();
+        }
+    }
+
+    public function testPingReturnsPongBeforeSubscribing(): void
+    {
+        $subscriber = $this->createTestSubscriber();
+
+        try {
+            $this->assertSame('pong', $subscriber->ping(5.0));
+        } finally {
+            $subscriber->close();
+        }
+    }
+
+    public function testUnsubscribeAllSettlesEveryTrackedCategory(): void
+    {
+        $channel1 = 'test_unsub_all_a_' . uniqid();
+        $channel2 = 'test_unsub_all_b_' . uniqid();
+        $pattern1 = 'test_punsub_all_a_' . uniqid() . ':*';
+        $pattern2 = 'test_punsub_all_b_' . uniqid() . ':*';
+        $subscriber = $this->createTestSubscriber();
+
+        try {
+            $subscriber->subscribe($channel1, $channel2);
+            $subscriber->psubscribe($pattern1, $pattern2);
+            $subscriber->unsubscribe();
+            $subscriber->punsubscribe();
+
+            $subscriber->subscribe($channel1);
+            $subscriber->unsubscribe();
 
             $this->assertSame('pong', $subscriber->ping(5.0));
         } finally {
@@ -224,10 +278,12 @@ class SubscriberIntegrationTest extends TestCase
      */
     private function createTestSubscriber(string $prefix = ''): Subscriber
     {
+        $password = env('REDIS_PASSWORD');
+
         return new Subscriber(
             host: env('REDIS_HOST', '127.0.0.1'),
             port: (int) env('REDIS_PORT', 6379),
-            password: (string) (env('REDIS_PASSWORD', '') ?: ''),
+            password: is_string($password) && $password !== '' ? $password : null,
             timeout: 5.0,
             prefix: $prefix,
         );
@@ -246,7 +302,8 @@ class SubscriberIntegrationTest extends TestCase
 
         try {
             $auth = env('REDIS_PASSWORD');
-            if ($auth) {
+
+            if (is_string($auth) && $auth !== '') {
                 $client->auth($auth);
             }
 

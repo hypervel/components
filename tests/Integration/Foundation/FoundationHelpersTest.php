@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Foundation;
 
 use Exception;
+use Faker\Provider\en_AU\Address as AustralianAddress;
+use Faker\Provider\en_US\Address as AmericanAddress;
 use Hypervel\Testbench\TestCase;
 
 class FoundationHelpersTest extends TestCase
@@ -64,10 +66,11 @@ class FoundationHelpersTest extends TestCase
 
     public function testFakeUsesLocale()
     {
-        mt_srand(12345, MT_RAND_PHP);
-
-        // Should fallback to en_US
-        $this->assertSame('Arkansas', fake()->state());
+        // Process-global RNG state is not coroutine-isolated, so assert locale ownership instead of an exact draw.
+        $this->assertContains(
+            AmericanAddress::class,
+            array_map(static fn (object $provider): string => $provider::class, fake()->getProviders()),
+        );
         $this->assertContains(fake('de_DE')->state(), [
             'Baden-Württemberg', 'Bayern', 'Berlin', 'Brandenburg', 'Bremen', 'Hamburg', 'Hessen', 'Mecklenburg-Vorpommern', 'Niedersachsen', 'Nordrhein-Westfalen', 'Rheinland-Pfalz', 'Saarland', 'Sachsen', 'Sachsen-Anhalt', 'Schleswig-Holstein', 'Thüringen',
         ]);
@@ -78,9 +81,15 @@ class FoundationHelpersTest extends TestCase
         ]);
 
         config(['app.faker_locale' => 'en_AU']);
-        mt_srand(4, MT_RAND_PHP);
+        $faker = fake();
 
-        // Should fallback to en_US
-        $this->assertSame('Australian Capital Territory', fake()->state());
+        $this->assertContains(
+            AustralianAddress::class,
+            array_map(static fn (object $provider): string => $provider::class, $faker->getProviders()),
+        );
+        $this->assertContains($faker->state(), [
+            'Australian Capital Territory', 'New South Wales', 'Northern Territory', 'Queensland',
+            'South Australia', 'Tasmania', 'Victoria', 'Western Australia',
+        ]);
     }
 }

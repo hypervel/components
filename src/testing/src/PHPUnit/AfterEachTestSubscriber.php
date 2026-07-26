@@ -243,6 +243,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Queue\Console\WorkCommand::flushState();
         \Hypervel\Queue\Queue::flushState();
         \Hypervel\Queue\Worker::flushState();
+        \Hypervel\Redis\RedisConnection::flushMacros();
         \Hypervel\Routing\CallableDispatcher::flushState();
         \Hypervel\Routing\ControllerDispatcher::flushState();
         \Hypervel\Routing\ImplicitRouteBinding::flushCache();

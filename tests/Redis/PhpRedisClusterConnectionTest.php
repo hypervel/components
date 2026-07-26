@@ -6,13 +6,16 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClusterClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use RedisCluster;
 
@@ -179,6 +182,110 @@ class PhpRedisClusterConnectionTest extends TestCase
         };
 
         $this->assertSame(['myuser', 'mypass'], $connection->formatClusterPasswordForTest());
+    }
+
+    public function testFormatClusterPasswordPreservesZeroCredentials(): void
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => '0', 'password' => '0']) extends PhpRedisClusterConnectionStub {
+            public function formatClusterPasswordForTest(): mixed
+            {
+                return $this->formatClusterPassword();
+            }
+        };
+
+        $this->assertSame(['0', '0'], $connection->formatClusterPasswordForTest());
+    }
+
+    public function testNormalizeClusterContextAcceptsEverySupportedShape(): void
+    {
+        $connection = new class extends PhpRedisClusterConnectionStub {
+            public function normalizeClusterContextForTest(array $context): array
+            {
+                return $this->normalizeClusterContext($context);
+            }
+        };
+        $options = ['verify_peer' => false, 'cafile' => '/tmp/ca.pem'];
+
+        $this->assertSame($options, $connection->normalizeClusterContextForTest($options));
+        $this->assertSame($options, $connection->normalizeClusterContextForTest(['ssl' => $options]));
+        $this->assertSame($options, $connection->normalizeClusterContextForTest(['stream' => $options]));
+    }
+
+    #[DataProvider('clusterTransportContexts')]
+    public function testClusterContextSelectsTheExpectedTransport(array $context, bool $tls): void
+    {
+        $server = new RespServer(
+            $tls ? 'tls://127.0.0.1:0' : 'tcp://127.0.0.1:0',
+            $tls
+                ? [
+                    'ssl' => [
+                        'local_cert' => __DIR__ . '/Fixtures/Tls/server.crt',
+                        'local_pk' => __DIR__ . '/Fixtures/Tls/server.key',
+                        'allow_self_signed' => true,
+                    ],
+                ]
+                : [],
+        );
+        $bytes = null;
+        $failure = null;
+        [$host, $port] = $server->hostAndPort();
+        $server->start(static function ($client) use (&$bytes): void {
+            $bytes = stream_get_contents($client, 2);
+            fwrite($client, "-ERR test endpoint is not a Redis Cluster\r\n");
+        });
+
+        try {
+            new PhpRedisClusterConnection(
+                $this->getContainer(),
+                $this->getMockedPool(),
+                [
+                    'timeout' => 1.0,
+                    'cluster' => [
+                        'enable' => true,
+                        'seeds' => ["{$host}:{$port}"],
+                        'context' => $context,
+                    ],
+                ],
+            );
+        } catch (ConnectionException $exception) {
+            $failure = $exception;
+        } finally {
+            $server->wait();
+        }
+
+        $this->assertNotNull($failure);
+        $this->assertSame('*2', $bytes);
+    }
+
+    public static function clusterTransportContexts(): array
+    {
+        return [
+            'empty context uses plaintext' => [[], false],
+            'non-empty context uses TLS' => [[
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+            ], true],
+        ];
+    }
+
+    public function testClusterOptionsUseNativeFailoverAndTcpKeepaliveConstants(): void
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), ['options' => ['failover' => RedisCluster::FAILOVER_DISTRIBUTE, 'tcp_keepalive' => 30, 'pack_ignore_numbers' => true]]) extends PhpRedisClusterConnectionStub {
+            public function setOptionsForTest(RedisCluster $redis): void
+            {
+                $this->setOptions($redis);
+            }
+        };
+        $redis = m::mock(RedisCluster::class);
+        $redis->expects('setOption')
+            ->with(RedisCluster::OPT_SLAVE_FAILOVER, RedisCluster::FAILOVER_DISTRIBUTE)
+            ->andReturnTrue();
+        $redis->expects('setOption')
+            ->with(Redis::OPT_TCP_KEEPALIVE, 30)
+            ->andReturnTrue();
+
+        $connection->setOptionsForTest($redis);
     }
 
     public function testFormatClusterPasswordReturnsPlainPasswordWithoutUsername()

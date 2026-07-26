@@ -44,6 +44,7 @@
         "hypervel/core": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/engine": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hypervel/pool": "^0.4",
         "hypervel/support": "^0.4"
     },

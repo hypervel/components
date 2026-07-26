@@ -11,6 +11,11 @@ use InvalidArgumentException;
 class RedisConfig
 {
     /**
+     * The worker-wide event enablement override.
+     */
+    private ?bool $eventsOverride = null;
+
+    /**
      * Create a new redis config helper.
      */
     public function __construct(private Repository $config)
@@ -27,8 +32,6 @@ class RedisConfig
         $redisConfig = $this->all();
         $names = [];
 
-        $parser = new ConfigurationUrlParser;
-
         foreach ($redisConfig as $name => $connectionConfig) {
             if (in_array($name, ['client', 'options', 'clusters'], true)) {
                 continue;
@@ -38,7 +41,10 @@ class RedisConfig
                 throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));
             }
 
-            $this->validateConnectionConfig($name, $parser->parseConfiguration($connectionConfig));
+            $this->validateConnectionConfig(
+                $name,
+                $this->parseConnectionConfiguration($connectionConfig),
+            );
 
             $names[] = $name;
         }
@@ -75,7 +81,35 @@ class RedisConfig
 
         $connectionConfig['options'] = array_replace($sharedOptions, $connectionOptions);
 
+        if (array_key_exists('prefix', $connectionConfig)) {
+            $connectionConfig['options']['prefix'] = $connectionConfig['prefix'];
+        }
+
+        if ($this->eventsOverride !== null) {
+            $connectionConfig['event']['enable'] = $this->eventsOverride;
+        }
+
         return $connectionConfig;
+    }
+
+    /**
+     * Enable Redis command events.
+     *
+     * Boot-only. The worker-wide override affects every subsequently assembled connection config.
+     */
+    public function enableEvents(): void
+    {
+        $this->eventsOverride = true;
+    }
+
+    /**
+     * Disable Redis command events.
+     *
+     * Boot-only. The worker-wide override affects every subsequently assembled connection config.
+     */
+    public function disableEvents(): void
+    {
+        $this->eventsOverride = false;
     }
 
     /**
@@ -143,6 +177,12 @@ class RedisConfig
                 throw new InvalidArgumentException(sprintf('The redis connection [%s] cluster seeds must be a non-empty array.', $name));
             }
 
+            foreach ($seeds as $seed) {
+                if (! is_string($seed) || $seed === '') {
+                    throw new InvalidArgumentException(sprintf('The redis connection [%s] cluster seeds must all be non-empty strings.', $name));
+                }
+            }
+
             return;
         }
 
@@ -152,6 +192,12 @@ class RedisConfig
 
             if (! is_array($nodes) || $nodes === []) {
                 throw new InvalidArgumentException(sprintf('The redis connection [%s] sentinel nodes must be a non-empty array.', $name));
+            }
+
+            foreach ($nodes as $node) {
+                if (! is_string($node) || $node === '') {
+                    throw new InvalidArgumentException(sprintf('The redis connection [%s] sentinel nodes must all be non-empty strings.', $name));
+                }
             }
 
             if (! is_string($masterName) || $masterName === '') {

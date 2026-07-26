@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+$prefix = env('HORIZON_PREFIX');
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -66,7 +68,9 @@ return [
     |
     */
 
-    'prefix' => env('HORIZON_PREFIX', app_id() . '_horizon:'),
+    'prefix' => $prefix === null || $prefix === ''
+        ? app_id() . '_horizon:'
+        : $prefix,
 
     /*
     |--------------------------------------------------------------------------

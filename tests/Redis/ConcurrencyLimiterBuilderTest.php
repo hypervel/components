@@ -10,6 +10,7 @@ use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 /**
  * Tests for ConcurrencyLimiterBuilder.
@@ -109,6 +110,56 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $this->assertSame('success', $result);
     }
 
+    public function testThenPropagatesReleaseFailureAfterSuccessfulCallback(): void
+    {
+        $redis = $this->mockRedis();
+        $releaseException = new RuntimeException('release failed');
+
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andReturn('test-key1');
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andThrow($releaseException);
+
+        $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
+        $builder->limit(5)->block(0);
+
+        try {
+            $builder->then(fn (): string => 'success');
+
+            $this->fail('Expected the release failure to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($releaseException, $exception);
+        }
+    }
+
+    public function testThenPreservesCallbackFailureWhenReleaseAlsoFails(): void
+    {
+        $redis = $this->mockRedis();
+        $callbackException = new RuntimeException('callback failed');
+
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andReturn('test-key1');
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andThrow(new RuntimeException('release failed'));
+
+        $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
+        $builder->limit(5)->block(0);
+
+        try {
+            $builder->then(function () use ($callbackException): never {
+                throw $callbackException;
+            });
+
+            $this->fail('Expected the callback failure to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($callbackException, $exception);
+        }
+    }
+
     public function testThenCallsFailureCallbackOnTimeout(): void
     {
         $redis = $this->mockRedis();
@@ -178,11 +229,12 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $builder->limit(5)->block(0);
 
         $failureCalled = false;
+        $callbackException = new LimiterTimeoutException;
 
         try {
             $builder->then(
-                function () {
-                    throw new LimiterTimeoutException;
+                function () use ($callbackException): never {
+                    throw $callbackException;
                 },
                 function () use (&$failureCalled) {
                     $failureCalled = true;
@@ -190,7 +242,8 @@ class ConcurrencyLimiterBuilderTest extends TestCase
             );
 
             $this->fail('Expected LimiterTimeoutException was not thrown.');
-        } catch (LimiterTimeoutException) {
+        } catch (LimiterTimeoutException $exception) {
+            $this->assertSame($callbackException, $exception);
         }
 
         $this->assertFalse($failureCalled);

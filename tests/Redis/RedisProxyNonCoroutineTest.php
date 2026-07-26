@@ -9,6 +9,7 @@ use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
@@ -68,7 +69,11 @@ class RedisProxyNonCoroutineTest extends TestCase
         $pool->expects('get')->andReturn($connection);
         $factory = m::mock(PoolFactory::class);
         $factory->expects('getPool')->with('default')->andReturn($pool);
-        $redis = new RedisProxy($factory, 'default');
+        $redis = new RedisProxy(
+            $factory,
+            'default',
+            m::mock(RedisSentinelFactory::class),
+        );
 
         $this->assertSame($result, $redis->{$command}(...$arguments));
         $this->assertSame(

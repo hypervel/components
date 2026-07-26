@@ -22,7 +22,8 @@ class RedisServiceProvider extends ServiceProvider
         $this->app->singleton('redis', fn ($app) => new RedisManager(
             $app,
             $app->make(PoolFactory::class),
-            $app->make(RedisConfig::class)
+            $app->make(RedisConfig::class),
+            $app->make(RedisSentinelFactory::class),
         ));
 
         $this->app->bind('redis.connection', fn ($app) => $app->make('redis')->connection());

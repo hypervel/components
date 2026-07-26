@@ -137,7 +137,9 @@ class PhpRedisClusterConnection extends PhpRedisConnection
             $parameters[] = $this->config['cluster']['persistent'] ?? false;
             $parameters[] = $this->formatClusterPassword();
             if (! empty($this->config['cluster']['context'])) {
-                $parameters[] = $this->config['cluster']['context'];
+                $parameters[] = $this->normalizeClusterContext(
+                    $this->config['cluster']['context']
+                );
             }
 
             $redis = new RedisCluster(...$parameters);
@@ -149,6 +151,25 @@ class PhpRedisClusterConnection extends PhpRedisConnection
     }
 
     /**
+     * Normalize the SSL context for a Redis Cluster connection.
+     *
+     * @param array<string, mixed> $context
+     * @return array<string, mixed>
+     */
+    protected function normalizeClusterContext(array $context): array
+    {
+        if (isset($context['ssl']) && is_array($context['ssl'])) {
+            return $context['ssl'];
+        }
+
+        if (isset($context['stream']) && is_array($context['stream'])) {
+            return $context['stream'];
+        }
+
+        return $context;
+    }
+
+    /**
      * Format the password for the RedisCluster constructor.
      */
     protected function formatClusterPassword(): mixed
@@ -156,7 +177,7 @@ class PhpRedisClusterConnection extends PhpRedisConnection
         $password = $this->config['password'] ?? null;
         $username = $this->config['username'] ?? null;
 
-        return $username && is_string($password)
+        return $username !== null && $username !== '' && is_string($password)
             ? [$username, $password]
             : $password;
     }

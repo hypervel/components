@@ -11,6 +11,7 @@ use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Support\Str;
 use Swoole\Coroutine\Channel;
+use Throwable;
 
 class MetricsHandler
 {
@@ -141,19 +142,27 @@ class MetricsHandler
             }
         });
 
-        // Publish uses scalar payloads (Decision 17)
-        $subscriberCount = $this->pubSubProvider->publish([
-            'type' => 'metrics_request',
-            'request_id' => $metric->key(),
-            'app_id' => $metric->application()->id(),
-            'metric_type' => $metric->type()->value,
-            'options' => $metric->options(),
-        ]);
+        try {
+            $subscriberCount = $this->pubSubProvider->publish([
+                'type' => 'metrics_request',
+                'request_id' => $metric->key(),
+                'app_id' => $metric->application()->id(),
+                'metric_type' => $metric->type()->value,
+                'options' => $metric->options(),
+            ]);
+        } catch (Throwable $exception) {
+            try {
+                $this->stopListening($metric);
+            } catch (Throwable) {
+                // Cleanup must not replace the publish failure.
+            }
+
+            throw $exception;
+        }
 
         $metric->setSubscriberCount($subscriberCount);
 
-        // Fix race condition (Decision 16e): check if already resolvable
-        // after setting subscriber count, before blocking on pop()
+        // Responses may arrive before publish() returns the subscriber count.
         if ($metric->resolvable()) {
             $this->stopListening($metric);
 
