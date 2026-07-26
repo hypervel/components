@@ -6,7 +6,7 @@ Boost for Hypervel
 
 # Hypervel Documentation
 
-You can find the online version of the Hypervel documentation at [https://hypervel.com/docs](https://hypervel.org/docs)
+You can find the online version of the Hypervel documentation at [https://hypervel.org/docs](https://hypervel.org/docs)
 
 ## Contribution Guidelines
 
