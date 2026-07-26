@@ -109,6 +109,29 @@ class CacheFileStoreTest extends TestCase
         $this->assertTrue($result);
     }
 
+    public function testPutPadsShortTimestampsToTenDigits(): void
+    {
+        $files = $this->mockFilesystem();
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__])->getMock();
+        $store->expects($this->once())->method('expiration')->with(3)->willReturn(990464403);
+        $contents = '0990464403' . serialize('Hello World');
+        $hash = hash('xxh128', 'foo');
+        $cacheDir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
+        $files->expects($this->once())->method('put')->with(__DIR__ . '/' . $cacheDir . '/' . $hash, $contents)->willReturn(strlen($contents));
+
+        $this->assertTrue($store->put('foo', 'Hello World', 3));
+    }
+
+    public function testGetPayloadReadsZeroPaddedTimestampsCorrectly(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
+
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('get')->willReturn('0990464403' . serialize('Hello World'));
+
+        $this->assertSame('Hello World', (new FileStore($files, __DIR__))->get('foo'));
+    }
+
     public function testTouchExtendsTtl()
     {
         $files = $this->mockFilesystem();
@@ -204,6 +227,23 @@ class CacheFileStoreTest extends TestCase
         }
     }
 
+    public function testAddPadsShortTimestampsToTenDigits(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-add-header');
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new FileStore(new Filesystem, $tempDir);
+
+            $this->assertTrue($store->add('foo', 'bar', 3));
+            $this->assertStringStartsWith('0990464403', file_get_contents($store->path('foo')));
+            $this->assertSame('bar', $store->get('foo'));
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
     public function testRefreshReturnsFalseWhenFileLockCannotBeAcquired(): void
     {
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh');
@@ -221,6 +261,24 @@ class CacheFileStoreTest extends TestCase
             $this->assertFalse($store->refreshIfOwned('foo', 'owner', 10));
         } finally {
             $lockableFile->close();
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testRefreshPadsShortTimestampsToTenDigits(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh-header');
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new FileStore(new Filesystem, $tempDir);
+
+            $this->assertTrue($store->put('foo', 'owner', 60));
+            $this->assertTrue($store->refreshIfOwned('foo', 'owner', 3));
+            $this->assertStringStartsWith('0990464403', file_get_contents($store->path('foo')));
+            $this->assertSame('owner', $store->get('foo'));
+        } finally {
             (new Filesystem)->deleteDirectory($tempDir);
         }
     }

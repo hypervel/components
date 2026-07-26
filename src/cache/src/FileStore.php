@@ -81,7 +81,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         $result = $this->files->put(
             $path,
-            $this->expiration($seconds) . serialize($value),
+            $this->expirationHeader($seconds) . serialize($value),
             true
         );
 
@@ -115,7 +115,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         if (empty($expire) || $this->currentTime() >= $expire) {
             $file->truncate()
-                ->write($this->expiration($seconds) . serialize($value))
+                ->write($this->expirationHeader($seconds) . serialize($value))
                 ->close();
 
             $this->ensurePermissionsAreCorrect($path);
@@ -163,7 +163,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         }
 
         $file->truncate()
-            ->write($this->expiration($seconds) . serialize($expectedOwner))
+            ->write($this->expirationHeader($seconds) . serialize($expectedOwner))
             ->close();
 
         $this->ensurePermissionsAreCorrect($path);
@@ -488,6 +488,14 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         $time = $this->availableAt($seconds);
 
         return $seconds === 0 || $time > self::PERMANENT_TIMESTAMP ? self::PERMANENT_TIMESTAMP : $time;
+    }
+
+    /**
+     * Get the fixed-width expiration header for a cache item.
+     */
+    protected function expirationHeader(int $seconds): string
+    {
+        return sprintf('%010d', $this->expiration($seconds));
     }
 
     /**
