@@ -87,10 +87,20 @@ class ConcurrencyLimiter
 
         if (is_callable($callback)) {
             try {
-                return $callback();
-            } finally {
-                $lease->release();
+                $result = $callback();
+            } catch (Throwable $throwable) {
+                try {
+                    $lease->release();
+                } catch (Throwable) {
+                    // Preserve the callback failure as primary.
+                }
+
+                throw $throwable;
             }
+
+            $lease->release();
+
+            return $result;
         }
 
         return true;
