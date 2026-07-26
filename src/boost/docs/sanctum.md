@@ -181,6 +181,17 @@ Token caching is disabled by default. You may enable and configure it in your ap
 ],
 ```
 
+Because token caching stores both personal access token and tokenable model objects, add the configured model classes to the `serializable_classes` option in your application's `config/cache.php` file:
+
+```php
+'serializable_classes' => [
+    App\Models\User::class,
+    Hypervel\Sanctum\PersonalAccessToken::class,
+],
+```
+
+If you use a custom personal access token model, list it instead of the default model. For supported stores and Redis serializer requirements, see [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects).
+
 The `store` option determines which cache store is used. When this value is `null`, Sanctum uses your application's default cache store. The `ttl` option controls how long token and tokenable entries remain cached, in seconds. The `prefix` option is prepended to Sanctum's cache keys.
 
 Sanctum also caches missing token IDs and missing tokenable models as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked, deleted, or orphaned token data. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints.
