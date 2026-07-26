@@ -192,7 +192,7 @@ class Forever
             end
 
             -- 5. Add to New Tags
-            local expiry = 253402300799
+            local expiry = 253402300799 -- Must match StoreContext::MAX_EXPIRY.
             for _, tag in ipairs(newTagsList) do
                 local tagHash = tagPrefix .. tag .. tagHashSuffix
                 redis.call('HSET', tagHash, rawKey, '1')

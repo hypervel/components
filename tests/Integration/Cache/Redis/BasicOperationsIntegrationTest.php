@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\TagMode;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Cache;
 use stdClass;
 
@@ -16,6 +17,13 @@ use stdClass;
  */
 class BasicOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $app->make('config')->set('cache.serializable_classes', [stdClass::class]);
+    }
+
     // =========================================================================
     // BASIC OPERATIONS (NO TAGS) - BOTH MODES
     // =========================================================================
