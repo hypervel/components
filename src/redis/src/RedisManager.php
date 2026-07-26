@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Closure;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Contracts\Redis\Factory as FactoryContract;
@@ -15,6 +14,7 @@ use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\Pool\PoolFactory;
 use InvalidArgumentException;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -32,19 +32,13 @@ class RedisManager implements FactoryContract, ConnectionContract
     protected array $connections = [];
 
     /**
-     * The registered custom connection creators.
-     *
-     * @var array<string, callable>
-     */
-    protected array $customCreators = [];
-
-    /**
      * Create a new Redis manager instance.
      */
     public function __construct(
         protected ContainerContract $app,
         protected PoolFactory $factory,
-        protected RedisConfig $config
+        protected RedisConfig $config,
+        protected RedisSentinelFactory $sentinelFactory,
     ) {
     }
 
@@ -63,27 +57,22 @@ class RedisManager implements FactoryContract, ConnectionContract
             return $this->connections[$name];
         }
 
-        if (isset($this->customCreators[$name])) {
-            return $this->connections[$name] = call_user_func(
-                $this->customCreators[$name],
-                $this->app,
-                $name
-            );
-        }
-
         // Validate the connection exists in config before creating the proxy.
         // Throws InvalidArgumentException if the name is not configured.
         $this->config->connectionConfig($name);
 
-        return $this->connections[$name] = new RedisProxy($this->factory, $name);
+        return $this->connections[$name] = new RedisProxy(
+            $this->factory,
+            $name,
+            $this->sentinelFactory,
+        );
     }
 
     /**
      * Disconnect the given connection and remove from local cache.
      *
-     * Releases any context-pinned connection, clears the coroutine context
-     * entry, and flushes the underlying pool so all connections are closed
-     * and re-created on next use.
+     * Discards any context-pinned connection and flushes the underlying pool
+     * so all connections are closed and re-created on next use.
      *
      * Boot or tests only. Flushes the shared pool; concurrent coroutines
      * checked out before this call may complete against the destroyed pool
@@ -97,20 +86,29 @@ class RedisManager implements FactoryContract, ConnectionContract
 
         $name = $name === null || $name === '' ? 'default' : $name;
 
+        $proxy = $this->connections[$name] ?? null;
         unset($this->connections[$name]);
 
-        // Release any context-pinned connection before clearing context.
-        // The coroutine defer in RedisProxy::__call() looks up the connection
-        // from context to release it — if we forget the key first, the defer
-        // finds null and the checked-out pool slot is leaked.
-        $contextKey = RedisProxy::CONNECTION_CONTEXT_PREFIX . $name;
-        $connection = CoroutineContext::get($contextKey);
-        if ($connection instanceof RedisConnection) {
-            $connection->release();
-        }
-        CoroutineContext::forget($contextKey);
+        $poolName = $proxy?->getName() ?? $name;
+        $exception = null;
 
-        $this->factory->flushPool($name);
+        if ($proxy !== null) {
+            try {
+                $proxy->discardContextConnection();
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+        }
+
+        try {
+            $this->factory->flushPool($poolName);
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -124,38 +122,77 @@ class RedisManager implements FactoryContract, ConnectionContract
     }
 
     /**
-     * Register a custom connection creator.
+     * Enable Redis command events.
      *
-     * The callback receives the container and connection name, and must
-     * return a RedisProxy instance (or subclass).
-     *
-     * Boot-only. The resolver persists in the singleton's customCreators array
-     * for the worker lifetime and applies to every subsequent connection.
-     *
-     * @param callable(ContainerContract, string): RedisProxy $resolver
+     * Boot-only. Existing pools retain their snapshotted event configuration;
+     * calling this after pool creation can leave generations with different behavior.
      */
-    public function extend(string $name, callable $resolver): static
+    public function enableEvents(): void
     {
-        $this->customCreators[$name] = $resolver;
-
-        // Invalidate any cached proxy so the next connection() call uses the new creator
-        unset($this->connections[$name]);
-
-        return $this;
+        $this->config->enableEvents();
     }
 
     /**
-     * Remove a custom connection creator.
+     * Disable Redis command events.
      *
-     * Boot or tests only. Mutates the singleton's customCreators and connections
-     * caches; concurrent coroutines may already hold a proxy reference that next
-     * resolution will not share.
+     * Boot-only. Existing pools retain their snapshotted event configuration;
+     * calling this after pool creation can leave generations with different behavior.
      */
-    public function forgetExtension(string $name): void
+    public function disableEvents(): void
     {
-        unset($this->customCreators[$name], $this->connections[$name]);
+        $this->config->disableEvents();
+    }
 
-        // Invalidate cached proxy so the next connection() call goes through normal resolution
+    // REMOVED: Connector-driver extend()/setDriver() do not apply to Hypervel's phpredis-only pooled transport.
+
+    /**
+     * Release connections retained by non-coroutine task execution.
+     *
+     * @internal
+     */
+    public function releaseConnections(): void
+    {
+        $this->terminateConnections(
+            static function (RedisProxy $connection): void {
+                $connection->releaseContextConnection();
+            },
+        );
+    }
+
+    /**
+     * Discard connections retained by this manager.
+     *
+     * @internal
+     */
+    public function discardConnections(): void
+    {
+        $this->terminateConnections(
+            static function (RedisProxy $connection): void {
+                $connection->discardContextConnection();
+            },
+        );
+    }
+
+    /**
+     * Terminate every created connection proxy.
+     *
+     * @param Closure(RedisProxy): void $terminate
+     */
+    protected function terminateConnections(Closure $terminate): void
+    {
+        $exception = null;
+
+        foreach ($this->connections as $connection) {
+            try {
+                $terminate($connection);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

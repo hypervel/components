@@ -653,6 +653,21 @@ public function getRouteKeyName(): string
 }
 ```
 
+Alternatively, you may apply the `RouteKey` attribute to the model:
+
+```php
+use Hypervel\Database\Eloquent\Attributes\RouteKey;
+use Hypervel\Database\Eloquent\Model;
+
+#[RouteKey('slug')]
+class Post extends Model
+{
+    // ...
+}
+```
+
+The attribute applies to implicit route model binding, while overriding `getRouteKeyName` remains available when the key must be determined by custom logic.
+
 <a name="implicit-model-binding-scoping"></a>
 #### Custom Keys and Scoping
 

@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Event;
 use Hypervel\Server\Exceptions\InvalidArgumentException as ServerInvalidArgumentException;
@@ -241,6 +242,62 @@ class ServerTest extends TestCase
         $this->expectExceptionMessage('Failed to start the Swoole server.');
 
         $server->start();
+    }
+
+    public function testBeforeServerForkIsDispatchedBeforeNativeStart(): void
+    {
+        $order = [];
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->expects('start')->andReturnUsing(function () use (&$order): bool {
+            $order[] = 'start';
+
+            return true;
+        });
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('dispatch')
+            ->with(m::on(function (BeforeServerFork $event) use ($nativeServer, &$order): bool {
+                $this->assertSame($nativeServer, $event->server);
+                $order[] = 'before-fork';
+
+                return true;
+            }));
+
+        $server = new ServerTestServer(
+            m::mock(Container::class),
+            m::mock(LoggerInterface::class),
+            $dispatcher,
+        );
+        $server->useNativeServer($nativeServer);
+        $server->start();
+
+        $this->assertSame(['before-fork', 'start'], $order);
+    }
+
+    public function testBeforeServerForkFailurePreventsNativeStart(): void
+    {
+        $exception = new RuntimeException('Pre-fork cleanup failed.');
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->shouldNotReceive('start');
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('dispatch')
+            ->with(m::type(BeforeServerFork::class))
+            ->andThrow($exception);
+
+        $server = new ServerTestServer(
+            m::mock(Container::class),
+            m::mock(LoggerInterface::class),
+            $dispatcher,
+        );
+        $server->useNativeServer($nativeServer);
+
+        try {
+            $server->start();
+            $this->fail('Expected the pre-fork failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
     }
 
     public function testServerTypesArePrioritizedWithoutReorderingEqualTypes(): void

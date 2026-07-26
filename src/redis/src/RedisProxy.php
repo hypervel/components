@@ -26,8 +26,8 @@ use Throwable;
  *
  * Each proxy represents a named Redis connection. Commands are executed by
  * checking out a connection from the pool, running the command, and releasing
- * the connection back. Context management ensures that multi/pipeline/select
- * commands reuse the same connection within a coroutine.
+ * the connection back. Context management ensures that stateful commands reuse
+ * the same connection within a coroutine.
  *
  * @mixin \Hypervel\Redis\RedisConnection
  */
@@ -41,6 +41,11 @@ class RedisProxy implements ConnectionContract
     public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
 
     /**
+     * Context key prefix for the coroutine owning deferred pool cleanup.
+     */
+    private const DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
+
+    /**
      * Methods that must be called while explicitly holding a pool connection.
      *
      * Keep in sync with Hypervel\Support\Facades\Redis::ignoredFacadeDocumenterMethods().
@@ -49,25 +54,27 @@ class RedisProxy implements ConnectionContract
         'auth',
         'check',
         'client',
+        'clearwatchstate',
         'close',
         'connect',
-        'getActiveConnection',
-        'getConnection',
-        'getCreatedAt',
-        'getLastReleaseTime',
-        'getLastUseTime',
-        'getShouldTransform',
-        'heartbeatCheck',
-        'isIdleExpired',
-        'isLifetimeExpired',
+        'discardtransaction',
+        'getactiveconnection',
+        'getconnection',
+        'getcreatedat',
+        'getlastreleasetime',
+        'getlastusetime',
+        'getshouldtransform',
+        'heartbeatcheck',
+        'isidleexpired',
+        'islifetimeexpired',
         'masters',
         'pconnect',
         'reconnect',
         'release',
-        'safeScan',
-        'setDatabase',
-        'setOption',
-        'shouldTransform',
+        'safescan',
+        'setdatabase',
+        'setoption',
+        'shouldtransform',
     ];
 
     /**
@@ -75,7 +82,8 @@ class RedisProxy implements ConnectionContract
      */
     public function __construct(
         protected PoolFactory $factory,
-        protected string $poolName
+        protected string $poolName,
+        protected RedisSentinelFactory $sentinelFactory,
     ) {
     }
 
@@ -95,6 +103,44 @@ class RedisProxy implements ConnectionContract
         $config = $this->factory->getPool($this->poolName)->getConfig();
 
         return $config['cluster']['enable'] ?? false;
+    }
+
+    /**
+     * Register a custom Redis connection macro.
+     *
+     * Boot-only. Macros persist for the worker lifetime and affect every Redis connection.
+     */
+    public function macro(string $name, callable|object $macro): void
+    {
+        RedisConnection::macro($name, $macro);
+    }
+
+    /**
+     * Mix another object into the Redis connection.
+     *
+     * Boot-only. Registered macros persist for the worker lifetime and affect every Redis connection.
+     */
+    public function mixin(object $mixin, bool $replace = true): void
+    {
+        RedisConnection::mixin($mixin, $replace);
+    }
+
+    /**
+     * Determine if a Redis connection macro is registered.
+     */
+    public function hasMacro(string $name): bool
+    {
+        return RedisConnection::hasMacro($name);
+    }
+
+    /**
+     * Flush the registered Redis connection macros.
+     *
+     * Boot or tests only. Concurrent coroutines may resolve different methods during a flush.
+     */
+    public function flushMacros(): void
+    {
+        RedisConnection::flushMacros();
     }
 
     /**
@@ -144,13 +190,20 @@ class RedisProxy implements ConnectionContract
         return $this->__call('sScan', [$key, $cursor, ...$arguments]);
     }
 
+    /**
+     * Pass dynamic method calls to a pooled Redis connection.
+     * @param mixed $name
+     * @param mixed $arguments
+     */
     public function __call($name, $arguments)
     {
-        if (in_array($name, ['subscribe', 'psubscribe'], true)) {
-            return $this->handleSubscribe($name, $arguments); // @phpstan-ignore method.void
+        $command = strtolower($name);
+
+        if (in_array($command, ['subscribe', 'psubscribe'], true)) {
+            return $this->handleSubscribe($command, $arguments); // @phpstan-ignore method.void
         }
 
-        if (in_array($name, self::CONNECTION_BOUND_METHODS, true)) {
+        if (in_array($command, self::CONNECTION_BOUND_METHODS, true)) {
             throw new BadMethodCallException(sprintf(
                 'Redis connection method [%s] must be called on a held Redis connection. Use Redis::withConnection(...) or Redis::withPinnedConnection(...).',
                 $name
@@ -162,48 +215,86 @@ class RedisProxy implements ConnectionContract
 
         $start = hrtime(true) / 1e9;
         $result = null;
-        $exception = null;
+        $commandException = null;
+        $eventException = null;
+        $cleanupException = null;
 
         try {
             /** @var RedisConnection $connection */
             $connection = $connection->getConnection();
-            $result = $connection->{$name}(...$arguments);
-        } catch (Throwable $e) {
-            $exception = $e;
-            $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
+            $result = $command === 'discard'
+                ? $connection->discardTransaction()
+                : $connection->{$name}(...$arguments);
+        } catch (Throwable $throwable) {
+            $commandException = $throwable;
 
-            if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
-                $connection->getEventDispatcher()->dispatch(
-                    new CommandFailed($name, $arguments, $e, $connection, $time)
-                );
+            try {
+                if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
+                    $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
+                    $connection->getEventDispatcher()->dispatch(
+                        new CommandFailed($name, $arguments, $throwable, $connection, $time)
+                    );
+                }
+            } catch (Throwable $throwable) {
+                $eventException = $throwable;
             }
-        } finally {
-            if ($exception === null && $connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
-                $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
-                $connection->getEventDispatcher()->dispatch(
-                    new CommandExecuted($name, $arguments, $time, $connection)
-                );
-            }
+        }
 
+        if ($commandException === null) {
+            try {
+                if ($connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
+                    $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
+                    $connection->getEventDispatcher()->dispatch(
+                        new CommandExecuted($name, $arguments, $time, $connection)
+                    );
+                }
+            } catch (Throwable $throwable) {
+                $eventException = $throwable;
+            }
+        }
+
+        try {
             if ($hasContextConnection) {
                 // Connection is already in context, don't release
-            } elseif ($exception === null && $this->shouldUseSameConnection($name)) {
+            } elseif ($commandException === null && $this->shouldUseSameConnection($command)) {
                 // On success with same-connection command: store in context for reuse
-                if ($name === 'select' && array_key_exists(0, $arguments)) {
+                if ($command === 'select' && array_key_exists(0, $arguments)) {
                     $connection->setDatabase((int) $arguments[0]);
                 }
+
                 CoroutineContext::set($this->getContextKey(), $connection);
-                Coroutine::defer(function () {
-                    $this->releaseContextConnection();
-                });
+
+                $coroutineId = Coroutine::id();
+
+                if ($coroutineId > 0) {
+                    $deferredReleaseOwnerContextKey = $this->getDeferredReleaseOwnerContextKey();
+
+                    if (CoroutineContext::get($deferredReleaseOwnerContextKey) !== $coroutineId) {
+                        Coroutine::defer(function (): void {
+                            $this->releaseContextConnection();
+                        });
+
+                        CoroutineContext::set($deferredReleaseOwnerContextKey, $coroutineId);
+                    }
+                }
             } else {
                 // Release the connection
                 $connection->release();
             }
+        } catch (Throwable $throwable) {
+            $cleanupException = $throwable;
         }
 
-        if ($exception !== null) {
-            throw $exception;
+        if ($eventException !== null) {
+            throw $eventException;
+        }
+
+        if ($commandException !== null) {
+            throw $commandException;
+        }
+
+        if ($cleanupException !== null) {
+            throw $cleanupException;
         }
 
         return $result;
@@ -211,15 +302,35 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Release the connection stored in coroutine context.
+     *
+     * @internal
      */
-    protected function releaseContextConnection(): void
+    public function releaseContextConnection(): void
     {
         $contextKey = $this->getContextKey();
         $connection = CoroutineContext::get($contextKey);
 
-        if ($connection) {
-            CoroutineContext::set($contextKey, null);
+        CoroutineContext::forget($contextKey);
+
+        if ($connection instanceof RedisConnection) {
             $connection->release();
+        }
+    }
+
+    /**
+     * Discard the connection stored in coroutine context.
+     *
+     * @internal
+     */
+    public function discardContextConnection(): void
+    {
+        $contextKey = $this->getContextKey();
+        $connection = CoroutineContext::get($contextKey);
+
+        CoroutineContext::forget($contextKey);
+
+        if ($connection instanceof RedisConnection) {
+            $connection->discard();
         }
     }
 
@@ -255,8 +366,7 @@ class RedisProxy implements ConnectionContract
     }
 
     /**
-     * Define the commands that need same connection to execute.
-     * When these commands executed, the connection will storage to coroutine context.
+     * Determine which commands must reuse the same connection.
      */
     protected function shouldUseSameConnection(string $methodName): bool
     {
@@ -264,6 +374,7 @@ class RedisProxy implements ConnectionContract
             'multi',
             'pipeline',
             'select',
+            'watch',
         ], true);
     }
 
@@ -295,6 +406,14 @@ class RedisProxy implements ConnectionContract
     protected function getContextKey(): string
     {
         return self::CONNECTION_CONTEXT_PREFIX . $this->poolName;
+    }
+
+    /**
+     * Get the context key for this coroutine's deferred release owner.
+     */
+    private function getDeferredReleaseOwnerContextKey(): string
+    {
+        return self::DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX . $this->poolName;
     }
 
     /**
@@ -351,7 +470,7 @@ class RedisProxy implements ConnectionContract
             return $callback();
         } finally {
             if (! $hadContextConnection) {
-                CoroutineContext::set($contextKey, null);
+                CoroutineContext::forget($contextKey);
                 $connection->release();
             }
         }
@@ -389,15 +508,125 @@ class RedisProxy implements ConnectionContract
      */
     public function subscriber(): Subscriber
     {
-        $config = $this->factory->getPool($this->poolName)->getConfig();
-        $options = $config['options'] ?? [];
+        $pool = $this->factory->getPool($this->poolName);
+        $config = $pool->getConfig();
+
+        if ($config['sentinel']['enable'] ?? false) {
+            [$host, $port] = $this->sentinelFactory->resolveMaster($config);
+
+            return $this->createSubscriber(
+                $config,
+                $host,
+                $port,
+                $config['scheme'] ?? null,
+                $config['context'] ?? [],
+            );
+        }
+
+        if (! ($config['cluster']['enable'] ?? false)) {
+            return $this->createSubscriber(
+                $config,
+                $config['host'],
+                (int) $config['port'],
+                $config['scheme'] ?? null,
+                $config['context'] ?? [],
+            );
+        }
+
+        $connection = $pool->get();
+        $discoveryException = null;
+        $masters = [];
+
+        try {
+            if (! $connection instanceof PhpRedisClusterConnection) {
+                throw new InvalidRedisConnectionException(
+                    'The Redis Cluster pool returned an invalid connection.'
+                );
+            }
+
+            $connection->getConnection();
+            $masters = $connection->masters();
+        } catch (Throwable $exception) {
+            $discoveryException = $exception;
+        }
+
+        try {
+            $connection->release();
+        } catch (Throwable $exception) {
+            if ($discoveryException === null) {
+                throw $exception;
+            }
+        }
+
+        if ($discoveryException !== null) {
+            throw $discoveryException;
+        }
+
+        $context = $config['cluster']['context'] ?? [];
+        $failures = [];
+
+        foreach ($masters as $master) {
+            if (! is_array($master)
+                || ! isset($master[0], $master[1])
+                || ! is_string($master[0])
+                || $master[0] === ''
+                || (! is_int($master[1]) && ! (is_string($master[1]) && ctype_digit($master[1])))) {
+                $failures[] = '[invalid master]: invalid endpoint';
+                continue;
+            }
+
+            try {
+                return $this->createSubscriber(
+                    $config,
+                    $master[0],
+                    (int) $master[1],
+                    null,
+                    $context,
+                );
+            } catch (Throwable $exception) {
+                $failures[] = sprintf(
+                    '[%s:%d]: %s',
+                    $master[0],
+                    $master[1],
+                    $exception->getMessage(),
+                );
+            }
+        }
+
+        throw new InvalidRedisConnectionException(sprintf(
+            'Unable to connect a Redis subscriber to any Cluster master: %s.',
+            implode('; ', $failures),
+        ));
+    }
+
+    /**
+     * Create a dedicated subscriber from a resolved endpoint.
+     *
+     * @param array<string, mixed> $config
+     * @param array<string, mixed> $context
+     */
+    private function createSubscriber(
+        array $config,
+        string $host,
+        int $port,
+        ?string $scheme,
+        array $context,
+    ): Subscriber {
+        /** @var null|array|string $password */
+        $password = $config['password'] ?? null;
+
+        /** @var null|string $username */
+        $username = $config['username'] ?? null;
 
         return new Subscriber(
-            host: $config['host'],
-            port: (int) $config['port'],
-            password: (string) ($config['password'] ?? ''),
+            host: $host,
+            port: $port,
+            password: $password,
             timeout: (float) ($config['timeout'] ?? 5.0),
-            prefix: (string) ($options['prefix'] ?? ''),
+            prefix: (string) (($config['options'] ?? [])['prefix'] ?? ''),
+            username: $username,
+            scheme: $scheme,
+            context: $context,
         );
     }
 

@@ -9,6 +9,9 @@ use Override;
 
 class MySqlProcessor extends Processor
 {
+    // REMOVED: Laravel's deprecated processColumnListing() forwarding is omitted;
+    // use processColumns() for column metadata.
+
     /**
      * Process an "insert get ID" query.
      */

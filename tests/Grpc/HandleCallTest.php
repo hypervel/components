@@ -200,10 +200,11 @@ class HandleCallTest extends TestCase
         $timer->shouldReceive('after')->once()->andReturn(42);
         $timer->shouldReceive('clear')->once()->with(42);
         $handler = new HandleCall(new CallContextStore, $timer, 1024, Compression::Identity);
-        $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '1m']);
+        // Setup counts against the deadline, so leave headroom under suite load while the service work still outlasts it.
+        $request = $this->request(new GPBEmpty, server: ['HTTP_GRPC_TIMEOUT' => '100m']);
 
         $result = $handler->handle($request, static function (): string {
-            usleep(2_000);
+            usleep(200_000);
 
             return 'too late';
         });

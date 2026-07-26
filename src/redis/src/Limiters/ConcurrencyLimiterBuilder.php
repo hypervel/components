@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\InteractsWithTime;
+use Throwable;
 
 class ConcurrencyLimiterBuilder
 {
@@ -113,11 +114,27 @@ class ConcurrencyLimiterBuilder
             throw $e;
         }
 
+        $callbackException = null;
+
         try {
-            return $callback();
-        } finally {
-            $lease->release();
+            $result = $callback();
+        } catch (Throwable $exception) {
+            $callbackException = $exception;
         }
+
+        try {
+            $lease->release();
+        } catch (Throwable $exception) {
+            if ($callbackException === null) {
+                throw $exception;
+            }
+        }
+
+        if ($callbackException !== null) {
+            throw $callbackException;
+        }
+
+        return $result;
     }
 
     /**

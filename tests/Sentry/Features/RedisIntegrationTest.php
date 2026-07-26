@@ -12,6 +12,7 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
@@ -42,6 +43,20 @@ class RedisIntegrationTest extends SentryTestCase
         $feature = $this->app->make(RedisFeature::class);
 
         $this->assertTrue($feature->isApplicable());
+    }
+
+    public function testFeatureEnablesRedisEventsForFuturePools(): void
+    {
+        $this->app->make('config')->set('database.redis.observed', [
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'database' => 0,
+        ]);
+
+        $this->assertTrue(
+            $this->app->make(RedisConfig::class)
+                ->connectionConfig('observed')['event']['enable'],
+        );
     }
 
     public function testFeatureIsNotApplicableWhenRedisCommandsTracingIsDisabled(): void
@@ -241,12 +256,12 @@ class RedisIntegrationTest extends SentryTestCase
 
     public function testFailedRedisCommandCreatesErrorSpanWithTime(): void
     {
-        $this->setupMocks();
+        $this->setupMocks('cache', 2);
 
         $transaction = $this->startTransaction();
 
         $dispatcher = $this->app->make(Dispatcher::class);
-        $connection = $this->createRedisConnection('default');
+        $connection = $this->createRedisConnection('cache');
         $exception = new Exception('Connection refused');
         $event = new CommandFailed('GET', ['test-key'], $exception, $connection, 0.005);
 
@@ -263,9 +278,9 @@ class RedisIntegrationTest extends SentryTestCase
         $spanData = $redisSpan->getData();
         $this->assertEquals('redis', $spanData['db.system']);
         $this->assertEquals('Connection refused', $spanData['db.redis.error']);
-        $this->assertEquals('default', $spanData['db.redis.connection']);
-        $this->assertEquals(0, $spanData['db.redis.database_index']);
-        $this->assertEquals('default', $spanData['db.redis.pool.name']);
+        $this->assertEquals('cache', $spanData['db.redis.connection']);
+        $this->assertEquals(2, $spanData['db.redis.database_index']);
+        $this->assertEquals('cache', $spanData['db.redis.pool.name']);
         $this->assertEquals(10, $spanData['db.redis.pool.max']);
         $this->assertEquals(0.005, $spanData['duration']);
     }
@@ -308,11 +323,11 @@ class RedisIntegrationTest extends SentryTestCase
 
         $this->app->instance(PoolFactory::class, $poolFactory);
 
-        $config = $this->app['config'];
+        $config = $this->app->make('config');
         $config->set("database.redis.{$connectionName}", [
             'host' => '127.0.0.1',
             'port' => 6379,
-            'db' => $database,
+            'database' => $database,
         ]);
     }
 

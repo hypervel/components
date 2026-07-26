@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\NestedSet;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\NestedSet\HasNode;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Tests\TestCase;
@@ -15,6 +16,15 @@ class NestedSetTest extends TestCase
     public function testIsNodeReturnsTrueForModelUsingHasNode(): void
     {
         $this->assertTrue(NestedSet::isNode(new NestedSetTestNodeModel));
+    }
+
+    public function testNodeBootDetectsSoftDeletesWithoutNestedModelConstruction(): void
+    {
+        $node = new NestedSetTestNodeModel;
+        $softDeletingNode = new NestedSetTestSoftDeletingNodeModel;
+
+        $this->assertFalse($node::usesSoftDelete());
+        $this->assertTrue($softDeletingNode::usesSoftDelete());
     }
 
     public function testIsNodeReturnsFalseForPlainEloquentModel(): void
@@ -46,4 +56,12 @@ class NestedSetTestNodeModel extends Model
 class NestedSetTestPlainModel extends Model
 {
     protected ?string $table = 'nested_set_test_plain';
+}
+
+class NestedSetTestSoftDeletingNodeModel extends Model
+{
+    use SoftDeletes;
+    use HasNode;
+
+    protected ?string $table = 'nested_set_test_soft_deleting_nodes';
 }

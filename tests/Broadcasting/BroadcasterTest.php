@@ -15,6 +15,7 @@ use Hypervel\Routing\RouteBinding;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class BroadcasterTest extends TestCase
@@ -324,6 +325,129 @@ class BroadcasterTest extends TestCase
         ));
     }
 
+    public function testChannelAuthorizerRewritesTheNameBeforeGuardLookupBindingAndInvocation(): void
+    {
+        $request = m::mock(Request::class);
+        $user = new DummyUser;
+        $request->shouldReceive('user')->twice()->with('members')->andReturn($user);
+
+        $calls = 0;
+        $receivedUser = null;
+        $receivedOrder = null;
+
+        Broadcaster::authorizeChannelsUsing(function (Request $request, string $channel) use (&$calls): ?string {
+            ++$calls;
+
+            return $channel === 'application.tenant.orders.5'
+                ? 'application.orders.5'
+                : null;
+        });
+
+        $this->broadcaster->channel(
+            'application.orders.{order}',
+            function (DummyUser $user, BroadcasterTestEloquentModelStub $order) use (&$receivedUser, &$receivedOrder): bool {
+                $receivedUser = $user;
+                $receivedOrder = $order;
+
+                return true;
+            },
+            ['guards' => ['members']],
+        );
+
+        $this->assertTrue(
+            $this->broadcaster->verifyAccess(
+                $request,
+                'application.tenant.orders.5',
+                guarded: true,
+            ),
+        );
+        $this->assertSame(1, $calls);
+        $this->assertSame($user, $receivedUser);
+        $this->assertInstanceOf(BroadcasterTestEloquentModelStub::class, $receivedOrder);
+        $this->assertSame('5', $receivedOrder->boundValue);
+    }
+
+    public function testChannelAuthorizerDeniesBeforeTheChannelCallbackRuns(): void
+    {
+        $callbackRan = false;
+
+        Broadcaster::authorizeChannelsUsing(static fn (Request $request, string $channel): ?string => null);
+
+        $this->broadcaster->channel('orders', function () use (&$callbackRan): bool {
+            $callbackRan = true;
+
+            return true;
+        });
+
+        try {
+            $this->broadcaster->verifyAccess(m::mock(Request::class), 'orders');
+            $this->fail('Channel authorization should have been denied.');
+        } catch (AccessDeniedHttpException) {
+            $this->assertFalse($callbackRan);
+        }
+    }
+
+    public function testChannelAuthorizerLeavesUnchangedNamesOnTheNativePath(): void
+    {
+        $request = m::mock(Request::class);
+        $user = new DummyUser;
+        $request->shouldReceive('user')->once()->withNoArgs()->andReturn($user);
+
+        Broadcaster::authorizeChannelsUsing(
+            static fn (Request $request, string $channel): string => $channel,
+        );
+
+        $this->broadcaster->channel(
+            'orders.{order}',
+            static fn (DummyUser $authenticatedUser, string $order): bool => $authenticatedUser === $user
+                && $order === '5',
+        );
+
+        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders.5'));
+    }
+
+    public function testChannelAuthorizerIsSingleOwner(): void
+    {
+        $request = m::mock(Request::class);
+        $request->shouldReceive('user')->once()->withNoArgs()->andReturn(new DummyUser);
+
+        Broadcaster::authorizeChannelsUsing(static fn (Request $request, string $channel): ?string => null);
+        Broadcaster::authorizeChannelsUsing(
+            static fn (Request $request, string $channel): string => $channel,
+        );
+
+        $this->broadcaster->channel('orders', static fn (): bool => true);
+
+        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders'));
+    }
+
+    public function testPassingNullRemovesChannelAuthorizer(): void
+    {
+        $request = m::mock(Request::class);
+        $request->shouldReceive('user')->once()->withNoArgs()->andReturn(new DummyUser);
+
+        Broadcaster::authorizeChannelsUsing(static fn (Request $request, string $channel): ?string => null);
+        Broadcaster::authorizeChannelsUsing(null);
+
+        $this->broadcaster->channel('orders', static fn (): bool => true);
+
+        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders'));
+    }
+
+    public function testBaseChannelResponsePathPreservesPublicOverrides(): void
+    {
+        $request = m::mock(Request::class);
+        $request->shouldReceive('user')->once()->withNoArgs()->andReturn(new DummyUser);
+
+        $broadcaster = new PublicResponseOnlyBroadcaster($this->container);
+        $broadcaster->channel('orders', static fn (): array => ['allowed' => true]);
+
+        $this->assertSame(
+            ['result' => ['allowed' => true]],
+            $broadcaster->verifyAccess($request, 'orders'),
+        );
+    }
+
     public function testFormatsChannelsWithoutFormatter(): void
     {
         $this->assertSame(
@@ -367,11 +491,14 @@ class BroadcasterTest extends TestCase
         $this->assertSame(['orders'], $this->broadcaster->formatOutgoingChannels(['orders']));
     }
 
-    public function testFlushStateClearsChannelsOptionsAndFormatter(): void
+    public function testFlushStateClearsChannelsOptionsFormatterAndAuthorizer(): void
     {
         $this->broadcaster->channel('orders', static fn (): bool => true, ['guards' => ['web']]);
         Broadcaster::formatChannelsUsing(
             static fn (array $channels): array => ['formatted.' . $channels[0]],
+        );
+        Broadcaster::authorizeChannelsUsing(
+            static fn (Request $request, string $channel): string => 'authorized.' . $channel,
         );
 
         Broadcaster::flushState();
@@ -379,6 +506,11 @@ class BroadcasterTest extends TestCase
         $this->assertSame([], $this->broadcaster->getChannels()->all());
         $this->assertSame([], $this->broadcaster->retrieveChannelOptions('orders'));
         $this->assertSame(['orders'], $this->broadcaster->formatOutgoingChannels(['orders']));
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('user')->once()->withNoArgs()->andReturn(new DummyUser);
+        $this->broadcaster->channel('orders', static fn (): bool => true);
+        $this->assertTrue($this->broadcaster->verifyAccess($request, 'orders'));
     }
 
     public function testChannelFormatterIsSharedAcrossBroadcasterInstances(): void
@@ -454,7 +586,7 @@ class FakeBroadcaster extends Broadcaster
 
     public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
-        return null;
+        return $result;
     }
 
     public function broadcast(array $channels, string $event, array $payload = []): void
@@ -484,6 +616,19 @@ class FakeBroadcaster extends Broadcaster
     public function formatOutgoingChannels(array $channels): array
     {
         return parent::formatChannels($channels);
+    }
+
+    public function verifyAccess(Request $request, string $channel, bool $guarded = false): mixed
+    {
+        return parent::verifyUserCanAccessChannel($request, $channel, $guarded);
+    }
+}
+
+class PublicResponseOnlyBroadcaster extends FakeBroadcaster
+{
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
+    {
+        return ['result' => $result];
     }
 }
 

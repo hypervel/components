@@ -9,6 +9,7 @@ use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class RedisConfigTest extends TestCase
 {
@@ -77,6 +78,68 @@ class RedisConfigTest extends TestCase
         );
     }
 
+    public function testTopLevelConnectionPrefixOverridesSharedAndLocalOptions(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'options' => ['prefix' => 'shared:', 'serializer' => 1],
+            'default' => [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'prefix' => 'top-level:',
+                'options' => ['prefix' => 'local:', 'scan' => 1],
+            ],
+        ]);
+
+        $connection = (new RedisConfig($config))->connectionConfig('default');
+
+        $this->assertSame(
+            [
+                'prefix' => 'top-level:',
+                'serializer' => 1,
+                'scan' => 1,
+            ],
+            $connection['options'],
+        );
+    }
+
+    public function testEventOverridePreservesConfigUntilExplicitlyChanged(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'default' => [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'event' => ['enable' => true],
+            ],
+        ]);
+        $redisConfig = new RedisConfig($config);
+
+        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+
+        $redisConfig->disableEvents();
+        $this->assertFalse($redisConfig->connectionConfig('default')['event']['enable']);
+
+        $redisConfig->enableEvents();
+        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+    }
+
+    public function testEventOverrideCreatesEventConfigForFutureAssemblies(): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'default' => [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+            ],
+        ]);
+        $redisConfig = new RedisConfig($config);
+
+        $redisConfig->enableEvents();
+
+        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+    }
+
     public function testConnectionConfigThrowsForMissingConnection(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -141,6 +204,25 @@ class RedisConfigTest extends TestCase
         (new RedisConfig($config))->connectionNames();
     }
 
+    #[DataProvider('invalidTopologyEntries')]
+    public function testConnectionNamesRejectsInvalidClusterSeeds(mixed $seed): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [clustered] cluster seeds must all be non-empty strings.');
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'clustered' => [
+                'cluster' => [
+                    'enable' => true,
+                    'seeds' => [$seed],
+                ],
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionNames();
+    }
+
     public function testConnectionNamesAcceptsSentinelConnectionWithoutHostAndPort(): void
     {
         $config = m::mock(Repository::class);
@@ -175,6 +257,34 @@ class RedisConfigTest extends TestCase
         ]);
 
         (new RedisConfig($config))->connectionNames();
+    }
+
+    #[DataProvider('invalidTopologyEntries')]
+    public function testConnectionNamesRejectsInvalidSentinelNodes(mixed $node): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [sentinel] sentinel nodes must all be non-empty strings.');
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->with('database.redis')->andReturn([
+            'sentinel' => [
+                'sentinel' => [
+                    'enable' => true,
+                    'nodes' => [$node],
+                    'master_name' => 'mymaster',
+                ],
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionNames();
+    }
+
+    public static function invalidTopologyEntries(): array
+    {
+        return [
+            'non-string' => [null],
+            'empty string' => [''],
+        ];
     }
 
     public function testConnectionNamesThrowsWhenSentinelEnabledWithoutMasterName(): void

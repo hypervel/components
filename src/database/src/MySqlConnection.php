@@ -74,6 +74,22 @@ class MySqlConnection extends Connection
     }
 
     /**
+     * Extract the index that caused a unique constraint violation.
+     *
+     * @return array{index: null|string, columns: list<string>}
+     */
+    protected function parseUniqueConstraintViolation(Exception $exception): array
+    {
+        preg_match(
+            '#Duplicate entry \'.*?\' for key \'(?:.*?\.)?(.+?)\'#i',
+            $exception->getMessage(),
+            $matches
+        );
+
+        return ['columns' => [], 'index' => $matches[1] ?? null];
+    }
+
+    /**
      * Get the connection's last insert ID.
      */
     public function getLastInsertId(): string|int|null

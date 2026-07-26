@@ -36,6 +36,10 @@ trait ManagesTransactions
             // gets actually persisted to a database or stored in a permanent fashion.
             try {
                 $callbackResult = $callback($this);
+
+                if ($this->transactions === 1) {
+                    $this->fireConnectionEvent('committing');
+                }
             }
 
             // If we catch an exception we'll rollback this transaction and try again if we
@@ -53,30 +57,42 @@ trait ManagesTransactions
 
             $levelBeingCommitted = $this->transactions;
 
-            try {
-                if ($this->transactions === 1) {
-                    $this->fireConnectionEvent('committing');
+            if ($this->transactions === 1) {
+                try {
                     $this->performCommit();
+                } catch (Throwable $e) {
+                    $this->handleCommitTransactionException(
+                        $e,
+                        $currentAttempt,
+                        $attempts
+                    );
+
+                    continue;
                 }
-
-                $this->transactions = max(0, $this->transactions - 1);
-            } catch (Throwable $e) {
-                $this->handleCommitTransactionException(
-                    $e,
-                    $currentAttempt,
-                    $attempts
-                );
-
-                continue;
             }
 
-            $this->transactionsManager?->commit(
-                $this->getName(),
-                $levelBeingCommitted,
-                $this->transactions
-            );
+            $this->transactions = max(0, $this->transactions - 1);
+            $exception = null;
 
-            $this->fireConnectionEvent('committed');
+            try {
+                $this->transactionsManager?->commit(
+                    $this->getName(),
+                    $levelBeingCommitted,
+                    $this->transactions
+                );
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+
+            try {
+                $this->fireConnectionEvent('committed');
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
 
             return $callbackResult;
         }
@@ -101,20 +117,37 @@ trait ManagesTransactions
 
             --$this->transactions;
 
-            $this->transactionsManager?->rollback(
-                $this->getName(),
-                $this->transactions
+            $exception = new DeadlockException(
+                $e->getMessage(),
+                is_int($e->getCode()) ? $e->getCode() : 0,
+                $e
             );
 
-            throw new DeadlockException($e->getMessage(), is_int($e->getCode()) ? $e->getCode() : 0, $e);
+            try {
+                $this->transactionsManager?->rollback(
+                    $this->getName(),
+                    $this->transactions
+                );
+            } catch (Throwable) {
+                // Preserve the transaction failure.
+            }
+
+            throw $exception;
         }
 
         // If there was an exception we will rollback this transaction and then we
         // can check if we have exceeded the maximum attempt count for this and
         // if we haven't we will return and try this query again in our loop.
-        $this->rollBack();
+        $cleanedUp = true;
 
-        if ($this->causedByConcurrencyError($e)
+        try {
+            $this->rollBack();
+        } catch (Throwable) {
+            $cleanedUp = false;
+        }
+
+        if ($cleanedUp
+            && $this->causedByConcurrencyError($e)
             && $currentAttempt < $maxAttempts) {
             return;
         }
@@ -135,14 +168,25 @@ trait ManagesTransactions
 
         $this->createTransaction();
 
+        $previousLevel = $this->transactions;
         ++$this->transactions;
 
-        $this->transactionsManager?->begin(
-            $this->getName(),
-            $this->transactions
-        );
+        try {
+            $this->transactionsManager?->begin(
+                $this->getName(),
+                $this->transactions
+            );
 
-        $this->fireConnectionEvent('beganTransaction');
+            $this->fireConnectionEvent('beganTransaction');
+        } catch (Throwable $exception) {
+            try {
+                $this->rollBack($previousLevel);
+            } catch (Throwable) {
+                // Preserve the transaction publication failure.
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -210,13 +254,27 @@ trait ManagesTransactions
             max(0, $this->transactions - 1),
         ];
 
-        $this->transactionsManager?->commit(
-            $this->getName(),
-            $levelBeingCommitted,
-            $this->transactions
-        );
+        $exception = null;
 
-        $this->fireConnectionEvent('committed');
+        try {
+            $this->transactionsManager?->commit(
+                $this->getName(),
+                $levelBeingCommitted,
+                $this->transactions
+            );
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            $this->fireConnectionEvent('committed');
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -247,14 +305,28 @@ trait ManagesTransactions
      */
     protected function handleCommitTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
-        $this->transactions = max(0, $this->transactions - 1);
+        if ($this->causedByLostConnection($e)) {
+            try {
+                $this->terminateTransactionState();
+            } catch (Throwable) {
+                // Preserve the physical commit failure.
+            }
 
-        if ($this->causedByConcurrencyError($e) && $currentAttempt < $maxAttempts) {
-            return;
+            throw $e;
         }
 
-        if ($this->causedByLostConnection($e)) {
-            $this->transactions = 0;
+        $cleanedUp = true;
+
+        try {
+            $this->rollBack(0);
+        } catch (Throwable) {
+            $cleanedUp = false;
+        }
+
+        if ($cleanedUp
+            && $this->causedByConcurrencyError($e)
+            && $currentAttempt < $maxAttempts) {
+            return;
         }
 
         throw $e;
@@ -296,13 +368,26 @@ trait ManagesTransactions
         }
 
         $this->transactions = $toLevel;
+        $exception = null;
 
-        $this->transactionsManager?->rollback(
-            $this->getName(),
-            $this->transactions
-        );
+        try {
+            $this->transactionsManager?->rollback(
+                $this->getName(),
+                $this->transactions
+            );
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
 
-        $this->fireConnectionEvent('rollingBack');
+        try {
+            $this->fireConnectionEvent('rollingBack');
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -331,15 +416,35 @@ trait ManagesTransactions
     protected function handleRollBackException(Throwable $e): void
     {
         if ($this->causedByLostConnection($e)) {
-            $this->transactions = 0;
-
-            $this->transactionsManager?->rollback(
-                $this->getName(),
-                $this->transactions
-            );
+            try {
+                $this->terminateTransactionState();
+            } catch (Throwable) {
+                // Preserve the physical rollback failure.
+            }
         }
 
         throw $e;
+    }
+
+    /**
+     * Detach transaction records and physical connection references.
+     */
+    protected function terminateTransactionState(): void
+    {
+        $this->transactions = 0;
+        $exception = null;
+
+        try {
+            $this->transactionsManager?->rollback($this->getName(), 0);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        $this->setPdo(null)->setReadPdo(null);
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

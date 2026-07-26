@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite\Console;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -37,16 +38,16 @@ class MigrateFreshCommandWithJournalModeWalTest extends SqliteTestCase
     #[Override]
     protected function setUp(): void
     {
-        // WAL journal mode doesn't work with :memory: databases
-        if ($this->isConfiguredForInMemoryDatabase()) {
+        $databasePath = $this->getConfiguredDatabasePath();
+
+        if ($this->isConfiguredForInMemoryDatabase() || SQLiteDatabase::isUri($databasePath)) {
             parent::setUp();
-            $this->markTestSkipped('WAL journal mode requires a file-based database, not :memory:');
+            $this->markTestSkipped('The WAL migration test requires a plain SQLite filesystem path.');
         }
 
         // Delete any existing database file to start fresh, then create an
         // empty file. The connector will set WAL mode via the journal_mode
         // config when the connection is established.
-        $databasePath = $this->getConfiguredDatabasePath();
         $this->deleteSqliteDatabaseFile($databasePath);
         touch($databasePath);
 

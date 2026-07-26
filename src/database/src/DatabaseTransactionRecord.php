@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Throwable;
+
 class DatabaseTransactionRecord
 {
     /**
@@ -76,8 +78,18 @@ class DatabaseTransactionRecord
      */
     public function executeCallbacksForRollback(): void
     {
+        $exception = null;
+
         foreach ($this->callbacksForRollback as $callback) {
-            $callback();
+            try {
+                $callback();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 

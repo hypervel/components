@@ -39,10 +39,11 @@ class RedisBroadcasterTest extends TestCase
             return true;
         });
 
-        $this->broadcaster->shouldReceive('validAuthenticationResponse')->once();
-
-        $this->broadcaster->auth(
-            $this->getMockRequestWithUserForChannel('private-test')
+        $this->assertSame(
+            json_encode(true),
+            $this->broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('private-test')
+            ),
         );
     }
 
@@ -79,11 +80,16 @@ class RedisBroadcasterTest extends TestCase
             return $returnData;
         });
 
-        $this->broadcaster->shouldReceive('validAuthenticationResponse')
-            ->once();
-
-        $this->broadcaster->auth(
-            $this->getMockRequestWithUserForChannel('presence-test')
+        $this->assertSame(
+            json_encode([
+                'channel_data' => [
+                    'user_id' => 42,
+                    'user_info' => $returnData,
+                ],
+            ]),
+            $this->broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('presence-test')
+            ),
         );
     }
 
@@ -110,6 +116,47 @@ class RedisBroadcasterTest extends TestCase
         $this->broadcaster->auth(
             $this->getMockRequestWithoutUserForChannel('presence-test')
         );
+    }
+
+    public function testAuthUsesRewrittenChannelForConfiguredGuardAndPresenceUser(): void
+    {
+        $user = m::mock('User');
+        $user->shouldReceive('getAuthIdentifier')->once()->andReturn(42);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('input')
+            ->with('channel_name')
+            ->andReturn('presence-application.tenant.orders.5');
+        $request->shouldReceive('user')->times(3)->with('members')->andReturn($user);
+        $request->shouldNotReceive('user')->withNoArgs();
+
+        $calls = 0;
+        Broadcaster::authorizeChannelsUsing(function (Request $request, string $channel) use (&$calls): ?string {
+            ++$calls;
+
+            return $channel === 'application.tenant.orders.5'
+                ? 'application.orders.5'
+                : null;
+        });
+
+        $this->broadcaster->channel(
+            'application.orders.{order}',
+            static fn ($authenticatedUser, string $order): array|false => $authenticatedUser === $user && $order === '5'
+                ? ['role' => 'viewer']
+                : false,
+            ['guards' => ['members']],
+        );
+
+        $this->assertSame(
+            json_encode([
+                'channel_data' => [
+                    'user_id' => 42,
+                    'user_info' => ['role' => 'viewer'],
+                ],
+            ]),
+            $this->broadcaster->auth($request),
+        );
+        $this->assertSame(1, $calls);
     }
 
     public function testValidAuthenticationResponseWithPrivateChannel()

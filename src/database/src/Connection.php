@@ -610,6 +610,11 @@ class Connection implements ConnectionInterface
 
     /**
      * Execute the given callback without "pretending".
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
      */
     public function withoutPretending(Closure $callback): mixed
     {
@@ -645,11 +650,11 @@ class Connection implements ConnectionInterface
         // Now we'll execute this callback and capture the result. Once it has been
         // executed we will restore the value of query logging and give back the
         // value of the callback so the original callers can have the results.
-        $result = $callback();
-
-        $this->loggingQueries = $loggingQueries;
-
-        return $result;
+        try {
+            return $callback();
+        } finally {
+            $this->loggingQueries = $loggingQueries;
+        }
     }
 
     /**
@@ -752,11 +757,11 @@ class Connection implements ConnectionInterface
         catch (Exception $e) {
             ++$this->errorCount;
 
-            $exceptionType = $this->isUniqueConstraintError($e)
+            $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($e))
                 ? UniqueConstraintViolationException::class
                 : QueryException::class;
 
-            throw new $exceptionType(
+            $queryException = new $exceptionType(
                 $this->getName(),
                 $query,
                 $this->prepareBindings($bindings),
@@ -764,6 +769,14 @@ class Connection implements ConnectionInterface
                 $this->getConnectionDetails(),
                 $this->latestReadWriteTypeUsed(),
             );
+
+            if ($isUniqueConstraintError && $queryException instanceof UniqueConstraintViolationException) {
+                ['index' => $index, 'columns' => $columns] = $this->parseUniqueConstraintViolation($e);
+
+                $queryException->setIndex($index)->setColumns($columns);
+            }
+
+            throw $queryException;
         }
     }
 
@@ -773,6 +786,16 @@ class Connection implements ConnectionInterface
     protected function isUniqueConstraintError(Exception $exception): bool
     {
         return false;
+    }
+
+    /**
+     * Extract the index and columns that caused a unique constraint violation.
+     *
+     * @return array{index: null|string, columns: list<string>}
+     */
+    protected function parseUniqueConstraintViolation(Exception $exception): array
+    {
+        return ['index' => null, 'columns' => []];
     }
 
     /**
@@ -935,27 +958,29 @@ class Connection implements ConnectionInterface
     public function disconnect(): void
     {
         $pdo = $this->getRawPdo();
+        $exception = null;
 
         try {
-            if ($this->transactions > 0) {
-                $this->transactions = 0;
-
-                if ($pdo instanceof PDO && $pdo->inTransaction()) {
-                    try {
-                        $pdo->rollBack();
-                    } finally {
-                        $this->invalidateSessionState($pdo);
-                    }
-                }
+            if ($pdo instanceof PDO && $pdo->inTransaction()) {
+                $pdo->rollBack();
+                $this->invalidateSessionState($pdo);
             }
-        } catch (Throwable $exception) {
-            if ($pdo instanceof PDO) {
-                $this->markSessionStateUnknown($pdo);
-            }
+        } catch (Throwable $throwable) {
+            $this->markSessionStateUnknown($pdo);
 
+            if (! $this->causedByLostConnection($throwable)) {
+                $exception = $throwable;
+            }
+        }
+
+        try {
+            $this->terminateTransactionState();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
             throw $exception;
-        } finally {
-            $this->setPdo(null)->setReadPdo(null);
         }
     }
 
@@ -1751,6 +1776,11 @@ class Connection implements ConnectionInterface
 
     /**
      * Execute the given callback without table prefix.
+     *
+     * @template TReturn
+     *
+     * @param Closure($this): TReturn $callback
+     * @return TReturn
      */
     public function withoutTablePrefix(Closure $callback): mixed
     {

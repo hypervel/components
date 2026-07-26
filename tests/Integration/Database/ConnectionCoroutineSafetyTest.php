@@ -96,17 +96,6 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
                 'heartbeat' => -1,
             ],
         ]);
-
-        $app->make('config')->set('database.connections.session_shared_pool', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-            'pool' => [
-                'testing_enabled' => true,
-                'min_connections' => 2,
-                'max_connections' => 2,
-                'heartbeat' => -1,
-            ],
-        ]);
     }
 
     protected function afterRefreshingDatabase(): void
@@ -489,61 +478,54 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 
     public function testOverlappingConfigurationOfSharedPdoFailsClosedForBothCallers(): void
     {
-        $configurator = new CoroutineSessionConfigurator('session_shared_pool');
+        $connectionName = 'session_shared_connection';
+        $configurator = new CoroutineSessionConfigurator($connectionName);
         Connection::configureSessionUsing($configurator);
         CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '0');
-        $pool = new DbPool($this->app, 'session_shared_pool');
+        $pdo = new PDO('sqlite::memory:');
+        $config = ['name' => $connectionName];
+        $firstConnection = new Connection($pdo, ':memory:', '', $config);
+        $secondConnection = new Connection($pdo, ':memory:', '', $config);
         $configurationStarted = new Channel(1);
         $resumeConfiguration = new Channel(1);
         $configurator->blockedState = '101';
         $configurator->configurationStarted = $configurationStarted;
         $configurator->resumeConfiguration = $resumeConfiguration;
 
-        try {
-            [$firstFailure, $secondFailure] = parallel([
-                function () use ($pool): string {
-                    CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '101');
+        $firstConnection->getPdo();
 
-                    /** @var PooledConnection $pooledConnection */
-                    $pooledConnection = $pool->get();
+        [$firstFailure, $secondFailure] = parallel([
+            function () use ($firstConnection): string {
+                CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '101');
 
-                    try {
-                        $pooledConnection->getConnection()->getPdo();
+                try {
+                    $firstConnection->getPdo();
 
-                        return 'no failure';
-                    } catch (RuntimeException $exception) {
-                        return $exception->getMessage();
-                    } finally {
-                        $pooledConnection->release();
-                    }
-                },
-                function () use ($pool, $configurationStarted, $resumeConfiguration): string {
-                    $configurationStarted->pop();
-                    CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '202');
+                    return 'no failure';
+                } catch (RuntimeException $exception) {
+                    return $exception->getMessage();
+                }
+            },
+            function () use ($secondConnection, $configurationStarted, $resumeConfiguration): string {
+                $configurationStarted->pop();
+                CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '202');
 
-                    /** @var PooledConnection $pooledConnection */
-                    $pooledConnection = $pool->get();
+                try {
+                    $secondConnection->getPdo();
 
-                    try {
-                        $pooledConnection->getConnection()->getPdo();
+                    return 'no failure';
+                } catch (RuntimeException $exception) {
+                    return $exception->getMessage();
+                } finally {
+                    $resumeConfiguration->push(true);
+                }
+            },
+        ]);
 
-                        return 'no failure';
-                    } catch (RuntimeException $exception) {
-                        return $exception->getMessage();
-                    } finally {
-                        $resumeConfiguration->push(true);
-                        $pooledConnection->release();
-                    }
-                },
-            ]);
-
-            $this->assertSame('Database session state became unknown during configuration.', $firstFailure);
-            $this->assertSame('Reentrant database session configuration is not allowed.', $secondFailure);
-            $this->assertSame(['0', '101'], $configurator->appliedStates);
-            $this->assertSame(2, $configurator->applyCalls);
-        } finally {
-            $pool->close();
-        }
+        $this->assertSame('Database session state became unknown during configuration.', $firstFailure);
+        $this->assertSame('Reentrant database session configuration is not allowed.', $secondFailure);
+        $this->assertSame(['0', '101'], $configurator->appliedStates);
+        $this->assertSame(2, $configurator->applyCalls);
     }
 
     public function testWriteSuffixDoesNotForcePlainConnectionReadsInAnotherCoroutine(): void

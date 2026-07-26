@@ -28,9 +28,9 @@
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel stores request, command, job, and framework state in coroutine-local context. Values stored in one coroutine are isolated from values stored in another coroutine, even when both coroutines are running inside the same long-lived Swoole worker. When a coroutine ends, its coroutine context is destroyed with it.
+Hypervel stores state for each request, command, queued job, and other framework task in coroutine context. Each coroutine has its own context values, even when several coroutines are running inside the same long-lived Swoole worker. When a coroutine ends, its context values are removed automatically.
 
-This isolation is important because worker processes are shared by many concurrent requests and jobs. Request-specific state should not be stored in global variables, mutable static properties, or shared singleton object properties. Store that state in `Hypervel\Context\CoroutineContext` instead.
+This isolation prevents state from leaking between requests and jobs that run in the same worker. Store request-specific state in `Hypervel\Context\CoroutineContext` instead of global variables, mutable static properties, or shared singleton object properties.
 
 > [!WARNING]
 > Static properties and singleton object properties are shared by every coroutine in the worker. Mutating them with request-specific data can leak state between concurrent requests.
@@ -38,9 +38,9 @@ This isolation is important because worker processes are shared by many concurre
 <a name="coroutine-context-and-application-context"></a>
 ### Coroutine Context and Application Context
 
-`CoroutineContext` is the low-level coroutine-local key / value store used by Hypervel framework and package code. It is different from the Laravel-style `Hypervel\Support\Facades\Context` facade and the `context()` helper documented in the [context](/docs/{{version}}/context) documentation.
+`CoroutineContext` is the low-level key / value store used by Hypervel framework and package code. It is different from the Laravel-style `Hypervel\Support\Facades\Context` facade and the `context()` helper described in the [context documentation](/docs/{{version}}/context).
 
-Most application code that wants to add metadata to logs, queued jobs, and cross-boundary execution should use the `Context` facade. Package and framework code may use `CoroutineContext` directly when it needs low-level coroutine-local storage.
+Most application code should use the `Context` facade when adding information to logs or passing it to queued jobs. Framework and package code may use `CoroutineContext` directly when it needs to store low-level state for the current coroutine.
 
 <a name="interacting-with-context"></a>
 ## Interacting With Context
@@ -81,12 +81,14 @@ You may pass a coroutine ID as the third argument to store a value in a specific
 CoroutineContext::set('tenant_id', 123, $coroutineId);
 ```
 
-An explicit coroutine ID always targets only that coroutine, regardless of whether the caller is running inside another coroutine. If the requested coroutine does not exist, `set` throws a `Hypervel\Engine\Exceptions\CoroutineDestroyedException`. In the same situation, `get` returns its default, `has` returns `false`, `forget` and `flush` do nothing, and `getContainer` returns `null`. These operations never fall back to the shared non-coroutine context store when an explicit ID is supplied.
+When you pass a coroutine ID, Hypervel only uses that coroutine's context. It never falls back to the shared non-coroutine context.
+
+If the coroutine does not exist, `set` throws a `Hypervel\Engine\Exceptions\CoroutineDestroyedException`. The `get` method returns its default value, `has` returns `false`, `forget` and `flush` do nothing, and `getContainer` returns `null`.
 
 <a name="determining-item-existence"></a>
 ### Determining Item Existence
 
-The `has` method determines if a non-null value exists for the given key:
+To determine if a non-null value exists for a given key, you may use the `has` method:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -99,7 +101,7 @@ if (CoroutineContext::has('tenant_id')) {
 You may pass a coroutine ID as the second argument:
 
 ```php
-$exists = CoroutineContext::has('tenant_id', $coroutineId);
+$hasTenantId = CoroutineContext::has('tenant_id', $coroutineId);
 ```
 
 > [!NOTE]
@@ -139,12 +141,12 @@ You may pass a coroutine ID to flush a specific coroutine's context:
 CoroutineContext::flush($coroutineId);
 ```
 
-When `flush` is called outside a coroutine, it clears Hypervel's non-coroutine context store.
+When `flush` is called outside a coroutine, it clears the shared non-coroutine context.
 
 <a name="overriding-values"></a>
 ### Overriding Values
 
-The `override` method retrieves the current value, passes it to a closure, stores the closure's return value, and returns the new value:
+The `override` method passes the current value to a closure. The value returned by the closure is stored in the context and returned by the method:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -165,7 +167,7 @@ CoroutineContext::override('attempts', fn (?int $attempts) => $attempts + 1, $co
 <a name="retrieving-or-storing-values"></a>
 ### Retrieving or Storing Values
 
-The `getOrSet` method retrieves an existing non-null value. If the key does not exist, the value will be stored and returned:
+The `getOrSet` method returns the existing value for a key. If the key is missing or its value is `null`, the given value is stored and returned:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -173,7 +175,7 @@ use Hypervel\Context\CoroutineContext;
 $tenantId = CoroutineContext::getOrSet('tenant_id', 123);
 ```
 
-You may pass a closure as the value. The closure is only executed when the key is missing:
+You may pass a closure as the value. The closure is only executed when the key is missing or its value is `null`:
 
 ```php
 $tenantId = CoroutineContext::getOrSet('tenant_id', function () {
@@ -231,14 +233,14 @@ $tenantId = CoroutineContext::get('current-tenant');
 <a name="copying-context"></a>
 ## Copying Context
 
-Child coroutines do not copy the parent coroutine context by default. You may copy context explicitly using `CoroutineContext::copyFrom`, or by using the `copyContext` argument on coroutine helpers such as `go`, `co`, and `parallel`.
+Child coroutines do not inherit their parent's context values by default. If a child needs these values, you may copy them using `CoroutineContext::copyFrom` or the `copyContext` argument provided by `go`, `co`, and `parallel`.
 
 <a name="copying-from-another-coroutine"></a>
 ### Copying From Another Coroutine
 
-The `copyFrom` method copies context values from another coroutine into the current coroutine.
+The `copyFrom` method copies context values from another coroutine into the current one.
 
-In normal Hypervel request, command, job, and test code, your code is already running inside a coroutine:
+Hypervel request, command, job, and test code normally runs inside a coroutine. Before creating a child coroutine, retrieve the current coroutine's ID. The child may then use that ID to copy its parent's context:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -248,10 +250,10 @@ use function Hypervel\Coroutine\wait;
 
 CoroutineContext::set('request_id', 'abc');
 
-$parentId = Coroutine::id();
+$parentCoroutineId = Coroutine::id();
 
-$requestId = wait(function () use ($parentId) {
-    CoroutineContext::copyFrom($parentId);
+$requestId = wait(function () use ($parentCoroutineId) {
+    CoroutineContext::copyFrom($parentCoroutineId);
 
     return CoroutineContext::get('request_id');
 });
@@ -260,7 +262,7 @@ $requestId = wait(function () use ($parentId) {
 You may copy only specific keys:
 
 ```php
-CoroutineContext::copyFrom($parentId, ['request_id']);
+CoroutineContext::copyFrom($parentCoroutineId, ['request_id']);
 ```
 
 Copied values are merged into the current coroutine context. Existing values that do not share a copied key are preserved, while matching keys are overwritten.
@@ -271,38 +273,41 @@ Copied values are merged into the current coroutine context. Existing values tha
 <a name="capturing-context-values"></a>
 ### Capturing Context Values
 
-The `captureFrom` method returns context values as an array without copying them into another coroutine. By default, it captures all values from the current coroutine. You may pass a list of keys as the first argument to capture only those values:
+The `captureFrom` method returns context values as an array without installing them in another coroutine. By default, it captures every value from the current coroutine. You may pass a list of keys to capture only those values:
 
 ```php
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 
-$context = CoroutineContext::captureFrom(['request_id']);
+$capturedContext = CoroutineContext::captureFrom(['request_id']);
 
-Coroutine::create(function () use ($context) {
-    CoroutineContext::setMany($context);
+Coroutine::create(function () use ($capturedContext) {
+    CoroutineContext::setMany($capturedContext);
 
     $requestId = CoroutineContext::get('request_id');
 });
 ```
 
-To capture another coroutine, pass its ID using the `fromCoroutineId` argument:
+To capture values from another coroutine, pass its ID using the `fromCoroutineId` argument:
 
 ```php
-$context = CoroutineContext::captureFrom(['request_id'], fromCoroutineId: $parentId);
+$capturedContext = CoroutineContext::captureFrom(
+    ['request_id'],
+    fromCoroutineId: $parentCoroutineId,
+);
 ```
 
-Values implementing `ReplicableContext` are replicated when they are captured. If replication fails, no destination context has been modified and the caller may handle the exception before creating a child coroutine.
+When a captured value implements `ReplicableContext`, Hypervel calls its `replicate` method. The `copyFrom` method captures every value before changing the current context, so a replication failure leaves the current context unchanged.
 
-The returned map is a coroutine-transfer snapshot, not a serialization or persistence format: ordinary objects remain shared references. For a few application values, prefer explicit `get` calls.
+The returned array is not serialized. If you install it in another coroutine, objects that do not implement `ReplicableContext` remain shared between the coroutines.
 
 > [!NOTE]
-> Most application code should use `Coroutine::fork` or the `copyContext` argument on `go`, `co`, and `parallel`. Use `captureFrom` when implementing a custom coroutine or scheduling boundary that must separate context capture from installation.
+> Most application code should use `Coroutine::fork` or the `copyContext` argument provided by `go`, `co`, and `parallel`. Use `captureFrom` when you need to capture context values now and install them in another coroutine later.
 
 <a name="copying-from-non-coroutine-context"></a>
 ### Copying From Non-Coroutine Context
 
-When `CoroutineContext` is used outside a coroutine, values are stored in a shared non-coroutine context store. The `copyFromNonCoroutine` method copies those values into an existing coroutine context:
+When you use `CoroutineContext` outside a coroutine, its values are stored in a shared non-coroutine context. The `copyFromNonCoroutine` method copies these values into a coroutine:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -333,7 +338,7 @@ CoroutineContext::copyFromNonCoroutine(['request_id'], $coroutineId);
 <a name="copying-to-non-coroutine-context"></a>
 ### Copying To Non-Coroutine Context
 
-Hypervel's test infrastructure uses the `copyToNonCoroutine` method to bridge selected state from a test coroutine into PHPUnit lifecycle code that runs outside a coroutine. You may select specific keys and, when necessary, the source coroutine:
+Hypervel's test infrastructure uses the `copyToNonCoroutine` method to make selected state from a test coroutine available to PHPUnit lifecycle code that runs outside a coroutine. You may select specific keys and, when necessary, the source coroutine:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -342,12 +347,12 @@ CoroutineContext::copyToNonCoroutine(['test_state'], $coroutineId);
 ```
 
 > [!WARNING]
-> `copyToNonCoroutine` writes to process-global storage shared by every coroutine in the worker. It is intended only for controlled test lifecycle bridges and must not be used to propagate request state.
+> `copyToNonCoroutine` writes to storage shared by every coroutine in the worker. Use it only for controlled test lifecycle code. Do not use it to copy request state.
 
 <a name="reading-non-coroutine-context"></a>
 ### Reading Non-Coroutine Context
 
-The `getFromNonCoroutine` method always reads from the non-coroutine context store, even when called inside a coroutine:
+The `getFromNonCoroutine` method always reads from the shared non-coroutine context, even when called inside a coroutine:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -355,19 +360,19 @@ use Hypervel\Context\CoroutineContext;
 $requestId = CoroutineContext::getFromNonCoroutine('request_id');
 ```
 
-Test infrastructure may clear its owned keys from the non-coroutine context store using `clearFromNonCoroutine`:
+Test infrastructure may remove its keys from the non-coroutine context using `clearFromNonCoroutine`:
 
 ```php
 CoroutineContext::clearFromNonCoroutine(['test_state']);
 ```
 
 > [!WARNING]
-> `clearFromNonCoroutine` mutates process-global storage and is intended only for controlled test lifecycle cleanup.
+> `clearFromNonCoroutine` changes storage shared by every coroutine in the worker. Use it only for controlled test lifecycle cleanup.
 
 <a name="replicable-context-values"></a>
 ### Replicable Context Values
 
-When context is copied between coroutines, object values are shared by reference by default. If you need an object to be copied independently, implement the `Hypervel\Context\ReplicableContext` interface:
+When context is copied between coroutines, its objects are shared by default. If each coroutine needs its own copy of an object, implement the `Hypervel\Context\ReplicableContext` interface:
 
 ```php
 use Hypervel\Context\ReplicableContext;
@@ -387,12 +392,12 @@ class RequestState implements ReplicableContext
 }
 ```
 
-Objects implementing `ReplicableContext` are copied by calling their `replicate` method when `Coroutine::fork`, `CoroutineContext::captureFrom`, `CoroutineContext::copyFrom`, or `CoroutineContext::copyFromNonCoroutine` copies them.
+When `Coroutine::fork`, `CoroutineContext::captureFrom`, `CoroutineContext::copyFrom`, or `CoroutineContext::copyFromNonCoroutine` encounters one of these objects, Hypervel copies it using the `replicate` method.
 
 <a name="context-containers"></a>
 ## Context Containers
 
-The `getContainer` method returns the raw context storage for the current or specified coroutine:
+The `getContainer` method returns the context container for the current or specified coroutine:
 
 ```php
 use Hypervel\Context\CoroutineContext;
@@ -400,14 +405,14 @@ use Hypervel\Context\CoroutineContext;
 $container = CoroutineContext::getContainer();
 ```
 
-Inside a coroutine, this method returns the coroutine's `ArrayObject` context storage. Outside a coroutine, it returns the non-coroutine context array. If the requested coroutine context does not exist, `null` is returned.
+Inside a coroutine, this method returns the coroutine's `ArrayObject`. Outside a coroutine, it returns an array containing the shared non-coroutine context values. If you request a coroutine that does not exist, the method returns `null`.
 
-This method is intended for low-level framework and package code. Most code should use `get`, `set`, `has`, and `forget` instead of mutating the raw context container directly.
+This method is intended for low-level framework and package code. Most code should use `get`, `set`, `has`, and `forget` instead.
 
 <a name="typed-context-helpers"></a>
 ## Typed Context Helpers
 
-Hypervel includes a few small typed helpers built on top of `CoroutineContext`. These helpers are mostly useful in framework and package code that needs direct access to low-level framework state.
+Hypervel includes typed helpers for common values stored in `CoroutineContext`. These helpers are mainly intended for framework and package code.
 
 <a name="request-context"></a>
 ### Request Context
@@ -422,12 +427,14 @@ RequestContext::set($request);
 $request = RequestContext::get();
 ```
 
-You may check, remove, or optionally retrieve the current request:
+You may determine if a request exists, retrieve it when it is available, or remove it:
 
 ```php
 if (RequestContext::has()) {
-    $request = RequestContext::getOrNull();
+    // ...
 }
+
+$request = RequestContext::getOrNull();
 
 RequestContext::forget();
 ```
@@ -437,7 +444,7 @@ Each method accepts an optional coroutine ID when you need to access another cor
 <a name="parent-coroutine-context"></a>
 ### Parent Coroutine Context
 
-The `ParentCoroutineContext` class reads and writes values in the parent coroutine's context when called from inside a child coroutine:
+The `ParentCoroutineContext` class allows a child coroutine to read or change values in its parent's context:
 
 ```php
 use Hypervel\Context\ParentCoroutineContext;
@@ -447,15 +454,15 @@ ParentCoroutineContext::set('request_id', 'abc');
 $requestId = ParentCoroutineContext::get('request_id');
 ```
 
-It provides `set`, `get`, `has`, `forget`, `override`, `getOrSet`, and `getContainer` methods. When called outside a coroutine, these methods operate on the current non-coroutine context instead.
+The class provides `set`, `get`, `has`, `forget`, `override`, `getOrSet`, and `getContainer` methods. When called outside a coroutine, these methods use the shared non-coroutine context instead.
 
 <a name="common-pitfalls"></a>
 ## Common Pitfalls
 
-The `context()` helper and `Hypervel\Support\Facades\Context` are not shortcuts for `CoroutineContext::get` and `CoroutineContext::set`. They use Hypervel's application-facing context repository for log metadata and cross-boundary context propagation. Use `CoroutineContext` only when you need low-level coroutine-local storage.
+The `context()` helper and `Hypervel\Support\Facades\Context` are not aliases for `CoroutineContext::get` and `CoroutineContext::set`. They manage application context used for features such as log metadata and queued jobs. Use `CoroutineContext` only when you need low-level storage for the current coroutine.
 
-Values set outside a coroutine are stored in the shared non-coroutine context store. They are not automatically copied into child coroutines created with `go`, `co`, or `parallel`. Use `copyFromNonCoroutine` when you explicitly need to copy those values into a coroutine.
+Values set outside a coroutine are stored in the shared non-coroutine context. They are not automatically copied into child coroutines created with `go`, `co`, or `parallel`. Use `copyFromNonCoroutine` when a coroutine needs those values.
 
-Values set inside one coroutine are not visible inside another coroutine unless you copy them. Use `Coroutine::fork`, `go(..., copyContext: true)`, `parallel(..., copyContext: true)`, or `CoroutineContext::copyFrom(...)` when child coroutines need access to parent context values.
+Values stored in one coroutine are not visible inside another unless you copy them. Use `Coroutine::fork`, `go(..., copyContext: true)`, `parallel(..., copyContext: true)`, or `CoroutineContext::copyFrom(...)` when a child needs values from its parent.
 
-Avoid storing mutable request-specific objects in coroutine context and then copying them into child coroutines unless shared mutation is intentional. Implement `ReplicableContext` for mutable objects that should be copied independently.
+Objects remain shared when context is copied unless they implement `ReplicableContext`. Avoid copying mutable request-specific objects when shared changes would be unsafe.

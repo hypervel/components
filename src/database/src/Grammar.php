@@ -237,6 +237,9 @@ abstract class Grammar
         return 'Y-m-d H:i:s';
     }
 
+    // REMOVED: Laravel's deprecated grammar table-prefix forwarding is omitted;
+    // use the connection's getTablePrefix() and setTablePrefix() methods.
+
     /**
      * Flush all static state.
      */

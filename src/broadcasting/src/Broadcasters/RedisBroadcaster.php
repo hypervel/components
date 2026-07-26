@@ -35,19 +35,18 @@ class RedisBroadcaster extends Broadcaster
      */
     public function auth(Request $request): mixed
     {
-        $channelName = $this->normalizeChannelName(
-            str_replace($this->prefix, '', $request->input('channel_name'))
-        );
+        $channelName = $request->input('channel_name');
 
-        if (empty($request->input('channel_name'))
-            || ($this->isGuardedChannel($request->input('channel_name')) && ! $this->retrieveUser($request, $channelName))
-        ) {
+        if (empty($channelName)) {
             throw new AccessDeniedHttpException;
         }
 
         return parent::verifyUserCanAccessChannel(
             $request,
-            $channelName
+            $this->normalizeChannelName(
+                str_replace($this->prefix, '', $channelName)
+            ),
+            $this->isGuardedChannel($channelName),
         );
     }
 
@@ -56,13 +55,26 @@ class RedisBroadcaster extends Broadcaster
      */
     public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
+        return $this->validAuthenticationResponseForChannel(
+            $request,
+            $result,
+            $this->normalizeChannelName($request->input('channel_name')),
+        );
+    }
+
+    /**
+     * Return the valid authentication response for the authorized channel.
+     */
+    protected function validAuthenticationResponseForChannel(
+        Request $request,
+        mixed $result,
+        string $channel,
+    ): mixed {
         if (is_bool($result)) {
             return json_encode($result);
         }
 
-        $channelName = $this->normalizeChannelName($request->input('channel_name'));
-
-        $user = $this->retrieveUser($request, $channelName);
+        $user = $this->retrieveUser($request, $channel);
 
         $broadcastIdentifier = method_exists($user, 'getAuthIdentifierForBroadcasting')
             ? $user->getAuthIdentifierForBroadcasting()

@@ -224,7 +224,7 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
 
 The `s3` and `gcs` drivers pool their SDK clients by default. The bucket-specific Flysystem adapter stack is rebuilt around a borrowed client for each operation. This lets disks on the same cloud account share the expensive client pool even when their buckets, roots, visibility, or other disk behavior differ.
 
-Pool identity is derived from the exact normalized configuration passed to the SDK client constructor. Equivalent client configurations converge automatically, including repeated `Storage::build()` calls. Different credentials, regions, endpoints, or client options produce different pools.
+Pool identity is derived from the exact normalized configuration passed to the SDK client constructor. Equivalent client configurations converge automatically, including repeated `Storage::build()` calls. These configurations must use the same pool options; a mismatch throws immediately instead of silently reusing the first configuration's settings. Different credentials, regions, endpoints, or client options produce different pools.
 
 You may configure a pool using the disk's `pool` option:
 
@@ -312,6 +312,24 @@ $files = new ScopedCloudFilesystemProxy(
 
 $files->put('avatar.jpg', $contents);
 ```
+
+You may also resolve the underlying disk for each operation. This is useful when credentials, buckets, or other disk configuration depend on coroutine context:
+
+```php
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Filesystem\ScopedFilesystemProxy;
+use Hypervel\Support\Facades\Storage;
+
+$files = new ScopedFilesystemProxy(
+    fn (): Filesystem => Storage::build(CoroutineContext::get('storage-config')),
+    fn (): string => CoroutineContext::get('storage-prefix'),
+);
+
+$files->put('avatar.jpg', $contents);
+```
+
+The disk and prefix resolvers are each called once per operation. Keep the disk resolver fast by reading values already available in memory. Equivalent S3 and Google Cloud Storage configurations created with `Storage::build()` reuse the same client pool. Use `ScopedCloudFilesystemProxy` when you need methods from the `Cloud` contract, such as `url()`. Every disk returned by its resolver must implement that contract, or the first operation throws a `TypeError`.
 
 Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `allowRootPassthrough: true` to the constructor only when root access is intentional. Prefixes and user paths are normalized with Flysystem's path normalizer, traversal and control characters are rejected, and unknown methods are not forwarded because an unmapped call could bypass the scope. Percent-encoded segments are treated as literal file names; URL decoding belongs at the HTTP boundary.
 

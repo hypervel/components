@@ -14,6 +14,7 @@
     - [Using an Example Application](#using-example-application)
 - [Defining Broadcast Events](#defining-broadcast-events)
     - [Formatting Outgoing Channels](#formatting-outgoing-channels)
+    - [Authorizing Formatted Channels](#authorizing-formatted-channels)
     - [Broadcast Name](#broadcast-name)
     - [Broadcast Data](#broadcast-data)
     - [Broadcast Queue](#broadcast-queue)
@@ -688,20 +689,45 @@ After implementing the `ShouldBroadcast` interface, you only need to [fire the e
 <a name="formatting-outgoing-channels"></a>
 ### Formatting Outgoing Channels
 
-You may register a callback that formats every outgoing channel. This is useful when a package or application needs to apply the same naming rule to all broadcasts:
+Sometimes, you may wish to format every channel name before it is sent to your broadcast driver. For example, you may use the `formatChannelsUsing` method to add a prefix to all outgoing channels:
 
 ```php
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 
 Broadcaster::formatChannelsUsing(function (array $channels): array {
     return array_map(
-        fn ($channel) => $channel.'.application',
+        fn ($channel) => 'application.'.$channel,
         $channels,
     );
 });
 ```
 
-Register the callback in a service provider's `boot` method. The callback receives the channel objects before the broadcast driver formats them and applies to every broadcaster in the worker. You may pass `null` to `formatChannelsUsing` when a test needs to remove the callback.
+The callback receives the channel values before Hypervel converts them to strings. You should register it in the `boot` method of a service provider.
+
+The formatter is shared by every broadcaster for the lifetime of the worker. During tests, you may remove it by passing `null` to the `formatChannelsUsing` method.
+
+<a name="authorizing-formatted-channels"></a>
+### Authorizing Formatted Channels
+
+Sometimes, an outgoing channel formatter adds information that should not be passed to your channel authorization callback. You may use the `authorizeChannelsUsing` method to validate the formatted channel and return the name Hypervel should authorize. For example, the following callback requires and removes the `application.` prefix:
+
+```php
+use Hypervel\Broadcasting\Broadcasters\Broadcaster;
+use Hypervel\Http\Request;
+use Hypervel\Support\Str;
+
+Broadcaster::authorizeChannelsUsing(function (Request $request, string $channel): ?string {
+    if (! Str::startsWith($channel, 'application.')) {
+        return null;
+    }
+
+    return Str::after($channel, 'application.');
+});
+```
+
+If the callback returns `null`, the authorization request will be denied. Otherwise, Hypervel will use the returned name to find the matching `Broadcast::channel` definition. The `private-` and `presence-` prefixes have already been removed before the callback is invoked. The original channel name is still used to sign the authorization response.
+
+You should register the callback in the `boot` method of a service provider. The callback is shared by every broadcaster for the lifetime of the worker. During tests, you may remove it by passing `null` to the `authorizeChannelsUsing` method.
 
 <a name="broadcast-name"></a>
 ### Broadcast Name

@@ -10,7 +10,6 @@ use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Support\Sleep;
-use JsonException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
@@ -41,13 +40,6 @@ class RedisPubSubProvider implements PubSubProvider
     protected int $retryTimer = 0;
 
     /**
-     * Publishes queued while disconnected.
-     *
-     * @var list<array>
-     */
-    protected array $queuedPublishes = [];
-
-    /**
      * Create a new Redis pub/sub provider instance.
      */
     public function __construct(
@@ -60,9 +52,8 @@ class RedisPubSubProvider implements PubSubProvider
     /**
      * Connect to Redis and start subscribing.
      *
-     * Uses the injected Redis connection's subscriber() factory to create
-     * a Subscriber with the same host, port, password, and prefix as the
-     * connection used for publishing.
+     * Uses the injected Redis connection's subscriber() factory so the
+     * dedicated subscriber inherits its topology, credentials, and prefix.
      */
     public function connect(): void
     {
@@ -82,7 +73,6 @@ class RedisPubSubProvider implements PubSubProvider
 
             $this->subscriber = $subscriber;
             $this->subscribedChannel = $subscribedChannel;
-            $this->processQueuedPublishes();
 
             if (! $this->shouldRetry() || $this->subscriber !== $subscriber) {
                 $this->clearSubscriber($subscriber);
@@ -184,12 +174,6 @@ class RedisPubSubProvider implements PubSubProvider
      */
     public function publish(array $payload): int
     {
-        if ($this->subscriber === null) {
-            $this->queuedPublishes[] = $payload;
-
-            return 0;
-        }
-
         return (int) $this->redis->publish($this->channel, json_encode($payload, JSON_THROW_ON_ERROR));
     }
 
@@ -220,31 +204,6 @@ class RedisPubSubProvider implements PubSubProvider
         }
 
         $this->connect();
-    }
-
-    /**
-     * Process any publishes that were queued during disconnection.
-     */
-    protected function processQueuedPublishes(): void
-    {
-        while ($this->queuedPublishes !== []
-            && $this->shouldRetry()
-            && $this->subscriber !== null
-        ) {
-            $payload = $this->queuedPublishes[0];
-
-            try {
-                $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
-            } catch (JsonException $exception) {
-                array_shift($this->queuedPublishes);
-                Log::error('Discarding invalid queued Reverb payload: ' . $exception->getMessage());
-
-                continue;
-            }
-
-            $this->redis->publish($this->channel, $encoded);
-            array_shift($this->queuedPublishes);
-        }
     }
 
     /**

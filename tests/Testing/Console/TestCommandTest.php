@@ -57,7 +57,7 @@ class TestCommandTest extends TestCase
         $originalArguments = $_SERVER['argv'] ?? [];
         $_SERVER['argv'] = ['artisan', 'test', '--profile'];
 
-        $command = new TestCommandHarness(['profile' => true], $basePath);
+        $command = new TestCommandHarness(['profile' => true, 'without-tty' => true], $basePath);
         $command->setHypervel($this->app);
         $tester = new CommandTester($command);
 
@@ -81,7 +81,7 @@ class TestCommandTest extends TestCase
         $originalArguments = $_SERVER['argv'] ?? [];
         $_SERVER['argv'] = ['artisan', 'test'];
 
-        $command = new TestCommandHarness([], $basePath);
+        $command = new TestCommandHarness(['without-tty' => true], $basePath);
         $command->setHypervel($this->app);
         $tester = new CommandTester($command);
 

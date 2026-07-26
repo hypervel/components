@@ -13,15 +13,6 @@ class RedisConnectionIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
 
-    protected bool $isOlderThan6 = false;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->isOlderThan6 = version_compare((string) phpversion('redis'), '6.0.0', '<');
-    }
-
     public function testPhpRedisConnectSignatureAndConnection(): void
     {
         $redis = new Redis;
@@ -31,12 +22,7 @@ class RedisConnectionIntegrationTest extends TestCase
         $this->assertSame('host', $parameters[0]->getName());
         $this->assertSame('port', $parameters[1]->getName());
         $this->assertSame('timeout', $parameters[2]->getName());
-
-        if ($this->isOlderThan6) {
-            $this->assertSame('retry_interval', $parameters[3]->getName());
-        } else {
-            $this->assertSame('persistent_id', $parameters[3]->getName());
-        }
+        $this->assertSame('persistent_id', $parameters[3]->getName());
 
         $connected = $redis->connect(
             env('REDIS_HOST', '127.0.0.1'),

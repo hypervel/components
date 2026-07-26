@@ -11,6 +11,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Core\Bootstrap;
 use Hypervel\Core\Events\BeforeMainServerStart;
+use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\Server\Exceptions\InvalidArgumentException;
 use Hypervel\Server\Exceptions\ServerException;
@@ -52,7 +53,10 @@ class Server implements ServerInterface
      */
     public function start(): void
     {
-        if ($this->server->start() === false) {
+        $server = $this->getServer();
+        $this->eventDispatcher->dispatch(new BeforeServerFork($server));
+
+        if ($server->start() === false) {
             throw new ServerException('Failed to start the Swoole server.');
         }
     }

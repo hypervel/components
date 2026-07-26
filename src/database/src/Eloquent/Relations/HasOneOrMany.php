@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
+use Closure;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -217,10 +218,10 @@ abstract class HasOneOrMany extends Relation
      *
      * @return TRelatedModel
      */
-    public function firstOrNew(array $attributes = [], array $values = []): Model
+    public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
     {
         if (is_null($instance = $this->where($attributes)->first())) {
-            $instance = $this->related->newInstance(array_merge($attributes, $values));
+            $instance = $this->related->newInstance(array_merge($attributes, value($values)));
 
             $this->setForeignAttributesForCreate($instance);
         }
@@ -233,7 +234,7 @@ abstract class HasOneOrMany extends Relation
      *
      * @return TRelatedModel
      */
-    public function firstOrCreate(array $attributes = [], array $values = []): Model
+    public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model
     {
         if (is_null($instance = (clone $this)->where($attributes)->first())) {
             $instance = $this->createOrFirst($attributes, $values);
@@ -247,11 +248,11 @@ abstract class HasOneOrMany extends Relation
      *
      * @return TRelatedModel
      */
-    public function createOrFirst(array $attributes = [], array $values = []): Model
+    public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
         try {
             // @phpstan-ignore return.type (generic type lost through withSavepointIfNeeded callback)
-            return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values)));
+            return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $e) {
             // @phpstan-ignore return.type (generic type lost through where()->first() chain)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
@@ -263,11 +264,11 @@ abstract class HasOneOrMany extends Relation
      *
      * @return TRelatedModel
      */
-    public function updateOrCreate(array $attributes, array $values = []): Model
+    public function updateOrCreate(array $attributes, Closure|array $values = []): Model
     {
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
-                $instance->fill($values)->save();
+                $instance->fill(value($values))->save();
             }
         });
     }

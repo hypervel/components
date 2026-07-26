@@ -12,6 +12,7 @@ use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -62,6 +63,31 @@ class DatabaseMigrationFreshCommandTest extends TestCase
         ])->willReturn(0);
 
         $this->runCommand($command, ['--database' => 'sqlite', '--drop-views' => true, '--seed' => true, '--seeder' => 'Database\Seeders\CustomSeeder']);
+    }
+
+    public function testFreshCommandRunsMigrationsWhenRepositoryLookupFails(): void
+    {
+        $app = new ApplicationDatabaseFreshStub;
+        $dispatcher = $app->instance(Dispatcher::class, m::mock(Dispatcher::class)->shouldIgnoreMissing());
+        $command = $this->getMockBuilder(FreshCommand::class)
+            ->onlyMethods(['call', 'callSilent'])
+            ->setConstructorArgs([$migrator = m::mock(Migrator::class)])
+            ->getMock();
+        $command->setHypervel($app);
+
+        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(
+            static fn ($name, $callback) => $callback()
+        );
+        $migrator->shouldReceive('repositoryExists')->once()->andThrow(new RuntimeException('Database does not exist.'));
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class));
+
+        $command->expects($this->never())->method('callSilent');
+        $command->expects($this->once())->method('call')->with('migrate', [
+            '--database' => 'missing',
+            '--force' => true,
+        ])->willReturn(0);
+
+        $this->assertSame(0, $this->runCommand($command, ['--database' => 'missing']));
     }
 
     protected function runCommand($command, array $input = []): int

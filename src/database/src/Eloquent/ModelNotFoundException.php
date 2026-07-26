@@ -6,6 +6,9 @@ namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Support\Arr;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @template TModel of \Hypervel\Database\Eloquent\Model
@@ -30,12 +33,12 @@ class ModelNotFoundException extends RecordsNotFoundException
      * Set the affected Eloquent model and instance ids.
      *
      * @param class-string<TModel> $model
-     * @param array<int, int|string>|int|string $ids
+     * @param array<int, int|string|UnitEnum>|int|string|UnitEnum $ids
      */
-    public function setModel(string $model, array|int|string $ids = []): static
+    public function setModel(string $model, array|int|string|UnitEnum $ids = []): static
     {
         $this->model = $model;
-        $this->ids = Arr::wrap($ids);
+        $this->ids = array_map(enum_value(...), Arr::wrap($ids));
 
         $this->message = "No query results for model [{$model}]";
 

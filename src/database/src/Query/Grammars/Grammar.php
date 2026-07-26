@@ -135,7 +135,7 @@ class Grammar extends BaseGrammar
             $column = 'distinct ' . $column;
         }
 
-        return 'select ' . $aggregate['function'] . '(' . $column . ') as aggregate';
+        return 'select ' . $aggregate['function'] . '(' . $column . ') as ' . $this->wrap('aggregate');
     }
 
     /**
@@ -358,6 +358,14 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile a "where null safe equals" clause.
+     */
+    protected function whereNullSafeEquals(Builder $query, array $where): string
+    {
+        return $this->wrap($where['column']) . ' is not distinct from ' . $this->parameter($where['value']);
+    }
+
+    /**
      * Compile a "between" where clause.
      */
     protected function whereBetween(Builder $query, array $where): string
@@ -454,7 +462,9 @@ class Grammar extends BaseGrammar
      */
     protected function whereColumn(Builder $query, array $where): string
     {
-        return $this->wrap($where['first']) . ' ' . $where['operator'] . ' ' . $this->wrap($where['second']);
+        $operator = str_replace('?', '??', $where['operator']);
+
+        return $this->wrap($where['first']) . ' ' . $operator . ' ' . $this->wrap($where['second']);
     }
 
     /**
@@ -780,8 +790,28 @@ class Grammar extends BaseGrammar
                 return $order['sql']->getValue($query->getGrammar());
             }
 
+            if (isset($order['type']) && $order['type'] === 'InOrderOf') {
+                return $this->compileInOrderOf($order);
+            }
+
             return $order['sql'] ?? $this->wrap($order['column']) . ' ' . $order['direction'];
         }, $orders);
+    }
+
+    /**
+     * Compile an "in order of" clause.
+     */
+    protected function compileInOrderOf(array $order): string
+    {
+        $column = $this->wrap($order['column']);
+
+        $cases = [];
+
+        foreach (array_values($order['values']) as $index => $value) {
+            $cases[] = 'when ' . $column . ' = ' . $this->parameter($value) . ' then ' . $index;
+        }
+
+        return 'case ' . implode(' ', $cases) . ' else ' . count($order['values']) . ' end';
     }
 
     /**
@@ -965,6 +995,16 @@ class Grammar extends BaseGrammar
     public function compileInsertOrIgnore(Builder $query, array $values): string
     {
         throw new RuntimeException('This database engine does not support inserting while ignoring errors.');
+    }
+
+    /**
+     * Compile an insert or ignore statement with a returning clause into SQL.
+     *
+     * @throws RuntimeException
+     */
+    public function compileInsertOrIgnoreReturning(Builder $query, array $values, array $returning, ?array $uniqueBy): string
+    {
+        throw new RuntimeException('This database engine does not support insert or ignore with returning.');
     }
 
     /**
@@ -1202,11 +1242,18 @@ class Grammar extends BaseGrammar
      */
     public function substituteBindingsIntoRawSql(string $sql, array $bindings): string
     {
-        $bindings = array_map(fn ($value) => $this->escape($value, is_resource($value) || gettype($value) === 'resource (closed)'), $bindings);
+        $bindings = array_map(function ($value): string {
+            if (is_resource($value) || gettype($value) === 'resource (closed)') {
+                $value = (string) $value;
+            }
+
+            return $this->escape($value);
+        }, $bindings);
 
         $query = '';
 
         $isStringLiteral = false;
+        $bindingIndex = 0;
 
         for ($i = 0; $i < strlen($sql); ++$i) {
             $char = $sql[$i];
@@ -1222,7 +1269,7 @@ class Grammar extends BaseGrammar
                 $query .= $char;
                 $isStringLiteral = ! $isStringLiteral;
             } elseif ($char === '?' && ! $isStringLiteral) { // Substitutable binding...
-                $query .= array_shift($bindings) ?? '?';
+                $query .= $bindings[$bindingIndex++] ?? '?';
             } else { // Normal character...
                 $query .= $char;
             }

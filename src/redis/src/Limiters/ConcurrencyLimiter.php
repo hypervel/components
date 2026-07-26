@@ -94,11 +94,27 @@ class ConcurrencyLimiter
         $lease = $this->acquire($timeout, $sleep);
 
         if (is_callable($callback)) {
+            $callbackException = null;
+
             try {
-                return $callback();
-            } finally {
-                $lease->release();
+                $result = $callback();
+            } catch (Throwable $exception) {
+                $callbackException = $exception;
             }
+
+            try {
+                $lease->release();
+            } catch (Throwable $exception) {
+                if ($callbackException === null) {
+                    throw $exception;
+                }
+            }
+
+            if ($callbackException !== null) {
+                throw $callbackException;
+            }
+
+            return $result;
         }
 
         return true;

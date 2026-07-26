@@ -58,6 +58,27 @@ class SQLiteConnection extends Connection
     }
 
     /**
+     * Extract the columns that caused a unique constraint violation.
+     *
+     * @return array{index: null, columns: list<string>}
+     */
+    protected function parseUniqueConstraintViolation(Exception $exception): array
+    {
+        preg_match('#UNIQUE constraint failed: (.+)#i', $exception->getMessage(), $matches);
+
+        $columns = [];
+
+        if (isset($matches[1])) {
+            $columns = array_map(
+                static fn (string $column): string => last(explode('.', trim($column))),
+                explode(',', $matches[1])
+            );
+        }
+
+        return ['columns' => $columns, 'index' => null];
+    }
+
+    /**
      * Get the default query grammar instance.
      */
     protected function getDefaultQueryGrammar(): SQLiteGrammar

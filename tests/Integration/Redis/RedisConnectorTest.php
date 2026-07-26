@@ -28,7 +28,7 @@ class RedisConnectorTest extends TestCase
         $app->make('config')->set('app.stdout_log.level', []);
     }
 
-    public function testDefaultConfiguration()
+    public function testDefaultConfiguration(): void
     {
         $host = $this->app->make('config')->get('database.redis.default.host');
         $port = $this->app->make('config')->get('database.redis.default.port');
@@ -39,7 +39,7 @@ class RedisConnectorTest extends TestCase
         });
     }
 
-    public function testUrl()
+    public function testUrl(): void
     {
         $host = env('REDIS_HOST', '127.0.0.1');
         $port = (int) env('REDIS_PORT', 6379);
@@ -57,7 +57,7 @@ class RedisConnectorTest extends TestCase
         });
     }
 
-    public function testUrlWithScheme()
+    public function testUrlWithScheme(): void
     {
         $host = env('REDIS_HOST', '127.0.0.1');
         $port = (int) env('REDIS_PORT', 6379);
@@ -74,7 +74,7 @@ class RedisConnectorTest extends TestCase
         });
     }
 
-    public function testScheme()
+    public function testScheme(): void
     {
         $host = env('REDIS_HOST', '127.0.0.1');
         $port = (int) env('REDIS_PORT', 6379);
@@ -93,7 +93,7 @@ class RedisConnectorTest extends TestCase
         });
     }
 
-    public function testPerConnectionPrefixOverridesGlobalPrefix()
+    public function testPerConnectionPrefixOverridesGlobalPrefix(): void
     {
         $name = $this->addTestConnection([
             'host' => env('REDIS_HOST', '127.0.0.1'),
@@ -113,6 +113,59 @@ class RedisConnectorTest extends TestCase
 
         $this->withClient($name, function (\Redis $client): void {
             $this->assertSame('per_connection_', $client->getOption(\Redis::OPT_PREFIX));
+        });
+    }
+
+    public function testTopLevelConnectionPrefixOverridesGlobalAndLocalPrefix(): void
+    {
+        $name = $this->addTestConnection([
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'password' => env('REDIS_PASSWORD', null) ?: null,
+            'port' => (int) env('REDIS_PORT', 6379),
+            'database' => $this->getParallelRedisDb(),
+            'prefix' => 'top_level_',
+            'options' => [
+                'prefix' => 'per_connection_',
+            ],
+        ]);
+
+        $this->app->make('config')->set('database.redis.options.prefix', 'global_');
+        $this->app->make('redis')->purge($name);
+
+        $this->withClient($name, function (\Redis $client): void {
+            $this->assertSame('top_level_', $client->getOption(\Redis::OPT_PREFIX));
+        });
+    }
+
+    public function testClientNameIsApplied(): void
+    {
+        $name = $this->addTestConnection([
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'password' => env('REDIS_PASSWORD', null) ?: null,
+            'port' => (int) env('REDIS_PORT', 6379),
+            'database' => $this->getParallelRedisDb(),
+            'name' => 'hypervel-connector-test',
+        ]);
+
+        $this->withClient($name, function (\Redis $client): void {
+            $this->assertSame('hypervel-connector-test', $client->client('GETNAME'));
+        });
+    }
+
+    public function testTcpKeepaliveOptionIsApplied(): void
+    {
+        $name = $this->addTestConnection([
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'password' => env('REDIS_PASSWORD', null) ?: null,
+            'port' => (int) env('REDIS_PORT', 6379),
+            'database' => $this->getParallelRedisDb(),
+            'options' => [
+                'tcp_keepalive' => 60,
+            ],
+        ]);
+
+        $this->withClient($name, function (\Redis $client): void {
+            $this->assertSame(1, $client->getOption(\Redis::OPT_TCP_KEEPALIVE));
         });
     }
 

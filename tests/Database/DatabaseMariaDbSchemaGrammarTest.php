@@ -419,6 +419,32 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `geo` add spatial index `geo_coordinates_spatialindex`(`coordinates`)', $statements[1]);
     }
 
+    public function testAddingVectorIndex(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'embeddings');
+        $blueprint->vectorIndex('embedding');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame(
+            'alter table `embeddings` add vector index `embeddings_embedding_vectorindex`(`embedding`) M=6 DISTANCE=cosine',
+            $statements[0]
+        );
+    }
+
+    public function testAddingVectorIndexWithNameAndLock(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'embeddings');
+        $blueprint->vectorIndex('embedding', 'embedding_vector_index')->lock('none');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame(
+            'alter table `embeddings` add vector index `embedding_vector_index`(`embedding`) M=6 DISTANCE=cosine, lock=none',
+            $statements[0]
+        );
+    }
+
     public function testAddingRawIndex()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');

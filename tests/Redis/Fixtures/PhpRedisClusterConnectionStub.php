@@ -10,7 +10,6 @@ use Hypervel\Redis\PhpRedisClusterConnection;
 use Mockery as m;
 use Redis;
 use RedisCluster;
-use RedisException;
 
 class PhpRedisClusterConnectionStub extends PhpRedisClusterConnection
 {
@@ -83,10 +82,5 @@ class PhpRedisClusterConnectionStub extends PhpRedisClusterConnection
     public function getConfigForTest(): array
     {
         return $this->config;
-    }
-
-    protected function retry(string $name, array $arguments, RedisException $exception): mixed
-    {
-        throw $exception;
     }
 }

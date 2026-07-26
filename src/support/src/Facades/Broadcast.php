@@ -39,6 +39,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
  * @method static void resolveAuthenticatedUserUsing(\Closure|null $callback)
  * @method static \Hypervel\Broadcasting\Broadcasters\Broadcaster channel(\Hypervel\Contracts\Broadcasting\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])
  * @method static void formatChannelsUsing(\Closure|null $callback)
+ * @method static void authorizeChannelsUsing(\Closure|null $callback)
  * @method static \Hypervel\Support\Collection getChannels()
  * @method static void flushState()
  * @method static mixed auth(\Hypervel\Http\Request $request)

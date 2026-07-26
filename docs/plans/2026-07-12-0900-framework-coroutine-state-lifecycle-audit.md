@@ -990,8 +990,8 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `database`
-- **Ledger entries required for the active work:** `Release cleared coordinator timers deterministically`; `Bound pool resources and connection progress deterministically`; `Normalize framework enum identifiers at string boundaries`; `Complete Foundation runtime lifecycles and safe publication`; `Complete Console command, scheduling, and generator lifecycles`.
+- **Active package or work unit:** `cache`
+- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution`; `Normalize framework enum identifiers at string boundaries`; `Harden filesystem I/O, streaming, and response teardown`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`.
 - **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
@@ -1020,7 +1020,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `container-09` | `auth`, `cache`, `log` | `container` (revalidation complete); later full `auth`, `cache`, and `log` audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
 | `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 | `context-01` | `context` | `container` and `foundation` (revalidation complete) | `Correct explicit coroutine context targeting`; finding `context-01` |
-| `context-04` | `context` | `foundation` (revalidation complete); later full `database` audit | `Correct explicit coroutine context targeting`; finding `context-04` |
+| `context-04` | `context` | `foundation` and `database` (revalidation complete) | `Correct explicit coroutine context targeting`; finding `context-04` |
 | `coroutine-05` | `coroutine`, `filesystem` | `filesystem` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `coroutine-05` |
 | `coroutine-06` | `context`, `coroutine` | `concurrency` and `foundation` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `coroutine-06` |
 | `foundation-02` | `foundation` | `coroutine` and `foundation` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `foundation-02` |
@@ -1030,13 +1030,13 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `concurrency-03` | `concurrency`, `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-03` |
 | `pool-01` | `pool` | `coordinator` (revalidation complete); later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-01` |
 | `pool-02` | `pool` | later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-02` |
-| `pool-04` | `pool`, `database`, `redis` | later full `database` and `redis` audits | `Bound pool resources and connection progress deterministically`; finding `pool-04` |
-| `pool-05` | `pool` | `database`, `redis`; later full consumer audits | `Bound pool resources and connection progress deterministically`; finding `pool-05` |
-| `database-02` | `database` | `pool`; later full `database` audit | `Bound pool resources and connection progress deterministically`; finding `database-02` |
-| `redis-02` | `redis` | `pool`; later full `redis` audit | `Bound pool resources and connection progress deterministically`; finding `redis-02` |
-| `pool-08` | `pool`, `redis` | later full `redis` audit | `Bound pool resources and connection progress deterministically`; finding `pool-08` |
-| `database-01` | `database` | later full `database` audit | `Release cleared coordinator timers deterministically`; finding `database-01` |
-| `redis-01` | `redis` | later full `redis` audit | `Release cleared coordinator timers deterministically`; finding `redis-01` |
+| `pool-04` | `pool`, `database`, `redis` | `database` and `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `pool-04` |
+| `pool-05` | `pool` | `database` and `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `pool-05` |
+| `database-02` | `database` | `pool` and `database` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `database-02` |
+| `redis-02` | `redis` | `pool` and `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `redis-02` |
+| `pool-08` | `pool`, `redis` | `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `pool-08` |
+| `database-01` | `database` | `database` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `database-01` |
+| `redis-01` | `redis` | `redis` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `redis-01` |
 | `di-02` | `di` | `foundation` (revalidation complete); later full `sentry` and `telescope` audits | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` and `filesystem` (revalidation complete) | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption`, `support`, and `filesystem` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
@@ -1052,7 +1052,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events` and `bus` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache`, `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database`, `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache`, `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis` (revalidation complete), `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
@@ -1075,10 +1075,31 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-14` | `foundation`, `queue` | `foundation` (revalidation complete); later full `queue` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
 | `http-03` | `http`, `foundation` | `contracts` and `foundation` (revalidation complete); later full `http` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `http-03` |
 | `auth-02` | `auth` | `foundation` (revalidation complete); later full `auth` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `auth-02` |
-| `database-03` | `database` | `foundation` (revalidation complete); later full `database` and `testbench` audits | `Complete Foundation runtime lifecycles and safe publication`; finding `database-03` |
-| `database-04` | `database` | `console` (revalidation complete); later full `database` audit | `Complete Console command, scheduling, and generator lifecycles`; finding `database-04` |
+| `database-03` | `database` | `foundation` and `database` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `database-03` |
+| `database-04` | `database` | `console` and `database` (revalidation complete) | `Complete Console command, scheduling, and generator lifecycles`; finding `database-04` |
 | `reverb-04` | `reverb` | later full `reverb` audit | `Complete Console command, scheduling, and generator lifecycles`; finding `reverb-04` |
 | `watcher-10` | `support` | `watcher`, `foundation`, and `horizon` (revalidation complete) | `Make Watcher drivers and managed processes lifecycle-safe`; finding `watcher-10` |
+| `database-05` | `core`, `database` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-05`; sibling finding `redis-03` |
+| `database-06` | `core`, `server`, `database` | `server` and `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-06`; sibling finding `redis-05` |
+| `database-08` | `database` | `foundation`, `testing`, and `testbench` (revalidation complete); later full `testing` and `testbench` audits | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-08` |
+| `database-10` | `database` | `scout` and `nested-set` (revalidation complete); later full consumer audits | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-10` |
+| `redis-03` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-03` |
+| `redis-04` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-04` |
+| `redis-05` | `redis`, `core`, `server` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-05` |
+| `redis-06` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-06` |
+| `redis-07` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-07` |
+| `redis-08` | `redis`, `pool` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-08` |
+| `redis-09` | `redis` | `cache`; later full `cache` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-09` |
+| `redis-10` | `redis` | `reverb` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-10` |
+| `redis-11` | `redis` | `reverb` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-11` |
+| `redis-12` | `redis`, `cache` | `redis` (revalidation complete); later full `cache` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-12` |
+| `redis-13` | `redis` | `horizon` (revalidation complete), `cache`, `queue`, `session`, and `broadcasting`; later full consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-13` |
+| `reverb-05` | `reverb` | `redis` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `reverb-05` |
+| `redis-15` | `redis` | `telescope` and `sentry` (revalidation complete); later full consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-15` |
+| `horizon-01` | `horizon` | `redis` (revalidation complete); later full `horizon` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `horizon-01` |
+| `telescope-01` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
+| `telescope-02` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
+| `sentry-01` | `sentry` | `redis` (revalidation complete); later full `sentry` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
 
 ## Package checklist
 
@@ -1147,8 +1168,8 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 ### Persistence, transport, and background execution
 
-- [ ] `database`
-- [ ] `redis`
+- [x] `database`
+- [x] `redis`
 - [ ] `cache`
 - [ ] `session`
 - [ ] `queue`

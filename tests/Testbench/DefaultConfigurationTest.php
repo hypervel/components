@@ -48,6 +48,23 @@ class DefaultConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function itUsesTheCanonicalSqliteMemoryClassification(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('database.connections.uri_memory', [
+            'driver' => 'sqlite',
+            'database' => 'file::memory:',
+        ]);
+        $config->set('database.connections.uri_file', [
+            'driver' => 'sqlite',
+            'database' => 'file:database?mode=memory&mode=rwc',
+        ]);
+
+        $this->assertTrue($this->usesSqliteInMemoryDatabaseConnection('uri_memory'));
+        $this->assertFalse($this->usesSqliteInMemoryDatabaseConnection('uri_file'));
+    }
+
+    #[Test]
     public function itFallsBackToTheTestingConnectionWhenRuntimeSqliteIsMissing(): void
     {
         $sqliteDatabase = $this->app['config']['database.connections.sqlite.database'];

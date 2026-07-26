@@ -15,9 +15,12 @@ use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
+use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LogLevel;
@@ -46,6 +49,9 @@ class RedisConnectionTest extends TestCase
         $pool->shouldReceive('release')->once();
 
         $connection = $this->mockRedisConnection(pool: $pool);
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection->setActiveConnection($redis);
         $connection->shouldTransform(true);
 
         $connection->release();
@@ -61,6 +67,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
         $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::ATOMIC);
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 1], $redis) extends PhpRedisConnection {
             public function __construct(
@@ -89,6 +96,7 @@ class RedisConnectionTest extends TestCase
 
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('select')->once()->with(0)->andReturn(true);
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::ATOMIC);
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
             public function __construct(
@@ -108,6 +116,262 @@ class RedisConnectionTest extends TestCase
 
         $connection->setDatabase(5);
         $connection->release();
+    }
+
+    public function testReleaseDiscardsAConnectionInMultiMode(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::MULTI);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->release();
+    }
+
+    public function testReleaseDiscardsAConnectionInPipelineMode(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::PIPELINE);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->release();
+    }
+
+    public function testReleaseDiscardsAConnectionWithAnActiveWatch(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $this->assertTrue($connection->__call('watch', ['key']));
+
+        $connection->release();
+    }
+
+    #[DataProvider('watchTerminalCommandProvider')]
+    public function testSuccessfulTerminalCommandsClearTrackedWatchState(
+        string $command,
+        mixed $result,
+    ): void {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects(strtolower($command))->andReturn($result);
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->__call('WATCH', ['key']);
+        $this->assertSame($result, $connection->__call($command, []));
+        $connection->release();
+    }
+
+    public static function watchTerminalCommandProvider(): array
+    {
+        return [
+            'unwatch' => ['UNWATCH', true],
+            'exec conflict' => ['EXEC', false],
+        ];
+    }
+
+    public function testFailedUnwatchRetainsTrackedWatchState(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects('unwatch')->andReturnFalse();
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->__call('watch', ['key']);
+        $this->assertFalse($connection->__call('unwatch', []));
+        $connection->release();
+    }
+
+    public function testNativeDiscardClearsTrackedWatchState(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects('discard')->andReturnTrue();
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->__call('watch', ['key']);
+        $this->assertTrue($connection->discardTransaction());
+        $connection->release();
+    }
+
+    public function testClearWatchStateAllowsOrdinaryRelease(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->__call('watch', ['key']);
+        $connection->clearWatchState();
+        $connection->release();
+    }
+
+    public function testReconnectBeginsWithNoTrackedWatchState(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+
+        $connection->__call('watch', ['key']);
+        $connection->reconnect();
+        $connection->release();
+    }
+
+    public function testCloseClearsTrackedWatchState(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects('close')->andReturnTrue();
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->__call('watch', ['key']);
+        $connection->close();
+        $connection->release();
+    }
+
+    public function testReleaseChecksNativeModeBeforeRestoringDatabase(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')
+            ->globally()
+            ->ordered()
+            ->andReturn(Redis::ATOMIC);
+        $redis->expects('select')
+            ->with(0)
+            ->globally()
+            ->ordered()
+            ->andReturnTrue();
+        $connection = $this->mockRedisConnection(pool: $pool, options: ['database' => 0]);
+        $connection->setActiveConnection($redis);
+        $connection->setDatabase(2);
+
+        $connection->release();
+    }
+
+    public function testModeDetectionFailureInvalidatesAndReleasesConnection(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andThrow(new RuntimeException('Mode failed.'));
+        $connection = new class($this->getContainer(), $pool, []) extends PhpRedisConnectionStub {
+            public function isInvalidForTest(): bool
+            {
+                return $this->invalid;
+            }
+        };
+        $connection->setActiveConnection($redis);
+
+        $connection->release();
+
+        $this->assertTrue($connection->isInvalidForTest());
+    }
+
+    public function testDatabaseRestoreFailureInvalidatesAndReleasesConnection(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('release')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $redis->expects('select')->with(0)->andThrow(new RuntimeException('Select failed.'));
+        $connection = new class($this->getContainer(), $pool, ['database' => 0]) extends PhpRedisConnectionStub {
+            public function isInvalidForTest(): bool
+            {
+                return $this->invalid;
+            }
+        };
+        $connection->setActiveConnection($redis);
+        $connection->setDatabase(2);
+
+        $connection->release();
+
+        $this->assertTrue($connection->isInvalidForTest());
+    }
+
+    public function testReportingFailureCannotPreventQueueingModeDiscard(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->with(m::type(RedisConnection::class));
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->expects('log')
+            ->with(
+                LogLevel::CRITICAL,
+                'Discarding Redis connection left in MULTI or PIPELINE mode.'
+            )
+            ->andThrow(new RuntimeException('Logging failed.'));
+        $container = $this->getContainer();
+        $container->instance(StdoutLoggerInterface::class, $logger);
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::MULTI);
+        $connection = $this->mockRedisConnection(container: $container, pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        $connection->release();
+    }
+
+    public function testDiscardOwnershipFailurePropagates(): void
+    {
+        $exception = new RuntimeException('Discard ownership failed.');
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->andThrow($exception);
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::MULTI);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->release();
+            $this->fail('Expected the discard ownership failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
     }
 
     public function testReconnectUsesCurrentDatabaseWhenSet(): void
@@ -134,6 +398,45 @@ class RedisConnectionTest extends TestCase
 
         $connection->setDatabase(2);
         $connection->reconnect();
+    }
+
+    public function testSentinelResolvedMasterRetainsEmptyStandaloneContext(): void
+    {
+        $sentinelFactory = m::mock(RedisSentinelFactory::class);
+        $sentinelFactory->expects('resolveMaster')->andReturn(['127.0.0.1', 6380]);
+        $container = m::mock(ContainerContract::class);
+        $container->expects('make')
+            ->with(RedisSentinelFactory::class)
+            ->andReturn($sentinelFactory);
+        $container->shouldReceive('has')->andReturnFalse();
+        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+        $redis = m::mock(Redis::class);
+        $connection = new class($container, $this->getMockedPool(), ['sentinel' => ['enable' => true, 'nodes' => ['127.0.0.1:26379'], 'master_name' => 'primary']], $redis) extends PhpRedisConnection {
+            private array $createdConfig = [];
+
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            public function getCreatedConfig(): array
+            {
+                return $this->createdConfig;
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                $this->createdConfig = $config;
+
+                return $this->fakeRedis;
+            }
+        };
+
+        $this->assertSame([], $connection->getCreatedConfig()['context']);
     }
 
     public function testConnectionConfigMergesDefaults(): void
@@ -192,6 +495,7 @@ class RedisConnectionTest extends TestCase
                     'nodes' => [],
                     'persistent' => '',
                     'read_timeout' => 0,
+                    'context' => [],
                 ],
                 'options' => [],
                 'context' => [
@@ -217,12 +521,95 @@ class RedisConnectionTest extends TestCase
         );
     }
 
-    public function testClusterReconnectFailureThrowsConnectionException(): void
+    public function testNormalizeContextAcceptsEverySupportedShape(): void
     {
-        if (version_compare((string) phpversion('redis'), '6.0.0', '<')) {
-            $this->markTestSkipped('Cluster constructor typing differs on redis extension < 6.');
+        $connection = new class extends PhpRedisConnectionStub {
+            public function normalizeContextForTest(array $context): array
+            {
+                return $this->normalizeContext($context);
+            }
+        };
+        $options = ['verify_peer' => false, 'cafile' => '/tmp/ca.pem'];
+
+        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest($options));
+        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest(['ssl' => $options]));
+        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest(['stream' => $options]));
+    }
+
+    public function testEmptyContextKeepsStandaloneConnectionPlaintext(): void
+    {
+        $server = new RespServer;
+        $bytes = null;
+        $connection = null;
+        $server->start(static function ($client) use (&$bytes): void {
+            $bytes = stream_get_contents($client, 2);
+            fwrite($client, "+PONG\r\n");
+        });
+        [$host, $port] = $server->hostAndPort();
+
+        try {
+            $connection = new PhpRedisConnection(
+                $this->getContainer(),
+                $this->getMockedPool(),
+                [
+                    'host' => $host,
+                    'port' => $port,
+                    'timeout' => 1.0,
+                    'context' => [],
+                ],
+            );
+            $connection->ping();
+        } finally {
+            $connection?->close();
+            $server->wait();
         }
 
+        $this->assertSame('*1', $bytes);
+    }
+
+    public function testNonEmptyContextEnablesTlsForStandaloneConnection(): void
+    {
+        $server = new RespServer('tls://127.0.0.1:0', [
+            'ssl' => [
+                'local_cert' => __DIR__ . '/Fixtures/Tls/server.crt',
+                'local_pk' => __DIR__ . '/Fixtures/Tls/server.key',
+                'allow_self_signed' => true,
+            ],
+        ]);
+        $bytes = null;
+        $connection = null;
+        $server->start(static function ($client) use (&$bytes): void {
+            $bytes = stream_get_contents($client, 2);
+            fwrite($client, "+PONG\r\n");
+        });
+        [$host, $port] = $server->hostAndPort();
+
+        try {
+            $connection = new PhpRedisConnection(
+                $this->getContainer(),
+                $this->getMockedPool(),
+                [
+                    'host' => $host,
+                    'port' => $port,
+                    'timeout' => 1.0,
+                    'context' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                        'allow_self_signed' => true,
+                    ],
+                ],
+            );
+            $connection->ping();
+        } finally {
+            $connection?->close();
+            $server->wait();
+        }
+
+        $this->assertSame('*1', $bytes);
+    }
+
+    public function testClusterReconnectFailureThrowsConnectionException(): void
+    {
         $this->expectException(ConnectionException::class);
         $this->expectExceptionMessage('Connection reconnect failed');
 
@@ -444,41 +831,140 @@ class RedisConnectionTest extends TestCase
         $connection->__call('set', ['key', 'value', 600]);
     }
 
-    public function testRedisExceptionIsRetried(): void
+    public function testMacrosCanBeRegisteredInvokedAndFlushed(): void
     {
-        $pool = $this->getMockedPool();
-        $redis = m::mock(Redis::class);
+        RedisConnection::macro('greeting', fn (string $name) => "Hello {$name}");
+        $connection = $this->mockRedisConnection();
 
-        $redis->shouldReceive('get')
-            ->once()
-            ->with('foo')
-            ->andThrow(new RedisException('network'));
-        $redis->shouldReceive('get')
-            ->once()
-            ->with('foo')
-            ->andReturn('bar');
+        $this->assertTrue(RedisConnection::hasMacro('greeting'));
+        $this->assertSame('Hello Taylor', $connection->__call('greeting', ['Taylor']));
 
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
-            public function __construct(
-                ContainerContract $container,
-                PoolInterface $pool,
-                array $config,
-                private Redis $fakeRedis
-            ) {
-                parent::__construct($container, $pool, $config);
-            }
+        RedisConnection::flushMacros();
 
-            protected function createRedis(array $config): Redis
+        $this->assertFalse(RedisConnection::hasMacro('greeting'));
+    }
+
+    public function testMixinRegistersConnectionMacros(): void
+    {
+        RedisConnection::mixin(new class {
+            protected function greeting(): callable
             {
-                return $this->fakeRedis;
+                return fn (string $name) => "Hello {$name}";
             }
-        };
+        });
 
-        $connection->shouldTransform(false);
+        $this->assertSame(
+            'Hello Taylor',
+            $this->mockRedisConnection()->__call('greeting', ['Taylor']),
+        );
+    }
 
-        $result = $connection->__call('get', ['foo']);
+    public function testMacroLookupPreservesExactNamesAndMayShadowNativeCommands(): void
+    {
+        RedisConnection::macro('CustomCommand', fn () => 'exact');
+        RedisConnection::macro('reset', fn () => 'shadowed');
+        $connection = $this->mockRedisConnection();
+        $redis = m::mock(Redis::class);
+        $redis->expects('customcommand')->once()->andReturn('native');
+        $redis->expects('reset')->never();
+        $connection->setActiveConnection($redis);
 
-        $this->assertSame('bar', $result);
+        $this->assertSame('exact', $connection->__call('CustomCommand', []));
+        $this->assertSame('native', $connection->__call('customcommand', []));
+        $this->assertSame('shadowed', $connection->__call('reset', []));
+    }
+
+    public function testRedisExceptionInsideMacroUsesConnectionDispositionRule(): void
+    {
+        $exception = new RedisException('Connection lost.');
+        RedisConnection::macro('failing', function () {
+            return $this->connection->get('key');
+        });
+        $connection = new PhpRedisConnectionStub(
+            $this->getContainer(),
+            $this->getMockedPool(),
+        );
+        $redis = m::mock(Redis::class);
+        $redis->expects('get')->once()->with('key')->andThrow($exception);
+        $redis->expects('getLastError')->andReturnNull();
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->__call('failing', []);
+            $this->fail('Expected the macro command failure to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertTrue($connection->isInvalidForTest());
+    }
+
+    public function testTransportFailureInvalidatesWithoutReplayingCommand(): void
+    {
+        $exception = new RedisException('Connection lost.');
+        $redis = m::mock(Redis::class);
+        $redis->expects('get')
+            ->once()
+            ->with('foo')
+            ->andThrow($exception);
+        $redis->expects('getLastError')->andReturnNull();
+        $connection = new PhpRedisConnectionStub(
+            $this->getContainer(),
+            $this->getMockedPool(),
+        );
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->__call('get', ['foo']);
+            $this->fail('Expected the transport failure to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertTrue($connection->isInvalidForTest());
+    }
+
+    #[DataProvider('synchronizedServerErrorDispositionProvider')]
+    public function testSynchronizedServerErrorDispositionDoesNotReplayCommand(
+        string $message,
+        bool $sentinel,
+        bool $invalid,
+    ): void {
+        $exception = new RedisException($message);
+        $redis = m::mock(Redis::class);
+        $redis->expects('set')->once()->with('key', 'value')->andThrow($exception);
+        $redis->expects('getLastError')->andReturn($message);
+        $connection = new PhpRedisConnectionStub(
+            $this->getContainer(),
+            $this->getMockedPool(),
+            ['sentinel' => ['enable' => $sentinel]],
+        );
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->__call('set', ['key', 'value']);
+            $this->fail('Expected the Redis server error to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertSame($invalid, $connection->isInvalidForTest());
+    }
+
+    public static function synchronizedServerErrorDispositionProvider(): array
+    {
+        return [
+            'standalone READONLY' => ['READONLY replica is read-only', false, false],
+            'standalone MASTERDOWN' => ['MASTERDOWN link is down', false, false],
+            'standalone LOADING' => ['LOADING data is loading', false, false],
+            'standalone OOM' => ['OOM command not allowed', false, false],
+            'standalone MISCONF' => ['MISCONF persistence error', false, false],
+            'standalone CROSSSLOT' => ['CROSSSLOT keys do not hash to the same slot', false, false],
+            'Sentinel READONLY' => ['READONLY replica is read-only', true, true],
+            'Sentinel MASTERDOWN' => ['MASTERDOWN link is down', true, true],
+            'Sentinel LOADING' => ['LOADING data is loading', true, false],
+            'Sentinel non-exact READONLY prefix' => ['READONLY_STATE custom error', true, false],
+        ];
     }
 
     public function testLogWritesToStdoutLogger(): void
@@ -1524,92 +2010,6 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals('ok', $result);
     }
 
-    public function testRetryAppliesGetTransform(): void
-    {
-        $pool = $this->getMockedPool();
-        $redis = m::mock(Redis::class);
-
-        // First get() throws RedisException, triggering retry
-        $redis->shouldReceive('getMode')->andReturn(Redis::ATOMIC);
-        $redis->shouldReceive('get')
-            ->once()
-            ->with('missing')
-            ->andThrow(new RedisException('connection lost'));
-
-        // After reconnect, get() returns false (key not found)
-        $redis->shouldReceive('get')
-            ->once()
-            ->with('missing')
-            ->andReturn(false);
-
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
-            public function __construct(
-                ContainerContract $container,
-                PoolInterface $pool,
-                array $config,
-                private Redis $fakeRedis
-            ) {
-                parent::__construct($container, $pool, $config);
-            }
-
-            protected function createRedis(array $config): Redis
-            {
-                return $this->fakeRedis;
-            }
-        };
-
-        $connection->shouldTransform(true);
-
-        // With transform enabled, retry should return null (not false)
-        $result = $connection->__call('get', ['missing']);
-
-        $this->assertNull($result);
-    }
-
-    public function testRetryAppliesSetnxTransform(): void
-    {
-        $pool = $this->getMockedPool();
-        $redis = m::mock(Redis::class);
-
-        $redis->shouldReceive('getMode')->andReturn(Redis::ATOMIC);
-
-        // First setNx() throws RedisException, triggering retry
-        $redis->shouldReceive('setNx')
-            ->once()
-            ->with('key', 'value')
-            ->andThrow(new RedisException('connection lost'));
-
-        // After reconnect, setNx() returns true (phpredis bool)
-        // Transform should cast to int (1)
-        $redis->shouldReceive('setNx')
-            ->once()
-            ->with('key', 'value')
-            ->andReturn(true);
-
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
-            public function __construct(
-                ContainerContract $container,
-                PoolInterface $pool,
-                array $config,
-                private Redis $fakeRedis
-            ) {
-                parent::__construct($container, $pool, $config);
-            }
-
-            protected function createRedis(array $config): Redis
-            {
-                return $this->fakeRedis;
-            }
-        };
-
-        $connection->shouldTransform(true);
-
-        // Laravel setnx returns int (1), not bool (true)
-        $result = $connection->__call('setnx', ['key', 'value']);
-
-        $this->assertSame(1, $result);
-    }
-
     public function testSpopWithoutCountReturnsSingleElement(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
@@ -1783,24 +2183,100 @@ class RedisConnectionTest extends TestCase
         $this->assertSame([], $captured['arguments']);
     }
 
-    public function testSubscribeThrowsOnPooledConnection(): void
+    #[DataProvider('unsupportedSubscriptionProvider')]
+    public function testSubscriptionsThrowOnPooledConnection(string $command): void
     {
         $connection = $this->mockRedisConnection();
 
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot call subscribe() on a pooled RedisConnection.');
+        $this->expectExceptionMessage("Cannot call {$command}() on a pooled RedisConnection.");
 
-        $connection->__call('subscribe', [['channel1'], function () {}]);
+        $connection->__call(strtoupper($command), [['channel1'], function () {}]);
     }
 
-    public function testPsubscribeThrowsOnPooledConnection(): void
+    public static function unsupportedSubscriptionProvider(): array
     {
-        $connection = $this->mockRedisConnection();
+        return [
+            ['subscribe'],
+            ['psubscribe'],
+            ['ssubscribe'],
+        ];
+    }
 
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Cannot call psubscribe() on a pooled RedisConnection.');
+    public function testResetIsRejectedBeforeNativeDispatchAndPreservesWatchState(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->expects('discard')->with(m::type(RedisConnection::class));
+        $redis = m::mock(Redis::class);
+        $redis->expects('watch')->with('key')->andReturnTrue();
+        $redis->expects('reset')->never();
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $connection = $this->mockRedisConnection(pool: $pool);
+        $connection->setActiveConnection($redis);
+        $connection->shouldTransform(false);
 
-        $connection->__call('psubscribe', [['channel:*'], function () {}]);
+        $connection->__call('WATCH', ['key']);
+
+        try {
+            $connection->__call('RESET', []);
+            $this->fail('Expected pooled RESET to be rejected.');
+        } catch (BadMethodCallException $exception) {
+            $this->assertSame(
+                'Cannot call reset() on a pooled Redis connection because it clears '
+                . 'the authentication and selected database owned by the pool. '
+                . 'Use Redis::discard() for MULTI, Redis::unwatch() for WATCH, '
+                . 'and exec() to complete a PIPELINE.',
+                $exception->getMessage(),
+            );
+        }
+
+        $connection->release();
+    }
+
+    #[DataProvider('hostFormattingProvider')]
+    public function testFormatHost(
+        array $config,
+        ?string $expected,
+        ?string $exceptionMessage,
+    ): void {
+        $connection = new class extends PhpRedisConnectionStub {
+            public function formatHostForTest(array $config): string
+            {
+                return $this->formatHost($config);
+            }
+        };
+
+        if ($exceptionMessage !== null) {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage($exceptionMessage);
+
+            $connection->formatHostForTest($config);
+
+            return;
+        }
+
+        $this->assertSame($expected, $connection->formatHostForTest($config));
+    }
+
+    public static function hostFormattingProvider(): array
+    {
+        return [
+            'empty host' => [
+                ['host' => ''],
+                null,
+                'Redis host must be a non-empty string.',
+            ],
+            'matching scheme' => [
+                ['host' => 'tls://redis.test', 'scheme' => 'TLS'],
+                'tls://redis.test',
+                null,
+            ],
+            'mismatched scheme' => [
+                ['host' => 'tls://redis.test', 'scheme' => 'tcp'],
+                null,
+                'must match the scheme option',
+            ],
+        ];
     }
 
     public function testReconnectSetsSerializerOption(): void
@@ -1837,6 +2313,35 @@ class RedisConnectionTest extends TestCase
             ->with(Redis::OPT_PREFIX, 'myapp:');
 
         new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['prefix' => 'myapp:']], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+    }
+
+    public function testReconnectSetsPackIgnoreNumbersOnStandaloneConnection(): void
+    {
+        if (! defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS')) {
+            $this->markTestSkipped('PhpRedis does not support OPT_PACK_IGNORE_NUMBERS.');
+        }
+
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $redis->expects('setOption')
+            ->with(Redis::OPT_PACK_IGNORE_NUMBERS, true)
+            ->andReturnTrue();
+
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['pack_ignore_numbers' => true]], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -2126,64 +2631,6 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('setnx', ['key', 'value']);
 
         $this->assertSame(1, $result);
-    }
-
-    public function testRetryFailureMarksConnectionInvalid(): void
-    {
-        $pool = $this->getMockedPool();
-        $redis = m::mock(Redis::class);
-
-        $redis->shouldReceive('get')
-            ->once()
-            ->andThrow(new RedisException('first failure'));
-
-        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
-            private bool $constructed = false;
-
-            public function __construct(
-                ContainerContract $container,
-                PoolInterface $pool,
-                array $config,
-                private Redis $fakeRedis,
-            ) {
-                parent::__construct($container, $pool, $config);
-                $this->constructed = true;
-            }
-
-            protected function createRedis(array $config): Redis
-            {
-                if ($this->constructed) {
-                    // Retry's reconnect fails
-                    throw new RedisException('reconnect failed');
-                }
-
-                // Initial construction succeeds
-                return $this->fakeRedis;
-            }
-
-            public function getLastUseTime(): float
-            {
-                return $this->lastUseTime;
-            }
-
-            public function isInvalidForTest(): bool
-            {
-                return $this->invalid;
-            }
-        };
-
-        // lastUseTime should be non-zero after initial construction
-        $this->assertGreaterThan(0.0, $connection->getLastUseTime());
-
-        try {
-            $connection->__call('get', ['foo']);
-            $this->fail('Expected RedisException');
-        } catch (RedisException $exception) {
-            $this->assertSame('reconnect failed', $exception->getMessage());
-        }
-
-        $this->assertGreaterThan(0.0, $connection->getLastUseTime());
-        $this->assertTrue($connection->isInvalidForTest());
     }
 
     public function testReconnectClearsInvalidState(): void

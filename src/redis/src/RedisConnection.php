@@ -21,6 +21,7 @@ use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Macroable;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
@@ -223,7 +224,6 @@ use function Hypervel\Coroutine\go;
  * @method mixed rawcommand(string $command, mixed ...$args)
  * @method bool|Redis rename(string $old_name, string $new_name)
  * @method bool|Redis renameNx(string $key_src, string $key_dst)
- * @method bool|Redis reset()
  * @method bool|Redis restore(string $key, int $ttl, string $value, array|null $options = null)
  * @method mixed role()
  * @method false|Redis|string rpoplpush(string $srckey, string $dstkey)
@@ -258,7 +258,6 @@ use function Hypervel\Coroutine\go;
  * @method mixed sort(string $key, array|null $options = null)
  * @method mixed sort_ro(string $key, array|null $options = null)
  * @method false|int|Redis srem(string $key, mixed $value, mixed ...$other_values)
- * @method bool ssubscribe(array $channels, callable $cb)
  * @method false|int|Redis strlen(string $key)
  * @method void subscribe(array|string $channels, \Closure $callback)
  * @method array|bool|Redis sunsubscribe(array $channels)
@@ -330,6 +329,10 @@ use function Hypervel\Coroutine\go;
  */
 abstract class RedisConnection extends BaseConnection
 {
+    use Macroable {
+        __call as macroCall;
+    }
+
     /**
      * Top-level connection config keys that should be applied through setOption.
      */
@@ -370,6 +373,7 @@ abstract class RedisConnection extends BaseConnection
             'nodes' => [],
             'persistent' => '',
             'read_timeout' => 0,
+            'context' => [],
         ],
         'options' => [],
         'context' => [],
@@ -382,6 +386,11 @@ abstract class RedisConnection extends BaseConnection
      * Current redis database.
      */
     protected ?int $database = null;
+
+    /**
+     * Determine if the native connection is watching keys.
+     */
+    protected bool $watching = false;
 
     /**
      * Determine if the connection calls should be transformed to Laravel style.
@@ -399,13 +408,38 @@ abstract class RedisConnection extends BaseConnection
         $this->config = array_replace_recursive($this->config, $config);
     }
 
+    /**
+     * Pass other method calls down to the underlying client.
+     * @param mixed $name
+     * @param mixed $arguments
+     */
     public function __call($name, $arguments)
     {
         try {
-            return $this->executeCommand($name, $arguments);
+            if (static::hasMacro($name)) {
+                return $this->macroCall($name, $arguments);
+            }
+
+            $name = strtolower($name);
+            $result = $this->executeCommand($name, $arguments);
         } catch (RedisException $exception) {
-            return $this->retry($name, $arguments, $exception);
+            if ($this->shouldInvalidateAfter($exception)) {
+                $this->markInvalid();
+            }
+
+            throw $exception;
         }
+
+        if ($name === 'watch' && $result !== false) {
+            $this->watching = true;
+        } elseif (
+            $name === 'exec'
+            || ($name === 'unwatch' && $result !== false)
+        ) {
+            $this->watching = false;
+        }
+
+        return $result;
     }
 
     /**
@@ -415,7 +449,17 @@ abstract class RedisConnection extends BaseConnection
      */
     private function executeCommand(string $name, array $arguments): mixed
     {
-        if (in_array($name, ['subscribe', 'psubscribe'], true)) {
+        // REMOVED: RESET destroys authentication and database state owned by the pool.
+        if ($name === 'reset') {
+            throw new BadMethodCallException(
+                'Cannot call reset() on a pooled Redis connection because it clears '
+                . 'the authentication and selected database owned by the pool. '
+                . 'Use Redis::discard() for MULTI, Redis::unwatch() for WATCH, '
+                . 'and exec() to complete a PIPELINE.'
+            );
+        }
+
+        if (in_array($name, ['subscribe', 'psubscribe', 'ssubscribe'], true)) {
             return $this->callSubscribe($name, $arguments);
         }
 
@@ -526,6 +570,7 @@ abstract class RedisConnection extends BaseConnection
             $this->pool->getOption()->getMaxLifetime()
         );
         $this->availableForReuse = false;
+        $this->watching = false;
         $this->markValid();
     }
 
@@ -539,6 +584,11 @@ abstract class RedisConnection extends BaseConnection
         foreach ($options as $name => $value) {
             if (is_string($name)) {
                 $name = strtolower($name);
+
+                if ($name === 'pack_ignore_numbers'
+                    && (! $redis instanceof Redis || ! defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS'))) {
+                    continue;
+                }
 
                 if ($name === 'backoff_algorithm') {
                     $value = $this->parseBackoffAlgorithm($value);
@@ -583,11 +633,12 @@ abstract class RedisConnection extends BaseConnection
             'prefix' => Redis::OPT_PREFIX,
             'read_timeout' => Redis::OPT_READ_TIMEOUT,
             'scan' => Redis::OPT_SCAN,
-            'failover' => defined(Redis::class . '::OPT_SLAVE_FAILOVER') ? Redis::OPT_SLAVE_FAILOVER : 5,
-            'keepalive' => Redis::OPT_TCP_KEEPALIVE,
+            'failover' => RedisCluster::OPT_SLAVE_FAILOVER,
+            'tcp_keepalive' => Redis::OPT_TCP_KEEPALIVE,
             'compression' => Redis::OPT_COMPRESSION,
             'reply_literal' => Redis::OPT_REPLY_LITERAL,
             'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
+            'pack_ignore_numbers' => Redis::OPT_PACK_IGNORE_NUMBERS, // @phpstan-ignore classConstant.notFound (setOptions() skips this option when phpredis predates the constant)
             'max_retries' => Redis::OPT_MAX_RETRIES,
             'backoff_algorithm' => Redis::OPT_BACKOFF_ALGORITHM,
             'backoff_base' => Redis::OPT_BACKOFF_BASE,
@@ -637,6 +688,7 @@ abstract class RedisConnection extends BaseConnection
         }
 
         $this->connection = null;
+        $this->watching = false;
 
         return true;
     }
@@ -682,18 +734,90 @@ abstract class RedisConnection extends BaseConnection
         $this->shouldTransform = false;
 
         try {
-            $defaultDb = (int) ($this->config['database'] ?? 0);
-            if ($this->database !== null && $this->database !== $defaultDb) {
-                $this->select($defaultDb);
+            $queueing = $this->isQueueingMode();
+        } catch (Throwable $exception) {
+            $this->markInvalid();
+
+            try {
+                $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+            } catch (Throwable) {
+                // Reporting must not prevent terminal ownership cleanup.
+            }
+
+            $this->database = null;
+            $this->watching = false;
+            $this->availableForReuse = true;
+            parent::release();
+
+            return;
+        }
+
+        if ($queueing || $this->watching) {
+            try {
+                $this->log(
+                    $queueing
+                        ? 'Discarding Redis connection left in MULTI or PIPELINE mode.'
+                        : 'Discarding Redis connection left in WATCH state.',
+                    LogLevel::CRITICAL
+                );
+            } catch (Throwable) {
+                // Reporting must not prevent terminal ownership cleanup.
+            }
+
+            $this->database = null;
+            $this->watching = false;
+            $this->availableForReuse = false;
+            $this->discard();
+
+            return;
+        }
+
+        try {
+            $defaultDatabase = (int) ($this->config['database'] ?? 0);
+
+            if ($this->database !== null && $this->database !== $defaultDatabase) {
+                $this->select($defaultDatabase);
             }
         } catch (Throwable $exception) {
-            $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
             $this->markInvalid();
+
+            try {
+                $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+            } catch (Throwable) {
+                // Reporting must not prevent terminal ownership cleanup.
+            }
         } finally {
             $this->database = null;
+            $this->watching = false;
             $this->availableForReuse = true;
             parent::release();
         }
+    }
+
+    /**
+     * Execute the native Redis DISCARD command.
+     *
+     * @internal
+     */
+    public function discardTransaction(): bool|Redis
+    {
+        $result = $this->connection->discard();
+
+        if ($result !== false) {
+            $this->watching = false;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Clear the tracked watch state after callback-form transaction completion.
+     *
+     * @internal
+     */
+    public function clearWatchState(): void
+    {
+        $this->watching = false;
     }
 
     /**
@@ -738,22 +862,21 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
-     * Retry a redis command after reconnecting.
-     *
-     * @param array<int, mixed> $arguments
+     * Determine whether a failed command left the connection unsafe to reuse.
      */
-    protected function retry(string $name, array $arguments, RedisException $exception): mixed
+    protected function shouldInvalidateAfter(RedisException $exception): bool
     {
-        $this->log('Redis::__call failed, because ' . $exception->getMessage());
-
-        try {
-            $this->reconnect();
-
-            return $this->executeCommand($name, $arguments);
-        } catch (Throwable $exception) {
-            $this->markInvalid();
-            throw $exception;
+        if ($this->connection->getLastError() !== $exception->getMessage()) {
+            return true;
         }
+
+        if (! ($this->config['sentinel']['enable'] ?? false)) {
+            return false;
+        }
+
+        $errorCode = explode(' ', $exception->getMessage(), 2)[0];
+
+        return in_array($errorCode, ['READONLY', 'MASTERDOWN'], true);
     }
 
     /**
@@ -1174,6 +1297,9 @@ abstract class RedisConnection extends BaseConnection
         return $this->connection->{$method}(...$args);
     }
 
+    /**
+     * Get the Redis scan options.
+     */
     protected function getScanOptions(array $arguments): array
     {
         return is_array($arguments[0] ?? [])
@@ -1372,7 +1498,7 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
-     * Reject subscribe/psubscribe on raw pooled connections.
+     * Reject subscriptions on raw pooled connections.
      *
      * Pub/sub requires a dedicated, long-lived connection that is incompatible
      * with connection pooling. Use the coroutine-native subscriber instead:
@@ -1387,7 +1513,7 @@ abstract class RedisConnection extends BaseConnection
     {
         throw new BadMethodCallException(
             "Cannot call {$name}() on a pooled RedisConnection. "
-            . 'Use Redis::subscribe(), Redis::psubscribe(), or Redis::subscriber() instead.'
+            . 'Use Redis::subscribe(), Redis::psubscribe(), or Redis::subscriber() for ordinary Pub/Sub.'
         );
     }
 
@@ -1396,8 +1522,7 @@ abstract class RedisConnection extends BaseConnection
      */
     public function serialized(): bool
     {
-        return defined('Redis::OPT_SERIALIZER')
-            && $this->connection->getOption(Redis::OPT_SERIALIZER) !== Redis::SERIALIZER_NONE;
+        return $this->connection->getOption(Redis::OPT_SERIALIZER) !== Redis::SERIALIZER_NONE;
     }
 
     /**
@@ -1405,8 +1530,7 @@ abstract class RedisConnection extends BaseConnection
      */
     public function compressed(): bool
     {
-        return defined('Redis::OPT_COMPRESSION')
-            && $this->connection->getOption(Redis::OPT_COMPRESSION) !== Redis::COMPRESSION_NONE;
+        return $this->connection->getOption(Redis::OPT_COMPRESSION) !== Redis::COMPRESSION_NONE;
     }
 
     /**
