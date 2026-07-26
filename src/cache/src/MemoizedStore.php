@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use BadMethodCallException;
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RawReadable;
@@ -13,7 +14,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class MemoizedStore implements LockProvider, RawReadable, Store
+class MemoizedStore implements CanFlushLocks, LockProvider, RawReadable, Store
 {
     /**
      * The memoized cache values.
@@ -179,6 +180,45 @@ class MemoizedStore implements LockProvider, RawReadable, Store
         }
 
         return $this->repository->getStore()->restoreLock(...func_get_args());
+    }
+
+    /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        $store = $this->repository->getStore();
+
+        return $store instanceof CanFlushLocks && $store->supportsFlushingLocks();
+    }
+
+    /**
+     * Flush all locks managed by the store.
+     *
+     * @throws BadMethodCallException
+     */
+    public function flushLocks(): bool
+    {
+        $store = $this->repository->getStore();
+
+        if (! $store instanceof CanFlushLocks || ! $store->supportsFlushingLocks()) {
+            throw new BadMethodCallException(sprintf(
+                'The memoized cache store\'s underlying store [%s] does not support flushing locks.',
+                $store::class
+            ));
+        }
+
+        return $store->flushLocks();
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
+        $store = $this->repository->getStore();
+
+        return $store instanceof CanFlushLocks && $store->hasSeparateLockStore();
     }
 
     /**
