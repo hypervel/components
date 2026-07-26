@@ -73,6 +73,18 @@ class CacheRateLimiterTest extends TestCase
         $rateLimiter->hit('key', 1);
     }
 
+    public function testIncrementWithCustomAmountHasNoMemoryLeak(): void
+    {
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('add')->once()->with('key:timer', m::type('int'), 60)->andReturnTrue();
+        $cache->shouldReceive('add')->once()->with('key', 0, 60)->andReturnFalse();
+        $cache->shouldReceive('increment')->once()->with('key', 2)->andReturn(2);
+        $cache->shouldReceive('put')->once()->with('key', 2, 60);
+        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
+
+        (new RateLimiter($cache))->increment('key', 60, 2);
+    }
+
     public function testRemainingIsNotNegative()
     {
         $cache = m::mock(Cache::class);
