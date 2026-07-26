@@ -45,21 +45,27 @@ class RedisStoreTest extends RedisCacheTestCase
         $connection2 = $this->mockConnection();
         $connection2->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('value2'));
 
-        // Register Redis mocks for both connections
-        $this->registerRedisFactoryMock($connection1, 'conn1');
+        $redisProxy1 = m::mock(RedisProxy::class);
+        $redisProxy1->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection1));
 
-        // Create store with first connection
-        $redis = $this->createStore($connection1, connectionName: 'conn1');
+        $redisProxy2 = m::mock(RedisProxy::class);
+        $redisProxy2->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection2));
+
+        $redisFactory = m::mock(Redis::class);
+        $redisFactory->shouldReceive('connection')->once()->with('conn1')->andReturn($redisProxy1);
+        $redisFactory->shouldReceive('connection')->once()->with('conn2')->andReturn($redisProxy2);
+
+        $redis = new RedisStore($redisFactory, 'prefix:', 'conn1');
 
         $this->assertSame('value1', $redis->get('foo'));
 
-        // Register second connection mock (replaces the first in container)
-        $this->registerRedisFactoryMock($connection2, 'conn2');
+        $redis->setConnection('conn2');
 
-        // Create second store with different connection
-        $redis2 = $this->createStore($connection2, connectionName: 'conn2');
-
-        $this->assertSame('value2', $redis2->get('foo'));
+        $this->assertSame('value2', $redis->get('foo'));
     }
 
     /**
@@ -257,7 +263,6 @@ class RedisStoreTest extends RedisCacheTestCase
      */
     public function testLockReturnsRedisLockInstance(): void
     {
-        $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
         $redisFactory = m::mock(Redis::class);
         $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
@@ -265,8 +270,7 @@ class RedisStoreTest extends RedisCacheTestCase
         $redis = new RedisStore(
             $redisFactory,
             'prefix:',
-            'default',
-            $this->createPoolFactory($connection)
+            'default'
         );
 
         $lock = $redis->lock('mylock', 10);
@@ -279,7 +283,6 @@ class RedisStoreTest extends RedisCacheTestCase
      */
     public function testLockWithOwner(): void
     {
-        $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
         $redisFactory = m::mock(Redis::class);
         $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
@@ -287,8 +290,7 @@ class RedisStoreTest extends RedisCacheTestCase
         $redis = new RedisStore(
             $redisFactory,
             'prefix:',
-            'default',
-            $this->createPoolFactory($connection)
+            'default'
         );
 
         $lock = $redis->lock('mylock', 10, 'custom-owner');
@@ -301,7 +303,6 @@ class RedisStoreTest extends RedisCacheTestCase
      */
     public function testRestoreLockReturnsRedisLockInstance(): void
     {
-        $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
         $redisFactory = m::mock(Redis::class);
         $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
@@ -309,8 +310,7 @@ class RedisStoreTest extends RedisCacheTestCase
         $redis = new RedisStore(
             $redisFactory,
             'prefix:',
-            'default',
-            $this->createPoolFactory($connection)
+            'default'
         );
 
         $lock = $redis->restoreLock('mylock', 'owner-123');
@@ -336,7 +336,6 @@ class RedisStoreTest extends RedisCacheTestCase
      */
     public function testLockUsesLockConnectionWhenSet(): void
     {
-        $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
         $lockProxy = m::mock(RedisProxy::class);
         $redisFactory = m::mock(Redis::class);
@@ -346,8 +345,7 @@ class RedisStoreTest extends RedisCacheTestCase
         $redis = new RedisStore(
             $redisFactory,
             'prefix:',
-            'default',
-            $this->createPoolFactory($connection)
+            'default'
         );
 
         $redis->setLockConnection('locks');
@@ -361,14 +359,12 @@ class RedisStoreTest extends RedisCacheTestCase
      */
     public function testGetRedisReturnsRedis(): void
     {
-        $connection = $this->mockConnection();
         $redisFactory = m::mock(Redis::class);
 
         $redis = new RedisStore(
             $redisFactory,
             'prefix:',
-            'default',
-            $this->createPoolFactory($connection)
+            'default'
         );
 
         $this->assertSame($redisFactory, $redis->getRedis());
@@ -379,7 +375,6 @@ class RedisStoreTest extends RedisCacheTestCase
      */
     public function testConnectionReturnsRedisProxy(): void
     {
-        $connection = $this->mockConnection();
         $redisProxy = m::mock(RedisProxy::class);
         $redisFactory = m::mock(Redis::class);
         $redisFactory->shouldReceive('connection')->with('default')->andReturn($redisProxy);
@@ -387,8 +382,7 @@ class RedisStoreTest extends RedisCacheTestCase
         $redis = new RedisStore(
             $redisFactory,
             'prefix:',
-            'default',
-            $this->createPoolFactory($connection)
+            'default'
         );
 
         $this->assertSame($redisProxy, $redis->connection());

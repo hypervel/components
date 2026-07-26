@@ -15,20 +15,10 @@ use Hypervel\Cache\Redis\Operations\AllTag\Increment;
 use Hypervel\Cache\Redis\Operations\AllTag\Prune;
 use Hypervel\Cache\Redis\Operations\AllTag\Put;
 use Hypervel\Cache\Redis\Operations\AllTag\PutMany;
-use Hypervel\Cache\Redis\Operations\AllTag\Remember;
-use Hypervel\Cache\Redis\Operations\AllTag\RememberForever;
 use Hypervel\Cache\Redis\Operations\AllTag\Touch;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 
-/**
- * Container for all-mode tag operations.
- *
- * This class groups all Redis operations related to all-mode tagging,
- * providing lazy-loaded, singleton-cached operation instances.
- *
- * Used by AllTaggedCache and AllTagSet.
- */
 class AllTagOperations
 {
     // Combined cache + tag operations
@@ -56,10 +46,6 @@ class AllTagOperations
     private ?Flush $flush = null;
 
     private ?Prune $prune = null;
-
-    private ?Remember $remember = null;
-
-    private ?RememberForever $rememberForever = null;
 
     public function __construct(
         private readonly StoreContext $context,
@@ -168,51 +154,5 @@ class AllTagOperations
     public function prune(): Prune
     {
         return $this->prune ??= new Prune($this->context);
-    }
-
-    /**
-     * Get the Remember operation for cache-through with tag tracking.
-     *
-     * This operation is optimized to use a single connection for both
-     * GET and PUT operations, avoiding double pool overhead on cache misses.
-     */
-    public function remember(): Remember
-    {
-        return $this->remember ??= new Remember($this->context, $this->serialization);
-    }
-
-    /**
-     * Get the RememberForever operation for cache-through with tag tracking (no TTL).
-     *
-     * This operation is optimized to use a single connection for both
-     * GET and SET operations, avoiding double pool overhead on cache misses.
-     * Uses ZADD with score -1 for tag entries (prevents cleanup by ZREMRANGEBYSCORE).
-     */
-    public function rememberForever(): RememberForever
-    {
-        return $this->rememberForever ??= new RememberForever($this->context, $this->serialization);
-    }
-
-    /**
-     * Clear all cached operation instances.
-     *
-     * Called when the store's connection or prefix changes.
-     */
-    public function clear(): void
-    {
-        $this->put = null;
-        $this->putMany = null;
-        $this->add = null;
-        $this->forever = null;
-        $this->touch = null;
-        $this->increment = null;
-        $this->decrement = null;
-        $this->addEntry = null;
-        $this->getEntries = null;
-        $this->flushStale = null;
-        $this->flush = null;
-        $this->prune = null;
-        $this->remember = null;
-        $this->rememberForever = null;
     }
 }

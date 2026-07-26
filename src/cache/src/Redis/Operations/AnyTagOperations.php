@@ -15,20 +15,10 @@ use Hypervel\Cache\Redis\Operations\AnyTag\Increment;
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
 use Hypervel\Cache\Redis\Operations\AnyTag\Put;
 use Hypervel\Cache\Redis\Operations\AnyTag\PutMany;
-use Hypervel\Cache\Redis\Operations\AnyTag\Remember;
-use Hypervel\Cache\Redis\Operations\AnyTag\RememberForever;
 use Hypervel\Cache\Redis\Operations\AnyTag\Touch;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 
-/**
- * Container for any-mode tag operations.
- *
- * This class groups all Redis operations related to any-mode tagging,
- * providing lazy-loaded, singleton-cached operation instances.
- *
- * Used by AnyTaggedCache and AnyTagSet.
- */
 class AnyTagOperations
 {
     private ?Put $put = null;
@@ -54,10 +44,6 @@ class AnyTagOperations
     private ?Flush $flush = null;
 
     private ?Prune $prune = null;
-
-    private ?Remember $remember = null;
-
-    private ?RememberForever $rememberForever = null;
 
     public function __construct(
         private readonly StoreContext $context,
@@ -166,50 +152,5 @@ class AnyTagOperations
     public function prune(): Prune
     {
         return $this->prune ??= new Prune($this->context);
-    }
-
-    /**
-     * Get the Remember operation for cache-through with tags.
-     *
-     * This operation is optimized to use a single connection for both
-     * GET and PUT operations, avoiding double pool overhead on cache misses.
-     */
-    public function remember(): Remember
-    {
-        return $this->remember ??= new Remember($this->context, $this->serialization);
-    }
-
-    /**
-     * Get the RememberForever operation for cache-through with tags (no TTL).
-     *
-     * This operation is optimized to use a single connection for both
-     * GET and SET operations, avoiding double pool overhead on cache misses.
-     */
-    public function rememberForever(): RememberForever
-    {
-        return $this->rememberForever ??= new RememberForever($this->context, $this->serialization);
-    }
-
-    /**
-     * Clear all cached operation instances.
-     *
-     * Called when the store's connection or prefix changes.
-     */
-    public function clear(): void
-    {
-        $this->put = null;
-        $this->putMany = null;
-        $this->add = null;
-        $this->forever = null;
-        $this->touch = null;
-        $this->forget = null;
-        $this->increment = null;
-        $this->decrement = null;
-        $this->getTaggedKeys = null;
-        $this->getTagItems = null;
-        $this->flush = null;
-        $this->prune = null;
-        $this->remember = null;
-        $this->rememberForever = null;
     }
 }
