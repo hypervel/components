@@ -9,7 +9,11 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\ClassInvoker;
 use Mockery as m;
+use ReflectionClass;
+use ReflectionNamedType;
+use ReflectionProperty;
 
 /**
  * Tests for RedisStore core functionality.
@@ -87,6 +91,82 @@ class RedisStoreTest extends RedisCacheTestCase
 
         // Second get should use new prefix
         $this->assertSame('new', $redis->get('foo'));
+    }
+
+    public function testBootConfigurationMutatorsClearEveryCachedInstance(): void
+    {
+        $cachedInstances = [
+            'context' => 'getContext',
+            'serialization' => 'getSerialization',
+            'getOperation' => 'getGetOperation',
+            'manyOperation' => 'getManyOperation',
+            'putOperation' => 'getPutOperation',
+            'putManyOperation' => 'getPutManyOperation',
+            'addOperation' => 'getAddOperation',
+            'foreverOperation' => 'getForeverOperation',
+            'forgetOperation' => 'getForgetOperation',
+            'touchOperation' => 'getTouchOperation',
+            'incrementOperation' => 'getIncrementOperation',
+            'decrementOperation' => 'getDecrementOperation',
+            'flushOperation' => 'getFlushOperation',
+            'anyTagOperations' => 'anyTagOps',
+            'allTagOperations' => 'allTagOps',
+        ];
+
+        $cachedProperties = [];
+
+        foreach ((new ReflectionClass(RedisStore::class))->getProperties(ReflectionProperty::IS_PRIVATE) as $property) {
+            $type = $property->getType();
+
+            if ($type instanceof ReflectionNamedType
+                && $type->allowsNull()
+                && $property->hasDefaultValue()
+                && $property->getDefaultValue() === null) {
+                $cachedProperties[] = $property->getName();
+            }
+        }
+
+        $mappedProperties = array_keys($cachedInstances);
+        sort($cachedProperties);
+        sort($mappedProperties);
+
+        $this->assertSame(
+            $cachedProperties,
+            $mappedProperties,
+            'A new RedisStore lazy cache needs both a warming accessor here and an invalidation reset.'
+        );
+
+        // setLockConnection() is deliberately excluded: lock connections are resolved
+        // per call and are not captured by any cached instance.
+        $mutators = [
+            'setConnection' => static function (RedisStore $store): void {
+                $store->setConnection('other');
+            },
+            'setPrefix' => static function (RedisStore $store): void {
+                $store->setPrefix('other:');
+            },
+            'setTagMode' => static function (RedisStore $store): void {
+                $store->setTagMode(TagMode::Any);
+            },
+        ];
+
+        foreach ($mutators as $method => $mutator) {
+            $store = $this->createStore($this->mockConnection());
+            $invoker = new ClassInvoker($store);
+
+            foreach ($cachedInstances as $accessor) {
+                $invoker->{$accessor}();
+            }
+
+            $mutator($store);
+
+            foreach (array_keys($cachedInstances) as $property) {
+                $this->assertNull(
+                    $invoker->{$property},
+                    "{$method} did not clear the cached {$property} instance."
+                );
+            }
+        }
     }
 
     /**
