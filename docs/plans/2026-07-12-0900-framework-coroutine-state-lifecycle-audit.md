@@ -990,8 +990,8 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `cache`
-- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution`; `Normalize framework enum identifiers at string boundaries`; `Harden filesystem I/O, streaming, and response teardown`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`.
+- **Active package or work unit:** `session`
+- **Ledger entries required for the active work:** `Normalize framework enum identifiers at string boundaries`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; `Complete Cache parity, cleanup, permanence, and tagged ownership`.
 - **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
@@ -1100,6 +1100,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `telescope-01` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
 | `telescope-02` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
 | `sentry-01` | `sentry` | `redis` (revalidation complete); later full `sentry` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
+| `cache-04` | `cache` | `auth`, `sanctum`, and `testbench` (revalidation complete); later full consumer audits | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-04` |
 
 ## Package checklist
 
@@ -1170,7 +1171,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 - [x] `database`
 - [x] `redis`
-- [ ] `cache`
+- [x] `cache`
 - [ ] `session`
 - [ ] `queue`
 - [ ] `horizon`
