@@ -12,7 +12,7 @@ use SessionHandlerInterface;
 
 class EncryptedSessionStoreTest extends TestCase
 {
-    public function testSessionIsProperlyEncrypted()
+    public function testSessionIsProperlyEncrypted(): void
     {
         $session = $this->getSession();
         $session->getEncrypter()->shouldReceive('decrypt')->once()->with(serialize([]))->andReturn(serialize([]));
@@ -34,7 +34,7 @@ class EncryptedSessionStoreTest extends TestCase
         $session->getHandler()->shouldReceive('write')->once()->with(
             $this->getSessionId(),
             $serialized
-        );
+        )->andReturnTrue();
         $session->save();
 
         $this->assertFalse($session->isStarted());

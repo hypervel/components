@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Session;
 
+use Hypervel\Http\Request;
 use SessionHandlerInterface;
 use UnitEnum;
 
@@ -22,7 +23,7 @@ interface Session
     /**
      * Get the current session ID.
      */
-    public function getId(): ?string;
+    public function getId(): string;
 
     /**
      * Set the session ID.
@@ -177,5 +178,5 @@ interface Session
     /**
      * Set the request on the handler instance.
      */
-    public function setRequestOnHandler(\Hypervel\Http\Request $request): void;
+    public function setRequestOnHandler(Request $request): void;
 }
