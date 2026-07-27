@@ -305,6 +305,8 @@ $request->session()->cache()->put(
 
 By default, session cache values are stored under the `_cache` key within the user's session data. You may change this key using the `SESSION_CACHE_KEY` environment variable or the `key` option of the `session` cache store.
 
+Session cache values use the session's configured serialization strategy. With the default `json` strategy, cached PHP objects do not retain their type or value across requests, so the session cache does not provide PSR-16's exact-value guarantee for objects. If you need to retrieve cached PHP objects in their original form, use PHP serialization as described in the [configuration section](#configuration).
+
 For more information on Hypervel's cache methods, consult the [cache documentation](/docs/{{version}}/cache).
 
 <a name="session-blocking"></a>
