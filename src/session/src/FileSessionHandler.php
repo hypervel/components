@@ -21,8 +21,8 @@ class FileSessionHandler implements SessionHandlerInterface
      */
     public function __construct(
         protected Filesystem $files,
-        protected $path,
-        protected $minutes
+        protected string $path,
+        protected int $minutes
     ) {
     }
 
@@ -53,9 +53,7 @@ class FileSessionHandler implements SessionHandlerInterface
 
     public function write(string $sessionId, string $data): bool
     {
-        $this->files->put($this->path . '/' . $sessionId, $data, true);
-
-        return true;
+        return $this->files->put($this->path . '/' . $sessionId, $data, true) === strlen($data);
     }
 
     public function destroy(string $sessionId): bool
@@ -76,8 +74,9 @@ class FileSessionHandler implements SessionHandlerInterface
         $deletedSessions = 0;
 
         foreach ($files as $file) {
-            $this->files->delete($file->getRealPath());
-            ++$deletedSessions;
+            if ($this->files->delete($file->getPathname())) {
+                ++$deletedSessions;
+            }
         }
 
         return $deletedSessions;
