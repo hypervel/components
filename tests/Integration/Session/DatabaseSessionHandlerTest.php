@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Session;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Http\Request;
 use Hypervel\Session\DatabaseSessionHandler;
 use Hypervel\Support\CarbonImmutable;
@@ -87,7 +89,7 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
         $this->assertEquals(0, $connection->table('sessions')->count());
     }
 
-    public function testDestroy()
+    public function testDestroy(): void
     {
         $resolver = $this->app->make('db');
         $connection = $this->app['db']->connection();
@@ -108,7 +110,7 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
         $this->assertEquals(1, $connection->table('sessions')->where('id', 'id_2')->count());
     }
 
-    public function testItCanWorkWithoutContainer()
+    public function testItCanWorkWithoutContainer(): void
     {
         $resolver = $this->app->make('db');
         $connection = $this->app['db']->connection();
@@ -123,5 +125,97 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
         $this->assertNull($session->user_agent);
         $this->assertNull($session->ip_address);
         $this->assertNull($session->user_id);
+    }
+
+    public function testDirectWriteUpdatesAnExistingSessionWithoutAttemptingDuplicateInsert(): void
+    {
+        $resolver = $this->app->make('db');
+        $connection = $resolver->connection();
+        $connection->table('sessions')->insert([
+            'id' => 'existing-session',
+            'payload' => base64_encode('old data'),
+            'last_activity' => time(),
+        ]);
+        $handler = new TrackingDatabaseSessionHandler($resolver, null, 'sessions', 120);
+
+        $this->assertTrue($handler->write('existing-session', 'new data'));
+        $this->assertSame(0, $handler->insertCount);
+        $this->assertSame(1, $handler->updateCount);
+        $this->assertSame('new data', $handler->read('existing-session'));
+    }
+
+    public function testConstructionClearsStaleObjectSpecificExistenceState(): void
+    {
+        $resolver = $this->app->make('db');
+        $handler = new class($resolver) extends TrackingDatabaseSessionHandler {
+            public function __construct(ConnectionResolverInterface $resolver)
+            {
+                CoroutineContext::set(
+                    self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this),
+                    true
+                );
+
+                parent::__construct($resolver, null, 'sessions', 120);
+            }
+        };
+
+        $this->assertFalse($handler->getExists());
+        $this->assertTrue($handler->write('new-session', 'new data'));
+        $this->assertSame(1, $handler->insertCount);
+        $this->assertSame(0, $handler->updateCount);
+        $this->assertSame('new data', $handler->read('new-session'));
+    }
+
+    public function testCloningClearsStaleObjectSpecificExistenceStateWithoutChangingSource(): void
+    {
+        $resolver = $this->app->make('db');
+        $source = new class($resolver) extends TrackingDatabaseSessionHandler {
+            public function __construct(ConnectionResolverInterface $resolver)
+            {
+                parent::__construct($resolver, null, 'sessions', 120);
+            }
+
+            public function __clone(): void
+            {
+                CoroutineContext::set(
+                    self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this),
+                    true
+                );
+
+                parent::__clone();
+            }
+        };
+        $source->setExists(true);
+
+        $clone = clone $source;
+
+        $this->assertTrue($source->getExists());
+        $this->assertFalse($clone->getExists());
+        $this->assertTrue($clone->write('cloned-session', 'cloned data'));
+        $this->assertSame(1, $clone->insertCount);
+        $this->assertSame(0, $clone->updateCount);
+        $this->assertSame('cloned data', $clone->read('cloned-session'));
+        $this->assertTrue($source->getExists());
+    }
+}
+
+class TrackingDatabaseSessionHandler extends DatabaseSessionHandler
+{
+    public int $insertCount = 0;
+
+    public int $updateCount = 0;
+
+    protected function performInsert(string $sessionId, array $payload): ?bool
+    {
+        ++$this->insertCount;
+
+        return parent::performInsert($sessionId, $payload);
+    }
+
+    protected function performUpdate(string $sessionId, array $payload): int
+    {
+        ++$this->updateCount;
+
+        return parent::performUpdate($sessionId, $payload);
     }
 }
