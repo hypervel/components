@@ -51,7 +51,7 @@ class StartSession
         $session = $this->getSession($request);
 
         if ($this->manager->shouldBlock()
-            || ($request->route() instanceof Route && $request->route()->locksFor())) { // @phpstan-ignore instanceof.alwaysTrue
+            || ($request->route() instanceof Route && $request->route()->locksFor())) {
             return $this->handleRequestWhileBlocking($request, $session, $next);
         }
 
@@ -63,30 +63,24 @@ class StartSession
      */
     protected function handleRequestWhileBlocking(Request $request, Session $session, Closure $next): Response
     {
-        if (! $request->route() instanceof Route) { // @phpstan-ignore instanceof.alwaysTrue
+        if (! $request->route() instanceof Route) {
             return $this->handleStatefulRequest($request, $session, $next);
         }
 
         $lockFor = $request->route()->locksFor()
             ?: $this->manager->defaultRouteBlockLockSeconds();
 
-        /** @var \Hypervel\Contracts\Cache\Repository&LockProvider $store */ // @phpstan-ignore varTag.nativeType
+        /** @var \Hypervel\Contracts\Cache\Repository&LockProvider $store */
         $store = $this->cache->store($this->manager->blockDriver());
         $lock = $store
             ->lock('session:' . $session->getId(), (int) $lockFor)
             ->betweenBlockedAttemptsSleepFor(50);
 
-        try {
-            $lock->block(
-                ! is_null($request->route()->waitsFor())
-                    ? $request->route()->waitsFor()
-                    : $this->manager->defaultRouteBlockWaitSeconds()
-            );
-
-            return $this->handleStatefulRequest($request, $session, $next);
-        } finally {
-            $lock->release();
-        }
+        return $lock->block(
+            $request->route()->waitsFor()
+                ?? $this->manager->defaultRouteBlockWaitSeconds(),
+            fn (): Response => $this->handleStatefulRequest($request, $session, $next),
+        );
     }
 
     /**
@@ -120,12 +114,18 @@ class StartSession
             $this->saveSession($request);
 
             return $response;
-        } catch (Throwable $e) {
-            $this->exceptionHandler->afterResponse(
-                fn () => $this->saveSession($request)
-            );
+        } catch (Throwable $throwable) {
+            if ($request->hasSession()) {
+                $this->exceptionHandler->afterResponse(function () use ($request): void {
+                    try {
+                        $this->saveSession($request);
+                    } catch (Throwable) {
+                        // The request failure stays primary; a retry failure must not escape the exception renderer.
+                    }
+                });
+            }
 
-            throw $e;
+            throw $throwable;
         }
     }
 
@@ -180,7 +180,7 @@ class StartSession
     protected function storeCurrentUrl(Request $request, Session $session): void
     {
         if ($request->isMethod('GET')
-            && $request->route() instanceof Route // @phpstan-ignore instanceof.alwaysTrue
+            && $request->route() instanceof Route
             && ! $request->ajax()
             && ! $request->prefetch()
             && ! $request->isPrecognitive()) {
@@ -218,17 +218,17 @@ class StartSession
     /**
      * Get the session cookie configuration.
      *
-     * @return array{path: string, domain: string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
+     * @return array{path: string, domain: ?string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
     protected function resolveSessionCookieConfig(Request $request, array $config): array
     {
         $cookieConfig = [
-            'path' => $config['path'] ?? '/',
-            'domain' => $config['domain'] ?? '',
-            'secure' => $config['secure'] ?? null,
-            'http_only' => $config['http_only'] ?? true,
-            'same_site' => $config['same_site'] ?? null,
-            'partitioned' => $config['partitioned'] ?? false,
+            'path' => $config['path'],
+            'domain' => $config['domain'],
+            'secure' => $config['secure'],
+            'http_only' => $config['http_only'],
+            'same_site' => $config['same_site'],
+            'partitioned' => $config['partitioned'],
         ];
 
         foreach (static::$sessionCookieCallbacks as $callback) {
@@ -268,7 +268,7 @@ class StartSession
      */
     protected function getSessionLifetimeInSeconds(): int
     {
-        return ($this->manager->getSessionConfig()['lifetime'] ?? null) * 60;
+        return $this->manager->getSessionConfig()['lifetime'] * 60;
     }
 
     /**
@@ -288,7 +288,7 @@ class StartSession
      */
     protected function sessionConfigured(): bool
     {
-        return ! is_null($this->manager->getSessionConfig()['driver'] ?? null);
+        return ! is_null($this->manager->getSessionConfig()['driver']);
     }
 
     /**
@@ -296,9 +296,9 @@ class StartSession
      */
     protected function sessionIsPersistent(?array $config = null): bool
     {
-        $config = $config ?: $this->manager->getSessionConfig();
+        $config ??= $this->manager->getSessionConfig();
 
-        return ! is_null($config['driver'] ?? null);
+        return ! is_null($config['driver']);
     }
 
     /**
