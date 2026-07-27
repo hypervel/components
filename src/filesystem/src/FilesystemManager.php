@@ -635,12 +635,10 @@ class FilesystemManager implements FactoryContract
     protected function createFlysystem(FlysystemAdapter $adapter, array $config): FilesystemOperator
     {
         if ($config['read-only'] ?? false) {
-            /* @phpstan-ignore-next-line */
             $adapter = new ReadOnlyFilesystemAdapter($adapter);
         }
 
         if (! empty($config['prefix'])) {
-            /* @phpstan-ignore-next-line */
             $adapter = new PathPrefixedAdapter($adapter, $config['prefix']);
         }
 
