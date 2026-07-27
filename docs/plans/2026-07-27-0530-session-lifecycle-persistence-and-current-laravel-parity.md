@@ -140,7 +140,7 @@ must make that code-owned compatibility decision in configuration.
 | `session-03` | Defect | Major | Failed startup registers a later empty write against the cookie-derived ID | `Request::hasSession()` commit flag |
 | `session-04` | Defect | Major | Manual lock release can replace request failure or run after failed acquire | Cache lock callback form |
 | `session-05` | Defect and upstream defect | Major | JSON cookie envelope rejects binary serialized data and accepts invalid decoded shapes | Private PHP-serialized envelope |
-| `session-06` | Defect | Minor | File GC passes `string|false` and counts failed deletes | Finder pathname and successful-delete count |
+| `session-06` | Defect | Minor | File GC passes `string\|false` and counts failed deletes | Finder pathname and successful-delete count |
 | `session-07` | Defect | Minor | Direct database write caches stale false existence after `read()` updates context | Refresh local existence once |
 | `session-08` | Current Laravel parity and configuration improvement | Minor | Redis sessions cannot own a distinct prefix | Truthful RedisStore setup and declared default |
 | `session-09` | Current Laravel parity | Improvement | Store collection checks lag current upstream and `hasAny()` scans all keys | Current `doesntContain()` / `contains()` shape |
@@ -157,7 +157,7 @@ must make that code-owned compatibility decision in configuration.
 | `session-20` | Defect and upstream defect | Major | Starting a JSON Store can replace an already-live validation error bag with an empty one | Marshal only the decoded storage payload before merging |
 | `session-21` | Defect | Major | A reused Database handler object ID can inherit `exists=true`, update zero rows, and report a silently lost write | Initialize object-specific state on construction and cloning |
 | `session-22` | Defect | Major | The file handler reports success after false or partial filesystem writes | Require the complete byte count |
-| `filesystem-12` | Type-consistency improvement | Improvement | Concrete `Filesystem::delete()` alone omits its contract's native union | Add `array|string` |
+| `filesystem-12` | Type-consistency improvement | Improvement | Concrete `Filesystem::delete()` alone omits its contract's native union | Add `array\|string` |
 
 ## Owner decisions
 
