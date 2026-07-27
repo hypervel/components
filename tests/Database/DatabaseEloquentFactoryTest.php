@@ -12,6 +12,7 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
 use Hypervel\Database\Eloquent\Factories\CrossJoinSequence;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
@@ -1030,6 +1031,49 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertEquals(GuessModel::factory()->modelName(), GuessModel::class);
     }
 
+    public function testUseFactoryModelBindingIsIsolatedPerFactoryInstance(): void
+    {
+        $first = SharedUseFactoryModelA::factory();
+        $second = SharedUseFactoryModelB::factory();
+
+        $this->assertSame(SharedUseFactoryModelA::class, $first->modelName());
+        $this->assertSame(SharedUseFactoryModelB::class, $second->modelName());
+        $this->assertInstanceOf(SharedUseFactoryModelA::class, $first->make());
+    }
+
+    public function testFactoryModelCanBeSelectedPerInstance(): void
+    {
+        $factory = SharedUseFactoryFactory::new()->useModel(SharedUseFactoryModelA::class);
+
+        $this->assertSame(SharedUseFactoryModelA::class, $factory->modelName());
+    }
+
+    public function testUseFactoryModelBindingSurvivesFluentFactoryClones(): void
+    {
+        $factory = SharedUseFactoryModelA::factory();
+
+        $this->assertSame(SharedUseFactoryModelA::class, $factory->count(2)->modelName());
+        $this->assertSame(SharedUseFactoryModelA::class, $factory->state([])->modelName());
+    }
+
+    public function testUseFactoryModelBindingTakesPrecedenceOverFactoryModelProperty(): void
+    {
+        $this->assertSame(
+            DeclaredModelUseFactoryModel::class,
+            DeclaredModelUseFactoryModel::factory()->modelName(),
+        );
+
+        // Preserve the factory's declared model when no instance override is supplied.
+        $this->assertSame(User::class, DeclaredModelUseFactoryFactory::new()->modelName());
+    }
+
+    public function testUseModelAttributeTakesPrecedenceOverRuntimeModelBinding(): void
+    {
+        $factory = UseModelAttributeFactory::new()->useModel(SharedUseFactoryModelA::class);
+
+        $this->assertSame(User::class, $factory->modelName());
+    }
+
     public function testFactoryGlobalModelResolver()
     {
         Factory::guessModelNamesUsing(function ($factory) {
@@ -1389,6 +1433,51 @@ class UseFactoryAttributeFactory extends Factory
 class UseFactoryAttribute extends Eloquent
 {
     use HasFactory;
+}
+
+class SharedUseFactoryFactory extends Factory
+{
+    public function definition(): array
+    {
+        return [];
+    }
+}
+
+#[UseFactory(SharedUseFactoryFactory::class)]
+class SharedUseFactoryModelA extends Eloquent
+{
+    use HasFactory;
+}
+
+#[UseFactory(SharedUseFactoryFactory::class)]
+class SharedUseFactoryModelB extends Eloquent
+{
+    use HasFactory;
+}
+
+class DeclaredModelUseFactoryFactory extends Factory
+{
+    protected ?string $model = User::class;
+
+    public function definition(): array
+    {
+        return [];
+    }
+}
+
+#[UseFactory(DeclaredModelUseFactoryFactory::class)]
+class DeclaredModelUseFactoryModel extends Eloquent
+{
+    use HasFactory;
+}
+
+#[UseModel(User::class)]
+class UseModelAttributeFactory extends Factory
+{
+    public function definition(): array
+    {
+        return [];
+    }
 }
 
 class UserWithArray extends Eloquent

@@ -137,6 +137,14 @@ class FlightFactory extends Factory
 }
 ```
 
+You may also choose the model for an individual factory instance using the `useModel` method:
+
+```php
+$factory = SeatFactory::new()->useModel(PremiumSeat::class);
+```
+
+The `UseModel` attribute takes precedence over `useModel`. Models that use the `UseFactory` attribute are automatically bound to their own factory instance, so the same factory class may be shared by multiple models.
+
 <a name="factory-states"></a>
 ### Factory States
 
