@@ -26,7 +26,7 @@ class ArraySessionHandler implements SessionHandlerInterface
     ) {
     }
 
-    public function open($savePath, $sessionName): bool
+    public function open(string $savePath, string $sessionName): bool
     {
         return true;
     }
@@ -36,7 +36,7 @@ class ArraySessionHandler implements SessionHandlerInterface
         return true;
     }
 
-    public function read($sessionId): false|string
+    public function read(string $sessionId): false|string
     {
         if (! isset($this->storage[$sessionId])) {
             return '';
@@ -53,7 +53,7 @@ class ArraySessionHandler implements SessionHandlerInterface
         return '';
     }
 
-    public function write($sessionId, $data): bool
+    public function write(string $sessionId, string $data): bool
     {
         $this->storage[$sessionId] = [
             'data' => $data,
@@ -63,7 +63,7 @@ class ArraySessionHandler implements SessionHandlerInterface
         return true;
     }
 
-    public function destroy($sessionId): bool
+    public function destroy(string $sessionId): bool
     {
         if (isset($this->storage[$sessionId])) {
             unset($this->storage[$sessionId]);
@@ -72,7 +72,7 @@ class ArraySessionHandler implements SessionHandlerInterface
         return true;
     }
 
-    public function gc($lifetime): int
+    public function gc(int $lifetime): int
     {
         $expiration = $this->calculateExpiration($lifetime);
 

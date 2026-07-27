@@ -36,13 +36,6 @@ trait InteractsWithSession
     protected function startSession(): static
     {
         if (! $this->app['session']->isStarted()) {
-            // Ensure a session ID exists before starting. In production, the
-            // StartSession middleware sets the ID from the request cookie.
-            // In tests, we generate one if none exists.
-            if ($this->app['session']->getId() === null) {
-                $this->app['session']->setId(null);
-            }
-
             $this->app['session']->start();
         }
 

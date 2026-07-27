@@ -21,6 +21,22 @@ class CacheSessionStoreTest extends TestCase
         $this->assertSame('bar', $store->get('foo'));
     }
 
+    public function testDottedKeysAreStoredLiterallyAndIndependently(): void
+    {
+        $store = new SessionStore(self::getSession());
+
+        $store->put('form', 'first', 10);
+        $store->put('form.value', 'second', 10);
+
+        $this->assertSame('first', $store->get('form'));
+        $this->assertSame('second', $store->get('form.value'));
+        $this->assertSame(['form', 'form.value'], array_keys($store->all()));
+
+        $this->assertTrue($store->forget('form'));
+        $this->assertNull($store->get('form'));
+        $this->assertSame('second', $store->get('form.value'));
+    }
+
     public function testCacheTtl()
     {
         $store = new SessionStore(self::getSession());
@@ -110,6 +126,21 @@ class CacheSessionStoreTest extends TestCase
         $result = $store->increment('foo', 2);
         $this->assertEquals(4, $result);
         $this->assertEquals(4, $store->get('foo'));
+    }
+
+    public function testDottedKeysCanBeIncrementedWithoutChangingTheirExpiration(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
+        $store = new SessionStore(self::getSession());
+        $store->put('counter.value', 1, 10);
+
+        $expiresAt = $store->all()['counter.value']['expiresAt'];
+
+        $this->assertSame(2, $store->increment('counter.value'));
+        $this->assertSame(2, $store->get('counter.value'));
+        $this->assertSame($expiresAt, $store->all()['counter.value']['expiresAt']);
+        $this->assertSame(['counter.value'], array_keys($store->all()));
     }
 
     public function testValuesGetCastedByIncrementOrDecrement()

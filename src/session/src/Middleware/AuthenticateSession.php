@@ -45,11 +45,11 @@ class AuthenticateSession implements AuthenticatesSessions
             }
         }
 
-        if (! $request->session()->has('password_hash_' . $this->auth->getDefaultDriver())) { // @phpstan-ignore method.notFound (proxied via AuthManager::__call)
+        if (! $request->session()->has('password_hash_' . $this->auth->getDefaultDriver())) {
             $this->storePasswordHashInSession($request);
         }
 
-        $sessionPasswordHash = $request->session()->get('password_hash_' . $this->auth->getDefaultDriver()); // @phpstan-ignore method.notFound
+        $sessionPasswordHash = $request->session()->get('password_hash_' . $this->auth->getDefaultDriver());
 
         if (! $this->validatePasswordHash($request->user()->getAuthPassword(), $sessionPasswordHash)) {
             $this->logout($request);
@@ -76,7 +76,7 @@ class AuthenticateSession implements AuthenticatesSessions
         $passwordHash = $this->guard()->hashPasswordForCookie($passwordHash); // @phpstan-ignore method.notFound
 
         $request->session()->put([
-            'password_hash_' . $this->auth->getDefaultDriver() => $passwordHash, // @phpstan-ignore method.notFound
+            'password_hash_' . $this->auth->getDefaultDriver() => $passwordHash,
         ]);
     }
 
@@ -105,8 +105,8 @@ class AuthenticateSession implements AuthenticatesSessions
 
         throw new AuthenticationException(
             'Unauthenticated.',
-            [$this->auth->getDefaultDriver()], // @phpstan-ignore method.notFound
-            $this->redirectTo($request) // @phpstan-ignore method.notFound
+            [$this->auth->getDefaultDriver()],
+            $this->redirectTo($request)
         );
     }
 

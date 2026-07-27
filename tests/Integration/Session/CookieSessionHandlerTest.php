@@ -10,7 +10,7 @@ use Hypervel\Testbench\TestCase;
 
 class CookieSessionHandlerTest extends TestCase
 {
-    public function testCookieSessionDriverCookiesCanExpireOnClose()
+    public function testCookieSessionDriverCookiesCanExpireOnClose(): void
     {
         Route::get('/', fn () => '')->middleware('web');
 
@@ -22,7 +22,7 @@ class CookieSessionHandlerTest extends TestCase
         $this->assertEquals(0, $sessionValueCookie->getExpiresTime());
     }
 
-    public function testCookieSessionInheritsRequestSecureState()
+    public function testCookieSessionInheritsRequestSecureState(): void
     {
         Route::get('/', fn () => '')->middleware('web');
 

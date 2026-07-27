@@ -173,7 +173,7 @@ class HeartbeatConnectionTest extends TestCase
         }
     }
 
-    public function testConnectionDestruct(): void
+    public function testConnectionCloseProtocolRunsOnPoolFlush(): void
     {
         $container = $this->getContainer();
         $pool = $container->make(HeartbeatPoolStub::class);

@@ -7,9 +7,12 @@ namespace Hypervel\Tests\Session;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Session\FileSessionHandler;
+use Hypervel\Session\Store;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
 
@@ -27,12 +30,12 @@ class FileSessionHandlerTest extends TestCase
         $this->sessionHandler = new FileSessionHandler($this->files, '/path/to/sessions', 30);
     }
 
-    public function testOpen()
+    public function testOpen(): void
     {
         $this->assertTrue($this->sessionHandler->open('/path/to/sessions', 'session_name'));
     }
 
-    public function testClose()
+    public function testClose(): void
     {
         $this->assertTrue($this->sessionHandler->close());
     }
@@ -71,7 +74,7 @@ class FileSessionHandlerTest extends TestCase
         $this->assertSame('', $result);
     }
 
-    public function testReadReturnsEmptyStringWhenFileDoesNotExist()
+    public function testReadReturnsEmptyStringWhenFileDoesNotExist(): void
     {
         $sessionId = 'non_existing_session_id';
         $path = '/path/to/sessions/' . $sessionId;
@@ -98,7 +101,7 @@ class FileSessionHandlerTest extends TestCase
         $this->assertSame('', $this->sessionHandler->read($sessionId));
     }
 
-    public function testWriteStoresData()
+    public function testWriteStoresData(): void
     {
         $sessionId = 'session_id';
         $data = 'session_data';
@@ -110,7 +113,47 @@ class FileSessionHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testDestroyDeletesSessionFile()
+    public function testWriteRejectsFalseAndShortFilesystemWrites(): void
+    {
+        $data = 'session_data';
+
+        foreach ([false, strlen($data) - 1] as $written) {
+            $files = m::mock(Filesystem::class);
+            $files->shouldReceive('put')
+                ->once()
+                ->with('/path/to/sessions/session_id', $data, true)
+                ->andReturn($written);
+
+            $handler = new FileSessionHandler($files, '/path/to/sessions', 30);
+
+            $this->assertFalse($handler->write('session_id', $data));
+        }
+    }
+
+    public function testFailedFileWriteLeavesLiveSessionStateUntouched(): void
+    {
+        $sessionId = str_repeat('a', 40);
+        $path = '/path/to/sessions/' . $sessionId;
+        $this->files->shouldReceive('isFile')->once()->with($path)->andReturnFalse();
+        $this->files->shouldReceive('put')->once()->with($path, m::type('string'), true)->andReturnFalse();
+
+        $session = new Store('name', $this->sessionHandler, $sessionId);
+        $session->start();
+        $session->flash('status', 'saved');
+
+        try {
+            $session->save();
+
+            $this->fail('Expected the failed file write to reject the session save.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to write the session data.', $exception->getMessage());
+        }
+
+        $this->assertTrue($session->isStarted());
+        $this->assertSame(['status'], $session->get('_flash.new'));
+    }
+
+    public function testDestroyDeletesSessionFile(): void
     {
         $sessionId = 'session_id';
 
@@ -121,26 +164,24 @@ class FileSessionHandlerTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testGcDeletesOldSessionFiles()
+    public function testGcDeletesOldSessionFiles(): void
     {
-        $session = new FileSessionHandler($this->files, join_paths(__DIR__, 'tmp'), 30);
+        $tempDir = ParallelTesting::tempDir('FileSessionHandlerTest');
+        mkdir($tempDir, 0777, true);
 
-        $this->files->shouldReceive('delete')->with(join_paths(__DIR__, 'tmp', 'a2'))->once()->andReturn(false);
-        $this->files->shouldReceive('delete')->with(join_paths(__DIR__, 'tmp', 'a3'))->once()->andReturn(true);
+        try {
+            $session = new FileSessionHandler($this->files, $tempDir, 30);
 
-        mkdir(__DIR__ . '/tmp');
-        touch(__DIR__ . '/tmp/a1', time() - 3); // last modified: 3 sec ago
-        touch(__DIR__ . '/tmp/a2', time() - 5); // last modified: 5 sec ago
-        touch(__DIR__ . '/tmp/a3', time() - 7); // last modified: 7 sec ago
+            $this->files->shouldReceive('delete')->with(join_paths($tempDir, 'a2'))->once()->andReturn(false);
+            $this->files->shouldReceive('delete')->with(join_paths($tempDir, 'a3'))->once()->andReturn(true);
 
-        $count = $session->gc(5);
+            touch(join_paths($tempDir, 'a1'), time() - 3); // last modified: 3 sec ago
+            touch(join_paths($tempDir, 'a2'), time() - 5); // last modified: 5 sec ago
+            touch(join_paths($tempDir, 'a3'), time() - 7); // last modified: 7 sec ago
 
-        $this->assertSame(2, $count);
-
-        unlink(__DIR__ . '/tmp/a1');
-        unlink(__DIR__ . '/tmp/a2');
-        unlink(__DIR__ . '/tmp/a3');
-
-        rmdir(__DIR__ . '/tmp');
+            $this->assertSame(1, $session->gc(5));
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
     }
 }

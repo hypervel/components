@@ -38,13 +38,14 @@ class SessionStore implements Store
      */
     public function get(string $key): mixed
     {
-        if (! $this->session->exists($this->itemKey($key))) {
+        $items = $this->all();
+
+        if (! array_key_exists($key, $items)) {
             return null;
         }
 
-        $item = $this->session->get($this->itemKey($key));
-
-        $expiresAt = $item['expiresAt'] ?? 0.0;
+        $item = $items[$key];
+        $expiresAt = $item['expiresAt'];
 
         if ($this->isExpired($expiresAt)) {
             $this->forget($key);
@@ -68,10 +69,13 @@ class SessionStore implements Store
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
-        $this->session->put($this->itemKey($key), [
+        $items = $this->all();
+        $items[$key] = [
             'value' => $value,
             'expiresAt' => $this->toTimestamp($seconds),
-        ]);
+        ];
+
+        $this->session->put($this->key, $items);
 
         return true;
     }
@@ -90,9 +94,12 @@ class SessionStore implements Store
     public function increment(string $key, int $value = 1): int
     {
         if (! is_null($existing = $this->get($key))) {
-            return tap(((int) $existing) + $value, function ($incremented) use ($key) {
-                $this->session->put($this->itemKey("{$key}.value"), $incremented);
-            });
+            $incremented = ((int) $existing) + $value;
+            $items = $this->all();
+            $items[$key]['value'] = $incremented;
+            $this->session->put($this->key, $items);
+
+            return $incremented;
         }
 
         $this->forever($key, $value);
@@ -137,13 +144,17 @@ class SessionStore implements Store
      */
     public function forget(string $key): bool
     {
-        if ($this->session->exists($this->itemKey($key))) {
-            $this->session->forget($this->itemKey($key));
+        $items = $this->all();
 
-            return true;
+        if (! array_key_exists($key, $items)) {
+            return false;
         }
 
-        return false;
+        unset($items[$key]);
+
+        $this->session->put($this->key, $items);
+
+        return true;
     }
 
     /**

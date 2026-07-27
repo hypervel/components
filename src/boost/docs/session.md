@@ -41,7 +41,9 @@ The session `driver` configuration option defines where session data will be sto
 </div>
 
 > [!NOTE]
-> The array driver is primarily used during [testing](/docs/{{version}}/testing) and prevents the data stored in the session from being persisted.
+> The array driver stores sessions only in the memory of a single Swoole worker. It is useful during [testing](/docs/{{version}}/testing), but should not be used for production sessions.
+
+By default, Hypervel serializes session data as JSON, which is suitable for scalar and array values. If your application needs to store PHP objects in the session, you may set the `serialization` option in your `session.php` configuration file to `php`. PHP serialization should only be enabled when necessary, since deserializing objects increases the impact of compromised session data or encryption keys.
 
 Routes assigned to the `web` middleware group already include the `Hypervel\Session\Middleware\StartSession` middleware. If you need session state on routes outside of the `web` middleware group, you should apply the middleware to those routes.
 
@@ -68,6 +70,8 @@ Before using Redis sessions with Hypervel, you will need to install the [PhpRedi
 
 > [!NOTE]
 > The `SESSION_CONNECTION` environment variable, or the `connection` option in the `session.php` configuration file, may be used to specify which Redis connection is used for session storage.
+
+Redis session keys use the `SESSION_PREFIX` environment variable and default to your application ID followed by `_session:`. The session prefix is separate from `SESSION_CONNECTION`: the connection selects where sessions are stored, while the prefix separates session keys from other data on that connection. Any prefix configured on the Redis connection will also be applied.
 
 <a name="interacting-with-the-session"></a>
 ## Interacting With the Session
@@ -301,6 +305,8 @@ $request->session()->cache()->put(
 
 By default, session cache values are stored under the `_cache` key within the user's session data. You may change this key using the `SESSION_CACHE_KEY` environment variable or the `key` option of the `session` cache store.
 
+Session cache values use the session's configured serialization strategy. With the default `json` strategy, cached PHP objects do not retain their type or value across requests, so the session cache does not provide PSR-16's exact-value guarantee for objects. If you need to retrieve cached PHP objects in their original form, use PHP serialization as described in the [configuration section](#configuration).
+
 For more information on Hypervel's cache methods, consult the [cache documentation](/docs/{{version}}/cache).
 
 <a name="session-blocking"></a>
@@ -310,6 +316,8 @@ For more information on Hypervel's cache methods, consult the [cache documentati
 > To utilize session blocking, your application must be using a cache driver that supports [atomic locks](/docs/{{version}}/cache#atomic-locks). Currently, those cache drivers include the `redis`, `database`, `file`, `swoole`, and `array` drivers. In addition, you may not use the `cookie` session driver.
 
 By default, Hypervel allows requests using the same session to execute concurrently. So, for example, if you use a JavaScript HTTP library to make two HTTP requests to your application, they will both execute at the same time. For many applications, this is not a problem; however, session data loss can occur in a small subset of applications that make concurrent requests to two different application endpoints which both write data to the session.
+
+To enable session blocking for every route that uses session middleware, set the `SESSION_BLOCK` environment variable to `true`. You may use `SESSION_BLOCK_STORE` to select the cache store used for locks, and `SESSION_BLOCK_LOCK_SECONDS` and `SESSION_BLOCK_WAIT_SECONDS` to change the default lock and wait times.
 
 To mitigate this, Hypervel provides functionality that allows you to limit concurrent requests for a given session. To get started, you may simply chain the `block` method onto your route definition. In this example, an incoming request to the `/profile` endpoint would acquire a session lock. While this lock is being held, any incoming requests to the `/profile` or `/order` endpoints which share the same session ID will wait for the first request to finish executing before continuing their execution:
 
@@ -430,9 +438,9 @@ Since the purpose of these methods is not readily understandable, here is an ove
 - The `open` method would typically be used in file based session store systems. Since Hypervel ships with a `file` session driver, you will rarely need to put anything in this method. You can simply return `true`.
 - The `close` method, like the `open` method, can also usually be disregarded. For most drivers, it is not needed.
 - The `read` method should return the string version of the session data associated with the given `$sessionId`. There is no need to do any serialization or other encoding when retrieving or storing session data in your driver, as Hypervel will perform the serialization for you.
-- The `write` method should write the given `$data` string associated with the `$sessionId` to a persistent storage system of your choice. Again, you should not perform any serialization - Hypervel will have already handled that for you.
+- The `write` method should write the given `$data` string associated with the `$sessionId` to a persistent storage system of your choice and return `true` when the write succeeds or `false` when it fails. A failed write will cause the request to fail rather than accepting the loss of session data. Again, you should not perform any serialization - Hypervel will have already handled that for you.
 - The `destroy` method should remove the data associated with the `$sessionId` from persistent storage.
-- The `gc` method should destroy all session data that is older than the given `$lifetime`, which is a UNIX timestamp. For self-expiring systems like Redis, this method may return `0`.
+- The `gc` method should destroy all session data older than the given `$lifetime` in seconds. For self-expiring systems like Redis, this method may return `0`.
 
 </div>
 

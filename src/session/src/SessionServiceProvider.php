@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\ServiceProvider;
 
 class SessionServiceProvider extends ServiceProvider
@@ -17,18 +16,9 @@ class SessionServiceProvider extends ServiceProvider
         $this->registerSessionManager();
         $this->registerSessionDriver();
 
-        $this->app->singleton(StartSession::class);
-
         $this->commands([
             Console\SessionTableCommand::class,
         ]);
-    }
-
-    /**
-     * Bootstrap the service provider.
-     */
-    public function boot(): void
-    {
     }
 
     /**

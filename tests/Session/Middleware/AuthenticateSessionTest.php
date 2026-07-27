@@ -17,7 +17,7 @@ use Mockery as m;
 
 class AuthenticateSessionTest extends TestCase
 {
-    public function testHandleWithoutSession()
+    public function testHandleWithoutSession(): void
     {
         $request = new Request;
         $next = fn () => 'next-1';
@@ -30,7 +30,7 @@ class AuthenticateSessionTest extends TestCase
         $this->assertEquals('next-1', $response);
     }
 
-    public function testHandleWithSessionWithoutRequestUser()
+    public function testHandleWithSessionWithoutRequestUser(): void
     {
         $request = new Request;
 
@@ -46,7 +46,7 @@ class AuthenticateSessionTest extends TestCase
         $this->assertEquals('next-2', $response);
     }
 
-    public function testHandleWithSessionWithoutAuthPassword()
+    public function testHandleWithSessionWithoutAuthPassword(): void
     {
         $user = new class {
             public function getAuthPassword()
@@ -72,7 +72,7 @@ class AuthenticateSessionTest extends TestCase
         $this->assertEquals('next-3', $response);
     }
 
-    public function testHandleWithSessionWithUserAuthPasswordOnRequestViaRememberFalse()
+    public function testHandleWithSessionWithUserAuthPasswordOnRequestViaRememberFalse(): void
     {
         $user = new class {
             public function getAuthPassword()
@@ -101,7 +101,7 @@ class AuthenticateSessionTest extends TestCase
         $this->assertEquals('next-4', $response);
     }
 
-    public function testHandleWithInvalidPasswordHash()
+    public function testHandleWithInvalidPasswordHash(): void
     {
         $user = new class {
             public function getAuthPassword()
@@ -189,7 +189,7 @@ class AuthenticateSessionTest extends TestCase
         $this->fail('AuthenticationException was not thrown.');
     }
 
-    public function testHandleWithInvalidIncookiePasswordHashViaRememberTrue()
+    public function testHandleWithInvalidIncookiePasswordHashViaRememberTrue(): void
     {
         $user = new class {
             public function getAuthPassword()
@@ -232,7 +232,7 @@ class AuthenticateSessionTest extends TestCase
         $this->assertNull($session->get('b'));
     }
 
-    public function testHandleWithValidIncookieInvalidInsessionHashViaRememberTrue()
+    public function testHandleWithValidIncookieInvalidInsessionHashViaRememberTrue(): void
     {
         $user = new class {
             public function getAuthPassword()
@@ -276,7 +276,7 @@ class AuthenticateSessionTest extends TestCase
         $this->assertNull($session->get('b'));
     }
 
-    public function testHandleWithValidPasswordInSessionCookieIsEmptyGuardHasUser()
+    public function testHandleWithValidPasswordInSessionCookieIsEmptyGuardHasUser(): void
     {
         $user = new class {
             public function getAuthPassword()

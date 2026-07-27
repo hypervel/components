@@ -23,12 +23,12 @@ class NullSessionHandler implements SessionHandlerInterface
         return '';
     }
 
-    public function write($sessionId, $data): bool
+    public function write(string $sessionId, string $data): bool
     {
         return true;
     }
 
-    public function destroy($sessionId): bool
+    public function destroy(string $sessionId): bool
     {
         return true;
     }

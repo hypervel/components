@@ -103,6 +103,38 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Redis Prefix
+    |--------------------------------------------------------------------------
+    |
+    | When using the "redis" session driver, you may define the prefix used
+    | for session keys. This keeps session data separate from other values
+    | stored on the same Redis connection.
+    |
+    */
+
+    'prefix' => env('SESSION_PREFIX', app_id() . '_session:'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Session Blocking
+    |--------------------------------------------------------------------------
+    |
+    | Session blocking prevents concurrent requests for the same session
+    | from executing at the same time. You may configure the cache store
+    | and time limits used to acquire and maintain the session lock.
+    |
+    */
+
+    'block' => (bool) env('SESSION_BLOCK', false),
+
+    'block_store' => env('SESSION_BLOCK_STORE'),
+
+    'block_lock_seconds' => (int) env('SESSION_BLOCK_LOCK_SECONDS', 10),
+
+    'block_wait_seconds' => (int) env('SESSION_BLOCK_WAIT_SECONDS', 10),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Sweeping Lottery
     |--------------------------------------------------------------------------
     |
@@ -208,4 +240,20 @@ return [
     */
 
     'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Session Serialization
+    |--------------------------------------------------------------------------
+    |
+    | This value controls the serialization strategy for session data, which
+    | is JSON by default. Setting this to "php" allows the storage of PHP
+    | objects in the session but can make an application vulnerable to
+    | "gadget chain" serialization attacks if the APP_KEY is leaked.
+    |
+    | Supported: "json", "php"
+    |
+    */
+
+    'serialization' => 'json',
 ];

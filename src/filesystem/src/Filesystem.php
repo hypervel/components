@@ -306,11 +306,9 @@ class Filesystem
     /**
      * Delete the file at a given path.
      *
-     * @param array|string $paths
-     *
      * @phpstan-impure
      */
-    public function delete($paths): bool
+    public function delete(array|string $paths): bool
     {
         $paths = is_array($paths) ? $paths : func_get_args();
 

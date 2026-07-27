@@ -229,6 +229,8 @@ The `session` cache driver stores cache values inside the active session store. 
 ],
 ```
 
+Session cache values use the serialization strategy configured for the session. With the default `json` strategy, cached PHP objects do not retain their type or value across requests, so this store does not provide PSR-16's exact-value guarantee for objects. If your application needs to cache PHP objects in the session, set the `serialization` option in `config/session.php` to `php` and review the [security considerations](/docs/{{version}}/session#configuration).
+
 <a name="cache-failover"></a>
 ### Cache Failover
 

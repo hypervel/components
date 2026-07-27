@@ -24,7 +24,7 @@ class CookieSessionHandlerCoroutineSafetyTest extends TestCase
         [$resultA, $resultB] = parallel([
             function () use ($handler): string {
                 $handler->setRequest(Request::create('/', 'GET', [], [
-                    'session-a' => json_encode([
+                    'session-a' => serialize([
                         'data' => 'payload-a',
                         'expires' => time() + 60,
                     ]),
@@ -38,7 +38,7 @@ class CookieSessionHandlerCoroutineSafetyTest extends TestCase
                 usleep(2500);
 
                 $handler->setRequest(Request::create('/', 'GET', [], [
-                    'session-b' => json_encode([
+                    'session-b' => serialize([
                         'data' => 'payload-b',
                         'expires' => time() + 60,
                     ]),

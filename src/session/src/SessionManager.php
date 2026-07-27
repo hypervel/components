@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
+use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Support\Manager;
+use InvalidArgumentException;
 use SessionHandlerInterface;
 use UnitEnum;
 
@@ -100,22 +102,30 @@ class SessionManager extends Manager
     protected function createRedisDriver(): Store
     {
         $handler = $this->createCacheHandler('redis');
-        $connection = $this->config->get('session.connection');
+        $store = $handler->getCache()->getStore();
 
-        $handler->getCache()->getStore()->setConnection( // @phpstan-ignore method.notFound (RedisStore::setConnection — always Redis here)
-            $connection ?? 'session'
+        if (! $store instanceof RedisStore) {
+            throw new InvalidArgumentException(
+                'The [session.driver] value [redis] requires [session.store] to reference a Redis cache store.'
+            );
+        }
+
+        $store->setConnection(
+            $this->config->get('session.connection') ?? 'session'
         );
+
+        $prefix = $this->config->get('session.prefix');
+
+        if ($prefix !== null && $prefix !== '') {
+            $store->setPrefix($prefix);
+        }
 
         return $this->buildSession($handler);
     }
 
-    /**
-     * Create an instance of a cache driven driver.
-     */
-    protected function createCacheBased(string $driver): Store
-    {
-        return $this->buildSession($this->createCacheHandler($driver));
-    }
+    // Laravel's apc/memcached/dynamodb drivers and their shared createCacheBased()
+    // wrapper are intentionally omitted; Hypervel has no matching cache stores.
+    // Register cache-backed handlers with Session::extend().
 
     /**
      * Create the cache based session handler instance.
@@ -142,7 +152,7 @@ class SessionManager extends Manager
                 $this->config->string('session.cookie'),
                 $handler,
                 null,
-                $this->config->string('session.serialization', 'php')
+                $this->config->string('session.serialization')
             );
     }
 
@@ -156,7 +166,7 @@ class SessionManager extends Manager
             $handler,
             $this->container->make(Encrypter::class),
             null,
-            $this->config->string('session.serialization', 'php'),
+            $this->config->string('session.serialization'),
         );
     }
 
@@ -165,7 +175,7 @@ class SessionManager extends Manager
      */
     public function shouldBlock(): bool
     {
-        return $this->config->boolean('session.block', false);
+        return $this->config->boolean('session.block');
     }
 
     /**
@@ -181,7 +191,7 @@ class SessionManager extends Manager
      */
     public function defaultRouteBlockLockSeconds(): int
     {
-        return $this->config->integer('session.block_lock_seconds', 10);
+        return $this->config->integer('session.block_lock_seconds');
     }
 
     /**
@@ -189,7 +199,7 @@ class SessionManager extends Manager
      */
     public function defaultRouteBlockWaitSeconds(): int
     {
-        return $this->config->integer('session.block_wait_seconds', 10);
+        return $this->config->integer('session.block_wait_seconds');
     }
 
     /**

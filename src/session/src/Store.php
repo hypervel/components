@@ -20,6 +20,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Uri;
 use Hypervel\Support\ViewErrorBag;
+use InvalidArgumentException;
 use RuntimeException;
 use SessionHandlerInterface;
 use stdClass;
@@ -39,22 +40,42 @@ class Store implements Session
     /**
      * Context key for whether the session has been started.
      */
-    public const STARTED_CONTEXT_KEY = '__session.store.started';
+    public const STARTED_CONTEXT_KEY_PREFIX = '__session.store.started.';
 
     /**
      * Context key for the session attributes.
      */
-    public const ATTRIBUTES_CONTEXT_KEY = '__session.store.attributes';
+    public const ATTRIBUTES_CONTEXT_KEY_PREFIX = '__session.store.attributes.';
 
     /**
      * Context key for the session ID.
      */
-    public const ID_CONTEXT_KEY = '__session.store.id';
+    public const ID_CONTEXT_KEY_PREFIX = '__session.store.id.';
+
+    /**
+     * The supported session serialization strategies.
+     */
+    protected const SUPPORTED_SERIALIZATIONS = ['json', 'php'];
 
     /**
      * The length of session ID strings.
      */
     protected const SESSION_ID_LENGTH = 40;
+
+    /**
+     * The context key for whether this session has been started.
+     */
+    protected readonly string $startedContextKey;
+
+    /**
+     * The context key for this session's attributes.
+     */
+    protected readonly string $attributesContextKey;
+
+    /**
+     * The context key for this session's ID.
+     */
+    protected readonly string $idContextKey;
 
     /**
      * Create a new session instance.
@@ -69,6 +90,23 @@ class Store implements Session
         ?string $id = null,
         protected string $serialization = 'php'
     ) {
+        if (! in_array($serialization, self::SUPPORTED_SERIALIZATIONS, true)) {
+            throw new InvalidArgumentException(sprintf(
+                'Session serialization [%s] is not supported. Supported: "%s".',
+                $serialization,
+                implode('", "', self::SUPPORTED_SERIALIZATIONS),
+            ));
+        }
+
+        $suffix = (string) spl_object_id($this);
+
+        $this->startedContextKey = self::STARTED_CONTEXT_KEY_PREFIX . $suffix;
+        $this->attributesContextKey = self::ATTRIBUTES_CONTEXT_KEY_PREFIX . $suffix;
+        $this->idContextKey = self::ID_CONTEXT_KEY_PREFIX . $suffix;
+
+        CoroutineContext::set($this->startedContextKey, false);
+        CoroutineContext::set($this->attributesContextKey, []);
+
         $this->setId($id);
     }
 
@@ -83,7 +121,7 @@ class Store implements Session
             $this->regenerateToken();
         }
 
-        return CoroutineContext::set(self::STARTED_CONTEXT_KEY, true);
+        return CoroutineContext::set($this->startedContextKey, true);
     }
 
     /**
@@ -91,7 +129,7 @@ class Store implements Session
      */
     protected function getAttributes(): array
     {
-        return CoroutineContext::get(self::ATTRIBUTES_CONTEXT_KEY, []);
+        return CoroutineContext::get($this->attributesContextKey, []);
     }
 
     /**
@@ -99,7 +137,7 @@ class Store implements Session
      */
     protected function setAttributes(array $attributes): void
     {
-        CoroutineContext::set(self::ATTRIBUTES_CONTEXT_KEY, $attributes);
+        CoroutineContext::set($this->attributesContextKey, $attributes);
     }
 
     /**
@@ -108,8 +146,8 @@ class Store implements Session
     protected function replaceAttributes(array $attributes): void
     {
         CoroutineContext::set(
-            self::ATTRIBUTES_CONTEXT_KEY,
-            array_replace(CoroutineContext::get(self::ATTRIBUTES_CONTEXT_KEY, []), $attributes)
+            $this->attributesContextKey,
+            array_replace(CoroutineContext::get($this->attributesContextKey, []), $attributes)
         );
     }
 
@@ -118,9 +156,9 @@ class Store implements Session
      */
     protected function loadSession(): void
     {
-        $this->replaceAttributes($this->readFromHandler());
-
-        $this->marshalErrorBag();
+        // Marshal the decoded payload before merging: marshalling the merged result
+        // would iterate an already-live ViewErrorBag and replace it with an empty one.
+        $this->replaceAttributes($this->marshalErrorBagIn($this->readFromHandler()));
     }
 
     /**
@@ -152,23 +190,25 @@ class Store implements Session
     }
 
     /**
-     * Marshal the ViewErrorBag when using JSON serialization for sessions.
+     * Marshal the ViewErrorBag in the given session attributes.
      */
-    protected function marshalErrorBag(): void
+    protected function marshalErrorBagIn(array $attributes): array
     {
-        if ($this->serialization !== 'json' || $this->missing('errors')) {
-            return;
+        if ($this->serialization !== 'json' || ! array_key_exists('errors', $attributes)) {
+            return $attributes;
         }
 
         $errorBag = new ViewErrorBag;
 
-        foreach ($this->get('errors') as $key => $value) {
+        foreach ($attributes['errors'] as $key => $value) {
             $messageBag = new MessageBag($value['messages']);
 
             $errorBag->put($key, $messageBag->setFormat($value['format']));
         }
 
-        $this->put('errors', $errorBag);
+        $attributes['errors'] = $errorBag;
+
+        return $attributes;
     }
 
     /**
@@ -176,36 +216,49 @@ class Store implements Session
      */
     public function save(): void
     {
-        $this->ageFlashData();
+        // Publish the aged attributes only after the handler commits, so a failed
+        // write leaves the live flash data and error bag intact for the retry.
+        $attributes = $this->ageFlashDataIn($this->getAttributes());
+        $attributesForStorage = $this->prepareErrorBagForSerialization($attributes);
 
-        $this->prepareErrorBagForSerialization();
+        $serialized = $this->serialization === 'json'
+            ? json_encode($attributesForStorage, JSON_THROW_ON_ERROR)
+            : serialize($attributesForStorage);
 
-        $this->handler->write($this->getId(), $this->prepareForStorage(
-            $this->serialization === 'json' ? json_encode($this->getAttributes()) : serialize($this->getAttributes())
-        ));
+        $written = $this->handler->write(
+            $this->getId(),
+            $this->prepareForStorage($serialized)
+        );
 
-        CoroutineContext::set(self::STARTED_CONTEXT_KEY, false);
+        if ($written === false) {
+            throw new RuntimeException('Unable to write the session data.');
+        }
+
+        $this->setAttributes($attributes);
+        CoroutineContext::set($this->startedContextKey, false);
     }
 
     /**
-     * Prepare the ViewErrorBag instance for JSON serialization.
+     * Prepare the ViewErrorBag in the given session attributes for JSON serialization.
      */
-    protected function prepareErrorBagForSerialization(): void
+    protected function prepareErrorBagForSerialization(array $attributes): array
     {
-        if ($this->serialization !== 'json' || $this->missing('errors')) {
-            return;
+        if ($this->serialization !== 'json' || ! array_key_exists('errors', $attributes)) {
+            return $attributes;
         }
 
         $errors = [];
 
-        foreach ($this->getAttributes()['errors']->getBags() as $key => $value) {
+        foreach ($attributes['errors']->getBags() as $key => $value) {
             $errors[$key] = [
                 'format' => $value->getFormat(),
                 'messages' => $value->getMessages(),
             ];
         }
 
-        $this->replaceAttributes(['errors' => $errors]);
+        $attributes['errors'] = $errors;
+
+        return $attributes;
     }
 
     /**
@@ -221,11 +274,19 @@ class Store implements Session
      */
     public function ageFlashData(): void
     {
-        $this->forget($this->get('_flash.old', []));
+        $this->setAttributes($this->ageFlashDataIn($this->getAttributes()));
+    }
 
-        $this->put('_flash.old', $this->get('_flash.new', []));
+    /**
+     * Age the flash data in the given session attributes.
+     */
+    protected function ageFlashDataIn(array $attributes): array
+    {
+        Arr::forget($attributes, Arr::get($attributes, '_flash.old', []));
+        Arr::set($attributes, '_flash.old', Arr::get($attributes, '_flash.new', []));
+        Arr::set($attributes, '_flash.new', []);
 
-        $this->put('_flash.new', []);
+        return $attributes;
     }
 
     /**
@@ -259,7 +320,7 @@ class Store implements Session
     {
         $placeholder = new stdClass;
 
-        return ! collect(is_array($key) ? $key : func_get_args())->contains(function ($key) use ($placeholder) {
+        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) use ($placeholder) {
             return $this->get($key, $placeholder) === $placeholder;
         });
     }
@@ -277,7 +338,7 @@ class Store implements Session
      */
     public function has(array|UnitEnum|string $key): bool
     {
-        return ! collect(is_array($key) ? $key : func_get_args())->contains(function ($key) {
+        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) {
             return is_null($this->get($key));
         });
     }
@@ -287,9 +348,9 @@ class Store implements Session
      */
     public function hasAny(array|UnitEnum|string $key): bool
     {
-        return collect(is_array($key) ? $key : func_get_args())->filter(function ($key) {
+        return collect(is_array($key) ? $key : func_get_args())->contains(function ($key) {
             return ! is_null($this->get($key));
-        })->count() >= 1;
+        });
     }
 
     /**
@@ -555,7 +616,7 @@ class Store implements Session
      */
     public function isStarted(): bool
     {
-        return CoroutineContext::get(self::STARTED_CONTEXT_KEY, false);
+        return CoroutineContext::get($this->startedContextKey, false);
     }
 
     /**
@@ -580,7 +641,7 @@ class Store implements Session
     /**
      * Get the current session ID.
      */
-    public function id(): ?string
+    public function id(): string
     {
         return $this->getId();
     }
@@ -588,9 +649,17 @@ class Store implements Session
     /**
      * Get the current session ID.
      */
-    public function getId(): ?string
+    public function getId(): string
     {
-        return CoroutineContext::get(self::ID_CONTEXT_KEY, null);
+        /** @var null|string $id */
+        $id = CoroutineContext::get($this->idContextKey);
+
+        if ($id === null) {
+            $id = $this->generateSessionId();
+            CoroutineContext::set($this->idContextKey, $id);
+        }
+
+        return $id;
     }
 
     /**
@@ -599,7 +668,7 @@ class Store implements Session
     public function setId(?string $id): void
     {
         CoroutineContext::set(
-            self::ID_CONTEXT_KEY,
+            $this->idContextKey,
             $this->isValidId($id) ? $id : $this->generateSessionId()
         );
     }
