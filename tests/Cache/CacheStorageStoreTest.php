@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\StorageStore;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
 use Hypervel\Tests\TestCase;
+use stdClass;
 
 class CacheStorageStoreTest extends TestCase
 {
@@ -20,6 +23,55 @@ class CacheStorageStoreTest extends TestCase
         $this->assertTrue($store->put('foo', 'bar', 60));
         $this->assertSame('bar', $store->get('foo'));
         $this->assertStringStartsWith('cache/', $store->path('foo'));
+    }
+
+    public function testPathUsesPrefixInXxh128Digest(): void
+    {
+        $prefix = 'prefix:';
+        $key = 'foo';
+        $hash = hash('xxh128', $prefix . $key);
+        $store = new StorageStore(new ArrayFilesystem, 'cache', $prefix);
+
+        $this->assertSame(
+            'cache/' . substr($hash, 0, 2) . '/' . substr($hash, 2, 2) . '/' . $hash,
+            $store->path($key),
+        );
+    }
+
+    public function testSerializableClassesControlCachedObjects(): void
+    {
+        $denyingStore = new StorageStore(new ArrayFilesystem, 'cache', '', false);
+        $allowingStore = new StorageStore(
+            new ArrayFilesystem,
+            'cache',
+            serializableClasses: [stdClass::class],
+        );
+
+        $denyingStore->put('object', new stdClass, 60);
+        $allowingStore->put('object', new stdClass, 60);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
+    }
+
+    public function testSerializableClassPolicyControlsCachedObjects(): void
+    {
+        $denyingStore = new StorageStore(
+            new ArrayFilesystem,
+            'cache',
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        $allowingStore = new StorageStore(
+            new ArrayFilesystem,
+            'cache',
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
+        );
+
+        $denyingStore->put('object', new stdClass, 60);
+        $allowingStore->put('object', new stdClass, 60);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
     }
 
     public function testExpiredItemsReturnNullAndGetDeleted(): void

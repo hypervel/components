@@ -40,6 +40,11 @@ class StorageStore implements Store
     protected array|bool|null $serializableClasses;
 
     /**
+     * The shared serializable class policy.
+     */
+    protected ?SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new storage cache store instance.
      */
     public function __construct(
@@ -47,11 +52,13 @@ class StorageStore implements Store
         string $directory = '',
         string $prefix = '',
         array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
     ) {
         $this->disk = $disk;
         $this->directory = trim($directory, '/');
         $this->prefix = $prefix;
         $this->serializableClasses = $serializableClasses;
+        $this->serializableClassPolicy = $serializableClassPolicy;
     }
 
     /**
@@ -196,6 +203,10 @@ class StorageStore implements Store
      */
     protected function unserialize(string $value): mixed
     {
+        if ($this->serializableClassPolicy !== null) {
+            return $this->serializableClassPolicy->unserialize($value);
+        }
+
         if ($this->serializableClasses !== null) {
             return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
         }
@@ -216,7 +227,7 @@ class StorageStore implements Store
      */
     public function path(string $key): string
     {
-        $parts = array_slice(str_split($hash = sha1($this->prefix . $key), 2), 0, 2);
+        $parts = array_slice(str_split($hash = hash('xxh128', $this->prefix . $key), 2), 0, 2);
 
         return trim($this->directory . '/' . implode('/', $parts) . '/' . $hash, '/');
     }
