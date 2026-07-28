@@ -99,4 +99,18 @@ class PostgresBuilder extends Builder
             )
         );
     }
+
+    /**
+     * Get the default schema name for the connection.
+     */
+    #[Override]
+    public function getCurrentSchemaName(): ?string
+    {
+        // PostgreSQL skips search-path entries that do not exist, so configuration alone
+        // cannot determine which schema an unqualified database object resolves against.
+        /** @var ?string $schema */
+        $schema = $this->connection->scalar('select current_schema()', [], false);
+
+        return $schema;
+    }
 }

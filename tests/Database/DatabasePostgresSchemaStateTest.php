@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\PostgresConnection;
+use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Database\Schema\PostgresSchemaState;
 use Hypervel\Tests\TestCase;
@@ -78,6 +79,32 @@ class DatabasePostgresSchemaStateTest extends TestCase
         $this->assertSame(
             'pg_dump --no-owner --no-acl --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}" --username="${:HYPERVEL_LOAD_USER}" --dbname="${:HYPERVEL_LOAD_DATABASE}" --schema-only > database/schema/pgsql-schema.sql',
             $factoryCalledWith[0]
+        );
+    }
+
+    public function testMigrationTableUsesTheActualSchemaUnlessExplicitlyQualified(): void
+    {
+        $connection = m::mock(PostgresConnection::class);
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(PostgresGrammar::class));
+        $connection->shouldReceive('scalar')
+            ->once()
+            ->with('select current_schema()', [], false)
+            ->andReturn('public');
+        $connection->shouldReceive('getTablePrefix')->twice()->andReturn('');
+
+        $builder = new PostgresBuilder($connection);
+        $connection->shouldReceive('getSchemaBuilder')->twice()->andReturn($builder);
+
+        $schemaState = new PostgresSchemaState($connection);
+        $method = new ReflectionMethod($schemaState, 'getMigrationTable');
+
+        $this->assertSame(
+            'public.migrations',
+            $method->invoke($schemaState->withMigrationTable('migrations'))
+        );
+        $this->assertSame(
+            'archive.migrations',
+            $method->invoke($schemaState->withMigrationTable('archive.migrations'))
         );
     }
 }
