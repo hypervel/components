@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Foundation\Console;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\VendorPublishCommand;
 use Hypervel\Foundation\Events\VendorTagPublished;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -146,6 +148,213 @@ class VendorPublishCommandTest extends TestCase
 
         $this->assertStringEqualsFile($dest1, '<?php return ["updated"];');
         $this->assertFileDoesNotExist($dest2);
+    }
+
+    #[DataProvider('migrationRepublishTimes')]
+    public function testSkipsPreviouslyPublishedMigration(string $republishedAt): void
+    {
+        CarbonImmutable::setTestNow('2026-01-01 00:00:00');
+
+        $source = $this->sourceDir . '/2024_01_01_000000_create_users_table.php';
+        $destination = $this->destDir . '/2024_01_01_000000_create_users_table.php';
+        file_put_contents($source, '<?php // first');
+        $this->registerMigrations([$source => $destination]);
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $published = $this->publishedMigration('create_users_table.php');
+        file_put_contents($source, '<?php // second');
+        CarbonImmutable::setTestNow($republishedAt);
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->expectsOutputToContain(basename($published))
+            ->assertSuccessful();
+
+        $this->assertSame([$published], $this->publishedMigrations('create_users_table.php'));
+        $this->assertStringEqualsFile($published, '<?php // first');
+    }
+
+    /**
+     * Return the command times used to exercise same- and later-second reruns.
+     */
+    public static function migrationRepublishTimes(): array
+    {
+        return [
+            'same second' => ['2026-01-01 00:00:00'],
+            'later time' => ['2026-02-01 00:00:00'],
+        ];
+    }
+
+    public function testDirectoryPublicationOnlyAddsMissingMigrations(): void
+    {
+        CarbonImmutable::setTestNow('2026-01-01 00:00:00');
+
+        $source = $this->sourceDir . '/migrations';
+        $destination = $this->destDir . '/migrations';
+        $this->filesystem->ensureDirectoryExists($source);
+        file_put_contents($source . '/2024_01_01_000000_create_users_table.php', '<?php // users-v1');
+        file_put_contents($source . '/2024_01_02_000000_create_posts_table.php', '<?php // posts-v1');
+        $this->registerMigrations([$source => $destination]);
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $publishedUsers = $this->publishedMigration('create_users_table.php', $destination);
+        $publishedPosts = $this->publishedMigration('create_posts_table.php', $destination);
+        $this->filesystem->delete($publishedPosts);
+        file_put_contents($source . '/2024_01_01_000000_create_users_table.php', '<?php // users-v2');
+        file_put_contents($source . '/2024_01_02_000000_create_posts_table.php', '<?php // posts-v2');
+        CarbonImmutable::setTestNow('2026-02-01 00:00:00');
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $this->assertSame([$publishedUsers], $this->publishedMigrations('create_users_table.php', $destination));
+        $this->assertStringEqualsFile($publishedUsers, '<?php // users-v1');
+        $this->assertStringEqualsFile(
+            $this->publishedMigration('create_posts_table.php', $destination),
+            '<?php // posts-v2',
+        );
+    }
+
+    public function testDirectoryPublicationOnlyUpdatesMigrationBasenames(): void
+    {
+        CarbonImmutable::setTestNow('2026-01-01 00:00:00');
+
+        $source = $this->sourceDir . '/migrations';
+        $sourceDirectory = $source . '/2020_01_01_000000_nested';
+        $destination = $this->destDir . '/migrations';
+        $destinationDirectory = $destination . '/2020_01_01_000000_nested';
+        $migration = $sourceDirectory . '/2024_01_01_000000_create_users_table.php';
+        $this->filesystem->ensureDirectoryExists($sourceDirectory);
+        file_put_contents($migration, '<?php // first');
+        $this->registerMigrations([$source => $destination]);
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $published = $this->publishedMigration('create_users_table.php', $destinationDirectory);
+        $this->assertSame(
+            $destinationDirectory . '/2026_01_01_000001_create_users_table.php',
+            $published,
+        );
+
+        file_put_contents($migration, '<?php // second');
+        CarbonImmutable::setTestNow('2026-02-01 00:00:00');
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $this->assertSame(
+            [$published],
+            $this->publishedMigrations('create_users_table.php', $destinationDirectory),
+        );
+        $this->assertStringEqualsFile($published, '<?php // first');
+    }
+
+    #[DataProvider('migrationOverwriteOptions')]
+    public function testOverwritesPreviouslyPublishedMigrationInPlace(array $options): void
+    {
+        CarbonImmutable::setTestNow('2026-01-01 00:00:00');
+
+        $source = $this->sourceDir . '/2024_01_01_000000_create_users_table.php';
+        $destination = $this->destDir . '/2024_01_01_000000_create_users_table.php';
+        file_put_contents($source, '<?php // first');
+        $this->registerMigrations([$source => $destination]);
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $published = $this->publishedMigration('create_users_table.php');
+        file_put_contents($source, '<?php // second');
+        CarbonImmutable::setTestNow('2026-02-01 00:00:00');
+
+        $this->artisan('vendor:publish', [
+            '--provider' => TestPublishProvider::class,
+            ...$options,
+        ])->assertSuccessful();
+
+        $this->assertSame([$published], $this->publishedMigrations('create_users_table.php'));
+        $this->assertStringEqualsFile($published, '<?php // second');
+    }
+
+    /**
+     * Return options that intentionally overwrite a published migration.
+     */
+    public static function migrationOverwriteOptions(): array
+    {
+        return [
+            'force' => [['--force' => true]],
+            'existing' => [['--existing' => true]],
+        ];
+    }
+
+    public function testExistingOptionSkipsUnpublishedMigration(): void
+    {
+        $source = $this->sourceDir . '/2024_01_01_000000_create_users_table.php';
+        $destination = $this->destDir . '/2024_01_01_000000_create_users_table.php';
+        file_put_contents($source, '<?php // migration');
+        $this->registerMigrations([$source => $destination]);
+
+        $this->artisan('vendor:publish', [
+            '--provider' => TestPublishProvider::class,
+            '--existing' => true,
+        ])->expectsOutputToContain('SKIPPED')->assertSuccessful();
+
+        $this->assertSame([], $this->publishedMigrations('create_users_table.php'));
+    }
+
+    public function testRejectsMultiplePublishedMigrationsWithTheSameSuffix(): void
+    {
+        $source = $this->sourceDir . '/2024_01_01_000000_create_users_table.php';
+        $destination = $this->destDir . '/2024_01_01_000000_create_users_table.php';
+        $first = $this->destDir . '/2025_01_01_000000_create_users_table.php';
+        $second = $this->destDir . '/2026_01_01_000000_create_users_table.php';
+        file_put_contents($source, '<?php // migration');
+        file_put_contents($first, '<?php // first');
+        file_put_contents($second, '<?php // second');
+        $this->registerMigrations([$source => $destination]);
+
+        $tester = $this->commandTester($this->filesystem);
+
+        try {
+            $tester->execute(['--provider' => TestPublishProvider::class]);
+            $this->fail('Expected duplicate published migrations to be rejected.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('create_users_table.php', $exception->getMessage());
+            $this->assertStringContainsString($first, $exception->getMessage());
+            $this->assertStringContainsString($second, $exception->getMessage());
+            $this->assertStringContainsString('Remove the duplicate migrations and retry', $exception->getMessage());
+        }
+    }
+
+    public function testOnlyUpdatesRegisteredMigrationBasenames(): void
+    {
+        CarbonImmutable::setTestNow('2026-01-01 00:00:00');
+
+        $source = $this->sourceDir . '/2024_01_01_000000_create_users_table.php';
+        $parent = $this->destDir . '/2020_01_01_000000_migrations';
+        $destination = $parent . '/2024_01_01_000000_create_users_table.php';
+        file_put_contents($source, '<?php // migration');
+        $this->filesystem->deleteDirectory($this->destDir);
+        $this->registerMigrations([$source => $destination]);
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $this->assertDirectoryExists($parent);
+        $this->assertFileExists($parent . '/2026_01_01_000001_create_users_table.php');
+
+        $unregistered = $this->sourceDir . '/2024_01_02_000000_create_posts_table.php';
+        $unchanged = $parent . '/2024_01_02_000000_create_posts_table.php';
+        file_put_contents($unregistered, '<?php // posts');
+        ServiceProvider::$publishes[TestPublishProvider::class] = [$unregistered => $unchanged];
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->assertSuccessful();
+
+        $this->assertFileExists($unchanged);
     }
 
     public function testPublishesByTag(): void
@@ -316,10 +525,55 @@ class VendorPublishCommandTest extends TestCase
 
         return new CommandTester($command);
     }
+
+    /**
+     * Register migration paths for the test provider.
+     */
+    protected function registerMigrations(array $paths): void
+    {
+        config(['database.migrations.update_date_on_publish' => true]);
+
+        (new TestPublishProvider($this->app))->publishMigrations($paths);
+    }
+
+    /**
+     * Return the published migration path for a suffix.
+     */
+    protected function publishedMigration(string $suffix, ?string $directory = null): string
+    {
+        $published = $this->publishedMigrations($suffix, $directory);
+
+        $this->assertCount(1, $published);
+
+        return $published[0];
+    }
+
+    /**
+     * Return the published migration paths for a suffix.
+     *
+     * @return list<string>
+     */
+    protected function publishedMigrations(string $suffix, ?string $directory = null): array
+    {
+        $paths = glob(($directory ?? $this->destDir) . '/*_' . $suffix);
+
+        $this->assertIsArray($paths);
+
+        sort($paths, SORT_STRING);
+
+        return $paths;
+    }
 }
 
 class TestPublishProvider extends ServiceProvider
 {
+    /**
+     * Register migration paths to publish.
+     */
+    public function publishMigrations(array $paths): void
+    {
+        $this->publishesMigrations($paths);
+    }
 }
 
 class OtherPublishProvider extends ServiceProvider

@@ -118,7 +118,7 @@ class SoftDeletingScope implements Scope
                 return $builder->withoutTrashed();
             }
 
-            // @phpstan-ignore argument.type ($this is rebound to SoftDeletingScope when macro is called)
+            // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             return $builder->withoutGlobalScope($this);
         });
     }
@@ -133,7 +133,7 @@ class SoftDeletingScope implements Scope
         $builder->macro('withoutTrashed', function (Builder $builder) {
             $model = $builder->getModel();
 
-            // @phpstan-ignore argument.type ($this is rebound to SoftDeletingScope when macro is called)
+            // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNull(
                 $model->getQualifiedDeletedAtColumn()
             );
@@ -152,7 +152,7 @@ class SoftDeletingScope implements Scope
         $builder->macro('onlyTrashed', function (Builder $builder) {
             $model = $builder->getModel();
 
-            // @phpstan-ignore argument.type ($this is rebound to SoftDeletingScope when macro is called)
+            // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNotNull(
                 $model->getQualifiedDeletedAtColumn()
             );
