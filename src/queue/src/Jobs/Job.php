@@ -12,9 +12,11 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\ManuallyFailedException;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
+use JsonException;
 use RuntimeException;
 use Throwable;
 
@@ -26,6 +28,16 @@ abstract class Job implements JobContract
      * The job handler instance.
      */
     protected mixed $instance;
+
+    /**
+     * The validated job payload.
+     */
+    protected ?array $decodedPayload = null;
+
+    /**
+     * The exception raised while validating the job payload.
+     */
+    protected ?InvalidPayloadException $payloadException = null;
 
     /**
      * The IoC container instance.
@@ -233,20 +245,24 @@ abstract class Job implements JobContract
             return;
         }
 
-        $commandName = $this->payload()['data']['commandName'] ?? false;
+        try {
+            $commandName = $this->payload()['data']['commandName'] ?? false;
+        } catch (InvalidPayloadException) {
+            $commandName = false;
+        }
 
         // If the exception is due to a job timing out, we need to rollback the current
         // database transaction so that the failed job count can be incremented with
         // the proper value. Otherwise, the current transaction will never commit.
         if ($e instanceof TimeoutExceededException
             && $commandName
-            && in_array(Batchable::class, class_uses_recursive($commandName))
+            && isset(class_uses_recursive($commandName)[Batchable::class])
         ) {
             $batchRepository = $this->resolve(BatchRepository::class);
 
             try {
                 $batchRepository->rollBack();
-            } catch (Throwable $e) {
+            } catch (Throwable) {
                 // ...
             }
         }
@@ -265,7 +281,9 @@ abstract class Job implements JobContract
             // to allow every developer to better keep monitor of their failed queue jobs.
             $this->delete();
 
-            $this->failed($e);
+            if ($this->payloadException === null) {
+                $this->failed($e);
+            }
         } finally {
             $this->resolve(Dispatcher::class)
                 ->dispatch(new JobFailed(
@@ -327,7 +345,40 @@ abstract class Job implements JobContract
      */
     public function payload(): array
     {
-        return json_decode($this->getRawBody(), true);
+        if ($this->decodedPayload !== null) {
+            return $this->decodedPayload;
+        }
+
+        if ($this->payloadException !== null) {
+            throw $this->payloadException;
+        }
+
+        $rawBody = null;
+
+        try {
+            $rawBody = $this->getRawBody();
+            $payload = json_decode($rawBody, true, flags: JSON_THROW_ON_ERROR);
+
+            if (! is_array($payload)
+                || ! isset($payload['job'])
+                || ! is_string($payload['job'])
+                || $payload['job'] === ''
+                || ! array_key_exists('data', $payload)) {
+                throw new InvalidPayloadException(
+                    'The queue job payload does not contain a valid job and data.',
+                    $rawBody,
+                );
+            }
+
+            return $this->decodedPayload = $payload;
+        } catch (InvalidPayloadException $e) {
+            throw $this->payloadException = $e;
+        } catch (JsonException $e) {
+            throw $this->payloadException = new InvalidPayloadException(
+                'Unable to decode the queue job payload: ' . $e->getMessage(),
+                $rawBody,
+            );
+        }
     }
 
     /**

@@ -37,6 +37,7 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
+            // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.searchable', 500);
 
             $builder->chunkById($chunkSize, function (Collection $models) {
@@ -44,6 +45,7 @@ class SearchableScope implements Scope
                 /* @phpstan-ignore method.notFound (searchable() added via Searchable trait) */
                 $models->filter(fn ($m) => $m->shouldBeSearchable())->searchable();
 
+                // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
                 static::dispatchEvent(new ModelsImported($models));
                 Scout::reportImportProgress($models);
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
@@ -53,6 +55,7 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
+            // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.unsearchable', 500);
 
             $builder->chunkById($chunkSize, function (Collection $models) {
@@ -60,6 +63,7 @@ class SearchableScope implements Scope
                 /* @phpstan-ignore method.notFound (unsearchable() added via Searchable trait) */
                 $models->unsearchable();
 
+                // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
                 static::dispatchEvent(new ModelsFlushed($models));
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });

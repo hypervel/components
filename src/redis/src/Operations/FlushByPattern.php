@@ -26,18 +26,17 @@ use Redis;
  *
  * ## Usage
  *
- * Typically used via RedisConnection convenience method:
+ * Typically used through the Redis proxy:
  *
  * ```php
- * // Via connection method (recommended)
- * $connection->flushByPattern('cache:users:*');
- *
  * // Via Redis facade (handles connection lifecycle)
  * Redis::flushByPattern('cache:users:*');
  *
- * // Direct instantiation (when you have a held connection)
- * $flushByPattern = new FlushByPattern($connection);
- * $deletedCount = $flushByPattern->execute('cache:users:*');
+ * // Direct connection use requires raw phpredis results
+ * $redis->withConnection(
+ *     fn (RedisConnection $connection) => $connection->flushByPattern('cache:users:*'),
+ *     transform: false,
+ * );
  * ```
  *
  * ## Warning
@@ -58,7 +57,7 @@ final class FlushByPattern
     /**
      * Create a new pattern flush instance.
      *
-     * @param RedisConnection $connection A held Redis connection (not released until done)
+     * @param RedisConnection $connection A held raw Redis connection (not released until done)
      */
     public function __construct(
         private readonly RedisConnection $connection,

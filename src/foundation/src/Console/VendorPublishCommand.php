@@ -18,6 +18,7 @@ use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Finder\SplFileInfo;
 
 use function Hypervel\Prompts\search;
 use function Hypervel\Prompts\select;
@@ -25,6 +26,11 @@ use function Hypervel\Prompts\select;
 #[AsCommand(name: 'vendor:publish')]
 class VendorPublishCommand extends Command
 {
+    /**
+     * The migration filename pattern.
+     */
+    protected const MIGRATION_NAME_PATTERN = '/^\d{4}_\d{2}_\d{2}_\d{6}_(.+)$/';
+
     /**
      * The console command signature.
      */
@@ -207,9 +213,28 @@ class VendorPublishCommand extends Command
      */
     protected function publishFile(string $from, string $to): void
     {
-        if ((! $this->option('existing') && (! $this->files->exists($to) || $this->option('force')))
-            || ($this->option('existing') && $this->files->exists($to))) {
-            $to = $this->ensureMigrationNameIsUpToDate($from, $to);
+        $isMigration = $this->isPublishableMigrationPath($from)
+            && $this->isMigrationFilename(basename($to));
+
+        if ($isMigration) {
+            $directory = dirname($to);
+            $published = $this->files->isDirectory($directory)
+                ? array_map(
+                    static fn (SplFileInfo $file) => $file->getPathname(),
+                    $this->files->files($directory),
+                )
+                : [];
+
+            $to = $this->existingMigrationPath(basename($to), $published) ?? $to;
+        }
+
+        $exists = $this->files->exists($to);
+
+        if ((! $this->option('existing') && (! $exists || $this->option('force')))
+            || ($this->option('existing') && $exists)) {
+            if (! $exists && $isMigration) {
+                $to = $this->ensureMigrationNameIsUpToDate($to);
+            }
 
             $this->createParentDirectory(dirname($to));
 
@@ -255,19 +280,57 @@ class VendorPublishCommand extends Command
      */
     protected function moveManagedFiles(string $from, MountManager $manager): void
     {
+        $updatesMigrationDates = $this->isPublishableMigrationPath($from);
+        $publishedByDirectory = [];
+        $indexedPublishedMigrations = false;
+
         foreach ($manager->listContents('from://', true)->sortByPath() as $file) {
             $path = Str::after($file['path'], 'from://');
 
+            if ($file['type'] !== 'file') {
+                continue;
+            }
+
+            $isMigration = $updatesMigrationDates && $this->isMigrationFilename(basename($path));
+
+            if ($isMigration) {
+                if (! $indexedPublishedMigrations) {
+                    foreach ($manager->listContents('to://', true) as $published) {
+                        if ($published['type'] !== 'file') {
+                            continue;
+                        }
+
+                        $publishedPath = Str::after($published['path'], 'to://');
+
+                        if ($this->isMigrationFilename(basename($publishedPath))) {
+                            $publishedByDirectory[dirname($publishedPath)][] = $publishedPath;
+                        }
+                    }
+
+                    $indexedPublishedMigrations = true;
+                }
+
+                $path = $this->existingMigrationPath(
+                    basename($path),
+                    $publishedByDirectory[dirname($path)] ?? [],
+                ) ?? $path;
+            }
+
+            $exists = $manager->fileExists('to://' . $path);
+
             if (
-                $file['type'] === 'file'
-                && (
-                    (! $this->option('existing') && (! $manager->fileExists('to://' . $path) || $this->option('force')))
-                    || ($this->option('existing') && $manager->fileExists('to://' . $path))
-                )
+                (! $this->option('existing') && (! $exists || $this->option('force')))
+                || ($this->option('existing') && $exists)
             ) {
-                $path = $this->ensureMigrationNameIsUpToDate($from, $path);
+                if (! $exists && $isMigration) {
+                    $path = $this->ensureMigrationNameIsUpToDate($path);
+                }
 
                 $manager->write('to://' . $path, $manager->read($file['path']));
+
+                if ($isMigration && ! $exists) {
+                    $publishedByDirectory[dirname($path)][] = $path;
+                }
             }
         }
     }
@@ -282,30 +345,88 @@ class VendorPublishCommand extends Command
 
     /**
      * Ensure the given migration name is up-to-date.
+     *
+     * Callers must first confirm the source is registered for migration publishing.
      */
-    protected function ensureMigrationNameIsUpToDate(string $from, string $to): string
+    protected function ensureMigrationNameIsUpToDate(string $to): string
     {
-        if (static::$updateMigrationDates === false) {
+        $filename = basename($to);
+
+        if (! $this->isMigrationFilename($filename)) {
             return $to;
         }
 
-        $from = realpath($from);
+        $this->publishedAt = $this->publishedAt->addSecond();
+
+        $updated = preg_replace(
+            self::MIGRATION_NAME_PATTERN,
+            $this->publishedAt->format('Y_m_d_His') . '_$1',
+            $filename,
+        );
+
+        return substr($to, 0, strlen($to) - strlen($filename)) . $updated;
+    }
+
+    /**
+     * Determine if the path is registered for migration publishing.
+     */
+    protected function isPublishableMigrationPath(string $from): bool
+    {
+        if (
+            static::$updateMigrationDates === false
+            || ! is_string($source = realpath($from))
+        ) {
+            return false;
+        }
 
         foreach (ServiceProvider::publishableMigrationPaths() as $path) {
-            $path = realpath($path);
-
-            if ($from === $path && preg_match('/\d{4}_(\d{2})_(\d{2})_(\d{6})_/', $to)) {
-                $this->publishedAt = $this->publishedAt->addSecond();
-
-                return preg_replace(
-                    '/\d{4}_(\d{2})_(\d{2})_(\d{6})_/',
-                    $this->publishedAt->format('Y_m_d_His') . '_',
-                    $to,
-                );
+            if (is_string($path = realpath($path)) && $source === $path) {
+                return true;
             }
         }
 
-        return $to;
+        return false;
+    }
+
+    /**
+     * Determine if the filename is a date-prefixed migration.
+     */
+    protected function isMigrationFilename(string $filename): bool
+    {
+        return preg_match(self::MIGRATION_NAME_PATTERN, $filename) === 1;
+    }
+
+    /**
+     * Find the previously published path for a migration filename.
+     *
+     * @param list<string> $paths
+     */
+    protected function existingMigrationPath(string $filename, array $paths): ?string
+    {
+        if (preg_match(self::MIGRATION_NAME_PATTERN, $filename, $expected) !== 1) {
+            return null;
+        }
+
+        $matches = array_values(array_unique(array_filter(
+            $paths,
+            static function (string $path) use ($expected): bool {
+                return preg_match(self::MIGRATION_NAME_PATTERN, basename($path), $actual) === 1
+                    && $actual[1] === $expected[1];
+            },
+        )));
+
+        sort($matches, SORT_STRING);
+
+        if (count($matches) > 1) {
+            throw new RuntimeException(sprintf(
+                'Multiple published migrations match [%s]: [%s]. Remove the duplicate migrations and retry.',
+                $expected[1],
+                implode('], [', $matches),
+            ));
+        }
+
+        // Reusing the first published filename avoids creating a migration the application may already have run.
+        return $matches[0] ?? null;
     }
 
     /**

@@ -427,13 +427,32 @@ class QueueRedisQueueTest extends TestCase
             $queue->setConnectionName('redis');
             $queue->expects($this->once())->method('getQueueRedisKey')->with($requested)->willReturn("queues:{$expected}");
             $queue->expects($this->once())->method('migrate')->with("queues:{$expected}");
-            $queue->expects($this->once())->method('retrieveNextJob')->with("queues:{$expected}", true)->willReturn([$payload, $payload]);
+            $queue->expects($this->once())->method('retrieveNextJob')->with("queues:{$expected}", true)->willReturn([$payload, $payload, 1]);
 
             $job = $queue->pop($requested);
 
             $this->assertInstanceOf(RedisJob::class, $job);
             $this->assertSame($expected, $job->getQueue());
         }
+    }
+
+    public function testPoppedRawZeroIsNotMistakenForAnEmptyQueue(): void
+    {
+        $queue = $this->getMockBuilder(RedisQueue::class)
+            ->onlyMethods(['getQueueRedisKey', 'migrate', 'retrieveNextJob'])
+            ->setConstructorArgs([m::mock(Redis::class), 'default', 'default'])
+            ->getMock();
+        $queue->setContainer(new Container);
+        $queue->setConnectionName('redis');
+        $queue->expects($this->once())->method('getQueueRedisKey')->with(null)->willReturn('queues:default');
+        $queue->expects($this->once())->method('migrate')->with('queues:default');
+        $queue->expects($this->once())->method('retrieveNextJob')->with('queues:default', true)->willReturn(['0', '0', false]);
+
+        $job = $queue->pop();
+
+        $this->assertInstanceOf(RedisJob::class, $job);
+        $this->assertSame('0', $job->getRawBody());
+        $this->assertSame(1, $job->attempts());
     }
 
     public function testDeleteReservedUsesClusterSafeRedisKey(): void

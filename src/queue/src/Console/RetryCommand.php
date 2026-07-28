@@ -8,8 +8,11 @@ use __PHP_Incomplete_Class;
 use DateTimeInterface;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\QueuePoolProxy;
+use Hypervel\Queue\SqsQueue;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -124,9 +127,12 @@ class RetryCommand extends Command
      */
     protected function retryJob(stdClass $job): void
     {
-        $this->hypervel['queue']->connection($job->connection)->pushRaw(
+        $queue = $this->hypervel['queue']->connection($job->connection);
+
+        $queue->pushRaw(
             $this->refreshRetryUntil($this->resetAttempts($job->payload)),
-            $job->queue
+            $job->queue,
+            $this->getQueueableOptions($queue, $job),
         );
     }
 
@@ -137,13 +143,13 @@ class RetryCommand extends Command
      */
     protected function resetAttempts(string $payload): string
     {
-        $payload = json_decode($payload, true);
+        $payload = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
 
         if (isset($payload['attempts'])) {
             $payload['attempts'] = 0;
         }
 
-        return json_encode($payload);
+        return json_encode($payload, JSON_THROW_ON_ERROR);
     }
 
     /**
@@ -153,21 +159,13 @@ class RetryCommand extends Command
      */
     protected function refreshRetryUntil(string $payload): string
     {
-        $payload = json_decode($payload, true);
+        $payload = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
 
         if (! isset($payload['data']['command'])) {
-            return json_encode($payload);
+            return json_encode($payload, JSON_THROW_ON_ERROR);
         }
 
-        if (str_starts_with($payload['data']['command'], 'O:')) {
-            $instance = unserialize($payload['data']['command']);
-        } elseif ($this->hypervel->has(Encrypter::class)) {
-            $instance = unserialize($this->hypervel->make(Encrypter::class)->decrypt($payload['data']['command']));
-        }
-
-        if (! isset($instance)) {
-            throw new RuntimeException('Unable to extract job payload.');
-        }
+        $instance = $this->getInstanceFromPayload($payload);
 
         if (is_object($instance) && ! $instance instanceof __PHP_Incomplete_Class && method_exists($instance, 'retryUntil')) {
             $retryUntil = $instance->retryUntil();
@@ -177,6 +175,52 @@ class RetryCommand extends Command
                 : $retryUntil;
         }
 
-        return json_encode($payload);
+        return json_encode($payload, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Get the queueable options from the job.
+     */
+    protected function getQueueableOptions(Queue $queue, stdClass $job): array
+    {
+        if (! $queue instanceof SqsQueue
+            && (! $queue instanceof QueuePoolProxy || $queue->getDefinition()->resourceType !== 'sqs')
+        ) {
+            return [];
+        }
+
+        $payload = json_decode($job->payload, true, flags: JSON_THROW_ON_ERROR);
+
+        if (! isset($payload['data']['command'])) {
+            return [];
+        }
+
+        $getOptions = fn (SqsQueue $queue) => $queue->getQueueableOptions(
+            $this->getInstanceFromPayload($payload),
+            $job->queue,
+            $job->payload,
+        );
+
+        return $queue instanceof QueuePoolProxy
+            ? $queue->withConnection($getOptions)
+            : $getOptions($queue);
+    }
+
+    /**
+     * Get the job instance from the given payload.
+     *
+     * @throws RuntimeException
+     */
+    protected function getInstanceFromPayload(array $payload): mixed
+    {
+        if (str_starts_with($payload['data']['command'], 'O:')) {
+            return unserialize($payload['data']['command']);
+        }
+
+        if ($this->hypervel->has(Encrypter::class)) {
+            return unserialize($this->hypervel->make(Encrypter::class)->decrypt($payload['data']['command']));
+        }
+
+        throw new RuntimeException('Unable to extract job payload.');
     }
 }

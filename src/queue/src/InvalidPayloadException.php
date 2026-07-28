@@ -18,7 +18,7 @@ class InvalidPayloadException extends InvalidArgumentException
      */
     public function __construct(?string $message = null, mixed $value = null)
     {
-        parent::__construct($message ?: json_last_error());
+        parent::__construct($message ?? 'Unable to decode the queue job payload.');
 
         $this->value = $value;
     }

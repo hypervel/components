@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Operations;
 
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
@@ -34,6 +35,18 @@ class FlushByPatternTest extends TestCase
         $connection = m::mock($stub)->makePartial();
 
         return [$connection, $client];
+    }
+
+    public function testFlushRejectsTransformedConnectionsBeforeDeleting(): void
+    {
+        [$connection] = $this->createConnectionWithClient(new FakeRedisClient);
+        $connection->shouldReceive('getShouldTransform')->once()->andReturnTrue();
+        $connection->shouldNotReceive('unlink');
+
+        $this->expectException(InvalidRedisConnectionException::class);
+        $this->expectExceptionMessage('SafeScan requires a raw Redis connection.');
+
+        (new FlushByPattern($connection))->execute('cache:test:*');
     }
 
     public function testFlushDeletesMatchingKeys(): void

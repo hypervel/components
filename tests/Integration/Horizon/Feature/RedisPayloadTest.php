@@ -12,6 +12,7 @@ use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeEvent;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeEventWithModel;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeJobWithEloquentCollection;
@@ -33,7 +34,7 @@ class RedisPayloadTest extends IntegrationTestCase
 {
     public function testTypeIsCorrectlyDetermined()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $JobPayload->prepare(new BroadcastEvent(new StdClass));
         $this->assertSame('broadcast', $JobPayload->decoded['type']);
@@ -50,7 +51,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testTagsAreCorrectlyDetermined()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $first = new FakeModel;
         $first->id = 1;
@@ -64,7 +65,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testTagsAreCorrectlyGatheredFromCollections()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $first = new FakeModel;
         $first->id = 1;
@@ -78,7 +79,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testTagsAreCorrectlyExtractedForListeners()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $job = new CallQueuedListener(FakeListener::class, 'handle', [new FakeEvent]);
 
@@ -91,7 +92,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testTagsAreCorrectlyExtractedForListenersWithDynamicEventInformation()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $job = new CallQueuedListener(FakeListenerWithDynamicTags::class, 'handle', [new FakeEvent]);
 
@@ -104,7 +105,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testTagsAreCorrectlyDeterminedForListeners()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $job = new CallQueuedListener(FakeListenerWithProperties::class, 'handle', [new FakeEventWithModel(42)]);
 
@@ -115,7 +116,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testTagsAreCorrectlyDeterminedForListenersWithPropertyTypes()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $job = new CallQueuedListener(FakeListenerWithTypedProperties::class, 'handle', [new FakeEventWithModel(21)]);
 
@@ -126,7 +127,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testListenerAndEventTagsCanMergeAutoTagEvents()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $job = new CallQueuedListener(FakeListener::class, 'handle', [new FakeEventWithModel(5)]);
 
@@ -139,7 +140,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testTagsAreAddedToExisting()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1, 'tags' => ['mytag']]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1', 'tags' => ['mytag']]));
 
         $job = new CallQueuedListener(FakeListenerWithProperties::class, 'handle', [new FakeEventWithModel(42)]);
 
@@ -150,7 +151,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testJobsCanHaveTagsMethodToOverrideAutoTagging()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $JobPayload->prepare(new FakeJobWithTagsMethod);
         $this->assertEquals(['first', 'second'], $JobPayload->decoded['tags']);
@@ -158,7 +159,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testItDeterminesIfJobIsSilencedCorrectly()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $JobPayload->prepare(new BroadcastEvent(new class implements Silenced {}));
         $this->assertTrue($JobPayload->isSilenced());
@@ -178,7 +179,7 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testItDeterminesIfJobIsSilencedCorrectlyForMailable()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         $mailableMock = m::mock(SilencedMailable::class);
         config(['horizon.silenced' => [get_class($mailableMock)]]);
@@ -188,10 +189,34 @@ class RedisPayloadTest extends IntegrationTestCase
 
     public function testItDeterminesIfJobIsSilencedCorrectlyByTags()
     {
-        $JobPayload = new JobPayload(json_encode(['id' => 1]));
+        $JobPayload = new JobPayload(json_encode(['id' => '1']));
 
         config(['horizon.silenced_tags' => ['first', 'noisy']]);
         $JobPayload->prepare(new FakeJobWithTagsMethod);
         $this->assertTrue($JobPayload->isSilenced());
+    }
+
+    public function testMalformedPayloadIsRejectedWithItsRawValue(): void
+    {
+        try {
+            new JobPayload('{invalid');
+            $this->fail('Expected the payload to be rejected.');
+        } catch (InvalidPayloadException $e) {
+            $this->assertStringContainsString('Unable to decode the Horizon job payload', $e->getMessage());
+            $this->assertSame('{invalid', $e->value);
+        }
+    }
+
+    public function testPayloadRequiresAnArrayWithAStringIdentifier(): void
+    {
+        foreach (['true', '{}', '{"id":1}'] as $payload) {
+            try {
+                new JobPayload($payload);
+                $this->fail('Expected the payload to be rejected.');
+            } catch (InvalidPayloadException $e) {
+                $this->assertSame('The Horizon job payload does not contain a valid string identifier.', $e->getMessage());
+                $this->assertSame($payload, $e->value);
+            }
+        }
     }
 }

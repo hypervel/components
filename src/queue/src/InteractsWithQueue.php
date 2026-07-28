@@ -60,9 +60,7 @@ trait InteractsWithQueue
      */
     public function release(DateInterval|DateTimeInterface|int $delay = 0): void
     {
-        $delay = $delay instanceof DateTimeInterface
-            ? $this->secondsUntil($delay)
-            : $delay;
+        $delay = $this->secondsUntil($delay);
 
         if ($this->job) {
             $this->job->release($delay);
@@ -189,9 +187,7 @@ trait InteractsWithQueue
     {
         $this->ensureQueueInteractionsHaveBeenFaked();
 
-        $delay = $delay instanceof DateTimeInterface
-            ? $this->secondsUntil($delay)
-            : $delay;
+        $delay = $delay === null ? null : $this->secondsUntil($delay);
 
         PHPUnit::assertTrue(
             $this->job->isReleased(),

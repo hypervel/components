@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Support\Collection;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Pheanstalk;
@@ -41,7 +42,11 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function size(?string $queue = null): int
     {
-        return (int) $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReady;
+        $stats = $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)));
+
+        return $stats->currentJobsReady
+            + $stats->currentJobsDelayed
+            + $stats->currentJobsReserved;
     }
 
     /**
@@ -49,7 +54,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function pendingSize(?string $queue = null): int
     {
-        return (int) $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReady;
+        return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReady;
     }
 
     /**
@@ -57,7 +62,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function delayedSize(?string $queue = null): int
     {
-        return (int) $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsDelayed;
+        return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsDelayed;
     }
 
     /**
@@ -65,7 +70,55 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function reservedSize(?string $queue = null): int
     {
-        return (int) $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReserved;
+        return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReserved;
+    }
+
+    /**
+     * Get the pending jobs for the given queue.
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     */
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     */
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
     }
 
     /**
@@ -87,8 +140,8 @@ class BeanstalkdQueue extends Queue implements QueueContract
             $this->createPayload($job, $this->getQueue($queue), $data),
             $queue,
             null,
-            function ($payload, $queue) {
-                return $this->pushRaw($payload, $queue);
+            static function (BeanstalkdQueue $owner, string $payload, ?string $queue) {
+                return $owner->pushRaw($payload, $queue);
             }
         );
     }
@@ -118,14 +171,19 @@ class BeanstalkdQueue extends Queue implements QueueContract
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
-            function ($payload, $queue, $delay) {
-                $this->pheanstalk->useTube(new TubeName($this->getQueue($queue)));
+            static function (
+                BeanstalkdQueue $owner,
+                string $payload,
+                ?string $queue,
+                DateInterval|DateTimeInterface|int $delay
+            ) {
+                $owner->pheanstalk->useTube(new TubeName($owner->getQueue($queue)));
 
-                return $this->pheanstalk->put(
+                return $owner->pheanstalk->put(
                     $payload,
                     Pheanstalk::DEFAULT_PRIORITY,
-                    $this->secondsUntil($delay),
-                    $this->timeToRun
+                    $owner->secondsUntil($delay),
+                    $owner->timeToRun
                 );
             }
         );

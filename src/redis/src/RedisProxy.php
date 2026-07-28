@@ -19,6 +19,7 @@ use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
 use Hypervel\Support\Arr;
+use Redis;
 use Throwable;
 
 /**
@@ -29,6 +30,7 @@ use Throwable;
  * the connection back. Context management ensures that stateful commands reuse
  * the same connection within a coroutine.
  *
+ * @method bool|Redis discard()
  * @mixin \Hypervel\Redis\RedisConnection
  */
 class RedisProxy implements ConnectionContract
@@ -48,7 +50,7 @@ class RedisProxy implements ConnectionContract
     /**
      * Methods that must be called while explicitly holding a pool connection.
      *
-     * Keep in sync with Hypervel\Support\Facades\Redis::ignoredFacadeDocumenterMethods().
+     * These methods must remain excluded from Redis facade generation.
      */
     private const CONNECTION_BOUND_METHODS = [
         'auth',
@@ -707,7 +709,8 @@ class RedisProxy implements ConnectionContract
      * lifecycle automatically (get from pool, flush, release). Uses the default
      * connection, or specify one via Redis::connection($name)->flushByPattern().
      *
-     * If you already have a connection (e.g., inside withConnection()), call
+     * If you already have a raw connection from
+     * withConnection(..., transform: false), call
      * $connection->flushByPattern() directly to avoid redundant pool operations.
      *
      * Uses SCAN to iterate keys efficiently and deletes them in batches.

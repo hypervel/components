@@ -29,8 +29,10 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
      */
     protected function usePgsqlDontDropAll(Application $app): void
     {
-        $baseConfig = $app['config']->get('database.connections.pgsql');
-        $app['config']->set('database.connections.pgsql_dont_drop_all', array_merge($baseConfig, [
+        $config = $app->make('config');
+        $baseConfig = $config->array('database.connections.pgsql');
+
+        $config->set('database.connections.pgsql_dont_drop_all', array_merge($baseConfig, [
             'search_path' => 'public,private',
             'dont_drop' => ['spatial_ref_sys', 'table'],
         ]));
@@ -41,10 +43,25 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
      */
     protected function usePgsqlDontDropOne(Application $app): void
     {
-        $baseConfig = $app['config']->get('database.connections.pgsql');
-        $app['config']->set('database.connections.pgsql_dont_drop_one', array_merge($baseConfig, [
+        $config = $app->make('config');
+        $baseConfig = $config->array('database.connections.pgsql');
+
+        $config->set('database.connections.pgsql_dont_drop_one', array_merge($baseConfig, [
             'search_path' => 'public,private',
             'dont_drop' => ['spatial_ref_sys', 'private.table'],
+        ]));
+    }
+
+    /**
+     * Configure PostgreSQL's conventional user-first search path.
+     */
+    protected function usePgsqlUserSearchPath(Application $app): void
+    {
+        $config = $app->make('config');
+        $baseConfig = $config->array('database.connections.pgsql');
+
+        $config->set('database.connections.pgsql_user_search_path', array_merge($baseConfig, [
+            'search_path' => '"$user", public',
         ]));
     }
 
@@ -180,6 +197,29 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertNotEmpty(array_filter($tables, function ($table) {
             return $table['name'] === 'table' && $table['schema'] === 'private';
         }));
+    }
+
+    #[DefineEnvironment('usePgsqlUserSearchPath')]
+    public function testCurrentSchemaNameUsesTheFirstExistingSearchPathEntry(): void
+    {
+        $connection = DB::connection('pgsql_user_search_path');
+        $currentUser = $connection->scalar('select current_user', [], false);
+
+        $this->assertIsString($currentUser);
+        $this->assertFalse((bool) $connection->scalar(
+            'select exists (select 1 from pg_namespace where nspname = ?)',
+            [$currentUser],
+            false
+        ));
+
+        $schema = $connection->getSchemaBuilder();
+        $currentSchema = $schema->getCurrentSchemaName();
+        $defaultSchema = collect($schema->getSchemas())->firstWhere('default', true);
+
+        $this->assertSame([$currentUser, 'public'], $schema->getCurrentSchemaListing());
+        $this->assertSame('public', $currentSchema);
+        $this->assertIsArray($defaultSchema);
+        $this->assertSame($defaultSchema['name'], $currentSchema);
     }
 
     public function testGetViews()

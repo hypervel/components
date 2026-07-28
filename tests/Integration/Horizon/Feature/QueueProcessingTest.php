@@ -95,4 +95,28 @@ class QueueProcessingTest extends IntegrationTestCase
 
         $this->assertSame('pending', $status);
     }
+
+    public function testInvalidRawPayloadIsTerminallyRemovedWithoutHorizonTelemetryFailure(): void
+    {
+        Redis::connection('default')->rpush('queues:default', '{invalid');
+        Redis::connection('default')->rpush('queues:default:notify', 1);
+
+        $this->work();
+
+        $this->assertSame(0, Redis::connection('default')->llen('queues:default'));
+        $this->assertSame(0, Redis::connection('default')->zcard('queues:default:reserved'));
+        $this->assertSame(0, Redis::connection('default')->llen('queues:default:notify'));
+    }
+
+    public function testMigratedTelemetryRetainsValidPayloadsFromMixedInput(): void
+    {
+        $event = new JobsMigrated([
+            '{"id":"valid"}',
+            '{invalid',
+            '{"id":1}',
+        ]);
+
+        $this->assertCount(1, $event->payloads);
+        $this->assertSame('valid', $event->payloads->first()->id());
+    }
 }

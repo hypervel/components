@@ -8,6 +8,8 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Str;
+use RuntimeException;
 use Throwable;
 
 class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider
@@ -28,7 +30,9 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
     public function log(string $connection, string $queue, string $payload, Throwable $exception): int|string|null
     {
         return $this->lock(function () use ($connection, $queue, $payload, $exception) {
-            $id = json_decode($payload, true)['uuid'];
+            $decoded = json_decode($payload, true);
+            $uuid = is_array($decoded) ? ($decoded['uuid'] ?? null) : null;
+            $id = is_string($uuid) && $uuid !== '' ? $uuid : (string) Str::uuid();
 
             $jobs = $this->read();
 
@@ -143,15 +147,23 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
             return [];
         }
 
-        $content = file_get_contents($this->path);
+        $content = @file_get_contents($this->path);
 
-        if (empty(trim($content))) {
+        if ($content === false) {
+            throw new RuntimeException("Unable to read the failed jobs file [{$this->path}].");
+        }
+
+        if (trim($content) === '') {
             return [];
         }
 
-        $content = json_decode($content);
+        $jobs = json_decode($content, flags: JSON_THROW_ON_ERROR);
 
-        return is_array($content) ? $content : [];
+        if (! is_array($jobs)) {
+            throw new RuntimeException("The failed jobs file [{$this->path}] does not contain a JSON array.");
+        }
+
+        return $jobs;
     }
 
     /**
@@ -159,10 +171,47 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
      */
     protected function write(array $jobs): void
     {
-        file_put_contents(
-            $this->path,
-            json_encode($jobs, JSON_PRETTY_PRINT)
-        );
+        $contents = json_encode($jobs, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
+        $directory = realpath(dirname($this->path));
+
+        if ($directory === false) {
+            throw new RuntimeException("The failed jobs directory for [{$this->path}] does not exist.");
+        }
+
+        $permissions = is_file($this->path) ? @fileperms($this->path) : false;
+        $mode = $permissions === false ? 0666 & ~umask() : $permissions & 0777;
+        $temporaryPath = @tempnam($directory, basename($this->path) . '.');
+
+        if ($temporaryPath === false || dirname($temporaryPath) !== $directory) {
+            if (is_string($temporaryPath)) {
+                @unlink($temporaryPath);
+            }
+
+            throw new RuntimeException("Unable to create a temporary failed jobs file in [{$directory}].");
+        }
+
+        $published = false;
+
+        try {
+            $written = @file_put_contents($temporaryPath, $contents);
+
+            if ($written !== strlen($contents)) {
+                throw new RuntimeException("Unable to write the complete failed jobs file [{$temporaryPath}].");
+            }
+
+            // Permission metadata may be unavailable even when atomic publication is supported.
+            @chmod($temporaryPath, $mode);
+
+            if (! @rename($temporaryPath, $this->path)) {
+                throw new RuntimeException("Unable to publish the failed jobs file [{$this->path}].");
+            }
+
+            $published = true;
+        } finally {
+            if (! $published && file_exists($temporaryPath)) {
+                @unlink($temporaryPath);
+            }
+        }
     }
 
     /**

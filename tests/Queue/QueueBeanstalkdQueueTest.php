@@ -19,6 +19,7 @@ use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Job;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
+use Pheanstalk\Values\TubeStats;
 
 class QueueBeanstalkdQueueTest extends TestCase
 {
@@ -39,6 +40,46 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->assertSame('default', $this->queue->getQueue(null));
         $this->assertSame('default', $this->queue->getQueue(''));
         $this->assertSame('0', $this->queue->getQueue('0'));
+    }
+
+    public function testSizeIncludesPendingDelayedAndReservedJobsWithOneStatsRequest(): void
+    {
+        $this->setQueue('default', 60);
+
+        $this->queue->getPheanstalk()
+            ->shouldReceive('statsTube')
+            ->once()
+            ->with(m::on(fn (TubeName $tube) => $tube->value === 'stack'))
+            ->andReturn(new TubeStats(
+                name: new TubeName('stack'),
+                currentJobsUrgent: 0,
+                currentJobsReady: 3,
+                currentJobsReserved: 5,
+                currentJobsDelayed: 4,
+                currentJobsBuried: 6,
+                totalJobs: 18,
+                currentUsing: 0,
+                currentWaiting: 0,
+                currentWatching: 0,
+                pause: 0,
+                cmdDelete: 0,
+                cmdPauseTube: 0,
+                pauseTimeLeft: 0,
+            ));
+
+        $this->assertSame(12, $this->queue->size('stack'));
+    }
+
+    public function testInspectionReturnsEmptyCollections(): void
+    {
+        $this->setQueue('default', 60);
+
+        $this->assertTrue($this->queue->pendingJobs()->isEmpty());
+        $this->assertTrue($this->queue->delayedJobs()->isEmpty());
+        $this->assertTrue($this->queue->reservedJobs()->isEmpty());
+        $this->assertTrue($this->queue->allPendingJobs()->isEmpty());
+        $this->assertTrue($this->queue->allDelayedJobs()->isEmpty());
+        $this->assertTrue($this->queue->allReservedJobs()->isEmpty());
     }
 
     public function testPushProperlyPushesJobOntoBeanstalkd(): void

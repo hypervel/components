@@ -14,6 +14,8 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Queue\Events\JobFailed as QueueJobFailed;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SerializesModels;
@@ -251,6 +253,19 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(0, $entry->content['tries']);
         $this->assertSame(0, $entry->content['timeout']);
     }
+
+    public function testInvalidFailedPayloadIsIgnoredWithoutASecondRead(): void
+    {
+        $exception = new InvalidPayloadException('Invalid queue payload.', '{invalid');
+        $job = new InvalidTelescopeQueueJob($exception);
+
+        $this->app->make(JobWatcher::class)->recordFailedJob(
+            new QueueJobFailed('redis', $job, $exception),
+        );
+
+        $this->assertSame(1, $job->payloadReads);
+        $this->assertCount(0, $this->loadTelescopeEntries());
+    }
 }
 
 class MockedBatchableJob implements ShouldQueue
@@ -395,5 +410,37 @@ class MockedZeroValuesJob implements ShouldQueue
 
     public function handle()
     {
+    }
+}
+
+class InvalidTelescopeQueueJob extends Job
+{
+    public int $payloadReads = 0;
+
+    public function __construct(
+        protected InvalidPayloadException $payloadFailure,
+    ) {
+    }
+
+    public function payload(): array
+    {
+        ++$this->payloadReads;
+
+        throw $this->payloadFailure;
+    }
+
+    public function getJobId(): int|string|null
+    {
+        return null;
+    }
+
+    public function getRawBody(): string
+    {
+        return '{invalid';
+    }
+
+    public function attempts(): int
+    {
+        return 1;
     }
 }

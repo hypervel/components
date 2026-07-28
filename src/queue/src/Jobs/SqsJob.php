@@ -5,12 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Jobs;
 
 use Aws\Sqs\SqsClient;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\ObjectPool\PoolErrorReporter;
+use Hypervel\Support\Arr;
 use RuntimeException;
 use Throwable;
 
 class SqsJob extends Job
 {
+    /**
+     * The cached raw body of the job.
+     */
+    protected ?string $cachedRawBody = null;
+
     /**
      * Create a new job instance.
      */
@@ -19,7 +28,8 @@ class SqsJob extends Job
         protected SqsClient $sqs,
         protected array $job,
         protected string $connectionName,
-        protected string $queue
+        protected string $queue,
+        protected array $overflowStorage = [],
     ) {
     }
 
@@ -51,15 +61,60 @@ class SqsJob extends Job
         parent::delete();
 
         try {
-            $this->getSqs()->deleteMessage([
-                'QueueUrl' => $this->queue,
-                'ReceiptHandle' => $this->job['ReceiptHandle'],
-            ]);
+            $this->deleteMessageFromSqs();
         } catch (Throwable $exception) {
             $this->discardPoolLeaseAfterFailure($exception);
         }
 
-        $this->releasePoolLease();
+        $releaseException = null;
+
+        try {
+            $this->releasePoolLease();
+        } catch (Throwable $exception) {
+            $releaseException = $exception;
+        }
+
+        try {
+            $this->deleteOverflowPayload();
+        } catch (Throwable $cleanupException) {
+            if ($releaseException !== null) {
+                PoolErrorReporter::report($cleanupException);
+
+                throw $releaseException;
+            }
+
+            throw $cleanupException;
+        }
+
+        if ($releaseException !== null) {
+            throw $releaseException;
+        }
+    }
+
+    /**
+     * Delete the message from the SQS queue.
+     */
+    protected function deleteMessageFromSqs(): void
+    {
+        $this->getSqs()->deleteMessage([
+            'QueueUrl' => $this->queue,
+            'ReceiptHandle' => $this->job['ReceiptHandle'],
+        ]);
+    }
+
+    /**
+     * Delete the offloaded overflow payload from the cache, if applicable.
+     */
+    protected function deleteOverflowPayload(): void
+    {
+        if (! Arr::get($this->overflowStorage, 'delete_after_processing')
+            || ($pointer = $this->overflowPointer()) === null) {
+            return;
+        }
+
+        if (! $this->overflowStore()->forget($pointer)) {
+            throw new RuntimeException("Unable to delete the SQS overflow payload [{$pointer}].");
+        }
     }
 
     /**
@@ -83,7 +138,56 @@ class SqsJob extends Job
      */
     public function getRawBody(): string
     {
-        return $this->job['Body'];
+        if ($this->cachedRawBody !== null) {
+            return $this->cachedRawBody;
+        }
+
+        $body = $this->job['Body'];
+
+        if (($pointer = $this->overflowPointer()) !== null) {
+            $payload = $this->overflowStore()->get($pointer);
+
+            if (is_string($payload)) {
+                $body = $payload;
+            }
+        }
+
+        return $this->cachedRawBody = $body;
+    }
+
+    /**
+     * Resolve the pointer path from the job body, if present.
+     */
+    protected function overflowPointer(): ?string
+    {
+        if (! Arr::get($this->overflowStorage, 'enabled', false)) {
+            return null;
+        }
+
+        $body = $this->job['Body'] ?? null;
+
+        if (! is_string($body) || $body === '') {
+            return null;
+        }
+
+        $decoded = json_decode($body, true);
+
+        return is_array($decoded) && is_string($decoded['@pointer'] ?? null)
+            ? $decoded['@pointer']
+            : null;
+    }
+
+    /**
+     * Resolve the configured cache store for overflow payloads.
+     */
+    protected function overflowStore(): CacheRepository
+    {
+        /** @var CacheFactory $cache */
+        $cache = $this->container->make('cache');
+        /** @var ?string $store */
+        $store = Arr::get($this->overflowStorage, 'store');
+
+        return $cache->store($store);
     }
 
     /**

@@ -680,7 +680,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame('bar', $app->make('config')->get('app.foo'));
     }
 
-    public function testMergingConfig()
+    public function testMergingConfig(): void
     {
         $app = new Application;
         $app->useConfigPath(__DIR__ . '/Fixtures/config');
@@ -732,6 +732,8 @@ class FoundationApplicationTest extends TestCase
         $this->assertIsArray($config->get('queue.connections.redis'));
         $this->assertSame(['overwrite' => true], $config->get('queue.connections.database'));
         $this->assertSame(['merge' => true], $config->get('queue.connections.new'));
+        $this->assertSame(['table' => 'custom_batches'], $config->get('queue.batching'));
+        $this->assertSame(['driver' => 'file'], $config->get('queue.failed'));
     }
 
     protected function assertExpectationCount(int $times): void

@@ -9,6 +9,7 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -20,17 +21,13 @@ class MonitorCommand extends Command
      */
     protected ?string $signature = 'queue:monitor
                        {queues : The names of the queues to monitor}
-                       {--max=1000 : The maximum number of jobs that can be on the queue before an event is dispatched}';
+                       {--max=1000 : The maximum number of jobs that can be on the queue before an event is dispatched}
+                       {--json : Output the queue size as JSON}';
 
     /**
      * The console command description.
      */
     protected string $description = 'Monitor the size of the specified queues';
-
-    /**
-     * The table headers for the command.
-     */
-    protected array $headers = ['Connection', 'Queue', 'Size', 'Status'];
 
     /**
      * Create a new queue monitor command.
@@ -46,22 +43,38 @@ class MonitorCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
-        $queues = $this->parseQueues($this->argument('queues'));
+        $queues = $this->parseQueues((string) $this->argument('queues'));
 
-        $this->displaySizes($queues);
+        if ($this->option('json')) {
+            $this->output->writeln($queues->map(fn (array $queue): array => array_merge($queue, [
+                'status' => str_contains($queue['status'], 'ALERT') ? 'ALERT' : 'OK',
+            ]))->toJson());
+        } else {
+            $this->displaySizes($queues);
+        }
 
         $this->dispatchEvents($queues);
     }
 
     /**
      * Parse the queues into an array of the connections and queues.
-     * @param mixed $queues
+     *
+     * @return Collection<int, array{
+     *     connection: string,
+     *     queue: string,
+     *     size: int,
+     *     pending: int,
+     *     delayed: int,
+     *     reserved: int,
+     *     oldest_pending: null|int,
+     *     status: string
+     * }>
      */
-    protected function parseQueues($queues): Collection
+    protected function parseQueues(string $queues): Collection
     {
-        return Collection::make(explode(',', $queues))->map(function ($queue) {
+        return Collection::make(explode(',', $queues))->map(function (string $queue): array {
             [$connection, $queue] = array_pad(explode(':', $queue, 2), 2, null);
 
             if (! isset($queue)) {
@@ -69,14 +82,16 @@ class MonitorCommand extends Command
                 $connection = $this->config->string('queue.default');
             }
 
+            $queueConnection = $this->manager->connection($connection);
+
             return [
                 'connection' => $connection,
                 'queue' => $queue,
-                'size' => $size = $this->manager->connection($connection)->size($queue),
-                'pending' => $this->manager->connection($connection)->pendingSize($queue),
-                'delayed' => $this->manager->connection($connection)->delayedSize($queue),
-                'reserved' => $this->manager->connection($connection)->reservedSize($queue),
-                'oldest_pending' => $this->manager->connection($connection)->creationTimeOfOldestPendingJob($queue),
+                'size' => $size = $queueConnection->size($queue),
+                'pending' => $queueConnection->pendingSize($queue),
+                'delayed' => $queueConnection->delayedSize($queue),
+                'reserved' => $queueConnection->reservedSize($queue),
+                'oldest_pending' => $queueConnection->creationTimeOfOldestPendingJob($queue),
                 'status' => $size >= (int) $this->option('max')
                     ? '<fg=yellow;options=bold>ALERT</>'
                     : '<fg=green;options=bold>OK</>',
@@ -89,7 +104,28 @@ class MonitorCommand extends Command
      */
     protected function displaySizes(Collection $queues): void
     {
-        $this->table($this->headers, $queues->toArray());
+        $this->newLine();
+
+        $this->components->twoColumnDetail('<fg=gray>Queue name</>', '<fg=gray>Size / Status</>');
+
+        $queues->each(function (array $queue): void {
+            $name = '[' . $queue['connection'] . '] ' . $queue['queue'];
+            $status = '[' . $queue['size'] . '] ' . $queue['status'];
+
+            $this->components->twoColumnDetail($name, $status);
+            $this->components->twoColumnDetail('Pending jobs', (string) $queue['pending']);
+            $this->components->twoColumnDetail('Delayed jobs', (string) $queue['delayed']);
+            $this->components->twoColumnDetail('Reserved jobs', (string) $queue['reserved']);
+            $this->components->twoColumnDetail(
+                'Oldest pending job',
+                $queue['oldest_pending'] !== null
+                    ? CarbonImmutable::createFromTimestamp($queue['oldest_pending'])->diffForHumans()
+                    : 'N/A',
+            );
+            $this->line('');
+        });
+
+        $this->newLine();
     }
 
     /**
@@ -98,7 +134,7 @@ class MonitorCommand extends Command
     protected function dispatchEvents(Collection $queues): void
     {
         foreach ($queues as $queue) {
-            if ($queue['status'] == '<fg=green;options=bold>OK</>') {
+            if ($queue['status'] === '<fg=green;options=bold>OK</>') {
                 continue;
             }
 

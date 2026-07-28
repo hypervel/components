@@ -17,6 +17,7 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
@@ -60,6 +61,13 @@ abstract class Queue
      * Indicates that jobs should be dispatched after all database transactions have committed.
      */
     protected bool $dispatchAfterCommit = false;
+
+    /**
+     * Dispatch an after-commit operation through its live queue owner.
+     *
+     * @var null|Closure(Closure(Queue): mixed): mixed
+     */
+    protected ?Closure $afterCommitDispatcher = null;
 
     /**
      * The create payload callbacks.
@@ -122,7 +130,13 @@ abstract class Queue
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new InvalidPayloadException(
-                'Unable to JSON encode payload. Error (' . json_last_error() . '): ' . json_last_error_msg(),
+                sprintf(
+                    'Unable to JSON encode payload for job [%s] on queue [%s]. Error (%d): %s',
+                    $value['displayName'] ?? 'unknown',
+                    $queue,
+                    json_last_error(),
+                    json_last_error_msg(),
+                ),
                 $value
             );
         }
@@ -314,33 +328,68 @@ abstract class Queue
     }
 
     /**
+     * Set the dispatcher for after-commit queue operations.
+     *
+     * @param null|Closure(Closure(Queue): mixed): mixed $dispatcher
+     */
+    public function setAfterCommitDispatcher(?Closure $dispatcher): static
+    {
+        $this->afterCommitDispatcher = $dispatcher;
+
+        return $this;
+    }
+
+    /**
      * Enqueue a job using the given callback.
+     *
+     * The callback receives the queue that owns the operation first so deferred
+     * pooled dispatch never retains a borrowed queue.
      *
      * @param Closure|object|string $job
      */
-    protected function enqueueUsing(object|string $job, ?string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
+    protected function enqueueUsing(object|string $job, string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
     {
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            $this->addUniqueJobRollbackCallback($job);
-            $this->addDebouncedJobRollbackCallback($job);
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->container->make('db.transactions');
 
-            return $this->container->make('db.transactions')
-                ->addCallback(
-                    function () use ($queue, $job, $payload, $delay, $callback) {
-                        $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
+            if ($transactions->callbackApplicableTransactions()->isNotEmpty()) {
+                $this->addUniqueJobRollbackCallback($transactions, $job);
+                $this->addDebouncedJobRollbackCallback($transactions, $job);
 
-                        return tap($callback($payload, $queue, $delay), function ($jobId) use ($queue, $job, $payload, $delay) {
-                            $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
-                        });
-                    }
+                if ($this->afterCommitDispatcher !== null) {
+                    $dispatcher = $this->afterCommitDispatcher;
+
+                    $transactions->addCallback(
+                        static fn () => $dispatcher(
+                            static fn (Queue $owner) => $owner->enqueueNow($job, $payload, $queue, $delay, $callback)
+                        )
+                    );
+
+                    return null;
+                }
+
+                $transactions->addCallback(
+                    fn () => $this->enqueueNow($job, $payload, $queue, $delay, $callback)
                 );
+
+                return null;
+            }
         }
 
+        return $this->enqueueNow($job, $payload, $queue, $delay, $callback);
+    }
+
+    /**
+     * Enqueue a job immediately using the given callback.
+     */
+    protected function enqueueNow(object|string $job, string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
+    {
         $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
 
-        return tap($callback($payload, $queue, $delay), function ($jobId) use ($queue, $job, $payload, $delay) {
+        return tap($callback($this, $payload, $queue, $delay), function ($jobId) use ($queue, $job, $payload, $delay) {
             $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
         });
     }
@@ -366,32 +415,32 @@ abstract class Queue
     /**
      * Register a transaction rollback callback that releases the unique lock for the given job.
      */
-    protected function addUniqueJobRollbackCallback(object|string $job): void
+    protected function addUniqueJobRollbackCallback(DatabaseTransactionsManager $transactions, object|string $job): void
     {
         if (! $job instanceof ShouldBeUnique) {
             return;
         }
 
-        $this->container->make('db.transactions')->addCallbackForRollback(
-            function () use ($job) {
-                (new UniqueLock($this->container->make(Cache::class)))->release($job);
-            }
+        $lock = new UniqueLock($this->container->make(Cache::class));
+
+        $transactions->addCallbackForRollback(
+            static fn () => $lock->release($job)
         );
     }
 
     /**
      * Register a transaction rollback callback that releases the debounce token for the given job.
      */
-    protected function addDebouncedJobRollbackCallback(object|string $job): void
+    protected function addDebouncedJobRollbackCallback(DatabaseTransactionsManager $transactions, object|string $job): void
     {
         if (! is_object($job) || ($job->debounceOwner ?? '') === '') {
             return;
         }
 
-        $this->container->make('db.transactions')->addCallbackForRollback(
-            function () use ($job) {
-                (new DebounceLock($this->container->make(Cache::class)))->release($job, $job->debounceOwner ?? '');
-            }
+        $lock = new DebounceLock($this->container->make(Cache::class));
+
+        $transactions->addCallbackForRollback(
+            static fn () => $lock->release($job, $job->debounceOwner ?? '')
         );
     }
 

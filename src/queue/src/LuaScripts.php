@@ -66,17 +66,30 @@ LUA;
 -- Pop the first job off of the queue...
 local job = redis.call('lpop', KEYS[1])
 local reserved = false
+local attempts = false
 
-if(job ~= false) then
-    -- Increment the attempt count and place job on the reserved queue...
-    reserved = cjson.decode(job)
-    reserved['attempts'] = reserved['attempts'] + 1
-    reserved = cjson.encode(reserved)
+if job ~= false then
+    local decodeSucceeded, payload = pcall(cjson.decode, job)
+
+    if decodeSucceeded and type(payload) == 'table' then
+        local currentAttempts = tonumber(payload['attempts'])
+
+        if currentAttempts ~= nil then
+            attempts = currentAttempts + 1
+            payload['attempts'] = attempts
+            reserved = cjson.encode(payload)
+        end
+    end
+
+    if reserved == false then
+        reserved = job
+    end
+
     redis.call('zadd', KEYS[2], ARGV[1], reserved)
     redis.call('lpop', KEYS[3])
 end
 
-return {job, reserved}
+return {job, reserved, attempts}
 LUA;
     }
 

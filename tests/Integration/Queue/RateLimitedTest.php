@@ -152,6 +152,18 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasReleasedAfter(RateLimitedReleaseAfterTestJob::class, 60);
     }
 
+    public function testExplicitZeroReleaseDelayIsRespected(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $rateLimiter->for('test', function ($job) {
+            return Limit::perHour(1);
+        });
+
+        $this->assertJobRanSuccessfully(RateLimitedZeroReleaseAfterTestJob::class);
+        $this->assertJobWasReleasedAfter(RateLimitedZeroReleaseAfterTestJob::class, 0);
+    }
+
     public function testMiddlewareSerialization(): void
     {
         $rateLimited = new RateLimited('limiterName');
@@ -166,6 +178,27 @@ class RateLimitedTest extends TestCase
         $this->assertFalse($restoredRateLimited->shouldRelease);
         $this->assertSame('limiterName', $fetch('limiterName'));
         $this->assertInstanceOf(RateLimiter::class, $fetch('limiter'));
+    }
+
+    public function testReleaseAfterIsPreservedThroughSerialization(): void
+    {
+        $rateLimited = (new RateLimited('limiterName'))->releaseAfter(120);
+
+        $restoredRateLimited = unserialize(serialize($rateLimited));
+
+        $this->assertSame(120, $restoredRateLimited->releaseAfter);
+    }
+
+    public function testCustomReleaseAfterIsRespectedWhenMiddlewareIsStoredAsJobProperty(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $rateLimiter->for('test', function ($job) {
+            return Limit::perHour(1);
+        });
+
+        $this->assertJobRanSuccessfully(RateLimitedSerializedPropertyTestJob::class);
+        $this->assertJobWasReleasedAfter(RateLimitedSerializedPropertyTestJob::class, 60);
     }
 
     protected function assertJobRanSuccessfully(string $class): void
@@ -378,6 +411,37 @@ class RateLimitedReleaseAfterTestJob extends RateLimitedTestJob
     public function middleware(): array
     {
         return [(new RateLimited('test'))->releaseAfter(60)];
+    }
+}
+
+class RateLimitedZeroReleaseAfterTestJob extends RateLimitedTestJob
+{
+    public function middleware(): array
+    {
+        return [(new RateLimited('test'))->releaseAfter(0)];
+    }
+}
+
+class RateLimitedSerializedPropertyTestJob
+{
+    use InteractsWithQueue;
+    use Queueable;
+
+    public static bool $handled = false;
+
+    public function __construct()
+    {
+        $this->through([(new RateLimited('test'))->releaseAfter(60)]);
+    }
+
+    public function handle(): void
+    {
+        static::$handled = true;
+    }
+
+    public function middleware(): array
+    {
+        return [];
     }
 }
 

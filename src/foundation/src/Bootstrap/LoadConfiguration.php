@@ -148,7 +148,11 @@ class LoadConfiguration
     }
 
     /**
-     * Get the options within the configuration file that should be merged again.
+     * Get configuration arrays whose entries should be merged by name.
+     *
+     * For example, an application Redis connection replaces the framework Redis
+     * connection, while framework connections not defined by the application
+     * remain. Nested arrays not listed here are replaced completely.
      *
      * @return array<int, string>
      */

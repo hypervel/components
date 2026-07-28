@@ -178,6 +178,36 @@ class WithoutOverlappingJobsTest extends QueueTestCase
             'prefix:key',
             (new WithoutOverlapping('key'))->withPrefix('prefix:')->shared()->getLockKey($job)
         );
+
+        $this->assertSame(
+            'prefix:' . hash('xxh128', 'App\Actions\WithoutOverlappingTestAction') . ':unit',
+            (new WithoutOverlapping(UnitCategory::unit))->withPrefix('prefix:')->getLockKey($job)
+        );
+
+        $this->assertSame(
+            'prefix:unit',
+            (new WithoutOverlapping(UnitCategory::unit))->withPrefix('prefix:')->shared()->getLockKey($job)
+        );
+
+        $this->assertSame(
+            'prefix:' . hash('xxh128', 'App\Actions\WithoutOverlappingTestAction') . ':backed',
+            (new WithoutOverlapping(BackedCategory::backed))->withPrefix('prefix:')->getLockKey($job)
+        );
+
+        $this->assertSame(
+            'prefix:backed',
+            (new WithoutOverlapping(BackedCategory::backed))->withPrefix('prefix:')->shared()->getLockKey($job)
+        );
+
+        $this->assertSame(
+            'prefix:' . hash('xxh128', 'App\Actions\WithoutOverlappingTestAction') . ':0',
+            (new WithoutOverlapping(IntBackedCategory::Zero))->withPrefix('prefix:')->getLockKey($job)
+        );
+
+        $this->assertSame(
+            'prefix:0',
+            (new WithoutOverlapping(IntBackedCategory::Zero))->withPrefix('prefix:')->shared()->getLockKey($job)
+        );
     }
 }
 
@@ -259,4 +289,19 @@ class OverlappingTestJobWithDisplayName extends OverlappingTestJob
     {
         return 'App\Actions\WithoutOverlappingTestAction';
     }
+}
+
+enum UnitCategory
+{
+    case unit;
+}
+
+enum BackedCategory: string
+{
+    case backed = 'backed';
+}
+
+enum IntBackedCategory: int
+{
+    case Zero = 0;
 }

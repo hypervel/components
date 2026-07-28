@@ -10,6 +10,7 @@ use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -57,6 +58,7 @@ class UniqueJobPayloadContextTest extends TestCase
     public function testMetadataSurvivesUntilAfterCommitPayloadCreation(string $queueClass, bool $delayed): void
     {
         $container = new Container;
+        $container->instance(Cache::class, m::mock(Cache::class));
         $container->instance(ContainerContract::class, $container);
         $container->instance(EventDispatcher::class, new EventsDispatcher($container));
         Container::setInstance($container);
