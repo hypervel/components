@@ -15,7 +15,7 @@ interface Queue
     public function size(?string $queue = null): int;
 
     /**
-     * Get the current queue workload for the application.
+     * Get the number of pending jobs.
      */
     public function pendingSize(?string $queue = null): int;
 
