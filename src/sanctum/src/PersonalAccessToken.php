@@ -67,13 +67,23 @@ class PersonalAccessToken extends Model implements HasAbilities
     {
         parent::boot();
 
-        static::updating(function ($model) {
-            if (config('sanctum.cache.enabled')) {
-                self::clearTokenCache($model->id);
+        static::updating(function (PersonalAccessToken $model): void {
+            if (! config('sanctum.cache.enabled')) {
+                return;
             }
+
+            // Eloquent fires updating before adding updated_at, so this exact
+            // dirty set identifies Sanctum's internal audit write.
+            if (array_keys($model->getDirty()) === ['last_used_at']) {
+                self::forgetTokenEntry(self::getCache(), $model->id);
+
+                return;
+            }
+
+            self::clearTokenCache($model->id);
         });
 
-        static::deleting(function ($model) {
+        static::deleting(function (PersonalAccessToken $model): void {
             if (config('sanctum.cache.enabled')) {
                 self::clearTokenCache($model->id);
             }
@@ -131,7 +141,7 @@ class PersonalAccessToken extends Model implements HasAbilities
         return $cache->rememberNullable(
             self::getCacheKey($id),
             config('sanctum.cache.ttl'),
-            fn () => static::find($id)
+            fn () => static::find($id)?->unsetRelation('tokenable')
         );
     }
 
@@ -140,6 +150,10 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     public static function findTokenable(PersonalAccessToken $accessToken): ?Authenticatable
     {
+        if ($accessToken->relationLoaded('tokenable')) {
+            return $accessToken->getRelation('tokenable');
+        }
+
         if (! config('sanctum.cache.enabled')) {
             return $accessToken->getAttribute('tokenable');
         }
@@ -147,11 +161,15 @@ class PersonalAccessToken extends Model implements HasAbilities
         $cache = self::getCache();
         $cacheKey = self::getCacheKey($accessToken->id) . ':tokenable';
 
-        return $cache->rememberNullable(
+        /** @var ?Authenticatable $tokenable */
+        $tokenable = $cache->rememberNullable(
             $cacheKey,
             config('sanctum.cache.ttl'),
             fn () => $accessToken->getAttribute('tokenable')
         );
+        $accessToken->setRelation('tokenable', $tokenable);
+
+        return $tokenable;
     }
 
     /**
@@ -191,8 +209,16 @@ class PersonalAccessToken extends Model implements HasAbilities
     public static function clearTokenCache(int|string $tokenId): void
     {
         $cache = self::getCache();
-        $cache->forget(self::getCacheKey($tokenId));
+        self::forgetTokenEntry($cache, $tokenId);
         $cache->forget(self::getCacheKey($tokenId) . ':tokenable');
+    }
+
+    /**
+     * Forget the cached personal access token entry.
+     */
+    protected static function forgetTokenEntry(CacheRepository $cache, int|string $tokenId): void
+    {
+        $cache->forget(self::getCacheKey($tokenId));
     }
 
     /**
@@ -230,7 +256,7 @@ class PersonalAccessToken extends Model implements HasAbilities
         if ($cacheEnabled) {
             static::getCache()->put(
                 static::getCacheKey($this->id),
-                $this,
+                $this->withoutRelation('tokenable'),
                 config('sanctum.cache.ttl'),
             );
         }
