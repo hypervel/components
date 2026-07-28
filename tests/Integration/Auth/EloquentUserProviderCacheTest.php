@@ -4,14 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Auth\EloquentUserProviderCacheTest;
 
+use __PHP_Incomplete_Class;
 use Closure;
+use Error;
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\FileStore;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -25,18 +36,81 @@ class EloquentUserProviderCacheTest extends TestCase
 
     protected const string DEFAULT_KEY_PREFIX = 'auth_users';
 
+    protected CacheManager $realCacheManager;
+
     protected MockInterface $cacheManager;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Swap the cache manager with a Mockery double so we can verify
-        // get()/put()/forget() calls without a real backend. The mock store
-        // returned by the manager is a RedisStore instance, which passes
-        // the supported-stores whitelist.
+        $this->realCacheManager = $this->app->make(CacheManager::class);
         $this->cacheManager = m::mock(CacheManager::class);
         $this->app->instance('cache', $this->cacheManager);
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            $this->realCacheManager->store('auth-file')->flush();
+        } finally {
+            parent::tearDown();
+        }
+    }
+
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            AuthCacheTestServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->make('config');
+        $configuredClasses = $config->get('cache.testing_serializable_classes');
+
+        $config->set([
+            'cache.default' => 'auth-file',
+            'cache.serializable_classes' => is_array($configuredClasses)
+                ? $configuredClasses
+                : false,
+            'cache.stores.auth-file' => [
+                'driver' => 'file',
+                'path' => $app->storagePath('framework/cache/data/auth'),
+            ],
+            'auth.providers.users' => [
+                'driver' => 'eloquent',
+                'model' => User::class,
+                'cache' => [
+                    'enabled' => true,
+                    'store' => 'auth-file',
+                ],
+            ],
+            'auth.providers.relationship_users' => [
+                'driver' => 'eloquent',
+                'model' => AuthCacheUser::class,
+                'cache' => [
+                    'enabled' => true,
+                    'store' => 'auth-file',
+                ],
+            ],
+        ]);
+    }
+
+    protected function allowConfiguredSerializableClass(ApplicationContract $app): void
+    {
+        $app->make('config')->set(
+            'cache.testing_serializable_classes',
+            [AuthConfiguredSerializableClass::class],
+        );
+    }
+
+    protected function allowApplicationRelationClasses(ApplicationContract $app): void
+    {
+        $app->make('config')->set('cache.testing_allow_relation_classes', true);
     }
 
     protected function afterRefreshingDatabase(): void
@@ -52,7 +126,7 @@ class EloquentUserProviderCacheTest extends TestCase
     // Cache invalidation — model events
     // ------------------------------------------------------------------
 
-    public function testCacheIsClearedOnUserSave()
+    public function testCacheIsClearedOnUserSave(): void
     {
         $user = User::query()->first();
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
@@ -66,7 +140,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $user->save();
     }
 
-    public function testCacheIsClearedOnUserDelete()
+    public function testCacheIsClearedOnUserDelete(): void
     {
         $user = User::query()->first();
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
@@ -79,7 +153,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $user->delete();
     }
 
-    public function testDescriptorsDedupeOnIdenticalConfig()
+    public function testDescriptorsDedupeOnIdenticalConfig(): void
     {
         $this->stubCache();
 
@@ -93,7 +167,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $this->assertCount(1, $descriptors[User::class]);
     }
 
-    public function testModelEventInvalidatesAllDescriptorsForSameModel()
+    public function testModelEventInvalidatesAllDescriptorsForSameModel(): void
     {
         // Two distinct provider configurations for the same model should
         // produce two descriptors; saving the user should clear both keys.
@@ -107,17 +181,17 @@ class EloquentUserProviderCacheTest extends TestCase
         $repoA->shouldReceive('forget')->once()->with($keyA)->andReturn(true);
         $repoB->shouldReceive('forget')->once()->with($keyB)->andReturn(true);
 
-        $providerA = new EloquentUserProvider($this->app['hash'], User::class);
+        $providerA = new EloquentUserProvider($this->app->make('hash'), User::class);
         $providerA->enableCache('redis-a');
 
-        $providerB = new EloquentUserProvider($this->app['hash'], User::class);
+        $providerB = new EloquentUserProvider($this->app->make('hash'), User::class);
         $providerB->enableCache('redis-b', 300, 'admin_users');
 
         $user->name = 'Updated';
         $user->save();
     }
 
-    public function testModelEventListenersRegisteredOnlyOnce()
+    public function testModelEventListenersRegisteredOnlyOnce(): void
     {
         // Two distinct providers with different configs. If the save/deleted
         // listeners were attached per-enableCache, the single save below would
@@ -133,10 +207,10 @@ class EloquentUserProviderCacheTest extends TestCase
         $repoA->shouldReceive('forget')->once()->with($keyA)->andReturn(true);
         $repoB->shouldReceive('forget')->once()->with($keyB)->andReturn(true);
 
-        $providerA = new EloquentUserProvider($this->app['hash'], User::class);
+        $providerA = new EloquentUserProvider($this->app->make('hash'), User::class);
         $providerA->enableCache('redis-a');
 
-        $providerB = new EloquentUserProvider($this->app['hash'], User::class);
+        $providerB = new EloquentUserProvider($this->app->make('hash'), User::class);
         $providerB->enableCache('redis-b', 300, 'admin_users');
 
         $user->name = 'Updated';
@@ -147,7 +221,7 @@ class EloquentUserProviderCacheTest extends TestCase
     // Cache invalidation — provider writes
     // ------------------------------------------------------------------
 
-    public function testUpdateRememberTokenClearsCache()
+    public function testUpdateRememberTokenClearsCache(): void
     {
         $user = User::query()->first();
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
@@ -160,7 +234,7 @@ class EloquentUserProviderCacheTest extends TestCase
         $provider->updateRememberToken($user, 'new-remember-token');
     }
 
-    public function testRehashPasswordClearsCache()
+    public function testRehashPasswordClearsCache(): void
     {
         $user = User::query()->first();
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
@@ -177,7 +251,7 @@ class EloquentUserProviderCacheTest extends TestCase
     // Dispatcher ordering
     // ------------------------------------------------------------------
 
-    public function testEnableCacheSkipsListenerRegistrationWhenDispatcherAbsent()
+    public function testEnableCacheSkipsListenerRegistrationWhenDispatcherAbsent(): void
     {
         $this->stubCache();
 
@@ -186,7 +260,7 @@ class EloquentUserProviderCacheTest extends TestCase
         // $cacheEventsRegistered untouched for this model.
         Model::unsetEventDispatcher();
 
-        $provider = new EloquentUserProvider($this->app['hash'], User::class);
+        $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
         $provider->enableCache(null);
 
         $reflection = new ReflectionClass(EloquentUserProvider::class);
@@ -201,7 +275,7 @@ class EloquentUserProviderCacheTest extends TestCase
     // withQuery() compatibility
     // ------------------------------------------------------------------
 
-    public function testRetrieveByIdCachesResultWithEagerLoadedRelations()
+    public function testRetrieveByIdCachesResultWithEagerLoadedRelations(): void
     {
         // A withQuery callback that runs during the DB fetch should affect
         // the first (cache-miss) retrieval. Subsequent calls hit the cache
@@ -219,7 +293,7 @@ class EloquentUserProviderCacheTest extends TestCase
             );
 
         $withQueryInvocations = 0;
-        $provider = new EloquentUserProvider($this->app['hash'], User::class);
+        $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
         $provider->enableCache(null);
         $provider->withQuery(function ($builder) use (&$withQueryInvocations): void {
             ++$withQueryInvocations;
@@ -233,22 +307,197 @@ class EloquentUserProviderCacheTest extends TestCase
         $this->assertSame(1, $withQueryInvocations, 'withQuery callback should run only on the cache-miss fetch');
     }
 
+    public function testAutomaticProviderClassCachesRootUserWithoutASecondQuery(): void
+    {
+        $provider = $this->makeRealCachedProvider();
+        $user = User::query()->firstOrFail();
+
+        DB::enableQueryLog();
+
+        $first = $provider->retrieveById($user->getAuthIdentifier());
+
+        $this->assertInstanceOf(User::class, $first);
+        $this->assertSame(1, $this->countQueriesForTable('users'));
+
+        DB::flushQueryLog();
+
+        $second = $provider->retrieveById($user->getAuthIdentifier());
+
+        $this->assertInstanceOf(User::class, $second);
+        $this->assertNotSame($first, $second);
+        $this->assertSame(0, $this->countQueriesForTable('users'));
+    }
+
+    #[DefineEnvironment('allowConfiguredSerializableClass')]
+    public function testConfiguredClassesUnionWithAutomaticProviderClasses(): void
+    {
+        $this->app->instance('cache', $this->realCacheManager);
+        $store = $this->realCacheManager->build([
+            'driver' => 'array',
+            'serialize' => true,
+        ]);
+        $store->put('objects', [
+            new User,
+            new AuthConfiguredSerializableClass,
+        ], 60);
+
+        $objects = $store->get('objects');
+
+        $this->assertInstanceOf(User::class, $objects[0]);
+        $this->assertInstanceOf(AuthConfiguredSerializableClass::class, $objects[1]);
+    }
+
+    public function testUndeclaredToOneRelationIsIncompleteAndOmittedFromArrayOutput(): void
+    {
+        $this->createRelationTables();
+        $user = AuthCacheUser::query()->firstOrFail();
+        AuthCacheProfile::forceCreate([
+            'user_id' => $user->getKey(),
+            'name' => 'Profile',
+        ]);
+        $provider = $this->makeRealCachedProvider(AuthCacheUser::class);
+        $provider->withQuery(
+            static fn (Builder $query): Builder => $query->with('profile'),
+        );
+
+        $first = $provider->retrieveById($user->getAuthIdentifier());
+        $second = $provider->retrieveById($user->getAuthIdentifier());
+
+        $this->assertInstanceOf(AuthCacheProfile::class, $first?->getRelation('profile'));
+        $this->assertInstanceOf(AuthCacheUser::class, $second);
+        $this->assertTrue($second->relationLoaded('profile'));
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $second->getRelation('profile'));
+
+        try {
+            $second->getRelation('profile')->getKey();
+            $this->fail('Expected incomplete relation access to fail.');
+        } catch (Error $exception) {
+            $this->assertStringContainsString(AuthCacheProfile::class, $exception->getMessage());
+        }
+
+        $this->assertArrayNotHasKey('profile', $second->toArray());
+    }
+
+    public function testUndeclaredToManyModelsRemainIncompleteInsideAutomaticCollection(): void
+    {
+        $this->createRelationTables();
+        $user = AuthCacheUser::query()->firstOrFail();
+        AuthCachePost::forceCreate([
+            'user_id' => $user->getKey(),
+            'title' => 'First',
+        ]);
+        AuthCachePost::forceCreate([
+            'user_id' => $user->getKey(),
+            'title' => 'Second',
+        ]);
+        $provider = $this->makeRealCachedProvider(AuthCacheUser::class);
+        $provider->withQuery(
+            static fn (Builder $query): Builder => $query->with('posts'),
+        );
+
+        $first = $provider->retrieveById($user->getAuthIdentifier());
+        $second = $provider->retrieveById($user->getAuthIdentifier());
+
+        $this->assertInstanceOf(EloquentCollection::class, $first?->getRelation('posts'));
+        $this->assertInstanceOf(AuthCachePost::class, $first->getRelation('posts')->first());
+        $this->assertInstanceOf(AuthCacheUser::class, $second);
+        $this->assertInstanceOf(EloquentCollection::class, $second->getRelation('posts'));
+        $this->assertContainsOnlyInstancesOf(
+            __PHP_Incomplete_Class::class,
+            $second->getRelation('posts')->all(),
+        );
+    }
+
+    #[DefineEnvironment('allowApplicationRelationClasses')]
+    public function testDeclaredApplicationRelationsRoundTripCompletely(): void
+    {
+        $this->createRelationTables();
+        $user = AuthCacheUser::query()->firstOrFail();
+        AuthCacheProfile::forceCreate([
+            'user_id' => $user->getKey(),
+            'name' => 'Profile',
+        ]);
+        AuthCachePost::forceCreate([
+            'user_id' => $user->getKey(),
+            'title' => 'Post',
+        ]);
+        $provider = $this->makeRealCachedProvider(AuthCacheUser::class);
+        $provider->withQuery(
+            static fn (Builder $query): Builder => $query->with(['profile', 'posts']),
+        );
+
+        $provider->retrieveById($user->getAuthIdentifier());
+        $cached = $provider->retrieveById($user->getAuthIdentifier());
+
+        $this->assertInstanceOf(AuthCacheUser::class, $cached);
+        $this->assertInstanceOf(AuthCacheProfile::class, $cached->getRelation('profile'));
+        $this->assertInstanceOf(EloquentCollection::class, $cached->getRelation('posts'));
+        $this->assertInstanceOf(AuthCachePost::class, $cached->getRelation('posts')->first());
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 
     protected function makeCachedProvider(): EloquentUserProvider
     {
-        $provider = new EloquentUserProvider($this->app['hash'], User::class);
+        $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
         $provider->enableCache(null);
 
         return $provider;
     }
 
+    /**
+     * Create a provider backed by the real serializing cache manager.
+     *
+     * @param class-string<\Hypervel\Contracts\Auth\Authenticatable&Model> $model
+     */
+    protected function makeRealCachedProvider(string $model = User::class): EloquentUserProvider
+    {
+        $this->app->instance('cache', $this->realCacheManager);
+
+        $provider = new EloquentUserProvider($this->app->make('hash'), $model);
+        $provider->enableCache('auth-file');
+
+        return $provider;
+    }
+
+    /**
+     * Create the relation tables used by serialization tests.
+     */
+    protected function createRelationTables(): void
+    {
+        $schema = $this->app->make('db')->connection()->getSchemaBuilder();
+
+        $schema->create('auth_cache_profiles', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->unsignedInteger('user_id');
+            $table->string('name');
+        });
+
+        $schema->create('auth_cache_posts', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->unsignedInteger('user_id');
+            $table->string('title');
+        });
+    }
+
+    /**
+     * Count logged select queries for a table.
+     */
+    protected function countQueriesForTable(string $table): int
+    {
+        return count(array_filter(
+            DB::getQueryLog(),
+            fn (array $query): bool => str_starts_with(strtolower($query['query'] ?? ''), 'select')
+                && str_contains($query['query'] ?? '', $table)
+        ));
+    }
+
     protected function stubCache(?string $name = null): MockInterface
     {
         $repo = m::mock(CacheRepository::class);
-        $repo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
+        $repo->shouldReceive('getStore')->andReturn(m::mock(FileStore::class));
         $this->cacheManager->shouldReceive('store')->with($name)->andReturn($repo);
 
         return $repo;
@@ -258,4 +507,64 @@ class EloquentUserProviderCacheTest extends TestCase
     {
         return self::DEFAULT_KEY_PREFIX . ':' . User::class . ':' . $identifier;
     }
+}
+
+class AuthCacheTestServiceProvider extends ServiceProvider
+{
+    /**
+     * Bootstrap the test service provider.
+     */
+    public function boot(): void
+    {
+        $config = $this->app->make('config');
+
+        $this->app->make(CacheManager::class)->allowSerializableClassesUsing(
+            static fn (): array => $config->get('cache.testing_allow_relation_classes') === true
+                ? [AuthCacheProfile::class, AuthCachePost::class]
+                : [],
+        );
+    }
+}
+
+class AuthCacheUser extends User
+{
+    protected ?string $table = 'users';
+
+    /**
+     * Get the user's profile.
+     */
+    public function profile(): HasOne
+    {
+        return $this->hasOne(AuthCacheProfile::class, 'user_id');
+    }
+
+    /**
+     * Get the user's posts.
+     */
+    public function posts(): HasMany
+    {
+        return $this->hasMany(AuthCachePost::class, 'user_id');
+    }
+}
+
+class AuthCacheProfile extends Model
+{
+    protected ?string $table = 'auth_cache_profiles';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+}
+
+class AuthCachePost extends Model
+{
+    protected ?string $table = 'auth_cache_posts';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+}
+
+class AuthConfiguredSerializableClass
+{
 }
