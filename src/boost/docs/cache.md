@@ -82,7 +82,9 @@ Use `array` for request-local test and scratch data. Use `worker-array` only whe
 <a name="serializable-cached-objects"></a>
 ### Serializable Cached Objects
 
-By default, Hypervel cache stores that serialize values do not instantiate PHP classes while unserializing them. If your application intentionally caches objects, list the classes that may be unserialized using the `serializable_classes` option:
+Hypervel applies one global class policy to PHP-serialized cache values. By default, `serializable_classes` is `false`, so PHP may instantiate only classes contributed by framework and package providers. Auth and Sanctum contribute their configured root models and Hypervel contributes the standard Eloquent collection and pivot classes they use.
+
+Set this option to an array to add application-owned classes, or to `null` / `true` to allow every class:
 
 ```php
 'serializable_classes' => [
@@ -90,9 +92,29 @@ By default, Hypervel cache stores that serialize values do not instantiate PHP c
 ],
 ```
 
-This applies to database, file, Redis, storage, and Swoole stores, as well as stacks containing them. Array and worker-array stores configured with `'serialize' => false` keep values in memory and do not use this setting.
+Packages and applications may contribute classes lazily from a service provider's `boot` method. Contributions are combined with the configured array in registration order, and duplicates are removed:
 
-You may register a callback during application boot to observe cached objects whose classes are not allowed or available:
+```php
+use App\Models\Organization;
+use App\Models\Team;
+use Hypervel\Support\Facades\Cache;
+
+public function boot(): void
+{
+    Cache::allowSerializableClassesUsing(fn (): array => [
+        Organization::class,
+        Team::class,
+    ]);
+}
+```
+
+The resolver is evaluated after every provider has booted and must be registered during process startup. Declare application relation models, morph targets, custom collections and pivots, and any other nested objects that may be cached. Unknown class names may be declared without loading them immediately.
+
+The policy applies to serializing array and worker-array stores, database, file, storage, Redis using `Redis::SERIALIZER_NONE`, and Swoole. A stack applies the same policy through each serializing layer. Array stores with serialization disabled keep live values, while the session cache follows the separate serializer selected in `config/session.php`.
+
+When a denied root object is read, PHP returns an `__PHP_Incomplete_Class`. Nested denied objects follow normal PHP behavior: using the object directly raises an error containing `The script tried to` and names the denied class. Eloquent's `toArray` and `toJson` omit an incomplete relation instead of returning it as `null`. Add the named class to the configured array or a boot-time resolver. If the class was removed from the application, clear the stale cache entry instead.
+
+You may register an optional boot-time callback for top-level incomplete objects. Without a callback, Hypervel leaves PHP's incomplete object unchanged:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -102,7 +124,9 @@ Cache::handleUnserializableClassUsing(function (string $key, ?string $class) {
 });
 ```
 
-If you use Redis and rely on this allowlist, configure the connection used by your cache store with the default `Redis::SERIALIZER_NONE` serializer. Native PhpRedis serializers handle cached values before Hypervel can apply the allowlist; `Redis::SERIALIZER_PHP` and `Redis::SERIALIZER_IGBINARY` may instantiate PHP classes when reading cached values. With a native serializer, the callback may still report unavailable classes, but it cannot report classes excluded by the allowlist. Other Redis connections may continue using any supported serializer.
+Native PhpRedis serializers restore values before Hypervel can apply the PHP class policy. Use `Redis::SERIALIZER_NONE` when policy enforcement is required. Native PHP and igbinary serializers preserve PHP object types while bypassing the policy. Msgpack also preserves classes and references when `msgpack.php_only=1`; without PHP-only mode, and with the JSON serializer, objects become arrays. Configure `msgpack.php_only` in `php.ini` before workers start rather than changing this process-wide setting while requests are running.
+
+Igbinary maintains a table of repeated strings and class names, which can suit Eloquent graphs with repeated attribute keys. Msgpack provides a compact binary encoding but repeats string and class names. Benchmark your own values and access patterns before choosing a serializer.
 
 <a name="driver-prerequisites"></a>
 ### Driver Prerequisites
@@ -255,6 +279,8 @@ CACHE_STORE=failover
 ```
 
 When a cache store operation fails and failover is activated, Hypervel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed.
+
+Reads, writes, increments, locks, and other ordinary operations stop after the first store call that does not throw. `forget` and `flush` instead attempt every configured store so a stale lower-priority value cannot reappear later. They return `false` after a partial failure; if every store throws, the last exception is rethrown.
 
 <a name="cache-usage"></a>
 ## Cache Usage
