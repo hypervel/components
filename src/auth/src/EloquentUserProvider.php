@@ -28,7 +28,7 @@ class EloquentUserProvider implements UserProvider
      * provider's boot() method. Evaluated at call time so it can read
      * per-request context (e.g., tenant ID from Context).
      *
-     * @var null|(Closure(mixed): string)
+     * @var null|(Closure(mixed, class-string<Model&UserContract>, null|(Model&UserContract)): string)
      */
     protected static ?Closure $cacheKeyResolver = null;
 
@@ -320,8 +320,8 @@ class EloquentUserProvider implements UserProvider
     /**
      * Clear the cached user for the given identifier.
      *
-     * Uses the same key resolver as retrieveById(), so it respects
-     * tenant context and custom key callbacks.
+     * Uses the same key resolver as retrieveById(), passing null for the user
+     * model so context-aware keys use the caller's current context.
      */
     public function clearUserCache(mixed $identifier): void
     {
@@ -331,19 +331,22 @@ class EloquentUserProvider implements UserProvider
     /**
      * Set the cache key resolver for all cached Eloquent user providers.
      *
-     * The callback receives the user identifier and should return a string
-     * that uniquely identifies the user within the current context (e.g.,
-     * including tenant ID for multi-tenant apps). Called once in a service
-     * provider's boot() method — the closure is evaluated fresh on each
-     * retrieveById() call so per-request context like tenant ID is current.
+     * The callback receives the user identifier and provider model class.
+     * Invalidation triggered by a model event also provides the saved or
+     * deleted user; lookups and manual invalidation provide null. It should
+     * return a string that uniquely identifies the user within the current
+     * context (e.g., including tenant ID for multi-tenant apps). Called once
+     * in a service provider's boot() method — the closure is evaluated fresh
+     * on each lookup or invalidation so per-request context like tenant ID
+     * is current.
      *
      * The fully qualified model class name is always included in the key
      * automatically. The resolver only controls the identifier segment.
      *
      * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every cached user lookup.
+     * lifetime and runs on every cached user lookup and invalidation.
      *
-     * @param Closure(mixed): string $callback
+     * @param Closure(mixed, class-string<Model&UserContract>, null|(Model&UserContract)): string $callback
      */
     public static function resolveUserCacheKeyUsing(Closure $callback): void
     {
@@ -427,11 +430,27 @@ class EloquentUserProvider implements UserProvider
      */
     protected function buildCacheKey(mixed $identifier): string
     {
-        $identifierSegment = static::$cacheKeyResolver
-            ? (static::$cacheKeyResolver)($identifier)
-            : (string) $identifier;
+        $identifierSegment = static::resolveCacheKeyIdentifier(
+            $identifier,
+            $this->model,
+        );
 
         return $this->cachePrefix . ':' . $this->modelSegment . ':' . $identifierSegment;
+    }
+
+    /**
+     * Resolve the identifier segment of a user cache key.
+     *
+     * @param class-string<Model&UserContract> $model
+     */
+    protected static function resolveCacheKeyIdentifier(
+        mixed $identifier,
+        string $model,
+        (Model&UserContract)|null $user = null,
+    ): string {
+        return static::$cacheKeyResolver
+            ? (static::$cacheKeyResolver)($identifier, $model, $user)
+            : (string) $identifier;
     }
 
     /**
@@ -530,15 +549,13 @@ class EloquentUserProvider implements UserProvider
             return;
         }
 
-        $invalidate = static function (UserContract $user): void {
+        $invalidate = static function (Model&UserContract $user) use ($modelClass): void {
             $id = $user->getAuthIdentifier();
-            $identifierSegment = static::$cacheKeyResolver
-                ? (static::$cacheKeyResolver)($id)
-                : (string) $id;
+            $identifierSegment = static::resolveCacheKeyIdentifier($id, $modelClass, $user);
 
             $cacheManager = Container::getInstance()->make('cache');
 
-            foreach (static::$cachedProviders[$user::class] ?? [] as $descriptor) {
+            foreach (static::$cachedProviders[$modelClass] ?? [] as $descriptor) {
                 $cacheManager
                     ->store($descriptor['storeName'])
                     ->forget($descriptor['prefix'] . ':' . $descriptor['modelSegment'] . ':' . $identifierSegment);

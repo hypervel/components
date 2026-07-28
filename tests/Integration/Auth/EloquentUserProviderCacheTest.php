@@ -153,6 +153,42 @@ class EloquentUserProviderCacheTest extends TestCase
         $user->delete();
     }
 
+    public function testModelEventInvalidationProvidesProviderModelAndUser(): void
+    {
+        $user = User::query()->firstOrFail();
+        $received = [];
+
+        EloquentUserProvider::resolveUserCacheKeyUsing(function (
+            mixed $identifier,
+            string $model,
+            ?Model $resolvedUser,
+        ) use (&$received): string {
+            $received[] = [$identifier, $model, $resolvedUser];
+
+            return 'owner:' . $resolvedUser?->getKey();
+        });
+
+        $repo = $this->stubCache();
+        $repo->shouldReceive('forget')
+            ->twice()
+            ->with(self::DEFAULT_KEY_PREFIX . ':' . User::class . ':owner:' . $user->getKey())
+            ->andReturn(true);
+
+        $this->makeCachedProvider();
+
+        $user->name = 'Updated';
+        $user->save();
+        $user->delete();
+
+        $this->assertCount(2, $received);
+
+        foreach ($received as [$identifier, $model, $resolvedUser]) {
+            $this->assertSame($user->getAuthIdentifier(), $identifier);
+            $this->assertSame(User::class, $model);
+            $this->assertSame($user, $resolvedUser);
+        }
+    }
+
     public function testDescriptorsDedupeOnIdenticalConfig(): void
     {
         $this->stubCache();

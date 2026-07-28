@@ -250,7 +250,9 @@ Auth cache configuration is read during process startup and must not be changed 
 The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_users:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models. If the same user identifier can resolve to different records depending on request context, such as in a multi-tenant application, register a cache key resolver in a service provider:
 
 ```php
+use App\Models\User;
 use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Database\Eloquent\Model;
 
 /**
  * Bootstrap any application services.
@@ -258,12 +260,20 @@ use Hypervel\Auth\EloquentUserProvider;
 public function boot(): void
 {
     EloquentUserProvider::resolveUserCacheKeyUsing(
-        fn (mixed $identifier): string => tenant()->id . ':' . $identifier,
+        function (mixed $identifier, string $model, ?Model $user): string {
+            if (! is_a($model, User::class, true)) {
+                return (string) $identifier;
+            }
+
+            $tenantId = $user?->tenant_id ?? tenant()->getKey();
+
+            return $tenantId . ':' . $identifier;
+        },
     );
 }
 ```
 
-The resolver controls only the identifier segment of the key. The cache prefix and user model class are still included automatically. Since the resolver is called during each lookup, it can safely read request-specific coroutine context.
+This example partitions the tenant-owned `User` model while leaving other provider models unpartitioned. The resolver controls only the identifier segment of the key. The cache prefix and user model class are still included automatically. The resolver receives the identifier and provider model class. When a user is saved or deleted, automatic invalidation also provides that user model. Lookups and manual invalidation provide `null`. This allows tenant-aware providers to use the current tenant for lookups and the model's owning tenant for invalidation.
 
 Cached users are invalidated automatically when the user model is saved or deleted. This includes provider writes such as "remember me" token updates and automatic password rehashing, because those operations save the Eloquent model. Writes that bypass Eloquent model events, such as raw queries, mass updates, or pivot table changes for roles and permissions, should clear the cached user manually:
 
@@ -278,7 +288,7 @@ Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 
 If `withQuery()` eager-loads relations, the first uncached lookup stores that graph. Declare every application relation and custom container class so later cache hits restore the complete shape.
 
-If multiple guards share the same Eloquent provider and user model, one clear call against any of those guards clears that provider's cache keyspace. If different guards use different user models, pass the guard name so Hypervel can clear the correct provider. When a custom key resolver is registered, `clearUserCache` uses that same resolver and clears the cache entry for the current request context.
+If multiple guards share the same Eloquent provider and user model, one clear call against any of those guards clears that provider's cache keyspace. If different guards use different user models, pass the guard name so Hypervel can clear the correct provider. When a custom key resolver is registered, `clearUserCache` uses that same resolver with a `null` user model and clears the cache entry for the current request context.
 
 If you need to clear many cached users at once, use a dedicated cache store for auth, point `AUTH_USERS_CACHE_STORE` at that store, and flush it:
 

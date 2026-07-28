@@ -237,13 +237,17 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->retrieveById(42);
     }
 
-    public function testCustomCacheKeyResolverReceivesIdentifier()
+    public function testCustomCacheKeyResolverReceivesLookupContext()
     {
-        $received = null;
-        EloquentUserProvider::resolveUserCacheKeyUsing(function (mixed $id) use (&$received): string {
-            $received = $id;
+        $received = [];
+        EloquentUserProvider::resolveUserCacheKeyUsing(function (
+            mixed $identifier,
+            string $model,
+            ?Model $user,
+        ) use (&$received): string {
+            $received = [$identifier, $model, $user];
 
-            return (string) $id;
+            return (string) $identifier;
         });
 
         $repo = $this->stubCache(RedisStore::class);
@@ -257,7 +261,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $provider->retrieveById(42);
 
-        $this->assertSame(42, $received);
+        $this->assertSame([42, self::MODEL, null], $received);
     }
 
     public function testCacheKeyAlwaysIncludesFqcnEvenWithCustomResolver()
@@ -411,7 +415,16 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
     public function testClearUserCacheUsesCustomKeyResolver()
     {
-        EloquentUserProvider::resolveUserCacheKeyUsing(fn (mixed $id): string => "tenant:{$id}");
+        $received = [];
+        EloquentUserProvider::resolveUserCacheKeyUsing(function (
+            mixed $identifier,
+            string $model,
+            ?Model $user,
+        ) use (&$received): string {
+            $received = [$identifier, $model, $user];
+
+            return "tenant:{$identifier}";
+        });
 
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':tenant:42';
@@ -421,6 +434,8 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->enableCache(null);
 
         $provider->clearUserCache(42);
+
+        $this->assertSame([42, self::MODEL, null], $received);
     }
 
     public function testClearUserCacheIsNoOpWhenCacheDisabled()

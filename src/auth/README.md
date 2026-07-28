@@ -128,7 +128,7 @@ The cache key includes the provider's model FQCN, so `Auth::clearUserCache(42, '
 
 **Tenant-aware resolver interaction:**
 
-If you've registered `EloquentUserProvider::resolveUserCacheKeyUsing(...)`, `clearUserCache()` uses the same resolver — so it clears the entry for the **current** tenant context, not every tenant's copy. To clear the same user across multiple tenants, call `clearUserCache()` once per tenant context.
+If you've registered `EloquentUserProvider::resolveUserCacheKeyUsing(...)`, `clearUserCache()` passes a null user model to the same resolver — so it clears the entry for the **current** tenant context, not every tenant's copy. When a user is saved or deleted, automatic invalidation passes that model so the resolver can derive its owning tenant without ambient context. To clear the same user across multiple tenants manually, call `clearUserCache()` once per tenant context.
 
 **No-ops:**
 
@@ -248,19 +248,31 @@ Default cache key format is `{prefix}:{fqcn}:{identifier}` — e.g. `auth_users:
 For multi-tenant apps where the same user ID resolves to different rows per tenant (tenant global scopes, shared user tables), register a global resolver in a service provider's `boot()`:
 
 ```php
+use App\Models\User;
 use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Database\Eloquent\Model;
 
 public function boot(): void
 {
     EloquentUserProvider::resolveUserCacheKeyUsing(
-        fn (mixed $identifier) => tenantId() . ':' . $identifier,
+        function (mixed $identifier, string $model, ?Model $user): string {
+            if (! is_a($model, User::class, true)) {
+                return (string) $identifier;
+            }
+
+            $tenantId = $user?->tenant_id ?? tenant()->getKey();
+
+            return $tenantId . ':' . $identifier;
+        },
     );
 }
 ```
 
 Produces keys like `auth_users:App\Models\User:5:42` (prefix, FQCN, tenant 5, user 42).
 
-**Why a static callback, not a config closure?** Config files are evaluated once at boot in Swoole. A closure calling `tenantId()` in the config would capture the boot-time tenant (likely null), not the per-request tenant. The static resolver callback runs fresh on each `retrieveById()`, reading the current coroutine's context.
+This example partitions the tenant-owned `User` model while leaving other provider models unpartitioned. The resolver receives the identifier and provider model class. When a user is saved or deleted, automatic invalidation also provides that user model. Lookups and manual invalidation provide null. This lets tenant-aware providers use ambient context for lookups and the row's owner for event-driven invalidation.
+
+**Why a static callback, not a config closure?** Configuration files should contain serializable values so they can be cached. Registering the callback during provider boot keeps configuration cacheable, while the resolver itself runs fresh on each lookup or invalidation.
 
 ### Dynamic tag resolvers
 
