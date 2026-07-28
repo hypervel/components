@@ -402,23 +402,52 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
     }
 
-    public function testMissingTokenableCachesNullResult(): void
+    public function testMissingTokenableIsNotCached(): void
     {
         $token = $this->createToken();
+        $tokenableId = $token->tokenable_id;
 
-        TestUser::query()->whereKey($token->tokenable_id)->delete();
+        TestUser::query()->whereKey($tokenableId)->delete();
 
         DB::enableQueryLog();
 
         $this->assertNull(PersonalAccessToken::findTokenable(PersonalAccessToken::findOrFail($token->id)));
         $this->assertSame(1, $this->countQueriesForTable('users'));
-        $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
         $this->assertNull($this->cacheRepository()->get("sanctum:{$token->id}:tokenable"));
+
+        TestUser::forceCreate([
+            'id' => $tokenableId,
+            'name' => 'Restored User',
+            'email' => 'restored@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
 
         DB::flushQueryLog();
 
-        $this->assertNull(PersonalAccessToken::findTokenable(PersonalAccessToken::findOrFail($token->id)));
-        $this->assertSame(0, $this->countQueriesForTable('users'));
+        $tokenable = PersonalAccessToken::findTokenable(PersonalAccessToken::findOrFail($token->id));
+
+        $this->assertInstanceOf(TestUser::class, $tokenable);
+        $this->assertSame($tokenableId, $tokenable->getKey());
+        $this->assertSame(1, $this->countQueriesForTable('users'));
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+    }
+
+    public function testInvalidCachedTokenableIsRefreshed(): void
+    {
+        $token = $this->createToken();
+        $cacheKey = "sanctum:{$token->id}:tokenable";
+
+        $this->assertTrue($this->cacheRepository()->put($cacheKey, 'invalid', 300));
+
+        DB::enableQueryLog();
+
+        $tokenable = PersonalAccessToken::findTokenable(PersonalAccessToken::findOrFail($token->id));
+
+        $this->assertInstanceOf(TestUser::class, $tokenable);
+        $this->assertSame($token->tokenable_id, $tokenable->getKey());
+        $this->assertSame(1, $this->countQueriesForTable('users'));
+        $this->assertInstanceOf(TestUser::class, $this->cacheRepository()->get($cacheKey));
     }
 
     public function testValidTokenableIsCached(): void
@@ -492,17 +521,15 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertSame('zero', $zeroStore->get('sanctum:2'));
     }
 
-    public function testUpdatingTokenForgetsTokenAndTokenableCacheEntries(): void
+    public function testUpdatingTokenForgetsTokenAndPositiveTokenableCacheEntries(): void
     {
         $token = $this->createToken();
+        $foundToken = PersonalAccessToken::findOrFail($token->id);
 
         $this->assertTrue($token->is(PersonalAccessToken::findToken($token->id . '|secret')));
-
-        TestUser::query()->whereKey($token->tokenable_id)->delete();
-
-        $this->assertNull(PersonalAccessToken::findTokenable(PersonalAccessToken::findOrFail($token->id)));
+        $this->assertTrue($token->tokenable->is(PersonalAccessToken::findTokenable($foundToken)));
         $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
-        $this->assertSame(NullSentinel::VALUE, $this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
 
         $token->forceFill(['name' => 'Updated Token'])->save();
 

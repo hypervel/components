@@ -207,7 +207,7 @@ For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers pre
 
 Sanctum cache settings and `sanctum.last_used_at` are read during process startup and must not be changed while a worker is serving requests.
 
-Sanctum also caches missing token IDs and missing tokenable models as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked, deleted, or orphaned token data. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints.
+Sanctum also caches missing token IDs as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked or unknown token. Missing tokenable models are not cached because their visibility may depend on the current query context. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints.
 
 The `last_used_at_update_interval` option controls how frequently Sanctum writes a cached token's `last_used_at` timestamp back to the database. The default value is `300`, so the timestamp is updated at most once every five minutes for each token while caching is enabled. The cache TTL should be greater than or equal to this interval so active cached tokens do not expire before the next allowed timestamp write.
 

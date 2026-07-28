@@ -161,12 +161,19 @@ class PersonalAccessToken extends Model implements HasAbilities
         $cache = self::getCache();
         $cacheKey = self::getCacheKey($accessToken->id) . ':tokenable';
 
-        /** @var ?Authenticatable $tokenable */
-        $tokenable = $cache->rememberNullable(
-            $cacheKey,
-            config('sanctum.cache.ttl'),
-            fn () => $accessToken->getAttribute('tokenable')
-        );
+        // A scoped miss may be visible in another query context, so cache only positive tokenables.
+        $tokenable = $cache->get($cacheKey);
+
+        if (! $tokenable instanceof Authenticatable) {
+            $tokenable = $accessToken->getAttribute('tokenable');
+
+            if ($tokenable instanceof Authenticatable) {
+                $cache->put($cacheKey, $tokenable, config('sanctum.cache.ttl'));
+            } else {
+                $tokenable = null;
+            }
+        }
+
         $accessToken->setRelation('tokenable', $tokenable);
 
         return $tokenable;
