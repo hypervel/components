@@ -68,7 +68,7 @@ class ThrottlesExceptionsWithRedis extends ThrottlesExceptions
 
             $this->limiter->acquire();
 
-            return $job->release($this->retryAfterMinutes * 60);
+            return $job->release($this->getTimeUntilNextRetryAfterException($throwable));
         }
 
         return null;
