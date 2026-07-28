@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Operations;
 
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
@@ -26,6 +27,17 @@ class SafeScanTest extends TestCase
         $connection->setActiveConnection($client);
 
         return $connection;
+    }
+
+    public function testScanRejectsTransformedConnections(): void
+    {
+        $connection = $this->createConnection(new FakeRedisClient);
+        $connection->shouldTransform();
+
+        $this->expectException(InvalidRedisConnectionException::class);
+        $this->expectExceptionMessage('SafeScan requires a raw Redis connection.');
+
+        new SafeScan($connection, '');
     }
 
     public function testScanReturnsMatchingKeys(): void
