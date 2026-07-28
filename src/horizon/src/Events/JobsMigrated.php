@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Events;
 
 use Hypervel\Horizon\JobPayload;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Support\Collection;
 
 class JobsMigrated
@@ -30,8 +31,12 @@ class JobsMigrated
     public function __construct(array $payloads)
     {
         $this->payloads = collect($payloads)->map(function ($job) {
-            return new JobPayload($job);
-        });
+            try {
+                return new JobPayload($job);
+            } catch (InvalidPayloadException) {
+                return null;
+            }
+        })->filter()->values();
     }
 
     /**

@@ -10,7 +10,9 @@ use Hypervel\Events\CallQueuedListener;
 use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Support\Arr;
+use JsonException;
 
 class JobPayload implements ArrayAccess
 {
@@ -27,7 +29,25 @@ class JobPayload implements ArrayAccess
     public function __construct(
         public string $value
     ) {
-        $this->decoded = json_decode($value, true);
+        try {
+            $decoded = json_decode($value, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new InvalidPayloadException(
+                'Unable to decode the Horizon job payload: ' . $e->getMessage(),
+                $value,
+            );
+        }
+
+        $id = is_array($decoded) ? ($decoded['uuid'] ?? $decoded['id'] ?? null) : null;
+
+        if (! is_array($decoded) || ! is_string($id)) {
+            throw new InvalidPayloadException(
+                'The Horizon job payload does not contain a valid string identifier.',
+                $value,
+            );
+        }
+
+        $this->decoded = $decoded;
     }
 
     /**

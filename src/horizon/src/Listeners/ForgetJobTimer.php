@@ -25,6 +25,8 @@ class ForgetJobTimer
      */
     public function handle(JobExceptionOccurred|JobFailed $event): void
     {
-        $this->watch->forget($event->job->getJobId());
+        if (($jobId = $event->job->getJobId()) !== null) {
+            $this->watch->forget($jobId);
+        }
     }
 }
