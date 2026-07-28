@@ -109,7 +109,7 @@ interface ConnectionInterface
     /**
      * Rollback the active database transaction.
      */
-    public function rollBack(): void;
+    public function rollBack(?int $toLevel = null): void;
 
     /**
      * Get the number of active transactions.
