@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\DatabaseStore;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
@@ -14,6 +16,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use stdClass;
 
 class CacheDatabaseStoreTest extends TestCase
 {
@@ -57,6 +60,46 @@ class CacheDatabaseStoreTest extends TestCase
         $table->shouldReceive('get')->once()->andReturn(new Collection([(object) ['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 999999999999999]]));
 
         $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testSerializableClassesControlCachedObjects(): void
+    {
+        [$denyingStore, $denyingTable] = $this->getStore(false);
+        [$allowingStore, $allowingTable] = $this->getStore([stdClass::class]);
+
+        foreach ([$denyingTable, $allowingTable] as $table) {
+            $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
+            $table->shouldReceive('get')->once()->andReturn(new Collection([(object) [
+                'key' => 'prefixfoo',
+                'value' => serialize(new stdClass),
+                'expiration' => 999999999999999,
+            ]]));
+        }
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('foo'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('foo'));
+    }
+
+    public function testSerializableClassPolicyControlsCachedObjects(): void
+    {
+        [$denyingStore, $denyingTable] = $this->getStore(
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        [$allowingStore, $allowingTable] = $this->getStore(
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
+        );
+
+        foreach ([$denyingTable, $allowingTable] as $table) {
+            $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
+            $table->shouldReceive('get')->once()->andReturn(new Collection([(object) [
+                'key' => 'prefixfoo',
+                'value' => serialize(new stdClass),
+                'expiration' => 999999999999999,
+            ]]));
+        }
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('foo'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('foo'));
     }
 
     public function testValueIsReturnedOnPostgres()
@@ -444,8 +487,10 @@ class CacheDatabaseStoreTest extends TestCase
     /**
      * Get a DatabaseStore instance with mocked dependencies.
      */
-    protected function getStore(): array
-    {
+    protected function getStore(
+        array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
+    ): array {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
         $table = m::mock(Builder::class);
@@ -453,7 +498,14 @@ class CacheDatabaseStoreTest extends TestCase
         $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
         $connection->shouldReceive('table')->with('table')->andReturn($table);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
+        $store = new DatabaseStore(
+            $resolver,
+            'default',
+            'table',
+            'prefix',
+            serializableClasses: $serializableClasses,
+            serializableClassPolicy: $serializableClassPolicy,
+        );
 
         return [$store, $table, $connection, $resolver];
     }
