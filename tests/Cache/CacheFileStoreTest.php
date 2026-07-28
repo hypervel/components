@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Exception;
 use Hypervel\Cache\FileStore;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
@@ -14,7 +16,9 @@ use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use ReflectionProperty;
 use RuntimeException;
+use stdClass;
 
 class CacheFileStoreTest extends TestCase
 {
@@ -94,6 +98,77 @@ class CacheFileStoreTest extends TestCase
         $files->expects($this->once())->method('get')->willReturn($contents);
         $store = new FileStore($files, __DIR__);
         $this->assertSame('Hello World', $store->get('foo'));
+    }
+
+    public function testSerializableClassesControlCachedObjects(): void
+    {
+        $denyingFiles = $this->mockFilesystem();
+        $denyingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+        $allowingFiles = $this->mockFilesystem();
+        $allowingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+
+        $denyingStore = new FileStore($denyingFiles, __DIR__, null, false);
+        $allowingStore = new FileStore(
+            $allowingFiles,
+            __DIR__,
+            serializableClasses: [stdClass::class],
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('foo'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('foo'));
+    }
+
+    public function testSerializableClassPolicyControlsCachedObjects(): void
+    {
+        $denyingFiles = $this->mockFilesystem();
+        $denyingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+        $allowingFiles = $this->mockFilesystem();
+        $allowingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+
+        $denyingStore = new FileStore(
+            $denyingFiles,
+            __DIR__,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        $allowingStore = new FileStore(
+            $allowingFiles,
+            __DIR__,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('foo'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('foo'));
+    }
+
+    public function testLockStoreRetainsBothSerializationPolicies(): void
+    {
+        $files = m::mock(Filesystem::class)->shouldIgnoreMissing();
+        $files->shouldReceive('exists')->andReturnTrue();
+        $serializableClasses = [stdClass::class];
+        $policy = new SerializableClassPolicy(static fn (): false => false);
+        $store = new FileStore(
+            $files,
+            __DIR__,
+            serializableClasses: $serializableClasses,
+            serializableClassPolicy: $policy,
+        );
+        $lock = $store->lock('foo');
+
+        $storeProperty = new ReflectionProperty($lock, 'store');
+        $lockStore = $storeProperty->getValue($lock);
+        $classesProperty = new ReflectionProperty($lockStore, 'serializableClasses');
+        $policyProperty = new ReflectionProperty($lockStore, 'serializableClassPolicy');
+
+        $this->assertSame($serializableClasses, $classesProperty->getValue($lockStore));
+        $this->assertSame($policy, $policyProperty->getValue($lockStore));
     }
 
     public function testStoreItemProperlyStoresValues()
