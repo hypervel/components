@@ -13,6 +13,7 @@ use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Jobs\Job;
+use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Tests\TestCase;
@@ -148,7 +149,7 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($container);
         $manager->addPoolable('custom');
         $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
+        $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);
 
         $connector->shouldReceive('connect')->once()->with([
@@ -187,7 +188,7 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($container);
         $manager->addPoolable('custom');
         $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
+        $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);
 
         $connector->shouldReceive('connect')->twice()->with([
@@ -231,7 +232,7 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($container);
         $manager->addPoolable('custom');
         $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
+        $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);
         $currentName = '';
 
@@ -276,7 +277,7 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($oldContainer);
         $manager->addPoolable('custom');
         $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
+        $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);
 
         $connector->shouldReceive('connect')->twice()->andReturn($queue);

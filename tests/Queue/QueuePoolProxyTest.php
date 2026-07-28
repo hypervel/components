@@ -20,7 +20,9 @@ use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\Jobs\SqsJob;
+use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Queue\QueuePoolProxy;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
@@ -35,15 +37,20 @@ class QueuePoolProxyTest extends TestCase
 {
     public function testEnumeratedSynchronousSurfaceUsesBorrowScopedInvocation(): void
     {
-        $queue = m::mock(QueueContract::class);
+        $queue = m::mock(QueuePoolProxyTestQueue::class)->makePartial();
         [$proxy] = $this->proxy(fn () => $queue);
         $proxy->setConnectionName('logical');
 
-        $queue->shouldReceive('setConnectionName')->times(11)->with('logical')->andReturnSelf();
         $queue->shouldReceive('size')->once()->with('queue')->andReturn(1);
         $queue->shouldReceive('pendingSize')->once()->with('queue')->andReturn(2);
         $queue->shouldReceive('delayedSize')->once()->with('queue')->andReturn(3);
         $queue->shouldReceive('reservedSize')->once()->with('queue')->andReturn(4);
+        $queue->shouldReceive('pendingJobs')->once()->with('queue')->andReturn($pending = new Collection(['pending']));
+        $queue->shouldReceive('delayedJobs')->once()->with('queue')->andReturn($delayed = new Collection(['delayed']));
+        $queue->shouldReceive('reservedJobs')->once()->with('queue')->andReturn($reserved = new Collection(['reserved']));
+        $queue->shouldReceive('allPendingJobs')->once()->andReturn($allPending = new Collection(['all-pending']));
+        $queue->shouldReceive('allDelayedJobs')->once()->andReturn($allDelayed = new Collection(['all-delayed']));
+        $queue->shouldReceive('allReservedJobs')->once()->andReturn($allReserved = new Collection(['all-reserved']));
         $queue->shouldReceive('creationTimeOfOldestPendingJob')->once()->with('queue')->andReturn(5);
         $queue->shouldReceive('push')->once()->with('job', 'data', 'queue')->andReturn('pushed');
         $queue->shouldReceive('pushOn')->once()->with('queue', 'job', 'data')->andReturn('pushed-on');
@@ -57,6 +64,12 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(2, $proxy->pendingSize('queue'));
         $this->assertSame(3, $proxy->delayedSize('queue'));
         $this->assertSame(4, $proxy->reservedSize('queue'));
+        $this->assertSame($pending, $proxy->pendingJobs('queue'));
+        $this->assertSame($delayed, $proxy->delayedJobs('queue'));
+        $this->assertSame($reserved, $proxy->reservedJobs('queue'));
+        $this->assertSame($allPending, $proxy->allPendingJobs());
+        $this->assertSame($allDelayed, $proxy->allDelayedJobs());
+        $this->assertSame($allReserved, $proxy->allReservedJobs());
         $this->assertSame(5, $proxy->creationTimeOfOldestPendingJob('queue'));
         $this->assertSame('pushed', $proxy->push('job', 'data', 'queue'));
         $this->assertSame('pushed-on', $proxy->pushOn('queue', 'job', 'data'));
@@ -64,6 +77,46 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame('later', $proxy->later(10, 'job', 'data', 'queue'));
         $this->assertSame('later-on', $proxy->laterOn('queue', 10, 'job', 'data'));
         $this->assertSame('bulk', $proxy->bulk(['job'], 'data', 'queue'));
+    }
+
+    public function testSqsConnectionAccessUsesOneBorrowAndClearsTheDispatcherBeforeDriverCleanup(): void
+    {
+        $queue = new QueuePoolProxyTestQueue;
+        $cleanupObservedClearedDispatcher = false;
+        [$proxy, $pools] = $this->proxy(
+            fn () => $queue,
+            function (QueuePoolProxyTestQueue $released) use (&$cleanupObservedClearedDispatcher): void {
+                $cleanupObservedClearedDispatcher = ! $released->hasAfterCommitDispatcher();
+            },
+            resourceType: 'sqs',
+        );
+
+        $this->assertSame('result', $proxy->withConnection(function (BaseQueue $borrowed) use ($queue) {
+            $this->assertSame($queue, $borrowed);
+            $this->assertTrue($queue->hasAfterCommitDispatcher());
+
+            return 'result';
+        }));
+
+        $pool = $pools->get($proxy->getPoolName());
+        $this->assertTrue($cleanupObservedClearedDispatcher);
+        $this->assertFalse($queue->hasAfterCommitDispatcher());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getObjectNumberInPool());
+    }
+
+    public function testDirectConnectionAccessRejectsNonSqsPoolsBeforeBorrowing(): void
+    {
+        [$proxy, $pools] = $this->proxy(fn () => new QueuePoolProxyTestQueue);
+
+        try {
+            $proxy->withConnection(fn () => null);
+            $this->fail('The unsupported connection exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Direct queue connection access is only supported for SQS queues.', $exception->getMessage());
+        }
+
+        $this->assertFalse($pools->has($proxy->getPoolName()));
     }
 
     public function testPopPinsTheQueueUntilTheJobTerminates(): void
@@ -299,6 +352,7 @@ class QueuePoolProxyTest extends TestCase
         Closure $resolver,
         ?Closure $releaseCallback = null,
         ?ExceptionHandler $handler = null,
+        string $resourceType = 'queue-test',
     ): array {
         $container = new Container;
         $container->instance(ContainerContract::class, $container);
@@ -311,7 +365,7 @@ class QueuePoolProxyTest extends TestCase
         $pools = new PoolManager;
         $definition = new PoolDefinition(
             'queue-test',
-            'queue-test',
+            $resourceType,
             'auto:queue-test',
             PoolOptions::fromArray(['max_objects' => 1]),
         );
@@ -323,10 +377,8 @@ class QueuePoolProxyTest extends TestCase
     }
 }
 
-class QueuePoolProxyTestQueue implements QueueContract
+class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
 {
-    protected string $connectionName = '';
-
     public function __construct(
         public ?JobContract $job = null,
         public ?Throwable $popException = null,
@@ -351,6 +403,36 @@ class QueuePoolProxyTestQueue implements QueueContract
     public function reservedSize(?string $queue = null): int
     {
         return 0;
+    }
+
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
     }
 
     public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
@@ -418,6 +500,11 @@ class QueuePoolProxyTestQueue implements QueueContract
         $this->connectionName = $name;
 
         return $this;
+    }
+
+    public function hasAfterCommitDispatcher(): bool
+    {
+        return $this->afterCommitDispatcher !== null;
     }
 }
 

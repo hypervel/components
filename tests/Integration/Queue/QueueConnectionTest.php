@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Integration\Queue\QueueConnectionTest;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
@@ -31,6 +33,9 @@ class QueueConnectionTest extends TestCase
     {
         $this->app->singleton('db.transactions', function () {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->shouldReceive('callbackApplicableTransactions')
+                ->once()
+                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
             $transactionManager->shouldNotReceive('addCallbackForRollback');
 
@@ -63,6 +68,9 @@ class QueueConnectionTest extends TestCase
 
         $this->app->singleton('db.transactions', function () {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->shouldReceive('callbackApplicableTransactions')
+                ->once()
+                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
             $transactionManager->shouldNotReceive('addCallbackForRollback');
 
@@ -80,6 +88,9 @@ class QueueConnectionTest extends TestCase
     {
         $this->app->singleton('db.transactions', function () {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->shouldReceive('callbackApplicableTransactions')
+                ->once()
+                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
             $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
 
@@ -112,6 +123,9 @@ class QueueConnectionTest extends TestCase
 
         $this->app->singleton('db.transactions', function () {
             $transactionManager = m::mock(DatabaseTransactionsManager::class);
+            $transactionManager->shouldReceive('callbackApplicableTransactions')
+                ->once()
+                ->andReturn(new Collection([new DatabaseTransactionRecord('sqlite', 1)]));
             $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
             $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
 
