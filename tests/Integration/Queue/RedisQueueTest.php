@@ -10,15 +10,19 @@ use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[RequiresPhpExtension('redis')]
@@ -83,6 +87,85 @@ class RedisQueueTest extends TestCase
         $this->assertLessThanOrEqual($score, $before + 60);
         $this->assertGreaterThanOrEqual($score, $after + 60);
         $this->assertEquals($job, unserialize(json_decode($reservedJob)->data->command));
+    }
+
+    #[DataProvider('invalidRawPayloads')]
+    public function testInvalidRawPayloadIsReservedWithoutMutation(
+        string $payload,
+        ?string $expectedId,
+        string $expectedMessage,
+    ): void {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+
+        $this->queue->pushRaw($payload);
+
+        $job = $this->queue->pop();
+
+        $this->assertInstanceOf(RedisJob::class, $job);
+        $this->assertSame($payload, $job->getRawBody());
+        $this->assertSame($payload, $job->getReservedJob());
+        $this->assertSame($expectedId, $job->getJobId());
+        $this->assertSame(1, $job->attempts());
+        $this->assertSame(
+            [$payload],
+            $this->redisConnection()->zrange("queues:{$default}:reserved", 0, -1),
+        );
+        $this->assertSame(0, $this->redisConnection()->llen("queues:{$default}:notify"));
+
+        try {
+            $job->payload();
+            $this->fail('Expected the payload to be rejected.');
+        } catch (InvalidPayloadException $e) {
+            $this->assertStringContainsString($expectedMessage, $e->getMessage());
+            $this->assertSame($payload, $e->value);
+        }
+
+        $job->delete();
+
+        $this->assertSame(0, $this->redisConnection()->zcard("queues:{$default}:reserved"));
+    }
+
+    public static function invalidRawPayloads(): array
+    {
+        return [
+            'malformed JSON' => ['{invalid', null, 'Unable to decode the queue job payload'],
+            'scalar JSON' => ['true', null, 'does not contain a valid job and data'],
+            'array JSON' => ['[]', null, 'does not contain a valid job and data'],
+            'raw zero' => ['0', null, 'does not contain a valid job and data'],
+            'missing attempts' => ['{"id":"job-id","job":"foo","data":[]}', 'job-id', 'does not contain a valid attempts count'],
+            'nonnumeric attempts' => ['{"id":"job-id","job":"foo","data":[],"attempts":"invalid"}', 'job-id', 'does not contain a valid attempts count'],
+        ];
+    }
+
+    public function testNumericStringAttemptsAreIncrementedAtomically(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+
+        $this->queue->pushRaw('{"id":"job-id","job":"foo","data":[],"attempts":"2"}');
+
+        $job = $this->queue->pop();
+
+        $this->assertInstanceOf(RedisJob::class, $job);
+        $this->assertSame(3, $job->attempts());
+        $this->assertSame(3, json_decode($job->getReservedJob(), true, flags: JSON_THROW_ON_ERROR)['attempts']);
+        $this->assertSame('job-id', $job->getJobId());
+        $this->assertSame('foo', $job->payload()['job']);
+    }
+
+    public function testFractionalAttemptsReachPhpAsAnInteger(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+
+        $this->queue->pushRaw('{"id":"job-id","job":"foo","data":[],"attempts":1.5}');
+
+        $job = $this->queue->pop();
+
+        $this->assertInstanceOf(RedisJob::class, $job);
+        $this->assertSame(2, $job->attempts());
+        $this->assertSame(2.5, json_decode($job->getReservedJob(), true, flags: JSON_THROW_ON_ERROR)['attempts']);
     }
 
     public function testPopProperlyPopsDelayedJobOffOfRedis()
@@ -426,6 +509,122 @@ class RedisQueueTest extends TestCase
                 $client->setOption(\Redis::OPT_SERIALIZER, $originalSerializer);
             }
         });
+    }
+
+    public function testPendingJobs(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+        $this->queue->push(new RedisQueueIntegrationTestJob(99));
+
+        $job = $this->queue->pendingJobs()->sole();
+
+        $this->assertInspectedJob($job, $default, 0);
+    }
+
+    public function testDelayedJobs(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+        $this->queue->later(60, new RedisQueueIntegrationTestJob(99));
+
+        $job = $this->queue->delayedJobs()->sole();
+
+        $this->assertInspectedJob($job, $default, 0);
+    }
+
+    public function testReservedJobs(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+        $this->queue->push(new RedisQueueIntegrationTestJob(99));
+        $this->queue->pop();
+
+        $job = $this->queue->reservedJobs()->sole();
+
+        $this->assertInspectedJob($job, $default, 1);
+    }
+
+    public function testAllPendingJobs(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+        $this->queue->push(new RedisQueueIntegrationTestJob(1));
+        $this->queue->pushOn('emails', new RedisQueueIntegrationTestJob(2));
+
+        $jobs = $this->queue->allPendingJobs();
+
+        $this->assertCount(2, $jobs);
+        $this->assertSame([$default, 'emails'], $jobs->pluck('queue')->sort()->values()->all());
+        $jobs->each(fn (InspectedJob $job) => $this->assertInspectedJob($job, $job->queue, 0));
+    }
+
+    public function testAllPendingJobsPreserveHashTaggedNamesOnStandaloneRedis(): void
+    {
+        $this->setQueue('{orders}');
+        $this->queue->push(new RedisQueueIntegrationTestJob(1));
+
+        $this->assertInspectedJob($this->queue->pendingJobs()->sole(), '{orders}', 0);
+        $this->assertInspectedJob($this->queue->allPendingJobs()->sole(), '{orders}', 0);
+    }
+
+    public function testAllDelayedJobs(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+        $this->queue->later(60, new RedisQueueIntegrationTestJob(1));
+        $this->queue->laterOn('emails', 60, new RedisQueueIntegrationTestJob(2));
+
+        $jobs = $this->queue->allDelayedJobs();
+
+        $this->assertCount(2, $jobs);
+        $this->assertSame([$default, 'emails'], $jobs->pluck('queue')->sort()->values()->all());
+        $jobs->each(fn (InspectedJob $job) => $this->assertInspectedJob($job, $job->queue, 0));
+    }
+
+    public function testAllReservedJobs(): void
+    {
+        $default = $this->app['config']->get('queue.connections.redis.queue');
+        $this->setQueue($default);
+        $this->queue->push(new RedisQueueIntegrationTestJob(1));
+        $this->queue->pushOn('emails', new RedisQueueIntegrationTestJob(2));
+        $this->queue->pop();
+        $this->queue->pop('emails');
+
+        $jobs = $this->queue->allReservedJobs();
+
+        $this->assertCount(2, $jobs);
+        $this->assertSame([$default, 'emails'], $jobs->pluck('queue')->sort()->values()->all());
+        $jobs->each(fn (InspectedJob $job) => $this->assertInspectedJob($job, $job->queue, 1));
+    }
+
+    public function testInvalidInspectedPayloadRetainsItsRedisRemovalMember(): void
+    {
+        $this->setQueue('poison');
+        $this->queue->pushRaw('not-json', 'poison');
+
+        try {
+            $this->queue->pendingJobs('poison');
+            $this->fail('Expected the invalid payload to be rejected.');
+        } catch (InvalidPayloadException $exception) {
+            $this->assertStringContainsString('on queue [poison]', $exception->getMessage());
+            $this->assertSame('not-json', $exception->value);
+            $this->assertSame(
+                1,
+                $this->redisConnection()->lrem('queues:poison', 1, 'not-json'),
+            );
+        }
+
+        $this->assertSame(0, $this->redisConnection()->llen('queues:poison'));
+    }
+
+    private function assertInspectedJob(InspectedJob $job, ?string $queue, int $attempts): void
+    {
+        $this->assertSame(RedisQueueIntegrationTestJob::class, $job->name);
+        $this->assertSame($queue, $job->queue);
+        $this->assertSame($attempts, $job->attempts);
+        $this->assertNotNull($job->uuid);
+        $this->assertInstanceOf(CarbonImmutable::class, $job->createdAt);
     }
 
     private function setQueue(?string $default = null, ?string $connection = null, ?int $retryAfter = 60, ?int $blockFor = null): void
