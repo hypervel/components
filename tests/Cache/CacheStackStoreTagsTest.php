@@ -68,6 +68,19 @@ class CacheStackStoreTagsTest extends TestCase
         }
     }
 
+    public function testStringKeyedLayersUseZeroBasedIndexesInCompositionErrors(): void
+    {
+        $stack = new StackStore([
+            'memory' => $this->anyModeTaggableStore(),
+            'persistent' => $this->nonTaggableStore(),
+        ]);
+
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage('Stack layer 1');
+
+        $stack->tags(['t']);
+    }
+
     public function testInvalidNestedStackDoesNotCallGetTagMode(): void
     {
         $taggable = m::mock(TaggableStore::class);
