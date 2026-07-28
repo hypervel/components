@@ -16,7 +16,10 @@ use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Sanctum\TransientToken;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
 use Hypervel\Tests\Sanctum\Fixtures\User as SanctumTestUser;
@@ -30,6 +33,8 @@ class GuardTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    protected bool $tokenCacheEnabled = true;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,16 +43,34 @@ class GuardTest extends TestCase
         $this->defineTestRoutes();
     }
 
+    protected function tearDown(): void
+    {
+        try {
+            $this->app->make('cache')->store('sanctum-guard-file')->flush();
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
             SanctumServiceProvider::class,
+            GuardTestServiceProvider::class,
         ];
     }
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app->make('config')->set([
+        $config = $app->make('config');
+
+        $config->set([
+            'cache.default' => 'sanctum-guard-file',
+            'cache.serializable_classes' => false,
+            'cache.stores.sanctum-guard-file' => [
+                'driver' => 'file',
+                'path' => $app->storagePath('framework/cache/data/sanctum-guard'),
+            ],
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
@@ -59,7 +82,21 @@ class GuardTest extends TestCase
             ],
             'auth.providers.users.model' => TestUser::class,
             'auth.providers.users.driver' => 'eloquent',
+            'sanctum.cache.enabled' => $this->tokenCacheEnabled,
         ]);
+    }
+
+    protected function disableTokenCache(ApplicationContract $app): void
+    {
+        $this->tokenCacheEnabled = false;
+    }
+
+    protected function useCustomTrackingPersonalAccessTokenModel(ApplicationContract $app): void
+    {
+        $app->make('config')->set(
+            'sanctum.testing_personal_access_token_model',
+            CustomTrackingPersonalAccessToken::class,
+        );
     }
 
     /**
@@ -159,6 +196,18 @@ class GuardTest extends TestCase
     }
 
     /**
+     * Count logged select queries for a table.
+     */
+    protected function countQueriesForTable(string $table): int
+    {
+        return count(array_filter(
+            DB::getQueryLog(),
+            fn (array $query): bool => str_starts_with(strtolower($query['query'] ?? ''), 'select')
+                && str_contains($query['query'] ?? '', $table)
+        ));
+    }
+
+    /**
      * Expect the invalid session guards configuration exception.
      */
     protected function expectInvalidSessionGuardsConfiguration(): void
@@ -211,6 +260,118 @@ class GuardTest extends TestCase
                 'user_email' => $user->email,
                 'token_id' => $token->id,
             ]);
+    }
+
+    public function testHotTokenAuthenticationDoesNotQueryTokenOrUserTables(): void
+    {
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        DB::enableQueryLog();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_id' => $token->id,
+            ]);
+
+        $this->assertSame(1, $this->countQueriesForTable('personal_access_tokens'));
+        $this->assertSame(1, $this->countQueriesForTable('users'));
+
+        DB::flushQueryLog();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_id' => $token->id,
+            ]);
+
+        $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
+        $this->assertSame(0, $this->countQueriesForTable('users'));
+    }
+
+    public function testProviderValidationCallbackAndAuthenticatedUserShareTokenableInstance(): void
+    {
+        $callbackTokenable = null;
+        $authenticatedUser = null;
+        $eventToken = null;
+
+        Sanctum::authenticateAccessTokensUsing(
+            function (PersonalAccessToken $accessToken, bool $isValid) use (&$callbackTokenable): bool {
+                $callbackTokenable = $accessToken->getRelation('tokenable');
+
+                return $isValid;
+            }
+        );
+
+        $this->app->make(Dispatcher::class)->listen(
+            TokenAuthenticated::class,
+            function (TokenAuthenticated $event) use (&$eventToken): void {
+                $eventToken = $event->token;
+            }
+        );
+
+        Route::get('/test/tokenable-identity', function () use (&$authenticatedUser) {
+            $authenticatedUser = auth('sanctum')->user();
+
+            return response()->noContent();
+        });
+
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        DB::enableQueryLog();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->get('/test/tokenable-identity')->assertNoContent();
+
+        $this->assertInstanceOf(TestUser::class, $callbackTokenable);
+        $this->assertSame($callbackTokenable, $authenticatedUser);
+        $this->assertInstanceOf(PersonalAccessToken::class, $eventToken);
+        $this->assertSame($eventToken, $authenticatedUser->currentAccessToken());
+        $this->assertSame($callbackTokenable, $eventToken->getRelation('tokenable'));
+        $this->assertSame($user->id, $authenticatedUser->id);
+        $this->assertSame($token->id, $eventToken->id);
+        $this->assertSame(1, $this->countQueriesForTable('users'));
+    }
+
+    public function testCachedUsersAreIndependentAcrossTokenAuthentications(): void
+    {
+        [$user, $firstToken, $firstPlainToken] = $this->createUserWithToken(
+            plainTextToken: 'first-token'
+        );
+        $secondToken = $user->tokens()->create([
+            'name' => 'Second Token',
+            'token' => hash('sha256', 'second-token'),
+            'abilities' => ['*'],
+        ]);
+        $authenticatedUsers = [];
+
+        Route::get('/test/cached-user-identity', function () use (&$authenticatedUsers) {
+            $authenticatedUsers[] = auth('sanctum')->user();
+
+            return response()->noContent();
+        });
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $firstPlainToken,
+        ])->get('/test/cached-user-identity')->assertNoContent();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $secondToken->id . '|second-token',
+        ])->get('/test/cached-user-identity')->assertNoContent();
+
+        $this->assertCount(2, $authenticatedUsers);
+        $this->assertNotSame($authenticatedUsers[0], $authenticatedUsers[1]);
+        $this->assertSame($firstToken->id, $authenticatedUsers[0]->currentAccessToken()->id);
+        $this->assertSame($secondToken->id, $authenticatedUsers[1]->currentAccessToken()->id);
     }
 
     public function testEmptySessionGuardsIsTokenOnly(): void
@@ -636,6 +797,7 @@ class GuardTest extends TestCase
         $this->assertNull($token->fresh()->last_used_at);
     }
 
+    #[DefineEnvironment('disableTokenCache')]
     public function testSuccessfulAuthenticationWritesLastUsedAtOnEachRequestWhenCachingIsDisabled(): void
     {
         $this->freezeTime();
@@ -707,9 +869,9 @@ class GuardTest extends TestCase
         $this->assertNull($token->fresh()->last_used_at);
     }
 
+    #[DefineEnvironment('useCustomTrackingPersonalAccessTokenModel')]
     public function testCustomTokenModelCanOverrideLastUsedAtUpdate(): void
     {
-        Sanctum::usePersonalAccessTokenModel(CustomTrackingPersonalAccessToken::class);
         [$user, $token, $plainToken] = $this->createUserWithToken();
 
         $this->withHeaders([
@@ -856,6 +1018,21 @@ class GuardTest extends TestCase
                 'can_write' => true,
                 'can_delete' => false,
             ]);
+    }
+}
+
+class GuardTestServiceProvider extends ServiceProvider
+{
+    /**
+     * Bootstrap the test service provider.
+     */
+    public function boot(): void
+    {
+        $model = $this->app->make('config')->get('sanctum.testing_personal_access_token_model');
+
+        if (is_string($model)) {
+            Sanctum::usePersonalAccessTokenModel($model);
+        }
     }
 }
 
