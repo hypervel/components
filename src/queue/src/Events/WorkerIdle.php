@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Events;
 
 use Hypervel\Queue\WorkerOptions;
 
-class Looping
+class WorkerIdle
 {
     /**
      * Create a new event instance.
@@ -14,7 +14,7 @@ class Looping
     public function __construct(
         public string $connectionName,
         public string $queue,
-        public ?WorkerOptions $workerOptions = null,
+        public WorkerOptions $workerOptions,
     ) {
     }
 }
