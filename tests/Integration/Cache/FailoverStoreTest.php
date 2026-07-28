@@ -32,7 +32,7 @@ class FailoverStoreTest extends TestCase
         CantSerialize::$throwException = true;
     }
 
-    public function testFailoverCacheDispatchesEventOnlyOnce()
+    public function testFailoverCacheDispatchesEventOnlyOnce(): void
     {
         config([
             'cache.stores.failing_array' => array_merge(config('cache.stores.array'), ['serialize' => true]),
@@ -61,7 +61,7 @@ class FailoverStoreTest extends TestCase
         Event::assertDispatchedTimes(CacheFailedOver::class, 2);
     }
 
-    public function testSeparateFailoverStoresDoNotShareFailureEventsForTheSameFailingStore()
+    public function testSeparateFailoverStoresDoNotShareFailureEventsForTheSameFailingStore(): void
     {
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')
@@ -172,7 +172,7 @@ class FailoverStoreTest extends TestCase
         $this->assertFalse($store->putMany([], 60));
     }
 
-    public function testNullSentinelRoundTripsThroughFailoverStorePrimary()
+    public function testNullSentinelRoundTripsThroughFailoverStorePrimary(): void
     {
         $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
         $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
@@ -198,7 +198,7 @@ class FailoverStoreTest extends TestCase
         $this->assertNull($fallbackRepo->getStore()->get('k'));
     }
 
-    public function testPlainRememberTreatsCachedSentinelAsHitThroughFailoverStack()
+    public function testPlainRememberTreatsCachedSentinelAsHitThroughFailoverStack(): void
     {
         $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
         $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
@@ -220,7 +220,7 @@ class FailoverStoreTest extends TestCase
         $this->assertFalse($invoked);
     }
 
-    public function testPlainFlexibleTreatsCachedSentinelAsHitThroughFailoverStack()
+    public function testPlainFlexibleTreatsCachedSentinelAsHitThroughFailoverStack(): void
     {
         $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
         $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
@@ -242,7 +242,7 @@ class FailoverStoreTest extends TestCase
         $this->assertFalse($invoked);
     }
 
-    public function testManyFiresCacheHitNotCacheMissedForSentinelThroughFailoverStack()
+    public function testManyFiresCacheHitNotCacheMissedForSentinelThroughFailoverStack(): void
     {
         $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
         $fallbackRepo = new Repository(new ArrayStore(serializesValues: true));
@@ -270,7 +270,157 @@ class FailoverStoreTest extends TestCase
         $this->assertInstanceOf(CacheHit::class, $captured[1]);
         // Null, not the sentinel value.
         $this->assertNull($captured[1]->value);
-        $this->assertEmpty(array_filter($captured, fn ($e) => $e instanceof CacheMissed));
+        $this->assertEmpty(array_filter($captured, fn ($event) => $event instanceof CacheMissed));
+    }
+
+    public function testForgetAndFlushReachEveryStore(): void
+    {
+        $primary = m::mock(CacheRepository::class);
+        $primary->shouldReceive('forget')->once()->with('key')->andReturn(false);
+        $primary->shouldReceive('flush')->once()->andReturn(true);
+        $fallback = m::mock(CacheRepository::class);
+        $fallback->shouldReceive('forget')->once()->with('key')->andReturn(true);
+        $fallback->shouldReceive('flush')->once()->andReturn(true);
+        $store = $this->failoverStore([
+            'primary' => $primary,
+            'fallback' => $fallback,
+        ]);
+
+        $this->assertTrue($store->forget('key'));
+        $this->assertTrue($store->flush());
+    }
+
+    public function testPartialInvalidationFailuresReturnFalseAfterTryingEveryStore(): void
+    {
+        $primary = m::mock(CacheRepository::class);
+        $primary->shouldReceive('forget')
+            ->once()
+            ->with('key')
+            ->andThrow(new Exception('Primary forget failed.'));
+        $primary->shouldReceive('flush')
+            ->once()
+            ->andThrow(new Exception('Primary flush failed.'));
+        $fallback = m::mock(CacheRepository::class);
+        $fallback->shouldReceive('forget')->once()->with('key')->andReturn(false);
+        $fallback->shouldReceive('flush')->once()->andReturn(true);
+        $store = $this->failoverStore([
+            'primary' => $primary,
+            'fallback' => $fallback,
+        ]);
+
+        $this->assertFalse($store->forget('key'));
+        $this->assertFalse($store->flush());
+    }
+
+    public function testFlushReturnsFalseWhenAnyCompletedStoreReturnsFalse(): void
+    {
+        $primary = m::mock(CacheRepository::class);
+        $primary->shouldReceive('flush')->once()->andReturn(false);
+        $fallback = m::mock(CacheRepository::class);
+        $fallback->shouldReceive('flush')->once()->andReturn(true);
+        $store = $this->failoverStore([
+            'primary' => $primary,
+            'fallback' => $fallback,
+        ]);
+
+        $this->assertFalse($store->flush());
+    }
+
+    public function testAllFailingInvalidationRethrowsTheLastExceptionAfterTryingEveryStore(): void
+    {
+        $primary = m::mock(CacheRepository::class);
+        $primary->shouldReceive('forget')
+            ->once()
+            ->with('key')
+            ->andThrow(new Exception('Primary failed.'));
+        $fallback = m::mock(CacheRepository::class);
+        $fallback->shouldReceive('forget')
+            ->once()
+            ->with('key')
+            ->andThrow(new Exception('Fallback failed.'));
+        $store = $this->failoverStore([
+            'primary' => $primary,
+            'fallback' => $fallback,
+        ]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Fallback failed.');
+
+        $store->forget('key');
+    }
+
+    public function testAllFailingFirstSuccessOperationStillRethrowsTheLastException(): void
+    {
+        $primary = m::mock(CacheRepository::class);
+        $primary->shouldReceive('getRaw')
+            ->once()
+            ->with('key')
+            ->andThrow(new Exception('Primary failed.'));
+        $fallback = m::mock(CacheRepository::class);
+        $fallback->shouldReceive('getRaw')
+            ->once()
+            ->with('key')
+            ->andThrow(new Exception('Fallback failed.'));
+        $store = $this->failoverStore([
+            'primary' => $primary,
+            'fallback' => $fallback,
+        ]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Fallback failed.');
+
+        $store->getRaw('key');
+    }
+
+    public function testFailedInvalidationUpdatesFailureContextForLaterFirstSuccessWrites(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')
+            ->once()
+            ->with(CacheFailedOver::class)
+            ->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->once()
+            ->with(m::on(
+                fn (object $event): bool => $event instanceof CacheFailedOver
+                    && $event->storeName === 'primary'
+            ));
+        $primary = m::mock(CacheRepository::class);
+        $primary->shouldReceive('forget')
+            ->once()
+            ->with('key')
+            ->andThrow(new Exception('Primary failed.'));
+        $primary->shouldReceive('put')
+            ->once()
+            ->with('key', 'value', 60)
+            ->andThrow(new Exception('Primary still failed.'));
+        $fallback = m::mock(CacheRepository::class);
+        $fallback->shouldReceive('forget')->once()->with('key')->andReturn(true);
+        $fallback->shouldReceive('put')->once()->with('key', 'value', 60)->andReturn(true);
+        $store = $this->failoverStore([
+            'primary' => $primary,
+            'fallback' => $fallback,
+        ], $events);
+
+        $this->assertFalse($store->forget('key'));
+        $this->assertTrue($store->put('key', 'value', 60));
+    }
+
+    public function testSuccessfulReadsAndWritesRemainFirstSuccessOperations(): void
+    {
+        $primary = m::mock(CacheRepository::class);
+        $primary->shouldReceive('getRaw')->once()->with('key')->andReturn('value');
+        $primary->shouldReceive('put')->once()->with('key', 'updated', 60)->andReturn(true);
+        $fallback = m::mock(CacheRepository::class);
+        $fallback->shouldNotReceive('getRaw');
+        $fallback->shouldNotReceive('put');
+        $store = $this->failoverStore([
+            'primary' => $primary,
+            'fallback' => $fallback,
+        ]);
+
+        $this->assertSame('value', $store->getRaw('key'));
+        $this->assertTrue($store->put('key', 'updated', 60));
     }
 
     private function buildFailoverRepository(Repository $primary, Repository $fallback): Repository
@@ -283,6 +433,33 @@ class FailoverStoreTest extends TestCase
         $events->shouldReceive('dispatch')->withAnyArgs()->andReturnNull();
 
         return new Repository(new FailoverStore($cacheManager, $events, ['primary', 'fallback']));
+    }
+
+    /**
+     * Build a failover store from named repository doubles.
+     *
+     * @param array<string, CacheRepository> $repositories
+     */
+    private function failoverStore(
+        array $repositories,
+        ?Dispatcher $events = null,
+    ): FailoverStore {
+        $cacheManager = m::mock(CacheManager::class);
+        $cacheManager->shouldReceive('store')
+            ->andReturnUsing(
+                fn (string $store): CacheRepository => $repositories[$store],
+            );
+
+        if ($events === null) {
+            $events = m::mock(Dispatcher::class);
+            $events->allows('hasListeners')->andReturn(false);
+        }
+
+        return new FailoverStore(
+            $cacheManager,
+            $events,
+            array_keys($repositories),
+        );
     }
 }
 

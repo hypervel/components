@@ -158,7 +158,14 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function forget(string $key): bool
     {
-        return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
+        // First-success invalidation lets stale values reappear from lower-priority stores.
+        [$results, $exception] = $this->attemptOnEveryStore(__FUNCTION__, func_get_args());
+
+        if ($results === []) {
+            throw $exception ?? new RuntimeException('All failover cache stores failed.');
+        }
+
+        return $exception === null;
     }
 
     /**
@@ -166,7 +173,15 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function flush(): bool
     {
-        return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
+        // First-success invalidation lets stale values reappear from lower-priority stores.
+        [$results, $exception] = $this->attemptOnEveryStore(__FUNCTION__, func_get_args());
+
+        if ($results === []) {
+            throw $exception ?? new RuntimeException('All failover cache stores failed.');
+        }
+
+        return $exception === null
+            && ! in_array(false, $results, true);
     }
 
     /**
@@ -279,7 +294,7 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
     }
 
     /**
-     * Attempt the given method on all stores.
+     * Attempt the given method until a store call does not throw.
      *
      * @throws Throwable
      */
@@ -295,14 +310,12 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
             foreach ($this->stores as $store) {
                 try {
                     return $this->store($store)->{$method}(...$arguments);
-                } catch (Throwable $e) {
-                    $lastException = $e;
+                } catch (Throwable $exception) {
+                    $lastException = $exception;
 
                     $failedCaches[] = $store;
 
-                    if (! in_array($store, $failingCaches, true) && $this->events->hasListeners(CacheFailedOver::class)) {
-                        $this->events->dispatch(new CacheFailedOver($store, $e));
-                    }
+                    $this->recordStoreFailure($store, $exception, $failingCaches);
                 }
             }
         } finally {
@@ -310,6 +323,53 @@ class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider
         }
 
         throw $lastException ?? new RuntimeException('All failover cache stores failed.');
+    }
+
+    /**
+     * Attempt the given method on every store.
+     *
+     * @return array{0: list<mixed>, 1: ?Throwable}
+     */
+    protected function attemptOnEveryStore(string $method, array $arguments): array
+    {
+        $contextKey = self::FAILING_CACHES_CONTEXT_PREFIX . spl_object_id($this);
+        $failingCaches = CoroutineContext::get($contextKey, []);
+        $results = [];
+        $lastException = null;
+        $failedCaches = [];
+
+        try {
+            foreach ($this->stores as $store) {
+                try {
+                    $results[] = $this->store($store)->{$method}(...$arguments);
+                } catch (Throwable $exception) {
+                    $lastException = $exception;
+                    $failedCaches[] = $store;
+
+                    $this->recordStoreFailure($store, $exception, $failingCaches);
+                }
+            }
+        } finally {
+            CoroutineContext::set($contextKey, $failedCaches);
+        }
+
+        return [$results, $lastException];
+    }
+
+    /**
+     * Dispatch a newly observed store failure.
+     *
+     * @param list<string> $failingCaches
+     */
+    protected function recordStoreFailure(
+        string $store,
+        Throwable $exception,
+        array $failingCaches,
+    ): void {
+        if (! in_array($store, $failingCaches, true)
+            && $this->events->hasListeners(CacheFailedOver::class)) {
+            $this->events->dispatch(new CacheFailedOver($store, $exception));
+        }
     }
 
     /**
