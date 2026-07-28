@@ -8,6 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Queue\Console\Concerns\ParsesQueue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\Worker;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:pause')]
@@ -31,6 +32,12 @@ class PauseCommand extends Command
     public function handle(QueueFactory $manager): int
     {
         [$connection, $queue] = $this->parseQueue($this->argument('queue'));
+
+        if (! Worker::$pausable) {
+            $this->components->error('Queue pausing is currently disabled.');
+
+            return 1;
+        }
 
         /** @var QueueManager $manager */
         $manager->pause($connection, $queue);

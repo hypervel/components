@@ -15,6 +15,7 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\CarbonImmutable;
@@ -43,8 +44,9 @@ class WorkCommand extends Command
                             {--queue= : The names of the queues to work}
                             {--daemon : Run the worker in daemon mode (Deprecated)}
                             {--once : Only process the next job on the queue}
-                            {--concurrency=1 : The number of jobs to process at once}
+                            {--concurrency= : The number of jobs to process at once}
                             {--stop-when-empty : Stop when the queue is empty}
+                            {--stop-when-empty-for=0 : Stop when the queue has been empty for the given number of seconds}
                             {--delay=0 : The number of seconds to delay failed jobs (Deprecated)}
                             {--backoff=0 : The number of seconds to wait before retrying a job that encountered an uncaught exception}
                             {--max-jobs=0 : The number of jobs to process before stopping}
@@ -86,7 +88,7 @@ class WorkCommand extends Command
     public function handle(): ?int
     {
         if ($this->downForMaintenance() && $this->option('once')) {
-            return $this->worker->sleep($this->option('sleep')); // @phpstan-ignore method.void
+            return $this->worker->sleep((float) $this->option('sleep')); // @phpstan-ignore method.void
         }
 
         // We'll listen to the processed and failed events so we can write information
@@ -142,26 +144,25 @@ class WorkCommand extends Command
      */
     protected function gatherWorkerOptions(): WorkerOptions
     {
-        $concurrencyConfig = $this->config->integer('queue.concurrency_number', 1);
-        $concurrencyOption = (int) $this->option('concurrency');
-        $concurrency = $concurrencyOption > 1
-            ? $concurrencyOption
-            : max(1, $concurrencyConfig);
+        $concurrency = $this->option('concurrency') === null
+            ? max(1, $this->config->integer('queue.concurrency_number'))
+            : max(1, (int) $this->option('concurrency'));
 
         return new WorkerOptions(
-            $this->option('name'),
-            (int) max($this->option('backoff'), $this->option('delay')),
-            (float) $this->option('memory'),
-            (int) $this->option('timeout'),
-            (int) $this->option('sleep'),
-            (int) $this->option('tries'),
-            (bool) $this->option('force'),
-            (bool) $this->option('stop-when-empty'),
-            (int) $this->option('max-jobs'),
-            (int) $this->option('max-time'),
-            (int) $this->option('rest'),
-            $concurrency,
-            (int) $this->option('monitor-interval'),
+            name: (string) $this->option('name'),
+            backoff: (int) max($this->option('backoff'), $this->option('delay')),
+            memory: (float) $this->option('memory'),
+            timeout: (int) $this->option('timeout'),
+            sleep: (int) $this->option('sleep'),
+            maxTries: (int) $this->option('tries'),
+            force: (bool) $this->option('force'),
+            stopWhenEmpty: (bool) $this->option('stop-when-empty'),
+            maxJobs: (int) $this->option('max-jobs'),
+            maxTime: (int) $this->option('max-time'),
+            rest: (int) $this->option('rest'),
+            stopWhenEmptyFor: (int) $this->option('stop-when-empty-for'),
+            concurrency: $concurrency,
+            monitorInterval: (int) $this->option('monitor-interval'),
         );
     }
 
@@ -189,9 +190,9 @@ class WorkCommand extends Command
         $this->hypervel['events']->listen(JobFailed::class, static function (JobFailed $event): void {
             $command = static::currentCommand();
 
-            $command?->writeOutput($event->job, 'failed', $event->exception);
-
             $command?->logFailedJob($event);
+
+            $command?->writeOutput($event->job, 'failed', $event->exception);
         });
 
         static::$hasRegisteredListeners = true;
@@ -199,9 +200,8 @@ class WorkCommand extends Command
 
     /**
      * Write the status output for the queue worker for JSON or TTY.
-     * @param mixed $status
      */
-    protected function writeOutput(Job $job, $status, ?Throwable $exception = null): void
+    protected function writeOutput(Job $job, string $status, ?Throwable $exception = null): void
     {
         if ($this->output->isQuiet() || $this->output->isSilent()) {
             return;
@@ -217,20 +217,36 @@ class WorkCommand extends Command
      */
     protected function writeOutputForCli(Job $job, string $status): void
     {
+        $jobId = null;
+
+        try {
+            $jobId = $job->getJobId();
+            $jobName = $job->resolveName();
+        } catch (InvalidPayloadException $exception) {
+            $jobName = sprintf(
+                'Invalid queue job payload [%s:%s]: %s',
+                $job->getConnectionName(),
+                $job->getQueue(),
+                $exception->getMessage(),
+            );
+        }
+
+        $displayJobId = $jobId === null ? '' : (string) $jobId;
+
         $this->output->write(sprintf(
             '  <fg=gray>%s</> %s%s',
             $this->now()->format('Y-m-d H:i:s'),
-            $job->resolveName(),
+            $jobName,
             $this->output->isVerbose()
-                ? sprintf(' <fg=gray>%s</>', $job->getJobId())
+                ? sprintf(' <fg=gray>%s</>', $displayJobId)
                 : ''
         ));
 
         if ($status === 'starting') {
             $this->setLatestStartedAt(microtime(true));
 
-            $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
-                $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
+            $dots = max(terminal()->width() - mb_strlen($jobName) - (
+                $this->output->isVerbose() ? (mb_strlen($displayJobId) + 1) : 0
             ) - 33, 0);
 
             $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
@@ -242,8 +258,8 @@ class WorkCommand extends Command
 
         $runTime = $this->runTimeForHumans($this->getLatestStartedAt());
 
-        $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
-            $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
+        $dots = max(terminal()->width() - mb_strlen($jobName) - (
+            $this->output->isVerbose() ? (mb_strlen($displayJobId) + 1) : 0
         ) - mb_strlen($runTime) - 31, 0);
 
         $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
@@ -258,17 +274,30 @@ class WorkCommand extends Command
 
     /**
      * Write the status output for the queue worker in JSON format.
-     * @param mixed $status
      */
-    protected function writeOutputAsJson(Job $job, $status, ?Throwable $exception = null): void
+    protected function writeOutputAsJson(Job $job, string $status, ?Throwable $exception = null): void
     {
+        $jobId = null;
+
+        try {
+            $jobId = $job->getJobId();
+            $uuid = $job->uuid();
+            $jobName = $job->resolveName();
+            $attempts = $job->attempts();
+        } catch (InvalidPayloadException $payloadException) {
+            $uuid = null;
+            $jobName = 'Invalid queue job payload';
+            $attempts = null;
+            $exception = $payloadException;
+        }
+
         $log = array_filter([
             'level' => $status === 'starting' || $status === 'success' ? 'info' : 'warning',
-            'id' => $job->getJobId(),
-            'uuid' => $job->uuid(),
+            'id' => $jobId,
+            'uuid' => $uuid,
             'connection' => $job->getConnectionName(),
             'queue' => $job->getQueue(),
-            'job' => $job->resolveName(),
+            'job' => $jobName,
             'status' => $status,
             'result' => match (true) {
                 $job->isDeleted() => 'deleted',
@@ -276,11 +305,11 @@ class WorkCommand extends Command
                 $job->hasFailed() => 'failed',
                 default => '',
             },
-            'attempts' => $job->attempts(),
+            'attempts' => $attempts,
             'exception' => $exception ? $exception::class : '',
             'message' => $exception?->getMessage(),
             'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
-        ]);
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         if ($status === 'starting') {
             $this->setLatestStartedAt(microtime(true));
@@ -350,7 +379,7 @@ class WorkCommand extends Command
             return false;
         }
 
-        return $this->option('json');
+        return (bool) $this->option('json');
     }
 
     /**
