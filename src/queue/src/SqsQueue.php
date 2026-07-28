@@ -4,17 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Aws\Command;
+use Aws\Sqs\Exception\SqsException;
 use Aws\Sqs\SqsClient;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Jobs\SqsJob;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use RuntimeException;
+use Throwable;
 
 class SqsQueue extends Queue implements QueueContract, ClearableQueue
 {
+    /**
+     * The maximum SQS payload size in bytes (1 MB).
+     */
+    public const MAX_SQS_PAYLOAD_SIZE = 1048576;
+
+    /**
+     * The maximum number of messages allowed per SendMessageBatch request.
+     */
+    public const MAX_MESSAGES_PER_BATCH = 10;
+
+    /**
+     * The cache key prefix for extended SQS payloads.
+     */
+    public const EXTENDED_PAYLOAD_CACHE_PREFIX = 'laravel:sqs-payloads:';
+
+    /**
+     * The overflow storage options for large payload offloading.
+     */
+    protected array $overflowStorage;
+
     /**
      * Create a new Amazon SQS queue instance.
      *
@@ -28,9 +58,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
         protected string $default,
         protected string $prefix = '',
         protected string $suffix = '',
-        bool $dispatchAfterCommit = false
+        bool $dispatchAfterCommit = false,
+        array $overflowStorage = [],
     ) {
         $this->dispatchAfterCommit = $dispatchAfterCommit;
+        $this->overflowStorage = $overflowStorage;
     }
 
     /**
@@ -94,6 +126,54 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     }
 
     /**
+     * Get the pending jobs for the given queue.
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     */
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     */
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      *
      * Not supported by SQS, returns null.
@@ -118,8 +198,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             ),
             $queue,
             null,
-            function ($payload, $queue) use ($job) {
-                return $this->pushRaw($payload, $queue, $this->getQueueableOptions($job, $queue, $payload));
+            static function (SqsQueue $owner, string $payload, ?string $queue) use ($job) {
+                return $owner->pushRaw($payload, $queue, $owner->getQueueableOptions($job, $queue, $payload));
             }
         );
     }
@@ -129,6 +209,13 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
+        if ($this->willOverflow($payload)) {
+            $overflowPayload = $payload;
+            [$path, $payload] = $this->prepareOverflowPayload($payload);
+
+            $this->storeOverflowPayload($this->overflowStore(), $path, $overflowPayload);
+        }
+
         return $this->sqs->sendMessage([
             'QueueUrl' => $this->getQueue($queue), 'MessageBody' => $payload, ...$options,
         ])->get('MessageId');
@@ -149,8 +236,17 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             ),
             $queue,
             $delay,
-            function ($payload, $queue, $delay) use ($job) {
-                return $this->pushRaw($payload, $queue, $this->getQueueableOptions($job, $queue, $payload, $delay));
+            static function (
+                SqsQueue $owner,
+                string $payload,
+                ?string $queue,
+                DateInterval|DateTimeInterface|int $delay
+            ) use ($job) {
+                return $owner->pushRaw(
+                    $payload,
+                    $queue,
+                    $owner->getQueueableOptions($job, $queue, $payload, $delay),
+                );
             }
         );
     }
@@ -160,15 +256,331 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
-        foreach ((array) $jobs as $job) {
-            if (isset($job->delay)) {
-                $this->later($job->delay, $job, $data, $queue);
-            } else {
-                $this->push($job, $data, $queue);
-            }
+        $jobs = array_values($jobs);
+
+        if ($jobs === []) {
+            return null;
         }
 
+        $transactions = null;
+
+        if ($this->container->has('db.transactions')) {
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->container->make('db.transactions');
+        }
+
+        [$afterCommit, $immediate] = $this->partitionJobsByAfterCommit($jobs, $transactions);
+
+        if ($immediate !== []) {
+            $this->sendBatchedMessages($this->prepareBatchMessages($immediate, $data, $queue), $queue);
+        }
+
+        if ($afterCommit === []) {
+            return null;
+        }
+
+        /** @var DatabaseTransactionsManager $transactions */
+        $messages = $this->prepareBatchMessages($afterCommit, $data, $queue);
+
+        foreach ($afterCommit as $job) {
+            $this->addUniqueJobRollbackCallback($transactions, $job);
+            $this->addDebouncedJobRollbackCallback($transactions, $job);
+        }
+
+        if ($this->afterCommitDispatcher !== null) {
+            $dispatcher = $this->afterCommitDispatcher;
+
+            $transactions->addCallback(
+                static fn () => $dispatcher(
+                    static function (Queue $owner) use ($messages, $queue): void {
+                        /** @var SqsQueue $owner */
+                        $owner->sendBatchedMessages($messages, $queue);
+                    }
+                )
+            );
+
+            return null;
+        }
+
+        $transactions->addCallback(
+            fn () => $this->sendBatchedMessages($messages, $queue)
+        );
+
         return null;
+    }
+
+    /**
+     * Partition jobs by whether they should be deferred until the active transaction commits.
+     *
+     * @return array{0: array, 1: array}
+     */
+    protected function partitionJobsByAfterCommit(
+        array $jobs,
+        ?DatabaseTransactionsManager $transactions
+    ): array {
+        if ($transactions === null || $transactions->callbackApplicableTransactions()->isEmpty()) {
+            return [[], $jobs];
+        }
+
+        return Collection::make($jobs)
+            ->partition(fn ($job) => $this->shouldDispatchAfterCommit($job))
+            ->map(fn ($partition) => $partition->values()->all())
+            ->all();
+    }
+
+    /**
+     * Create the payload for each of the given jobs.
+     *
+     * Payloads are created at dispatch time, even for jobs deferred until after the transaction commits.
+     *
+     * @return array<int, array{job: mixed, delay: mixed, payload: string}>
+     */
+    protected function prepareBatchMessages(array $jobs, mixed $data, ?string $queue): array
+    {
+        return Collection::make($jobs)
+            ->map(function ($job) use ($data, $queue) {
+                $delay = is_object($job) ? ($job->delay ?? null) : null;
+
+                return [
+                    'job' => $job,
+                    'delay' => $delay,
+                    'payload' => $this->createPayload(
+                        $job,
+                        $queue === null || $queue === '' ? $this->default : $queue,
+                        $data,
+                        $delay,
+                    ),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * Build entries, dispatch chunks, and raise queued events with SQS message IDs.
+     *
+     * @throws SqsException
+     * @throws Throwable
+     */
+    protected function sendBatchedMessages(array $messages, ?string $queue): void
+    {
+        $entries = [];
+        $overflow = [];
+
+        foreach ($messages as $id => $message) {
+            $this->raiseJobQueueingEvent($queue, $message['job'], $message['payload'], $message['delay']);
+
+            $entry = $this->prepareSendMessageBatchEntry($id, $message, $queue);
+
+            if ($this->willOverflow($message['payload'])) {
+                [$path, $entry['MessageBody']] = $this->prepareOverflowPayload($message['payload']);
+                $overflow[(string) $id] = ['path' => $path, 'payload' => $message['payload']];
+            }
+
+            $entries[] = $entry;
+        }
+
+        $queueUrl = $this->getQueue($queue);
+        $store = $overflow === [] ? null : $this->overflowStore();
+
+        // Dispatch chunks serially so later messages cannot arrive ahead of an unsent failed chunk...
+        foreach ($this->chunkBatchEntries($entries) as $chunk) {
+            $writtenPaths = [];
+
+            try {
+                foreach ($chunk as $entry) {
+                    if (! isset($overflow[$entry['Id']])) {
+                        continue;
+                    }
+
+                    /** @var CacheRepository $store */
+                    $overflowPayload = $overflow[$entry['Id']];
+                    $this->storeOverflowPayload($store, $overflowPayload['path'], $overflowPayload['payload']);
+                    $writtenPaths[] = $overflowPayload['path'];
+                }
+            } catch (Throwable $exception) {
+                /** @var CacheRepository $store */
+                $this->cleanupOverflowPayloads($store, $writtenPaths);
+
+                throw $exception;
+            }
+
+            $result = $this->sqs->sendMessageBatch([
+                'QueueUrl' => $queueUrl,
+                'Entries' => $chunk,
+            ]);
+
+            foreach ($result['Successful'] ?? [] as $success) {
+                if (! isset($messages[$success['Id']])) {
+                    continue;
+                }
+
+                $message = $messages[$success['Id']];
+
+                $this->raiseJobQueuedEvent(
+                    $queue,
+                    $success['MessageId'],
+                    $message['job'],
+                    $message['payload'],
+                    $message['delay'],
+                );
+            }
+
+            if (empty($result['Failed'])) {
+                continue;
+            }
+
+            $failure = $result['Failed'][0];
+            $exception = new SqsException(
+                sprintf(
+                    'SQS SendMessageBatch rejected [%d] of [%d] messages. First failure [%s]: %s',
+                    count($result['Failed']),
+                    count($chunk),
+                    $failure['Code'] ?? 'Unknown',
+                    $failure['Message'] ?? '',
+                ),
+                new Command('SendMessageBatch', ['QueueUrl' => $queueUrl, 'Entries' => $chunk]),
+                [
+                    'code' => $failure['Code'] ?? null,
+                    'message' => $failure['Message'] ?? null,
+                    'result' => $result,
+                ],
+            );
+
+            if ($store !== null) {
+                $rejectedPaths = [];
+
+                foreach ($result['Failed'] as $rejected) {
+                    if (isset($overflow[$rejected['Id']])) {
+                        $rejectedPaths[] = $overflow[$rejected['Id']]['path'];
+                    }
+                }
+
+                $this->cleanupOverflowPayloads($store, $rejectedPaths);
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Build the SendMessageBatch entry for a prepared message.
+     *
+     * @param array{job: mixed, delay: mixed, payload: string} $message
+     */
+    protected function prepareSendMessageBatchEntry(int $id, array $message, ?string $queue): array
+    {
+        return [
+            'Id' => (string) $id,
+            'MessageBody' => $message['payload'],
+            ...$this->getQueueableOptions(
+                $message['job'],
+                $queue,
+                $message['payload'],
+                $message['delay'],
+            ),
+        ];
+    }
+
+    /**
+     * Chunk batch entries by SQS count and payload-size limits.
+     */
+    protected function chunkBatchEntries(array $entries): array
+    {
+        [$chunks, $currentChunk, $currentBytes] = [[], [], 0];
+
+        foreach ($entries as $entry) {
+            $bytes = strlen($entry['MessageBody']);
+            $wouldExceedCount = count($currentChunk) >= static::MAX_MESSAGES_PER_BATCH;
+            $wouldExceedBytes = $currentBytes + $bytes > static::MAX_SQS_PAYLOAD_SIZE;
+
+            if ($currentChunk !== [] && ($wouldExceedCount || $wouldExceedBytes)) {
+                $chunks[] = $currentChunk;
+                $currentChunk = [];
+                $currentBytes = 0;
+            }
+
+            $currentChunk[] = $entry;
+            $currentBytes += $bytes;
+        }
+
+        if ($currentChunk !== []) {
+            $chunks[] = $currentChunk;
+        }
+
+        return $chunks;
+    }
+
+    /**
+     * Determine if the payload should be stored in cache.
+     */
+    protected function willOverflow(string $payload): bool
+    {
+        if (! Arr::get($this->overflowStorage, 'enabled', false)) {
+            return false;
+        }
+
+        return Arr::get($this->overflowStorage, 'always', false)
+            || strlen($payload) >= static::MAX_SQS_PAYLOAD_SIZE;
+    }
+
+    /**
+     * Build the cache path and pointer for an overflow payload.
+     *
+     * @return array{string, string}
+     */
+    protected function prepareOverflowPayload(string $payload): array
+    {
+        $decoded = json_decode($payload);
+        $uuid = is_object($decoded)
+            && isset($decoded->uuid)
+            && is_string($decoded->uuid)
+            && $decoded->uuid !== ''
+            ? $decoded->uuid
+            : (string) Str::uuid();
+        $path = static::EXTENDED_PAYLOAD_CACHE_PREFIX . $uuid;
+
+        return [$path, json_encode(['@pointer' => $path], JSON_THROW_ON_ERROR)];
+    }
+
+    /**
+     * Store an overflow payload.
+     */
+    protected function storeOverflowPayload(CacheRepository $store, string $path, string $payload): void
+    {
+        if (! $store->put($path, $payload)) {
+            throw new RuntimeException("Unable to store the SQS overflow payload [{$path}].");
+        }
+    }
+
+    /**
+     * Remove unpublished overflow payloads without hiding the primary failure.
+     *
+     * @param list<string> $paths
+     */
+    protected function cleanupOverflowPayloads(CacheRepository $store, array $paths): void
+    {
+        foreach ($paths as $path) {
+            try {
+                if (! $store->forget($path)) {
+                    throw new RuntimeException("Unable to delete the SQS overflow payload [{$path}].");
+                }
+            } catch (Throwable $exception) {
+                PoolErrorReporter::report($exception);
+            }
+        }
+    }
+
+    /**
+     * Get the cache store for overflow payloads.
+     */
+    protected function overflowStore(): CacheRepository
+    {
+        /** @var CacheFactory $cache */
+        $cache = $this->container->make('cache');
+        /** @var ?string $store */
+        $store = Arr::get($this->overflowStorage, 'store');
+
+        return $cache->store($store);
     }
 
     /**
@@ -187,7 +599,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
                 $this->sqs,
                 $response['Messages'][0],
                 $this->connectionName,
-                $queue
+                $queue,
+                $this->overflowStorage,
             );
         }
 
@@ -203,6 +616,12 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             $this->sqs->purgeQueue([
                 'QueueUrl' => $this->getQueue($queue),
             ]);
+
+            if (Arr::get($this->overflowStorage, 'enabled')
+                && Arr::get($this->overflowStorage, 'flush_on_clear')
+                && ! $this->overflowStore()->getStore()->flush()) {
+                throw new RuntimeException('Unable to clear the SQS overflow payload store.');
+            }
         });
     }
 
@@ -211,7 +630,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return array{DelaySeconds?: int, MessageGroupId?: string, MessageDeduplicationId?: string}
      */
-    protected function getQueueableOptions(object|string $job, ?string $queue, string $payload, DateInterval|DateTimeInterface|int|null $delay = null): array
+    public function getQueueableOptions(object|string $job, ?string $queue, string $payload, DateInterval|DateTimeInterface|int|null $delay = null): array
     {
         // Make sure we have a queue name to properly determine if it's a FIFO queue...
         $queue = $queue === null || $queue === '' ? $this->default : $queue;
@@ -261,7 +680,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
 
         $options['MessageDeduplicationId'] = $messageDeduplicationId;
 
-        return array_filter($options);
+        return array_filter($options, static fn ($value) => $value !== null);
     }
 
     /**
