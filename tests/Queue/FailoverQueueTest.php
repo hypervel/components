@@ -17,6 +17,7 @@ use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SyncQueue;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -89,6 +90,29 @@ class FailoverQueueTest extends TestCase
             fn (QueueFailedOver $event) => $event->command,
             $events->failedOverEvents
         ));
+    }
+
+    public function testInspectionDelegatesToTheFirstConnection(): void
+    {
+        $manager = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $redis = m::mock(RedisQueue::class);
+        $queue = new FailoverQueue($manager, $events, ['redis', 'sync']);
+
+        $manager->shouldReceive('connection')->times(6)->with('redis')->andReturn($redis);
+        $redis->shouldReceive('pendingJobs')->once()->with('emails')->andReturn($pending = new Collection(['pending']));
+        $redis->shouldReceive('delayedJobs')->once()->with('emails')->andReturn($delayed = new Collection(['delayed']));
+        $redis->shouldReceive('reservedJobs')->once()->with('emails')->andReturn($reserved = new Collection(['reserved']));
+        $redis->shouldReceive('allPendingJobs')->once()->andReturn($allPending = new Collection(['all-pending']));
+        $redis->shouldReceive('allDelayedJobs')->once()->andReturn($allDelayed = new Collection(['all-delayed']));
+        $redis->shouldReceive('allReservedJobs')->once()->andReturn($allReserved = new Collection(['all-reserved']));
+
+        $this->assertSame($pending, $queue->pendingJobs('emails'));
+        $this->assertSame($delayed, $queue->delayedJobs('emails'));
+        $this->assertSame($reserved, $queue->reservedJobs('emails'));
+        $this->assertSame($allPending, $queue->allPendingJobs());
+        $this->assertSame($allDelayed, $queue->allDelayedJobs());
+        $this->assertSame($allReserved, $queue->allReservedJobs());
     }
 }
 
