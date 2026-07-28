@@ -364,6 +364,12 @@ All tests live in `tests/{PackageName}/` (PascalCase). Tests that require extern
 
 Always call `parent::setUp()` in your setUp method.
 
+### Configuration
+
+Put application environment configuration in `defineEnvironment()` or a `#[DefineEnvironment]` method. Do not mutate application config in `setUp()`, because providers or resolved services may already have consumed it.
+
+Within test methods, use the Laravel-style `config()` helper directly for deliberate runtime configuration changes; do not add test-local wrappers around the configuration repository.
+
 ### Test support files
 
 All **standalone** test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file. Helper classes used only by a single test file may be defined inline within that file (matching Laravel's convention).
