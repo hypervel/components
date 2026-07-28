@@ -353,6 +353,8 @@ Test supported public behavior, meaningful branches, verified regressions, and r
 
 All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below.
 
+Package-specific tests that require one database driver go in `tests/Integration/{PackageName}/Database/{Postgres|MySql|MariaDb|Sqlite}/`. The database workflows discover these directories by convention.
+
 ### Base classes
 
 **Never extend `PHPUnit\Framework\TestCase` directly.** Always use one of these:
