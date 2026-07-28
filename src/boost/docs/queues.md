@@ -229,6 +229,8 @@ When overflow storage is enabled, Hypervel will store payloads that are at least
 
 If the `flush_on_clear` option is `true`, the configured overflow cache store will be flushed when the `queue:clear` command clears the SQS queue. Since flushing a cache store may remove all items from that store, you should configure SQS overflow storage to use a dedicated cache store when enabling this option.
 
+SQS may accept a message even when publication reports an error, so Hypervel keeps its overflow payload; payloads may also remain when a message expires before processing or a queue is cleared without `flush_on_clear`. You should use a dedicated store, monitor its growth, and make sure it will not evict these non-expiring payloads under memory or capacity pressure, since removing a live payload will fail its job.
+
 <a name="other-driver-prerequisites"></a>
 #### Other Driver Prerequisites
 

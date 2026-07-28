@@ -216,6 +216,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             $this->storeOverflowPayload($this->overflowStore(), $path, $overflowPayload);
         }
 
+        // The SDK retries connection failures, so a later error may follow an attempt SQS accepted.
+        // Retain the overflow payload on every failure because publication is never provably rejected here.
         return $this->sqs->sendMessage([
             'QueueUrl' => $this->getQueue($queue), 'MessageBody' => $payload, ...$options,
         ])->get('MessageId');
@@ -404,6 +406,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
                 throw $exception;
             }
 
+            // A thrown request is ambiguous for the whole chunk, so retain its pointers.
+            // Only explicit per-entry failures below are provably rejected.
             $result = $this->sqs->sendMessageBatch([
                 'QueueUrl' => $queueUrl,
                 'Entries' => $chunk,
