@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
+use Hypervel\Config\Repository as ConcreteConfigRepository;
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
@@ -14,6 +15,7 @@ use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\View\Compilers\CompilerInterface;
 use ReflectionProperty;
 use RuntimeException;
@@ -154,20 +156,31 @@ abstract class ServiceProvider
             return;
         }
 
+        /** @var ConcreteConfigRepository $config */
         $config = $this->app->make('config');
+        $mergeableOptions = $this->mergeableOptions($key);
 
-        $packageDefaults = require $path;
-        $appConfig = $config->array($key, []);
+        // Package config can depend on the worker environment, so replay the
+        // merge operation after config reload rather than its master result.
+        $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
+            $config,
+            static function (ConcreteConfigRepository $config) use ($path, $key, $mergeableOptions): void {
+                $packageDefaults = require $path;
+                $appConfig = $config->array($key, []);
+                $merged = array_merge($packageDefaults, $appConfig);
 
-        $merged = array_merge($packageDefaults, $appConfig);
+                foreach ($mergeableOptions as $option) {
+                    if (isset($packageDefaults[$option], $appConfig[$option])) {
+                        $merged[$option] = array_merge(
+                            $packageDefaults[$option],
+                            $appConfig[$option],
+                        );
+                    }
+                }
 
-        foreach ($this->mergeableOptions($key) as $option) {
-            if (isset($packageDefaults[$option], $appConfig[$option])) {
-                $merged[$option] = array_merge($packageDefaults[$option], $appConfig[$option]);
-            }
-        }
-
-        $config->set($key, $merged);
+                $config->set($key, $merged);
+            },
+        );
     }
 
     /**
@@ -199,14 +212,24 @@ abstract class ServiceProvider
      */
     protected function replaceConfigRecursivelyFrom(string $path, string $key): void
     {
-        if (! ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached())) {
-            $config = $this->app->make('config');
-
-            $config->set($key, array_replace_recursive(
-                require $path,
-                $config->array($key, [])
-            ));
+        if ($this->app instanceof CachesConfiguration && $this->app->configurationIsCached()) {
+            return;
         }
+
+        /** @var ConcreteConfigRepository $config */
+        $config = $this->app->make('config');
+
+        // Package config can depend on the worker environment, so replay the
+        // merge operation after config reload rather than its master result.
+        $this->app->make(ConfigMutationTracker::class)->applyAndRecord(
+            $config,
+            static function (ConcreteConfigRepository $config) use ($path, $key): void {
+                $config->set($key, array_replace_recursive(
+                    require $path,
+                    $config->array($key, []),
+                ));
+            },
+        );
     }
 
     /**

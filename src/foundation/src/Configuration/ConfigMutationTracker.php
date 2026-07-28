@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Configuration;
 
+use Closure;
 use Hypervel\Config\Repository;
 
 /**
- * @internal
+ * Tracks configuration mutations made during application boot for worker replay.
+ *
+ * This is framework boot infrastructure rather than a userland extension point.
  */
 class ConfigMutationTracker
 {
     /**
      * The ordered configuration mutations made during application boot.
      *
-     * @var list<array<array-key, mixed>>
+     * @var list<array<array-key, mixed>|Closure(Repository): void>
      */
     protected array $mutations = [];
 
@@ -39,6 +42,30 @@ class ConfigMutationTracker
     }
 
     /**
+     * Apply and record a configuration operation for worker replay.
+     *
+     * Boot-only. The operation is retained for worker-start replay and is
+     * re-evaluated against the freshly rebuilt configuration repository.
+     *
+     * @param Closure(Repository): void $mutation
+     */
+    public function applyAndRecord(Repository $config, Closure $mutation): void
+    {
+        $wasRecording = $this->recording;
+        $this->recording = false;
+
+        try {
+            $mutation($config);
+        } finally {
+            $this->recording = $wasRecording;
+        }
+
+        if ($wasRecording) {
+            $this->mutations[] = $mutation;
+        }
+    }
+
+    /**
      * Replay the recorded mutations and stop tracking changes in this worker.
      *
      * Boot-only. Calling this outside the before-worker-start boundary
@@ -49,6 +76,12 @@ class ConfigMutationTracker
         $this->recording = false;
 
         foreach ($this->mutations as $mutation) {
+            if ($mutation instanceof Closure) {
+                $mutation($config);
+
+                continue;
+            }
+
             $config->set($mutation);
         }
     }
