@@ -25,11 +25,13 @@
     "require": {
         "php": "^8.4",
         "nesbot/carbon": "^3.13.1",
+        "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
+        "hypervel/core": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/hashing": "^0.4",
         "hypervel/http": "^0.4",
