@@ -200,6 +200,35 @@ Adjusting this value based on your queue load can be more efficient than continu
 > [!WARNING]
 > Setting `block_for` to `0` will cause queue workers to block indefinitely until a job is available. This can delay worker restart and pause checks until the next job has been processed.
 
+<a name="sqs-overflow-storage"></a>
+#### SQS Overflow Storage
+
+Amazon SQS limits the maximum size of a queued message payload. If you need to dispatch jobs with payloads that may exceed this limit, you may configure Hypervel to store oversized SQS payloads in a cache store and send a pointer through SQS instead. To enable this feature, add an `overflow` array to your SQS queue connection configuration:
+
+```php
+'sqs' => [
+    'driver' => 'sqs',
+    'key' => env('AWS_ACCESS_KEY_ID'),
+    'secret' => env('AWS_SECRET_ACCESS_KEY'),
+    'prefix' => env('SQS_PREFIX', 'https://sqs.us-east-1.amazonaws.com/your-account-id'),
+    'queue' => env('SQS_QUEUE', 'default'),
+    'suffix' => env('SQS_SUFFIX'),
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'after_commit' => false,
+    'overflow' => [
+        'enabled' => env('SQS_OVERFLOW_ENABLED', false),
+        'store' => env('SQS_OVERFLOW_STORE'),
+        'always' => false,
+        'delete_after_processing' => true,
+        'flush_on_clear' => env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
+    ],
+],
+```
+
+When overflow storage is enabled, Hypervel will store payloads that are at least 1 MB in the configured cache store. If the `always` option is `true`, every SQS payload will be stored in the cache store regardless of its size. Since queued jobs will need to retrieve their payloads from the cache store when they are processed, you should choose a store that can retain the payloads until your workers process them. By default, stored payloads are deleted after their jobs have been successfully processed and deleted from SQS.
+
+If the `flush_on_clear` option is `true`, the configured overflow cache store will be flushed when the `queue:clear` command clears the SQS queue. Since flushing a cache store may remove all items from that store, you should configure SQS overflow storage to use a dedicated cache store when enabling this option.
+
 <a name="other-driver-prerequisites"></a>
 #### Other Driver Prerequisites
 
@@ -900,6 +929,16 @@ public function middleware(): array
 }
 ```
 
+The `backoff` method also accepts a closure, allowing the delay to be determined from the exception:
+
+```php
+use Throwable;
+
+return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
+    fn (Throwable $exception) => $exception->getCode() === 429 ? 5 : 1
+)];
+```
+
 Internally, this middleware uses Hypervel's cache system to implement rate limiting, and the job's class name is utilized as the cache "key". You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and you would like them to share a common throttling "bucket" ensuring they respect a single shared limit:
 
 ```php
@@ -1009,6 +1048,45 @@ The `connection` method may be used to specify which Redis connection the middle
 
 ```php
 return [(new ThrottlesExceptionsWithRedis(10, 10 * 60))->connection('limiter')];
+```
+
+<a name="releasing-jobs"></a>
+### Releasing Jobs
+
+The `Release` middleware allows you to release a job back onto the queue without executing it. The `Release::when` method will release the job if the given condition evaluates to `true`, while the `Release::unless` method will release the job if the condition evaluates to `false`:
+
+```php
+use Hypervel\Queue\Middleware\Release;
+
+/**
+ * Get the middleware the job should pass through.
+ */
+public function middleware(): array
+{
+    return [
+        Release::when($condition, releaseAfter: 60),
+    ];
+}
+```
+
+Releasing a job back onto the queue will still increment the job's total number of attempts. You may wish to tune your `Tries` and `MaxExceptions` attributes on your job class accordingly.
+
+You can also pass a closure to the `when` and `unless` methods for more complex conditional evaluation:
+
+```php
+use Hypervel\Queue\Middleware\Release;
+
+/**
+ * Get the middleware the job should pass through.
+ */
+public function middleware(): array
+{
+    return [
+        Release::when(function (): bool {
+            return ! $this->order->isPaid();
+        }, releaseAfter: 60),
+    ];
+}
 ```
 
 <a name="skipping-jobs"></a>
@@ -2571,6 +2649,14 @@ The `--stop-when-empty` option may be used to instruct the worker to process all
 php artisan queue:work --stop-when-empty
 ```
 
+The `--stop-when-empty-for` option may be used to keep the worker alive until the queue has remained empty for a given number of seconds. The timer begins when the worker starts and resets whenever a job finishes:
+
+```shell
+php artisan queue:work --stop-when-empty-for=30
+```
+
+The worker will wait for any jobs it is already processing before exiting.
+
 <a name="processing-jobs-for-a-given-number-of-seconds"></a>
 #### Processing Jobs for a Given Number of Seconds
 
@@ -2870,6 +2956,18 @@ To store failed jobs in a file, set the failed job driver to `file`. If no custo
 QUEUE_FAILED_DRIVER=file
 ```
 
+You may customize the file path and maximum number of retained failed jobs in your `config/queue.php` configuration file:
+
+```php
+'failed' => [
+    'driver' => env('QUEUE_FAILED_DRIVER', 'file'),
+    'path' => storage_path('framework/cache/failed-jobs.json'),
+    'limit' => 100,
+],
+```
+
+Malformed queue payloads are stored as failed jobs and removed from their queue instead of being retried indefinitely. When using Horizon with the Redis queue, Horizon must decode a raw payload before it can decorate and publish it; malformed payloads are therefore failed without Horizon telemetry, while the original payload remains available in failed-job storage.
+
 When running a [queue worker](#running-the-queue-worker) process, you may specify the maximum number of times a job should be attempted using the `--tries` switch on the `queue:work` command. If you do not specify a value for the `--tries` option, jobs will only be attempted once or as many times as specified by the job class' `Tries` attribute:
 
 ```shell
@@ -2995,6 +3093,12 @@ To view all of the failed jobs that have been inserted into your `failed_jobs` d
 
 ```shell
 php artisan queue:failed
+```
+
+To return the failed jobs as JSON, pass the `--json` option:
+
+```shell
+php artisan queue:failed --json
 ```
 
 The `queue:failed` command will list the job ID, connection, queue, failure time, and other information about the job. The job ID may be used to retry the failed job. For instance, to retry a failed job that has an ID of `ce7bb17c-cdd8-41f0-a8ec-7b4fef4e5ece`, issue the following command:
@@ -3146,6 +3250,31 @@ php artisan queue:clear redis --queue=emails
 > [!WARNING]
 > Clearing jobs from queues is only available for the SQS, Redis, and database queue drivers. In addition, the SQS message deletion process takes up to 60 seconds, so jobs sent to the SQS queue up to 60 seconds after you clear the queue might also be deleted.
 
+<a name="inspecting-jobs"></a>
+## Inspecting Jobs
+
+The database and Redis queue drivers allow you to inspect pending, delayed, and reserved jobs without removing them from the queue:
+
+```php
+use Hypervel\Support\Facades\Queue;
+
+$queue = Queue::connection('redis');
+
+$pending = $queue->pendingJobs('emails');
+$delayed = $queue->delayedJobs('emails');
+$reserved = $queue->reservedJobs('emails');
+```
+
+You may inspect jobs across every queue on the connection using the corresponding `allPendingJobs`, `allDelayedJobs`, and `allReservedJobs` methods:
+
+```php
+$pending = $queue->allPendingJobs();
+$delayed = $queue->allDelayedJobs();
+$reserved = $queue->allReservedJobs();
+```
+
+These methods load every matching job into memory. Avoid using them against very large backlogs in latency-sensitive code.
+
 <a name="monitoring-your-queues"></a>
 ## Monitoring Your Queues
 
@@ -3155,6 +3284,12 @@ To get started, you should schedule the `queue:monitor` command to [run every mi
 
 ```shell
 php artisan queue:monitor redis:default,redis:deployments --max=100
+```
+
+To return the queue sizes as JSON, pass the `--json` option:
+
+```shell
+php artisan queue:monitor redis:default,redis:deployments --max=100 --json
 ```
 
 Scheduling this command alone is not enough to trigger a notification alerting you of the queue's overwhelmed status. When the command encounters a queue that has a job count exceeding your threshold, an `Hypervel\Queue\Events\QueueBusy` event will be dispatched. You may listen for this event within your application's `AppServiceProvider` in order to send a notification to you or your development team:
@@ -3602,5 +3737,18 @@ Queue::looping(function () {
     while (DB::transactionLevel() > 0) {
         DB::rollBack();
     }
+});
+```
+
+Hypervel also dispatches a `Hypervel\Queue\Events\WorkerIdle` event when a queue worker is unable to retrieve a job from the queue:
+
+```php
+use Hypervel\Queue\Events\WorkerIdle;
+use Hypervel\Support\Facades\Event;
+
+Event::listen(function (WorkerIdle $event) {
+    // $event->connectionName
+    // $event->queue
+    // $event->workerOptions
 });
 ```
