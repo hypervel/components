@@ -41,12 +41,24 @@ class EloquentUserProviderCacheTagsTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app->make('config')->set('cache.serializable_classes', [User::class]);
-        $app->make('config')->set('cache.stores.' . self::STORE_NAME, [
-            'driver' => 'redis',
-            'connection' => 'default',
-            'prefix' => self::STORE_PREFIX,
-            'tag_mode' => 'any',
+        parent::defineEnvironment($app);
+
+        $app->make('config')->set([
+            'cache.serializable_classes' => false,
+            'cache.stores.' . self::STORE_NAME => [
+                'driver' => 'redis',
+                'connection' => 'default',
+                'prefix' => self::STORE_PREFIX,
+                'tag_mode' => 'any',
+            ],
+            'auth.providers.users' => [
+                'driver' => 'eloquent',
+                'model' => User::class,
+                'cache' => [
+                    'enabled' => true,
+                    'store' => self::STORE_NAME,
+                ],
+            ],
         ]);
     }
 
@@ -247,7 +259,7 @@ class EloquentUserProviderCacheTagsTest extends TestCase
 
     protected function makeCachedProviderWithTags(array $tags = [self::PRIMARY_TAG]): EloquentUserProvider
     {
-        $provider = new EloquentUserProvider($this->app['hash'], User::class);
+        $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
         $provider->enableCache(self::STORE_NAME, tags: $tags);
 
         return $provider;
