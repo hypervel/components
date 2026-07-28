@@ -17,6 +17,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use LogicException;
 use Mockery;
 use Mockery\LegacyMockInterface;
 use ReflectionException;
@@ -50,11 +51,19 @@ class CacheManager implements FactoryContract
     protected array $customCreators = [];
 
     /**
+     * The serializable class policy shared by built-in cache stores.
+     */
+    protected SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new Cache manager instance.
      */
     public function __construct(
         protected Container $app
     ) {
+        $this->serializableClassPolicy = new SerializableClassPolicy(
+            fn () => $this->app->make('config')->get('cache.serializable_classes'),
+        );
     }
 
     /**
@@ -176,7 +185,7 @@ class CacheManager implements FactoryContract
     {
         return $this->repository(new ArrayStore(
             $config['serialize'] ?? false,
-            $this->getSerializableClasses($config),
+            serializableClassPolicy: $this->serializableClassPolicy,
         ), $config);
     }
 
@@ -187,7 +196,7 @@ class CacheManager implements FactoryContract
     {
         return $this->repository(new WorkerArrayStore(
             $config['serialize'] ?? false,
-            $this->getSerializableClasses($config),
+            serializableClassPolicy: $this->serializableClassPolicy,
         ), $config);
     }
 
@@ -206,7 +215,7 @@ class CacheManager implements FactoryContract
             $config['lock_table'] ?? 'cache_locks',
             $config['lock_lottery'] ?? [2, 100],
             $config['lock_timeout'] ?? 86400,
-            $this->getSerializableClasses($config),
+            serializableClassPolicy: $this->serializableClassPolicy,
         );
 
         if ($lockConnection = $config['lock_connection'] ?? null) {
@@ -238,7 +247,7 @@ class CacheManager implements FactoryContract
                 $this->app->make('files'),
                 $config['path'],
                 $config['permission'] ?? null,
-                $this->getSerializableClasses($config),
+                serializableClassPolicy: $this->serializableClassPolicy,
             ))
                 ->setLockDirectory($config['lock_path'] ?? null),
             $config
@@ -254,7 +263,7 @@ class CacheManager implements FactoryContract
             $this->app->make('filesystem')->disk($config['disk'] ?? null),
             $config['path'] ?? '',
             $this->getPrefix($config),
-            $this->getSerializableClasses($config),
+            serializableClassPolicy: $this->serializableClassPolicy,
         ), $config);
     }
 
@@ -280,7 +289,7 @@ class CacheManager implements FactoryContract
             $redis,
             $this->getPrefix($config),
             $connection,
-            serializableClasses: $this->getSerializableClasses($config),
+            serializableClassPolicy: $this->serializableClassPolicy,
         );
         $store->setTagMode($config['tag_mode'] ?? 'all');
 
@@ -329,7 +338,7 @@ class CacheManager implements FactoryContract
             $config['memory_limit_buffer'] ?? 0.05,
             $config['eviction_policy'] ?? SwooleStore::EVICTION_POLICY_LRU,
             $config['eviction_proportion'] ?? 0.05,
-            $this->getSerializableClasses($config),
+            serializableClassPolicy: $this->serializableClassPolicy,
         );
 
         return $this->repository($store, $config);
@@ -401,13 +410,8 @@ class CacheManager implements FactoryContract
         return $config['prefix'] ?? $this->app->make('config')->string('cache.prefix');
     }
 
-    /**
-     * Get the classes that should be allowed during unserialization.
-     */
-    protected function getSerializableClasses(array $config): array|bool|null
-    {
-        return $this->app->make('config')->get('cache.serializable_classes');
-    }
+    // REMOVED: Laravel's per-store getSerializableClasses() hook cannot represent
+    // Hypervel's shared worker-lifetime policy.
 
     /**
      * Get the cache connection configuration.
@@ -517,6 +521,39 @@ class CacheManager implements FactoryContract
         $this->app = $app;
 
         return $this;
+    }
+
+    /**
+     * Register classes that cache stores may unserialize.
+     *
+     * Boot-only. The resolver contributes to the worker-lifetime cache policy
+     * and is evaluated after every provider has booted: at application boot
+     * completion in console processes or after configuration reload in each
+     * Swoole worker. An earlier cache read evaluates the current contributions
+     * without memoizing them.
+     *
+     * @param Closure(): array<array-key, class-string> $resolver
+     *
+     * @throws LogicException
+     */
+    public function allowSerializableClassesUsing(Closure $resolver): static
+    {
+        $this->serializableClassPolicy->allowUsing($resolver);
+
+        return $this;
+    }
+
+    /**
+     * Finalize the worker-lifetime serializable class policy.
+     *
+     * Boot-only. The policy is frozen for the worker lifetime; later
+     * contributions throw and every subsequent unserialize uses the frozen list.
+     *
+     * @internal
+     */
+    public function finalizeSerializableClasses(): void
+    {
+        $this->serializableClassPolicy->finalize();
     }
 
     /**

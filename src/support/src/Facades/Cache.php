@@ -21,6 +21,7 @@ use Mockery;
  * @method static \Hypervel\Cache\CacheManager extend(string $driver, \Closure $callback)
  * @method static \Hypervel\Cache\CacheManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static void handleUnserializableClassUsing(callable|null $callback)
+ * @method static \Hypervel\Cache\CacheManager allowSerializableClassesUsing(\Closure $resolver)
  * @method static mixed pull(\UnitEnum|string $key, \Closure|mixed $default = null)
  * @method static bool put(\UnitEnum|array|string $key, mixed $value, \DateInterval|\DateTimeInterface|int|null $ttl = null)
  * @method static bool add(\UnitEnum|string $key, mixed $value, \DateInterval|\DateTimeInterface|int|null $ttl = null)
