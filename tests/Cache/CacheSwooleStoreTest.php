@@ -8,6 +8,7 @@ use __PHP_Incomplete_Class;
 use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
@@ -116,7 +117,7 @@ class CacheSwooleStoreTest extends TestCase
             0.05,
             SwooleStore::EVICTION_POLICY_TTL,
             0.05,
-            false,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
         );
 
         $store->put('foo', new stdClass, 5);
@@ -131,7 +132,7 @@ class CacheSwooleStoreTest extends TestCase
             0.05,
             SwooleStore::EVICTION_POLICY_TTL,
             0.05,
-            [stdClass::class],
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
         );
 
         $store->put('foo', new stdClass, 5);

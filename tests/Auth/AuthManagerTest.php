@@ -13,6 +13,7 @@ use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
@@ -719,6 +720,9 @@ class AuthManagerTest extends TestCase
         $container->instance('config', new Repository([
             'auth' => $authConfig,
         ]));
+        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator->allows('validate');
+        $container->instance(ModelCacheStoreValidator::class, $validator);
 
         return $container;
     }

@@ -101,6 +101,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     protected array|bool|null $serializableClasses;
 
     /**
+     * The shared serializable class policy.
+     */
+    protected ?SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new Redis store.
      */
     public function __construct(
@@ -108,9 +113,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
         string $prefix = '',
         string $connection = 'default',
         array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
     ) {
         $this->redis = $redis;
         $this->serializableClasses = $serializableClasses;
+        $this->serializableClassPolicy = $serializableClassPolicy;
         $this->setPrefix($prefix);
         $this->setConnection($connection);
     }
@@ -448,7 +455,10 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function getSerialization(): Serialization
     {
-        return $this->serialization ??= new Serialization($this->serializableClasses);
+        return $this->serialization ??= new Serialization(
+            serializableClasses: $this->serializableClasses,
+            serializableClassPolicy: $this->serializableClassPolicy,
+        );
     }
 
     /**

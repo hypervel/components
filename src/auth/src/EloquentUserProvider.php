@@ -5,11 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hypervel\Cache\DatabaseStore;
-use Hypervel\Cache\FileStore;
-use Hypervel\Cache\RedisStore;
-use Hypervel\Cache\StackStore;
-use Hypervel\Cache\SwooleStore;
+use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TagMode;
 use Hypervel\Container\Container;
@@ -25,22 +21,6 @@ use SensitiveParameter;
 
 class EloquentUserProvider implements UserProvider
 {
-    /**
-     * Whitelist of cache store classes supported for auth user caching.
-     *
-     * Checked with instanceof in ensureSupportedAuthCacheStore(), so
-     * legitimate subclasses of these stores are also accepted.
-     *
-     * @var list<class-string>
-     */
-    private const array SUPPORTED_AUTH_CACHE_STORES = [
-        RedisStore::class,
-        DatabaseStore::class,
-        FileStore::class,
-        SwooleStore::class,
-        StackStore::class,
-    ];
-
     /**
      * The callback used to build the identifier segment of cache keys.
      *
@@ -286,10 +266,9 @@ class EloquentUserProvider implements UserProvider
      * ('auth_users') so misconfiguration does not create hard-to-read keys
      * with a leading colon.
      *
-     * The store is validated against the supported-drivers whitelist BEFORE
-     * any instance state is mutated, so a rejected store leaves the provider
-     * in its prior (uncached) state and does not register a descriptor or
-     * model event listeners.
+     * The store is validated before any instance state is mutated, so a
+     * rejected store leaves the provider in its prior uncached state and
+     * does not register a descriptor or model event listeners.
      *
      * Boot-only. User providers are held by cached guards; runtime use mutates
      * the provider used by every subsequent authentication lookup.
@@ -304,8 +283,13 @@ class EloquentUserProvider implements UserProvider
         ?string $prefix = 'auth_users',
         ?array $tags = null,
     ): static {
-        $cache = Container::getInstance()->make('cache')->store($storeName);
-        $this->ensureSupportedAuthCacheStore($cache);
+        $container = Container::getInstance();
+        $cache = $container->make('cache')->store($storeName);
+
+        $container->make(ModelCacheStoreValidator::class)->validate(
+            $cache,
+            "Auth user cache for model [{$this->model}]",
+        );
 
         if ($tags !== null && $tags !== []) {
             $this->ensureTaggableAnyModeStore($cache);
@@ -396,33 +380,6 @@ class EloquentUserProvider implements UserProvider
         static::$cacheTagsResolver = null;
         static::$cachedProviders = [];
         static::$cacheEventsRegistered = [];
-    }
-
-    /**
-     * Ensure the configured cache store is supported for auth user caching.
-     *
-     * Throws when the resolved Store is not an instance of one of the
-     * whitelisted classes. Called from enableCache() before any instance
-     * state is mutated, so a rejected store leaves the provider in its
-     * prior uncached state. Uses instanceof so legitimate subclasses of
-     * supported stores are accepted.
-     *
-     * @throws InvalidArgumentException
-     */
-    protected function ensureSupportedAuthCacheStore(CacheRepository $cache): void
-    {
-        $store = $cache->getStore();
-
-        foreach (self::SUPPORTED_AUTH_CACHE_STORES as $supported) {
-            if ($store instanceof $supported) {
-                return;
-            }
-        }
-
-        throw new InvalidArgumentException(sprintf(
-            'Auth user caching does not support cache store [%s]. See the auth cache documentation for supported stores.',
-            $store::class
-        ));
     }
 
     /**

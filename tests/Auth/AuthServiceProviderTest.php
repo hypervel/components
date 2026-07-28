@@ -1,0 +1,340 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Auth;
+
+use Closure;
+use Hypervel\Auth\AuthServiceProvider;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheStoreValidator;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Config\Repository as ConfigRepositoryContract;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Foundation\Auth\User;
+use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use Mockery as m;
+use Swoole\Server as SwooleServer;
+
+class AuthServiceProviderTest extends TestCase
+{
+    public function testBootContributesEnabledConfiguredEloquentModelsAndFrameworkContainers(): void
+    {
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $this->cachedProvider(AuthProviderUser::class),
+                    'admins' => $this->cachedProvider(AuthProviderAdmin::class, enabled: 'yes', store: 'redis'),
+                    'disabled' => $this->cachedProvider(AuthProviderUser::class, enabled: false),
+                    'database' => [
+                        'driver' => 'database',
+                        'model' => InvalidAuthProviderModel::class,
+                        'cache' => ['enabled' => true],
+                    ],
+                    'malformed',
+                ],
+            ],
+        ]);
+        $resolver = null;
+        $manager = m::mock(CacheManager::class);
+        $manager->shouldReceive('allowSerializableClassesUsing')
+            ->once()
+            ->with(m::on(function (mixed $callback) use (&$resolver): bool {
+                $resolver = $callback;
+
+                return $callback instanceof Closure;
+            }))
+            ->andReturnSelf();
+        $application = $this->consoleApplication($manager, $config);
+        $application->shouldReceive('booted')->once();
+
+        (new AuthServiceProvider($application))->boot();
+
+        $this->assertInstanceOf(Closure::class, $resolver);
+        $this->assertSame([
+            AuthProviderUser::class,
+            AuthProviderAdmin::class,
+            EloquentCollection::class,
+            Pivot::class,
+            MorphPivot::class,
+        ], $resolver());
+    }
+
+    public function testConsoleStartupValidatesEveryEnabledProviderUsingCapturedDependencies(): void
+    {
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    0 => $this->cachedProvider(AuthProviderUser::class),
+                    '' => $this->cachedProvider(AuthProviderAdmin::class, store: 'redis'),
+                ],
+            ],
+        ]);
+        $defaultRepository = m::mock(CacheRepository::class);
+        $redisRepository = m::mock(CacheRepository::class);
+        $manager = m::mock(CacheManager::class);
+        $manager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
+        $manager->shouldReceive('store')->once()->with(null)->andReturn($defaultRepository);
+        $manager->shouldReceive('store')->once()->with('redis')->andReturn($redisRepository);
+        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator->shouldReceive('validate')
+            ->once()
+            ->with($defaultRepository, 'Auth user provider [0]');
+        $validator->shouldReceive('validate')
+            ->once()
+            ->with($redisRepository, 'Auth user provider []');
+        $bootedCallback = null;
+        $application = $this->consoleApplication($manager, $config);
+        $application->shouldReceive('make')
+            ->once()
+            ->with(ModelCacheStoreValidator::class)
+            ->andReturn($validator);
+        $application->shouldReceive('booted')
+            ->once()
+            ->with(m::on(function (mixed $callback) use (&$bootedCallback): bool {
+                $bootedCallback = $callback;
+
+                return $callback instanceof Closure;
+            }));
+
+        (new AuthServiceProvider($application))->boot();
+
+        $this->assertInstanceOf(Closure::class, $bootedCallback);
+        $bootedCallback();
+    }
+
+    public function testDisabledProvidersResolveNeitherAStoreNorTheValidator(): void
+    {
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $this->cachedProvider(AuthProviderUser::class, enabled: false),
+                    'custom' => [
+                        'driver' => 'custom',
+                        'cache' => ['enabled' => true],
+                    ],
+                ],
+            ],
+        ]);
+        $manager = m::mock(CacheManager::class);
+        $manager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
+        $manager->shouldNotReceive('store');
+        $bootedCallback = null;
+        $application = $this->consoleApplication($manager, $config);
+        $application->shouldNotReceive('make')->with(ModelCacheStoreValidator::class);
+        $application->shouldReceive('booted')
+            ->once()
+            ->with(m::on(function (mixed $callback) use (&$bootedCallback): bool {
+                $bootedCallback = $callback;
+
+                return $callback instanceof Closure;
+            }));
+
+        (new AuthServiceProvider($application))->boot();
+
+        $this->assertSame([], $this->capturedResolver($manager)());
+        $this->assertInstanceOf(Closure::class, $bootedCallback);
+        $bootedCallback();
+    }
+
+    public function testServerValidationUsesWorkerDependenciesAndRunsForTaskworkers(): void
+    {
+        $masterConfig = new ConfigRepository([
+            'auth' => ['providers' => []],
+        ]);
+        $workerConfig = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $this->cachedProvider(AuthProviderUser::class, store: 'worker'),
+                ],
+            ],
+        ]);
+        $masterManager = m::mock(CacheManager::class);
+        $masterManager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
+        $masterManager->shouldNotReceive('store');
+        $workerRepository = m::mock(CacheRepository::class);
+        $workerManager = m::mock(CacheManager::class);
+        $workerManager->shouldReceive('store')->once()->with('worker')->andReturn($workerRepository);
+        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator->shouldReceive('validate')
+            ->once()
+            ->with($workerRepository, 'Auth user provider [users]');
+        $listener = null;
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('listen')
+            ->once()
+            ->with(AfterWorkerStart::class, m::on(function (mixed $callback) use (&$listener): bool {
+                $listener = $callback;
+
+                return $callback instanceof Closure;
+            }));
+        $application = m::mock(Application::class);
+        $application->shouldReceive('make')
+            ->twice()
+            ->with(CacheManager::class)
+            ->andReturn($masterManager, $workerManager);
+        $application->shouldReceive('make')
+            ->twice()
+            ->with(ConfigRepositoryContract::class)
+            ->andReturn($masterConfig, $workerConfig);
+        $application->shouldReceive('make')->once()->with('events')->andReturn($events);
+        $application->shouldReceive('make')
+            ->once()
+            ->with(ModelCacheStoreValidator::class)
+            ->andReturn($validator);
+        $application->shouldReceive('runningInConsole')->once()->andReturnFalse();
+        $application->shouldNotReceive('booted');
+
+        (new AuthServiceProvider($application))->boot();
+
+        $this->assertInstanceOf(Closure::class, $listener);
+        $server = m::mock(SwooleServer::class);
+        // Store validation runs in request workers and taskworkers, unlike Swoole timer registration.
+        $server->taskworker = true;
+        $listener(new AfterWorkerStart($server, 8));
+    }
+
+    public function testSelectedProviderRequiresAnEloquentAuthenticatableModel(): void
+    {
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $this->cachedProvider(InvalidAuthProviderModel::class),
+                ],
+            ],
+        ]);
+        $manager = m::mock(CacheManager::class);
+        $resolver = $this->bootAndCaptureResolver($manager, $config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Authentication provider [users] model must be an Eloquent authenticatable class.');
+
+        $resolver();
+    }
+
+    public function testSelectedProviderRequiresAStringOrNullStore(): void
+    {
+        $provider = $this->cachedProvider(AuthProviderUser::class);
+        $provider['cache']['store'] = [];
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $provider,
+                ],
+            ],
+        ]);
+        $manager = m::mock(CacheManager::class);
+        $resolver = $this->bootAndCaptureResolver($manager, $config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Authentication provider [users] cache store must be a string or null.');
+
+        $resolver();
+    }
+
+    /**
+     * Create a cache-enabled Eloquent provider configuration.
+     *
+     * @param class-string $model
+     * @return array<string, mixed>
+     */
+    private function cachedProvider(
+        string $model,
+        bool|string $enabled = true,
+        ?string $store = null,
+    ): array {
+        return [
+            'driver' => 'eloquent',
+            'model' => $model,
+            'cache' => [
+                'enabled' => $enabled,
+                'store' => $store,
+            ],
+        ];
+    }
+
+    /**
+     * Create a console application double for provider boot.
+     */
+    private function consoleApplication(
+        CacheManager $manager,
+        ConfigRepositoryContract $config,
+    ): Application|m\MockInterface {
+        $application = m::mock(Application::class);
+        $application->shouldReceive('make')
+            ->once()
+            ->with(CacheManager::class)
+            ->andReturn($manager);
+        $application->shouldReceive('make')
+            ->once()
+            ->with(ConfigRepositoryContract::class)
+            ->andReturn($config);
+        $application->shouldReceive('runningInConsole')->once()->andReturnTrue();
+
+        return $application;
+    }
+
+    /**
+     * Boot the provider and capture its class resolver.
+     */
+    private function bootAndCaptureResolver(
+        CacheManager|m\MockInterface $manager,
+        ConfigRepositoryContract $config,
+    ): Closure {
+        $resolver = null;
+        $manager->shouldReceive('allowSerializableClassesUsing')
+            ->once()
+            ->with(m::on(function (mixed $callback) use (&$resolver): bool {
+                $resolver = $callback;
+
+                return $callback instanceof Closure;
+            }))
+            ->andReturnSelf();
+        $application = $this->consoleApplication($manager, $config);
+        $application->shouldReceive('booted')->once();
+
+        (new AuthServiceProvider($application))->boot();
+
+        $this->assertInstanceOf(Closure::class, $resolver);
+
+        return $resolver;
+    }
+
+    /**
+     * Capture the registered class resolver from a manager mock.
+     */
+    private function capturedResolver(CacheManager|m\MockInterface $manager): Closure
+    {
+        $resolver = null;
+        $manager->shouldHaveReceived('allowSerializableClassesUsing')
+            ->with(m::on(function (mixed $callback) use (&$resolver): bool {
+                $resolver = $callback;
+
+                return $callback instanceof Closure;
+            }))
+            ->once();
+
+        $this->assertInstanceOf(Closure::class, $resolver);
+
+        return $resolver;
+    }
+}
+
+class AuthProviderUser extends User
+{
+}
+
+class AuthProviderAdmin extends User
+{
+}
+
+class InvalidAuthProviderModel
+{
+}

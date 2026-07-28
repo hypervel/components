@@ -50,6 +50,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     protected array|bool|null $serializableClasses;
 
     /**
+     * The shared serializable class policy.
+     */
+    protected ?SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new file cache store instance.
      */
     public function __construct(
@@ -57,11 +62,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         string $directory,
         ?int $filePermission = null,
         array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
     ) {
         $this->files = $files;
         $this->directory = $directory;
         $this->filePermission = $filePermission;
         $this->serializableClasses = $serializableClasses;
+        $this->serializableClassPolicy = $serializableClassPolicy;
     }
 
     /**
@@ -227,7 +234,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         $this->ensureCacheDirectoryExists($this->lockDirectory ?? $this->directory);
 
         return new FileLock(
-            new static($this->files, $this->lockDirectory ?? $this->directory, $this->filePermission, $this->serializableClasses),
+            new static(
+                $this->files,
+                $this->lockDirectory ?? $this->directory,
+                $this->filePermission,
+                $this->serializableClasses,
+                $this->serializableClassPolicy,
+            ),
             "file-store-lock:{$name}",
             $seconds,
             $owner
@@ -455,6 +468,10 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      */
     protected function unserialize(string $value): mixed
     {
+        if ($this->serializableClassPolicy !== null) {
+            return $this->serializableClassPolicy->unserialize($value);
+        }
+
         if ($this->serializableClasses !== null) {
             return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
         }

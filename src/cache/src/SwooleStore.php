@@ -60,7 +60,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         protected float $memoryLimitBuffer,
         protected string $evictionPolicy,
         protected float $evictionProportion,
-        protected array|bool|null $serializableClasses = null,
+        protected SerializableClassPolicy $serializableClassPolicy = new SerializableClassPolicy,
     ) {
         $this->table = $this->state->table();
     }
@@ -1059,11 +1059,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function unserialize(string $value): mixed
     {
-        if ($this->serializableClasses !== null) {
-            return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
-        }
-
-        return unserialize($value);
+        return $this->serializableClassPolicy->unserialize($value);
     }
 
     /**

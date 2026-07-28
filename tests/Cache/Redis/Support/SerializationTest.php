@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Support;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\Redis\Support\Serialization;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Redis;
+use stdClass;
 
 class SerializationTest extends TestCase
 {
@@ -89,6 +92,61 @@ class SerializationTest extends TestCase
 
         $this->assertSame('test-value', $this->serialization->unserialize($connection, serialize('test-value')));
         $this->assertSame(['foo' => 'bar'], $this->serialization->unserialize($connection, serialize(['foo' => 'bar'])));
+    }
+
+    public function testSerializableClassesControlPhpUnserialization(): void
+    {
+        $connection = $this->createConnection(serialized: false);
+        $denyingSerialization = new Serialization(false);
+        $allowingSerialization = new Serialization([stdClass::class]);
+        $value = serialize(new stdClass);
+
+        $this->assertInstanceOf(
+            __PHP_Incomplete_Class::class,
+            $denyingSerialization->unserialize($connection, $value),
+        );
+        $this->assertInstanceOf(
+            stdClass::class,
+            $allowingSerialization->unserialize($connection, $value),
+        );
+    }
+
+    public function testSerializableClassPolicyControlsPhpUnserialization(): void
+    {
+        $connection = $this->createConnection(serialized: false);
+        $denyingSerialization = new Serialization(
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        $allowingSerialization = new Serialization(
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
+        );
+        $value = serialize(new stdClass);
+
+        $this->assertInstanceOf(
+            __PHP_Incomplete_Class::class,
+            $denyingSerialization->unserialize($connection, $value),
+        );
+        $this->assertInstanceOf(
+            stdClass::class,
+            $allowingSerialization->unserialize($connection, $value),
+        );
+    }
+
+    public function testNativeSerializerBypassesPhpClassPolicy(): void
+    {
+        $resolverRuns = 0;
+        $policy = new SerializableClassPolicy(static fn (): false => false);
+        $policy->allowUsing(static function () use (&$resolverRuns): array {
+            ++$resolverRuns;
+
+            return [stdClass::class];
+        });
+        $serialization = new Serialization(serializableClassPolicy: $policy);
+        $connection = $this->createConnection(serialized: true);
+        $value = new stdClass;
+
+        $this->assertSame($value, $serialization->unserialize($connection, $value));
+        $this->assertSame(0, $resolverRuns);
     }
 
     public function testUnserializeReturnsNumericValuesRaw(): void

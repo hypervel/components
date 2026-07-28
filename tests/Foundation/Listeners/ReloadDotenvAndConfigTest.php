@@ -6,12 +6,15 @@ namespace Hypervel\Tests\Foundation\Listeners;
 
 use Hypervel\Config\Repository;
 use Hypervel\Core\Events\BeforeWorkerStart;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Support\DotenvManager;
 use Hypervel\Support\Env;
 use Hypervel\Support\Facades\Config as ConfigFacade;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -146,6 +149,55 @@ class ReloadDotenvAndConfigTest extends TestCase
         $listener->handle(m::mock(BeforeWorkerStart::class));
 
         $this->assertSame($originalName, $config->get('app.name'));
+    }
+
+    public function testReloadReevaluatesPackageConfigMergesAgainstWorkerEnvironment(): void
+    {
+        $app = new Application(__DIR__ . '/../Fixtures');
+        $app->useEnvironmentPath(__DIR__ . '/../Fixtures/envs');
+        (new LoadConfiguration)->bootstrap($app);
+        DotenvManager::load([$app->environmentPath()]);
+        $tempDirectory = ParallelTesting::tempDir('ReloadDotenvAndConfigTest-package');
+        mkdir($tempDirectory, 0777, true);
+        $packageConfigPath = $tempDirectory . '/package.php';
+
+        try {
+            file_put_contents($packageConfigPath, <<<'PHP'
+<?php
+
+return [
+    'environment' => env('TEST_KEY'),
+];
+PHP);
+
+            $provider = new class($app, $packageConfigPath) extends ServiceProvider {
+                public function __construct(Application $app, protected string $packageConfigPath)
+                {
+                    parent::__construct($app);
+                }
+
+                public function register(): void
+                {
+                    $this->mergeConfigFrom($this->packageConfigPath, 'worker_package');
+                    $this->mergeConfigFrom($this->packageConfigPath, 'custom');
+                }
+            };
+            $provider->register();
+
+            $config = $app->make(Repository::class);
+            $this->assertSame('default_value', $config->get('worker_package.environment'));
+            $this->assertSame('default_value', $config->get('custom.environment'));
+            $this->assertSame('bar', $config->get('custom.foo'));
+
+            $app->loadEnvironmentFrom('.env.testing');
+            $app->make(ReloadDotenvAndConfig::class)->handle(m::mock(BeforeWorkerStart::class));
+
+            $this->assertSame('testing_value', $config->get('worker_package.environment'));
+            $this->assertSame('testing_value', $config->get('custom.environment'));
+            $this->assertSame('bar', $config->get('custom.foo'));
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDirectory);
+        }
     }
 
     protected function createApp(): Application

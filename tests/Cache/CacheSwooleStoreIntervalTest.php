@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
@@ -234,8 +235,9 @@ class CacheSwooleStoreIntervalTest extends TestCase
     public function testSerializableClassPolicyDoesNotApplyToIntervalResolvers(): void
     {
         $state = $this->createState();
-        $workerStore = $this->createStore($state, serializableClasses: false);
-        $refresherStore = $this->createStore($state, serializableClasses: false);
+        $policy = new SerializableClassPolicy(static fn (): false => false);
+        $workerStore = $this->createStore($state, serializableClassPolicy: $policy);
+        $refresherStore = $this->createStore($state, serializableClassPolicy: $policy);
 
         $workerStore->interval('foo', fn () => 'bar', 5);
 
@@ -721,14 +723,14 @@ PHP);
         string $policy = SwooleStore::EVICTION_POLICY_TTL,
         float $memoryLimitBuffer = 0.05,
         float $evictionProportion = 0.05,
-        array|bool|null $serializableClasses = null,
+        SerializableClassPolicy $serializableClassPolicy = new SerializableClassPolicy,
     ): SwooleStore {
         return new SwooleStore(
             $state ?? $this->createState(),
             $memoryLimitBuffer,
             $policy,
             $evictionProportion,
-            $serializableClasses,
+            serializableClassPolicy: $serializableClassPolicy,
         );
     }
 

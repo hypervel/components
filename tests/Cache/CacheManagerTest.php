@@ -20,7 +20,9 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Events\Dispatcher as Event;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
@@ -30,6 +32,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
 use Redis;
+use ReflectionProperty;
 use stdClass;
 
 class CacheManagerTest extends TestCase
@@ -89,6 +92,105 @@ class CacheManagerTest extends TestCase
 
         $this->assertInstanceOf(ArrayStore::class, $arrayCache->getStore());
         $this->assertInstanceOf(NullStore::class, $nullCache->getStore());
+    }
+
+    public function testManagerBuiltSerializingStoresShareOnePolicy(): void
+    {
+        $app = $this->getAppWithRedis([
+            'cache' => [
+                'prefix' => 'cache:',
+                'serializable_classes' => false,
+                'stores' => [
+                    'array' => ['driver' => 'array', 'serialize' => true],
+                    'worker' => ['driver' => 'worker-array', 'serialize' => true],
+                    'database' => ['driver' => 'database', 'table' => 'cache'],
+                    'file' => ['driver' => 'file', 'path' => __DIR__],
+                    'storage' => ['driver' => 'storage', 'disk' => 'test'],
+                    'redis' => ['driver' => 'redis', 'connection' => 'default'],
+                    'swoole' => ['driver' => 'swoole', 'table' => 'default'],
+                ],
+                'swoole_tables' => [
+                    'default' => [
+                        'rows' => 128,
+                        'bytes' => 10240,
+                        'conflict_proportion' => 0.2,
+                    ],
+                ],
+            ],
+        ]);
+        $app->instance('db', m::mock(ConnectionResolverInterface::class));
+        $app->instance('files', new Filesystem);
+        $filesystem = m::mock(FilesystemFactory::class);
+        $filesystem->shouldReceive('disk')->with('test')->once()->andReturn(new ArrayFilesystem);
+        $app->instance('filesystem', $filesystem);
+        $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
+        $manager = new CacheManager($app);
+        $policies = [];
+
+        foreach (['array', 'worker', 'database', 'file', 'storage', 'redis', 'swoole'] as $name) {
+            $store = $manager->store($name)->getStore();
+            $property = new ReflectionProperty($store, 'serializableClassPolicy');
+            $policies[] = $property->getValue($store);
+
+            if ($name !== 'swoole') {
+                $classesProperty = new ReflectionProperty($store, 'serializableClasses');
+
+                $this->assertNull($classesProperty->getValue($store));
+            }
+        }
+
+        foreach ($policies as $policy) {
+            $this->assertSame($policies[0], $policy);
+        }
+    }
+
+    public function testStoreConstructedBeforeDeclarationSeesUpdatedPolicy(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'serializable_classes' => false,
+                'stores' => [
+                    'array' => ['driver' => 'array', 'serialize' => true],
+                ],
+            ],
+        ]));
+        $store = $manager->store('array');
+        $store->put('object', new stdClass, 60);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('object'));
+
+        $manager->allowSerializableClassesUsing(static fn (): array => [stdClass::class]);
+
+        $this->assertInstanceOf(stdClass::class, $store->get('object'));
+    }
+
+    public function testOnDemandBuildSeesLaterDeclarations(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => ['serializable_classes' => false],
+        ]));
+        $store = $manager->build(['driver' => 'array', 'serialize' => true]);
+        $store->put('object', new stdClass, 60);
+
+        $manager->allowSerializableClassesUsing(static fn (): array => [stdClass::class]);
+
+        $this->assertInstanceOf(stdClass::class, $store->get('object'));
+    }
+
+    public function testConfiguredPolicyReadsCurrentApplicationBeforeFinalization(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => ['serializable_classes' => false],
+        ]));
+        $store = $manager->build(['driver' => 'array', 'serialize' => true]);
+        $store->put('object', new stdClass, 60);
+
+        $manager->setApplication($this->getApp([
+            'cache' => ['serializable_classes' => true],
+        ]));
+        $manager->finalizeSerializableClasses();
+
+        $this->assertInstanceOf(stdClass::class, $store->get('object'));
     }
 
     public function testItCanCreateStorageDriver(): void

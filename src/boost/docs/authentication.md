@@ -207,15 +207,23 @@ You may enable the cache per Eloquent provider in your application's `config/aut
 ],
 ```
 
-Because the supported stores serialize cached user models, add every configured user model to the `serializable_classes` option in your application's `config/cache.php` file:
+Enabled configured provider models and Hypervel's standard Eloquent collection and pivot classes are added to the cache class policy automatically. Declare application-owned relations, custom collections or pivots, and other nested objects from a service provider:
 
 ```php
-'serializable_classes' => [
-    App\Models\User::class,
-],
+use App\Models\Organization;
+use App\Models\Team;
+use Hypervel\Support\Facades\Cache;
+
+public function boot(): void
+{
+    Cache::allowSerializableClassesUsing(fn (): array => [
+        Organization::class,
+        Team::class,
+    ]);
+}
 ```
 
-Keep the allowlist limited to the user model classes your authentication cache needs. For supported stores and Redis serializer requirements, see [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects).
+Providers constructed directly and not represented in `auth.providers` must also declare their root model. These declarations apply to PHP-policy serialization paths. Accepted native Redis serializers preserve model types but bypass the class policy. See [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects) for denied nested-class behavior and remedies.
 
 When `store` is `null`, Hypervel uses your default cache store. For a single Redis-backed deployment, you may enable the cache like this:
 
@@ -231,9 +239,13 @@ AUTH_USERS_CACHE_ENABLED=true
 AUTH_USERS_CACHE_STORE=stack
 ```
 
-Supported stores are `redis`, `database`, `file`, `swoole`, and `stack`. The `array`, `null`, `session`, and `failover` stores are rejected when the guard is resolved because they are either request-local, user-local, discard writes, or have fallback behavior that is not appropriate for authentication data. For untagged auth caching, Hypervel validates the outer stack store; unsupported inner stores such as `array`, `null`, `session`, or `failover` can still cause stale, missing, or unsafe auth cache behavior. Choose supported inner stores such as `swoole` and `redis`. When auth cache tags are configured, the stack's tag composition is also validated.
+Supported stores are `redis`, `database`, `file`, `storage`, `swoole`, and stacks containing only supported stores. Stack layers are validated recursively. The `array`, `worker-array`, `null`, `session`, and `failover` stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
 
-When using a node-local store such as `swoole` or `file`, invalidation is local to that node. In a multi-node deployment using `stack` with a Swoole L1, a user update clears the current node's L1 and the shared backing store, while other nodes may serve their L1 entry until its short TTL expires. Use plain `redis` or `database` if you need strict cross-node consistency.
+For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
+
+When using a node-local store such as `swoole` or `file`, invalidation is local to that node. A storage store is shared only when its configured filesystem disk is shared. In a multi-node deployment using `stack` with a Swoole L1, a user update clears the current node's L1 and the shared backing store, while other nodes may serve their L1 entry until its short TTL expires. Use a shared store without a node-local L1 when strict cross-node consistency is required.
+
+Auth cache configuration is read during process startup and must not be changed while a worker is serving requests.
 
 The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_users:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models. If the same user identifier can resolve to different records depending on request context, such as in a multi-tenant application, register a cache key resolver in a service provider:
 
@@ -263,6 +275,8 @@ Auth::clearUserCache($user->getAuthIdentifier());
 // Clear using a specific guard's provider...
 Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 ```
+
+If `withQuery()` eager-loads relations, the first uncached lookup stores that graph. Declare every application relation and custom container class so later cache hits restore the complete shape.
 
 If multiple guards share the same Eloquent provider and user model, one clear call against any of those guards clears that provider's cache keyspace. If different guards use different user models, pass the guard name so Hypervel can clear the correct provider. When a custom key resolver is registered, `clearUserCache` uses that same resolver and clears the cache entry for the current request context.
 

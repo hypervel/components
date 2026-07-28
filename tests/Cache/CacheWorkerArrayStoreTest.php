@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Engine\Channel;
 use Hypervel\Support\CarbonImmutable;
@@ -48,6 +50,39 @@ class CacheWorkerArrayStoreTest extends TestCase
 
         $this->assertEquals($object, $store->get('object'));
         $this->assertSame(serialize($object), $store->all(false)['object']['value']);
+    }
+
+    public function testSerializableClassesControlSerializedValues(): void
+    {
+        $denyingStore = new WorkerArrayStore(true, false);
+        $allowingStore = new WorkerArrayStore(
+            serializesValues: true,
+            serializableClasses: [stdClass::class],
+        );
+
+        $denyingStore->put('object', new stdClass, 10);
+        $allowingStore->put('object', new stdClass, 10);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
+    }
+
+    public function testSerializableClassPolicyControlsSerializedValues(): void
+    {
+        $denyingStore = new WorkerArrayStore(
+            serializesValues: true,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        $allowingStore = new WorkerArrayStore(
+            serializesValues: true,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
+        );
+
+        $denyingStore->put('object', new stdClass, 10);
+        $allowingStore->put('object', new stdClass, 10);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
     }
 
     public function testValuesCanBeIncrementedAndDecremented(): void

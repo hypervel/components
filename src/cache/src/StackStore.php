@@ -17,7 +17,9 @@ use Throwable;
 class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     /**
-     * @var StackStoreProxy[]
+     * The ordered store layers.
+     *
+     * @var list<StackStoreProxy>
      */
     protected array $stores;
 
@@ -30,7 +32,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
     protected false|string|null $tagCompositionError = false;
 
     /**
-     * @param array<int, StackStoreProxy|Store> $stores
+     * @param array<array-key, StackStoreProxy|Store> $stores
      *
      * @throws InvalidArgumentException when no layers are given
      */
@@ -42,7 +44,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 
         $this->stores = array_map(
             static fn (Store $store) => $store instanceof StackStoreProxy ? $store : new StackStoreProxy($store),
-            $stores
+            array_values($stores)
         );
     }
 
@@ -238,9 +240,21 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
     }
 
     /**
+     * Get the underlying store layers.
+     *
+     * @return list<StackStoreProxy>
+     *
+     * @internal
+     */
+    public function getStores(): array
+    {
+        return $this->stores;
+    }
+
+    /**
      * Get the underlying taggable layer stores, top to bottom.
      *
-     * @return array<int, TaggableStore>
+     * @return list<TaggableStore>
      *
      * @throws NotSupportedException when the layer composition cannot support tags
      */

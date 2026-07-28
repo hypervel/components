@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
@@ -323,6 +325,59 @@ class CacheArrayStoreTest extends TestCase
 
         $this->assertTrue($retrievedObject->foo);
         $this->assertFalse(property_exists($retrievedObject, 'bar'));
+    }
+
+    public function testSerializedValuesAreUnrestrictedByDefault(): void
+    {
+        $store = new ArrayStore(true);
+        $store->put('object', new stdClass, 10);
+
+        $this->assertInstanceOf(stdClass::class, $store->get('object'));
+    }
+
+    public function testSerializableClassesControlSerializedValues(): void
+    {
+        $denyingStore = new ArrayStore(true, false);
+        $allowingStore = new ArrayStore(
+            serializesValues: true,
+            serializableClasses: [stdClass::class],
+        );
+
+        $denyingStore->put('object', new stdClass, 10);
+        $allowingStore->put('object', new stdClass, 10);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
+    }
+
+    public function testSerializableClassPolicyControlsSerializedValues(): void
+    {
+        $denyingStore = new ArrayStore(
+            serializesValues: true,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        $allowingStore = new ArrayStore(
+            serializesValues: true,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
+        );
+
+        $denyingStore->put('object', new stdClass, 10);
+        $allowingStore->put('object', new stdClass, 10);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
+    }
+
+    public function testSerializableClassPolicyTakesPrecedenceOverScalarClasses(): void
+    {
+        $store = new ArrayStore(
+            serializesValues: true,
+            serializableClasses: [stdClass::class],
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        $store->put('object', new stdClass, 10);
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('object'));
     }
 
     public function testValuesAreStoredByReferenceIfSerializationIsDisabled(): void
