@@ -8,6 +8,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Throwable;
 
 class BackgroundQueue extends SyncQueue
@@ -43,17 +44,21 @@ class BackgroundQueue extends SyncQueue
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            $this->addUniqueJobRollbackCallback($job);
-            $this->addDebouncedJobRollbackCallback($job);
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->container->make('db.transactions');
 
-            return $this->container->make('db.transactions')
-                ->addCallback(
-                    fn () => $this->scheduleTimer(
-                        $delay,
-                        $this->createPayload($job, $queue, $data),
-                        $queue
-                    )
-                );
+            $this->addUniqueJobRollbackCallback($transactions, $job);
+            $this->addDebouncedJobRollbackCallback($transactions, $job);
+
+            $transactions->addCallback(
+                fn () => $this->scheduleTimer(
+                    $delay,
+                    $this->createPayload($job, $queue, $data),
+                    $queue
+                )
+            );
+
+            return null;
         }
 
         return $this->scheduleTimer(
