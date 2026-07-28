@@ -49,7 +49,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $container = Container::setInstance(new Container);
         $this->cacheManager = m::mock(CacheManager::class);
-        $this->storeValidator = m::mock();
+        $this->storeValidator = m::mock(ModelCacheStoreValidator::class);
         $this->storeValidator->shouldReceive('validate')->byDefault();
         $container->instance('cache', $this->cacheManager);
         $container->instance(ModelCacheStoreValidator::class, $this->storeValidator);

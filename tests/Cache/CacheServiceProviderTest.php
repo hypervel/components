@@ -113,6 +113,7 @@ class CacheServiceProviderTest extends TestCase
         $this->assertCount(2, $listeners[AfterWorkerStart::class]);
 
         $server = m::mock(SwooleServer::class);
+        // Policy finalization runs in request workers and taskworkers, unlike Swoole timer registration.
         $server->taskworker = true;
         $listeners[AfterWorkerStart::class][1](new AfterWorkerStart($server, 9));
 

@@ -99,8 +99,8 @@ return [
             | Cross-node behavior:
             |   - 'redis' / 'database': fully shared — invalidation is global.
             |   - 'storage': shared only when its configured disk is shared.
-            |   - 'file' / 'swoole': node-local, no cross-node invalidation
-            |     (single-instance deployments only).
+            |   - 'file' / 'swoole' used as the only store: node-local, with no
+            |     cross-node invalidation (single-instance deployments only).
             |   - 'stack' with a node-local upper tier (e.g. [swoole, redis]):
             |     eventually consistent — the shared lower tier clears
             |     globally, but each node's L1 serves its stale entry until

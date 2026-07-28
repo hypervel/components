@@ -140,6 +140,30 @@ class SerializableClassPolicyTest extends TestCase
         $this->assertSame(3, $resolverRuns);
     }
 
+    public function testFinalizationIsIdempotentAndDoesNotWidenThePolicy(): void
+    {
+        $resolverRuns = 0;
+        $policy = new SerializableClassPolicy(static fn (): false => false);
+        $policy->allowUsing(static function () use (&$resolverRuns): array {
+            ++$resolverRuns;
+
+            return [SerializablePolicyAllowedClass::class];
+        });
+
+        $policy->finalize();
+        $policy->finalize();
+
+        $this->assertSame(1, $resolverRuns);
+        $this->assertInstanceOf(
+            SerializablePolicyAllowedClass::class,
+            $policy->unserialize(serialize(new SerializablePolicyAllowedClass)),
+        );
+        $this->assertInstanceOf(
+            __PHP_Incomplete_Class::class,
+            $policy->unserialize(serialize(new SerializablePolicyDeclaredClass)),
+        );
+    }
+
     public function testFinalizationClearsResolverCaptures(): void
     {
         $capture = new stdClass;

@@ -125,12 +125,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | This global value determines the classes that PHP cache stores may
-    | unserialize. False allows only classes contributed by framework and
-    | package providers, an array adds application classes, and null or true
-    | allows every class. False is the secure default because unserializing
-    | arbitrary classes can expose gadget chains when cache payloads are forged.
-    | Native PhpRedis serializers handle deserialization themselves, so this
-    | policy does not apply to those connections.
+    | unserialize. False allows only classes contributed by framework, package,
+    | and application providers; an array also allows the classes listed here;
+    | null or true allows every class. False is the secure default because
+    | unserializing arbitrary classes can expose gadget chains when cache
+    | payloads are forged. Native PhpRedis serializers handle deserialization
+    | themselves, so this policy does not apply to those connections.
     |
     */
 

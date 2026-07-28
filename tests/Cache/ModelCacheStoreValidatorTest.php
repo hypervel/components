@@ -279,7 +279,7 @@ class ModelCacheStoreValidatorTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testLastRecognizedRedisSerializerOptionWins(): void
+    public function testLastNumericRedisSerializerOptionWinsOverStringOption(): void
     {
         $this->validator(connectionOptions: [
             'serializer' => Redis::SERIALIZER_JSON,
@@ -287,13 +287,18 @@ class ModelCacheStoreValidatorTest extends TestCase
         ])->validate($this->repository($this->redisStore()), 'Auth user cache');
 
         $this->assertTrue(true);
+    }
 
+    public function testLastStringRedisSerializerOptionWinsOverNumericOption(): void
+    {
         $validator = $this->validator(connectionOptions: [
             Redis::OPT_SERIALIZER => Redis::SERIALIZER_PHP,
             'SERIALIZER' => Redis::SERIALIZER_JSON,
         ]);
 
         $this->expectException(UnsupportedModelCacheStoreException::class);
+        $this->expectExceptionMessage('serializer [' . Redis::SERIALIZER_JSON . ']');
+
         $validator->validate($this->repository($this->redisStore()), 'Auth user cache');
     }
 

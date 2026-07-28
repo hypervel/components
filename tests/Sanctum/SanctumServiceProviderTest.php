@@ -226,6 +226,7 @@ class SanctumServiceProviderTest extends TestCase
         $this->assertInstanceOf(Closure::class, $listener);
 
         $server = m::mock(SwooleServer::class);
+        // Store validation runs in request workers and taskworkers, unlike Swoole timer registration.
         $server->taskworker = true;
         $listener(new AfterWorkerStart($server, 8));
     }

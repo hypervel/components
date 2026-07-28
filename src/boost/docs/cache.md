@@ -82,7 +82,7 @@ Use `array` for request-local test and scratch data. Use `worker-array` only whe
 <a name="serializable-cached-objects"></a>
 ### Serializable Cached Objects
 
-Hypervel applies one global class policy to PHP-serialized cache values. By default, `serializable_classes` is `false`, so PHP may instantiate only classes contributed by framework and package providers. Auth and Sanctum contribute their configured root models and Hypervel contributes the standard Eloquent collection and pivot classes they use.
+Hypervel applies one global class policy to PHP-serialized cache values. By default, `serializable_classes` is `false`, so PHP may instantiate only classes contributed by framework, package, and application providers. Auth and Sanctum contribute their configured root models and Hypervel contributes the standard Eloquent collection and pivot classes they use.
 
 Set this option to an array to add application-owned classes, or to `null` / `true` to allow every class:
 
