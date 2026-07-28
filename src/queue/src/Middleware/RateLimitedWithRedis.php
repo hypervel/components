@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\Limiters\DurationLimiter;
 use Hypervel\Support\InteractsWithTime;
+use UnitEnum;
 
 class RateLimitedWithRedis extends RateLimited
 {
@@ -26,7 +27,7 @@ class RateLimitedWithRedis extends RateLimited
     /**
      * Create a new middleware instance.
      */
-    public function __construct(string $limiterName, ?string $connection = null)
+    public function __construct(UnitEnum|string $limiterName, ?string $connection = null)
     {
         parent::__construct($limiterName);
 
@@ -41,7 +42,7 @@ class RateLimitedWithRedis extends RateLimited
         foreach ($limits as $limit) {
             if ($this->tooManyAttempts($limit->key, $limit->maxAttempts, $limit->decaySeconds)) {
                 return $this->shouldRelease
-                    ? $job->release($this->releaseAfter ?: $this->getTimeUntilNextRetry($limit->key))
+                    ? $job->release($this->releaseAfter ?? $this->getTimeUntilNextRetry($limit->key))
                     : false;
             }
         }

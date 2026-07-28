@@ -171,21 +171,12 @@ abstract class ServiceProvider
     }
 
     /**
-     * Get the options within the configuration that should be merged.
+     * Get configuration arrays whose entries should be merged by name.
      *
-     * Override this in package service providers to declare which config keys
-     * contain collection arrays that should be merged rather than replaced.
-     * This uses the same two-level merge logic as LoadConfiguration::mergeableOptions().
-     *
-     * With mergeableOptions() returning ['stores']:
-     *   - Package defines stores: array, file, redis, swoole
-     *   - App defines stores: redis (custom config), s3 (new)
-     *   - Result: array, file, redis (app's version — fully replaced, no package keys leak in), swoole, s3
-     *
-     * Without 'stores' in mergeableOptions():
-     *   - Package defines stores: array, file, redis, swoole
-     *   - App defines stores: redis (custom config), s3 (new)
-     *   - Result: redis (app's version), s3 — everything else gone
+     * Override this in a package service provider to list nested configuration
+     * arrays whose entries are named. Application entries replace package entries
+     * with the same name, while package entries not defined by the application
+     * remain. Nested arrays not listed here are replaced completely.
      *
      * @return array<int, string>
      */

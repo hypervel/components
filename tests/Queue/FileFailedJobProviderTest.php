@@ -11,6 +11,9 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JsonException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 class FileFailedJobProviderTest extends TestCase
 {
@@ -57,6 +60,27 @@ class FileFailedJobProviderTest extends TestCase
                 'failed_at_timestamp' => $failedJobs[0]->failed_at_timestamp,
             ],
         ], $failedJobs);
+    }
+
+    #[DataProvider('payloadsWithoutUsableIdentifiers')]
+    public function testLogGeneratesAnIdentifierWhilePreservingUnsupportedPayloads(string $payload): void
+    {
+        $id = $this->provider->log('connection', 'queue', $payload, new Exception('failed'));
+
+        $this->assertIsString($id);
+        $this->assertTrue(Str::isUuid($id));
+        $this->assertSame($payload, $this->provider->find($id)->payload);
+    }
+
+    public static function payloadsWithoutUsableIdentifiers(): array
+    {
+        return [
+            'malformed JSON' => ['{invalid'],
+            'missing UUID' => [json_encode(['job' => 'example'])],
+            'empty UUID' => [json_encode(['uuid' => ''])],
+            'array UUID' => [json_encode(['uuid' => []])],
+            'boolean UUID' => [json_encode(['uuid' => false])],
+        ];
     }
 
     public function testCanRetrieveAllFailedJobs(): void
@@ -184,6 +208,83 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertEmpty($failedJobs);
     }
 
+    public function testUnreadableFailedJobsPathThrows(): void
+    {
+        $server = stream_socket_server("unix://{$this->path}");
+
+        $this->assertIsResource($server);
+
+        try {
+            $this->provider->all();
+
+            $this->fail('Expected the failed jobs read to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame("Unable to read the failed jobs file [{$this->path}].", $exception->getMessage());
+        } finally {
+            fclose($server);
+        }
+    }
+
+    public function testMalformedFailedJobsFileThrows(): void
+    {
+        file_put_contents($this->path, '{invalid');
+
+        $this->expectException(JsonException::class);
+
+        $this->provider->all();
+    }
+
+    public function testNonArrayFailedJobsFileThrows(): void
+    {
+        file_put_contents($this->path, '{"id":"job"}');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("The failed jobs file [{$this->path}] does not contain a JSON array.");
+
+        $this->provider->all();
+    }
+
+    public function testPublicationPreservesExistingFilePermissions(): void
+    {
+        file_put_contents($this->path, '[]');
+        chmod($this->path, 0664);
+
+        $this->logFailedJob();
+        clearstatcache(true, $this->path);
+
+        $this->assertSame(0664, fileperms($this->path) & 0777);
+    }
+
+    public function testPublicationCreatesFilesUsingTheCurrentUmask(): void
+    {
+        $previousUmask = umask(0027);
+
+        try {
+            $this->logFailedJob();
+            clearstatcache(true, $this->path);
+
+            $this->assertSame(0640, fileperms($this->path) & 0777);
+        } finally {
+            umask($previousUmask);
+        }
+    }
+
+    public function testFailedPublicationRemovesItsTemporaryFile(): void
+    {
+        mkdir($this->path);
+        $provider = new ExposedFileFailedJobProvider($this->path);
+
+        try {
+            $provider->publish([]);
+
+            $this->fail('Expected the failed jobs publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame("Unable to publish the failed jobs file [{$this->path}].", $exception->getMessage());
+        }
+
+        $this->assertSame([], glob($this->tempDirectory . '/failed-jobs.json.*'));
+    }
+
     public function testJobsCanBeCounted(): void
     {
         $this->assertSame(0, $this->provider->count());
@@ -244,5 +345,16 @@ class FileFailedJobProviderTest extends TestCase
         $this->provider->log($connection, $queue, json_encode(['uuid' => (string) $uuid]), $exception);
 
         return [(string) $uuid, $exception];
+    }
+}
+
+class ExposedFileFailedJobProvider extends FileFailedJobProvider
+{
+    /**
+     * Publish the given failed jobs.
+     */
+    public function publish(array $jobs): void
+    {
+        $this->write($jobs);
     }
 }

@@ -1050,17 +1050,17 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testSetnx(): void
+    public function testSetnxAcceptsNonStringValues(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
 
         $connection->getConnection()
             ->shouldReceive('setNx')
-            ->with('key', 'value')
+            ->with('key', 123)
             ->once()
             ->andReturn(true);
 
-        $result = $connection->__call('setnx', ['key', 'value']);
+        $result = $connection->__call('setnx', ['key', 123]);
 
         $this->assertEquals(1, $result);
     }
@@ -1110,17 +1110,18 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function testHsetnx(): void
+    public function testHsetnxAcceptsNonStringValues(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
+        $value = ['nested' => 'value'];
 
         $connection->getConnection()
             ->shouldReceive('hSetNx')
-            ->with('hash', 'field', 'value')
+            ->with('hash', 'field', $value)
             ->once()
             ->andReturn(true);
 
-        $result = $connection->__call('hsetnx', ['hash', 'field', 'value']);
+        $result = $connection->__call('hsetnx', ['hash', 'field', $value]);
 
         $this->assertEquals(1, $result);
     }
@@ -2224,8 +2225,9 @@ class RedisConnectionTest extends TestCase
             $this->assertSame(
                 'Cannot call reset() on a pooled Redis connection because it clears '
                 . 'the authentication and selected database owned by the pool. '
-                . 'Use Redis::discard() for MULTI, Redis::unwatch() for WATCH, '
-                . 'and exec() to complete a PIPELINE.',
+                . 'For facade-managed connections, use Redis::discard(), Redis::unwatch(), '
+                . 'or Redis::exec(). On a held connection, call discardTransaction(), '
+                . 'unwatch(), or exec() on that same connection.',
                 $exception->getMessage(),
             );
         }

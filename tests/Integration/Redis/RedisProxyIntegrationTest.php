@@ -600,6 +600,36 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertNull($redis->get($key));
     }
 
+    public function testHeldConnectionCanDiscardTransactionAndRemainReusable(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            name: 'test_held_native_discard',
+            options: ['prefix' => ''],
+            maxConnections: 1,
+        ));
+        $redis->flushdb();
+        $discardedKey = 'discard:held';
+        $healthyKey = 'discard:held:healthy';
+
+        $native = $redis->withConnection(function (RedisConnection $connection) use ($discardedKey, $healthyKey): PhpRedis {
+            $native = $connection->client();
+            $this->assertInstanceOf(PhpRedis::class, $native);
+
+            $connection->multi();
+            $connection->set($discardedKey, 'discarded');
+
+            $this->assertTrue($connection->discardTransaction());
+            $this->assertTrue($connection->set($healthyKey, 'healthy'));
+            $this->assertSame('healthy', $connection->get($healthyKey));
+
+            return $native;
+        }, transform: false);
+
+        $this->assertNull($redis->get($discardedKey));
+        $this->assertSame('healthy', $redis->get($healthyKey));
+        $this->assertSame($native, $this->nativeClient($redis));
+    }
+
     public function testWithConnectionTransformFalseSupportsPipelineCallbacks(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));

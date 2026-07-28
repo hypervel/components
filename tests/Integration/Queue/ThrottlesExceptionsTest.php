@@ -316,6 +316,39 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($job->handled);
     }
 
+    public function testItCanBackoffUsingException(): void
+    {
+        $job = new class {
+            public ?int $releasedAfter = null;
+
+            public function release(int $delay): static
+            {
+                $this->releasedAfter = $delay;
+
+                return $this;
+            }
+        };
+        $expectedException = new RuntimeException('Whoops!');
+        $receivedException = null;
+        $next = function () use ($expectedException): never {
+            throw $expectedException;
+        };
+
+        $middleware = (new ThrottlesExceptions)->backoff(
+            function (RuntimeException $throwable) use (&$receivedException): int {
+                $receivedException = $throwable;
+
+                return 5;
+            },
+        );
+
+        $result = $middleware->handle($job, $next);
+
+        $this->assertSame($job, $result);
+        $this->assertSame($expectedException, $receivedException);
+        $this->assertSame(300, $job->releasedAfter);
+    }
+
     public function testReportingExceptions(): void
     {
         $this->spy(ExceptionHandler::class)

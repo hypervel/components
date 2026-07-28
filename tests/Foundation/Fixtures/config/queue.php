@@ -16,4 +16,12 @@ return [
             'merge' => true,
         ],
     ],
+
+    'batching' => [
+        'table' => 'custom_batches',
+    ],
+
+    'failed' => [
+        'driver' => 'file',
+    ],
 ];

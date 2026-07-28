@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Queue;
 use DateInterval;
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
@@ -506,7 +507,10 @@ class QueueBackgroundQueueTest extends TestCase
 
     protected function getContainer(): Container
     {
-        return new Container;
+        $container = new Container;
+        $container->instance(Cache::class, m::mock(Cache::class));
+
+        return $container;
     }
 }
 

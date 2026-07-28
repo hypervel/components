@@ -548,6 +548,8 @@ The `flushByPattern` method deletes all keys matching a pattern using Redis' `SC
 $deleted = Redis::flushByPattern('users:*');
 ```
 
+When calling `flushByPattern` on an already-held connection, acquire the connection with `transform: false`.
+
 <a name="transactions"></a>
 ### Transactions
 
@@ -610,7 +612,7 @@ Redis::pipeline(function (\Redis $pipe): void {
 > In Hypervel, the closure form of `pipeline` returns the pooled connection as soon as the pipeline is executed. Calling `Redis::pipeline()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.
 
 > [!WARNING]
-> The native `reset()` command is not available on pooled connections because it clears authentication and selected database state owned by the pool. Use `discard()` to abandon a transaction, `unwatch()` to stop watching keys, or `exec()` to complete a pipeline.
+> The native `reset()` command is not available on pooled connections because it clears authentication and selected database state owned by the pool. For facade-managed connections, use `Redis::discard()`, `Redis::unwatch()`, or `Redis::exec()`. Within a `withConnection` callback, call `discardTransaction()`, `unwatch()`, or `exec()` on the connection passed to the callback. Calling `discard()` on a held connection removes it from the pool instead of abandoning its Redis transaction.
 
 <a name="advanced-helpers"></a>
 ### Advanced Helpers
@@ -623,7 +625,7 @@ use Hypervel\Support\Facades\Redis;
 
 $keys = Redis::withConnection(function (RedisConnection $connection): array {
     return iterator_to_array($connection->safeScan('users:*'));
-});
+}, transform: false);
 ```
 
 The `evalWithShaCache` method executes a Lua script using `evalSha` and automatically falls back to `eval` when Redis has not cached the script yet:

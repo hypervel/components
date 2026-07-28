@@ -8,11 +8,13 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Jobs\SyncJob;
+use Hypervel\Support\Collection;
 use Throwable;
 
 class SyncQueue extends Queue implements QueueContract
@@ -58,6 +60,54 @@ class SyncQueue extends Queue implements QueueContract
     }
 
     /**
+     * Get the pending jobs for the given queue.
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     */
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     */
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
     public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
@@ -75,13 +125,17 @@ class SyncQueue extends Queue implements QueueContract
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            $this->addUniqueJobRollbackCallback($job);
-            $this->addDebouncedJobRollbackCallback($job);
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->container->make('db.transactions');
 
-            return $this->container->make('db.transactions')
-                ->addCallback(
-                    fn () => $this->executeJob($job, $data, $queue)
-                );
+            $this->addUniqueJobRollbackCallback($transactions, $job);
+            $this->addDebouncedJobRollbackCallback($transactions, $job);
+
+            $transactions->addCallback(
+                fn () => $this->executeJob($job, $data, $queue)
+            );
+
+            return null;
         }
 
         return $this->executeJob($job, $data, $queue);

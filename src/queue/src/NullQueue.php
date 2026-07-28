@@ -8,6 +8,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Support\Collection;
 
 class NullQueue extends Queue implements QueueContract
 {
@@ -41,6 +42,54 @@ class NullQueue extends Queue implements QueueContract
     public function reservedSize(?string $queue = null): int
     {
         return 0;
+    }
+
+    /**
+     * Get the pending jobs for the given queue.
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     */
+    public function allPendingJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return new Collection;
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     */
+    public function allReservedJobs(): Collection
+    {
+        return new Collection;
     }
 
     /**

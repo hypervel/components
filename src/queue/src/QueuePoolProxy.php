@@ -4,22 +4,51 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Queue\Job;
-use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Queue\Jobs\Job as PoolLeaseAwareJob;
+use Hypervel\Support\Collection;
 use RuntimeException;
 use Throwable;
 
-class QueuePoolProxy extends PoolProxy implements Queue
+class QueuePoolProxy extends PoolProxy implements QueueContract
 {
     /**
      * The logical connection name applied to each borrowed queue.
      */
     protected string $connectionName = '';
+
+    /** @var Closure(Closure(Queue): mixed): mixed */
+    protected Closure $afterCommitDispatcher;
+
+    /**
+     * Create a pooled queue proxy.
+     */
+    public function __construct(
+        PoolDefinition $definition,
+        Closure $resolver,
+        Factory $pools,
+        ?Closure $releaseCallback = null,
+    ) {
+        $this->afterCommitDispatcher = fn (Closure $callback) => $this->usingConnection($callback);
+
+        parent::__construct(
+            $definition,
+            $resolver,
+            $pools,
+            static function (Queue $queue) use ($releaseCallback): void {
+                $queue->setAfterCommitDispatcher(null);
+                $releaseCallback?->__invoke($queue);
+            },
+        );
+    }
 
     /**
      * Get the size of the queue.
@@ -30,7 +59,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
     }
 
     /**
-     * Get the current queue workload for the application.
+     * Get the number of pending jobs.
      */
     public function pendingSize(?string $queue = null): int
     {
@@ -49,6 +78,54 @@ class QueuePoolProxy extends PoolProxy implements Queue
      * Get the number of reserved jobs.
      */
     public function reservedSize(?string $queue = null): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the pending jobs for the given queue.
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     */
+    public function allPendingJobs(): Collection
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     */
+    public function allReservedJobs(): Collection
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -110,6 +187,23 @@ class QueuePoolProxy extends PoolProxy implements Queue
     }
 
     /**
+     * Run a callback with the underlying SQS queue.
+     *
+     * @param Closure(SqsQueue): mixed $callback
+     */
+    public function withConnection(Closure $callback): mixed
+    {
+        if ($this->definition->resourceType !== 'sqs') {
+            throw new RuntimeException('Direct queue connection access is only supported for SQS queues.');
+        }
+
+        return $this->usingConnection(static function (Queue $queue) use ($callback) {
+            /** @var SqsQueue $queue */
+            return $callback($queue);
+        });
+    }
+
+    /**
      * Pop the next job off of the queue.
      */
     public function pop(?string $queue = null): ?Job
@@ -117,7 +211,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
         $lease = $this->lease();
 
         try {
-            /** @var Queue $connection */
+            /** @var QueueContract $connection */
             $connection = $lease->get();
             $job = $connection->pop($queue);
 
@@ -204,5 +298,34 @@ class QueuePoolProxy extends PoolProxy implements Queue
     {
         /** @var Queue $object */
         $object->setConnectionName($this->connectionName);
+        $object->setAfterCommitDispatcher($this->afterCommitDispatcher);
+    }
+
+    /**
+     * Run a callback with a borrowed queue.
+     *
+     * @param Closure(Queue): mixed $callback
+     */
+    protected function usingConnection(Closure $callback): mixed
+    {
+        $lease = $this->lease();
+
+        try {
+            /** @var Queue $queue */
+            $queue = $lease->get();
+            $result = $callback($queue);
+        } catch (Throwable $operationException) {
+            try {
+                $lease->release();
+            } catch (Throwable $finalizationException) {
+                PoolErrorReporter::report($finalizationException);
+            }
+
+            throw $operationException;
+        }
+
+        $lease->release();
+
+        return $result;
     }
 }

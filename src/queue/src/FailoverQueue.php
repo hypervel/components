@@ -11,6 +11,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Events\QueueFailedOver;
+use Hypervel\Support\Collection;
 use RuntimeException;
 use Throwable;
 
@@ -68,6 +69,55 @@ class FailoverQueue extends Queue implements QueueContract
     public function reservedSize(?string $queue = null): int
     {
         return $this->manager->connection($this->connections[0])->reservedSize($queue);
+    }
+
+    /**
+     * Get the pending jobs for the given queue.
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        // Inspection remains an optional concrete capability, not part of the core Queue contract.
+        return $this->manager->connection($this->connections[0])->pendingJobs($queue); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return $this->manager->connection($this->connections[0])->delayedJobs($queue); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return $this->manager->connection($this->connections[0])->reservedJobs($queue); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     */
+    public function allPendingJobs(): Collection
+    {
+        return $this->manager->connection($this->connections[0])->allPendingJobs(); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return $this->manager->connection($this->connections[0])->allDelayedJobs(); // @phpstan-ignore method.notFound
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     */
+    public function allReservedJobs(): Collection
+    {
+        return $this->manager->connection($this->connections[0])->allReservedJobs(); // @phpstan-ignore method.notFound
     }
 
     /**

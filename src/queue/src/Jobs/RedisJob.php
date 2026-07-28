@@ -5,15 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Jobs;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\RedisQueue;
 
 class RedisJob extends Job
 {
-    /**
-     * The JSON decoded version of "$job".
-     */
-    protected array $decoded = [];
-
     /**
      * Create a new job instance.
      */
@@ -23,13 +19,12 @@ class RedisJob extends Job
         protected string $job,
         protected string $reserved,
         protected string $connectionName,
-        protected string $queue
+        protected string $queue,
+        protected ?int $attempts,
     ) {
         // The $job variable is the original job JSON as it existed in the ready queue while
         // the $reserved variable is the raw JSON in the reserved queue. The exact format
         // of the reserved job is required in order for us to properly delete its data.
-
-        $this->decoded = $this->payload();
     }
 
     /**
@@ -65,7 +60,24 @@ class RedisJob extends Job
      */
     public function attempts(): int
     {
-        return ($this->decoded['attempts'] ?? null) + 1;
+        return $this->attempts ?? 1;
+    }
+
+    /**
+     * Get the decoded body of the job.
+     */
+    public function payload(): array
+    {
+        $payload = parent::payload();
+
+        if ($this->attempts === null) {
+            throw $this->payloadException ??= new InvalidPayloadException(
+                'The Redis queue job payload does not contain a valid attempts count.',
+                $this->job,
+            );
+        }
+
+        return $payload;
     }
 
     /**
@@ -73,7 +85,13 @@ class RedisJob extends Job
      */
     public function getJobId(): ?string
     {
-        return $this->decoded['id'] ?? null;
+        try {
+            $id = parent::payload()['id'] ?? null;
+        } catch (InvalidPayloadException) {
+            return null;
+        }
+
+        return is_string($id) ? $id : null;
     }
 
     /**

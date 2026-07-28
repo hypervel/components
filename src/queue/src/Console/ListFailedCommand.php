@@ -14,14 +14,10 @@ use Symfony\Component\Console\Attribute\AsCommand;
 class ListFailedCommand extends Command
 {
     /**
-     * The console command name.
-     */
-    protected ?string $name = 'queue:failed';
-
-    /**
      * The console command signature.
      */
-    protected ?string $signature = 'queue:failed';
+    protected ?string $signature = 'queue:failed
+                            {--json : Output the failed jobs as JSON}';
 
     /**
      * The console command description.
@@ -38,7 +34,15 @@ class ListFailedCommand extends Command
      */
     public function handle(): void
     {
-        if (count($jobs = $this->getFailedJobs()) === 0) {
+        $jobs = $this->getFailedJobs();
+
+        if ($this->option('json')) {
+            $this->displayFailedJobsAsJson($jobs);
+
+            return;
+        }
+
+        if (count($jobs) === 0) {
             $this->components->info('No failed jobs found.');
 
             return;
@@ -80,14 +84,19 @@ class ListFailedCommand extends Command
     {
         $payload = json_decode($payload, true);
 
-        if ($payload && (! isset($payload['data']['command']))) {
-            return $payload['job'] ?? null;
-        }
-        if ($payload && isset($payload['data']['command'])) {
-            return $this->matchJobName($payload);
+        if (! is_array($payload)) {
+            return null;
         }
 
-        return null;
+        if (! isset($payload['data']['command'])) {
+            return is_string($payload['job'] ?? null) ? $payload['job'] : null;
+        }
+
+        if (! empty($payload['displayName']) && is_string($payload['displayName'])) {
+            return $payload['displayName'];
+        }
+
+        return $this->matchJobName($payload);
     }
 
     /**
@@ -111,5 +120,19 @@ class ListFailedCommand extends Command
                 sprintf('<fg=gray>%s@%s</> %s', $job[1], $job[2], $job[3])
             ),
         );
+    }
+
+    /**
+     * Display the failed jobs as JSON.
+     */
+    protected function displayFailedJobsAsJson(array $jobs): void
+    {
+        $this->output->writeln(Collection::make($jobs)->values()->map(fn (array $job): array => [
+            'id' => $job[0],
+            'connection' => $job[1],
+            'queue' => $job[2],
+            'class' => $job[3],
+            'failed_at' => $job[4],
+        ])->toJson());
     }
 }

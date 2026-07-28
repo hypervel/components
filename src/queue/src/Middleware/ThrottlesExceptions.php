@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
+use Closure;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Container\Container;
 use Throwable;
@@ -23,7 +24,7 @@ class ThrottlesExceptions
     /**
      * The number of minutes to wait before retrying the job after an exception.
      */
-    protected int $retryAfterMinutes = 0;
+    protected Closure|int $retryAfterMinutes = 0;
 
     /**
      * The callback that determines if the exception should be reported.
@@ -112,7 +113,7 @@ class ThrottlesExceptions
 
             $this->limiter->hit($jobKey, $this->decaySeconds);
 
-            return $job->release($this->retryAfterMinutes * 60);
+            return $job->release($this->getTimeUntilNextRetryAfterException($throwable));
         }
 
         return null;
@@ -193,11 +194,23 @@ class ThrottlesExceptions
     /**
      * Specify the number of minutes a job should be delayed when it is released (before it has reached its max exceptions).
      */
-    public function backoff(int $backoff): static
+    public function backoff(Closure|int $backoff): static
     {
         $this->retryAfterMinutes = $backoff;
 
         return $this;
+    }
+
+    /**
+     * Get the number of seconds that should elapse before the job is retried after an exception.
+     */
+    protected function getTimeUntilNextRetryAfterException(Throwable $throwable): int
+    {
+        $backoff = $this->retryAfterMinutes instanceof Closure
+            ? ($this->retryAfterMinutes)($throwable)
+            : $this->retryAfterMinutes;
+
+        return $backoff * 60;
     }
 
     /**

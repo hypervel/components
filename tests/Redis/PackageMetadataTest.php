@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\TestCase;
@@ -66,6 +67,56 @@ class PackageMetadataTest extends TestCase
         }
     }
 
+    public function testCaseInsensitiveCommandAliasesHaveIdenticalSignatures(): void
+    {
+        $docblock = (new ReflectionClass(RedisConnection::class))->getDocComment();
+        $this->assertIsString($docblock);
+        preg_match_all(
+            '/@method\s+(\S+)\s+([A-Za-z_][A-Za-z0-9_]*)\(([^)]*)\)/',
+            $docblock,
+            $matches,
+            PREG_SET_ORDER,
+        );
+
+        $methods = [];
+
+        foreach ($matches as $match) {
+            $methods[strtolower($match[2])][] = "{$match[1]}({$match[3]})";
+        }
+
+        foreach ([
+            'setnx',
+            'hmget',
+            'hmset',
+            'hsetnx',
+            'hget',
+            'hset',
+            'llen',
+            'blpop',
+            'brpop',
+            'spop',
+            'srem',
+            'zadd',
+            'zcard',
+            'zcount',
+            'zrangebyscore',
+            'zrevrangebyscore',
+            'flushdb',
+            'smembers',
+            'hdel',
+            'zrem',
+            'hlen',
+            'hkeys',
+        ] as $method) {
+            $this->assertCount(2, $methods[$method] ?? [], "Expected two case variants for [{$method}].");
+            $this->assertCount(
+                1,
+                array_unique($methods[$method]),
+                "Expected both case variants of [{$method}] to have the same signature.",
+            );
+        }
+    }
+
     public function testFacadeDocumentsManagerAndMacroSurfaces(): void
     {
         $docblock = (new ReflectionClass(Redis::class))->getDocComment();
@@ -78,9 +129,13 @@ class PackageMetadataTest extends TestCase
             'mixin',
             'hasMacro',
             'flushMacros',
+            'hasHashTag',
         ] as $method) {
             $this->assertStringContainsString(" {$method}(", $docblock);
         }
+
+        $this->assertStringContainsString(' (bool|\Redis) discard()', $docblock);
+        $this->assertStringNotContainsString(' macroCall(', $docblock);
     }
 
     public function testUnsupportedNativeMethodsAreNotAdvertised(): void

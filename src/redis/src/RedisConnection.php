@@ -37,24 +37,24 @@ use function Hypervel\Coroutine\go;
  * @method mixed get(string $key) Get the value of a key
  * @method bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
  * @method array mget(array $keys) Get the values of multiple keys
- * @method int setnx(string $key, string $value) Set key if not exists
- * @method int setNx(string $key, string $value) Set key if not exists
- * @method array hmget(string $key, mixed ...$fields) Get hash field values
- * @method bool hmset(string $key, mixed ...$dictionary) Set hash field values
- * @method int hsetnx(string $hash, string $key, string $value) Set hash field if not exists
+ * @method bool|int|Redis setnx(string $key, mixed $value) Set key if not exists
+ * @method bool|int|Redis setNx(string $key, mixed $value) Set key if not exists
+ * @method array|false|Redis hmget(string $key, array $fields) Get hash field values
+ * @method bool|Redis hmset(string $key, array $fieldValues) Set hash field values
+ * @method bool|int|Redis hsetnx(string $hash, string $key, mixed $value) Set hash field if not exists
  * @method mixed hget(string $key, string $member) Get hash field value
- * @method false|int hset(string $key, mixed ...$fields_and_vals) Set hash field values
+ * @method false|int|Redis hset(string $key, mixed ...$fields_and_vals) Set hash field values
  * @method false|int lrem(string $key, int $count, mixed $value) Remove list elements
- * @method false|int llen(string $key) Get list length
- * @method null|array blpop(mixed ...$arguments) Blocking left pop from list
- * @method null|array brpop(mixed ...$arguments) Blocking right pop from list
- * @method mixed spop(string $key, int $count = 1) Remove and return random set member
- * @method false|int sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
- * @method int zadd(string $key, mixed ...$dictionary) Add members to sorted set
- * @method false|int zcard(string $key) Get sorted set cardinality
- * @method false|int zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
- * @method array zrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range
- * @method array zrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range (reverse)
+ * @method false|int|Redis llen(string $key) Get list length
+ * @method null|array|false|Redis blpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
+ * @method null|array|false|Redis brpop(array|string $key_or_keys, float|int|string $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
+ * @method mixed spop(string $key, int $count = 0) Remove and return random set member
+ * @method false|int|Redis sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
+ * @method false|float|int|Redis zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
+ * @method false|int|Redis zcard(string $key) Get sorted set cardinality
+ * @method false|int|Redis zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method array|false|Redis zrangebyscore(string $key, string $min, string $max, array $options = []) Get sorted set members by score range
+ * @method array|false|Redis zrevrangebyscore(string $key, string $max, string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
  * @method int zunionstore(string $output, array $keys, array $options = []) Union sorted sets
  * @method mixed eval(string $script, int $numberOfKeys, mixed ...$arguments) Evaluate Lua script
@@ -62,11 +62,11 @@ use function Hypervel\Coroutine\go;
  * @method mixed flushdb(mixed ...$arguments) Flush database
  * @method mixed executeRaw(array $parameters) Execute raw Redis command
  * @method mixed pipeline(callable|null $callback = null) Execute commands in a pipeline
- * @method array smembers(string $key) Get all set members
- * @method false|int hdel(string $key, string ...$fields) Delete hash fields
- * @method false|int zrem(string $key, string ...$members) Remove sorted set members
- * @method false|int hlen(string $key) Get number of hash fields
- * @method array hkeys(string $key) Get all hash field names
+ * @method array|false|Redis smembers(string $key) Get all set members
+ * @method false|int|Redis hdel(string $key, string $field, string ...$other_fields) Delete hash fields
+ * @method false|int|Redis zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
+ * @method false|int|Redis hlen(string $key) Get number of hash fields
+ * @method array|false|Redis hkeys(string $key) Get all hash field names
  * @method string _serialize(mixed $value) Serialize a value using configured serializer
  * @method string _digest(mixed $value)
  * @method string _pack(mixed $value)
@@ -103,7 +103,6 @@ use function Hypervel\Coroutine\go;
  * @method false|int|Redis delex(string $key, array|null $options = null)
  * @method false|int|Redis delifeq(string $key, mixed $value)
  * @method false|Redis|string digest(string $key)
- * @method bool|Redis discard()
  * @method false|Redis|string dump(string $key)
  * @method false|Redis|string echo(string $str)
  * @method mixed eval_ro(string $script_sha, array $args = [], int $num_keys = 0)
@@ -118,7 +117,7 @@ use function Hypervel\Coroutine\go;
  * @method mixed fcall(string $fn, array $keys = [], array $args = [])
  * @method mixed fcall_ro(string $fn, array $keys = [], array $args = [])
  * @method bool|Redis flushAll(bool|null $sync = null)
- * @method bool|Redis flushDB(bool|null $sync = null)
+ * @method mixed flushDB(mixed ...$arguments)
  * @method array|bool|Redis|string function(string $operation, mixed ...$args)
  * @method false|int|Redis geoadd(string $key, float $lng, float $lat, string $member, mixed ...$other_triples_and_options)
  * @method false|float|Redis geodist(string $key, string $src, string $dst, string|null $unit = null)
@@ -170,10 +169,10 @@ use function Hypervel\Coroutine\go;
  * @method array|false|Redis hKeys(string $key)
  * @method false|int|Redis hLen(string $key)
  * @method array|false|Redis hMget(string $key, array $fields)
- * @method bool|Redis hMset(string $key, array $fieldvals)
+ * @method bool|Redis hMset(string $key, array $fieldValues)
  * @method array|false|Redis|string hRandField(string $key, array|null $options = null)
  * @method false|int|Redis hSet(string $key, mixed ...$fields_and_vals)
- * @method bool|Redis hSetNx(string $key, string $field, mixed $value)
+ * @method bool|int|Redis hSetNx(string $hash, string $key, mixed $value)
  * @method false|int|Redis hsetex(string $key, array $fields, array|null $expiry = null)
  * @method false|int|Redis hStrLen(string $key, string $field)
  * @method array|false|Redis hVals(string $key)
@@ -237,7 +236,7 @@ use function Hypervel\Coroutine\go;
  * @method array|false|Redis sMembers(string $key)
  * @method array|false|Redis sMisMember(string $key, string $member, string ...$other_members)
  * @method bool|Redis sMove(string $src, string $dst, mixed $value)
- * @method array|false|Redis|string sPop(string $key, int $count = 0)
+ * @method mixed sPop(string $key, int $count = 0)
  * @method mixed sRandMember(string $key, int $count = 0)
  * @method array|false|Redis sUnion(string $key, string ...$other_keys)
  * @method false|int|Redis sUnionStore(string $dst, string $key, string ...$other_keys)
@@ -308,7 +307,7 @@ use function Hypervel\Coroutine\go;
  * @method array|false|Redis zPopMin(string $key, int|null $count = null)
  * @method array|false|Redis zRange(string $key, string|int $start, string|int $end, array|bool|null $options = null)
  * @method array|false|Redis zRangeByLex(string $key, string $min, string $max, int $offset = -1, int $count = -1)
- * @method array|false|Redis zRangeByScore(string $key, string $start, string $end, array $options = [])
+ * @method array|false|Redis zRangeByScore(string $key, string $min, string $max, array $options = [])
  * @method false|int|Redis zrangestore(string $dstkey, string $srckey, string $start, string $end, array|bool|null $options = null)
  * @method array|Redis|string zRandMember(string $key, array|null $options = null)
  * @method false|int|Redis zRank(string $key, mixed $member)
@@ -318,7 +317,7 @@ use function Hypervel\Coroutine\go;
  * @method false|int|Redis zRemRangeByScore(string $key, string $start, string $end)
  * @method array|false|Redis zRevRange(string $key, int $start, int $end, mixed $scores = null)
  * @method array|false|Redis zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
- * @method array|false|Redis zRevRangeByScore(string $key, string $max, string $min, array|bool $options = [])
+ * @method array|false|Redis zRevRangeByScore(string $key, string $max, string $min, array $options = [])
  * @method false|int|Redis zRevRank(string $key, mixed $member)
  * @method false|float|Redis zScore(string $key, mixed $member)
  * @method array|false|Redis zdiff(array $keys, array|null $options = null)
@@ -454,8 +453,9 @@ abstract class RedisConnection extends BaseConnection
             throw new BadMethodCallException(
                 'Cannot call reset() on a pooled Redis connection because it clears '
                 . 'the authentication and selected database owned by the pool. '
-                . 'Use Redis::discard() for MULTI, Redis::unwatch() for WATCH, '
-                . 'and exec() to complete a PIPELINE.'
+                . 'For facade-managed connections, use Redis::discard(), Redis::unwatch(), '
+                . 'or Redis::exec(). On a held connection, call discardTransaction(), '
+                . 'unwatch(), or exec() on that same connection.'
             );
         }
 
@@ -797,7 +797,8 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Execute the native Redis DISCARD command.
      *
-     * @internal
+     * Use this method on a held connection because discard() removes the
+     * connection from its pool.
      */
     public function discardTransaction(): bool|Redis
     {
@@ -1026,7 +1027,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Set the given key if it doesn't exist.
      */
-    protected function callSetnx(string $key, string $value): int
+    protected function callSetnx(string $key, mixed $value): int
     {
         return (int) $this->connection->setNx($key, $value);
     }
@@ -1089,7 +1090,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Set the given hash field if it doesn't exist.
      */
-    protected function callHsetnx(string $hash, string $key, string $value): int
+    protected function callHsetnx(string $hash, string $key, mixed $value): int
     {
         return (int) $this->connection->hSetNx($hash, $key, $value);
     }
@@ -1228,7 +1229,7 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function prepareZrevrangebyscore(mixed ...$arguments): array
     {
-        [$key, $min, $max] = $arguments;
+        [$key, $max, $min] = $arguments;
         $options = $arguments[3] ?? [];
 
         if (isset($options['limit']) && ! array_is_list($options['limit'])) {
@@ -1238,15 +1239,15 @@ abstract class RedisConnection extends BaseConnection
             ];
         }
 
-        return ['zRevRangeByScore', [$key, $min, $max, $options]];
+        return ['zRevRangeByScore', [$key, $max, $min, $options]];
     }
 
     /**
-     * Return elements with score between $min and $max.
+     * Return elements with score between $max and $min in reverse order.
      */
-    protected function callZrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []): array
+    protected function callZrevrangebyscore(string $key, mixed $max, mixed $min, array $options = []): array
     {
-        [$method, $args] = $this->prepareZrevrangebyscore($key, $min, $max, $options);
+        [$method, $args] = $this->prepareZrevrangebyscore($key, $max, $min, $options);
 
         return $this->connection->{$method}(...$args);
     }
@@ -1665,6 +1666,9 @@ abstract class RedisConnection extends BaseConnection
      * - Automatically prepends OPT_PREFIX to the scan pattern
      * - Strips OPT_PREFIX from returned keys so they work with other commands
      *
+     * The connection must be held with transform disabled so SCAN retains its
+     * native phpredis cursor and result shape.
+     *
      * @param string $pattern The pattern to match (e.g., "cache:users:*").
      *                        Should NOT include OPT_PREFIX - it's handled automatically.
      * @param int $count The COUNT hint for SCAN (not a limit, just a hint to Redis)
@@ -1680,9 +1684,9 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Flush (delete) all Redis keys matching a pattern.
      *
-     * Use this when you already have a connection (e.g., inside withConnection()
-     * or when doing multiple operations on the same connection). No connection
-     * lifecycle overhead since you're operating on an existing connection.
+     * Use this inside withConnection(..., transform: false) when doing multiple
+     * operations on the same connection. No connection lifecycle overhead since
+     * you're operating on an existing connection.
      *
      * For standalone/one-off operations, use Redis::flushByPattern() instead,
      * which handles connection lifecycle automatically.

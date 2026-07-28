@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
@@ -127,8 +128,12 @@ class JobWatcher extends Watcher
             return;
         }
 
-        /* @phpstan-ignore-next-line */
-        $uuid = $event->job->payload()['telescope_uuid'] ?? null;
+        try {
+            /* @phpstan-ignore-next-line */
+            $uuid = $event->job->payload()['telescope_uuid'] ?? null;
+        } catch (InvalidPayloadException) {
+            return;
+        }
 
         if (! $uuid) {
             return;
