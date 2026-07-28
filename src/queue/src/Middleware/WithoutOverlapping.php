@@ -9,10 +9,18 @@ use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\InteractsWithTime;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class WithoutOverlapping
 {
     use InteractsWithTime;
+
+    /**
+     * The job's unique key used for preventing overlaps.
+     */
+    public string $key;
 
     /**
      * The number of seconds before the lock should expire.
@@ -39,10 +47,11 @@ class WithoutOverlapping
      * @param DateTimeInterface|int $expiresAfter the number of seconds before the lock should expire
      */
     public function __construct(
-        public string $key = '',
+        UnitEnum|string $key = '',
         public DateTimeInterface|int|null $releaseAfter = 0,
         DateTimeInterface|int $expiresAfter = 0
     ) {
+        $this->key = (string) enum_value($key);
         $this->expiresAfter = $this->secondsUntil($expiresAfter);
     }
 

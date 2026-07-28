@@ -86,7 +86,7 @@ class RateLimited
         foreach ($limits as $limit) {
             if ($this->limiter->tooManyAttempts($limit->key, $limit->maxAttempts)) {
                 return $this->shouldRelease
-                    ? $job->release($this->releaseAfter ?: $this->getTimeUntilNextRetry($limit->key))
+                    ? $job->release($this->releaseAfter ?? $this->getTimeUntilNextRetry($limit->key))
                     : false;
             }
 
@@ -131,6 +131,7 @@ class RateLimited
     {
         return [
             'limiterName',
+            'releaseAfter',
             'shouldRelease',
         ];
     }
