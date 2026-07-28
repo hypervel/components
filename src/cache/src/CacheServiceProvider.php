@@ -59,5 +59,20 @@ class CacheServiceProvider extends ServiceProvider
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
             $this->app->make(CreateSwooleTimers::class)->handle($event);
         });
+
+        if ($this->app->runningInConsole()) {
+            $cache = $this->app->make(CacheManager::class);
+
+            $this->app->booted(
+                fn () => $cache->finalizeSerializableClasses(),
+            );
+
+            return;
+        }
+
+        // Worker configuration is reloaded during BeforeWorkerStart.
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
+            $this->app->make(CacheManager::class)->finalizeSerializableClasses();
+        });
     }
 }
