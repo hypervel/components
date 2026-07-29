@@ -61,7 +61,7 @@ class SupervisorCommandTest extends IntegrationTestCase
         $this->artisan('horizon:supervisor', static::OPTIONS)->assertExitCode(12);
     }
 
-    public function testSupervisorCommandCanStartPausedSupervisors()
+    public function testSupervisorCommandCanStartPausedSupervisors(): void
     {
         $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
         $this->artisan('horizon:supervisor', ['--paused' => true] + static::OPTIONS);
@@ -69,12 +69,12 @@ class SupervisorCommandTest extends IntegrationTestCase
         $this->assertFalse($factory->supervisor->working);
     }
 
-    public function testSupervisorCommandCanSetProcessNiceness()
+    public function testSupervisorCommandCanSetProcessNiceness(): void
     {
         $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
         $this->artisan('horizon:supervisor', ['--nice' => 10] + static::OPTIONS);
 
-        $this->assertSame(10, $this->myNiceness());
+        $this->assertSame(10, pcntl_getpriority());
     }
 
     public function testSupervisorCommandPreservesZeroQueue(): void
@@ -102,12 +102,5 @@ class SupervisorCommandTest extends IntegrationTestCase
         $this->artisan('horizon:supervisor', $options);
 
         $this->assertSame('off', $factory->supervisor->options->balance);
-    }
-
-    private function myNiceness()
-    {
-        $pid = getmypid();
-
-        return (int) trim(shell_exec("ps -p {$pid} -o nice="));
     }
 }
