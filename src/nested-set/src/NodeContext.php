@@ -4,49 +4,56 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
-use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Model;
 
 class NodeContext
 {
     /**
-     * Context key prefix for preserved deleted_at timestamps.
-     */
-    protected const DELETED_AT_CONTEXT_PREFIX = '__nested_set.deleted_at.';
-
-    /**
      * Context key prefix for tracking whether a node operation has been performed.
      */
-    protected const HAS_PERFORMED_CONTEXT_PREFIX = '__nested_set.has_performed.';
+    protected const HAS_PERFORMED_CONTEXT_KEY_PREFIX = '__nested_set.has_performed.';
 
-    public static function keepDeletedAt(Model $model): void
-    {
-        CoroutineContext::set(
-            self::DELETED_AT_CONTEXT_PREFIX . get_class($model),
-            $model->{$model->getDeletedAtColumn()} // @phpstan-ignore-line
-        );
-    }
-
-    public static function restoreDeletedAt(Model $model): DateTimeInterface|int|string
-    {
-        $deletedAt = CoroutineContext::get(self::DELETED_AT_CONTEXT_PREFIX . get_class($model));
-
-        if (! is_null($deletedAt)) {
-            /* @phpstan-ignore-next-line */
-            $model->{$model->getDeletedAtColumn()} = $deletedAt;
-        }
-
-        return $deletedAt;
-    }
-
+    /**
+     * Determine whether the logical tree has changed in this coroutine.
+     */
     public static function hasPerformed(Model $model): bool
     {
-        return CoroutineContext::get(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), false);
+        return CoroutineContext::get(static::performedKey($model), false);
     }
 
-    public static function setHasPerformed(Model $model, bool $performed = true): void
+    /**
+     * Mark that the logical tree has changed in this coroutine.
+     */
+    public static function setHasPerformed(Model $model): void
     {
-        CoroutineContext::set(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), $performed);
+        CoroutineContext::set(static::performedKey($model), true);
+    }
+
+    /**
+     * Get the model's logical nested set table identity.
+     */
+    public static function structuralIdentity(Model $model): string
+    {
+        $connection = $model->getConnection();
+        $name = $connection->getName();
+
+        if ($name === null || $name === '') {
+            $name = $model::getConnectionResolver()?->getDefaultConnection();
+        }
+
+        if ($name === null || $name === '') {
+            $name = 'default';
+        }
+
+        return strlen($name) . ':' . $name . ':' . $model->getTable();
+    }
+
+    /**
+     * Get the structural freshness key for the model's logical table.
+     */
+    protected static function performedKey(Model $model): string
+    {
+        return self::HAS_PERFORMED_CONTEXT_KEY_PREFIX . static::structuralIdentity($model);
     }
 }

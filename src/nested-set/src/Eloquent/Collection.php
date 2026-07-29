@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\NestedSet\Eloquent;
 
 use Hypervel\Database\Eloquent\Collection as BaseCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\NestedSet;
 
 class Collection extends BaseCollection
@@ -19,21 +20,40 @@ class Collection extends BaseCollection
             return $this;
         }
 
-        /* @phpstan-ignore-next-line */
-        $groupedNodes = $this->groupBy($this->first()->getParentIdName());
+        [$groupedNodes, $roots] = $this->groupNodesByParent();
+
+        return $this->linkNodesFromGroups($groupedNodes, $roots);
+    }
+
+    /**
+     * Fill relations from nodes grouped by their parent IDs.
+     */
+    protected function linkNodesFromGroups(array $groupedNodes, array $roots): static
+    {
+        foreach ($this->items as $node) {
+            $node->unsetRelation('parent');
+            $node->unsetRelation('children');
+        }
 
         foreach ($this->items as $node) {
-            /* @phpstan-ignore-next-line */
-            if (! $node->getParentId()) {
+            $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound */
+
+            if ($parentId === null) {
                 $node->setRelation('parent', null);
             }
 
-            $children = $groupedNodes->get($node->getKey(), []);
-            foreach ($children as $child) { // @phpstan-ignore foreach.emptyArray
-                $child->setRelation('parent', $node);
+            $children = $this->nodesForParent($groupedNodes, $roots, $node->getKey());
+
+            if ($children !== []) {
+                $parent = clone $node;
+                $parent->setRelations([]);
+
+                foreach ($children as $child) {
+                    $child->setRelation('parent', $parent);
+                }
             }
 
-            $node->setRelation('children', BaseCollection::make($children));
+            $node->setRelation('children', $node->newCollection($children));
         }
 
         return $this;
@@ -44,28 +64,27 @@ class Collection extends BaseCollection
      * To successfully build tree "id", "_lft" and "parent_id" keys must present.
      * If `$root` is provided, the tree will contain only descendants of that node.
      */
-    public function toTree(mixed $root = false): static
+    public function toTree(Model|int|string|false|null $root = false): static
     {
         if ($this->isEmpty()) {
             return new static;
         }
 
-        $this->linkNodes();
+        [$groupedNodes, $roots] = $this->groupNodesByParent();
 
-        $items = [];
-        $root = $this->getRootNodeId($root);
+        $this->linkNodesFromGroups($groupedNodes, $roots);
 
-        foreach ($this->items as $node) {
-            /* @phpstan-ignore-next-line */
-            if ($node->getParentId() == $root) {
-                $items[] = $node;
-            }
-        }
-
-        return new static($items);
+        return new static($this->nodesForParent(
+            $groupedNodes,
+            $roots,
+            $this->getRootNodeId($root),
+        ));
     }
 
-    protected function getRootNodeId(mixed $root = false): int
+    /**
+     * Resolve the parent key used as the collection root.
+     */
+    protected function getRootNodeId(Model|int|string|false|null $root = false): int|string|null
     {
         if (NestedSet::isNode($root)) {
             return $root->getKey();
@@ -77,24 +96,26 @@ class Collection extends BaseCollection
 
         // If root node is not specified we take parent id of node with
         // least lft value as root node id.
-        $leastValue = null;
+        $leastValue = PHP_INT_MAX;
+        $rootNodeId = null;
 
         foreach ($this->items as $node) {
-            /* @phpstan-ignore-next-line */
-            if ($leastValue === null || $node->getLft() < $leastValue) {
-                $leastValue = $node->getLft(); /* @phpstan-ignore-line */
-                $root = $node->getParentId(); /* @phpstan-ignore-line */
+            $lft = $node->getLft(); /* @phpstan-ignore method.notFound */
+
+            if ($lft !== null && $lft < $leastValue) {
+                $leastValue = $lft;
+                $rootNodeId = $node->getParentId(); /* @phpstan-ignore method.notFound */
             }
         }
 
-        return $root;
+        return $rootNodeId;
     }
 
     /**
      * Build a list of nodes that retain the order that they were pulled from
      * the database.
      */
-    public function toFlatTree(bool $root = false): static
+    public function toFlatTree(Model|int|string|false|null $root = false): static
     {
         $result = new static;
 
@@ -102,23 +123,72 @@ class Collection extends BaseCollection
             return $result;
         }
 
-        /* @phpstan-ignore-next-line */
-        $groupedNodes = $this->groupBy($this->first()->getParentIdName());
+        [$groupedNodes, $roots] = $this->groupNodesByParent();
 
-        return $result->flattenTree($groupedNodes, $this->getRootNodeId($root));
+        return $result->flattenTree(
+            $groupedNodes,
+            $roots,
+            $this->getRootNodeId($root),
+        );
     }
 
     /**
-     * Flatten a tree into a non recursive array.
+     * Group nodes by parent while keeping roots separate from scalar keys.
      */
-    protected function flattenTree(Collection $groupedNodes, mixed $parentId): static
+    protected function groupNodesByParent(): array
     {
-        foreach ($groupedNodes->get($parentId, []) as $node) { // @phpstan-ignore foreach.emptyArray
+        $groupedNodes = [];
+        $roots = [];
+
+        foreach ($this->items as $node) {
+            $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound */
+
+            if ($parentId === null) {
+                $roots[] = $node;
+            } else {
+                $groupedNodes[$parentId][] = $node;
+            }
+        }
+
+        return [$groupedNodes, $roots];
+    }
+
+    /**
+     * Flatten a tree without recursive stack growth.
+     */
+    protected function flattenTree(array $groupedNodes, array $roots, int|string|null $parentId): static
+    {
+        $stack = [];
+        $children = $this->nodesForParent($groupedNodes, $roots, $parentId);
+
+        for ($index = count($children) - 1; $index >= 0; --$index) {
+            $stack[] = $children[$index];
+        }
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
             $this->push($node);
 
-            $this->flattenTree($groupedNodes, $node->getKey());
+            $children = $this->nodesForParent($groupedNodes, $roots, $node->getKey());
+
+            for ($index = count($children) - 1; $index >= 0; --$index) {
+                $stack[] = $children[$index];
+            }
         }
 
         return $this;
+    }
+
+    /**
+     * Get nodes for a parent ID.
+     */
+    protected function nodesForParent(
+        array $groupedNodes,
+        array $roots,
+        int|string|null $parentId,
+    ): array {
+        return $parentId === null
+            ? $roots
+            : ($groupedNodes[$parentId] ?? []);
     }
 }
