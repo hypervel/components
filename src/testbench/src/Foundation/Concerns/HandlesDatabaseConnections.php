@@ -10,11 +10,14 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Foundation\Env;
+use InvalidArgumentException;
 
 trait HandlesDatabaseConnections
 {
     /**
      * Allow database connection settings to be overridden by driver-specific env vars.
+     *
+     * @throws InvalidArgumentException
      */
     final protected function usesDatabaseConnectionsEnvironmentVariables(Repository $config, string $driver, string $keyword): void
     {
@@ -24,7 +27,7 @@ trait HandlesDatabaseConnections
         $options = [
             'url' => ['env' => 'URL'],
             'host' => ['env' => 'HOST'],
-            'port' => ['env' => 'PORT', 'rules' => static fn ($value): bool => ! empty($value) && \is_int($value)],
+            'port' => ['env' => 'PORT'],
             'database' => ['env' => ['DB', 'DATABASE']],
             'username' => ['env' => ['USER', 'USERNAME']],
             'password' => ['env' => 'PASSWORD', 'rules' => static fn ($value): bool => \is_null($value) || \is_string($value)],
@@ -36,6 +39,33 @@ trait HandlesDatabaseConnections
                 ->when($driver === 'pgsql', static fn (Collection $options): Collection => $options->put('schema', ['env' => 'SCHEMA']))
                 ->mapWithKeys(static function (array $options, string $key) use ($driver, $keyword, $config): array {
                     $name = "database.connections.{$driver}.{$key}";
+
+                    if ($key === 'port') {
+                        /** @var string $environmentSuffix */
+                        $environmentSuffix = $options['env'];
+                        $environmentVariable = "{$keyword}_{$environmentSuffix}";
+                        $port = Env::get($environmentVariable);
+
+                        if ($port === null || $port === '') {
+                            return [$name => $config->get($name)];
+                        }
+
+                        // Environment adapters return strings. Accept only exact decimal digits so a
+                        // malformed override cannot silently fall back to DB_PORT and select another server.
+                        if (! \is_string($port)
+                            || ! ctype_digit($port)
+                            || (int) $port < 1
+                            || (int) $port > 65535
+                        ) {
+                            throw new InvalidArgumentException(
+                                "Environment variable [{$environmentVariable}] must be a decimal port between 1 and 65535; "
+                                . var_export($port, true)
+                                . ' given.'
+                            );
+                        }
+
+                        return [$name => (int) $port];
+                    }
 
                     /** @var mixed $configuration */
                     $configuration = (new Collection(Arr::wrap($options['env'])))

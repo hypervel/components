@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Concerns;
 
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Testbench\Foundation\Concerns\HandlesDatabaseConnections;
 use Hypervel\Testbench\PHPUnit\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 class HandlesDatabaseConnectionsTest extends TestCase
@@ -41,5 +44,89 @@ class HandlesDatabaseConnectionsTest extends TestCase
         $this->usesDatabaseConnectionsEnvironmentVariables($config, 'mysql', 'MYSQL');
 
         unset($_ENV['MYSQL_URL']);
+    }
+
+    #[DataProvider('validPorts')]
+    #[Test]
+    public function itUsesDriverSpecificPort(string $port, int $expected): void
+    {
+        $config = new ConfigRepository;
+        $config->set('database.connections.mysql.port', 3306);
+
+        $_ENV['MYSQL_PORT'] = $port;
+
+        try {
+            $this->usesDatabaseConnectionsEnvironmentVariables($config, 'mysql', 'MYSQL');
+
+            $this->assertSame($expected, $config->get('database.connections.mysql.port'));
+        } finally {
+            unset($_ENV['MYSQL_PORT']);
+        }
+    }
+
+    public static function validPorts(): array
+    {
+        return [
+            'lowest port' => ['1', 1],
+            'leading zeroes' => ['03307', 3307],
+            'highest port' => ['65535', 65535],
+        ];
+    }
+
+    #[DataProvider('emptyPorts')]
+    #[Test]
+    public function itUsesConfiguredPortWhenDriverSpecificPortIsEmpty(string $port): void
+    {
+        $config = new ConfigRepository;
+        $config->set('database.connections.mysql.port', 3306);
+
+        $_ENV['MYSQL_PORT'] = $port;
+
+        try {
+            $this->usesDatabaseConnectionsEnvironmentVariables($config, 'mysql', 'MYSQL');
+
+            $this->assertSame(3306, $config->get('database.connections.mysql.port'));
+        } finally {
+            unset($_ENV['MYSQL_PORT']);
+        }
+    }
+
+    public static function emptyPorts(): array
+    {
+        return [
+            'empty value' => [''],
+            'empty sentinel' => ['(empty)'],
+            'null sentinel' => ['(null)'],
+        ];
+    }
+
+    #[DataProvider('invalidPorts')]
+    #[Test]
+    public function itRejectsInvalidDriverSpecificPort(string $port, string $rendered): void
+    {
+        $config = new ConfigRepository;
+
+        $_ENV['MYSQL_PORT'] = $port;
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage(
+                "Environment variable [MYSQL_PORT] must be a decimal port between 1 and 65535; {$rendered} given."
+            );
+
+            $this->usesDatabaseConnectionsEnvironmentVariables($config, 'mysql', 'MYSQL');
+        } finally {
+            unset($_ENV['MYSQL_PORT']);
+        }
+    }
+
+    public static function invalidPorts(): array
+    {
+        return [
+            'zero' => ['0', "'0'"],
+            'above maximum' => ['65536', "'65536'"],
+            'non-decimal character' => ['33O7', "'33O7'"],
+            'boolean sentinel' => ['true', 'true'],
+        ];
     }
 }
