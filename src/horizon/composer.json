@@ -25,9 +25,10 @@
     "require": {
         "php": "^8.4",
         "ext-json": "*",
+        "ext-mbstring": "*",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "nesbot/carbon": "^3.13.1",
+        "ext-redis": "^6.1",
         "hypervel/broadcasting": "^0.4",
         "hypervel/bus": "^0.4",
         "hypervel/cache": "^0.4",
@@ -44,9 +45,12 @@
         "hypervel/notifications": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/redis": "^0.4",
+        "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/watcher": "^0.4",
         "symfony/console": "^8.1",
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1",
         "symfony/process": "^8.1"
     },
     "autoload": {
