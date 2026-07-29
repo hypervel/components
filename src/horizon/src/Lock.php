@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Closure;
+use Hypervel\Cache\RedisLock;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\RedisProxy;
+use InvalidArgumentException;
 
 class Lock
 {
@@ -25,13 +27,9 @@ class Lock
      */
     public function with(string $key, Closure $callback, int $seconds = 60): void
     {
-        if ($this->get($key, $seconds)) {
-            try {
-                call_user_func($callback);
-            } finally {
-                $this->release($key);
-            }
-        }
+        $this->assertPositiveLifetime($key, $seconds);
+
+        (new RedisLock($this->connection(), $key, $seconds))->get($callback);
     }
 
     /**
@@ -47,13 +45,9 @@ class Lock
      */
     public function get(string $key, int $seconds = 60): bool
     {
-        $result = $this->connection()->setNx($key, '1') === 1;
+        $this->assertPositiveLifetime($key, $seconds);
 
-        if ($result) {
-            $this->connection()->expire($key, $seconds);
-        }
-
-        return $result;
+        return $this->connection()->set($key, '1', 'EX', $seconds, 'NX') === true;
     }
 
     /**
@@ -62,6 +56,18 @@ class Lock
     public function release(string $key): void
     {
         $this->connection()->del($key);
+    }
+
+    /**
+     * Ensure the lock lifetime is positive.
+     */
+    private function assertPositiveLifetime(string $key, int $seconds): void
+    {
+        if ($seconds <= 0) {
+            throw new InvalidArgumentException(
+                "Horizon lock [{$key}] requires a positive lifetime; {$seconds} given."
+            );
+        }
     }
 
     /**
