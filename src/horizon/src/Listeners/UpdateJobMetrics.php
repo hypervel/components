@@ -33,16 +33,18 @@ class UpdateJobMetrics
 
         $time = $this->watch->check($id = $event->payload->id()) ?: 0;
 
-        $this->metrics->incrementQueue(
-            $event->job->getQueue(),
-            $time
-        );
+        try {
+            $this->metrics->incrementQueue(
+                $event->job->getQueue(),
+                $time
+            );
 
-        $this->metrics->incrementJob(
-            $event->payload->displayName(),
-            $time
-        );
-
-        $this->watch->forget($id);
+            $this->metrics->incrementJob(
+                $event->payload->displayName(),
+                $time
+            );
+        } finally {
+            $this->watch->forget($id);
+        }
     }
 }

@@ -9,10 +9,9 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Lock;
 use Hypervel\Horizon\LuaScripts;
 use Hypervel\Horizon\WaitTimeCalculator;
-use Hypervel\Redis\PhpRedis;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
-use Hypervel\Support\Str;
 
 class RedisMetricsRepository implements MetricsRepository
 {
@@ -120,7 +119,7 @@ class RedisMetricsRepository implements MetricsRepository
     public function queueWithMaximumRuntime(): ?string
     {
         return collect($this->measuredQueues())->sortBy(function ($queue) {
-            if ($snapshots = $this->connection()->zRange('snapshot:queue:' . $queue, -1, 1)) {
+            if ($snapshots = $this->connection()->zRange('snapshot:queue:' . $queue, -1, -1)) {
                 return json_decode($snapshots[0])->runtime;
             }
         })->last();
@@ -132,7 +131,7 @@ class RedisMetricsRepository implements MetricsRepository
     public function queueWithMaximumThroughput(): ?string
     {
         return collect($this->measuredQueues())->sortBy(function ($queue) {
-            if ($snapshots = $this->connection()->zRange('snapshot:queue:' . $queue, -1, 1)) {
+            if ($snapshots = $this->connection()->zRange('snapshot:queue:' . $queue, -1, -1)) {
                 return json_decode($snapshots[0])->throughput;
             }
         })->last();
@@ -261,11 +260,12 @@ class RedisMetricsRepository implements MetricsRepository
     /**
      * Get the base snapshot data for a given key.
      *
-     * @return array{throughput: string, runtime: string}
+     * @return array{throughput: false|string, runtime: false|string}
      */
     protected function baseSnapshotData(string $key): array
     {
-        /** @var array{0: array{throughput: string, runtime: string}} $responses */
+        // Horizon never issues WATCH, so EXEC cannot abort this transaction.
+        /** @var array{0: array{throughput: false|string, runtime: false|string}} $responses */
         $responses = $this->connection()->transaction(function ($trans) use ($key) {
             $trans->hmget($key, ['throughput', 'runtime']);
 
@@ -320,25 +320,21 @@ class RedisMetricsRepository implements MetricsRepository
      */
     public function clear(): void
     {
-        $this->forget('last_snapshot_at');
-        $this->forget('measured_jobs');
-        $this->forget('measured_queues');
-        $this->forget('metrics:snapshot');
-
-        foreach (['queue:*', 'job:*', 'snapshot:*'] as $pattern) {
-            $cursor = PhpRedis::initialScanCursor();
-
-            do {
-                [$cursor, $keys] = $this->connection()->scan(
-                    $cursor,
-                    ['match' => config('horizon.prefix') . $pattern]
+        $this->connection()->withConnection(
+            function (RedisConnection $connection): void {
+                $connection->del(
+                    'last_snapshot_at',
+                    'measured_jobs',
+                    'measured_queues',
+                    'metrics:snapshot',
                 );
 
-                foreach ($keys ?? [] as $key) {
-                    $this->forget(Str::after($key, config('horizon.prefix')));
+                foreach (['queue:*', 'job:*', 'snapshot:*'] as $pattern) {
+                    $connection->flushByPattern($pattern);
                 }
-            } while ($cursor > 0);
-        }
+            },
+            transform: false,
+        );
     }
 
     /**
