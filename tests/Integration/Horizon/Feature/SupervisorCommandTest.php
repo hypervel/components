@@ -43,13 +43,22 @@ class SupervisorCommandTest extends IntegrationTestCase
             ->registerCommand($this->app->make(SupervisorCommand::class));
     }
 
-    public function testSupervisorCommandCanStartSupervisorMonitoring()
+    public function testSupervisorCommandCanStartSupervisorMonitoring(): void
     {
         $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
-        $this->artisan('horizon:supervisor', static::OPTIONS);
+        $this->artisan('horizon:supervisor', static::OPTIONS)->assertExitCode(0);
 
         $this->assertTrue($factory->supervisor->monitoring);
         $this->assertTrue($factory->supervisor->working);
+    }
+
+    public function testSupervisorCommandPropagatesTheMonitorStatus(): void
+    {
+        $factory = new FakeSupervisorFactory;
+        $factory->monitorStatus = 12;
+        $this->app->instance(SupervisorFactory::class, $factory);
+
+        $this->artisan('horizon:supervisor', static::OPTIONS)->assertExitCode(12);
     }
 
     public function testSupervisorCommandCanStartPausedSupervisors()
@@ -82,6 +91,17 @@ class SupervisorCommandTest extends IntegrationTestCase
         $this->artisan('horizon:supervisor', ['--queue' => ''] + static::OPTIONS);
 
         $this->assertSame('default', $factory->supervisor->options->queue);
+    }
+
+    public function testSupervisorCommandDefaultsMissingBalanceToOff(): void
+    {
+        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
+        $options = static::OPTIONS;
+        unset($options['--balance']);
+
+        $this->artisan('horizon:supervisor', $options);
+
+        $this->assertSame('off', $factory->supervisor->options->balance);
     }
 
     private function myNiceness()

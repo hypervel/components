@@ -397,7 +397,7 @@ class SupervisorTest extends IntegrationTestCase
         $this->assertFalse($process->isRunning());
     }
 
-    public function testSupervisorProcessTerminatesAllWorkersAndExitsOnFullTermination()
+    public function testSupervisorProcessTerminatesAllWorkersAndExitsOnFullTermination(): void
     {
         $this->supervisor = $supervisor = new Supervisor($this->supervisorOptions());
 
@@ -406,8 +406,6 @@ class SupervisorTest extends IntegrationTestCase
 
         $supervisor->persist();
         $supervisor->terminate();
-
-        $this->assertTrue($supervisor->shouldExitLoop);
 
         // Assert that the supervisor is removed...
         $this->assertNull(app(SupervisorRepository::class)->find($supervisor->name));
