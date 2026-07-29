@@ -45,12 +45,12 @@ class ScopedNodeTest extends TestCase
     protected function getMockMenuItems(): array
     {
         return [
-            ['id' => 1, 'menu_id' => 1, '_lft' => 1, '_rgt' => 2, 'parent_id' => null, 'title' => 'menu item 1'],
-            ['id' => 2, 'menu_id' => 1, '_lft' => 3, '_rgt' => 6, 'parent_id' => null, 'title' => 'menu item 2'],
-            ['id' => 5, 'menu_id' => 1, '_lft' => 4, '_rgt' => 5, 'parent_id' => 2, 'title' => 'menu item 3'],
-            ['id' => 3, 'menu_id' => 2, '_lft' => 1, '_rgt' => 2, 'parent_id' => null, 'title' => 'menu item 1'],
-            ['id' => 4, 'menu_id' => 2, '_lft' => 3, '_rgt' => 6, 'parent_id' => null, 'title' => 'menu item 2'],
-            ['id' => 6, 'menu_id' => 2, '_lft' => 4, '_rgt' => 5, 'parent_id' => 4, 'title' => 'menu item 3'],
+            ['id' => 1, 'menu_id' => 1, '_lft' => 1, '_rgt' => 2, 'parent_id' => null, 'title' => 'menu item 1', 'depth' => 0],
+            ['id' => 2, 'menu_id' => 1, '_lft' => 3, '_rgt' => 6, 'parent_id' => null, 'title' => 'menu item 2', 'depth' => 0],
+            ['id' => 5, 'menu_id' => 1, '_lft' => 4, '_rgt' => 5, 'parent_id' => 2, 'title' => 'menu item 3', 'depth' => 1],
+            ['id' => 3, 'menu_id' => 2, '_lft' => 1, '_rgt' => 2, 'parent_id' => null, 'title' => 'menu item 1', 'depth' => 0],
+            ['id' => 4, 'menu_id' => 2, '_lft' => 3, '_rgt' => 6, 'parent_id' => null, 'title' => 'menu item 2', 'depth' => 0],
+            ['id' => 6, 'menu_id' => 2, '_lft' => 4, '_rgt' => 5, 'parent_id' => 4, 'title' => 'menu item 3', 'depth' => 1],
         ];
     }
 
@@ -63,6 +63,71 @@ class ScopedNodeTest extends TestCase
     {
         $this->assertTreeNotBroken(1);
         $this->assertTreeNotBroken(2);
+    }
+
+    public function testDiagnosticsRequireAConcreteScopeSelection(): void
+    {
+        foreach (['countErrors', 'getTotalErrors', 'isBroken'] as $method) {
+            try {
+                MenuItem::query()->{$method}();
+                $this->fail("Expected {$method} to require a concrete scope.");
+            } catch (LogicException $exception) {
+                $this->assertStringContainsString('scoped([...])', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testRepairAndRebuildRequireAConcreteScopeSelection(): void
+    {
+        $operations = [
+            'fixTree' => fn () => MenuItem::query()->fixTree(),
+            'rebuildTree' => fn () => MenuItem::query()->rebuildTree([]),
+        ];
+
+        foreach ($operations as $method => $operation) {
+            try {
+                $operation();
+                $this->fail("Expected {$method} to require a concrete scope.");
+            } catch (LogicException $exception) {
+                $this->assertStringContainsString('scoped([...])', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testScalarLookupsRequireAConcreteScopeSelection(): void
+    {
+        $operations = [
+            'whereAncestorOf' => fn () => MenuItem::query()->whereAncestorOf(5)->get(),
+            'whereDescendantOf' => fn () => MenuItem::query()->whereDescendantOf(2)->get(),
+            'descendantsOf' => fn () => MenuItem::query()->descendantsOf(2),
+            'whereIsBefore' => fn () => MenuItem::query()->whereIsBefore(5)->get(),
+            'whereIsAfter' => fn () => MenuItem::query()->whereIsAfter(5)->get(),
+        ];
+
+        foreach ($operations as $method => $operation) {
+            try {
+                $operation();
+                $this->fail("Expected {$method} to require a concrete scope.");
+            } catch (LogicException $exception) {
+                $this->assertStringContainsString('scoped([...])', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testNullIsAConcreteScopeValueWhenTheAttributeIsPresent(): void
+    {
+        $model = new MenuItem;
+        $model->setRawAttributes(['menu_id' => null]);
+
+        $this->assertSame([
+            'invalid_intervals' => 0,
+            'duplicate_endpoints' => 0,
+            'missing_endpoints' => 0,
+            'crossing_intervals' => 0,
+            'missing_parent' => 0,
+            'wrong_parent' => 0,
+            'wrong_depth' => 0,
+        ], $model->newScopedQuery()->countErrors());
     }
 
     public function testMovingNodeNotAffectingOtherMenu(): void
@@ -83,6 +148,36 @@ class ScopedNodeTest extends TestCase
         $this->assertEquals(3, $node->getKey());
     }
 
+    public function testBeforeAndAfterPredicatesUseTheExactNestedSetScope(): void
+    {
+        $node = MenuItem::findOrFail(4);
+
+        $this->assertSame(
+            [3],
+            MenuItem::query()->whereIsBefore($node)->orderBy('id')->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [6],
+            MenuItem::query()->whereIsAfter($node)->orderBy('id')->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [3],
+            MenuItem::scoped(['menu_id' => 2])->whereIsBefore(4)->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [],
+            MenuItem::scoped(['menu_id' => 2])->whereIsBefore(2)->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [1, 3],
+            MenuItem::whereKey(1)
+                ->whereIsBefore($node, 'or')
+                ->orderBy('id')
+                ->pluck('id')
+                ->all(),
+        );
+    }
+
     public function testSiblings(): void
     {
         $node = MenuItem::find(1);
@@ -101,6 +196,56 @@ class ScopedNodeTest extends TestCase
         $result = $node->getPrevSiblings();
 
         $this->assertEquals(1, $result->first()->getKey());
+    }
+
+    public function testPredicatesRequireExactNestedSetScope(): void
+    {
+        $firstScopeRoot = MenuItem::findOrFail(1);
+        $secondScopeRoot = MenuItem::findOrFail(3);
+        $firstScopeParent = MenuItem::findOrFail(2);
+        $firstScopeChild = MenuItem::findOrFail(5);
+        $secondScopeChild = MenuItem::findOrFail(6);
+
+        $this->assertTrue($firstScopeChild->isChildOf($firstScopeParent));
+        $this->assertFalse($secondScopeChild->isChildOf($firstScopeParent));
+        $this->assertFalse($firstScopeRoot->isSiblingOf($secondScopeRoot));
+        $this->assertFalse($firstScopeRoot->isSelfOrDescendantOf($secondScopeRoot));
+        $this->assertFalse($firstScopeRoot->isSelfOrAncestorOf($secondScopeRoot));
+    }
+
+    public function testSiblingsEagerMatchingUsesExactScopeBuckets(): void
+    {
+        $nodes = MenuItem::whereIn('id', [1, 3])
+            ->orderBy('id')
+            ->get();
+
+        $nodes->load(['siblings', 'siblingsAndSelf']);
+
+        $this->assertEquals([2], $nodes->find(1)->siblings->pluck('id')->all());
+        $this->assertEquals([1, 2], $nodes->find(1)->siblingsAndSelf->pluck('id')->sort()->values()->all());
+        $this->assertEquals([4], $nodes->find(3)->siblings->pluck('id')->all());
+        $this->assertEquals([3, 4], $nodes->find(3)->siblingsAndSelf->pluck('id')->sort()->values()->all());
+    }
+
+    public function testRelationExistenceQueriesCorrelateExactScopes(): void
+    {
+        DB::table('menu_items')->insert([
+            'id' => 7,
+            'menu_id' => 3,
+            '_lft' => 1,
+            '_rgt' => 2,
+            'parent_id' => null,
+            'title' => 'only item',
+            'depth' => 0,
+        ]);
+
+        $this->assertFalse(MenuItem::whereKey(7)->has('siblings')->exists());
+        $this->assertFalse(MenuItem::whereKey(7)->has('ancestors')->exists());
+
+        $node = MenuItem::with(['siblings', 'ancestors'])->findOrFail(7);
+
+        $this->assertTrue($node->siblings->isEmpty());
+        $this->assertTrue($node->ancestors->isEmpty());
     }
 
     public function testDescendants(): void
@@ -150,6 +295,41 @@ class ScopedNodeTest extends TestCase
         $this->assertEquals(1, $result->first()->depth);
     }
 
+    public function testStoredDepthWorksAcrossAQueryWithoutAConcreteScope(): void
+    {
+        $depths = MenuItem::query()
+            ->withDepth()
+            ->orderBy('id')
+            ->pluck('depth', 'id')
+            ->all();
+
+        $this->assertSame([1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 1, 6 => 1], $depths);
+    }
+
+    public function testFixTreeRepairsOnlyTheSelectedScope(): void
+    {
+        DB::table('menu_items')->where('id', 5)->update(['_lft' => 3]);
+        $otherScope = MenuItem::scoped(['menu_id' => 2])
+            ->defaultOrder()
+            ->get()
+            ->map
+            ->getBounds()
+            ->all();
+
+        MenuItem::scoped(['menu_id' => 1])->fixTree();
+
+        $this->assertTreeNotBroken(1);
+        $this->assertSame(
+            $otherScope,
+            MenuItem::scoped(['menu_id' => 2])
+                ->defaultOrder()
+                ->get()
+                ->map
+                ->getBounds()
+                ->all(),
+        );
+    }
+
     public function testSaveAsRoot(): void
     {
         $node = MenuItem::find(5);
@@ -172,16 +352,42 @@ class ScopedNodeTest extends TestCase
         $this->assertOtherScopeNotAffected();
     }
 
+    public function testInsertionResolvesParentAfterLaterScopeAttributes(): void
+    {
+        $node = MenuItem::create(['parent_id' => 5, 'menu_id' => 1]);
+
+        $this->assertSame(5, $node->getParentId());
+        $this->assertSame(5, $node->getLft());
+        $this->assertOtherScopeNotAffected();
+    }
+
+    public function testFillResolvesParentAfterLaterScopeAttributes(): void
+    {
+        $node = new MenuItem;
+        $node->fill(['parent_id' => 5, 'menu_id' => 1])->save();
+
+        $this->assertSame(5, $node->getParentId());
+        $this->assertSame(5, $node->getLft());
+        $this->assertOtherScopeNotAffected();
+    }
+
     public function testInsertionToParentFromOtherScope(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
-        $node = MenuItem::create(['menu_id' => 2, 'parent_id' => 5]);
+        MenuItem::create(['menu_id' => 2, 'parent_id' => 5]);
+    }
+
+    public function testInsertionRejectsLaterScopeAttributesFromAnotherTree(): void
+    {
+        $this->expectException(ModelNotFoundException::class);
+
+        MenuItem::create(['parent_id' => 5, 'menu_id' => 2]);
     }
 
     public function testDeletion(): void
     {
-        $node = MenuItem::find(2)->delete();
+        MenuItem::find(2)->delete();
 
         $node = MenuItem::find(1);
 
@@ -198,7 +404,7 @@ class ScopedNodeTest extends TestCase
         $this->assertOtherScopeNotAffected();
     }
 
-    protected function assertOtherScopeNotAffected()
+    protected function assertOtherScopeNotAffected(): void
     {
         $node = MenuItem::find(3);
 
