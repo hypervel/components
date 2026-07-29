@@ -110,7 +110,7 @@ class ServerTest extends TestCase
 
             $this->assertIsString($contents);
             $this->assertStringContainsString('request callback failed', $contents);
-            $this->assertStringNotContainsString('reporting failed', $contents);
+            $this->assertStringContainsString('reporting failed', $contents);
         } finally {
             if ($previousErrorLog !== false) {
                 ini_set('error_log', $previousErrorLog);
@@ -120,19 +120,25 @@ class ServerTest extends TestCase
         }
     }
 
-    public function testOnlyResponseBearingEventsReceiveTheCallbackGuard(): void
+    public function testResponseAndWorkerDeliveryEventsReceiveTheirCallbackGuards(): void
     {
         $requestCallback = static function (SwooleRequest $request, SwooleResponse $response): void {
         };
         $handshakeCallback = static function (SwooleRequest $request, SwooleResponse $response): void {
+        };
+        $pipeCallback = static function (SwooleServer $server, int $fromWorkerId, mixed $data): void {
+        };
+        $finishCallback = static function (SwooleServer $server, int $taskId, mixed $data): void {
+        };
+        $taskCallback = static function (): void {
         };
         $messageCallback = static function (): void {
         };
         $workerCallback = static function (): void {
         };
         $registered = [];
-        $nativeServer = m::mock(SwoolePort::class);
-        $nativeServer->expects('on')->times(4)->andReturnUsing(
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->expects('on')->times(7)->andReturnUsing(
             static function (string $event, callable $callback) use (&$registered): bool {
                 $registered[$event] = $callback;
 
@@ -143,14 +149,82 @@ class ServerTest extends TestCase
         $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
             Event::ON_REQUEST => $requestCallback,
             Event::ON_HANDSHAKE => $handshakeCallback,
+            Event::ON_PIPE_MESSAGE => $pipeCallback,
+            Event::ON_FINISH => $finishCallback,
+            Event::ON_TASK => $taskCallback,
             Event::ON_MESSAGE => $messageCallback,
             Event::ON_WORKER_START => $workerCallback,
         ]);
 
         $this->assertNotSame($requestCallback, $registered[Event::ON_REQUEST]);
         $this->assertNotSame($handshakeCallback, $registered[Event::ON_HANDSHAKE]);
+        $this->assertNotSame($pipeCallback, $registered[Event::ON_PIPE_MESSAGE]);
+        $this->assertNotSame($finishCallback, $registered[Event::ON_FINISH]);
+        $this->assertSame($taskCallback, $registered[Event::ON_TASK]);
         $this->assertSame($messageCallback, $registered[Event::ON_MESSAGE]);
         $this->assertSame($workerCallback, $registered[Event::ON_WORKER_START]);
+    }
+
+    public function testWorkerDeliveryCallbackReportsAnEscapedException(): void
+    {
+        $exception = new RuntimeException('worker delivery callback failed');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($exception);
+        $container = m::mock(Container::class);
+        $container->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
+        $callback = $this->server($container)->guardedWorkerDeliveryCallback(
+            static function (SwooleServer $server, int $sourceId, mixed $data) use ($exception): never {
+                throw $exception;
+            },
+        );
+
+        $callback(m::mock(SwooleServer::class), 1, ['message' => true]);
+    }
+
+    public function testWorkerDeliveryCallbackDoesNotReportCancellation(): void
+    {
+        $container = m::mock(Container::class);
+        $container->shouldNotReceive('make');
+        $callback = $this->server($container)->guardedWorkerDeliveryCallback(
+            static function (SwooleServer $server, int $sourceId, mixed $data): never {
+                throw new CanceledException;
+            },
+        );
+
+        $callback(m::mock(SwooleServer::class), 1, ['message' => true]);
+    }
+
+    public function testWorkerDeliveryCallbackFallsBackToThePhpErrorLog(): void
+    {
+        $directory = ParallelTesting::tempDir('ServerWorkerDeliveryCallbackTest');
+        mkdir($directory, 0777, true);
+        $errorLog = $directory . '/php-error.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+        $exception = new RuntimeException('worker delivery callback failed');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($exception)->andThrow(new RuntimeException('reporting failed'));
+        $container = m::mock(Container::class);
+        $container->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
+        $callback = $this->server($container)->guardedWorkerDeliveryCallback(
+            static function (SwooleServer $server, int $sourceId, mixed $data) use ($exception): never {
+                throw $exception;
+            },
+        );
+
+        try {
+            $callback(m::mock(SwooleServer::class), 1, ['message' => true]);
+            $contents = file_get_contents($errorLog);
+
+            $this->assertIsString($contents);
+            $this->assertStringContainsString('worker delivery callback failed', $contents);
+            $this->assertStringContainsString('reporting failed', $contents);
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+
+            (new Filesystem)->deleteDirectory($directory);
+        }
     }
 
     public function testServerEventRegistrationFailureStopsConfiguration(): void
@@ -386,6 +460,11 @@ class ServerTestServer extends Server
     public function guardedResponseCallback(callable $callback): Closure
     {
         return $this->guardResponseCallback($callback);
+    }
+
+    public function guardedWorkerDeliveryCallback(callable $callback): Closure
+    {
+        return $this->guardWorkerDeliveryCallback($callback);
     }
 
     public function registerEvents(SwoolePort|SwooleServer $server, array $events): void
