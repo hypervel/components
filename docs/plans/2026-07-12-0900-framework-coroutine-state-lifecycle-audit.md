@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `queue`
-- **Ledger entries required for the active work:** `Harden framework contracts and request-scoped state`; `Consolidate reflection metadata and correct callable inference`; `Correct event dispatch, queued-consumer isolation, and queue interoperability`; `Normalize framework enum identifiers at string boundaries`; `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; `Complete Foundation runtime lifecycles and safe publication`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`.
-- **Pending revalidation carried into the active work:** None.
+- **Active package or work unit:** `reverb`
+- **Ledger entries required for the active work:** `Preserve configuration identity across worker reloads`; `Normalize framework enum identifiers at string boundaries`; `Complete Console command, scheduling, and generator lifecycles`; `Unify HTTP response emission and harden native server boundaries`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; `Complete Horizon cluster, process, publication, and current Laravel parity`.
+- **Pending revalidation carried into the active work:** `config-02`, `support-02`, `reverb-03`, `reverb-04`, `redis-10`, `redis-11`, `reverb-05`, `http-server-06`, and `reverb-06`.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1052,7 +1052,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events` and `queue` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events`, `bus`, and `queue` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb`, `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb`, `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
@@ -1094,12 +1094,12 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `redis-10` | `redis` | `reverb` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-10` |
 | `redis-11` | `redis` | `reverb` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-11` |
 | `redis-12` | `redis`, `cache` | `redis` and `cache` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-12` |
-| `redis-13` | `redis` | `horizon`, `cache`, `queue`, and `session` (revalidation complete), `broadcasting`; later full `horizon` and `broadcasting` audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-13` |
+| `redis-13` | `redis` | `horizon`, `cache`, `queue`, and `session` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-13` |
 | `redis-21` | `redis` | `queue` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-21` |
 | `redis-22` | `redis` | `queue` and `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-22` |
 | `reverb-05` | `reverb` | `redis` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `reverb-05` |
 | `redis-15` | `redis` | `telescope` and `sentry` (revalidation complete); later full consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-15` |
-| `horizon-01` | `horizon` | `redis` (revalidation complete); later full `horizon` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `horizon-01` |
+| `horizon-01` | `horizon` | `redis` and `horizon` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `horizon-01` |
 | `telescope-01` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
 | `telescope-02` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
 | `sentry-01` | `sentry` | `redis` (revalidation complete); later full `sentry` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
@@ -1108,10 +1108,15 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `session-23` | `cache` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `session-23` |
 | `contracts-09` | `contracts` | `foundation` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `contracts-09` |
 | `notifications-07` | `contracts` | later full `notifications` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `notifications-07` |
-| `queue-22` | `queue` | later full `horizon` and `telescope` audits | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-22` |
+| `queue-22` | `queue` | `horizon` (revalidation complete); later full `telescope` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-22` |
 | `queue-29` | `queue` | `foundation` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-29` |
 | `queue-36` | `queue`, `support` | `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-36` |
 | `queue-37` | `queue`, `support` | `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-37` |
+| `queue-40` | `queue` | `queue` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `queue-40` |
+| `redis-23` | `redis` | `redis` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `redis-23` |
+| `telescope-03` | `telescope` | `telescope` (targeted correction complete); later full `telescope` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `telescope-03` |
+| `fortify-01` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `fortify-01` |
+| `reverb-06` | `reverb` | `reverb` (targeted correction complete); later full `reverb` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `reverb-06` |
 
 ## Package checklist
 
@@ -1185,7 +1190,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `cache`
 - [x] `session`
 - [x] `queue`
-- [ ] `horizon`
+- [x] `horizon`
 - [ ] `reverb`
 - [ ] `http`
 - [ ] `api-client`
