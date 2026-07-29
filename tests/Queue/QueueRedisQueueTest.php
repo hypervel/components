@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use DateInterval;
+use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Jobs\RedisJob;
@@ -18,10 +21,69 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Override;
 use Symfony\Component\Uid\Uuid;
 
 class QueueRedisQueueTest extends TestCase
 {
+    public function testBulkUsesNestedTransactionOnStandaloneRedisAndHonorsJobDelays(): void
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
+        $connection->shouldReceive('pipeline')
+            ->once()
+            ->andReturnUsing(static function (callable $callback): array {
+                $callback();
+
+                return [];
+            });
+        $connection->shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(static function (callable $callback): array {
+                $callback();
+
+                return [];
+            });
+
+        $queue = $this->createBulkQueue($connection);
+        $queue->bulk([
+            new RedisBulkPropertyDelayJob,
+            new RedisBulkAttributeDelayJob,
+            'plain',
+        ], ['data'], 'critical');
+
+        $this->assertSame([
+            [4, RedisBulkPropertyDelayJob::class, ['data'], 'critical'],
+            [9, RedisBulkAttributeDelayJob::class, ['data'], 'critical'],
+        ], $queue->delayed);
+        $this->assertSame([
+            ['plain', ['data'], 'critical'],
+        ], $queue->pushed);
+    }
+
+    public function testBulkUsesTransactionWithoutPipelineOnRedisCluster(): void
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
+        $connection->shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(static function (callable $callback): array {
+                $callback();
+
+                return [];
+            });
+        $connection->shouldNotReceive('pipeline');
+
+        $queue = $this->createBulkQueue($connection);
+        $queue->bulk(['first', 'second']);
+
+        $this->assertSame([
+            ['first', '', null],
+            ['second', '', null],
+        ], $queue->pushed);
+        $this->assertSame([], $queue->delayed);
+    }
+
     public function testPushProperlyPushesJobOntoRedis(): void
     {
         $now = CarbonImmutable::now();
@@ -533,6 +595,14 @@ class QueueRedisQueueTest extends TestCase
 
         return $uuid;
     }
+
+    private function createBulkQueue(RedisProxy $connection): BulkTestRedisQueue
+    {
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('connection')->once()->with('default')->andReturn($connection);
+
+        return new BulkTestRedisQueue($redis, 'default', 'default');
+    }
 }
 
 class TestableRedisQueue extends RedisQueue
@@ -546,4 +616,50 @@ class TestableRedisQueue extends RedisQueue
     {
         return $this->isClusterConnection();
     }
+}
+
+class BulkTestRedisQueue extends RedisQueue
+{
+    public array $pushed = [];
+
+    public array $delayed = [];
+
+    #[Override]
+    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    {
+        $this->pushed[] = [
+            is_object($job) ? $job::class : $job,
+            $data,
+            $queue,
+        ];
+
+        return null;
+    }
+
+    #[Override]
+    public function later(
+        DateInterval|DateTimeInterface|int $delay,
+        object|string $job,
+        mixed $data = '',
+        ?string $queue = null,
+    ): mixed {
+        $this->delayed[] = [
+            $delay,
+            is_object($job) ? $job::class : $job,
+            $data,
+            $queue,
+        ];
+
+        return null;
+    }
+}
+
+class RedisBulkPropertyDelayJob
+{
+    public int $delay = 4;
+}
+
+#[Delay(9)]
+class RedisBulkAttributeDelayJob
+{
 }

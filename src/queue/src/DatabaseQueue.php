@@ -12,6 +12,7 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Queue\Jobs\InspectedJob;
@@ -271,10 +272,14 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 
         return $this->getDatabase()->table($this->table)->insert(Collection::make((array) $jobs)->map(
             function ($job) use ($queue, $data, $now) {
+                $delay = is_object($job)
+                    ? $this->getAttributeValue($job, Delay::class, 'delay')
+                    : null;
+
                 return $this->buildDatabaseRecord(
                     $queue,
                     $this->createPayload($job, $this->getQueue($queue), $data),
-                    isset($job->delay) ? $this->availableAt($job->delay) : $now,
+                    $delay !== null ? $this->availableAt($delay) : $now,
                 );
             }
         )->all());
