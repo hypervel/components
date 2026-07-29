@@ -33,6 +33,25 @@ class StoreTagsForFailedTest extends IntegrationTestCase
 
         $this->app->make(Dispatcher::class)->dispatch($event);
     }
+
+    public function testFailedJobTrimDefaultSurvivesReplaceWholeConfiguration(): void
+    {
+        config()->set('horizon.trim', ['recent' => 60]);
+
+        $tagRepository = m::mock(TagRepository::class);
+        $tagRepository->shouldReceive('addTemporary')->once()->with(10080, '1', ['failed:foobar'])->andReturn([]);
+
+        $this->instance(TagRepository::class, $tagRepository);
+
+        $event = new JobFailed(
+            new Exception('job failed'),
+            new FailedJob,
+            '{"id":"1","displayName":"displayName","tags":["foobar"]}'
+        );
+        $event->connection('redis')->queue('default');
+
+        $this->app->make(Dispatcher::class)->dispatch($event);
+    }
 }
 
 class FailedJob extends Job
