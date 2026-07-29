@@ -24,36 +24,66 @@ class NestedSet
     public const PARENT_ID = 'parent_id';
 
     /**
-     * Insert direction.
+     * The name of default depth column.
      */
-    public const BEFORE = 1;
+    public const DEPTH = 'depth';
 
     /**
-     * Insert direction.
+     * Cached node-trait membership by concrete class.
+     *
+     * @var array<class-string, bool>
      */
-    public const AFTER = 2;
+    protected static array $nodeClasses = [];
 
     /**
-     * Add default nested set columns to the table. Also create an index.
+     * Add bigint nested set columns and indexes to the table.
      */
-    public static function columns(Blueprint $table): void
+    public static function columns(Blueprint $table, array $scopes = []): void
     {
-        $table->unsignedInteger(self::LFT)->default(0);
-        $table->unsignedInteger(self::RGT)->default(0);
-        $table->unsignedInteger(self::PARENT_ID)->nullable();
-
-        $table->index(static::getDefaultColumns());
+        static::addBoundsAndDepth($table);
+        $table->unsignedBigInteger(self::PARENT_ID)->nullable();
+        static::addIndexes($table, $scopes);
     }
 
     /**
-     * Drop NestedSet columns.
+     * Add integer nested set columns and indexes to the table.
      */
-    public static function dropColumns(Blueprint $table): void
+    public static function integerColumns(Blueprint $table, array $scopes = []): void
     {
-        $columns = static::getDefaultColumns();
+        static::addBoundsAndDepth($table);
+        $table->unsignedInteger(self::PARENT_ID)->nullable();
+        static::addIndexes($table, $scopes);
+    }
 
-        $table->dropIndex($columns);
-        $table->dropColumn($columns);
+    /**
+     * Add UUID nested set columns and indexes to the table.
+     */
+    public static function uuidColumns(Blueprint $table, array $scopes = []): void
+    {
+        static::addBoundsAndDepth($table);
+        $table->uuid(self::PARENT_ID)->nullable();
+        static::addIndexes($table, $scopes);
+    }
+
+    /**
+     * Add ULID nested set columns and indexes to the table.
+     */
+    public static function ulidColumns(Blueprint $table, array $scopes = []): void
+    {
+        static::addBoundsAndDepth($table);
+        $table->ulid(self::PARENT_ID)->nullable();
+        static::addIndexes($table, $scopes);
+    }
+
+    /**
+     * Drop nested set columns and indexes.
+     */
+    public static function dropColumns(Blueprint $table, array $scopes = []): void
+    {
+        $table->dropIndex([...$scopes, self::RGT]);
+        $table->dropIndex([...$scopes, self::LFT]);
+        $table->dropIndex([...$scopes, self::PARENT_ID, self::LFT]);
+        $table->dropColumn(static::getDefaultColumns());
     }
 
     /**
@@ -61,14 +91,49 @@ class NestedSet
      */
     public static function getDefaultColumns(): array
     {
-        return [static::LFT, static::RGT, static::PARENT_ID];
+        return [self::LFT, self::RGT, self::PARENT_ID, self::DEPTH];
     }
 
     /**
-     * Replaces instanceof calls for this trait.
+     * Determine whether the value uses the node trait.
      */
     public static function isNode(mixed $node): bool
     {
-        return is_object($node) && in_array(HasNode::class, class_uses_recursive($node), true);
+        if (! is_object($node)) {
+            return false;
+        }
+
+        $class = $node::class;
+
+        return static::$nodeClasses[$class]
+            ??= in_array(HasNode::class, class_uses_recursive($class), true);
+    }
+
+    /**
+     * Add the common structural columns to the table.
+     */
+    protected static function addBoundsAndDepth(Blueprint $table): void
+    {
+        $table->unsignedInteger(self::LFT)->default(0);
+        $table->unsignedInteger(self::RGT)->default(0);
+        $table->unsignedSmallInteger(self::DEPTH)->default(0);
+    }
+
+    /**
+     * Add nested set indexes to the table.
+     */
+    protected static function addIndexes(Blueprint $table, array $scopes): void
+    {
+        $table->index([...$scopes, self::RGT]);
+        $table->index([...$scopes, self::LFT]);
+        $table->index([...$scopes, self::PARENT_ID, self::LFT]);
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$nodeClasses = [];
     }
 }

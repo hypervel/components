@@ -373,7 +373,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushNestedSetState(): void
     {
-        $this->callIfExists(\Hypervel\NestedSet\Eloquent\BaseRelation::class, 'flushState');
+        $this->callIfExists(\Hypervel\NestedSet\NestedSet::class, 'flushState');
     }
 
     /**
