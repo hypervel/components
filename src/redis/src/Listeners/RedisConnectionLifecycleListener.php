@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Listeners;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisManager;
 use Throwable;
@@ -25,6 +26,7 @@ class RedisConnectionLifecycleListener
             return;
         }
 
+        /** @var RedisFactory $manager */
         $manager = $this->container->make('redis');
 
         if ($manager instanceof RedisManager) {
@@ -41,6 +43,7 @@ class RedisConnectionLifecycleListener
 
         if ($this->container->resolved('redis')) {
             try {
+                /** @var RedisFactory $manager */
                 $manager = $this->container->make('redis');
 
                 if ($manager instanceof RedisManager) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Reverb;
 
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnPipeMessage;
@@ -89,8 +90,11 @@ class ReverbServiceProvider extends ServiceProvider
             $connectionName = $app->make('config')
                 ->string('reverb.servers.reverb.scaling.connection', 'reverb');
 
+            /** @var RedisFactory $redis */
+            $redis = $app->make('redis');
+
             return new WebhookBatchBuffer(
-                $app->make('redis')->connection($connectionName)
+                $redis->connection($connectionName)
             );
         });
 

@@ -7,6 +7,8 @@ namespace Hypervel\Queue;
 use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\Connectors\BackgroundConnector;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\DatabaseConnector;
@@ -229,9 +231,12 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerDatabaseConnector(QueueManager $manager): void
     {
-        $manager->addConnector('database', fn () => new DatabaseConnector(
-            $this->app['db'],
-        ));
+        $manager->addConnector('database', function (): DatabaseConnector {
+            /** @var ConnectionResolverInterface $connections */
+            $connections = $this->app->make('db');
+
+            return new DatabaseConnector($connections);
+        });
     }
 
     /**
@@ -239,9 +244,12 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerRedisConnector(QueueManager $manager): void
     {
-        $manager->addConnector('redis', fn () => new RedisConnector(
-            $this->app['redis'],
-        ));
+        $manager->addConnector('redis', function (): RedisConnector {
+            /** @var RedisFactory $redis */
+            $redis = $this->app->make('redis');
+
+            return new RedisConnector($redis);
+        });
     }
 
     /**
