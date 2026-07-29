@@ -18,7 +18,7 @@ trait MultiExec
     /**
      * Execute commands in a pipeline.
      *
-     * @return array|Redis
+     * @return ($callback is null ? Redis : array<int, mixed>|false)
      */
     public function pipeline(?callable $callback = null)
     {
@@ -28,7 +28,7 @@ trait MultiExec
     /**
      * Execute commands in a transaction.
      *
-     * @return array|Redis|RedisCluster
+     * @return ($callback is null ? Redis|RedisCluster : array<int, mixed>|false)
      */
     public function transaction(?callable $callback = null)
     {
@@ -38,7 +38,9 @@ trait MultiExec
     /**
      * Execute multi-exec commands with optional callback.
      *
-     * @return array|Redis|RedisCluster
+     * @return ($callback is null
+     *     ? ($command is 'pipeline' ? Redis : Redis|RedisCluster)
+     *     : array<int, mixed>|false)
      */
     private function executeMultiExec(string $command, ?callable $callback = null)
     {

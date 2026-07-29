@@ -67,6 +67,23 @@ class MultiExecTest extends TestCase
         $this->assertSame($execResults, $result);
     }
 
+    public function testPipelineWithCallbackReturnsFalseWhenExecAborts(): void
+    {
+        $pipelineInstance = m::mock(PhpRedis::class);
+        $pipelineInstance->shouldReceive('exec')->once()->andReturnFalse();
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('pipeline')->once()->andReturn($pipelineInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+        $connection->shouldReceive('release')->once();
+
+        $result = $this->createRedis($connection)->pipeline(static function (): void {
+        });
+
+        $this->assertFalse($result);
+    }
+
     public function testTransactionWithoutCallbackReturnsInstanceForChaining(): void
     {
         $multiInstance = m::mock(PhpRedis::class);
@@ -107,6 +124,23 @@ class MultiExecTest extends TestCase
         });
 
         $this->assertSame($execResults, $result);
+    }
+
+    public function testTransactionWithCallbackReturnsFalseWhenExecAborts(): void
+    {
+        $multiInstance = m::mock(PhpRedis::class);
+        $multiInstance->shouldReceive('exec')->once()->andReturnFalse();
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+        $connection->shouldReceive('release')->once();
+
+        $result = $this->createRedis($connection)->transaction(static function (): void {
+        });
+
+        $this->assertFalse($result);
     }
 
     public function testPipelineWithCallbackDoesNotReleaseExistingContextConnection(): void
