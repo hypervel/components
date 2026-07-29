@@ -69,13 +69,18 @@ If you wish to use a [nonce attribute](https://developer.mozilla.org/en-US/docs/
 use Closure;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Http\Request;
+use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 public function handle(Request $request, Closure $next): Response
 {
-    Horizon::cspNonce('csp-nonce');
+    $nonce = Str::random(40);
 
-    return $next($request);
+    Horizon::cspNonce($nonce);
+
+    return $next($request)->withHeaders([
+        'Content-Security-Policy' => "script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'",
+    ]);
 }
 ```
 

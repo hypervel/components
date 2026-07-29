@@ -3,14 +3,14 @@
 ## Status
 
 The package audit, source research, owner gates, implementation, validation,
-fresh self-review, code review, and final audit records are complete. Owner
-pre-commit review and the final bookkeeping commit remain.
+review follow-ups, and final audit records are complete. This document records
+the resulting design.
 
 ## Scope
 
 Complete Horizon as one coherent work unit, including the lowest owning Queue,
-Redis, Foundation, Telescope, Fortify, Boost, configuration, metadata, and test
-boundaries required by verified findings.
+Redis, Foundation, Filesystem, Reverb, Telescope, Fortify, Boost,
+configuration, metadata, and test boundaries required by verified findings.
 
 The final code must:
 
@@ -164,7 +164,13 @@ claimed.
 | `horizon-15` | Metadata defect | Major | Split install omits hard runtime requirements and retains stale Carbon | Horizon manifest |
 | `horizon-16` | Test/maintenance defect | Minor | Integration cleanup is duplicated; reset literals can drift | Test owners/default constants |
 | `horizon-17` | Convention correction | Minor | Connector registration uses untyped container array access | Provider |
+| `horizon-18` | Test lifecycle defect | Minor | The isolated Horizon command can be signaled before its handler exists | Persisted-master readiness barrier |
+| `horizon-19` | Test defect | Minor | Installer read-failure tests assume mode bits always make files unreadable | Installer regressions |
+| `filesystem-13` | Cross-package test defect | Minor | Filesystem write-failure guards can throw when `whoami` is absent or shell execution is disabled | Filesystem regressions |
+| `horizon-20` | Documentation defect and upstream defect | Major | The CSP example reuses a static nonce and omits the matching response header | Public Horizon guide |
+| `horizon-21` | Test dependency defect | Minor | The niceness regression trims nullable shell output even though required `ext-pcntl` exposes the value natively | Supervisor command regression |
 | `redis-23` | Type-contract defect | Minor | MultiExec conflates callback results with no-callback clients | Redis MultiExec |
+| `reverb-06` | Cross-package test lifecycle defect | Minor | A child can exit after the parent's final pipe read and lose its buffered result | Reverb process harness |
 
 ## Approved Laravel-facing result
 
@@ -808,7 +814,7 @@ call-site defaults. Extend the currently one-test `HorizonConfigTest` with
 declared-key and replace-whole nested-config regressions; the focused
 `SnapshotCommand` test owns the `snapshot_lock` call-site fallback.
 
-## 12. Publish installer rewrites atomically (`horizon-13`, `telescope-03`, `fortify-01`)
+## 12. Publish installers atomically and test permissions by capability (`horizon-13`, `telescope-03`, `fortify-01`, `horizon-19`, `filesystem-13`)
 
 At each command, resolve the existing `Filesystem` service through
 `$this->hypervel->make(Filesystem::class)`, check the current file and mode,
@@ -864,7 +870,13 @@ mode, read/mode failure, replacement failure, and no provider registration
 after failure. Fortify additionally proves a later file is untouched after an
 earlier failure.
 
-## 13. Complete docs, Boost resources, and frontend dependency sync (`horizon-14`)
+Permission regressions must test the capability they depend on. After denying
+access, the three installer tests skip only when a native content read still
+succeeds, while the two Filesystem adapter tests skip only when the file remains
+writable. Keep restoration in `finally`, and create failure expectations only
+after the capability probe succeeds.
+
+## 13. Complete docs, Boost resources, and frontend dependency sync (`horizon-14`, `horizon-20`)
 
 ### Package README and intentional omissions
 
@@ -888,7 +900,9 @@ coroutine adaptations. Do not port deprecated `Horizon::night()`.
 Update `src/boost/docs/horizon.md` in its existing Laravel-style prose:
 
 - remove the Redis Cluster incompatibility warning after section 2 is complete;
-- document middleware/request-scoped `Horizon::cspNonce()`;
+- document middleware/request-scoped `Horizon::cspNonce()` with one fresh
+  `Str::random(40)` value shared by the Horizon tags and a response
+  `Content-Security-Policy` header covering both `script-src` and `style-src`;
 - explain `metrics.trim_snapshots` as a count whose time span depends on
   snapshot frequency; and
 - document `memory`, `maxJobs`, `maxTime`, `sleep`, `rest`, and `nice`.
@@ -949,7 +963,7 @@ Extend `PackageMetadataTest` with exact presence/non-empty assertions and an
 explicit Carbon absence assertion. The root aggregate already carries the new
 requirements and needs no dependency command.
 
-## 15. Remove duplicate test cleanup and literal drift (`horizon-16`)
+## 15. Remove duplicate test cleanup and external process dependencies (`horizon-16`, `horizon-21`)
 
 From `tests/Integration/Horizon/IntegrationTestCase` remove:
 
@@ -980,6 +994,9 @@ public static function flushState(): void
 
 Extend `StaticStateTest` so all three mutable commands are changed then reset.
 Add `: void` to every new or touched test method.
+
+Assert the supervisor's process niceness with `pcntl_getpriority()` instead of
+shelling out to `ps`. Horizon already requires `ext-pcntl`.
 
 Run the complete Horizon integration group against live Redis to prove the
 authoritative cleanup owners are sufficient under real pooling.
@@ -1050,12 +1067,16 @@ After implementation and review:
 
 - add the Horizon work-unit block to the companion ledger with every finding,
   rejected concern, test/gate result, API result, and performance result;
+- record the later permission-test and CSP defects as `horizon-19`,
+  `filesystem-13`, and `horizon-20`, plus the native niceness correction as
+  `horizon-21`, without duplicating the completed Filesystem entry or recording
+  rejected bot suggestions;
 - close the carried `horizon-01` revalidation against the final Cluster
   connection and prefix behavior;
 - close `queue-22` against Horizon's malformed-payload telemetry boundary and
   `support-02` against Horizon's final identifier handling;
 - add cross-package dependency rows for `queue-40`, `redis-23`,
-  `telescope-03`, and `fortify-01`;
+  `telescope-03`, `fortify-01`, and `reverb-06`;
 - amend the completed Queue and Redis ledger entries with their source changes
   and revalidation;
 - record Horizon's intentional omission of upstream phpredis/Predis runtime
@@ -1146,8 +1167,8 @@ Do not add environment assumptions beyond existing integration conventions.
   repository command validates package-owned Boost resources;
 - search for direct Horizon `pipeline()` owners left outside the trait;
 - search for `shouldExitLoop`, stale command literals, raw installer
-  `file_put_contents`, old Cluster warnings, stale ignored return types, and
-  deleted context helpers;
+  `file_put_contents`, old Cluster warnings, stale ignored return types,
+  deleted context helpers, and test-owned `trim(shell_exec(...))` calls;
 - confirm every new/touched test method is `: void`;
 - run `git diff --check`.
 
@@ -1175,6 +1196,8 @@ After the gate passes, review the entire diff without trusting this plan:
   concurrent coroutines;
 - trace every installer read, permission read, replacement, failure report, and
   provider-registration boundary;
+- verify the public CSP example uses one fresh request nonce in both generated
+  tags and both response-header directives;
 - verify all config fallbacks against top-level versus replace-whole nested
   ownership;
 - compare public source/docs/Boost resources to current upstream while retaining
