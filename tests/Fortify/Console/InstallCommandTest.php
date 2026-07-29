@@ -135,7 +135,9 @@ class InstallCommandTest extends TestCase
         $this->app->singleton(InstallCommand::class, SuccessfulPublishingFortifyInstallCommand::class);
 
         try {
-            $this->assertFalse(@file_get_contents($path));
+            if (@file_get_contents($path) !== false) {
+                $this->markTestSkipped('The current user can read files without read permission.');
+            }
 
             $this->artisan('fortify:install')
                 ->expectsOutputToContain('Unable to read published Fortify file')

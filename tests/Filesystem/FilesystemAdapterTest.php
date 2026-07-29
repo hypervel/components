@@ -872,20 +872,19 @@ class FilesystemAdapterTest extends TestCase
         $this->fail('Exception was not thrown.');
     }
 
-    public function testThrowExceptionsForPut()
+    public function testThrowExceptionsForPut(): void
     {
-        if (trim(shell_exec('whoami')) === 'root') {
-            $this->markTestSkipped('Cannot test file permissions as root user.');
-            return;
-        }
-
         $this->filesystem->write('foo.txt', 'Hello World');
 
         chmod($this->tempDir . '/foo.txt', 0400);
 
-        $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
-
         try {
+            if (is_writable($this->tempDir . '/foo.txt')) {
+                $this->markTestSkipped('The current user can write to files without write permission.');
+            }
+
+            $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
+
             $adapter->put('/foo.txt', 'Hello World!');
         } catch (UnableToWriteFile) {
             $this->assertTrue(true);
@@ -971,37 +970,36 @@ class FilesystemAdapterTest extends TestCase
         }
     }
 
-    public function testReportExceptionsForPut()
+    public function testReportExceptionsForPut(): void
     {
-        if (trim(shell_exec('whoami')) === 'root') {
-            $this->markTestSkipped('Cannot test file permissions as root user.');
-            return;
-        }
-
-        $container = Container::getInstance();
-
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-
-        $exceptionHandler->shouldReceive('report')
-            ->once()
-            ->andReturnUsing(function (UnableToWriteFile $exception) {
-                self::assertStringContainsString(
-                    'Unable to write file at location: foo.txt.',
-                    $exception->getMessage(),
-                );
-            });
-
-        $container->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
-            return $exceptionHandler;
-        });
-
         $this->filesystem->write('foo.txt', 'Hello World');
 
         chmod($this->tempDir . '/foo.txt', 0400);
 
-        $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['report' => true]);
-
         try {
+            if (is_writable($this->tempDir . '/foo.txt')) {
+                $this->markTestSkipped('The current user can write to files without write permission.');
+            }
+
+            $container = Container::getInstance();
+
+            $exceptionHandler = m::mock(ExceptionHandler::class);
+
+            $exceptionHandler->shouldReceive('report')
+                ->once()
+                ->andReturnUsing(function (UnableToWriteFile $exception) {
+                    self::assertStringContainsString(
+                        'Unable to write file at location: foo.txt.',
+                        $exception->getMessage(),
+                    );
+                });
+
+            $container->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
+                return $exceptionHandler;
+            });
+
+            $adapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['report' => true]);
+
             $adapter->put('/foo.txt', 'Hello World!');
         } catch (UnableToWriteFile) {
             $this->fail('Exception was thrown.');

@@ -140,7 +140,9 @@ class InstallCommandTest extends TestCase
         chmod($providerPath, 0000);
 
         try {
-            $this->assertFalse(@file_get_contents($providerPath));
+            if (@file_get_contents($providerPath) !== false) {
+                $this->markTestSkipped('The current user can read files without read permission.');
+            }
 
             $this->artisan('horizon:install')
                 ->expectsOutputToContain('Unable to read the HorizonServiceProvider file.')
