@@ -26,11 +26,12 @@ class HorizonCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(MasterSupervisorRepository $masters): void
+    public function handle(MasterSupervisorRepository $masters): int
     {
         if ($masters->find(MasterSupervisor::name())) {
             $this->components->warn('A master supervisor is already running on this machine.');
-            return;
+
+            return self::SUCCESS;
         }
 
         $environment = $this->option('environment') ?? config('horizon.env') ?? config('app.env');
@@ -50,9 +51,9 @@ class HorizonCommand extends Command
 
             $this->components->info('Shutting down.');
 
-            return $master->terminate(); // @phpstan-ignore method.void
+            $master->terminate();
         });
 
-        $master->monitor();
+        return $master->monitor();
     }
 }

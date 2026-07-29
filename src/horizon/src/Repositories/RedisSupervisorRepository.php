@@ -14,6 +14,8 @@ use stdClass;
 
 class RedisSupervisorRepository implements SupervisorRepository
 {
+    use UsesClusterAwarePipeline;
+
     /**
      * Create a new repository instance.
      */
@@ -56,7 +58,7 @@ class RedisSupervisorRepository implements SupervisorRepository
     public function get(array $names): array
     {
         /** @var array<int, array{name: string, master: string, pid: int, status: string, processes: string, options: string}> $records */
-        $records = $this->connection()->pipeline(function ($pipe) use ($names) {
+        $records = $this->pipeline(function ($pipe) use ($names) {
             foreach ($names as $name) {
                 $pipe->hmget('supervisor:' . $name, ['name', 'master', 'pid', 'status', 'processes', 'options']);
             }
@@ -91,7 +93,7 @@ class RedisSupervisorRepository implements SupervisorRepository
             return [$supervisor->options->connection . ':' . $pool->queue() => count($pool->processes())];
         })->toJson();
 
-        $this->connection()->pipeline(function ($pipe) use ($supervisor, $processes) {
+        $this->pipeline(function ($pipe) use ($supervisor, $processes) {
             $pipe->hmset(
                 'supervisor:' . $supervisor->name,
                 [

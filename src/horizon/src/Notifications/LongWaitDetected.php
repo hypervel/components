@@ -39,8 +39,6 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     {
         return array_filter([
             Horizon::$slackWebhookUrl ? 'slack' : null,
-            // no sms client supported yet
-            // Horizon::$smsNumber ? 'nexmo' : null,
             Horizon::$email ? 'mail' : null,
         ]);
     }
@@ -79,9 +77,8 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
             $this->seconds
         );
 
-        if (class_exists('\Hypervel\Notifications\Messages\SlackMessage')
-            && class_exists('\Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock')
-            && ! (is_string(Horizon::$slackWebhookUrl) && Str::startsWith(Horizon::$slackWebhookUrl, ['http://', 'https://']))
+        if (! (is_string(Horizon::$slackWebhookUrl)
+            && Str::startsWith(Horizon::$slackWebhookUrl, ['http://', 'https://']))
         ) {
             return (new ChannelIdSlackMessage)
                 ->username($fromName)

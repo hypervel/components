@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Connectors\RedisConnector;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Facades\Route;
@@ -20,6 +21,7 @@ class HorizonServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // REMOVED: Laravel Sentinel middleware has no Hypervel integration.
         $this->normalizeConfig();
         $this->registerEvents();
         $this->registerRoutes();
@@ -35,7 +37,7 @@ class HorizonServiceProvider extends ServiceProvider
     {
         $config = $this->app->make('config');
 
-        if (! $config->get('horizon.name')) {
+        if (($name = $config->get('horizon.name')) === null || $name === '') {
             $config->set('horizon.name', $config->string('app.name'));
         }
     }
@@ -59,11 +61,13 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
+        $config = $this->app->make('config');
+
         Route::group([
-            'domain' => config('horizon.domain', null),
-            'prefix' => config('horizon.path'),
+            'domain' => $config->get('horizon.domain'),
+            'prefix' => $config->string('horizon.path'),
             'namespace' => 'Hypervel\Horizon\Http\Controllers',
-            'middleware' => config('horizon.middleware', ['web']),
+            'middleware' => $config->array('horizon.middleware'),
         ], function () {
             $this->loadRoutesFrom(__DIR__ . '/../routes/web.php');
         });
@@ -111,6 +115,7 @@ class HorizonServiceProvider extends ServiceProvider
                 Console\ListenCommand::class,
                 Console\PauseCommand::class,
                 Console\PauseSupervisorCommand::class,
+                // REMOVED: Deprecated horizon:publish; use horizon:install.
                 Console\PurgeCommand::class,
                 Console\SupervisorCommand::class,
                 Console\SupervisorStatusCommand::class,
@@ -141,6 +146,8 @@ class HorizonServiceProvider extends ServiceProvider
         $this->configure();
         $this->registerServices();
         $this->registerQueueConnectors();
+
+        Horizon::registerDevCommands();
     }
 
     /**
@@ -153,7 +160,7 @@ class HorizonServiceProvider extends ServiceProvider
             'horizon'
         );
 
-        Horizon::use(config('horizon.use', 'default'));
+        Horizon::use(config()->string('horizon.use'));
     }
 
     /**
@@ -173,9 +180,10 @@ class HorizonServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(QueueManager::class, function (QueueManager $manager) {
             $manager->addConnector('redis', function () {
-                return new RedisConnector(
-                    $this->app['redis']
-                );
+                /** @var RedisFactory $redis */
+                $redis = $this->app->make('redis');
+
+                return new RedisConnector($redis);
             });
         });
     }

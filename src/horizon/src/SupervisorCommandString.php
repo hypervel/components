@@ -7,9 +7,14 @@ namespace Hypervel\Horizon;
 class SupervisorCommandString
 {
     /**
+     * The default base supervisor command.
+     */
+    protected const DEFAULT_COMMAND = 'exec @php artisan horizon:supervisor';
+
+    /**
      * The base worker command.
      */
-    public static string $command = 'exec @php artisan horizon:supervisor';
+    public static string $command = self::DEFAULT_COMMAND;
 
     /**
      * Get the command-line representation of the options for a supervisor.
@@ -38,6 +43,6 @@ class SupervisorCommandString
      */
     public static function flushState(): void
     {
-        static::$command = 'exec @php artisan horizon:supervisor';
+        static::$command = self::DEFAULT_COMMAND;
     }
 }

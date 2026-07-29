@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Core\Events\TaskTerminated;
@@ -26,7 +27,12 @@ class RedisServiceProvider extends ServiceProvider
             $app->make(RedisSentinelFactory::class),
         ));
 
-        $this->app->bind('redis.connection', fn ($app) => $app->make('redis')->connection());
+        $this->app->bind('redis.connection', function ($app) {
+            /** @var RedisFactory $redis */
+            $redis = $app->make('redis');
+
+            return $redis->connection();
+        });
     }
 
     /**

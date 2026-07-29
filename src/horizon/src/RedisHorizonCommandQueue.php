@@ -6,10 +6,13 @@ namespace Hypervel\Horizon;
 
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
+use Hypervel\Horizon\Repositories\UsesClusterAwarePipeline;
 use Hypervel\Redis\RedisProxy;
 
 class RedisHorizonCommandQueue implements HorizonCommandQueue
 {
+    use UsesClusterAwarePipeline;
+
     /**
      * Create a new command queue instance.
      */
@@ -41,7 +44,7 @@ class RedisHorizonCommandQueue implements HorizonCommandQueue
             return [];
         }
 
-        $results = $this->connection()->pipeline(function ($pipe) use ($name, $length) {
+        $results = $this->pipeline(function ($pipe) use ($name, $length) {
             $pipe->lRange('commands:' . $name, 0, $length - 1);
 
             $pipe->lTrim('commands:' . $name, $length, -1);

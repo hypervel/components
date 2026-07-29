@@ -71,6 +71,23 @@ class BatchesControllerTest extends ControllerTestCase
         $this->assertEmpty($response->original['batches']);
     }
 
+    public function testSearchMatchesLiteralUnderscores(): void
+    {
+        $this->setupBatchTable();
+        $this->seedBatches();
+        $this->insertBatch('batch_under_score', 'Import_Users');
+
+        $response = $this->actingAs(new Fakes\User)
+            ->get('/horizon/api/batches?query=_');
+
+        $response->assertOk();
+
+        $batches = $response->original['batches'];
+
+        $this->assertCount(1, $batches);
+        $this->assertSame('batch_under_score', $batches[0]->id);
+    }
+
     public function testSearchSupportsCursorPagination()
     {
         $this->setupBatchTable();

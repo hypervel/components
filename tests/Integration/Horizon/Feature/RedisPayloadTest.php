@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Horizon\JobPayload;
+use Hypervel\Horizon\Tags;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Queue\InvalidPayloadException;
@@ -28,6 +29,7 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeSilencedJob;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SilencedMailable;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
+use RuntimeException;
 use StdClass;
 
 class RedisPayloadTest extends IntegrationTestCase
@@ -218,5 +220,37 @@ class RedisPayloadTest extends IntegrationTestCase
                 $this->assertSame($payload, $e->value);
             }
         }
+    }
+
+    public function testListenerTagFailureDoesNotLeakItsEventIntoLaterTagExtraction(): void
+    {
+        try {
+            Tags::for(new CallQueuedListener(
+                FailingListenerTags::class,
+                'handle',
+                [new FakeEvent],
+            ));
+            $this->fail('Expected listener tag extraction to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to extract listener tags.', $exception->getMessage());
+        }
+
+        $this->assertSame(['no-event'], Tags::for(new ListenerEventStateInspectingJob));
+    }
+}
+
+class FailingListenerTags
+{
+    public function tags(FakeEvent $event): array
+    {
+        throw new RuntimeException('Unable to extract listener tags.');
+    }
+}
+
+class ListenerEventStateInspectingJob
+{
+    public function tags(?object $event): array
+    {
+        return [$event === null ? 'no-event' : 'stale-event'];
     }
 }

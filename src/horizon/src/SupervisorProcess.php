@@ -98,7 +98,7 @@ class SupervisorProcess extends WorkerProcess
         // If the supervisor exited with a status code that we do not restart on then
         // we will not attempt to restart it. Otherwise, we will need to provision
         // it back out based on the latest provisioning information we have now.
-        if (in_array($exitCode, $this->dontRestartOn)) {
+        if (in_array($exitCode, $this->dontRestartOn, true)) {
             return;
         }
 

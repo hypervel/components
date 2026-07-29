@@ -55,7 +55,7 @@ class SupervisorCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(SupervisorFactory $factory): ?int
+    public function handle(SupervisorFactory $factory): int
     {
         $supervisor = $factory->make(
             $this->supervisorOptions()
@@ -69,15 +69,13 @@ class SupervisorCommand extends Command
             return 13;
         }
 
-        $this->start($supervisor);
-
-        return 0;
+        return $this->start($supervisor);
     }
 
     /**
      * Start the given supervisor.
      */
-    protected function start(Supervisor $supervisor): void
+    protected function start(Supervisor $supervisor): int
     {
         if ($supervisor->options->nice) {
             proc_nice($supervisor->options->nice);
@@ -97,7 +95,7 @@ class SupervisorCommand extends Command
             $balancedWorkerCount - $supervisor->totalSystemProcessCount()
         ));
 
-        $supervisor->monitor();
+        return $supervisor->monitor();
     }
 
     /**
@@ -105,7 +103,7 @@ class SupervisorCommand extends Command
      */
     protected function supervisorOptions(): SupervisorOptions
     {
-        $balance = $this->option('balance');
+        $balance = $this->option('balance') ?? 'off';
 
         $autoScalingStrategy = $balance === 'auto' ? $this->option('auto-scaling-strategy') : null;
 

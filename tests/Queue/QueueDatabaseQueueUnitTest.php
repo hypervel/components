@@ -11,6 +11,7 @@ use Hypervel\Container\Container;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\InspectedJob;
@@ -224,6 +225,30 @@ class QueueDatabaseQueueUnitTest extends TestCase
         });
 
         $queue->bulk(['foo', 'bar'], ['data'], 'queue');
+    }
+
+    public function testBulkHonorsTheDelayAttribute(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502704));
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insert')
+            ->once()
+            ->andReturnUsing(function (array $records): bool {
+                $this->assertSame(1732502713, $records[0]['available_at']);
+
+                return true;
+            });
+
+        $queue->bulk([new DatabaseBulkAttributeDelayJob]);
     }
 
     public function testBuildDatabaseRecordWithPayloadAtTheEnd()
@@ -456,6 +481,11 @@ class MyTestJob
 class MyBatchableJob
 {
     use Batchable;
+}
+
+#[Delay(9)]
+class DatabaseBulkAttributeDelayJob
+{
 }
 
 class TestDatabaseQueue extends DatabaseQueue

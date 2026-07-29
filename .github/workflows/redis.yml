@@ -52,7 +52,7 @@ jobs:
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
-      - name: Install procps for Horizon process tests
+      - name: Install procps for Horizon's SystemProcessCounter (ps aux)
         run: apt-get update -qq && apt-get install -y -qq --no-install-recommends procps > /dev/null
 
       - name: Execute Redis integration tests
@@ -111,7 +111,7 @@ jobs:
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
-      - name: Install procps for Horizon process tests
+      - name: Install procps for Horizon's SystemProcessCounter (ps aux)
         run: apt-get update -qq && apt-get install -y -qq --no-install-recommends procps > /dev/null
 
       - name: Execute Redis integration tests

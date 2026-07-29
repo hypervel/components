@@ -80,6 +80,13 @@ class SwooleTableSharedStateLockTest extends TestCase
 
                 if ($this->reapIfExited($pid)) {
                     $reaped = true;
+
+                    $chunk = $process->read();
+
+                    if (is_string($chunk) && $chunk !== '') {
+                        $message .= $chunk;
+                    }
+
                     break;
                 }
 
@@ -103,6 +110,12 @@ class SwooleTableSharedStateLockTest extends TestCase
                     usleep(1_000);
                 }
             }
+        }
+
+        if ($message === '') {
+            $this->fail($reaped
+                ? "Reverb lock child [{$pid}] exited without reporting a message."
+                : "Timed out after 250ms waiting for Reverb lock child [{$pid}] to report.");
         }
 
         $this->assertSame(

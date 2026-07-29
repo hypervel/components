@@ -10,6 +10,7 @@ use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Redis\RedisConnection;
@@ -244,17 +245,29 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
-        $this->getConnection()->pipeline(function () use ($jobs, $data, $queue) {
-            $this->getConnection()->transaction(function () use ($jobs, $data, $queue) {
-                foreach ((array) $jobs as $job) {
-                    if (isset($job->delay)) {
-                        $this->later($job->delay, $job, $data, $queue);
-                    } else {
-                        $this->push($job, $data, $queue);
-                    }
+        $connection = $this->getConnection();
+
+        $callback = function () use ($jobs, $data, $queue): void {
+            foreach ($jobs as $job) {
+                $delay = is_object($job)
+                    ? $this->getAttributeValue($job, Delay::class, 'delay')
+                    : null;
+
+                if ($delay !== null) {
+                    $this->later($delay, $job, $data, $queue);
+                } else {
+                    $this->push($job, $data, $queue);
                 }
-            });
-        });
+            }
+        };
+
+        if ($connection->isCluster()) {
+            $connection->transaction($callback);
+        } else {
+            $connection->pipeline(
+                fn () => $connection->transaction($callback)
+            );
+        }
 
         return null;
     }

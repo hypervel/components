@@ -26,12 +26,15 @@ class FailedJobsController extends Controller
      */
     public function index(Request $request): array
     {
-        $jobs = ! $request->query('tag')
-                ? $this->paginate($request)
-                : $this->paginateByTag($request, $request->query('tag'));
+        $tag = $request->query('tag');
+        $hasTag = $tag !== null && $tag !== '';
 
-        $total = $request->query('tag')
-                ? $this->tags->count('failed:' . $request->query('tag'))
+        $jobs = ! $hasTag
+                ? $this->paginate($request)
+                : $this->paginateByTag($request, $tag);
+
+        $total = $hasTag
+                ? $this->tags->count('failed:' . $tag)
                 : $this->jobs->countFailed();
 
         return [
@@ -43,7 +46,7 @@ class FailedJobsController extends Controller
     /**
      * Paginate the failed jobs for the request.
      */
-    protected function paginate(Request $request)
+    protected function paginate(Request $request): Collection
     {
         $startingAt = $request->query('starting_at') ?: -1;
 
@@ -73,7 +76,7 @@ class FailedJobsController extends Controller
     /**
      * Get a failed job instance.
      */
-    public function show(string $id): mixed
+    public function show(string $id): array
     {
         return (array) $this->jobs->getJobs([$id])->map(function ($job) {
             return $this->decode($job);

@@ -35,9 +35,8 @@ class TerminateCommand extends Command
      */
     public function handle(CacheFactory $cache, MasterSupervisorRepository $masters): void
     {
-        if (config('horizon.fast_termination')) {
-            /* @phpstan-ignore-next-line */
-            $cache->forever(
+        if (config()->boolean('horizon.fast_termination')) {
+            $cache->store()->forever(
                 'horizon:terminate:wait',
                 $this->option('wait')
             );
@@ -62,7 +61,6 @@ class TerminateCommand extends Command
                 }
             })->whenNotEmpty(fn () => $this->output->writeln(''));
 
-        $this->hypervel->make(CacheFactory::class)
-            ->store()->forever(Worker::RESTART_SIGNAL_CACHE_KEY, $this->currentTime());
+        $cache->store()->forever(Worker::RESTART_SIGNAL_CACHE_KEY, $this->currentTime());
     }
 }

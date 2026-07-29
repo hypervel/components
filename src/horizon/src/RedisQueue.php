@@ -30,7 +30,7 @@ class RedisQueue extends BaseQueue
      */
     public function readyNow(?string $queue = null): int
     {
-        return $this->getConnection()->lLen($this->getQueue($queue));
+        return $this->getConnection()->lLen($this->getQueueRedisKey($queue));
     }
 
     /**
@@ -59,7 +59,10 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
-        $payload = (new JobPayload($payload))->prepare($this->getLastPushed());
+        $job = CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
+        CoroutineContext::forget(static::LAST_PUSHED_CONTEXT_KEY);
+
+        $payload = (new JobPayload($payload))->prepare($job);
 
         $this->event($this->getQueue($queue), new JobPending($payload->value));
 
@@ -89,7 +92,9 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        $payload = (new JobPayload($this->createPayload($job, $queue, $data)))->prepare($job)->value;
+        $payload = (new JobPayload(
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay)
+        ))->prepare($job)->value;
 
         return $this->enqueueUsing(
             $job,
@@ -193,13 +198,5 @@ class RedisQueue extends BaseQueue
     protected function setLastPushed(object|string $job): void
     {
         CoroutineContext::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
-    }
-
-    /**
-     * Get the job that last pushed to queue via the "push" method.
-     */
-    protected function getLastPushed(): object|string|null
-    {
-        return CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
     }
 }

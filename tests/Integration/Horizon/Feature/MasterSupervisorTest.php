@@ -20,6 +20,7 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\EternalSupervisor;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SupervisorProcessWithFakeRestart;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
 
 class MasterSupervisorTest extends IntegrationTestCase
@@ -37,7 +38,8 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertStringStartsWith('test-name', $master->name());
     }
 
-    public function testMasterProcessMarksCleanExitsAsDeadAndRemovesThem()
+    #[DataProvider('terminalExitCodes')]
+    public function testMasterProcessMarksTerminalExitsAsDeadAndRemovesThem(int $exitCode): void
     {
         $process = m::mock(Process::class);
         $master = new MasterSupervisor;
@@ -49,7 +51,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
         $process->shouldReceive('isStarted')->andReturn(true);
         $process->shouldReceive('isRunning')->andReturn(false);
-        $process->shouldReceive('getExitCode')->andReturn(0);
+        $process->shouldReceive('getExitCode')->andReturn($exitCode);
 
         $master->loop();
 
@@ -57,27 +59,14 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertCount(0, $master->supervisors);
     }
 
-    public function testMasterProcessMarksDuplicatesAsDeadAndRemovesThem()
+    public static function terminalExitCodes(): array
     {
-        $process = m::mock(Process::class);
-        $master = new MasterSupervisor;
-        $master->working = true;
-        $master->supervisors[] = $supervisorProcess = new SupervisorProcess(
-            $this->supervisorOptions(),
-            $process
-        );
-
-        $process->shouldReceive('isStarted')->andReturn(true);
-        $process->shouldReceive('isRunning')->andReturn(false);
-        $process->shouldReceive('getExitCode')->andReturn(13);
-
-        $master->loop();
-
-        $this->assertTrue($supervisorProcess->dead);
-        $this->assertCount(0, $master->supervisors);
+        // Exit 13 is caught by the duplicate-supervisor branch before dontRestartOn.
+        return [[0], [2], [13]];
     }
 
-    public function testMasterProcessRestartsUnexpectedExits()
+    #[DataProvider('restartableExitCodes')]
+    public function testMasterProcessRestartsUnexpectedExits(?int $exitCode): void
     {
         $process = m::mock(Process::class);
         $master = new MasterSupervisor;
@@ -89,7 +78,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
         $process->shouldReceive('isStarted')->andReturn(true);
         $process->shouldReceive('isRunning')->andReturn(false);
-        $process->shouldReceive('getExitCode')->andReturn(50);
+        $process->shouldReceive('getExitCode')->andReturn($exitCode);
 
         $master->loop();
 
@@ -106,6 +95,11 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertCount(0, $master->supervisors);
         $this->assertSame(AddSupervisor::class, $command->command);
         $this->assertSame('default', $command->options['queue']);
+    }
+
+    public static function restartableExitCodes(): array
+    {
+        return [[null], [1], [12], [50]];
     }
 
     public function testMasterProcessRestartsProcessesThatNeverStarted()
@@ -228,7 +222,7 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertNull($repository->find('nothing'));
     }
 
-    public function testSupervisorProcessTerminatesAllWorkersAndExitsOnFullTermination()
+    public function testSupervisorProcessTerminatesAllWorkersAndExitsOnFullTermination(): void
     {
         $master = new MasterSupervisor;
         $master->working = true;
@@ -236,13 +230,11 @@ class MasterSupervisorTest extends IntegrationTestCase
         $master->persist();
         $master->terminate();
 
-        $this->assertTrue($master->shouldExitLoop);
-
         // Assert that the supervisor is removed...
         $this->assertNull(resolve(MasterSupervisorRepository::class)->find($master->name));
     }
 
-    public function testSupervisorContinuesTerminationIfSupervisorsTakeTooLong()
+    public function testSupervisorContinuesTerminationIfSupervisorsTakeTooLong(): void
     {
         $master = new MasterSupervisor;
         $master->working = true;
@@ -252,8 +244,14 @@ class MasterSupervisorTest extends IntegrationTestCase
         $master->persist();
         $master->terminate();
 
-        $this->assertTrue($master->shouldExitLoop);
         $this->assertTrue($supervisor->killed);
+    }
+
+    public function testLiteralZeroMasterNameIsPreservedInTheCommandQueue(): void
+    {
+        $this->assertSame('master:0', MasterSupervisor::commandQueueFor('0'));
+        $this->assertSame(MasterSupervisor::commandQueue(), MasterSupervisor::commandQueueFor(''));
+        $this->assertSame(MasterSupervisor::commandQueue(), MasterSupervisor::commandQueueFor());
     }
 
     protected function supervisorOptions()

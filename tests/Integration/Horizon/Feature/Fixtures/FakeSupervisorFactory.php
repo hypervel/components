@@ -11,10 +11,15 @@ use Hypervel\Tests\Integration\Horizon\Feature\Fakes\SupervisorWithFakeMonitor;
 
 class FakeSupervisorFactory extends SupervisorFactory
 {
-    public $supervisor;
+    public ?SupervisorWithFakeMonitor $supervisor = null;
+
+    public int $monitorStatus = 0;
 
     public function make(SupervisorOptions $options): Supervisor
     {
-        return $this->supervisor = new SupervisorWithFakeMonitor($options);
+        $this->supervisor = new SupervisorWithFakeMonitor($options);
+        $this->supervisor->monitorStatus = $this->monitorStatus;
+
+        return $this->supervisor;
     }
 }

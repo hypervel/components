@@ -7,6 +7,9 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
+use Hypervel\Horizon\RedisQueue;
+use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
@@ -36,11 +39,69 @@ class QueueProcessingTest extends IntegrationTestCase
         $this->assertSame('pending', Redis::connection('horizon')->hget($id, 'status'));
     }
 
-    public function testPendingDelayedJobsAreStoredInPendingJobDatabase()
+    public function testPendingDelayedJobsAreStoredInPendingJobDatabase(): void
     {
         $id = Queue::later(1, new Jobs\BasicJob);
         $this->assertSame(1, $this->recentJobs());
         $this->assertSame('pending', Redis::connection('horizon')->hget($id, 'status'));
+
+        $payload = json_decode(Redis::connection('horizon')->hget($id, 'payload'), true);
+        $this->assertSame(1, $payload['delay']);
+    }
+
+    public function testImmediateAndDelayedPayloadHooksReceiveTheResolvedQueue(): void
+    {
+        $queues = [];
+        BaseQueue::createPayloadUsing(function (string $connection, string $queue) use (&$queues): array {
+            $queues[] = $queue;
+
+            return [];
+        });
+
+        try {
+            /** @var RedisQueue $queue */
+            $queue = Queue::connection('redis');
+            $queue->push(new Jobs\BasicJob, queue: 'critical');
+            $queue->later(1, new Jobs\BasicJob, queue: 'critical');
+        } finally {
+            BaseQueue::createPayloadUsing(null);
+        }
+
+        $this->assertSame(['queues:critical', 'queues:critical'], $queues);
+    }
+
+    public function testDirectRawPushDoesNotInheritThePreviousJob(): void
+    {
+        Queue::push(new Jobs\BasicJob);
+
+        /** @var RedisQueue $queue */
+        $queue = Queue::connection('redis');
+        $queue->pushRaw('{"id":"raw-id","displayName":"Raw Job"}');
+
+        $payload = json_decode(Redis::connection('horizon')->hget('raw-id', 'payload'), true);
+        $this->assertSame([], $payload['tags']);
+    }
+
+    public function testPayloadPreparationFailureStillConsumesThePreviousJob(): void
+    {
+        $queue = new RedisQueueWithExposedLastPushed(
+            app('redis'),
+            'default',
+            'default',
+        );
+        $queue->setContainer($this->app)->setConnectionName('redis');
+        $queue->rememberLastPushed(new Jobs\BasicJob);
+
+        try {
+            $queue->pushRaw('{invalid');
+            $this->fail('Expected the invalid payload to be rejected.');
+        } catch (InvalidPayloadException) {
+        }
+
+        $queue->pushRaw('{"id":"raw-after-failure","displayName":"Raw Job"}');
+
+        $payload = json_decode(Redis::connection('horizon')->hget('raw-after-failure', 'payload'), true);
+        $this->assertSame([], $payload['tags']);
     }
 
     public function testPendingJobsAreStoredWithTheirTags()
@@ -118,5 +179,13 @@ class QueueProcessingTest extends IntegrationTestCase
 
         $this->assertCount(1, $event->payloads);
         $this->assertSame('valid', $event->payloads->first()->id());
+    }
+}
+
+class RedisQueueWithExposedLastPushed extends RedisQueue
+{
+    public function rememberLastPushed(object|string $job): void
+    {
+        $this->setLastPushed($job);
     }
 }
