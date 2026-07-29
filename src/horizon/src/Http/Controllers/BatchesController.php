@@ -48,15 +48,19 @@ class BatchesController extends Controller
      */
     private function searchBatches(Request $request): array
     {
-        $pattern = '%' . addcslashes($request->query('query'), '\%_') . '%';
+        $pattern = '%' . str_replace(
+            ['!', '%', '_'],
+            ['!!', '!%', '!_'],
+            $request->query('query')
+        ) . '%';
 
         $beforeId = $request->query('before_id');
 
         return DB::connection(Config::get('queue.batching.database'))
             ->table(Config::string('queue.batching.table'))
             ->where(function ($q) use ($pattern) {
-                $q->whereRaw("lower(name) like lower(?) escape '\\'", [$pattern])
-                    ->orWhereRaw("lower(id) like lower(?) escape '\\'", [$pattern]);
+                $q->whereRaw("lower(name) like lower(?) escape '!'", [$pattern])
+                    ->orWhereRaw("lower(id) like lower(?) escape '!'", [$pattern]);
             })
             ->orderByDesc('id')
             ->limit(50)
