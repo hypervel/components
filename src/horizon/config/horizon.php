@@ -37,12 +37,15 @@ return [
     |--------------------------------------------------------------------------
     |
     | This is the URI path where Horizon will be accessible from. Feel free
-    | to change this path to anything you like. Note that the URI will not
-    | affect the paths of its internal API that aren't exposed to users.
+    | to change this path to anything you like. The proxy path prefixes it
+    | when Horizon is served from a subdirectory behind a reverse proxy, so
+    | the dashboard can still reach its own internal API.
     |
     */
 
     'path' => env('HORIZON_PATH', 'horizon'),
+
+    'proxy_path' => '',
 
     /*
     |--------------------------------------------------------------------------
@@ -145,8 +148,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you can configure how many snapshots should be kept to display in
-    | the metrics graph. This will get used in combination with Horizon's
-    | `horizon:snapshot` schedule to define how long to retain metrics.
+    | the metrics graph. This works with the `horizon:snapshot` schedule to
+    | define retention. The snapshot lock prevents overlapping
+    | `horizon:snapshot` runs and should match their interval in seconds.
     |
     */
 
@@ -155,6 +159,7 @@ return [
             'job' => 24,
             'queue' => 24,
         ],
+        'snapshot_lock' => 300,
     ],
 
     /*

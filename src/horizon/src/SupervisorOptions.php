@@ -94,7 +94,7 @@ class SupervisorOptions
      */
     public function balancing(): bool
     {
-        return in_array($this->balance, ['simple', 'auto']);
+        return in_array($this->balance, ['simple', 'auto'], true);
     }
 
     /**
