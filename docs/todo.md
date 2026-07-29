@@ -39,4 +39,4 @@
 
 ## Horizon
 
-- Wire SMS support for Hypervel Horizon long-wait notifications. The Horizon docs show `Horizon::routeSmsNotificationsTo(...)` and `Hypervel\Horizon\Horizon` stores the configured number, but `Hypervel\Horizon\Notifications\LongWaitDetected::via()` and `Hypervel\Horizon\Listeners\SendNotification` currently have the SMS / Nexmo route commented out because no SMS client is supported yet. Correct fix: add a supported SMS notification channel, route long-wait notifications to it when `Horizon::$smsNumber` is set, add the matching notification message method, document the channel prerequisite, and add coverage for mail, Slack, and SMS routing.
+- Port Laravel's first-party `laravel/vonage-notification-channel` as `hypervel/vonage-notification-channel`, then wire Horizon long-wait SMS notifications through the current `vonage` channel and `VonageMessage`. Keep `Horizon::routeSmsNotificationsTo(...)`, add the package prerequisite and functional mail/Slack/SMS coverage, and do not port deprecated Nexmo aliases or fallbacks.
