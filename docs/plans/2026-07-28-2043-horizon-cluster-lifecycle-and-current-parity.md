@@ -1136,9 +1136,11 @@ source slice.
 Run affected files as each slice lands, then the complete groups:
 
 ```bash
+./vendor/bin/phpunit --no-progress tests/Filesystem
 ./vendor/bin/phpunit --no-progress tests/Horizon
 ./vendor/bin/phpunit --no-progress tests/Queue
 ./vendor/bin/phpunit --no-progress tests/Redis
+./vendor/bin/phpunit --no-progress tests/Reverb
 ./vendor/bin/phpunit --no-progress tests/Telescope
 ./vendor/bin/phpunit --no-progress tests/Fortify
 ```

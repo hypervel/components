@@ -71,7 +71,7 @@ class SupervisorCommandTest extends IntegrationTestCase
 
     public function testSupervisorCommandCanSetProcessNiceness(): void
     {
-        $this->app->instance(SupervisorFactory::class, $factory = new FakeSupervisorFactory);
+        $this->app->instance(SupervisorFactory::class, new FakeSupervisorFactory);
         $this->artisan('horizon:supervisor', ['--nice' => 10] + static::OPTIONS);
 
         $this->assertSame(10, pcntl_getpriority());
