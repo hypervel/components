@@ -3,10 +3,12 @@
 - [Introduction](#introduction)
 - [Installation](#installation)
     - [Configuration](#configuration)
+    - [Content Security Policy (CSP) Nonce](#content-security-policy-csp-nonce)
     - [Dashboard Authorization](#dashboard-authorization)
     - [Max Job Attempts](#max-job-attempts)
     - [Job Timeout](#job-timeout)
     - [Job Backoff](#job-backoff)
+    - [Other Worker Options](#other-worker-options)
     - [Silenced Jobs](#silenced-jobs)
 - [Balancing Strategies](#balancing-strategies)
     - [Concurrency](#concurrency)
@@ -36,7 +38,7 @@ When using Horizon, all of your queue worker configuration is stored in a single
 ## Installation
 
 > [!WARNING]
-> Hypervel Horizon requires that you use [Redis](https://redis.io) to power your queue. Therefore, you should ensure that your queue connection is set to `redis` in your application's `config/queue.php` configuration file. Horizon is not compatible with Redis Cluster at this time.
+> Hypervel Horizon requires that you use [Redis](https://redis.io) to power your queue. Therefore, you should ensure that your queue connection is set to `redis` in your application's `config/queue.php` configuration file.
 
 You may install Horizon into your project using the Composer package manager:
 
@@ -57,6 +59,34 @@ After publishing Horizon's assets, its primary configuration file will be locate
 
 > [!WARNING]
 > Horizon creates an internal Redis connection named `horizon` using the Redis connection specified by the `use` option in your `horizon.php` configuration file. The `horizon` connection name is reserved and should not be assigned to another Redis connection in your `database.php` configuration file or used as the value of the `use` option.
+
+<a name="content-security-policy-csp-nonce"></a>
+#### Content Security Policy (CSP) Nonce
+
+If you wish to use a [nonce attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/nonce) on the script and style tags used in Horizon views as part of your [Content Security Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP), you may use the `Horizon::cspNonce` method to specify the nonce to use. Because the nonce is scoped to the current request, invoke this method within middleware so that a new nonce is assigned for each request:
+
+```php
+use Closure;
+use Hypervel\Horizon\Horizon;
+use Hypervel\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+public function handle(Request $request, Closure $next): Response
+{
+    Horizon::cspNonce('csp-nonce');
+
+    return $next($request);
+}
+```
+
+You may add this middleware to the `middleware` option in your application's `config/horizon.php` configuration file:
+
+```php
+'middleware' => [
+    'web',
+    App\Http\Middleware\AddHorizonCspNonce::class,
+],
+```
 
 You may also customize the name displayed in the Horizon dashboard and notifications using the `name` configuration option or `HORIZON_NAME` environment variable. If no name is configured, Horizon will use your application's name.
 
@@ -231,6 +261,38 @@ You may also configure "exponential" backoffs by using an array for the `backoff
     ],
 ],
 ```
+
+<a name="other-worker-options"></a>
+### Other Worker Options
+
+In addition to `tries`, `timeout`, and `backoff`, each supervisor accepts several other options that control how its worker processes behave and when they are automatically restarted. Periodically restarting workers is a good practice for long-running processes, as it helps guard against memory leaks:
+
+```php
+'environments' => [
+    'production' => [
+        'supervisor-1' => [
+            // ...
+            'memory' => 128,
+            'maxJobs' => 1000,
+            'maxTime' => 3600,
+            'sleep' => 3,
+            'rest' => 0,
+            'nice' => 0,
+        ],
+    ],
+],
+```
+
+<div class="content-list" markdown="1">
+
+- `memory` defines the maximum amount of memory, in megabytes, that a single worker process may consume before it is restarted. By default, this value is `128`.
+- `maxJobs` defines the number of jobs a worker should process before restarting. A value of `0` indicates that workers should not be restarted based on the number of jobs processed. By default, this value is `0`.
+- `maxTime` defines the number of seconds a worker should run before restarting. A value of `0` indicates that workers should not be restarted based on time. By default, this value is `0`.
+- `sleep` defines the number of seconds a worker should wait when no job is available before polling the queue for new jobs again. By default, this value is `3`.
+- `rest` defines the number of seconds to pause between processing each job. By default, this value is `0`.
+- `nice` defines the "niceness" (scheduling priority) of the worker processes. A higher value gives the process a lower priority. By default, this value is `0`.
+
+</div>
 
 <a name="silenced-jobs"></a>
 ### Silenced Jobs
@@ -726,6 +788,17 @@ Horizon includes a metrics dashboard which provides information regarding your j
 use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
+```
+
+You may configure how many snapshots Horizon retains for its metrics graphs using the `metrics.trim_snapshots` option in your application's `config/horizon.php` configuration file. Because this option limits the number of snapshots rather than their age, the retention period depends on how frequently the `horizon:snapshot` command runs:
+
+```php
+'metrics' => [
+    'trim_snapshots' => [
+        'job' => 24,
+        'queue' => 24,
+    ],
+],
 ```
 
 If you would like to delete all metric data, you can invoke the `horizon:clear-metrics` Artisan command:
