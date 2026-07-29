@@ -11,6 +11,7 @@ use Hypervel\Telescope\Console\InstallCommand;
 use Hypervel\Telescope\TelescopeServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
@@ -128,6 +129,62 @@ class InstallCommandTest extends TestCase
         $this->artisan('telescope:install')->assertSuccessful();
 
         $this->assertCount(1, $this->publishedTelescopeMigrations());
+    }
+
+    public function testInstallCommandPreservesProviderFilePermissions(): void
+    {
+        $this->artisan('telescope:install')->assertSuccessful();
+        $providerPath = $this->app->path('Providers/TelescopeServiceProvider.php');
+        chmod($providerPath, 0640);
+
+        $this->artisan('telescope:install')->assertSuccessful();
+
+        clearstatcache(true, $providerPath);
+        $this->assertSame(0640, fileperms($providerPath) & 0777);
+    }
+
+    public function testInstallCommandFailsWhenProviderFileCannotBeRead(): void
+    {
+        $this->artisan('telescope:install')->assertSuccessful();
+        $providerPath = $this->app->path('Providers/TelescopeServiceProvider.php');
+        (new Filesystem)->replace(
+            $this->app->getBootstrapProvidersPath(),
+            $this->originalProvidersContents,
+        );
+        chmod($providerPath, 0000);
+
+        try {
+            $this->assertFalse(@file_get_contents($providerPath));
+
+            $this->artisan('telescope:install')
+                ->expectsOutputToContain('Unable to read the TelescopeServiceProvider file.')
+                ->assertExitCode(HypervelCommand::FAILURE);
+
+            $providers = require $this->app->getBootstrapProvidersPath();
+            $this->assertNotContains('App\Providers\TelescopeServiceProvider', $providers);
+        } finally {
+            chmod($providerPath, 0644);
+        }
+    }
+
+    public function testInstallCommandFailsWhenProviderReplacementFails(): void
+    {
+        $this->artisan('telescope:install')->assertSuccessful();
+        (new Filesystem)->replace(
+            $this->app->getBootstrapProvidersPath(),
+            $this->originalProvidersContents,
+        );
+
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('replace')->once()->andThrow(new RuntimeException('replace failed'));
+        $this->app->instance(Filesystem::class, $files);
+
+        $this->artisan('telescope:install')
+            ->expectsOutputToContain('Unable to update the TelescopeServiceProvider namespace.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+
+        $providers = require $this->app->getBootstrapProvidersPath();
+        $this->assertNotContains('App\Providers\TelescopeServiceProvider', $providers);
     }
 
     /**

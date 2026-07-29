@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'horizon:install')]
@@ -69,25 +71,32 @@ class InstallCommand extends Command
         $namespace = Str::replaceLast('\\', '', $this->hypervel->getNamespace());
         $providerPath = $this->hypervel->path('Providers/HorizonServiceProvider.php');
 
-        if (! is_file($providerPath) || ! is_readable($providerPath)) {
+        if (! is_file($providerPath)) {
             $this->components->error('HorizonServiceProvider file was not published.');
 
             return false;
         }
 
-        $contents = file_get_contents($providerPath);
+        $contents = @file_get_contents($providerPath);
+        $permissions = @fileperms($providerPath);
 
-        if ($contents === false) {
+        if ($contents === false || $permissions === false) {
             $this->components->error('Unable to read the HorizonServiceProvider file.');
 
             return false;
         }
 
-        if (file_put_contents($providerPath, str_replace(
-            'namespace App\Providers;',
-            "namespace {$namespace}\\Providers;",
-            $contents,
-        )) === false) {
+        try {
+            $this->hypervel->make(Filesystem::class)->replace(
+                $providerPath,
+                str_replace(
+                    'namespace App\Providers;',
+                    "namespace {$namespace}\\Providers;",
+                    $contents,
+                ),
+                $permissions & 0777,
+            );
+        } catch (RuntimeException) {
             $this->components->error('Unable to update the HorizonServiceProvider namespace.');
 
             return false;
