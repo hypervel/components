@@ -64,12 +64,6 @@ class ClientCallClient implements ClientInterface
      */
     public function respond(ResponseInterface $response): void
     {
-        if ($response->isEndStream()) {
-            unset($this->streams[$response->getStreamId()]);
-        } else {
-            $this->streams[$response->getStreamId()] = true;
-        }
-
         $this->events->push($response);
     }
 
@@ -104,6 +98,12 @@ class ClientCallClient implements ClientInterface
 
         if ($event instanceof Throwable) {
             throw $event;
+        }
+
+        if ($event->isEndStream()) {
+            unset($this->streams[$event->getStreamId()]);
+        } else {
+            $this->streams[$event->getStreamId()] = true;
         }
 
         return $event;

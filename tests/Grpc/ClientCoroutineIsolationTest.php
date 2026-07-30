@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Grpc;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
 use Hypervel\Engine\Http\V2\Response;
+use Hypervel\Grpc\Client\Request;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Protocol\FrameDecoder;
 use Hypervel\Grpc\Protocol\FrameEncoder;
@@ -21,6 +22,35 @@ use function Hypervel\Coroutine\parallel;
 
 class ClientCoroutineIsolationTest extends TestCase
 {
+    public function testQueuedTerminalResponseClosesFakeStreamOnlyWhenReceived(): void
+    {
+        $client = new ClientCallClient;
+        $streamId = $client->send(new Request(
+            '/testing.Service/Unary',
+            'POST',
+            '',
+            [],
+            false,
+            true,
+        ));
+        $body = new Response($streamId, 200, [], 'body', true);
+        $trailers = new Response($streamId, 200, ['grpc-status' => '0'], '', false);
+
+        try {
+            $client->respond($body);
+            $client->respond($trailers);
+
+            // Swoole deletes a stream while returning its terminal response, never while it remains queued.
+            $this->assertTrue($client->isStreamOpen($streamId));
+            $this->assertSame($body, $client->recv());
+            $this->assertTrue($client->isStreamOpen($streamId));
+            $this->assertSame($trailers, $client->recv());
+            $this->assertFalse($client->isStreamOpen($streamId));
+        } finally {
+            $client->close();
+        }
+    }
+
     public function testClientsCallsMetadataDeadlinesAndResponsesRemainIsolatedAcrossCoroutines(): void
     {
         // Protobuf's generated descriptor registration is not coroutine-safe on first use.

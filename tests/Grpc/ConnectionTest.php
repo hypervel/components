@@ -285,6 +285,27 @@ class ConnectionTest extends TestCase
         $this->assertSame([2.0], $client->writeTimeouts);
     }
 
+    public function testHalfClosingRequestBodyKeepsStreamOpenUntilTerminalResponse(): void
+    {
+        $client = new ConnectionTestClient;
+        $connection = $this->connection(new ConnectionTestClientFactory($client));
+        $state = $this->state();
+        $deadline = Deadline::fromTimeout(null);
+
+        $this->start($connection, $this->request(pipeline: true), $state, $deadline);
+        $connection->write($state, '', true, $deadline);
+        $client->poll();
+
+        // Swoole keeps a locally half-closed stream registered until it returns the terminal response.
+        $this->assertTrue($client->isStreamOpen(1));
+        $this->assertFalse($state->isComplete());
+
+        $client->respond($this->trailersOnly(1));
+
+        $this->assertSame(StatusCode::Ok, $state->status()->code());
+        $this->assertFalse($client->isStreamOpen(1));
+    }
+
     public function testNativeSendFailureAtTheDeadlineReportsDeadlineAndTerminatesTheConnection(): void
     {
         $now = 0;
@@ -1004,12 +1025,6 @@ class ConnectionTestClient implements ClientInterface
 
     public function respond(ResponseInterface $response): void
     {
-        if ($response->isEndStream()) {
-            unset($this->streams[$response->getStreamId()]);
-        } else {
-            $this->streams[$response->getStreamId()] = true;
-        }
-
         $this->events->push($response);
     }
 
@@ -1058,6 +1073,12 @@ class ConnectionTestClient implements ClientInterface
             throw $event;
         }
 
+        if ($event->isEndStream()) {
+            unset($this->streams[$event->getStreamId()]);
+        } else {
+            $this->streams[$event->getStreamId()] = true;
+        }
+
         return $event;
     }
 
@@ -1082,10 +1103,6 @@ class ConnectionTestClient implements ClientInterface
                 'end' => $end,
             ];
             $this->writeTimeouts[] = $timeout;
-
-            if ($end) {
-                $this->streams[$streamId] = false;
-            }
         } finally {
             $this->finishOperation();
         }
