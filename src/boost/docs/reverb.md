@@ -226,6 +226,13 @@ REVERB_SCHEME=https
 
 If you would like to scale Reverb independently from the rest of your application, you may run a dedicated Hypervel process or deployment with Reverb enabled and route WebSocket traffic to that process.
 
+<a name="worker-recycling"></a>
+### Worker Recycling
+
+Swoole counts incoming WebSocket messages toward the same `SERVER_MAX_REQUESTS` limit as HTTP requests. When a worker reaches this limit, its connected WebSocket clients are disconnected while the worker restarts. Swoole adds a random grace of up to half the configured limit so workers do not all restart together.
+
+For a dedicated Reverb deployment, you should set `SERVER_MAX_REQUESTS=0` to keep long-lived connections open. A mixed HTTP and Reverb deployment may retain a nonzero limit when periodic recycling is intentional, but its shutdown timeout should allow enough time to drain its configured Redis, connection-limit, and webhook workload.
+
 <a name="logging"></a>
 ### Logging
 
@@ -298,6 +305,8 @@ Reverb exposes the Pusher-compatible HTTP API on the Reverb server port. This AP
 - `POST /apps/{appId}/users/{userId}/terminate_connections`
 
 If you configure `REVERB_SERVER_PATH`, all WebSocket and HTTP API routes will be prefixed with the configured path.
+
+In an unscaled multi-worker deployment, event publication and user termination requests return a `500` response if Reverb cannot reach a sibling worker. An event may have already reached other workers when this happens, so callers should treat a failed event request as potentially partially delivered.
 
 <a name="webhooks"></a>
 ## Webhooks
@@ -503,12 +512,16 @@ minfds=10000
 <a name="scaling"></a>
 ## Scaling
 
+When a presence channel spans workers or Reverb instances, Reverb gathers its complete membership before sending `subscription_succeeded`. An unavailable worker may delay that response for up to ten seconds and may cause the subscription to fail.
+
 <a name="single-instance-multi-worker-scaling"></a>
 ### Single-Instance Multi-Worker Scaling
 
 By default, Hypervel Reverb scales across all Swoole workers in the current server process. Channel occupancy, presence member counts, and connection limits are stored in shared memory, while broadcasts are fanned out to other workers through Swoole pipe messages.
 
 This mode does not require Redis and is the best starting point for most applications. If you need more capacity on one server, consider increasing your Swoole worker count before enabling multi-instance scaling.
+
+Reverb drains shared counters when a worker exits normally. If a process crashes or is forcibly terminated before the drain completes, some counts may remain until the full Reverb server is restarted.
 
 <a name="multi-instance-redis-scaling"></a>
 ### Multi-Instance Redis Scaling
@@ -522,6 +535,8 @@ REVERB_SCALING_CHANNEL=reverb
 ```
 
 The `REVERB_SCALING_CONNECTION` option selects a named Redis connection from your application's `config/database.php` configuration file. Hypervel's default configuration includes a dedicated `reverb` Redis connection that may be configured with the `REDIS_REVERB_*` environment variables.
+
+The scaling connection may use a standalone Redis server or Redis Sentinel. Redis Cluster is not supported for Reverb pub / sub scaling because it cannot provide the exact subscriber count required to gather complete presence and channel information. Redis Cluster remains supported for webhook batching when Reverb scaling is disabled. Because Redis state survives application restarts, an unclean shutdown may require stale Reverb state to be cleared operationally.
 
 Once you have enabled Reverb's scaling option and configured Redis, you may run multiple Hypervel Reverb instances behind a load balancer that distributes incoming WebSocket connections evenly among the instances.
 
