@@ -181,6 +181,17 @@ class BaseClientTest extends TestCase
         }
     }
 
+    public function testDefaultMetadataAccessorReturnsTheConfiguredImmutableInstance(): void
+    {
+        $metadata = Metadata::make(['x-default' => 'value']);
+        $client = $this->client(
+            new ClientCallClientFactory(new ClientCallClient),
+            ['metadata' => $metadata],
+        );
+
+        $this->assertSame($metadata, $client->defaultMetadataForTest());
+    }
+
     public function testMetadataPreparationCanInspectInputAndReturnReplacement(): void
     {
         $engineClient = new ClientCallClient;
@@ -892,6 +903,14 @@ class TestingBaseClient extends BaseClient
 
     /** @var null|Closure(array<string, list<string>|string>|Metadata, Metadata): Metadata */
     public ?Closure $prepareMetadataUsing = null;
+
+    /**
+     * Return configured default metadata for testing.
+     */
+    public function defaultMetadataForTest(): Metadata
+    {
+        return $this->defaultMetadata();
+    }
 
     /**
      * Start a unary fixture call.
