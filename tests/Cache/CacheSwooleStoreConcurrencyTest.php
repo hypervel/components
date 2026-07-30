@@ -545,7 +545,7 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
 class LockTestSwooleTableState extends SwooleTableState
 {
-    protected const LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 50_000_000;
+    protected const int LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 50_000_000;
 
     public function holdLockFor(string $key): void
     {

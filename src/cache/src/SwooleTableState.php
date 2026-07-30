@@ -21,11 +21,13 @@ use Swoole\Atomic;
  */
 class SwooleTableState
 {
-    protected const STRIPE_COUNT = 64;
+    protected const int STRIPE_COUNT = 64;
 
-    protected const SPINS_BEFORE_BACKOFF = 64;
+    // Late-bound so deterministic test subclasses can shorten the spin phase.
+    protected const int SPINS_BEFORE_BACKOFF = 64;
 
-    protected const LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 1_000_000_000;
+    // Late-bound so deterministic test subclasses can shorten the timeout.
+    protected const int LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 1_000_000_000;
 
     /**
      * Striped locks for row lifecycle operations.
