@@ -9,7 +9,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
 {
-    public function testListenerOnlyEventWithoutAppIdDoesNotThrow()
+    public function testListenerOnlyEventWithoutAppIdDoesNotThrow(): void
     {
         $handler = new PusherPubSubIncomingMessageHandler;
 
@@ -28,7 +28,7 @@ class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
         $this->assertTrue($listenerCalled);
     }
 
-    public function testUnknownEventTypeIsSilentlyIgnored()
+    public function testUnknownEventTypeIsSilentlyIgnored(): void
     {
         $handler = new PusherPubSubIncomingMessageHandler;
 
@@ -41,7 +41,7 @@ class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
         $this->assertTrue(true);
     }
 
-    public function testMessageEventDispatchesToLocalConnections()
+    public function testMessageEventDispatchesToLocalConnections(): void
     {
         $handler = new PusherPubSubIncomingMessageHandler;
 
@@ -60,5 +60,24 @@ class PusherPubSubIncomingMessageHandlerTest extends ReverbTestCase
         // No exception — the channel doesn't exist locally so nothing broadcasts,
         // but the handler resolves the app and processes without error
         $this->assertTrue(true);
+    }
+
+    public function testMessageEventExcludesTheSocketOnTheWorkerThatOwnsIt(): void
+    {
+        $connection = $this->subscribeConnection('test-channel');
+        $handler = new PusherPubSubIncomingMessageHandler;
+
+        $handler->handle(json_encode([
+            'type' => 'message',
+            'app_id' => '123456',
+            'socket_id' => $connection->id(),
+            'payload' => [
+                'channel' => 'test-channel',
+                'event' => 'TestEvent',
+                'data' => '{}',
+            ],
+        ]));
+
+        $connection->assertNothingReceived();
     }
 }

@@ -5,15 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
 use Hypervel\Core\Events\OnPipeMessage;
+use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
+use Hypervel\Reverb\Protocols\Pusher\PendingMetric;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
+use Hypervel\Reverb\Servers\Hypervel\MetricsRequestPipeMessage;
+use Hypervel\Reverb\Servers\Hypervel\MetricsResponsePipeMessage;
+use Hypervel\Reverb\Servers\Hypervel\TerminateUserPipeMessage;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
+use RuntimeException;
 use Swoole\Server;
 
 class ChannelBroadcastPipeMessageTest extends ReverbTestCase
 {
-    public function testPipeMessageBroadcastsToLocalConnections()
+    public function testPipeMessageBroadcastsToLocalConnections(): void
     {
         $connectionOne = $this->subscribeConnection('test-channel');
         $connectionTwo = $this->subscribeConnection('test-channel');
@@ -41,7 +47,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         ]);
     }
 
-    public function testPipeMessageExcludesExceptSocketId()
+    public function testPipeMessageExcludesExceptSocketId(): void
     {
         $connectionOne = $this->subscribeConnection('test-channel');
         $connectionTwo = $this->subscribeConnection('test-channel');
@@ -65,7 +71,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         ]);
     }
 
-    public function testPipeMessageIgnoresChannelsNotOnThisWorker()
+    public function testPipeMessageIgnoresChannelsNotOnThisWorker(): void
     {
         $connection = $this->subscribeConnection('test-channel');
 
@@ -84,7 +90,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         $connection->assertNothingReceived();
     }
 
-    public function testPipeMessageIgnoresNonChannelBroadcastMessages()
+    public function testPipeMessageIgnoresNonChannelBroadcastMessages(): void
     {
         $connection = $this->subscribeConnection('test-channel');
 
@@ -96,7 +102,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         $connection->assertNothingReceived();
     }
 
-    public function testPipeMessageBroadcastsToMultipleChannels()
+    public function testPipeMessageBroadcastsToMultipleChannels(): void
     {
         $connectionOne = $this->subscribeConnection('channel-one');
         $connectionTwo = $this->subscribeConnection('channel-two');
@@ -116,7 +122,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         $connectionTwo->assertReceivedCount(1);
     }
 
-    public function testPipeMessageSendsCorrectChannelNamePerChannel()
+    public function testPipeMessageSendsCorrectChannelNamePerChannel(): void
     {
         $connectionOne = $this->subscribeConnection('channel-one');
         $connectionTwo = $this->subscribeConnection('channel-two');
@@ -146,7 +152,7 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
         ]);
     }
 
-    public function testPipeMessageClearsCacheMissLockForCacheChannel()
+    public function testPipeMessageClearsCacheMissLockForCacheChannel(): void
     {
         $this->subscribeConnection('cache-test-channel');
 
@@ -168,5 +174,97 @@ class ChannelBroadcastPipeMessageTest extends ReverbTestCase
 
         // Lock should be cleared — re-acquire should succeed
         $this->assertTrue($sharedState->tryCacheMissLock('123456', 'cache-test-channel'));
+    }
+
+    public function testPipeMessageAttemptsEveryChannelBeforePropagatingTheFirstFailure(): void
+    {
+        $cacheConnection = $this->subscribeConnection('cache-first');
+        $laterConnection = $this->subscribeConnection('later');
+        $cacheConnection->resetReceived();
+        $laterConnection->resetReceived();
+        $failure = new RuntimeException('cache lock failed');
+        $sharedState = m::mock(SharedState::class);
+        $sharedState->expects('clearCacheMissLock')
+            ->with('123456', 'cache-first')
+            ->andThrow($failure);
+        $this->app->instance(SharedState::class, $sharedState);
+        $message = new ChannelBroadcastPipeMessage(
+            appId: '123456',
+            channels: ['cache-first', 'later'],
+            payload: ['event' => 'NewEvent', 'data' => '{"some":"data"}'],
+            exceptSocketId: null,
+        );
+
+        try {
+            event(new OnPipeMessage(m::mock(Server::class), 0, $message));
+            $this->fail('Expected the first pipe delivery failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $cacheConnection->assertReceived([
+            'event' => 'NewEvent',
+            'data' => '{"some":"data"}',
+            'channel' => 'cache-first',
+        ]);
+        $laterConnection->assertReceived([
+            'event' => 'NewEvent',
+            'data' => '{"some":"data"}',
+            'channel' => 'later',
+        ]);
+    }
+
+    public function testMetricsRequestReturnsTheLocalWorkerSlice(): void
+    {
+        $metrics = m::mock(MetricsHandler::class);
+        $metrics->expects('get')
+            ->with(m::on(fn (PendingMetric $metric): bool => $metric->key() === 'request'
+                && $metric->application()->id() === '123456'
+                && $metric->type()->value === 'connections'))
+            ->andReturn(['count' => 1]);
+        $this->app->instance(MetricsHandler::class, $metrics);
+        $server = m::mock(Server::class);
+        $server->expects('sendMessage')
+            ->with(m::on(fn (MetricsResponsePipeMessage $message): bool => $message->requestId === 'request'
+                && $message->payload === ['count' => 1]), 2)
+            ->andReturnTrue();
+
+        event(new OnPipeMessage($server, 2, new MetricsRequestPipeMessage(
+            'request',
+            '123456',
+            'connections',
+            [],
+        )));
+    }
+
+    public function testMetricsResponseIsDeliveredToThePendingGather(): void
+    {
+        $message = new MetricsResponsePipeMessage('request', ['count' => 1]);
+        $metrics = m::mock(MetricsHandler::class);
+        $metrics->expects('receive')->with($message);
+        $this->app->instance(MetricsHandler::class, $metrics);
+
+        event(new OnPipeMessage(m::mock(Server::class), 2, $message));
+    }
+
+    public function testTerminateUserMessageDisconnectsMatchingLocalConnections(): void
+    {
+        $matching = $this->subscribeConnection('presence-test', [
+            'user_id' => 'matching',
+            'user_info' => ['name' => 'Taylor'],
+        ]);
+        $other = $this->subscribeConnection('presence-test', [
+            'user_id' => 'other',
+            'user_info' => ['name' => 'Abigail'],
+        ]);
+
+        event(new OnPipeMessage(
+            m::mock(Server::class),
+            2,
+            new TerminateUserPipeMessage('123456', 'matching'),
+        ));
+
+        $matching->assertHasBeenTerminated();
+        $this->assertFalse($other->wasTerminated);
     }
 }

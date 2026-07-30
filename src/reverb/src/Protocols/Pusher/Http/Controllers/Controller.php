@@ -85,7 +85,7 @@ abstract class Controller
         $signature = hash_hmac('sha256', $signature, $application->secret());
         $authSignature = $query['auth_signature'] ?? '';
 
-        if ($signature !== $authSignature) {
+        if (! is_string($authSignature) || ! hash_equals($signature, $authSignature)) {
             throw new HttpException(401, 'Authentication signature invalid.');
         }
     }
