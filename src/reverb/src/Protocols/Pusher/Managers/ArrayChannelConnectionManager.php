@@ -22,6 +22,7 @@ class ArrayChannelConnectionManager implements ChannelConnectionManager
      */
     public function for(string $name): ChannelConnectionManager
     {
+        // Each channel owns its manager instance, so the name does not need to be retained.
         return $this;
     }
 

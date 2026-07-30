@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Reverb\Protocols\Pusher\Managers;
 
 use Hypervel\Reverb\Application;
-use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelBroker;
@@ -89,10 +88,27 @@ class ArrayChannelManager implements ChannelManagerInterface
     public function channelConnections(string $appId, ?string $channel = null): array
     {
         $channels = Arr::wrap($this->channels($appId, $channel));
+        $connections = [];
 
-        return array_reduce($channels, function (array $carry, Channel $channel) {
-            return $carry + $channel->connections();
-        }, []);
+        foreach ($channels as $channel) {
+            $connections += $channel->connections();
+        }
+
+        return $connections;
+    }
+
+    /**
+     * Find a connection by its socket ID.
+     */
+    public function findConnection(string $appId, string $socketId): ?ChannelConnection
+    {
+        foreach ($this->channels($appId) as $channel) {
+            if ($connection = $channel->findById($socketId)) {
+                return $connection;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -113,7 +129,15 @@ class ArrayChannelManager implements ChannelManagerInterface
      */
     public function removeChannel(string $appId, Channel $channel): void
     {
+        if (($this->applications[$appId][$channel->name()] ?? null) !== $channel) {
+            return;
+        }
+
         unset($this->applications[$appId][$channel->name()]);
+
+        if ($this->applications[$appId] === []) {
+            unset($this->applications[$appId]);
+        }
     }
 
     /**
@@ -121,10 +145,6 @@ class ArrayChannelManager implements ChannelManagerInterface
      */
     public function flush(): void
     {
-        app(ApplicationProvider::class)
-            ->all()
-            ->each(function (Application $application) {
-                $this->applications[$application->id()] = [];
-            });
+        $this->applications = [];
     }
 }

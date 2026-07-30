@@ -27,14 +27,9 @@ use Throwable;
  */
 class HttpServer implements OnRequestInterface, BootstrapsForServer
 {
-    /**
-     * The default maximum HTTP request body size, in bytes.
-     */
-    protected const DEFAULT_MAX_REQUEST_SIZE = 10_000;
-
     protected ReverbRouter $router;
 
-    protected int $maxRequestSize = self::DEFAULT_MAX_REQUEST_SIZE;
+    protected int $maxRequestSize;
 
     public function __construct(
         protected Container $container,
@@ -49,7 +44,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
         $this->router = $this->container->make(ReverbRouter::class);
         $this->router->compileAndWarm();
         $this->maxRequestSize = $this->container->make('config')
-            ->integer('reverb.servers.reverb.max_request_size', self::DEFAULT_MAX_REQUEST_SIZE);
+            ->integer('reverb.servers.reverb.max_request_size');
     }
 
     /**
