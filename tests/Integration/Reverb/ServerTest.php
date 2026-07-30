@@ -13,7 +13,7 @@ class ServerTest extends ReverbIntegrationTestCase
 {
     // ── Connection lifecycle ────────────────────────────────────────────
 
-    public function testCanConnectAndReceiveConnectionEstablished()
+    public function testCanConnectAndReceiveConnectionEstablished(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -23,7 +23,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testFailsToConnectWithInvalidAppKey()
+    public function testFailsToConnectWithInvalidAppKey(): void
     {
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
         $client->upgrade('/app/invalid-key');
@@ -43,7 +43,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Channel subscriptions ──────────────────────────────────────────
 
-    public function testCanSubscribeToAPublicChannel()
+    public function testCanSubscribeToAPublicChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -62,7 +62,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanSubscribeToAPrivateChannel()
+    public function testCanSubscribeToAPrivateChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -75,7 +75,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanSubscribeToAPresenceChannel()
+    public function testCanSubscribeToAPresenceChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -91,7 +91,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanSubscribeToACacheChannel()
+    public function testCanSubscribeToACacheChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -110,7 +110,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanSubscribeToAPrivateCacheChannel()
+    public function testCanSubscribeToAPrivateCacheChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -122,7 +122,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanSubscribeToAPresenceCacheChannel()
+    public function testCanSubscribeToAPresenceCacheChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -137,7 +137,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testFailsToSubscribeToPrivateChannelWithInvalidAuth()
+    public function testFailsToSubscribeToPrivateChannelWithInvalidAuth(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -157,7 +157,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testFailsToSubscribeToPresenceChannelWithInvalidAuth()
+    public function testFailsToSubscribeToPresenceChannelWithInvalidAuth(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -177,7 +177,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testFailsToSubscribeToPrivateChannelWithNullAuth()
+    public function testFailsToSubscribeToPrivateChannelWithNullAuth(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -197,7 +197,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testFailsToSubscribeToPrivateCacheChannelWithInvalidAuth()
+    public function testFailsToSubscribeToPrivateCacheChannelWithInvalidAuth(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -217,7 +217,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testFailsToSubscribeToPresenceCacheChannelWithInvalidAuth()
+    public function testFailsToSubscribeToPresenceCacheChannelWithInvalidAuth(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -237,7 +237,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testFailsToSubscribeToPresenceChannelWithNullAuth()
+    public function testFailsToSubscribeToPresenceChannelWithNullAuth(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -259,7 +259,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Broadcasting ───────────────────────────────────────────────────
 
-    public function testCanReceiveABroadcastFromTheServer()
+    public function testCanReceiveABroadcastFromTheServer(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'test-channel');
@@ -283,7 +283,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testCanHandleAnEventOnPresenceChannel()
+    public function testCanHandleAnEventOnPresenceChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'presence-event-test-channel', [
@@ -307,7 +307,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanReceiveACachedMessageWhenJoiningCacheChannel()
+    public function testCanReceiveACachedMessageWhenJoiningCacheChannel(): void
     {
         // First subscriber + trigger to create cached payload
         ['client' => $firstClient, 'socketId' => $firstSocketId] = $this->connect();
@@ -333,7 +333,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($secondClient);
     }
 
-    public function testCanReceiveACachedMessageWhenJoiningPrivateCacheChannel()
+    public function testCanReceiveACachedMessageWhenJoiningPrivateCacheChannel(): void
     {
         ['client' => $firstClient, 'socketId' => $firstSocketId] = $this->connect();
         $this->subscribe($firstClient, $firstSocketId, 'private-cache-test-channel-cached');
@@ -353,7 +353,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($secondClient);
     }
 
-    public function testCanReceiveACachedMessageWhenJoiningPresenceCacheChannel()
+    public function testCanReceiveACachedMessageWhenJoiningPresenceCacheChannel(): void
     {
         ['client' => $firstClient, 'socketId' => $firstSocketId] = $this->connect();
         $this->subscribe($firstClient, $firstSocketId, 'presence-cache-test-channel-cached', [
@@ -381,7 +381,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($secondClient);
     }
 
-    public function testReceivesCacheMissWhenNoCachedPayload()
+    public function testReceivesCacheMissWhenNoCachedPayload(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'cache-empty-channel');
@@ -396,7 +396,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testReceivesCacheMissOnPrivateCacheChannelWithEmptyCache()
+    public function testReceivesCacheMissOnPrivateCacheChannelWithEmptyCache(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'private-cache-empty-channel');
@@ -411,7 +411,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testReceivesCacheMissOnPresenceCacheChannelWithEmptyCache()
+    public function testReceivesCacheMissOnPresenceCacheChannelWithEmptyCache(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'presence-cache-empty-channel', [
@@ -431,7 +431,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Presence channel notifications ─────────────────────────────────
 
-    public function testNotifiesSubscribersWhenPresenceMemberJoins()
+    public function testNotifiesSubscribersWhenPresenceMemberJoins(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-notify-channel', [
@@ -456,7 +456,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testNotifiesSubscribersWhenPresenceMemberLeaves()
+    public function testNotifiesSubscribersWhenPresenceMemberLeaves(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-leave-channel', [
@@ -487,7 +487,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientOne);
     }
 
-    public function testSubscriptionSucceededContainsUniqueUserList()
+    public function testSubscriptionSucceededContainsUniqueUserList(): void
     {
         // Two connections for the same user
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
@@ -513,7 +513,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Ping/pong ──────────────────────────────────────────────────────
 
-    public function testCanRespondToAPusherPing()
+    public function testCanRespondToAPusherPing(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -526,7 +526,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanHandleWebSocketPingControlFrame()
+    public function testCanHandleWebSocketPingControlFrame(): void
     {
         // Must enable pong frame reception on the client to see the pong response
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
@@ -547,7 +547,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testCanHandleWebSocketPongControlFrame()
+    public function testCanHandleWebSocketPongControlFrame(): void
     {
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
         $client->set(['open_websocket_pong_frame' => true]);
@@ -568,7 +568,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Control frame preference ──────────────────────────────────────
 
-    public function testUsesPusherControlMessagesByDefault()
+    public function testUsesPusherControlMessagesByDefault(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-ping-default-channel');
@@ -588,7 +588,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testUsesControlFramesWhenClientPrefers()
+    public function testUsesControlFramesWhenClientPrefers(): void
     {
         // Enable both ping and pong frame reception on the client:
         // - pong: to receive the pong response to our initial ping
@@ -626,7 +626,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testCanDisconnectInactiveSubscribers()
+    public function testCanDisconnectInactiveSubscribers(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-prune-channel');
@@ -664,7 +664,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Client events (whisper) ────────────────────────────────────────
 
-    public function testCanHandleAClientWhisper()
+    public function testCanHandleAClientWhisper(): void
     {
         ['client' => $sender, 'socketId' => $senderSocketId] = $this->connect();
         $this->subscribe($sender, $senderSocketId, 'private-whisper-channel');
@@ -696,7 +696,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Multiple channels ──────────────────────────────────────────────
 
-    public function testCanSubscribeToMultipleChannels()
+    public function testCanSubscribeToMultipleChannels(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -720,7 +720,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanSubscribeMultipleConnectionsToSameChannel()
+    public function testCanSubscribeMultipleConnectionsToSameChannel(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'shared-channel');
@@ -737,7 +737,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testCanSubscribeMultipleConnectionsToMultipleChannels()
+    public function testCanSubscribeMultipleConnectionsToMultipleChannels(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'multi-test-channel');
@@ -778,7 +778,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Channel removal ────────────────────────────────────────────────
 
-    public function testRemovesChannelWhenNoSubscribersRemain()
+    public function testRemovesChannelWhenNoSubscribersRemain(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-remove-channel');
@@ -807,7 +807,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Message size limits ────────────────────────────────────────────
 
-    public function testRejectsMessagesOverTheMaxAllowedSize()
+    public function testRejectsMessagesOverTheMaxAllowedSize(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -827,7 +827,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testAllowsMessagesWithinTheMaxAllowedSize()
+    public function testAllowsMessagesWithinTheMaxAllowedSize(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -846,7 +846,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Connection limits and origin validation ────────────────────────
 
-    public function testCanHandleConnectionsToDifferentApplications()
+    public function testCanHandleConnectionsToDifferentApplications(): void
     {
         // App 1 (default)
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect('reverb-key');
@@ -859,7 +859,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testCannotConnectFromAnInvalidOrigin()
+    public function testCannotConnectFromAnInvalidOrigin(): void
     {
         // App 3 (987654) only allows 'laravel.com' origins
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
@@ -876,7 +876,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testCanConnectFromAValidOrigin()
+    public function testCanConnectFromAValidOrigin(): void
     {
         // App 3 (987654) allows 'laravel.com' origins
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
@@ -892,7 +892,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testCannotConnectWhenOverTheMaxConnectionLimit()
+    public function testCannotConnectWhenOverTheMaxConnectionLimit(): void
     {
         // App 2 (654321) has max_connections=1
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect('reverb-key-2');
@@ -916,7 +916,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── HTTP API ───────────────────────────────────────────────────────
 
-    public function testHealthCheckEndpoint()
+    public function testHealthCheckEndpoint(): void
     {
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
         $client->get('/up');
@@ -927,7 +927,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testHttpApiReturns401WithoutSignature()
+    public function testHttpApiReturns401WithoutSignature(): void
     {
         $client = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
         $client->get('/apps/123456/channels');
@@ -937,7 +937,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->close();
     }
 
-    public function testHttpApiCanTriggerEvents()
+    public function testHttpApiCanTriggerEvents(): void
     {
         ['client' => $wsClient, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($wsClient, $socketId, 'api-trigger-channel');
@@ -958,7 +958,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($wsClient);
     }
 
-    public function testHttpApiReturnsConnectionCount()
+    public function testHttpApiReturnsConnectionCount(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'conn-count-channel');
@@ -974,7 +974,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testHttpApiReturnsChannelUsers()
+    public function testHttpApiReturnsChannelUsers(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-users-channel', [
@@ -1003,7 +1003,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testHttpApiCanExcludeSocketId()
+    public function testHttpApiCanExcludeSocketId(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'exclude-channel');
@@ -1033,7 +1033,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Content-Length headers ─────────────────────────────────────────
 
-    public function testEventsEndpointSendsContentLengthHeader()
+    public function testEventsEndpointSendsContentLengthHeader(): void
     {
         $result = $this->signedServerPostRequest('events', [
             'name' => 'NewEvent',
@@ -1045,7 +1045,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->assertSame('2', $result['headers']['content-length']);
     }
 
-    public function testBatchEventsEndpointSendsContentLengthHeader()
+    public function testBatchEventsEndpointSendsContentLengthHeader(): void
     {
         $result = $this->signedServerPostRequest('batch_events', ['batch' => [
             ['name' => 'NewEvent', 'channel' => 'test-channel', 'data' => json_encode(['some' => 'data'])],
@@ -1055,7 +1055,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->assertSame('12', $result['headers']['content-length']);
     }
 
-    public function testChannelsEndpointSendsContentLengthHeader()
+    public function testChannelsEndpointSendsContentLengthHeader(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-cl-channel');
@@ -1069,7 +1069,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testChannelUsersEndpointSendsContentLengthHeader()
+    public function testChannelUsersEndpointSendsContentLengthHeader(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'presence-cl-channel', [
@@ -1086,7 +1086,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testConnectionsEndpointSendsContentLengthHeader()
+    public function testConnectionsEndpointSendsContentLengthHeader(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-conn-cl-channel');
@@ -1102,7 +1102,7 @@ class ServerTest extends ReverbIntegrationTestCase
 
     // ── Webhooks ──────────────────────────────────────────────────────
 
-    public function testWebhookDispatchedForChannelOccupied()
+    public function testWebhookDispatchedForChannelOccupied(): void
     {
         $this->resetQueueFake();
 
@@ -1123,7 +1123,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testWebhookDispatchedForChannelVacated()
+    public function testWebhookDispatchedForChannelVacated(): void
     {
         $this->resetQueueFake();
 
@@ -1146,7 +1146,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testWebhookDispatchedForMemberAdded()
+    public function testWebhookDispatchedForMemberAdded(): void
     {
         $this->resetQueueFake();
 
@@ -1173,7 +1173,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testWebhookDispatchedForMemberRemoved()
+    public function testWebhookDispatchedForMemberRemoved(): void
     {
         $this->resetQueueFake();
 
@@ -1205,7 +1205,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($clientOne);
     }
 
-    public function testWebhookDispatchedForClientEvent()
+    public function testWebhookDispatchedForClientEvent(): void
     {
         $this->resetQueueFake();
 
@@ -1233,7 +1233,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($receiver);
     }
 
-    public function testWebhookIncludesIdempotencyKey()
+    public function testWebhookIncludesIdempotencyKey(): void
     {
         $this->resetQueueFake();
 
@@ -1253,25 +1253,24 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testDrainCleansUpSharedStateCounters()
+    public function testDrainCleansUpSharedStateCounters(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'drain-counter-test');
 
         // Subscription counter should be 1
-        $count = $this->readSharedState("sub:{$this->appId}:drain-counter-test");
+        $count = $this->readSubscriptionCount($this->appId, 'drain-counter-test');
         $this->assertSame(1, $count);
 
         // Drain all connections
         $this->triggerDrain();
         usleep(100_000);
 
-        // Counter should be gone (key deleted when count reaches 0)
-        $count = $this->readSharedState("sub:{$this->appId}:drain-counter-test");
-        $this->assertNull($count);
+        $count = $this->readSubscriptionCount($this->appId, 'drain-counter-test');
+        $this->assertSame(0, $count);
     }
 
-    public function testDrainReleasesConnectionSlots()
+    public function testDrainReleasesConnectionSlots(): void
     {
         // reverb-key-2 app has max_connections=1
         ['client' => $client] = $this->connect('reverb-key-2');
@@ -1298,16 +1297,20 @@ class ServerTest extends ReverbIntegrationTestCase
     }
 
     /**
-     * Read a value from the Swoole Table shared state via the test endpoint.
+     * Read a channel subscription count through the shared-state contract.
      */
-    protected function readSharedState(string $key): ?int
+    protected function readSubscriptionCount(string $appId, string $channel): int
     {
         $httpClient = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
-        $httpClient->get('/_test/shared-state/' . urlencode($key));
+        $httpClient->get(sprintf(
+            '/_test/subscriptions/%s/%s',
+            rawurlencode($appId),
+            rawurlencode($channel),
+        ));
 
         $body = json_decode($httpClient->body, associative: true);
         $httpClient->close();
 
-        return $body['count'] ?? null;
+        return (int) $body['count'];
     }
 }

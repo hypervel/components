@@ -27,8 +27,16 @@ abstract class PusherException extends Exception
             'event' => 'pusher:error',
             'data' => json_encode([
                 'code' => $this->code,
-                'message' => $this->message,
+                'message' => $this->clientMessage(),
             ]),
         ];
+    }
+
+    /**
+     * Get the client-facing exception message.
+     */
+    protected function clientMessage(): string
+    {
+        return $this->message;
     }
 }

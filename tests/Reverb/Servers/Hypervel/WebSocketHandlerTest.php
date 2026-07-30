@@ -11,15 +11,19 @@ use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Exceptions\InvalidApplication;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\Servers\Hypervel\Connection;
+use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Routing\Route;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Hypervel\WebSocketServer\Sender;
 use Mockery as m;
 use ReflectionClass;
+use Swoole\Coroutine\Channel;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketServer;
+
+use function Hypervel\Coroutine\go;
 
 class WebSocketHandlerTest extends ReverbTestCase
 {
@@ -43,7 +47,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         );
     }
 
-    public function testInvokeReturns426ForNonWebsocketRequest()
+    public function testInvokeReturns426ForNonWebsocketRequest(): void
     {
         $request = m::mock(HttpRequest::class);
 
@@ -54,7 +58,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->assertSame('Upgrade Required', $response->getContent());
     }
 
-    public function testOnOpenCreatesConnectionAndDelegatesToServer()
+    public function testOnOpenCreatesConnectionAndDelegatesToServer(): void
     {
         $this->setupRequestContext('reverb-key');
 
@@ -62,7 +66,10 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->app->instance(Sender::class, $sender);
 
         $this->pusherServer->shouldReceive('open')->once()
-            ->with(m::type(\Hypervel\Reverb\Connection::class));
+            ->with(m::type(\Hypervel\Reverb\Connection::class))
+            ->andReturnUsing(static function (\Hypervel\Reverb\Connection $connection): void {
+                $connection->markEstablished();
+            });
 
         $swooleServer = m::mock(WebSocketServer::class);
         $swooleRequest = new SwooleRequest;
@@ -73,10 +80,11 @@ class WebSocketHandlerTest extends ReverbTestCase
         $connections = WebSocketHandler::connections();
         $this->assertCount(1, $connections);
         $this->assertArrayHasKey(1, $connections);
-        $this->assertInstanceOf(\Hypervel\Reverb\Connection::class, $connections[1]);
+        $this->assertInstanceOf(ConnectionLifecycle::class, $connections[1]);
+        $this->assertInstanceOf(\Hypervel\Reverb\Connection::class, $connections[1]->connection());
     }
 
-    public function testOnOpenRejectsInvalidAppKey()
+    public function testOnOpenRejectsInvalidAppKey(): void
     {
         $this->setupRequestContext('invalid-key');
 
@@ -103,7 +111,72 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->assertEmpty(WebSocketHandler::connections());
     }
 
-    public function testOnMessageDelegatesTextFrameToServer()
+    public function testOnOpenClosesAConnectionRejectedByTheProtocolServer(): void
+    {
+        $this->setupRequestContext('reverb-key');
+
+        $this->app->instance(Sender::class, m::mock(Sender::class));
+
+        $this->pusherServer->shouldReceive('open')->once();
+        $this->pusherServer->shouldReceive('close')->once();
+
+        $swooleServer = m::mock(WebSocketServer::class);
+        $swooleServer->shouldReceive('disconnect')->once()->with(1)->andReturnTrue();
+        $swooleRequest = new SwooleRequest;
+        $swooleRequest->fd = 1;
+
+        $this->handler->onOpen($swooleServer, $swooleRequest);
+
+        $this->assertEmpty(WebSocketHandler::connections());
+    }
+
+    public function testOnCloseWaitsForYieldingOpenAndCleansUpTheAttachedConnection(): void
+    {
+        $this->setupRequestContext('reverb-key');
+
+        $application = $this->applicationProvider->findByKey('reverb-key');
+        $closeStarted = new Channel(1);
+        $closeFinished = new Channel(1);
+        $swooleServer = m::mock(WebSocketServer::class);
+        $server = m::mock(\Swoole\Server::class);
+
+        $provider = m::mock(ApplicationProvider::class);
+        $provider->shouldReceive('findByKey')->once()->with('reverb-key')
+            ->andReturnUsing(function () use ($application, $closeStarted, $closeFinished, $server): Application {
+                go(function () use ($closeStarted, $closeFinished, $server): void {
+                    $closeStarted->push(true);
+                    $this->handler->onClose($server, 1, 0);
+                    $closeFinished->push(true);
+                });
+
+                $closeStarted->pop();
+
+                while (WebSocketHandler::connections() !== []) {
+                    usleep(100);
+                }
+
+                return $application;
+            });
+
+        $handler = new WebSocketHandler($this->app, $this->pusherServer, $provider);
+        $this->app->instance(Sender::class, m::mock(Sender::class));
+        $this->pusherServer->shouldReceive('open')->once()
+            ->andReturnUsing(static function (\Hypervel\Reverb\Connection $connection): void {
+                $connection->markEstablished();
+            });
+        $this->pusherServer->shouldReceive('close')->once()
+            ->with(m::type(\Hypervel\Reverb\Connection::class));
+
+        $swooleRequest = new SwooleRequest;
+        $swooleRequest->fd = 1;
+
+        $handler->onOpen($swooleServer, $swooleRequest);
+
+        $this->assertTrue($closeFinished->pop(1));
+        $this->assertEmpty(WebSocketHandler::connections());
+    }
+
+    public function testOnMessageDelegatesTextFrameToServer(): void
     {
         $connection = $this->createStoredConnection(1);
 
@@ -120,7 +193,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->handler->onMessage($swooleServer, $frame);
     }
 
-    public function testOnMessageRejectsOversizedMessage()
+    public function testOnMessageRejectsOversizedMessage(): void
     {
         $connection = $this->createStoredConnection(1);
 
@@ -140,7 +213,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->handler->onMessage($swooleServer, $frame);
     }
 
-    public function testOnMessageHandlesPingControlFrame()
+    public function testOnMessageHandlesPingControlFrame(): void
     {
         $connection = $this->createStoredConnection(1);
 
@@ -158,7 +231,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->handler->onMessage($swooleServer, $frame);
     }
 
-    public function testOnMessageHandlesPongControlFrame()
+    public function testOnMessageHandlesPongControlFrame(): void
     {
         $connection = $this->createStoredConnection(1);
 
@@ -176,7 +249,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->handler->onMessage($swooleServer, $frame);
     }
 
-    public function testOnMessageIgnoresUnknownFd()
+    public function testOnMessageIgnoresUnknownFd(): void
     {
         $this->pusherServer->shouldNotReceive('message');
         $this->pusherServer->shouldNotReceive('control');
@@ -191,7 +264,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->handler->onMessage($swooleServer, $frame);
     }
 
-    public function testOnCloseDelegatesToServerAndCleansUp()
+    public function testOnCloseDelegatesToServerAndCleansUp(): void
     {
         $connection = $this->createStoredConnection(1);
 
@@ -204,7 +277,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->assertEmpty(WebSocketHandler::connections());
     }
 
-    public function testOnCloseIgnoresUnknownFd()
+    public function testOnCloseIgnoresUnknownFd(): void
     {
         $this->pusherServer->shouldNotReceive('close');
 
@@ -214,7 +287,7 @@ class WebSocketHandlerTest extends ReverbTestCase
         $this->handler->onClose($swooleServer, 999, 0);
     }
 
-    public function testFlushStateClearsConnections()
+    public function testFlushStateClearsConnections(): void
     {
         $this->createStoredConnection(1);
         $this->createStoredConnection(2);
@@ -255,11 +328,15 @@ class WebSocketHandlerTest extends ReverbTestCase
 
         $connection = new \Hypervel\Reverb\Connection($wsConnection, $app, 'http://localhost');
 
+        $connection->markEstablished();
+        $lifecycle = new ConnectionLifecycle($fd);
+        $lifecycle->attach($connection);
+
         // Directly set in the static connections array via reflection
         $reflection = new ReflectionClass(WebSocketHandler::class);
         $property = $reflection->getProperty('connections');
         $connections = $property->getValue();
-        $connections[$fd] = $connection;
+        $connections[$fd] = $lifecycle;
         $property->setValue(null, $connections);
 
         return $connection;

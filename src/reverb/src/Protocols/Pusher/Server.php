@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
-use Exception;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Events\ConnectionClosed;
 use Hypervel\Reverb\Events\ConnectionEstablished;
 use Hypervel\Reverb\Events\MessageReceived;
+use Hypervel\Reverb\FailureReporter;
 use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionLimitExceeded;
+use Hypervel\Reverb\Protocols\Pusher\Exceptions\InvalidMessageFormat;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\InvalidOrigin;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\PusherException;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\RateLimitExceeded;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Str;
+use JsonException;
 use Throwable;
 
 class Server
@@ -54,13 +56,29 @@ class Server
             if (app('events')->hasListeners(ConnectionEstablished::class)) {
                 ConnectionEstablished::dispatch($connection);
             }
-        } catch (Exception $e) {
+
+            $connection->markEstablished();
+        } catch (Throwable $e) {
+            $cleanupFailure = null;
+
             if ($connection->hasAcquiredConnectionSlot()) {
-                app(SharedState::class)->releaseConnectionSlot($connection->app()->id());
-                $connection->clearConnectionSlotAcquired();
+                try {
+                    app(SharedState::class)->releaseConnectionSlot($connection->app()->id());
+                    $connection->clearConnectionSlotAcquired();
+                } catch (Throwable $throwable) {
+                    $cleanupFailure = $throwable;
+                }
             }
 
-            $this->error($connection, $e);
+            try {
+                $this->error($connection, $e);
+            } catch (Throwable $throwable) {
+                $cleanupFailure ??= $throwable;
+            }
+
+            if ($cleanupFailure !== null) {
+                throw $cleanupFailure;
+            }
         }
     }
 
@@ -77,19 +95,34 @@ class Server
         try {
             $this->ensureWithinRateLimit($from);
 
-            $event = json_decode($message, associative: true, flags: JSON_THROW_ON_ERROR);
+            try {
+                $event = json_decode($message, associative: true, flags: JSON_THROW_ON_ERROR);
+            } catch (JsonException $exception) {
+                throw new InvalidMessageFormat($exception->getMessage(), previous: $exception);
+            }
 
             // Try-decode data field instead of validate-then-decode (avoids double parse)
             if (is_string($event['data'] ?? null)) {
-                $decoded = json_decode($event['data'], associative: true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $event['data'] = $decoded;
+                try {
+                    $event['data'] = json_decode(
+                        $event['data'],
+                        associative: true,
+                        flags: JSON_THROW_ON_ERROR,
+                    );
+                } catch (JsonException $exception) {
+                    throw new InvalidMessageFormat($exception->getMessage(), previous: $exception);
                 }
             }
 
             // Direct type check instead of Validator::make() (hot path optimization)
             if (! isset($event['event']) || ! is_string($event['event'])) {
-                throw new Exception('Invalid message format');
+                throw new InvalidMessageFormat;
+            }
+
+            if (Str::startsWith($event['event'], 'pusher:')
+                && ! empty($event['data'])
+                && ! is_array($event['data'])) {
+                throw new InvalidMessageFormat('Invalid Pusher event data');
             }
 
             match (Str::startsWith($event['event'], 'pusher:')) {
@@ -135,20 +168,51 @@ class Server
     public function close(Connection $connection): void
     {
         $connection->markDisconnecting();
+        $exception = null;
 
-        $this->channels
-            ->for($connection->app())
-            ->unsubscribeFromAll($connection);
-
-        if ($connection->hasAcquiredConnectionSlot()) {
-            app(SharedState::class)->releaseConnectionSlot($connection->app()->id());
-            $connection->clearConnectionSlotAcquired();
+        if ($connection->isEstablished()) {
+            try {
+                $this->channels
+                    ->for($connection->app())
+                    ->unsubscribeFromAll($connection);
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
         }
 
-        Log::info('Connection Closed', $connection->id());
+        if ($connection->hasAcquiredConnectionSlot()) {
+            try {
+                app(SharedState::class)->releaseConnectionSlot($connection->app()->id());
+                $connection->clearConnectionSlotAcquired();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
 
-        if (app('events')->hasListeners(ConnectionClosed::class)) {
-            ConnectionClosed::dispatch($connection);
+        if ($connection->hasInitializedRateLimiter()) {
+            try {
+                ($this->rateLimiter ??= new RateLimiter(app('cache')->store('worker-array')))
+                    ->clear('reverb:message:' . $connection->id());
+                $connection->clearRateLimiterInitialized();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($connection->isEstablished()) {
+            try {
+                Log::info('Connection Closed', $connection->id());
+
+                if (app('events')->hasListeners(ConnectionClosed::class)) {
+                    ConnectionClosed::dispatch($connection);
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
@@ -166,16 +230,12 @@ class Server
             return;
         }
 
-        $connection->send(json_encode([
-            'event' => 'pusher:error',
-            'data' => json_encode([
-                'code' => 4200,
-                'message' => 'Invalid message format',
-            ]),
-        ]));
+        $connection->send(json_encode((new InvalidMessageFormat)->payload()));
 
         Log::error('Message from ' . $connection->id() . ' resulted in an unknown error');
         Log::info($exception->getMessage());
+
+        FailureReporter::report($exception);
     }
 
     /**
@@ -225,6 +285,7 @@ class Server
         }
 
         $this->rateLimiter->increment($key, $config['decay_seconds'] ?? 1);
+        $connection->markRateLimiterInitialized();
     }
 
     /**
@@ -234,11 +295,17 @@ class Server
     {
         $allowedOrigins = $connection->app()->allowedOrigins();
 
-        if (in_array('*', $allowedOrigins)) {
+        if (in_array('*', $allowedOrigins, true)) {
             return;
         }
 
-        $origin = parse_url($connection->origin(), PHP_URL_HOST);
+        $origin = $connection->origin();
+
+        if (! is_string($origin)) {
+            throw new InvalidOrigin;
+        }
+
+        $origin = parse_url($origin, PHP_URL_HOST);
 
         foreach ($allowedOrigins as $allowedOrigin) {
             if (Str::is($allowedOrigin, $origin)) {

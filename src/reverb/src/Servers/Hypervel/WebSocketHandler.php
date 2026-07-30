@@ -10,6 +10,7 @@ use Hypervel\Contracts\Server\OnCloseInterface;
 use Hypervel\Contracts\Server\OnMessageInterface;
 use Hypervel\Contracts\Server\OnOpenInterface;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\Reverb\Connection as ReverbConnection;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Exceptions\InvalidApplication;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
@@ -19,13 +20,14 @@ use Swoole\Server;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseInterface
 {
     /**
      * Active connections mapped by file descriptor.
      *
-     * @var array<int, \Hypervel\Reverb\Connection>
+     * @var array<int, ConnectionLifecycle>
      */
     protected static array $connections = [];
 
@@ -61,33 +63,46 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
     {
         $httpRequest = RequestContext::get();
         $appKey = $httpRequest->route()->parameter('appKey');
+        $lifecycle = new ConnectionLifecycle($request->fd);
+
+        static::$connections[$request->fd] = $lifecycle;
 
         try {
-            $application = $this->applications->findByKey($appKey);
-        } catch (InvalidApplication) {
-            $server->push(
-                $request->fd,
-                '{"event":"pusher:error","data":"{\"code\":4001,\"message\":\"Application does not exist\"}"}'
-            );
-            $server->disconnect($request->fd);
+            $lifecycle->run(function (ConnectionLifecycle $lifecycle) use ($appKey, $httpRequest, $request, $server): void {
+                try {
+                    $application = $this->applications->findByKey($appKey);
+                } catch (InvalidApplication) {
+                    $server->push(
+                        $request->fd,
+                        '{"event":"pusher:error","data":"{\"code\":4001,\"message\":\"Application does not exist\"}"}'
+                    );
 
-            return;
+                    return;
+                }
+
+                $wsConnection = new Connection(
+                    $this->container->make(Sender::class),
+                    $request->fd,
+                );
+
+                $reverbConnection = new ReverbConnection(
+                    $wsConnection,
+                    $application,
+                    $httpRequest->headers->get('Origin'),
+                );
+
+                $lifecycle->attach($reverbConnection);
+                $this->server->open($reverbConnection);
+            });
+        } finally {
+            if (! $lifecycle->connection()?->isEstablished()) {
+                $terminal = static::takeConnection($request->fd, $lifecycle);
+
+                if ($terminal !== null) {
+                    $this->closeLifecycle($terminal, fn (): bool => $server->disconnect($request->fd));
+                }
+            }
         }
-
-        $wsConnection = new Connection(
-            $this->container->make(Sender::class),
-            $request->fd,
-        );
-
-        $reverbConnection = new \Hypervel\Reverb\Connection(
-            $wsConnection,
-            $application,
-            $httpRequest->headers->get('Origin'),
-        );
-
-        static::$connections[$request->fd] = $reverbConnection;
-
-        $this->server->open($reverbConnection);
     }
 
     /**
@@ -100,34 +115,42 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
      */
     public function onMessage(WebSocketServer $server, Frame $frame): void
     {
-        $connection = static::$connections[$frame->fd] ?? null;
+        $lifecycle = static::$connections[$frame->fd] ?? null;
 
-        if (! $connection) {
+        if ($lifecycle === null) {
             return;
         }
 
-        // Control frames — delegate to PusherServer::control() for protocol
-        // parity (logging, activity tracking, control frame detection).
-        // Auto-respond to pings with pong at the Swoole level.
-        if (in_array($frame->opcode, [WEBSOCKET_OPCODE_PING, WEBSOCKET_OPCODE_PONG], true)) {
-            $this->server->control($connection, $frame->opcode);
+        $lifecycle->run(function (ConnectionLifecycle $lifecycle) use ($frame, $server): void {
+            $connection = $lifecycle->connection();
 
-            if ($frame->opcode === WEBSOCKET_OPCODE_PING) {
-                $server->push($frame->fd, '', WEBSOCKET_OPCODE_PONG);
+            if ($connection === null || ! $connection->isEstablished()) {
+                return;
             }
 
-            return;
-        }
+            // Control frames — delegate to PusherServer::control() for protocol
+            // parity (logging, activity tracking, control frame detection).
+            // Auto-respond to pings with pong at the Swoole level.
+            if (in_array($frame->opcode, [WEBSOCKET_OPCODE_PING, WEBSOCKET_OPCODE_PONG], true)) {
+                $this->server->control($connection, $frame->opcode);
 
-        // Enforce per-app message size limit before passing to the protocol server.
-        // In Laravel Reverb, this is handled by Ratchet's MessageBuffer.
-        if (strlen($frame->data) > $connection->app()->maxMessageSize()) {
-            $server->push($frame->fd, 'Maximum message size exceeded');
+                if ($frame->opcode === WEBSOCKET_OPCODE_PING) {
+                    $server->push($frame->fd, '', WEBSOCKET_OPCODE_PONG);
+                }
 
-            return;
-        }
+                return;
+            }
 
-        $this->server->message($connection, $frame->data);
+            // Enforce per-app message size limit before passing to the protocol server.
+            // In Laravel Reverb, this is handled by Ratchet's MessageBuffer.
+            if (strlen($frame->data) > $connection->app()->maxMessageSize()) {
+                $server->push($frame->fd, 'Maximum message size exceeded');
+
+                return;
+            }
+
+            $this->server->message($connection, $frame->data);
+        });
     }
 
     /**
@@ -135,19 +158,19 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
      */
     public function onClose(Server $server, int $fd, int $reactorId): void
     {
-        $connection = static::takeConnection($fd);
+        $lifecycle = static::takeConnection($fd);
 
-        if (! $connection) {
+        if ($lifecycle === null) {
             return;
         }
 
-        $this->server->close($connection);
+        $this->closeLifecycle($lifecycle);
     }
 
     /**
      * Get all active connections.
      *
-     * @return array<int, \Hypervel\Reverb\Connection>
+     * @return array<int, ConnectionLifecycle>
      */
     public static function connections(): array
     {
@@ -155,18 +178,53 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
     }
 
     /**
-     * Atomically take and remove a connection from the registry.
+     * Atomically take and remove a lifecycle from the registry.
      *
-     * Returns the connection if found (and removes it), or null if
-     * already taken. Used by both onClose and the graceful drain
-     * to ensure Server::close() runs exactly once per connection.
+     * When an expected lifecycle is supplied, a replacement using the same file
+     * descriptor is left untouched.
      */
-    public static function takeConnection(int $fd): ?\Hypervel\Reverb\Connection
+    public static function takeConnection(int $fd, ?ConnectionLifecycle $expected = null): ?ConnectionLifecycle
     {
-        $connection = static::$connections[$fd] ?? null;
+        $lifecycle = static::$connections[$fd] ?? null;
+
+        if ($lifecycle === null || ($expected !== null && $lifecycle !== $expected)) {
+            return null;
+        }
+
         unset(static::$connections[$fd]);
 
-        return $connection;
+        return $lifecycle;
+    }
+
+    /**
+     * Run terminal protocol and transport cleanup for a lifecycle.
+     */
+    public function closeLifecycle(ConnectionLifecycle $lifecycle, ?callable $disconnect = null): void
+    {
+        $lifecycle->close(function (ConnectionLifecycle $lifecycle) use ($disconnect): void {
+            $exception = null;
+            $connection = $lifecycle->connection();
+
+            if ($connection !== null) {
+                try {
+                    $this->server->close($connection);
+                } catch (Throwable $throwable) {
+                    $exception = $throwable;
+                }
+            }
+
+            if ($disconnect !== null) {
+                try {
+                    $disconnect();
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
+        });
     }
 
     /**
