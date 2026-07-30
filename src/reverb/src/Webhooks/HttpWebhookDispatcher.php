@@ -11,6 +11,7 @@ use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Str;
+use Throwable;
 
 class HttpWebhookDispatcher implements WebhookDispatcher
 {
@@ -55,11 +56,22 @@ class HttpWebhookDispatcher implements WebhookDispatcher
             $shouldSchedule = $buffer->appendAndCheckSchedule($application->id(), $eventData);
 
             if ($shouldSchedule) {
-                FlushWebhookBatchJob::dispatch($application->id(), $webhooks)
-                    ->onQueue('reverb-webhook-flush')
-                    ->delay(now()->addMilliseconds(
-                        (int) ($webhooks['batching']['max_delay_ms'] ?? 250)
-                    ));
+                try {
+                    FlushWebhookBatchJob::dispatch($application->id(), $webhooks)
+                        ->onQueue('reverb-webhook-flush')
+                        ->delay(now()->addMilliseconds(
+                            (int) ($webhooks['batching']['max_delay_ms'] ?? 250)
+                        ));
+                } catch (Throwable $exception) {
+                    try {
+                        // The append is durable; release only the lock acquired by this call.
+                        $buffer->clearFlushLock($application->id());
+                    } catch (Throwable) {
+                        // Preserve the queue dispatch failure.
+                    }
+
+                    throw $exception;
+                }
             }
         } else {
             $payload = new WebhookPayload(
