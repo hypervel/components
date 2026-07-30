@@ -13,6 +13,13 @@ use Throwable;
 
 class CreateSwooleTimers extends BaseListener
 {
+    /**
+     * The native timers owned by this worker.
+     *
+     * @var list<int>
+     */
+    protected array $timerIds = [];
+
     public function __construct(Container $container, protected SwooleTimer $timer)
     {
         parent::__construct($container);
@@ -63,6 +70,32 @@ class CreateSwooleTimers extends BaseListener
             }
 
             throw $throwable;
+        }
+
+        $this->timerIds = $timerIds;
+    }
+
+    /**
+     * Stop every timer owned by this worker.
+     */
+    public function stop(): void
+    {
+        $timerIds = $this->timerIds;
+        $this->timerIds = [];
+        $exception = null;
+
+        for ($index = count($timerIds) - 1; $index >= 0; --$index) {
+            try {
+                if (! $this->timer->clear($timerIds[$index])) {
+                    throw new RuntimeException("Unable to clear Swoole cache timer [{$timerIds[$index]}].");
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 

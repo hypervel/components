@@ -13,9 +13,12 @@ use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\CreateSwooleTimers;
 use Hypervel\Cache\Redis\Console\BenchmarkCommand;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Support\ServiceProvider;
+use Throwable;
 
 class CacheServiceProvider extends ServiceProvider
 {
@@ -52,12 +55,34 @@ class CacheServiceProvider extends ServiceProvider
     {
         $events = $this->app->make('events');
 
-        $events->listen(BeforeServerStart::class, function (BeforeServerStart $event) {
+        $events->listen(BeforeServerStart::class, function (BeforeServerStart $event): void {
             $this->app->make(CreateSwooleTable::class)->handle($event);
         });
 
-        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
             $this->app->make(CreateSwooleTimers::class)->handle($event);
+        });
+
+        $events->listen(OnWorkerExit::class, function (OnWorkerExit $event): void {
+            if ($event->workerId !== 0 || $event->server->taskworker) {
+                return;
+            }
+
+            try {
+                $this->app->make(CreateSwooleTimers::class)->stop();
+            } catch (Throwable $exception) {
+                try {
+                    $this->app->make(ExceptionHandler::class)->report($exception);
+                } catch (Throwable $reportingFailure) {
+                    try {
+                        file_put_contents(
+                            'php://stderr',
+                            (string) $exception . PHP_EOL . (string) $reportingFailure . PHP_EOL,
+                        );
+                    } catch (Throwable) {
+                    }
+                }
+            }
         });
 
         if ($this->app->runningInConsole()) {
