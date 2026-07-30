@@ -137,19 +137,24 @@ class Bootstrapper
 
         $filesystem = static::getFilesystem();
 
-        // Purge stale dirs for this worker token from previous crashed runs.
-        // A dir is stale when its owning PID is either dead or orphaned
-        // (PPID=1, meaning the test process that spawned it exited). Orphaned
-        // serve processes (confirmed by PID, command, and process incarnation)
-        // are killed before their dirs are removed.
-        foreach (glob($tempDir . "/hypervel-components-testbench-{$token}-*") as $staleDir) {
+        // Purge stale dirs from previous crashed runs, including copies created
+        // under a different ParaTest token or a reused PID.
+        // A dir is stale when its owning PID is dead, reused by this process
+        // without being the active copy, or orphaned (PPID=1, meaning the test
+        // process that spawned it exited). Orphaned serve processes (confirmed
+        // by PID, command, and process incarnation) are killed before removal.
+        foreach (glob($tempDir . '/hypervel-components-testbench-*') as $staleDir) {
             if (! $filesystem->isDirectory($staleDir)) {
+                continue;
+            }
+
+            if ($staleDir === static::$runtimePath) {
                 continue;
             }
 
             $stalePid = (int) substr($staleDir, strrpos($staleDir, '-') + 1);
 
-            if ($stalePid > 0 && posix_kill($stalePid, 0)) {
+            if ($stalePid > 0 && $stalePid !== $pid && posix_kill($stalePid, 0)) {
                 // Process is alive — check if it's an orphaned serve process.
                 if (static::isOrphanedServeProcess($stalePid, $staleDir)) {
                     static::killProcessTree($stalePid);
