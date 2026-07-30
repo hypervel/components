@@ -499,6 +499,13 @@ if (($node->getLft() ?? 0) < 1 || ($node->getRgt() ?? 0) < 1) {
 Do not grow this into a full interval-integrity check. Positive hand-set bounds
 are a deliberate low-level bypass.
 
+Direct model targets may be hand-positioned or intentionally loaded with
+`withTrashed()`, but append/prepend/before/after mutations require the same
+resolved connection, table, and concrete scope through `assertSameTree()`.
+This deliberately rejects write coordinates from replicas or other
+connections, which may lag or address another tree. Scalar parent assignment
+continues to resolve an active row from the source tree.
+
 Defer parent-ID lookup until all filled scope attributes are present at the
 saving action boundary. Preserve the `void` mutator and accept
 `int|string|null`. Parent lookup is structural and excludes trashed parents.
@@ -822,7 +829,8 @@ Hypervel tests while preserving Hypervel-specific regressions.
   numeric string, UUID, ULID, and model;
 - parent fill-order, numeric request strings, UUID/ULID parents, missing and
   trashed parents, key `0`, and cross-scope rejection;
-- per-class soft-delete metadata and re-entrant exact-timestamp restore;
+- per-class soft-delete metadata and re-entrant exact-timestamp restore,
+  including a descendant deleted before the nested restore cutoff;
 - shared-table model aliases, logical connection aliases, tables,
   connections, coroutine isolation, and repair/rebuild freshness publication;
 - compatible/incompatible/default custom builders and Model cache cleanup;
@@ -830,7 +838,8 @@ Hypervel tests while preserving Hypervel-specific regressions.
   predicates, scoped scalar and node before/after predicates, boolean
   grouping, structural coordinate lookups across trashed visibility modes,
   default/explicit logical connection aliases, and persisted 0/0 target
-  rejection, plus concrete-scope enforcement for every scalar scoped lookup;
+  rejection, plus cross-connection mutation-target rejection and
+  concrete-scope enforcement for every scalar scoped lookup;
 - lazy/eager/existence/count sibling relations, custom parent columns,
   configured plain foreign keys across sibling/ancestor/descendant relations,
   qualified relation predicates after joins, null-root correlation, null
@@ -868,7 +877,8 @@ Hypervel tests while preserving Hypervel-specific regressions.
   complete subtree selection refusal, post-gap persistence of unchanged rows,
   `rebuildSubtree()` through the shared repair path, model-only roots, key
   exclusion, delete-missing, iterative traversal, and transaction-backed
-  rollback when a repair or rebuild save is vetoed;
+  rollback of ordinary and structural model writes when a repair or rebuild
+  save is vetoed;
 - `isNode()` class separation, trait-of-trait detection, non-object/null
   handling, and framework cleanup registration; and
 - Blueprint macro use in separate test methods, proving flush/re-registration.

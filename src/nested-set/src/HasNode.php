@@ -168,7 +168,7 @@ trait HasNode
 
         $this->assertNodeInTree($parent)
             ->assertNotDescendant($parent)
-            ->assertSameScope($parent);
+            ->assertSameTree($parent);
 
         $this->setParent($parent)->dirtyBounds();
 
@@ -432,7 +432,7 @@ trait HasNode
     {
         $this->assertNodeInTree($parent)
             ->assertNotDescendant($parent)
-            ->assertSameScope($parent);
+            ->assertSameTree($parent);
 
         $this->setParent($parent)->dirtyBounds();
 
@@ -462,7 +462,7 @@ trait HasNode
     {
         $this->assertNodeInTree($node)
             ->assertNotDescendant($node)
-            ->assertSameScope($node);
+            ->assertSameTree($node);
 
         if (! $this->isSiblingOf($node)) {
             $this->setParent($node->getRelationValue('parent'));
@@ -1339,12 +1339,12 @@ trait HasNode
     }
 
     /**
-     * Assert that a node belongs to the same concrete scope.
+     * Assert that a node belongs to the same nested set tree.
      */
-    protected function assertSameScope(self $node): static
+    protected function assertSameTree(self $node): static
     {
-        if (! $this->isSameScope($node)) {
-            throw new LogicException('Nodes must be in the same scope.');
+        if (! $this->isSameTree($node)) {
+            throw new LogicException('Nodes must be in the same tree.');
         }
 
         return $this;

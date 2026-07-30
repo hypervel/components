@@ -414,6 +414,7 @@ class ScopedNodeTest extends TestCase
     public function testAppendingToAnotherScopeFails(): void
     {
         $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Nodes must be in the same tree.');
 
         $foo = MenuItem::find(1);
         $bar = MenuItem::find(3);
@@ -424,6 +425,7 @@ class ScopedNodeTest extends TestCase
     public function testInsertingBeforeAnotherScopeFails(): void
     {
         $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Nodes must be in the same tree.');
 
         $foo = MenuItem::find(1);
         $bar = MenuItem::find(3);

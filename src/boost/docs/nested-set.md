@@ -757,7 +757,7 @@ MenuItem::scoped(['menu_id' => 1])->fixTree();
 
 Ordinary Eloquent global scopes only control visibility; they do not create separate nested set trees. Use `getScopeAttributes()` for menu IDs or any other value that partitions the stored boundaries.
 
-Node operations also respect scope. Moving a node across scopes will throw a `LogicException`:
+Node operations also respect the database connection, table, and scope. Moving a node between trees will throw a `LogicException`:
 
 ```php
 $source = MenuItem::scoped(['menu_id' => 1])->first();

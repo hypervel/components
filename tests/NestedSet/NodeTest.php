@@ -367,6 +367,37 @@ class NodeTest extends TestCase
         (new Category(['name' => 'test']))->appendToNode($target);
     }
 
+    #[DataProvider('structuralMutationMethods')]
+    public function testStructuralMutationTargetsMustUseTheSameTree(string $method): void
+    {
+        $connection = DB::getDefaultConnection();
+
+        config([
+            'database.connections.nested_set_other' => config(
+                "database.connections.{$connection}",
+            ),
+        ]);
+
+        $source = $this->findCategory('apple');
+        $target = $this->findCategory('notebooks')
+            ->setConnection('nested_set_other');
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Nodes must be in the same tree.');
+
+        $source->{$method}($target);
+    }
+
+    public static function structuralMutationMethods(): array
+    {
+        return [
+            'append' => ['appendToNode'],
+            'prepend' => ['prependToNode'],
+            'before' => ['beforeNode'],
+            'after' => ['afterNode'],
+        ];
+    }
+
     public function testWithoutRootWorks(): void
     {
         $result = Category::withoutRoot()->pluck('name');
@@ -648,6 +679,9 @@ class NodeTest extends TestCase
 
     public function testReentrantRestoreUsesEachNodesExactPreviousDeletionTimestamp(): void
     {
+        CarbonImmutable::setTestNow('2025-07-03 11:59:59');
+        $this->findCategory('apple')->delete();
+
         CarbonImmutable::setTestNow('2025-07-03 12:00:00');
         $this->findCategory('notebooks')->delete();
 
@@ -670,7 +704,8 @@ class NodeTest extends TestCase
 
         Category::withTrashed()->findOrFail(5)->restore();
 
-        $this->assertNotNull($this->findCategory('apple'));
+        $this->assertNull($this->findCategory('apple'));
+        $this->assertNotNull(Category::find(4));
         $this->assertNotNull($this->findCategory('nokia'));
         $this->assertNull($this->findCategory('samsung'));
     }
@@ -1828,12 +1863,17 @@ class NodeTest extends TestCase
 
     public function testRebuildTreeVetoRollsBackEarlierModelWrites(): void
     {
-        $before = Category::orderBy('id')->pluck('name', 'id')->all();
+        $columns = ['id', 'name', '_lft', '_rgt', 'parent_id', 'depth'];
+        $before = DB::table('categories')
+            ->orderBy('id')
+            ->get($columns)
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
         $saves = 0;
         $vetoedKey = null;
 
         Category::saving(function (Category $model) use (&$saves, &$vetoedKey): ?bool {
-            if (++$saves !== 2) {
+            if (++$saves !== 3) {
                 return null;
             }
 
@@ -1844,8 +1884,14 @@ class NodeTest extends TestCase
 
         try {
             DB::transaction(fn (): int => Category::rebuildTree([
-                ['id' => 1, 'name' => 'updated store'],
-                ['id' => 11, 'name' => 'updated second store'],
+                [
+                    'id' => 1,
+                    'name' => 'updated store',
+                    'children' => [
+                        ['id' => 11, 'name' => 'updated second store'],
+                    ],
+                ],
+                ['id' => 2, 'name' => 'updated notebooks'],
             ]));
             $this->fail('Expected the rebuild veto to propagate.');
         } catch (LogicException $exception) {
@@ -1859,7 +1905,14 @@ class NodeTest extends TestCase
             );
         }
 
-        $this->assertSame($before, Category::orderBy('id')->pluck('name', 'id')->all());
+        $this->assertSame(
+            $before,
+            DB::table('categories')
+                ->orderBy('id')
+                ->get($columns)
+                ->map(fn (object $row): array => (array) $row)
+                ->all(),
+        );
     }
 
     public function testRebuildTreeWithDeletion(): void
@@ -1998,12 +2051,19 @@ class NodeTest extends TestCase
     public function testExistenceQueriesRetainTheConnectionWithoutReplicatingModels(): void
     {
         $replicatedModels = [];
+        $connection = DB::getDefaultConnection();
+
+        config([
+            'database.connections.nested_set_relation' => config(
+                "database.connections.{$connection}",
+            ),
+        ]);
 
         Category::replicating(function (Category $model) use (&$replicatedModels): void {
             $replicatedModels[] = $model;
         });
 
-        $parent = (new Category)->setConnection(DB::getDefaultConnection());
+        $parent = (new Category)->setConnection('nested_set_relation');
         $relation = $parent->descendants();
         $query = $relation->getRelationExistenceQuery(
             $relation->getQuery(),
