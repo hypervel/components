@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Webhooks;
 
+use Closure;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
@@ -42,9 +43,11 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
     // ── Channel vacated ───────────────────────────────────────────────
 
-    public function testChannelVacatedFiresAfterDelay()
+    public function testChannelVacatedFiresAfterDelay(): void
     {
         Queue::fake();
+        $callback = null;
+        $this->captureDeferredCallback(10, $callback);
 
         $sharedState = m::mock(SharedState::class);
         $sharedState->shouldReceive('getSubscriptionCount')
@@ -57,7 +60,8 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
         $this->manager->deferChannelVacated($this->testApp, 'test-channel', 0.05, 5000);
 
-        usleep(80_000); // 80ms — past the 50ms delay
+        $this->assertInstanceOf(Closure::class, $callback);
+        $callback(false);
 
         Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
             return $job->payload->events[0]['name'] === 'channel_vacated'
@@ -65,7 +69,7 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         });
     }
 
-    public function testChannelVacatedSuppressedOnCancel()
+    public function testChannelVacatedSuppressedOnCancel(): void
     {
         $timer = $this->replaceTimer();
         $timer->shouldReceive('after')->once()->andReturn(11);
@@ -77,9 +81,11 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         $this->assertFalse($this->manager->cancelChannelVacated('test-app', 'test-channel'));
     }
 
-    public function testChannelVacatedSuppressedWhenReOccupied()
+    public function testChannelVacatedSuppressedWhenReOccupied(): void
     {
         Queue::fake();
+        $callback = null;
+        $this->captureDeferredCallback(13, $callback);
 
         $sharedState = m::mock(SharedState::class);
         $sharedState->shouldReceive('getSubscriptionCount')
@@ -92,16 +98,20 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
         $this->manager->deferChannelVacated($this->testApp, 'test-channel', 0.05, 5000);
 
-        usleep(80_000);
+        $this->assertInstanceOf(Closure::class, $callback);
+        $callback(false);
 
         Queue::assertNotPushed(WebhookDeliveryJob::class);
+        $this->assertFalse($this->manager->cancelChannelVacated('test-app', 'test-channel'));
     }
 
     // ── Member removed ────────────────────────────────────────────────
 
-    public function testMemberRemovedFiresAfterDelay()
+    public function testMemberRemovedFiresAfterDelay(): void
     {
         Queue::fake();
+        $callback = null;
+        $this->captureDeferredCallback(14, $callback);
 
         $sharedState = m::mock(SharedState::class);
         $sharedState->shouldReceive('getUserSubscriptionCount')
@@ -114,7 +124,8 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
         $this->manager->deferMemberRemoved($this->testApp, 'presence-test', 'user-1', 0.05, 5000);
 
-        usleep(80_000);
+        $this->assertInstanceOf(Closure::class, $callback);
+        $callback(false);
 
         Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
             $event = $job->payload->events[0];
@@ -125,7 +136,7 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         });
     }
 
-    public function testMemberRemovedSuppressedOnCancel()
+    public function testMemberRemovedSuppressedOnCancel(): void
     {
         $timer = $this->replaceTimer();
         $timer->shouldReceive('after')->once()->andReturn(12);
@@ -137,9 +148,11 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         $this->assertFalse($this->manager->cancelMemberRemoved('test-app', 'presence-test', 'user-1'));
     }
 
-    public function testMemberRemovedSuppressedWhenUserReturned()
+    public function testMemberRemovedSuppressedWhenUserReturned(): void
     {
         Queue::fake();
+        $callback = null;
+        $this->captureDeferredCallback(15, $callback);
 
         $sharedState = m::mock(SharedState::class);
         $sharedState->shouldReceive('getUserSubscriptionCount')
@@ -152,14 +165,16 @@ class DeferredWebhookManagerTest extends ReverbTestCase
 
         $this->manager->deferMemberRemoved($this->testApp, 'presence-test', 'user-1', 0.05, 5000);
 
-        usleep(80_000);
+        $this->assertInstanceOf(Closure::class, $callback);
+        $callback(false);
 
         Queue::assertNotPushed(WebhookDeliveryJob::class);
+        $this->assertFalse($this->manager->cancelMemberRemoved('test-app', 'presence-test', 'user-1'));
     }
 
     // ── Cancel all ────────────────────────────────────────────────────
 
-    public function testCancelAllClearsAllPendingTimers()
+    public function testCancelAllClearsAllPendingTimers(): void
     {
         $timer = $this->replaceTimer();
         $timer->shouldReceive('after')->times(3)->andReturn(1, 2, 3);
@@ -188,5 +203,20 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         (new ReflectionProperty($this->manager, 'timer'))->setValue($this->manager, $timer);
 
         return $timer;
+    }
+
+    /**
+     * Replace the manager's timer and capture its deferred callback.
+     */
+    protected function captureDeferredCallback(int $timerId, ?Closure &$callback): void
+    {
+        $timer = $this->replaceTimer();
+        $timer->shouldReceive('after')
+            ->once()
+            ->andReturnUsing(function (float $timeout, Closure $deferredCallback) use ($timerId, &$callback): int {
+                $callback = $deferredCallback;
+
+                return $timerId;
+            });
     }
 }
