@@ -437,14 +437,18 @@ $value = enum_value($value);
 return match (true) {
     $value === null, is_int($value), is_string($value) => $value,
     is_bool($value) => (int) $value,
-    $value instanceof DateTimeInterface => $value->format('Y-m-d H:i:s'),
+    $value instanceof DateTimeInterface => $value->format(
+        $this->dateFormat ?: 'Y-m-d H:i:s',
+    ),
     $value instanceof Stringable => (string) $value,
     default => throw new LogicException(/* model and attribute */),
 };
 ```
 
 Place `DateTimeInterface` before `Stringable`: a future date implementation's
-`__toString()` must not silently change database identity. Reject floats,
+`__toString()` must not silently change database identity. Honor the model's
+resolved date-format override while retaining the framework grammar default
+without resolving a connection during per-result matching. Reject floats,
 arrays, resources, and other objects. Float text is precision/INI-dependent
 and unsuitable as a tree partition key; fail descriptively rather than permit
 silent bucket collisions or add a float encoder.
@@ -540,10 +544,13 @@ descendants: a caller's `descendants()->orderBy(...)` remains authoritative.
 
 For ancestor/descendant existence queries, correlate every inner alias scope
 column with the corresponding outer row column. Correlated scope equality is
-portable and null-safe: equal values or both null. Never bind scope from the
-blank relation replica. Derive the outer qualifier from the supplied parent
-query so nested `whereHas()` levels correlate against the immediately enclosing
-alias rather than the outermost table.
+portable and null-safe: equal values or both null. Build each existence alias
+from a class-default fresh model on the parent's connection so a prior alias
+cannot become the `FROM` source. Copy no attributes or relations, dispatch no
+model events, and never bind scope from that blank model. Derive the outer
+qualifier from the supplied parent query so nested `whereHas()` levels
+correlate against the immediately enclosing alias rather than the outermost
+table.
 
 `whereAncestorOf($node)` and `whereDescendantOf($node)` already own their scope
 predicate. Remove the duplicate trailing scope predicate from both relation
@@ -827,8 +834,9 @@ Hypervel tests while preserving Hypervel-specific regressions.
 - lazy/eager/existence/count sibling relations, custom parent columns,
   configured plain foreign keys across sibling/ancestor/descendant relations,
   qualified relation predicates after joins, null-root correlation, null
-  scopes, root-to-parent ancestors, nested `whereHas()` alias correlation, and
-  exactly one scope predicate per relation;
+  scopes, root-to-parent ancestors, nested `whereHas()` alias correlation,
+  event-free connection-preserving existence-query construction, and exactly
+  one scope predicate per relation;
 - joined root/leaf/has-children/before/after/default-order,
   `withoutRoot()` / `hasParent()`, and all next/previous node and sibling
   queries with qualified structural columns;
@@ -836,7 +844,8 @@ Hypervel tests while preserving Hypervel-specific regressions.
   `fixTree()`, and diagnostics, including Aimeos's global-scope fixture proving
   structural paths ignore visibility scopes;
 - scope tuple int/string/enum/date/stringable/null/empty/bool/delimiter cases,
-  plus descriptive float/non-stringable rejection;
+  model date-format overrides, plus descriptive float/non-stringable
+  rejection;
 - one-parent, one-scope, multi-scope, monotonic descendant, custom-order
   descendant, and ancestor eager matching;
 - parent serialization, relation-free clones, partial relink, recursive create,
@@ -928,5 +937,7 @@ code review.
 - no broad overlap movement update without new evidence;
 - no default event-per-descendant deletion;
 - no iterative rewrite of already-nested rebuild input;
+- no `replicateQuietly()` or `newInstance()` existence-alias construction, and
+  no per-result `fromDateTime()` connection resolution;
 - no arbitrary dynamic schema type or introspective drop helper; and
 - no source/test compatibility layer for the old schema or result categories.

@@ -1995,6 +1995,25 @@ class NodeTest extends TestCase
         $this->assertEquals(['nokia', 'samsung', 'galaxy', 'sony', 'lenovo'], $categories);
     }
 
+    public function testExistenceQueriesRetainTheConnectionWithoutReplicatingModels(): void
+    {
+        $replicatedModels = [];
+
+        Category::replicating(function (Category $model) use (&$replicatedModels): void {
+            $replicatedModels[] = $model;
+        });
+
+        $parent = (new Category)->setConnection(DB::getDefaultConnection());
+        $relation = $parent->descendants();
+        $query = $relation->getRelationExistenceQuery(
+            $relation->getQuery(),
+            $parent->newQuery(),
+        );
+
+        $this->assertSame([], $replicatedModels);
+        $this->assertSame($parent->getConnectionName(), $query->getModel()->getConnectionName());
+    }
+
     public function testNestedWhereHasCorrelatesAgainstTheImmediatelyEnclosingRelation(): void
     {
         $this->assertSame(

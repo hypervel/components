@@ -127,6 +127,16 @@ class NestedSetTest extends TestCase
         ], $model->getNestedSetScope());
     }
 
+    public function testScopeDateValuesHonorTheModelDateFormatWithoutAConnection(): void
+    {
+        $date = CarbonImmutable::parse('2026-01-02 03:04:05');
+        $model = new NestedSetTestScopeNodeModel;
+        $model->setDateFormat('U');
+        $model->setRawAttributes(['third' => $date]);
+
+        $this->assertSame($date->format('U'), $model->getNestedSetScope()['third']);
+    }
+
     public function testScopeKeysDistinguishCompositeValuesWithoutSeparatorsColliding(): void
     {
         $first = new NestedSetTestScopeNodeModel;

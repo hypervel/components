@@ -15,9 +15,9 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
 {
-    protected const FIRST_TENANT = '018f3a2b-0000-7000-8000-000000000001';
+    protected const string FIRST_TENANT = '018f3a2b-0000-7000-8000-000000000001';
 
-    protected const SECOND_TENANT = '018f3a2b-0000-7000-8000-000000000002';
+    protected const string SECOND_TENANT = '018f3a2b-0000-7000-8000-000000000002';
 
     protected function afterRefreshingDatabase(): void
     {

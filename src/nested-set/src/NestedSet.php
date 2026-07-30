@@ -11,22 +11,22 @@ class NestedSet
     /**
      * The name of default lft column.
      */
-    public const LFT = '_lft';
+    public const string LFT = '_lft';
 
     /**
      * The name of default rgt column.
      */
-    public const RGT = '_rgt';
+    public const string RGT = '_rgt';
 
     /**
      * The name of default parent id column.
      */
-    public const PARENT_ID = 'parent_id';
+    public const string PARENT_ID = 'parent_id';
 
     /**
      * The name of default depth column.
      */
-    public const DEPTH = 'depth';
+    public const string DEPTH = 'depth';
 
     /**
      * Cached node-trait membership by concrete class.

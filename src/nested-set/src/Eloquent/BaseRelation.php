@@ -53,9 +53,14 @@ abstract class BaseRelation extends Relation
      */
     public function getRelationExistenceQuery(EloquentBuilder $query, EloquentBuilder $parentQuery, mixed $columns = ['*']): EloquentBuilder
     {
-        // The relation owns an isolated aliased model; Eloquent applies the
-        // caller's constraints to the returned builder afterward.
-        $query = $this->getParent()->replicate()->newQuery();
+        $parent = $this->getParent();
+
+        // Start from the class-default table so a relation alias cannot become
+        // a FROM source; Eloquent applies caller constraints afterward.
+        $model = new ($parent::class);
+        $model->setConnection($parent->getConnectionName());
+
+        $query = $model->newQuery();
         $query->select($columns);
 
         $table = $query->getModel()->getTable();

@@ -534,6 +534,8 @@ class QueryBuilder extends EloquentBuilder
 
         $columns = [];
 
+        // MySQL and MariaDB evaluate assignments in order, so depth must read
+        // the original left bound before the interval columns are updated.
         if (($params['depth'] ?? 0) !== 0) {
             $column = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
             $columns[$column] = $this->depthPatch($grammar->wrap($column), $params);
