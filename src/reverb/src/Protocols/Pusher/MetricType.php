@@ -9,5 +9,5 @@ enum MetricType: string
     case Connections = 'connections';
     case Channel = 'channel';
     case Channels = 'channels';
-    case ChannelUsers = 'channel_users';
+    case Presence = 'presence';
 }

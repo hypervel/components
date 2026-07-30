@@ -6,8 +6,13 @@ namespace Hypervel\Reverb\Protocols\Pusher\Http\Controllers;
 
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Reverb\Protocols\Pusher\UserConnectionTerminator;
 use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
+use Hypervel\Reverb\Servers\Hypervel\TerminateUserPipeMessage;
+use RuntimeException;
+use Swoole\Server;
+use Throwable;
 
 class UsersTerminateController extends Controller
 {
@@ -28,13 +33,37 @@ class UsersTerminateController extends Controller
             return new JsonResponse((object) []);
         }
 
-        $connections = collect($context->channels->connections());
+        $exception = null;
 
-        $connections->each(function ($connection) use ($userId) {
-            if ((string) ($connection->data()['user_id'] ?? '') === $userId) {
-                $connection->disconnect();
+        try {
+            app(UserConnectionTerminator::class)->terminate($context->application, $userId);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        $server = app(Server::class);
+        $workerCount = (int) ($server->setting['worker_num'] ?? 1);
+        $message = new TerminateUserPipeMessage($context->application->id(), $userId);
+
+        for ($workerId = 0; $workerId < $workerCount; ++$workerId) {
+            if ($workerId === $server->worker_id) {
+                continue;
             }
-        });
+
+            try {
+                if (! $server->sendMessage($message, $workerId)) {
+                    $exception ??= new RuntimeException(
+                        "Unable to terminate Reverb user connections on worker [{$workerId}].",
+                    );
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
 
         return new JsonResponse((object) []);
     }

@@ -49,7 +49,7 @@ abstract class MultiWorkerTestCase extends ReverbIntegrationTestCase
      * Connect clients until at least two different workers are represented.
      *
      * Subscribes each client to the given channel. Returns all connections
-     * grouped by worker ID, or skips the test if distribution cannot be
+     * grouped by worker ID, or fails the test if distribution cannot be
      * achieved within 20 attempts.
      *
      * @return array{connections: list<array{client: Client, socketId: string, workerId: int}>, workers: list<int>}
@@ -98,28 +98,36 @@ abstract class MultiWorkerTestCase extends ReverbIntegrationTestCase
     }
 
     /**
-     * Read a value from the Swoole Table shared state via the test endpoint.
+     * Read a channel subscription count through the shared-state contract.
      */
-    protected function readSharedState(string $key): ?int
+    protected function readSubscriptionCount(string $appId, string $channel): int
     {
         $httpClient = new Client($this->getServerHost(), $this->getServerPort());
-        $httpClient->get('/_test/shared-state/' . urlencode($key));
+        $httpClient->get(sprintf(
+            '/_test/subscriptions/%s/%s',
+            rawurlencode($appId),
+            rawurlencode($channel),
+        ));
 
         $body = json_decode($httpClient->body, associative: true);
         $httpClient->close();
 
-        return $body['count'] ?? null;
+        return (int) $body['count'];
     }
 
     /**
-     * Wait for a shared state value to match the expected value.
+     * Wait for a channel subscription count to match the expected value.
      */
-    protected function waitForSharedState(string $key, ?int $expected, float $timeout = 5): ?int
-    {
+    protected function waitForSubscriptionCount(
+        string $appId,
+        string $channel,
+        int $expected,
+        float $timeout = 5,
+    ): int {
         $deadline = microtime(true) + $timeout;
 
         do {
-            $value = $this->readSharedState($key);
+            $value = $this->readSubscriptionCount($appId, $channel);
 
             if ($value === $expected) {
                 return $value;
@@ -128,6 +136,6 @@ abstract class MultiWorkerTestCase extends ReverbIntegrationTestCase
             usleep(10_000);
         } while (microtime(true) < $deadline);
 
-        return $this->readSharedState($key);
+        return $this->readSubscriptionCount($appId, $channel);
     }
 }

@@ -219,18 +219,17 @@ $app = TestbenchApplication::create(
             });
         }
 
-        // Test-only: shared-state endpoint for Swoole Table counter assertions.
-        // Reads directly from shared memory — visible from any worker.
-        $app->make(ReverbRouter::class)->get('/_test/shared-state/{key}', function (\Hypervel\Http\Request $request, string $key) use ($app) {
+        // Test-only: observe the production shared-state contract from any worker.
+        $app->make(ReverbRouter::class)->get('/_test/subscriptions/{appId}/{channel}', function (
+            \Hypervel\Http\Request $request,
+            string $appId,
+            string $channel,
+        ) use ($app) {
             $sharedState = $app->make(\Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState::class);
 
-            if (! $sharedState instanceof \Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState) {
-                return new \Hypervel\Http\JsonResponse(['error' => 'Not using Swoole Table'], 400);
-            }
-
-            $value = $sharedState->table()->get($key, 'count');
-
-            return new \Hypervel\Http\JsonResponse(['key' => $key, 'count' => $value !== false ? $value : null]);
+            return new \Hypervel\Http\JsonResponse([
+                'count' => $sharedState->getSubscriptionCount($appId, $channel),
+            ]);
         });
 
         // Test-only: drain all connections on this worker using the production drain method.

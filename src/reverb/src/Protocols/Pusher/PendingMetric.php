@@ -94,6 +94,14 @@ class PendingMetric
     }
 
     /**
+     * Get the number of responses still expected.
+     */
+    public function missingResponseCount(): int
+    {
+        return max(0, ($this->subscribers ?? 0) - count($this->data));
+    }
+
+    /**
      * Resolve the data for the metric.
      */
     public function resolve(): array

@@ -19,6 +19,6 @@ class ConnectionsController extends Controller
 
         $connections = app(MetricsHandler::class)->gather($context->application, 'connections');
 
-        return new JsonResponse(['connections' => count($connections)]);
+        return new JsonResponse(['connections' => $connections['count']]);
     }
 }

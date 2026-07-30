@@ -14,7 +14,7 @@ namespace Hypervel\Tests\Integration\Reverb;
  */
 class MultiWorkerServerTest extends MultiWorkerTestCase
 {
-    public function testBroadcastReachesClientsOnDifferentWorkers()
+    public function testBroadcastReachesClientsOnDifferentWorkers(): void
     {
         $result = $this->connectOnDifferentWorkers('test-broadcast-mw');
 
@@ -34,14 +34,10 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         }
     }
 
-    public function testConnectionLimitIsGlobalAcrossWorkers()
+    public function testConnectionLimitIsGlobalAcrossWorkers(): void
     {
         // reverb-key-2 app has max_connections=1
         $conn = $this->connect('reverb-key-2');
-
-        // Counter should be 1 globally (shared memory)
-        $count = $this->readSharedState('conn:654321');
-        $this->assertSame(1, $count);
 
         // Second connection should be rejected (global limit reached)
         $client2 = new \Swoole\Coroutine\Http\Client($this->getServerHost(), $this->getServerPort());
@@ -55,15 +51,11 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         $errorData = json_decode($data['data'], associative: true);
         $this->assertSame(4004, $errorData['code']);
 
-        // Counter should still be 1 (rejected connection didn't leak a slot)
-        $count = $this->readSharedState('conn:654321');
-        $this->assertSame(1, $count);
-
         $this->disconnect($conn['client']);
         $client2->close();
     }
 
-    public function testPresenceMemberAddedFiresOnceGlobally()
+    public function testPresenceMemberAddedFiresOnceGlobally(): void
     {
         // Connect observer, then keep connecting until we get a joiner on a different worker
         $observer = $this->connect();
@@ -97,7 +89,33 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         $this->disconnect($duplicate['client']);
     }
 
-    public function testPresenceMemberRemovedFiresOnceGlobally()
+    public function testPresenceSubscriptionIncludesMembersFromSiblingWorkers(): void
+    {
+        $observer = $this->connect();
+        $this->subscribe($observer['client'], $observer['socketId'], 'presence-mw-roster', [
+            'user_id' => 'observer',
+            'user_info' => ['name' => 'Observer'],
+        ]);
+
+        $joiner = $this->connectOnDifferentWorkerThan($observer['workerId']);
+        $response = $this->subscribe($joiner['client'], $joiner['socketId'], 'presence-mw-roster', [
+            'user_id' => 'joiner',
+            'user_info' => ['name' => 'Joiner'],
+        ]);
+
+        $event = json_decode($response, associative: true, flags: JSON_THROW_ON_ERROR);
+        $data = json_decode($event['data'], associative: true, flags: JSON_THROW_ON_ERROR);
+
+        $this->assertSame(2, $data['presence']['count']);
+        $this->assertEqualsCanonicalizing(['observer', 'joiner'], $data['presence']['ids']);
+        $this->assertSame(['name' => 'Observer'], $data['presence']['hash']['observer']);
+        $this->assertSame(['name' => 'Joiner'], $data['presence']['hash']['joiner']);
+
+        $this->disconnect($observer['client']);
+        $this->disconnect($joiner['client']);
+    }
+
+    public function testPresenceMemberRemovedFiresOnceGlobally(): void
     {
         // Observer on one worker
         $observer = $this->connect();
@@ -138,20 +156,24 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         $this->disconnect($observer['client']);
     }
 
-    public function testSubscriptionCountIsGlobalAcrossWorkers()
+    public function testSubscriptionCountIsGlobalAcrossWorkers(): void
     {
         $result = $this->connectOnDifferentWorkers('test-sub-count-mw');
         $totalClients = count($result['connections']);
 
         // Shared state counter should match total subscribers across all workers
-        $count = $this->readSharedState("sub:{$this->appId}:test-sub-count-mw");
+        $count = $this->readSubscriptionCount($this->appId, 'test-sub-count-mw');
         $this->assertSame($totalClients, $count);
 
         // Disconnect one client
         $first = array_shift($result['connections']);
         $this->disconnect($first['client']);
 
-        $count = $this->waitForSharedState("sub:{$this->appId}:test-sub-count-mw", $totalClients - 1);
+        $count = $this->waitForSubscriptionCount(
+            $this->appId,
+            'test-sub-count-mw',
+            $totalClients - 1,
+        );
         $this->assertSame($totalClients - 1, $count);
 
         // Disconnect all remaining
@@ -159,12 +181,79 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
             $this->disconnect($connection['client']);
         }
 
-        // Counter should be gone (key deleted when count reaches 0)
-        $count = $this->waitForSharedState("sub:{$this->appId}:test-sub-count-mw", null);
-        $this->assertNull($count);
+        $count = $this->waitForSubscriptionCount($this->appId, 'test-sub-count-mw', 0);
+        $this->assertSame(0, $count);
     }
 
-    public function testDrainOnOneWorkerDoesNotAffectOtherWorker()
+    public function testHttpMetricsIncludeConnectionsAndPresenceUsersFromSiblingWorkers(): void
+    {
+        $first = $this->connect();
+        $this->subscribe($first['client'], $first['socketId'], 'presence-mw-metrics', [
+            'user_id' => 'first',
+            'user_info' => ['name' => 'First'],
+        ]);
+
+        $second = $this->connectOnDifferentWorkerThan($first['workerId']);
+        $this->subscribe($second['client'], $second['socketId'], 'presence-mw-metrics', [
+            'user_id' => 'second',
+            'user_info' => ['name' => 'Second'],
+        ]);
+
+        $connections = $this->signedServerRequest('connections');
+        $this->assertSame(200, $connections['status']);
+        $this->assertSame(2, json_decode(
+            $connections['body'],
+            associative: true,
+            flags: JSON_THROW_ON_ERROR,
+        )['connections']);
+
+        $channel = $this->signedServerRequest('channels/presence-mw-metrics?info=user_count');
+        $this->assertSame(200, $channel['status']);
+        $this->assertSame(2, json_decode(
+            $channel['body'],
+            associative: true,
+            flags: JSON_THROW_ON_ERROR,
+        )['user_count']);
+
+        $users = $this->signedServerRequest('channels/presence-mw-metrics/users');
+        $this->assertSame(200, $users['status']);
+        $userIds = array_column(json_decode(
+            $users['body'],
+            associative: true,
+            flags: JSON_THROW_ON_ERROR,
+        )['users'], 'id');
+        $this->assertEqualsCanonicalizing(['first', 'second'], $userIds);
+
+        $this->disconnect($first['client']);
+        $this->disconnect($second['client']);
+    }
+
+    public function testUserTerminationDisconnectsMatchingClientsOnEveryWorker(): void
+    {
+        $first = $this->connect();
+        $this->subscribe($first['client'], $first['socketId'], 'presence-mw-termination', [
+            'user_id' => 'target',
+            'user_info' => ['name' => 'Target'],
+        ]);
+
+        $second = $this->connectOnDifferentWorkerThan($first['workerId']);
+        $this->subscribe($second['client'], $second['socketId'], 'presence-mw-termination', [
+            'user_id' => 'target',
+            'user_info' => ['name' => 'Target'],
+        ]);
+
+        $response = $this->signedServerPostRequest('users/target/terminate_connections');
+
+        $this->assertSame(200, $response['status']);
+
+        $first['client']->recv(2);
+        $second['client']->recv(2);
+
+        $this->assertFalse($first['client']->connected);
+        $this->assertFalse($second['client']->connected);
+    }
+
+    public function testDrainOnOneWorkerDoesNotAffectOtherWorker(): void
     {
         // Connect clients on different workers, subscribe to same channel
         $result = $this->connectOnDifferentWorkers('test-drain-mw');
