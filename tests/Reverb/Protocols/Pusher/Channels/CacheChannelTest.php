@@ -7,9 +7,9 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher\Channels;
 use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelBroker;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
+use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
 
 class CacheChannelTest extends ReverbTestCase
 {
@@ -22,25 +22,21 @@ class CacheChannelTest extends ReverbTestCase
         parent::setUp();
 
         $this->connection = new FakeConnection;
-        $this->channelConnectionManager = m::spy(ChannelConnectionManager::class);
-        $this->channelConnectionManager->shouldReceive('for')
-            ->andReturn($this->channelConnectionManager);
+        $this->channelConnectionManager = new ArrayChannelConnectionManager;
         $this->app->bind(ChannelConnectionManager::class, fn () => $this->channelConnectionManager);
     }
 
-    public function testReceivesNoDataWhenNoPreviousEventTriggered()
+    public function testReceivesNoDataWhenNoPreviousEventTriggered(): void
     {
         $channel = ChannelBroker::create('cache-test-channel');
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once()
-            ->with($this->connection, []);
 
         $channel->subscribe($this->connection);
 
+        $this->assertTrue($channel->subscribed($this->connection));
         $this->connection->assertNothingReceived();
     }
 
-    public function testStoresLastTriggeredEvent()
+    public function testStoresLastTriggeredEvent(): void
     {
         $channel = new CacheChannel('cache-test-channel');
 

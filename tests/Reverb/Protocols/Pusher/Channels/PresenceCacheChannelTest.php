@@ -8,6 +8,7 @@ use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\PresenceCacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
+use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
@@ -23,39 +24,32 @@ class PresenceCacheChannelTest extends ReverbTestCase
         parent::setUp();
 
         $this->connection = new FakeConnection;
-        $this->channelConnectionManager = m::spy(ChannelConnectionManager::class);
-        $this->channelConnectionManager->shouldReceive('for')
-            ->andReturn($this->channelConnectionManager);
+        $this->channelConnectionManager = m::mock(ArrayChannelConnectionManager::class)->makePartial();
         $this->app->bind(ChannelConnectionManager::class, fn () => $this->channelConnectionManager);
     }
 
-    public function testCanSubscribeAConnectionToAChannel()
+    public function testCanSubscribeAConnectionToAChannel(): void
     {
         $channel = new PresenceCacheChannel('presence-cache-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once();
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'presence-cache-test-channel'));
+
+        $this->assertTrue($channel->subscribed($this->connection));
     }
 
-    public function testCanUnsubscribeAConnectionFromAChannel()
+    public function testCanUnsubscribeAConnectionFromAChannel(): void
     {
         $channel = new PresenceCacheChannel('presence-cache-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('remove')
-            ->once()
-            ->with($this->connection);
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'presence-cache-test-channel'));
         $channel->unsubscribe($this->connection);
+
+        $this->assertFalse($channel->subscribed($this->connection));
     }
 
-    public function testCanBroadcastToAllConnectionsOfAChannel()
+    public function testCanBroadcastToAllConnectionsOfAChannel(): void
     {
         $channel = new PresenceCacheChannel('presence-cache-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('subscribe');
 
         $this->channelConnectionManager->shouldReceive('all')
             ->once()
@@ -66,20 +60,22 @@ class PresenceCacheChannelTest extends ReverbTestCase
         collect($connections)->each(fn ($connection) => $connection->assertReceived(['foo' => 'bar']));
     }
 
-    public function testFailsToSubscribeIfTheSignatureIsInvalid()
+    public function testFailsToSubscribeIfTheSignatureIsInvalid(): void
     {
         $channel = new PresenceCacheChannel('presence-cache-test-channel');
-
-        $this->channelConnectionManager->shouldNotReceive('subscribe');
 
         $this->expectException(ConnectionUnauthorized::class);
 
-        $channel->subscribe($this->connection, 'invalid-signature');
+        try {
+            $channel->subscribe($this->connection, 'invalid-signature');
+        } finally {
+            $this->assertFalse($channel->subscribed($this->connection));
+        }
     }
 
-    public function testCanReturnDataStoredOnTheConnection()
+    public function testCanReturnDataStoredOnTheConnection(): void
     {
-        $channel = new PresenceCacheChannel('presence-cache-test-channel');
+        $channel = $this->channels()->findOrCreate('presence-cache-test-channel');
 
         $connections = [
             collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => 1]))->first(),
@@ -87,7 +83,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
         ];
 
         $this->channelConnectionManager->shouldReceive('all')
-            ->once()
+            ->twice()
             ->andReturn($connections);
 
         $this->assertSame([
@@ -102,7 +98,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
         ], $channel->data());
     }
 
-    public function testSendsNotificationOfSubscription()
+    public function testSendsNotificationOfSubscription(): void
     {
         $channel = $this->channels()->findOrCreate('presence-cache-test-channel');
 
@@ -122,7 +118,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
         ]));
     }
 
-    public function testSendsNotificationOfSubscriptionWithData()
+    public function testSendsNotificationOfSubscriptionWithData(): void
     {
         $channel = $this->channels()->findOrCreate('presence-cache-test-channel');
         $data = json_encode(['name' => 'Joe']);
@@ -147,7 +143,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
         ]));
     }
 
-    public function testSendsNotificationOfAnUnsubscribe()
+    public function testSendsNotificationOfAnUnsubscribe(): void
     {
         $channel = $this->channels()->findOrCreate('presence-cache-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Joe'], 'user_id' => 1]);
@@ -177,7 +173,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
         ]));
     }
 
-    public function testReceivesNoDataWhenNoPreviousEventTriggered()
+    public function testReceivesNoDataWhenNoPreviousEventTriggered(): void
     {
         $channel = new PresenceCacheChannel('presence-cache-test-channel');
 
@@ -190,7 +186,7 @@ class PresenceCacheChannelTest extends ReverbTestCase
         $this->connection->assertNothingReceived();
     }
 
-    public function testStoresLastTriggeredEvent()
+    public function testStoresLastTriggeredEvent(): void
     {
         $channel = new PresenceCacheChannel('presence-cache-test-channel');
 

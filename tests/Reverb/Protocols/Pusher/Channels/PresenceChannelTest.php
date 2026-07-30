@@ -8,6 +8,7 @@ use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\PresenceChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
+use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
@@ -26,39 +27,32 @@ class PresenceChannelTest extends ReverbTestCase
         parent::setUp();
 
         $this->connection = new FakeConnection;
-        $this->channelConnectionManager = m::spy(ChannelConnectionManager::class);
-        $this->channelConnectionManager->shouldReceive('for')
-            ->andReturn($this->channelConnectionManager);
+        $this->channelConnectionManager = m::mock(ArrayChannelConnectionManager::class)->makePartial();
         $this->app->bind(ChannelConnectionManager::class, fn () => $this->channelConnectionManager);
     }
 
-    public function testCanSubscribeAConnectionToAChannel()
+    public function testCanSubscribeAConnectionToAChannel(): void
     {
         $channel = new PresenceChannel('presence-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once();
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'presence-test-channel'));
+
+        $this->assertTrue($channel->subscribed($this->connection));
     }
 
-    public function testCanUnsubscribeAConnectionFromAChannel()
+    public function testCanUnsubscribeAConnectionFromAChannel(): void
     {
         $channel = new PresenceChannel('presence-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('remove')
-            ->once()
-            ->with($this->connection);
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'presence-test-channel'));
         $channel->unsubscribe($this->connection);
+
+        $this->assertFalse($channel->subscribed($this->connection));
     }
 
-    public function testCanBroadcastToAllConnectionsOfAChannel()
+    public function testCanBroadcastToAllConnectionsOfAChannel(): void
     {
         $channel = new PresenceChannel('presence-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('subscribe');
 
         $this->channelConnectionManager->shouldReceive('all')
             ->once()
@@ -69,20 +63,22 @@ class PresenceChannelTest extends ReverbTestCase
         collect($connections)->each(fn ($connection) => $connection->assertReceived(['foo' => 'bar']));
     }
 
-    public function testFailsToSubscribeIfTheSignatureIsInvalid()
+    public function testFailsToSubscribeIfTheSignatureIsInvalid(): void
     {
         $channel = new PresenceChannel('presence-test-channel');
-
-        $this->channelConnectionManager->shouldNotReceive('subscribe');
 
         $this->expectException(ConnectionUnauthorized::class);
 
-        $channel->subscribe($this->connection, 'invalid-signature');
+        try {
+            $channel->subscribe($this->connection, 'invalid-signature');
+        } finally {
+            $this->assertFalse($channel->subscribed($this->connection));
+        }
     }
 
-    public function testCanReturnDataStoredOnTheConnection()
+    public function testCanReturnDataStoredOnTheConnection(): void
     {
-        $channel = new PresenceChannel('presence-test-channel');
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
 
         $connections = [
             collect(static::factory(data: ['user_info' => ['name' => 'Joe'], 'user_id' => 1]))->first(),
@@ -90,7 +86,7 @@ class PresenceChannelTest extends ReverbTestCase
         ];
 
         $this->channelConnectionManager->shouldReceive('all')
-            ->once()
+            ->twice()
             ->andReturn($connections);
 
         $this->assertSame([
@@ -105,7 +101,7 @@ class PresenceChannelTest extends ReverbTestCase
         ], $channel->data());
     }
 
-    public function testSendsNotificationOfSubscription()
+    public function testSendsNotificationOfSubscription(): void
     {
         $channel = $this->channels()->findOrCreate('presence-test-channel');
 
@@ -125,7 +121,7 @@ class PresenceChannelTest extends ReverbTestCase
         ]));
     }
 
-    public function testSendsNotificationOfSubscriptionWithData()
+    public function testSendsNotificationOfSubscriptionWithData(): void
     {
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['name' => 'Joe']);
@@ -150,7 +146,7 @@ class PresenceChannelTest extends ReverbTestCase
         ]));
     }
 
-    public function testSendsNotificationOfAnUnsubscribe()
+    public function testSendsNotificationOfAnUnsubscribe(): void
     {
         $channel = $this->channels()->findOrCreate('presence-test-channel');
         $data = json_encode(['user_info' => ['name' => 'Joe'], 'user_id' => 1]);
@@ -223,7 +219,7 @@ class PresenceChannelTest extends ReverbTestCase
         });
     }
 
-    public function testEnsuresTheMemberAddedEventIsOnlyFiredOnce()
+    public function testEnsuresTheMemberAddedEventIsOnlyFiredOnce(): void
     {
         $channel = new PresenceChannel('presence-test-channel');
 
@@ -240,7 +236,7 @@ class PresenceChannelTest extends ReverbTestCase
         $connectionOne->connection()->assertNothingReceived();
     }
 
-    public function testEnsuresTheMemberRemovedEventIsOnlyFiredOnce()
+    public function testEnsuresTheMemberRemovedEventIsOnlyFiredOnce(): void
     {
         $channel = new PresenceChannel('presence-test-channel');
 
@@ -265,7 +261,7 @@ class PresenceChannelTest extends ReverbTestCase
 
     // ── Disconnect smoothing ──────────────────────────────────────────
 
-    public function testDisconnectDefersMemberRemovedWebhook()
+    public function testDisconnectDefersMemberRemovedWebhook(): void
     {
         Queue::fake();
 
@@ -299,7 +295,7 @@ class PresenceChannelTest extends ReverbTestCase
         });
     }
 
-    public function testExplicitUnsubscribeFiresMemberRemovedImmediately()
+    public function testExplicitUnsubscribeFiresMemberRemovedImmediately(): void
     {
         Queue::fake();
 
@@ -334,7 +330,7 @@ class PresenceChannelTest extends ReverbTestCase
 
     // ── Reconnect suppression ─────────────────────────────────────────
 
-    public function testReconnectWithinSmoothingWindowSuppressesMemberAddedWebhook()
+    public function testReconnectWithinSmoothingWindowSuppressesMemberAddedWebhook(): void
     {
         Queue::fake();
 
@@ -354,9 +350,6 @@ class PresenceChannelTest extends ReverbTestCase
         );
 
         // Set up mock for unsubscribe's find() call
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
-
         // Simulate disconnect
         $this->connection->markDisconnecting();
         $channel->unsubscribe($this->connection);
@@ -380,7 +373,7 @@ class PresenceChannelTest extends ReverbTestCase
         });
     }
 
-    public function testReconnectStillSendsInternalMemberAddedEvent()
+    public function testReconnectStillSendsInternalMemberAddedEvent(): void
     {
         Queue::fake();
 
@@ -398,9 +391,6 @@ class PresenceChannelTest extends ReverbTestCase
             static::validAuth($this->connection->id(), 'presence-test-channel', $data),
             $data
         );
-
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
 
         // Simulate disconnect
         $this->connection->markDisconnecting();
@@ -432,7 +422,7 @@ class PresenceChannelTest extends ReverbTestCase
         ]);
     }
 
-    public function testCrossWorkerSmoothingMarkerSuppressesMemberAdded()
+    public function testCrossWorkerSmoothingMarkerSuppressesMemberAdded(): void
     {
         Queue::fake();
 
@@ -461,7 +451,7 @@ class PresenceChannelTest extends ReverbTestCase
         });
     }
 
-    public function testConsumedMemberMarkerDoesNotSuppressSubsequentLegitimateAdd()
+    public function testConsumedMemberMarkerDoesNotSuppressSubsequentLegitimateAdd(): void
     {
         Queue::fake();
 
@@ -486,9 +476,6 @@ class PresenceChannelTest extends ReverbTestCase
         );
 
         // Explicit unsubscribe — fires member_removed immediately, no new marker
-        $this->channelConnectionManager->shouldReceive('find')
-            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Test'], 'user_id' => '1']));
-
         $channel->unsubscribe($this->connection);
 
         // Reset queue
