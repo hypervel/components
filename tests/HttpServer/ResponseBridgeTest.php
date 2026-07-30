@@ -33,6 +33,7 @@ class ResponseBridgeTest extends TestCase
         parent::setUp();
 
         $this->tempDirectory = ParallelTesting::tempDir('ResponseBridgeTest');
+        (new Filesystem)->deleteDirectory($this->tempDirectory);
         mkdir($this->tempDirectory, 0777, true);
     }
 

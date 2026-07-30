@@ -41,7 +41,9 @@ class PoolConnectionManagementTest extends TestCase
         parent::setUpBeforeClass();
 
         self::$databaseDirectory = ParallelTesting::tempDir('PoolConnectionManagementTest');
-        (new Filesystem)->ensureDirectoryExists(self::$databaseDirectory);
+        $files = new Filesystem;
+        $files->deleteDirectory(self::$databaseDirectory);
+        $files->ensureDirectoryExists(self::$databaseDirectory);
         self::$databasePath = self::$databaseDirectory . '/database.sqlite';
         touch(self::$databasePath);
     }

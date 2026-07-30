@@ -46,6 +46,8 @@ class FilesystemAdapterTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('FilesystemAdapter');
+        $filesystem = new Filesystem(new LocalFilesystemAdapter(dirname($this->tempDir)));
+        $filesystem->deleteDirectory(basename($this->tempDir));
         $this->filesystem = new Filesystem(
             $this->adapter = new LocalFilesystemAdapter($this->tempDir)
         );
@@ -58,7 +60,7 @@ class FilesystemAdapterTest extends TestCase
         }
 
         $filesystem = new Filesystem(
-            $this->adapter = new LocalFilesystemAdapter(dirname($this->tempDir))
+            new LocalFilesystemAdapter(dirname($this->tempDir))
         );
         $filesystem->deleteDirectory(basename($this->tempDir));
 

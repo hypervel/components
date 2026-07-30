@@ -29,7 +29,9 @@ class FindDriverTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('watcher-find-driver');
-        (new Filesystem)->ensureDirectoryExists($this->tempDir);
+        $files = new Filesystem;
+        $files->deleteDirectory($this->tempDir);
+        $files->ensureDirectoryExists($this->tempDir);
     }
 
     protected function tearDown(): void

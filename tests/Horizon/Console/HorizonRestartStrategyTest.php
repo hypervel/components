@@ -23,6 +23,7 @@ class HorizonRestartStrategyTest extends TestCase
     {
         $tempDir = ParallelTesting::tempDir('horizon-restart-environment');
         $files = new Filesystem;
+        $files->deleteDirectory($tempDir);
         $files->ensureDirectoryExists($tempDir);
         $environmentFile = $tempDir . '/.env.custom';
         $files->put($environmentFile, 'HORIZON_RELOAD_VALUE=initial');

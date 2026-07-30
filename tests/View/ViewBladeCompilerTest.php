@@ -123,6 +123,7 @@ class ViewBladeCompilerTest extends TestCase
         $cache = $directory . '/cache';
 
         try {
+            $files->deleteDirectory($directory);
             $files->ensureDirectoryExists($cache);
             $files->put($source, 'Hello World');
 

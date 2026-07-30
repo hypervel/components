@@ -31,6 +31,7 @@ class FileFailedJobProviderTest extends TestCase
 
         $this->filesystem = new Filesystem;
         $this->tempDirectory = ParallelTesting::tempDir('FileFailedJobProviderTest');
+        $this->filesystem->deleteDirectory($this->tempDirectory);
         mkdir($this->tempDirectory, 0777, true);
         $this->path = $this->tempDirectory . '/failed-jobs.json';
         $this->provider = new FileFailedJobProvider($this->path);

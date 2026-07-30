@@ -52,7 +52,9 @@ class DbPoolHeartbeatTest extends TestCase
         parent::setUp();
 
         $this->databaseDirectory = ParallelTesting::tempDir('DbPoolHeartbeatTest');
-        (new Filesystem)->ensureDirectoryExists($this->databaseDirectory);
+        $files = new Filesystem;
+        $files->deleteDirectory($this->databaseDirectory);
+        $files->ensureDirectoryExists($this->databaseDirectory);
         $this->databasePath = $this->databaseDirectory . '/database.sqlite';
         touch($this->databasePath);
 

@@ -20,6 +20,7 @@ class EnvFileTest extends TestCase
         parent::setUp();
 
         $this->tempDirectory = ParallelTesting::tempDir('SupportEnvFileTest');
+        (new Filesystem)->deleteDirectory($this->tempDirectory);
         mkdir($this->tempDirectory, 0777, true);
 
         $this->envPath = $this->tempDirectory . '/.env';

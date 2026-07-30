@@ -38,6 +38,7 @@ class SessionConfiguratorTest extends DatabaseTestCase
         if (($connectionConfig['driver'] ?? null) === 'sqlite') {
             $filesystem = new Filesystem;
             $this->sqliteDirectory = ParallelTesting::tempDir('SessionConfiguratorTest');
+            $filesystem->deleteDirectory($this->sqliteDirectory);
             $filesystem->ensureDirectoryExists($this->sqliteDirectory);
             $connectionConfig['database'] = $this->sqliteDirectory . '/session.sqlite';
             touch($connectionConfig['database']);

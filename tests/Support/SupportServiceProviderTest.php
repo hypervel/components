@@ -515,6 +515,7 @@ class SupportServiceProviderTest extends TestCase
     public function testCanRemoveProvider()
     {
         $tempDirectory = ParallelTesting::tempDir('SupportServiceProviderTest-remove');
+        (new Filesystem)->deleteDirectory($tempDirectory);
         mkdir($tempDirectory, 0777, true);
 
         $tempFile = $tempDirectory . '/providers.php';
@@ -565,6 +566,7 @@ PHP, trim(file_get_contents($tempFile)));
     public function testCanAddProviderAndPreserveFileMode(): void
     {
         $tempDirectory = ParallelTesting::tempDir('SupportServiceProviderTest-add');
+        (new Filesystem)->deleteDirectory($tempDirectory);
         mkdir($tempDirectory, 0777, true);
 
         $tempFile = $tempDirectory . '/providers.php';

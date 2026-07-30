@@ -167,6 +167,7 @@ class FileSessionHandlerTest extends TestCase
     public function testGcDeletesOldSessionFiles(): void
     {
         $tempDir = ParallelTesting::tempDir('FileSessionHandlerTest');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         try {

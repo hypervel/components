@@ -116,6 +116,7 @@ class LoadEnvironmentVariablesTest extends TestCase
 
         // Copy fixture .env files to a temp dir so getCachedConfigPath()
         // writes to temp instead of the test source tree.
+        $filesystem->deleteDirectory($tempDir);
         $filesystem->copyDirectory(__DIR__ . '/../Fixtures/envs', $tempDir);
 
         try {

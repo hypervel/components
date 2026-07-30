@@ -305,6 +305,7 @@ class TimerTest extends TestCase
     public function testTickFallsBackToThePhpErrorLogAndContinues(): void
     {
         $directory = ParallelTesting::tempDir('TimerTest');
+        (new Filesystem)->deleteDirectory($directory);
         mkdir($directory, 0777, true);
         $errorLog = $directory . '/php-error.log';
         $previousErrorLog = ini_set('error_log', $errorLog);

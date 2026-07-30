@@ -91,6 +91,7 @@ class RouterExtensionTest extends RoutingTestCase
 
         $filesystem = new Filesystem;
         $tempDirectory = ParallelTesting::tempDir('RouterExtensionTest');
+        $filesystem->deleteDirectory($tempDirectory);
         $filesystem->ensureDirectoryExists($tempDirectory);
         $routeFile = $tempDirectory . '/throwing-routes.php';
         $filesystem->put($routeFile, "<?php\n\nthrow new RuntimeException('route file failed');\n");

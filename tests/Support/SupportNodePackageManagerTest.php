@@ -26,6 +26,7 @@ class SupportNodePackageManagerTest extends TestCase
 
         $this->filesystem = new Filesystem;
         $this->tempDirectory = ParallelTesting::tempDir('SupportNodePackageManagerTest');
+        $this->filesystem->deleteDirectory($this->tempDirectory);
         mkdir($this->tempDirectory, 0777, true);
     }
 

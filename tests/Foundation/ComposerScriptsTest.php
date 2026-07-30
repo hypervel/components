@@ -23,7 +23,9 @@ class ComposerScriptsTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('ComposerScriptsTest');
-        (new Filesystem)->ensureDirectoryExists($this->tempDir);
+        $files = new Filesystem;
+        $files->deleteDirectory($this->tempDir);
+        $files->ensureDirectoryExists($this->tempDir);
 
         foreach (['APP_CONFIG_CACHE', 'APP_PACKAGES_CACHE'] as $key) {
             $this->previousCachePaths[$key] = Env::get($key);
