@@ -491,6 +491,10 @@ class Kernel implements KernelContract
     /**
      * Add the given middleware to the middleware priority list before other middleware.
      *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
+     *
      * @param array<int, string>|string $before
      * @return $this
      */
@@ -501,6 +505,10 @@ class Kernel implements KernelContract
 
     /**
      * Add the given middleware to the middleware priority list after other middleware.
+     *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
      *
      * @param array<int, string>|string $after
      * @return $this
@@ -565,6 +573,8 @@ class Kernel implements KernelContract
 
     /**
      * Get the priority-sorted list of middleware.
+     *
+     * @return string[]
      */
     public function getMiddlewarePriority(): array
     {
@@ -599,6 +609,8 @@ class Kernel implements KernelContract
 
     /**
      * Get the application's global middleware.
+     *
+     * @return array<int, class-string|string>
      */
     public function getGlobalMiddleware(): array
     {
@@ -608,6 +620,11 @@ class Kernel implements KernelContract
     /**
      * Set the application's global middleware.
      *
+     * Boot-only. Middleware persists in the singleton Kernel's global stack for
+     * the worker lifetime and runs on every subsequent request across all
+     * coroutines.
+     *
+     * @param array<int, class-string|string> $middleware
      * @return $this
      */
     public function setGlobalMiddleware(array $middleware): static
@@ -621,6 +638,8 @@ class Kernel implements KernelContract
 
     /**
      * Get the application's route middleware groups.
+     *
+     * @return array<string, array<int, class-string|string>>
      */
     public function getMiddlewareGroups(): array
     {
@@ -630,6 +649,10 @@ class Kernel implements KernelContract
     /**
      * Set the application's middleware groups.
      *
+     * Boot-only. Middleware groups persist in the singleton Kernel for the
+     * worker lifetime and affect every subsequent request matching those groups.
+     *
+     * @param array<string, array<int, class-string|string>> $groups
      * @return $this
      */
     public function setMiddlewareGroups(array $groups): static
@@ -643,6 +666,8 @@ class Kernel implements KernelContract
 
     /**
      * Get the application's route middleware aliases.
+     *
+     * @return array<string, class-string|string>
      */
     public function getMiddlewareAliases(): array
     {
@@ -652,6 +677,10 @@ class Kernel implements KernelContract
     /**
      * Set the application's route middleware aliases.
      *
+     * Boot-only. Middleware aliases persist in the singleton Kernel for the
+     * worker lifetime and affect every subsequent request that uses them.
+     *
+     * @param array<string, class-string|string> $aliases
      * @return $this
      */
     public function setMiddlewareAliases(array $aliases): static
@@ -666,6 +695,11 @@ class Kernel implements KernelContract
     /**
      * Set the application's middleware priority.
      *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
+     *
+     * @param string[] $priority
      * @return $this
      */
     public function setMiddlewarePriority(array $priority): static

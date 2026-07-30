@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Sentry\Facade;
+use Hypervel\Sentry\Http\FlushEventsMiddleware;
+use Hypervel\Sentry\Http\SetRequestIpMiddleware;
+use Hypervel\Sentry\SentryServiceProvider;
+use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
 use Hypervel\Support\Facades\Artisan;
+use Mockery as m;
 use Sentry\State\HubInterface;
 
 class ServiceProviderTest extends SentryTestCase
@@ -47,5 +53,37 @@ class ServiceProviderTest extends SentryTestCase
     {
         $this->assertArrayHasKey('sentry:test', Artisan::all());
         $this->assertArrayHasKey('sentry:publish', Artisan::all());
+    }
+
+    public function testMiddlewareRegistersThroughTheKernelContract(): void
+    {
+        $kernel = m::mock(Kernel::class);
+        $kernel->shouldReceive('prependMiddleware')
+            ->once()
+            ->with(TracingMiddleware::class)
+            ->andReturnSelf();
+        $kernel->shouldReceive('pushMiddleware')
+            ->once()
+            ->with(SetRequestIpMiddleware::class)
+            ->andReturnSelf();
+        $kernel->shouldReceive('pushMiddleware')
+            ->once()
+            ->with(FlushEventsMiddleware::class)
+            ->andReturnSelf();
+        $this->app->instance(Kernel::class, $kernel);
+
+        (new InspectableSentryServiceProvider($this->app))
+            ->registerMiddlewareForTest();
+    }
+}
+
+class InspectableSentryServiceProvider extends SentryServiceProvider
+{
+    /**
+     * Register middleware for inspection.
+     */
+    public function registerMiddlewareForTest(): void
+    {
+        $this->registerMiddleware();
     }
 }
