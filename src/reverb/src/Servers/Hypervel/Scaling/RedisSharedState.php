@@ -9,6 +9,20 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 
 class RedisSharedState implements SharedState
 {
+    protected const string SUBSCRIPTION_KEY_TYPE = 's';
+
+    protected const string USER_KEY_TYPE = 'u';
+
+    protected const string CONNECTION_KEY_TYPE = 'c';
+
+    protected const string SUBSCRIPTION_COUNT_LOCK_KEY_TYPE = 't';
+
+    protected const string CACHE_MISS_LOCK_KEY_TYPE = 'm';
+
+    protected const string CHANNEL_SMOOTHING_KEY_TYPE = 'h';
+
+    protected const string MEMBER_SMOOTHING_KEY_TYPE = 'p';
+
     /**
      * Create a new Redis shared state instance.
      */
@@ -22,19 +36,23 @@ class RedisSharedState implements SharedState
      */
     public function subscribe(string $appId, string $channel, ?string $userId = null): SubscriptionResult
     {
-        $channelKey = "reverb:sub:{$appId}:{$channel}";
-        $channelCount = (int) $this->redis->incr($channelKey);
-        $channelOccupied = ($channelCount === 1);
+        $channelKey = $this->channelKey($appId, $channel);
 
-        $memberAdded = false;
-        if ($userId !== null) {
-            $userKey = "reverb:user:{$appId}:{$channel}:{$userId}";
-            $userCount = (int) $this->redis->incr($userKey);
-            $memberAdded = ($userCount === 1);
+        if ($userId === null) {
+            $channelCount = (int) $this->redis->incr($channelKey);
+            $memberAdded = false;
+        } else {
+            [$channelCount, $userCount] = $this->redis->evalWithShaCache(
+                $this->subscribePresenceScript(),
+                [$channelKey, $this->userKey($appId, $channel, $userId)],
+                [],
+            );
+            $channelCount = (int) $channelCount;
+            $memberAdded = (int) $userCount === 1;
         }
 
         return new SubscriptionResult(
-            channelOccupied: $channelOccupied,
+            channelOccupied: $channelCount === 1,
             channelVacated: false,
             memberAdded: $memberAdded,
             memberRemoved: false,
@@ -50,28 +68,28 @@ class RedisSharedState implements SharedState
      */
     public function unsubscribe(string $appId, string $channel, ?string $userId = null): SubscriptionResult
     {
-        $channelKey = "reverb:sub:{$appId}:{$channel}";
-        $channelCount = (int) $this->redis->evalWithShaCache(
-            $this->decrAndCleanupScript(),
-            [$channelKey],
-            [],
-        );
-        $channelVacated = ($channelCount <= 0);
+        $channelKey = $this->channelKey($appId, $channel);
 
-        $memberRemoved = false;
-        if ($userId !== null) {
-            $userKey = "reverb:user:{$appId}:{$channel}:{$userId}";
-            $userCount = (int) $this->redis->evalWithShaCache(
+        if ($userId === null) {
+            $channelCount = (int) $this->redis->evalWithShaCache(
                 $this->decrAndCleanupScript(),
-                [$userKey],
+                [$channelKey],
                 [],
             );
-            $memberRemoved = ($userCount <= 0);
+            $memberRemoved = false;
+        } else {
+            [$channelCount, $userCount] = $this->redis->evalWithShaCache(
+                $this->unsubscribePresenceScript(),
+                [$channelKey, $this->userKey($appId, $channel, $userId)],
+                [],
+            );
+            $channelCount = (int) $channelCount;
+            $memberRemoved = (int) $userCount <= 0;
         }
 
         return new SubscriptionResult(
             channelOccupied: false,
-            channelVacated: $channelVacated,
+            channelVacated: $channelCount <= 0,
             memberAdded: false,
             memberRemoved: $memberRemoved,
             subscriptionCount: max(0, $channelCount),
@@ -85,7 +103,7 @@ class RedisSharedState implements SharedState
      */
     public function acquireConnectionSlot(string $appId, int $maxConnections): bool
     {
-        $key = "reverb:conn:{$appId}";
+        $key = $this->key(self::CONNECTION_KEY_TYPE, $appId);
 
         return (bool) $this->redis->evalWithShaCache(
             $this->acquireSlotScript(),
@@ -99,7 +117,7 @@ class RedisSharedState implements SharedState
      */
     public function releaseConnectionSlot(string $appId): void
     {
-        $key = "reverb:conn:{$appId}";
+        $key = $this->key(self::CONNECTION_KEY_TYPE, $appId);
 
         $this->redis->evalWithShaCache(
             $this->decrAndCleanupScript(),
@@ -113,7 +131,7 @@ class RedisSharedState implements SharedState
      */
     public function getSubscriptionCount(string $appId, string $channel): int
     {
-        return (int) $this->redis->get("reverb:sub:{$appId}:{$channel}");
+        return (int) $this->redis->get($this->channelKey($appId, $channel));
     }
 
     /**
@@ -121,7 +139,7 @@ class RedisSharedState implements SharedState
      */
     public function getUserSubscriptionCount(string $appId, string $channel, string $userId): int
     {
-        return (int) $this->redis->get("reverb:user:{$appId}:{$channel}:{$userId}");
+        return (int) $this->redis->get($this->userKey($appId, $channel, $userId));
     }
 
     /**
@@ -129,7 +147,13 @@ class RedisSharedState implements SharedState
      */
     public function trySubscriptionCountLock(string $appId, string $channel, int $ttlMs = 5000): bool
     {
-        return $this->redis->set("reverb:subcount-lock:{$appId}:{$channel}", '1', 'PX', $ttlMs, 'NX') == true;
+        return $this->redis->set(
+            $this->key(self::SUBSCRIPTION_COUNT_LOCK_KEY_TYPE, $appId, $channel),
+            '1',
+            'PX',
+            $ttlMs,
+            'NX',
+        ) === true;
     }
 
     /**
@@ -137,7 +161,13 @@ class RedisSharedState implements SharedState
      */
     public function tryCacheMissLock(string $appId, string $channel, int $ttlMs = 10000): bool
     {
-        return $this->redis->set("reverb:cache-miss-lock:{$appId}:{$channel}", '1', 'PX', $ttlMs, 'NX') == true;
+        return $this->redis->set(
+            $this->key(self::CACHE_MISS_LOCK_KEY_TYPE, $appId, $channel),
+            '1',
+            'PX',
+            $ttlMs,
+            'NX',
+        ) === true;
     }
 
     /**
@@ -145,7 +175,7 @@ class RedisSharedState implements SharedState
      */
     public function clearCacheMissLock(string $appId, string $channel): void
     {
-        $this->redis->del("reverb:cache-miss-lock:{$appId}:{$channel}");
+        $this->redis->del($this->key(self::CACHE_MISS_LOCK_KEY_TYPE, $appId, $channel));
     }
 
     /**
@@ -153,7 +183,7 @@ class RedisSharedState implements SharedState
      */
     public function clearSubscriptionCountLock(string $appId, string $channel): void
     {
-        $this->redis->del("reverb:subcount-lock:{$appId}:{$channel}");
+        $this->redis->del($this->key(self::SUBSCRIPTION_COUNT_LOCK_KEY_TYPE, $appId, $channel));
     }
 
     /**
@@ -161,7 +191,12 @@ class RedisSharedState implements SharedState
      */
     public function setSmoothingPending(string $appId, string $channel, int $ttlMs): void
     {
-        $this->redis->set("reverb:smoothing:{$appId}:{$channel}", '1', 'PX', $ttlMs);
+        $this->redis->set(
+            $this->key(self::CHANNEL_SMOOTHING_KEY_TYPE, $appId, $channel),
+            '1',
+            'PX',
+            $ttlMs,
+        );
     }
 
     /**
@@ -169,7 +204,9 @@ class RedisSharedState implements SharedState
      */
     public function clearSmoothingPending(string $appId, string $channel, int $ttlMs): bool
     {
-        return (int) $this->redis->del("reverb:smoothing:{$appId}:{$channel}") > 0;
+        return (int) $this->redis->del(
+            $this->key(self::CHANNEL_SMOOTHING_KEY_TYPE, $appId, $channel),
+        ) > 0;
     }
 
     /**
@@ -177,7 +214,12 @@ class RedisSharedState implements SharedState
      */
     public function setMemberSmoothingPending(string $appId, string $channel, string $userId, int $ttlMs): void
     {
-        $this->redis->set("reverb:smoothing:{$appId}:{$channel}:{$userId}", '1', 'PX', $ttlMs);
+        $this->redis->set(
+            $this->key(self::MEMBER_SMOOTHING_KEY_TYPE, $appId, $channel, $userId),
+            '1',
+            'PX',
+            $ttlMs,
+        );
     }
 
     /**
@@ -185,7 +227,51 @@ class RedisSharedState implements SharedState
      */
     public function clearMemberSmoothingPending(string $appId, string $channel, string $userId, int $ttlMs): bool
     {
-        return (int) $this->redis->del("reverb:smoothing:{$appId}:{$channel}:{$userId}") > 0;
+        return (int) $this->redis->del(
+            $this->key(self::MEMBER_SMOOTHING_KEY_TYPE, $appId, $channel, $userId),
+        ) > 0;
+    }
+
+    /**
+     * Lua script to atomically increment a presence channel and member.
+     *
+     * KEYS[1] - The channel counter key
+     * KEYS[2] - The member counter key
+     *
+     * Returns the channel and member counts after incrementing.
+     */
+    protected function subscribePresenceScript(): string
+    {
+        return <<<'LUA'
+            local channel_count = redis.call('INCR', KEYS[1])
+            local user_count = redis.call('INCR', KEYS[2])
+            return {channel_count, user_count}
+        LUA;
+    }
+
+    /**
+     * Lua script to atomically decrement and clean up a presence channel and member.
+     *
+     * KEYS[1] - The channel counter key
+     * KEYS[2] - The member counter key
+     *
+     * Returns the channel and member counts after decrementing.
+     */
+    protected function unsubscribePresenceScript(): string
+    {
+        return <<<'LUA'
+            local channel_count = redis.call('DECR', KEYS[1])
+            if channel_count <= 0 then
+                redis.call('DEL', KEYS[1])
+            end
+
+            local user_count = redis.call('DECR', KEYS[2])
+            if user_count <= 0 then
+                redis.call('DEL', KEYS[2])
+            end
+
+            return {channel_count, user_count}
+        LUA;
     }
 
     /**
@@ -225,5 +311,40 @@ class RedisSharedState implements SharedState
             end
             return 1
         LUA;
+    }
+
+    /**
+     * Get a channel counter key.
+     */
+    protected function channelKey(string $appId, string $channel): string
+    {
+        return $this->key(self::SUBSCRIPTION_KEY_TYPE, $appId, $channel);
+    }
+
+    /**
+     * Get a member counter key.
+     */
+    protected function userKey(string $appId, string $channel, string $userId): string
+    {
+        return $this->key(self::USER_KEY_TYPE, $appId, $channel, $userId);
+    }
+
+    /**
+     * Get a Redis key for a canonical logical identity.
+     */
+    protected function key(string $type, string ...$parts): string
+    {
+        return 'reverb:' . $this->logicalKey($type, ...$parts);
+    }
+
+    /**
+     * Get a canonical logical shared-state key.
+     */
+    protected function logicalKey(string $type, string ...$parts): string
+    {
+        return $type . '|' . implode('|', array_map(
+            static fn (string $part): string => strlen($part) . ':' . $part,
+            $parts,
+        ));
     }
 }
