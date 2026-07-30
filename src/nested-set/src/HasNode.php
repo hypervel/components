@@ -209,7 +209,8 @@ trait HasNode
     {
         $parent->refreshNode();
         $cut = $prepend ? $parent->getLft() + 1 : $parent->getRgt();
-        $targetDepth = $parent->getDepth() + 1;
+        $parentDepth = $parent->getDepth();
+        $targetDepth = $parentDepth === null ? null : $parentDepth + 1;
 
         if (! $this->insertAt($cut, $targetDepth)) {
             return false;
@@ -249,7 +250,15 @@ trait HasNode
      */
     public function refreshNode(): void
     {
-        if (! $this->exists || ! NodeContext::hasPerformed($this)) {
+        if (! $this->exists) {
+            return;
+        }
+
+        if (! NodeContext::hasPerformed($this)
+            && $this->getLft() !== null
+            && $this->getRgt() !== null
+            && $this->getDepth() !== null
+        ) {
             return;
         }
 

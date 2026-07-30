@@ -94,6 +94,38 @@ class ScopedNodeTest extends TestCase
         }
     }
 
+    public function testSubtreeOperationRejectsRootWithoutScopeBeforeWriting(): void
+    {
+        $columns = ['id', 'menu_id', '_lft', '_rgt', 'parent_id', 'depth', 'title'];
+        $before = DB::table('menu_items')
+            ->orderBy('id')
+            ->get($columns)
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
+        $root = MenuItem::query()
+            ->select(['id', '_lft', '_rgt', 'parent_id', 'depth'])
+            ->findOrFail(2);
+
+        try {
+            MenuItem::fixSubtree($root);
+            $this->fail('Expected the incomplete subtree scope to be rejected.');
+        } catch (LogicException $exception) {
+            $this->assertSame(
+                'Nested set subtree repair for [Hypervel\Tests\NestedSet\Models\MenuItem] requires a concrete scoped([...]) selection because attribute [menu_id] was not selected.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(
+            $before,
+            DB::table('menu_items')
+                ->orderBy('id')
+                ->get($columns)
+                ->map(fn (object $row): array => (array) $row)
+                ->all(),
+        );
+    }
+
     public function testScalarLookupsRequireAConcreteScopeSelection(): void
     {
         $operations = [
@@ -430,7 +462,7 @@ class ScopedNodeTest extends TestCase
         $foo = MenuItem::find(1);
         $bar = MenuItem::find(3);
 
-        $foo->insertAfterNode($bar);
+        $foo->insertBeforeNode($bar);
     }
 
     public function testEagerLoadingAncestorsWithScope(): void

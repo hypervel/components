@@ -441,7 +441,7 @@ class QueryBuilder extends EloquentBuilder
         $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
 
         foreach ([$lftName, $rgtName, $depthName] as $column) {
-            if (! array_key_exists($column, $data)) {
+            if (! isset($data[$column])) {
                 throw new LogicException(sprintf(
                     'Node data for [%s] must contain [%s], [%s], and [%s].',
                     $this->model::class,
@@ -936,19 +936,47 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Assert that every nested set scope attribute is selected.
      */
-    protected function assertConcreteNestedSetScope(string $operation = 'diagnostics'): void
-    {
-        $attributes = $this->model->getAttributes();
+    protected function assertConcreteNestedSetScope(
+        string $operation = 'diagnostics',
+        ?Model $model = null,
+    ): void {
+        $model ??= $this->model;
+        $attributes = $model->getAttributes();
 
-        foreach (array_keys($this->model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
+        foreach (array_keys($model->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
             if (! array_key_exists($attribute, $attributes)) {
                 throw new LogicException(sprintf(
-                    'Nested set %s for [%s] requires a concrete scoped([...]) selection.',
+                    'Nested set %s for [%s] requires a concrete scoped([...]) selection because attribute [%s] was not selected.',
                     $operation,
-                    $this->model::class,
+                    $model::class,
+                    $attribute,
                 ));
             }
         }
+    }
+
+    /**
+     * Assert that a subtree repair root has complete persisted structural data.
+     */
+    protected function assertRepairRootIsComplete(Model $root, string $operation): void
+    {
+        $this->assertConcreteNestedSetScope($operation, $root);
+
+        if ($root->exists
+            && $root->getKey() !== null
+            && $root->getLft() !== null /* @phpstan-ignore method.notFound */
+            && $root->getRgt() !== null /* @phpstan-ignore method.notFound */
+            && $root->getDepth() !== null /* @phpstan-ignore method.notFound */
+        ) {
+            return;
+        }
+
+        throw new LogicException(sprintf(
+            'Nested set %s root [%s] with key [%s] must be persisted with loaded bounds and depth.',
+            $operation,
+            $root::class,
+            $root->getKey() ?? 'null',
+        ));
     }
 
     /**
@@ -1022,6 +1050,7 @@ class QueryBuilder extends EloquentBuilder
         if ($root === null) {
             $this->assertConcreteNestedSetScope('repair');
         } else {
+            $this->assertRepairRootIsComplete($root, 'subtree repair');
             $this->assertSubtreeSelectionComplete($root);
         }
 
@@ -1323,6 +1352,7 @@ class QueryBuilder extends EloquentBuilder
             $this->assertConcreteNestedSetScope('rebuild');
         } else {
             // Temporary rebuild nodes use zero bounds, so validate first.
+            $this->assertRepairRootIsComplete($root, 'subtree rebuild');
             $this->assertSubtreeSelectionComplete($root);
         }
 

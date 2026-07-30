@@ -308,9 +308,9 @@ works for scoped and trashed rows. `getNodeData()` returns named left, right,
 and depth values; `getPlainNodeData()` still extracts only `[left, right]` for
 range consumers.
 
-Internal model actions pass an explicit target depth when the source model has
-loaded it. A partial-select before/after action and direct low-level callers
-may omit it; the public builder derives the persisted target depth:
+Internal model actions pass an explicit target depth only when it is loaded.
+Partial model targets and direct low-level callers preserve an omitted depth;
+the public builder derives the persisted value:
 
 ```php
 public function moveNode(
@@ -622,11 +622,12 @@ containing ancestors in no-op updates and widens locks.
 
 Use known source/target bounds and depth in movement SQL. Refresh the source
 only when the coroutine freshness marker proves another structural operation
-could have made it stale. Publish freshness after that check and immediately
-before the movement update; publish new-node insertion immediately before its
-gap update. Refresh `insertAfterNode()`'s target after success, matching
-`insertBeforeNode()`, and invalidate structural relations on refreshed or
-moved models.
+could have made it stale or its bounds/depth were not selected. Reject direct
+builder node data with absent or null structural values. Publish freshness
+after that check and immediately before the movement update; publish new-node
+insertion immediately before its gap update. Refresh `insertAfterNode()`'s
+target after success, matching `insertBeforeNode()`, and invalidate structural
+relations on refreshed or moved models.
 
 Publication remains before the builder call when a requested movement has zero
 distance. That may cause one conservative later refresh, but moving it after
@@ -722,12 +723,14 @@ tree in PHP or use a quadratic crossing join.
 `fixTree(?Model $root = null, array $extraColumns = [])` and
 `fixSubtree(Model $root, array $extraColumns = [])` select only structural
 columns plus explicit observer-required fields and use the structural builder.
-Before subtree repair/rebuild writes, one `exists` query with a `whereIn`
-subquery rejects a parentage edge that leaves the supplied root's stored
-interval. This proves the range-selected repair set is complete; otherwise the
-operation fails descriptively rather than reporting success over rows it could
-not see. Rebuild performs this check before creating any temporary zero-bound
-nodes.
+Before subtree repair/rebuild writes, require a persisted root with a key,
+loaded bounds/depth, and every concrete scope attribute. Scope errors retain
+the `scoped([...])` guidance and name the absent attribute. A separate
+`exists` query with a `whereIn` subquery then rejects a parentage edge that
+leaves the supplied root's stored interval. This proves the range-selected
+repair set is complete; otherwise the operation fails descriptively rather
+than reporting success over rows it could not see. Rebuild performs both
+checks before creating any temporary zero-bound nodes.
 Repair maintains depth with iterative traversal over a separate ordered roots
 list and plain non-null parent buckets. Whole-tree unresolved components become
 database roots; subtree unresolved components become direct children of the
@@ -859,26 +862,27 @@ Hypervel tests while preserving Hypervel-specific regressions.
   descendant, and ancestor eager matching;
 - parent serialization, relation-free clones, partial relink, recursive create,
   multiple roots, wide/deep iterative flattening, and no cycles;
-- every insertion/move direction, root/sibling/child depth, omitted public
-  target depth, root-position derivation, source/target truthfulness, relation
-  invalidation, append/prepend returning with the caller's parent `_rgt`
-  refreshed in memory, no redundant first-operation source refresh,
-  replication depth exclusion, and zero-height gap with no query;
+- every insertion/move direction, root/sibling/child depth, partially selected
+  targets and sources through both insert and move paths, root-position
+  derivation, source/target truthfulness, relation invalidation,
+  append/prepend returning with the caller's parent `_rgt` refreshed in
+  memory, no redundant first-operation source refresh, replication depth
+  exclusion, and zero-height gap with no query;
 - `defaultOrder()` replacing raw and union ordering without leaving stale
   bindings;
-- bulk and evented deletion query/chunk behavior, order, veto, soft/force
-  paths, independently deleted descendants, and exact restoration;
+- bulk and evented deletion query/chunk behavior, order, veto, partial-source
+  soft/force paths, independently deleted descendants, and exact restoration;
 - every integrity category, scoped refusal, conditional crossing under
   duplicates, short-circuit behavior, and healthy empty/deep/scoped trees;
   replace the existing `oddness`/`duplicates` assertions with the final named
   category contract;
 - repair/rebuild depth, scopes, extra observer columns, whole-tree orphans,
   subtree missing/outside/null parents, cycles, healthy named diagnostics,
-  complete subtree selection refusal, post-gap persistence of unchanged rows,
-  `rebuildSubtree()` through the shared repair path, model-only roots, key
-  exclusion, delete-missing, iterative traversal, and transaction-backed
-  rollback of ordinary and structural model writes when a repair or rebuild
-  save is vetoed;
+  incomplete root and complete subtree selection refusal before writes,
+  post-gap persistence of unchanged rows, `rebuildSubtree()` through the
+  shared repair path, model-only roots, key exclusion, delete-missing,
+  iterative traversal, and transaction-backed rollback of ordinary and
+  structural model writes when a repair or rebuild save is vetoed;
 - `isNode()` class separation, trait-of-trait detection, non-object/null
   handling, and framework cleanup registration; and
 - Blueprint macro use in separate test methods, proving flush/re-registration.

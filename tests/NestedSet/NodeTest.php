@@ -155,17 +155,23 @@ class NodeTest extends TestCase
         $this->assertSame(4, Category::findOrFail(3)->getDepth());
     }
 
-    public function testLowLevelMoveRejectsIncompleteNodeData(): void
+    #[DataProvider('invalidLowLevelNodeData')]
+    public function testLowLevelMoveRejectsInvalidNodeData(array $nodeData): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
             'Node data for [Hypervel\Tests\NestedSet\Models\Category] must contain [_lft], [_rgt], and [depth].',
         );
 
-        Category::query()->moveNode(2, 12, nodeData: [
-            '_lft' => 2,
-            '_rgt' => 7,
-        ]);
+        Category::query()->moveNode(2, 12, nodeData: $nodeData);
+    }
+
+    public static function invalidLowLevelNodeData(): array
+    {
+        return [
+            'missing depth' => [['_lft' => 2, '_rgt' => 7]],
+            'null left bound' => [['_lft' => null, '_rgt' => 7, 'depth' => 1]],
+        ];
     }
 
     public function testFirstMoveDoesNotRefreshAFreshSourceNode(): void
@@ -323,6 +329,54 @@ class NodeTest extends TestCase
 
         $this->assertSame(2, Category::findOrFail($node->getKey())->getDepth());
         $this->assertSame(3, $this->findCategory('galaxy')->getDepth());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testAppendNewNodeDerivesDepthFromHandPositionedParentWithoutLoadedDepth(): void
+    {
+        $parent = new Category;
+        $parent->setRawAttributes([
+            'id' => 7,
+            '_lft' => 11,
+            '_rgt' => 14,
+            'parent_id' => 5,
+        ]);
+
+        $node = new Category(['name' => 'new phone']);
+        $node->appendToNode($parent)->save();
+        $node = $node->fresh();
+
+        $this->assertSame(7, $node->getParentId());
+        $this->assertSame(3, $node->getDepth());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testAppendExistingSubtreeRefreshesParentWithoutSelectedDepth(): void
+    {
+        $node = $this->findCategory('notebooks');
+        $parent = Category::query()
+            ->select(['id', '_lft', '_rgt', 'parent_id'])
+            ->findOrFail(7);
+
+        $node->appendToNode($parent)->save();
+
+        $this->assertSame(3, Category::findOrFail(2)->getDepth());
+        $this->assertSame(4, Category::findOrFail(3)->getDepth());
+        $this->assertSame(4, Category::findOrFail(4)->getDepth());
+        $this->assertTreeNotBroken();
+    }
+
+    public function testMovingPartiallySelectedSourceRefreshesItsStructuralData(): void
+    {
+        $node = Category::query()
+            ->select(['id', 'parent_id'])
+            ->findOrFail(2);
+
+        $node->appendToNode($this->findCategory('samsung'))->save();
+
+        $this->assertSame(3, Category::findOrFail(2)->getDepth());
+        $this->assertSame(4, Category::findOrFail(3)->getDepth());
+        $this->assertSame(4, Category::findOrFail(4)->getDepth());
         $this->assertTreeNotBroken();
     }
 
@@ -629,6 +683,19 @@ class NodeTest extends TestCase
         $this->assertEquals(8, $root->getRgt());
     }
 
+    public function testForceDeletingPartiallySelectedNodeRefreshesItsStructuralData(): void
+    {
+        $node = Category::query()
+            ->select(['id', 'parent_id'])
+            ->findOrFail(5);
+
+        $node->forceDelete();
+
+        $this->assertSame(0, Category::whereIn('id', [5, 6, 7, 8, 9, 10])->count());
+        $this->assertSame(8, Category::root()->getRgt());
+        $this->assertTreeNotBroken();
+    }
+
     public function testNodeIsSoftDeleted(): void
     {
         CarbonImmutable::setTestNow('2025-07-03 12:00:00');
@@ -659,6 +726,21 @@ class NodeTest extends TestCase
 
         $this->assertNull($this->findCategory('samsung'));
         $this->assertNotNull($this->findCategory('nokia'));
+    }
+
+    public function testSoftDeletingPartiallySelectedNodeRefreshesItsStructuralData(): void
+    {
+        $node = Category::query()
+            ->select(['id', 'parent_id'])
+            ->findOrFail(7);
+
+        $node->delete();
+
+        $this->assertNull(Category::find(7));
+        $this->assertNull(Category::find(8));
+        $this->assertNotNull(Category::withTrashed()->find(7));
+        $this->assertNotNull(Category::withTrashed()->find(8));
+        $this->assertTreeNotBroken();
     }
 
     public function testRestoredNodeDoesNotRetainItsPreviousDeletionTimestamp(): void
@@ -1650,6 +1732,102 @@ class NodeTest extends TestCase
         );
 
         Category::fixSubtree(Category::findOrFail(1));
+    }
+
+    #[DataProvider('subtreeOperations')]
+    public function testSubtreeOperationsRejectIncompleteRootBeforeWriting(string $operation): void
+    {
+        $operationName = $operation === 'fix' ? 'subtree repair' : 'subtree rebuild';
+        $columns = ['id', 'name', '_lft', '_rgt', 'parent_id', 'depth'];
+        $before = DB::table('categories')
+            ->orderBy('id')
+            ->get($columns)
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
+        $root = Category::query()
+            ->select(['id', 'parent_id'])
+            ->findOrFail(5);
+
+        try {
+            if ($operation === 'fix') {
+                Category::fixSubtree($root);
+            } else {
+                Category::rebuildSubtree($root, []);
+            }
+
+            $this->fail('Expected the incomplete subtree root to be rejected.');
+        } catch (LogicException $exception) {
+            $this->assertSame(
+                "Nested set {$operationName} root [Hypervel\\Tests\\NestedSet\\Models\\Category] with key [5] must be persisted with loaded bounds and depth.",
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(
+            $before,
+            DB::table('categories')
+                ->orderBy('id')
+                ->get($columns)
+                ->map(fn (object $row): array => (array) $row)
+                ->all(),
+        );
+    }
+
+    public static function subtreeOperations(): array
+    {
+        return [
+            'repair' => ['fix'],
+            'rebuild' => ['rebuild'],
+        ];
+    }
+
+    #[DataProvider('invalidRepairRoots')]
+    public function testFixSubtreeRejectsUnpersistedOrKeylessRootBeforeWriting(string $rootState): void
+    {
+        $columns = ['id', 'name', '_lft', '_rgt', 'parent_id', 'depth'];
+        $before = DB::table('categories')
+            ->orderBy('id')
+            ->get($columns)
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
+
+        if ($rootState === 'unpersisted') {
+            $root = new Category;
+            $root->setRawAttributes(Category::findOrFail(5)->getAttributes());
+            $key = '5';
+        } else {
+            $root = Category::query()
+                ->select(['name', '_lft', '_rgt', 'parent_id', 'depth'])
+                ->findOrFail(5);
+            $key = 'null';
+        }
+
+        try {
+            Category::fixSubtree($root);
+            $this->fail('Expected the invalid subtree root to be rejected.');
+        } catch (LogicException $exception) {
+            $this->assertSame(
+                "Nested set subtree repair root [Hypervel\\Tests\\NestedSet\\Models\\Category] with key [{$key}] must be persisted with loaded bounds and depth.",
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(
+            $before,
+            DB::table('categories')
+                ->orderBy('id')
+                ->get($columns)
+                ->map(fn (object $row): array => (array) $row)
+                ->all(),
+        );
+    }
+
+    public static function invalidRepairRoots(): array
+    {
+        return [
+            'unpersisted root' => ['unpersisted'],
+            'keyless root' => ['keyless'],
+        ];
     }
 
     public function testSubtreeIsFixed(): void
