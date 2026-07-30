@@ -34,7 +34,7 @@ interface PubSubProvider
     /**
      * Publish a payload.
      *
-     * @return int Number of subscribers that received the message
+     * @return int Subscriber count reported by Redis for the published channel
      */
     public function publish(array $payload): int;
 }
