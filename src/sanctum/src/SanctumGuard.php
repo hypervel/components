@@ -150,9 +150,7 @@ class SanctumGuard implements GuardContract
      */
     protected function supportsTokens(?Authenticatable $tokenable = null): bool
     {
-        return $tokenable && in_array(HasApiTokens::class, class_uses_recursive(
-            get_class($tokenable)
-        ));
+        return Sanctum::supportsTokens($tokenable);
     }
 
     /**

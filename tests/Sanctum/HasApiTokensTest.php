@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\PersonalAccessToken;
+use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Sanctum\Fixtures\DummyAuthenticatable;
 use Hypervel\Tests\Sanctum\Fixtures\TokenAbility;
+use Hypervel\Tests\Sanctum\Fixtures\User;
 use Hypervel\Tests\Sanctum\Fixtures\UserWithApiTokens;
 
 class HasApiTokensTest extends TestCase
@@ -86,4 +89,16 @@ class HasApiTokensTest extends TestCase
         $this->assertTrue($user->tokenCan(TokenAbility::PostsRead));
         $this->assertTrue($user->tokenCan(TokenAbility::UsersWrite));
     }
+
+    public function testCanDetermineWhetherAnAuthenticatableSupportsApiTokens(): void
+    {
+        $this->assertTrue(Sanctum::supportsTokens(new User));
+        $this->assertTrue(Sanctum::supportsTokens(new SanctumUserChild));
+        $this->assertFalse(Sanctum::supportsTokens(new DummyAuthenticatable));
+        $this->assertFalse(Sanctum::supportsTokens(null));
+    }
+}
+
+class SanctumUserChild extends User
+{
 }

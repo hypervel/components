@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -58,6 +59,15 @@ class Sanctum
     public static function currentRequestHost(): string
     {
         return ',' . static::$currentRequestHostPlaceholder;
+    }
+
+    /**
+     * Determine if the authenticatable model supports API tokens.
+     */
+    public static function supportsTokens(?Authenticatable $tokenable): bool
+    {
+        return $tokenable !== null
+            && isset(class_uses_recursive($tokenable)[HasApiTokens::class]);
     }
 
     /**

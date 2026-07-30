@@ -15,6 +15,13 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureFrontendRequestsAreStateful
 {
     /**
+     * The closure used to determine whether the current request is stateful.
+     *
+     * @var null|Closure(Request): bool
+     */
+    protected static ?Closure $statefulRequestResolver = null;
+
+    /**
      * The closure used to resolve stateful domains for the current request.
      *
      * @var null|Closure(Request): array<int, string>
@@ -73,6 +80,10 @@ class EnsureFrontendRequestsAreStateful
      */
     public static function fromFrontend(Request $request): bool
     {
+        if (static::$statefulRequestResolver !== null) {
+            return (static::$statefulRequestResolver)($request);
+        }
+
         $domain = $request->headers->get('referer') ?: $request->headers->get('origin');
 
         if (is_null($domain)) {
@@ -122,6 +133,19 @@ class EnsureFrontendRequestsAreStateful
     }
 
     /**
+     * Register a closure that determines whether the current request is stateful.
+     *
+     * Boot-only. The closure receives the current request and returns the final
+     * stateful decision. Persists for the worker lifetime.
+     *
+     * @param null|Closure(Request): bool $callback
+     */
+    public static function resolveStatefulRequestsUsing(?Closure $callback): void
+    {
+        static::$statefulRequestResolver = $callback;
+    }
+
+    /**
      * Register a closure that resolves stateful domains for the current request.
      *
      * Boot-only. The closure receives the current request and returns the
@@ -140,6 +164,7 @@ class EnsureFrontendRequestsAreStateful
      */
     public static function flushState(): void
     {
+        static::$statefulRequestResolver = null;
         static::$statefulDomainsResolver = null;
     }
 }

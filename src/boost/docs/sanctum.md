@@ -495,6 +495,22 @@ public function boot(): void
 }
 ```
 
+When your application needs to make the final stateful decision itself, you may register a request resolver instead:
+
+```php
+use App\Support\StatefulRequestResolver;
+use Hypervel\Http\Request;
+use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+
+EnsureFrontendRequestsAreStateful::resolveStatefulRequestsUsing(
+    fn (Request $request): bool => app(StatefulRequestResolver::class)->isStateful($request)
+);
+```
+
+The request resolver takes precedence over the domain resolver and configured domain list. Register either resolver during application boot because it persists for the worker lifetime; pass `null` to clear it. Framework test cleanup resets both resolver slots automatically.
+
+Domain-list matching is case-sensitive. Normalize any request-derived domains before returning them from `resolveStatefulDomainsUsing()`.
+
 > [!WARNING]
 > If you are accessing your application via a URL that includes a port (`127.0.0.1:8000`), you should ensure that you include the port number with the domain.
 
