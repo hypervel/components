@@ -8,7 +8,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class HealthCheckControllerTest extends ReverbTestCase
 {
-    public function testCanRespondToAHealthCheckRequest()
+    public function testCanRespondToAHealthCheckRequest(): void
     {
         $response = $this->reverbGet('/up');
 
@@ -16,7 +16,7 @@ class HealthCheckControllerTest extends ReverbTestCase
         $this->assertSame('{"health":"OK"}', $response->getContent());
     }
 
-    public function testDoesNotRequireAuthentication()
+    public function testDoesNotRequireAuthentication(): void
     {
         // No signed request needed — health check is unauthenticated
         $response = $this->reverbGet('/up');

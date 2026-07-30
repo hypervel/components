@@ -11,7 +11,7 @@ use Mockery as m;
 
 class ConnectionTest extends ReverbTestCase
 {
-    public function testIdReturnsFd()
+    public function testIdReturnsFd(): void
     {
         $sender = m::mock(Sender::class);
         $connection = new Connection($sender, 42);
@@ -19,7 +19,7 @@ class ConnectionTest extends ReverbTestCase
         $this->assertSame(42, $connection->id());
     }
 
-    public function testSendDelegatesToSender()
+    public function testSendDelegatesToSender(): void
     {
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('push')->once()->with(42, 'hello')->andReturn(true);
@@ -28,7 +28,7 @@ class ConnectionTest extends ReverbTestCase
         $connection->send('hello');
     }
 
-    public function testControlSendsOpcodeViaSender()
+    public function testControlSendsOpcodeViaSender(): void
     {
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('push')->once()->with(42, '', WEBSOCKET_OPCODE_PING)->andReturn(true);
@@ -37,7 +37,7 @@ class ConnectionTest extends ReverbTestCase
         $connection->control(WEBSOCKET_OPCODE_PING);
     }
 
-    public function testCloseDisconnectsFd()
+    public function testCloseDisconnectsFd(): void
     {
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('disconnect')->once()->with(42)->andReturn(true);
@@ -46,7 +46,7 @@ class ConnectionTest extends ReverbTestCase
         $connection->close();
     }
 
-    public function testCloseWithMessageSendsThenDisconnects()
+    public function testCloseWithMessageSendsThenDisconnects(): void
     {
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('push')->once()->with(42, 'goodbye')->andReturn(true);

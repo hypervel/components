@@ -8,7 +8,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class ConnectionsControllerTest extends ReverbTestCase
 {
-    public function testCanReturnAConnectionCount()
+    public function testCanReturnAConnectionCount(): void
     {
         $this->subscribeConnection('test-channel-one');
         $this->subscribeConnection('presence-test-channel-two', ['user_id' => 1, 'user_info' => ['name' => 'Taylor']]);
@@ -19,7 +19,7 @@ class ConnectionsControllerTest extends ReverbTestCase
         $this->assertSame(2, $response->json('connections'));
     }
 
-    public function testCanReturnTheCorrectConnectionCountWhenSubscribedToMultipleChannels()
+    public function testCanReturnTheCorrectConnectionCountWhenSubscribedToMultipleChannels(): void
     {
         // Same connection subscribed to two channels should count as 1
         $connection = $this->subscribeConnection('test-channel-one');
@@ -34,7 +34,7 @@ class ConnectionsControllerTest extends ReverbTestCase
         $this->assertSame(1, $response->json('connections'));
     }
 
-    public function testReturnsZeroConnectionsWhenNoneExist()
+    public function testReturnsZeroConnectionsWhenNoneExist(): void
     {
         $response = $this->signedRequest('connections');
 
@@ -42,7 +42,7 @@ class ConnectionsControllerTest extends ReverbTestCase
         $this->assertSame(0, $response->json('connections'));
     }
 
-    public function testFailsWhenUsingAnInvalidSignature()
+    public function testFailsWhenUsingAnInvalidSignature(): void
     {
         $response = $this->reverbGet('/apps/123456/connections');
 

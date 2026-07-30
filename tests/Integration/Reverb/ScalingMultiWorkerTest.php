@@ -16,7 +16,7 @@ class ScalingMultiWorkerTest extends MultiWorkerTestCase
 {
     protected int $serverPort = 19515;
 
-    public function testBroadcastReceivedExactlyOncePerClient()
+    public function testBroadcastReceivedExactlyOncePerClient(): void
     {
         $result = $this->connectOnDifferentWorkers('test-scaling-mw-broadcast');
 
@@ -44,7 +44,7 @@ class ScalingMultiWorkerTest extends MultiWorkerTestCase
         }
     }
 
-    public function testPresenceNotificationReceivedExactlyOncePerClient()
+    public function testPresenceNotificationReceivedExactlyOncePerClient(): void
     {
         // Observer on one worker
         $observer = $this->connect();

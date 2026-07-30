@@ -12,7 +12,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class ScopedChannelManagerTest extends ReverbTestCase
 {
-    public function testForReturnsScopedManagerNotSelf()
+    public function testForReturnsScopedManagerNotSelf(): void
     {
         $manager = $this->app->make(ChannelManager::class);
         $connection = new FakeConnection;
@@ -22,7 +22,7 @@ class ScopedChannelManagerTest extends ReverbTestCase
         $this->assertNotInstanceOf(ArrayChannelManager::class, $scoped);
     }
 
-    public function testScopedManagerIsolatesAppState()
+    public function testScopedManagerIsolatesAppState(): void
     {
         $manager = $this->app->make(ChannelManager::class);
 
@@ -38,7 +38,7 @@ class ScopedChannelManagerTest extends ReverbTestCase
         $this->assertCount(0, $scopedB->all());
     }
 
-    public function testFindReturnsChannelForCorrectApp()
+    public function testFindReturnsChannelForCorrectApp(): void
     {
         $connection = new FakeConnection;
         $scoped = $this->channels();
@@ -49,7 +49,7 @@ class ScopedChannelManagerTest extends ReverbTestCase
         $this->assertNull($scoped->find('nonexistent'));
     }
 
-    public function testConnectionsReturnsOnlyAppConnections()
+    public function testConnectionsReturnsOnlyAppConnections(): void
     {
         $connection = new FakeConnection;
         $scoped = $this->channels();

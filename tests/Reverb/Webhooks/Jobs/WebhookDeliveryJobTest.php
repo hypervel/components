@@ -14,7 +14,7 @@ use RuntimeException;
 
 class WebhookDeliveryJobTest extends ReverbTestCase
 {
-    public function testSendsHttpRequestWithCorrectPayload()
+    public function testSendsHttpRequestWithCorrectPayload(): void
     {
         Http::fake([
             'example.com/webhook' => Http::response('', 200),
@@ -36,7 +36,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         });
     }
 
-    public function testSignsPayloadWithAppSecretAndIncludesPusherHeaders()
+    public function testSignsPayloadWithAppSecretAndIncludesPusherHeaders(): void
     {
         Http::fake([
             'example.com/webhook' => Http::response('', 200),
@@ -60,7 +60,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         });
     }
 
-    public function testCustomHeadersMergedWithFrameworkHeaders()
+    public function testCustomHeadersMergedWithFrameworkHeaders(): void
     {
         Http::fake([
             'example.com/webhook' => Http::response('', 200),
@@ -88,7 +88,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         });
     }
 
-    public function testFrameworkHeadersCannotBeOverriddenCaseInsensitive()
+    public function testFrameworkHeadersCannotBeOverriddenCaseInsensitive(): void
     {
         Http::fake([
             'example.com/webhook' => Http::response('', 200),
@@ -122,7 +122,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         });
     }
 
-    public function testWebhookIdPresentInPayload()
+    public function testWebhookIdPresentInPayload(): void
     {
         Http::fake([
             'example.com/webhook' => Http::response('', 200),
@@ -144,7 +144,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         });
     }
 
-    public function testDispatchesWebhookFailedEventOnFinalFailure()
+    public function testDispatchesWebhookFailedEventOnFinalFailure(): void
     {
         Event::fake([WebhookFailed::class]);
 
@@ -164,7 +164,7 @@ class WebhookDeliveryJobTest extends ReverbTestCase
         });
     }
 
-    public function testThrowsOnHttpFailure()
+    public function testThrowsOnHttpFailure(): void
     {
         Http::fake([
             'example.com/webhook' => Http::response('Internal Server Error', 500),

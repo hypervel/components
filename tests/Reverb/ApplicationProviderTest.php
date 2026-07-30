@@ -12,7 +12,7 @@ use Hypervel\Tests\Reverb\Fixtures\FakeApplicationProvider;
 
 class ApplicationProviderTest extends ReverbTestCase
 {
-    public function testRetrievesApplicationsFromCustomProvider()
+    public function testRetrievesApplicationsFromCustomProvider(): void
     {
         $this->app->make(ApplicationManager::class)->extend('fake', fn () => new FakeApplicationProvider);
 
@@ -40,7 +40,7 @@ class ApplicationProviderTest extends ReverbTestCase
         ], $application->toArray()['options']);
     }
 
-    public function testHandlesStringTypedConfigValuesFromEnv()
+    public function testHandlesStringTypedConfigValuesFromEnv(): void
     {
         // env() returns strings — ConfigApplicationProvider must cast to correct types
         $provider = new ConfigApplicationProvider(collect([
@@ -67,7 +67,7 @@ class ApplicationProviderTest extends ReverbTestCase
         $this->assertSame(100, $app->maxConnections());
     }
 
-    public function testDefaultsToMembersWhenAcceptClientEventsFromMissing()
+    public function testDefaultsToMembersWhenAcceptClientEventsFromMissing(): void
     {
         $provider = new ConfigApplicationProvider(collect([
             [
