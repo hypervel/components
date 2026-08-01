@@ -293,36 +293,11 @@ class Command extends SymfonyCommand
             }
         }
 
-        $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
-
         $exception = null;
 
-        $callback = function () use ($method, $commandMutex, &$exception): int {
+        $callback = function () use ($input, $output, $commandMutex, &$exception): int {
             try {
-                if ($this->eventDispatcher?->hasListeners(BeforeHandle::class)) {
-                    $this->eventDispatcher->dispatch(new BeforeHandle($this));
-                }
-
-                /* @phpstan-ignore-next-line */
-                $statusCode = $this->hypervel->call([$this, $method]);
-                if (is_int($statusCode)) {
-                    $this->exitCode = $statusCode;
-                }
-
-                if ($this->eventDispatcher?->hasListeners(AfterHandle::class)) {
-                    $this->eventDispatcher->dispatch(new AfterHandle($this));
-                }
-            } catch (ManuallyFailedException $e) {
-                $this->components->error($e->getMessage());
-
-                return $this->exitCode = static::FAILURE;
-            } catch (PromptValidationException) {
-                // PromptValidationException is intentional control flow used by ConfiguresPrompts
-                // to signal validation failure during tests. It cannot propagate across the
-                // coroutine boundary, so it must be caught here and converted to a FAILURE exit code.
-                return $this->exitCode = static::FAILURE;
-            } catch (ExitException $e) {
-                return $this->exitCode = (int) $e->getStatus();
+                $this->exitCode = $this->executeCommand($input, $output);
             } catch (Throwable $e) {
                 $exception = $e;
                 $this->exitCode = self::FAILURE;
@@ -358,6 +333,46 @@ class Command extends SymfonyCommand
         }
 
         return $this->exitCode >= 0 && $this->exitCode <= 255 ? $this->exitCode : self::INVALID;
+    }
+
+    /**
+     * Execute one command handler lifecycle.
+     *
+     * Invocation-wide coroutine entry, isolation, AfterExecute dispatch, and
+     * ordinary throwable propagation remain owned by execute().
+     */
+    protected function executeCommand(InputInterface $input, OutputInterface $output): int
+    {
+        $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
+
+        try {
+            if ($this->eventDispatcher?->hasListeners(BeforeHandle::class)) {
+                $this->eventDispatcher->dispatch(new BeforeHandle($this));
+            }
+
+            /* @phpstan-ignore-next-line */
+            $statusCode = $this->hypervel->call([$this, $method]);
+            if (is_int($statusCode)) {
+                $this->exitCode = $statusCode;
+            }
+
+            if ($this->eventDispatcher?->hasListeners(AfterHandle::class)) {
+                $this->eventDispatcher->dispatch(new AfterHandle($this));
+            }
+        } catch (ManuallyFailedException $e) {
+            $this->components->error($e->getMessage());
+
+            return $this->exitCode = static::FAILURE;
+        } catch (PromptValidationException) {
+            // PromptValidationException is intentional control flow used by ConfiguresPrompts
+            // to signal validation failure during tests. It cannot propagate across the
+            // coroutine boundary, so it must be caught here and converted to a FAILURE exit code.
+            return $this->exitCode = static::FAILURE;
+        } catch (ExitException $e) {
+            return $this->exitCode = (int) $e->getStatus();
+        }
+
+        return $this->exitCode;
     }
 
     /**
