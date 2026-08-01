@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pagination;
 
+use ArrayObject;
+use Exception;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class CursorPaginatorTest extends TestCase
 {
@@ -238,6 +243,87 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame(['id' => 5, 'name' => 'test'], $params);
     }
 
+    #[DataProvider('missingCursorParameterProvider')]
+    public function testMissingOrNullCursorParametersThrow(array|object $item, string $parameter): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $paginator = new CursorPaginator([$item], 1, null, [
+            'parameters' => [$parameter],
+        ]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("cursor pagination parameter [{$parameter}]");
+
+        $paginator->getParametersForItem($item);
+    }
+
+    public static function missingCursorParameterProvider(): array
+    {
+        return [
+            'missing array value' => [[], 'id'],
+            'null array value' => [['id' => null], 'id'],
+            'missing aliased array value' => [[], 'users.id'],
+            'missing ArrayAccess value' => [new ArrayObject, 'id'],
+            'missing object value' => [(object) [], 'id'],
+            'missing model value' => [new CursorPaginatorModel, 'id'],
+        ];
+    }
+
+    #[DataProvider('validCursorParameterProvider')]
+    public function testValidFalsyAndStringableCursorParametersArePreserved(mixed $value, mixed $expected): void
+    {
+        $paginator = new CursorPaginator([['id' => $value]], 1, null, [
+            'parameters' => ['id'],
+        ]);
+
+        $this->assertSame(['id' => $expected], $paginator->getParametersForItem(['id' => $value]));
+    }
+
+    public static function validCursorParameterProvider(): array
+    {
+        return [
+            'integer zero' => [0, 0],
+            'string zero' => ['0', '0'],
+            'empty string' => ['', ''],
+            'stringable value' => [new CursorPaginatorStringableValue('value'), 'value'],
+        ];
+    }
+
+    public function testIntegerPivotCursorParametersArePreserved(): void
+    {
+        $model = new CursorPaginatorModel;
+        $pivot = new Pivot;
+        $pivot->setTable('role_user');
+        $pivot->setRawAttributes(['position' => 7], true);
+        $model->setRelation('membership', $pivot);
+        $paginator = new CursorPaginator([$model], 1, null, [
+            'parameters' => ['role_user.position'],
+        ]);
+
+        $this->assertSame(
+            ['role_user.position' => 7],
+            $paginator->getParametersForItem($model),
+        );
+    }
+
+    public function testNullPivotCursorParametersThrow(): void
+    {
+        $model = new CursorPaginatorModel;
+        $pivot = new Pivot;
+        $pivot->setTable('role_user');
+        $pivot->setRawAttributes(['position' => null], true);
+        $model->setRelation('membership', $pivot);
+        $paginator = new CursorPaginator([$model], 1, null, [
+            'parameters' => ['role_user.position'],
+        ]);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('cursor pagination parameter [role_user.position]');
+
+        $paginator->getParametersForItem($model);
+    }
+
     public function testFragmentAppearsInUrl()
     {
         $p = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3]], 2, null, [
@@ -331,5 +417,21 @@ class CursorPaginatorTest extends TestCase
     protected function getCursor($params, $isNext = true)
     {
         return (new Cursor($params, $isNext))->encode();
+    }
+}
+
+class CursorPaginatorModel extends Model
+{
+}
+
+class CursorPaginatorStringableValue
+{
+    public function __construct(private readonly string $value)
+    {
+    }
+
+    public function __toString(): string
+    {
+        return $this->value;
     }
 }
