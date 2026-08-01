@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Jobs;
 
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
@@ -70,5 +71,24 @@ class RemoveableScoutCollectionTest extends ScoutTestCase
 
         // Both models use Searchable trait, so getScoutKey() is called on each
         $this->assertEquals([100, 'custom-key.200'], $ids1);
+    }
+
+    public function testNonSearchableFallbackPreservesCustomQueueableIds(): void
+    {
+        $model = new RemoveableScoutCollectionQueueableModel;
+        $model->setAttribute('id', 10);
+
+        $this->assertSame(
+            ['queue-key.10'],
+            RemoveableScoutCollection::make([$model])->getQueueableIds(),
+        );
+    }
+}
+
+class RemoveableScoutCollectionQueueableModel extends Model
+{
+    public function getQueueableId(): string
+    {
+        return 'queue-key.' . $this->getKey();
     }
 }

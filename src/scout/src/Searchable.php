@@ -14,6 +14,7 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection as BaseCollection;
+use LogicException;
 
 /**
  * Provides full-text search capabilities to Eloquent models.
@@ -450,7 +451,16 @@ trait Searchable
      */
     public function getScoutKey(): mixed
     {
-        return $this->getKey();
+        $key = $this->getKey();
+
+        if ($this->exists && $key === null) {
+            throw new LogicException(sprintf(
+                'Model [%s] has no Scout key.',
+                get_class($this)
+            ));
+        }
+
+        return $key;
     }
 
     /**
