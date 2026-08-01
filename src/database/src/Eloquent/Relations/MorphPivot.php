@@ -119,9 +119,9 @@ class MorphPivot extends Pivot
         return sprintf(
             '%s:%s:%s:%s:%s:%s',
             $this->foreignKey,
-            $this->getAttribute($this->foreignKey),
+            $this->getPivotKeyForQuery($this->foreignKey),
             $this->relatedKey,
-            $this->getAttribute($this->relatedKey),
+            $this->getPivotKeyForQuery($this->relatedKey),
             $this->morphType,
             $this->morphClass
         );
