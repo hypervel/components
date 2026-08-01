@@ -59,6 +59,8 @@ class Role extends Model implements RoleContract
 
     /**
      * Get the role's guard name.
+     *
+     * @throws MissingAttributeException
      */
     public function guardName(): string
     {

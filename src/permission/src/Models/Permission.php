@@ -54,6 +54,8 @@ class Permission extends Model implements PermissionContract
 
     /**
      * Get the permission's guard name.
+     *
+     * @throws MissingAttributeException
      */
     public function guardName(): string
     {

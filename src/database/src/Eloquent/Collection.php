@@ -827,6 +827,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return array<int, mixed>
      *
      * @throws LogicException
+     * @throws MissingAttributeException
      */
     public function getQueueableIds(): array
     {

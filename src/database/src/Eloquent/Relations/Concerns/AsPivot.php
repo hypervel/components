@@ -143,6 +143,8 @@ trait AsPivot
 
     /**
      * Get a pivot key for a query.
+     *
+     * @throws MissingAttributeException
      */
     protected function getPivotKeyForQuery(string $column): mixed
     {
@@ -252,6 +254,8 @@ trait AsPivot
 
     /**
      * Get the queueable identity for the entity.
+     *
+     * @throws MissingAttributeException
      */
     public function getQueueableId(): mixed
     {

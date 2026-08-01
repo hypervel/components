@@ -184,6 +184,8 @@ trait SoftDeletes
 
     /**
      * Determine if the model instance has been soft-deleted.
+     *
+     * @throws MissingAttributeException
      */
     public function trashed(): bool
     {

@@ -364,7 +364,7 @@ All regressions must explicitly run with `Model::preventAccessingMissingAttribut
 
 ### Gates
 
-Run focused tests immediately after each coherent package slice. At completion run `composer fix` once for formatting, PHPStan, and the parallel test suite. Then inspect `git diff --check`, all changed manifests/docs, and the full diff from the branch base. Review callers and subclasses of every changed protected method before requesting final code review.
+Run focused tests immediately after each coherent package slice. At completion run `composer fix` once for formatting, both PHPStan configurations, and the parallel components, Testbench, and dogfood suites. Then inspect `git diff --check`, all changed manifests/docs, and the full diff from the branch base. Review callers and subclasses of every changed protected method before requesting final code review.
 
 ## Completion criteria
 
