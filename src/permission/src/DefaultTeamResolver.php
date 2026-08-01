@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\PermissionsTeamResolver;
 
@@ -18,7 +19,12 @@ final class DefaultTeamResolver implements PermissionsTeamResolver
     public function setPermissionsTeamId(int|string|Model|null $id): void
     {
         if ($id instanceof Model) {
-            $id = $id->getKey();
+            $model = $id;
+            $id = $model->getKey();
+
+            if ($id === null) {
+                throw new MissingAttributeException($model, $model->getKeyName());
+            }
         }
 
         CoroutineContext::set(self::TEAM_ID_CONTEXT_KEY, $id);
