@@ -184,10 +184,21 @@ trait SoftDeletes
 
     /**
      * Determine if the model instance has been soft-deleted.
+     *
+     * @throws MissingAttributeException
      */
     public function trashed(): bool
     {
-        return ! is_null($this->{$this->getDeletedAtColumn()});
+        $deletedAtColumn = $this->getDeletedAtColumn();
+
+        // Inspect the raw backing column without merging cached class casts for this predicate.
+        if ($this->exists
+            && ! $this->wasRecentlyCreated
+            && ! array_key_exists($deletedAtColumn, $this->attributes)) {
+            throw new MissingAttributeException($this, $deletedAtColumn);
+        }
+
+        return ! is_null($this->{$deletedAtColumn});
     }
 
     /**

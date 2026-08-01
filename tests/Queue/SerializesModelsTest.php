@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Queue\Attributes\WithoutRelations;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Tests\TestCase;
+use LogicException;
 
 class SerializesModelsTest extends TestCase
 {
@@ -67,6 +68,27 @@ class SerializesModelsTest extends TestCase
         $this->assertSame('entity', $restored->entity->value);
         $this->assertSame(['collection'], $restored->collection->items);
     }
+
+    public function testKeylessEloquentModelCannotPublishAQueueIdentifier(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Model [Hypervel\Tests\Queue\KeylessModelSerializationFixture] has no queueable ID.');
+
+        (new EloquentModelSerializationFixture(new KeylessModelSerializationFixture))->__serialize();
+    }
+}
+
+class EloquentModelSerializationFixture
+{
+    use SerializesModels;
+
+    public function __construct(public Model $model)
+    {
+    }
+}
+
+class KeylessModelSerializationFixture extends Model
+{
 }
 
 #[WithoutRelations]

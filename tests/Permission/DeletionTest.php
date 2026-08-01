@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission;
 
 use BadMethodCallException;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
@@ -13,6 +14,8 @@ use Hypervel\Permission\Traits\HasPermissions;
 use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\HasPermissionsOnlyUser;
+use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
+use Hypervel\Tests\Permission\Fixtures\Models\User;
 use UnitEnum;
 
 class DeletionTest extends TestCase
@@ -61,6 +64,79 @@ class DeletionTest extends TestCase
 
         $this->assertSame(0, $this->roleAssignmentCount($this->testUser));
         $this->assertSame(0, $this->directPermissionAssignmentCount($this->testUser));
+    }
+
+    public function testDeletingAKeylessPersistedSubjectFailsBeforeAssignmentCleanup(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->assignRole($this->testUserRole);
+        $this->testUser->givePermissionTo($this->testUserPermission);
+        $keylessUser = User::query()
+            ->select('email')
+            ->where('email', $this->testUser->email)
+            ->firstOrFail();
+
+        $this->assertDeletionRejectsWithoutQueries($keylessUser);
+        $this->assertSame(1, $this->roleAssignmentCount($this->testUser));
+        $this->assertSame(1, $this->directPermissionAssignmentCount($this->testUser));
+    }
+
+    public function testDeletingAKeylessPersistedRoleFailsBeforeAssignmentCleanup(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->assignRole($this->testUserRole);
+        $this->testUserRole->givePermissionTo($this->testUserPermission);
+        $keylessRole = $this->testUserRole->newQuery()
+            ->select(['name', 'guard_name'])
+            ->where('name', $this->testUserRole->name)
+            ->firstOrFail();
+
+        $this->assertDeletionRejectsWithoutQueries($keylessRole);
+        $this->assertSame(1, DB::table(Config::modelHasRolesTable())
+            ->where(app('config')->get('permission.column_names.role_pivot_key'), $this->testUserRole->getKey())
+            ->count());
+        $this->assertSame(1, DB::table(Config::roleHasPermissionsTable())
+            ->where(app('config')->get('permission.column_names.role_pivot_key'), $this->testUserRole->getKey())
+            ->count());
+    }
+
+    public function testDeletingAKeylessPersistedPermissionFailsBeforeAssignmentCleanup(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->givePermissionTo($this->testUserPermission);
+        $this->testUserRole->givePermissionTo($this->testUserPermission);
+        $keylessPermission = $this->testUserPermission->newQuery()
+            ->select(['name', 'guard_name'])
+            ->where('name', $this->testUserPermission->name)
+            ->firstOrFail();
+
+        $this->assertDeletionRejectsWithoutQueries($keylessPermission);
+        $this->assertSame(1, DB::table(Config::modelHasPermissionsTable())
+            ->where(app('config')->get('permission.column_names.permission_pivot_key'), $this->testUserPermission->getKey())
+            ->count());
+        $this->assertSame(1, DB::table(Config::roleHasPermissionsTable())
+            ->where(app('config')->get('permission.column_names.permission_pivot_key'), $this->testUserPermission->getKey())
+            ->count());
+    }
+
+    public function testSoftDeletingAKeylessPersistedSubjectUsesTheEloquentKeyGuard(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $user = SoftDeletingUser::create(['email' => 'soft-delete-partial@example.com']);
+        $user->assignRole($this->testUserRole);
+        $user->givePermissionTo($this->testUserPermission);
+        $keylessUser = SoftDeletingUser::query()
+            ->select('email')
+            ->where('email', $user->email)
+            ->firstOrFail();
+
+        $this->assertDeletionRejectsWithoutQueries($keylessUser);
+        $this->assertSame(1, $this->roleAssignmentCount($user));
+        $this->assertSame(1, $this->directPermissionAssignmentCount($user));
     }
 
     public function testCustomRoleCleanupDoesNotDependOnRefreshesPermissionCache(): void
@@ -150,6 +226,27 @@ class DeletionTest extends TestCase
             ->where(Config::morphKey(), $model->getKey())
             ->where('model_type', $model->getMorphClass())
             ->count();
+    }
+
+    /**
+     * Assert deletion rejects a missing model key before issuing queries.
+     */
+    private function assertDeletionRejectsWithoutQueries(Model $model): void
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $model->delete();
+            $this->fail('Expected a missing model key exception was not thrown.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString($model->getKeyName(), $exception->getMessage());
+        } finally {
+            $queries = DB::getQueryLog();
+            DB::disableQueryLog();
+        }
+
+        $this->assertSame([], $queries);
     }
 }
 

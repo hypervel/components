@@ -202,11 +202,15 @@ trait HasRoles
         }, Arr::wrap($roles));
 
         $key = Guard::getModelKeyName($this->getRoleClass());
+        $roleIds = array_map(
+            fn ($role) => $this->requireModelKey($role),
+            $roles,
+        );
 
         return $query->{! $without ? 'whereHas' : 'whereDoesntHave'}(
             'roles',
             fn (Builder $subQuery) => $subQuery
-                ->whereIn(Config::rolesTable() . ".{$key}", array_column($roles, $key))
+                ->whereIn(Config::rolesTable() . ".{$key}", $roleIds)
         );
     }
 
@@ -270,7 +274,7 @@ trait HasRoles
         }
 
         $teamIds = array_map(
-            fn ($team) => $team instanceof $teamModel ? $team->getKey() : $team,
+            fn ($team) => $team instanceof $teamModel ? $this->requireModelKey($team) : $team,
             Arr::wrap($teams),
         );
 
@@ -322,10 +326,11 @@ trait HasRoles
                 }
 
                 $role = $this->getStoredRole($role, $partition);
+                $roleKey = $this->requireModelKey($role);
 
-                if (! in_array($role->getKey(), $array, true)) {
+                if (! in_array($roleKey, $array, true)) {
                     $this->ensureModelSharesGuard($role);
-                    $array[] = $role->getKey();
+                    $array[] = $roleKey;
                 }
 
                 return $array;
@@ -358,6 +363,8 @@ trait HasRoles
 
             return $this;
         }
+
+        $this->requireModelKey($this);
 
         $currentRoles = $this->getCachedRoles()
             ->map(fn (Model $role): int|string => $role->getKey())
@@ -596,6 +603,8 @@ trait HasRoles
             return $this;
         }
 
+        $this->requireModelKey($this);
+
         $relation = $this->roleAssignmentRelation($context);
         $detached = $relation->detach($roles);
 
@@ -663,6 +672,8 @@ trait HasRoles
 
             return $this;
         }
+
+        $this->requireModelKey($this);
 
         $relation = $this->roleAssignmentRelation($context);
         $detachedRoles = [];
@@ -880,7 +891,9 @@ trait HasRoles
 
     /**
      * Get a stored role instance.
-     * @param mixed $role
+     *
+     * @param int|Role|string|UnitEnum $role
+     * @return Model&Role
      */
     protected function getStoredRole(
         $role,

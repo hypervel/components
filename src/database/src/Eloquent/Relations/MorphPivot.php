@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 
 class MorphPivot extends Pivot
 {
@@ -109,6 +110,8 @@ class MorphPivot extends Pivot
 
     /**
      * Get the queueable identity for the entity.
+     *
+     * @throws MissingAttributeException
      */
     public function getQueueableId(): mixed
     {
@@ -119,9 +122,9 @@ class MorphPivot extends Pivot
         return sprintf(
             '%s:%s:%s:%s:%s:%s',
             $this->foreignKey,
-            $this->getAttribute($this->foreignKey),
+            $this->getPivotKeyForQuery($this->foreignKey),
             $this->relatedKey,
-            $this->getAttribute($this->relatedKey),
+            $this->getPivotKeyForQuery($this->relatedKey),
             $this->morphType,
             $this->morphClass
         );

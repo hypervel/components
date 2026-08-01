@@ -51,7 +51,7 @@ trait ComparesRelatedModels
      */
     protected function compareKeys(mixed $parentKey, mixed $relatedKey): bool
     {
-        if (empty($parentKey) || empty($relatedKey)) {
+        if ($parentKey === null || $relatedKey === null) {
             return false;
         }
 

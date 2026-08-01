@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\StrCache;
 
@@ -86,15 +87,9 @@ trait AsPivot
             return parent::setKeysForSelectQuery($query);
         }
 
-        $query->where($this->foreignKey, $this->getOriginal(
-            $this->foreignKey,
-            $this->getAttribute($this->foreignKey)
-        ));
+        $query->where($this->foreignKey, $this->getPivotKeyForQuery($this->foreignKey));
 
-        return $query->where($this->relatedKey, $this->getOriginal(
-            $this->relatedKey,
-            $this->getAttribute($this->relatedKey)
-        ));
+        return $query->where($this->relatedKey, $this->getPivotKeyForQuery($this->relatedKey));
     }
 
     /**
@@ -141,9 +136,25 @@ trait AsPivot
     protected function getDeleteQuery(): Builder
     {
         return $this->newQueryWithoutRelationships()->where([
-            $this->foreignKey => $this->getOriginal($this->foreignKey, $this->getAttribute($this->foreignKey)),
-            $this->relatedKey => $this->getOriginal($this->relatedKey, $this->getAttribute($this->relatedKey)),
+            $this->foreignKey => $this->getPivotKeyForQuery($this->foreignKey),
+            $this->relatedKey => $this->getPivotKeyForQuery($this->relatedKey),
         ]);
+    }
+
+    /**
+     * Get a pivot key for a query.
+     *
+     * @throws MissingAttributeException
+     */
+    protected function getPivotKeyForQuery(string $column): mixed
+    {
+        $value = $this->getOriginal($column, $this->getAttribute($column));
+
+        if ($value === null) {
+            throw new MissingAttributeException($this, $column);
+        }
+
+        return $value;
     }
 
     /**
@@ -243,6 +254,8 @@ trait AsPivot
 
     /**
      * Get the queueable identity for the entity.
+     *
+     * @throws MissingAttributeException
      */
     public function getQueueableId(): mixed
     {
@@ -253,9 +266,9 @@ trait AsPivot
         return sprintf(
             '%s:%s:%s:%s',
             $this->foreignKey,
-            $this->getAttribute($this->foreignKey),
+            $this->getPivotKeyForQuery($this->foreignKey),
             $this->relatedKey,
-            $this->getAttribute($this->relatedKey)
+            $this->getPivotKeyForQuery($this->relatedKey)
         );
     }
 

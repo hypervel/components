@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Features;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -79,6 +81,20 @@ class InteractsWithTwoFactorStateTest extends TestCase
 
         $this->assertTrue($formRequest->session()->has('two_factor_empty_at'));
         $this->assertIsInt($formRequest->session()->get('two_factor_empty_at'));
+    }
+
+    public function testStateValidationRejectsAPersistedUserWithMissingTwoFactorState(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $user = $this->createUser();
+        $partialUser = UserWithTwoFactor::query()->select('id')->findOrFail($user->getKey());
+        $formRequest = $this->createFormRequestWithUser($partialUser);
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('two_factor_secret');
+
+        $formRequest->ensureStateIsValid();
     }
 
     public function testSetsConfirmingAtWhenUserBeginsConfirmationProcess(): void

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission\Models\PermissionTest;
 
 use BackedEnum;
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Exceptions\PermissionAlreadyExists;
+use Hypervel\Permission\Models\Permission as PermissionModel;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -104,6 +107,45 @@ class PermissionTest extends TestCase
         );
     }
 
+    public function testGuardNamePreservesDefaultsLoadedValuesAccessorsAndStringZero(): void
+    {
+        $this->assertSame(
+            $this->app->make('config')->get('auth.defaults.guard'),
+            (new PermissionModel)->guardName(),
+        );
+        $this->assertSame('admin', (new PermissionModel(['guard_name' => 'admin']))->guardName());
+        $this->assertSame('accessed', (new PermissionWithGuardNameAccessor(['guard_name' => 'stored']))->guardName());
+        $this->assertSame('0', (new PermissionModel(['guard_name' => '0']))->guardName());
+    }
+
+    public function testGuardNameRejectsPersistedPermissionsMissingTheGuardColumn(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $permission = PermissionModel::query()
+            ->select($this->testUserPermission->getKeyName(), 'name')
+            ->findOrFail($this->testUserPermission->getKey());
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('The attribute [guard_name]');
+
+        $permission->guardName();
+    }
+
+    public function testUsersRelationRejectsPermissionsMissingTheGuardColumn(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $permission = PermissionModel::query()
+            ->select($this->testUserPermission->getKeyName(), 'name')
+            ->findOrFail($this->testUserPermission->getKey());
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('The attribute [guard_name]');
+
+        $permission->users();
+    }
+
     public function testItHasUserModelsOfTheRightClass(): void
     {
         $this->testAdmin->givePermissionTo($this->testAdminPermission);
@@ -140,5 +182,13 @@ class PermissionTest extends TestCase
         $this->testUser->givePermissionTo('0');
 
         $this->assertTrue($this->testUser->hasPermissionTo('0'));
+    }
+}
+
+class PermissionWithGuardNameAccessor extends PermissionModel
+{
+    public function getGuardNameAttribute(string $value): string
+    {
+        return $value === 'stored' ? 'accessed' : $value;
     }
 }

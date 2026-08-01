@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
@@ -17,6 +18,7 @@ use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class HasPermissionsTest extends TestCase
@@ -194,6 +196,30 @@ class HasPermissionsTest extends TestCase
         $this->assertCount(1, User::permission([$this->testUserPermission])->get());
         $this->assertCount(1, User::permission(collect([$this->testUserPermission]))->get());
         $this->assertCount(0, User::withoutPermission(collect([$this->testUserPermission]))->get());
+    }
+
+    #[DataProvider('permissionScopeProvider')]
+    public function testPermissionScopesRejectKeylessModelInputs(string $scope, bool $mixed): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $keylessPermission = app(Permission::class)->select(['name', 'guard_name'])->where('name', 'edit-blog')->firstOrFail();
+        $permissions = $mixed ? [$this->testUserPermission, $keylessPermission] : $keylessPermission;
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage($keylessPermission->getKeyName());
+
+        User::query()->{$scope}($permissions)->get();
+    }
+
+    public static function permissionScopeProvider(): array
+    {
+        return [
+            'permission with keyless model' => ['permission', false],
+            'permission with mixed models' => ['permission', true],
+            'without permission with keyless model' => ['withoutPermission', false],
+            'without permission with mixed models' => ['withoutPermission', true],
+        ];
     }
 
     public function testItCanScopeUsersWithoutDirectPermissionsOnlyRole(): void
@@ -549,6 +575,89 @@ class HasPermissionsTest extends TestCase
         } catch (PermissionDoesNotExist) {
             $this->assertTrue($this->testUser->fresh()->hasDirectPermission('edit-news'));
         }
+    }
+
+    #[DataProvider('permissionMutationProvider')]
+    public function testPermissionMutationsRejectKeylessModelInputs(string $method, bool $mixed): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->givePermissionTo('edit-news');
+        $keylessPermission = app(Permission::class)->select(['name', 'guard_name'])->where('name', 'edit-blog')->firstOrFail();
+        $permissions = $mixed ? [$this->testUserPermission, $keylessPermission] : [$keylessPermission];
+        $argument = $mixed ? $permissions : $keylessPermission;
+
+        try {
+            $this->testUser->{$method}($argument);
+            $this->fail('Expected a missing permission key exception was not thrown.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString($keylessPermission->getKeyName(), $exception->getMessage());
+        }
+
+        $this->assertTrue($this->testUser->fresh()->hasDirectPermission('edit-news'));
+    }
+
+    public static function permissionMutationProvider(): array
+    {
+        return [
+            'grant keyless permission' => ['givePermissionTo', false],
+            'grant mixed permissions' => ['givePermissionTo', true],
+            'deny keyless permission' => ['denyPermissionTo', false],
+            'revoke keyless permission' => ['revokePermissionTo', false],
+            'sync keyless permission' => ['syncPermissions', false],
+            'sync mixed permissions' => ['syncPermissions', true],
+            'sync mixed permission effects' => ['syncPermissionEffects', true],
+        ];
+    }
+
+    #[DataProvider('permissionOwnerMutationProvider')]
+    public function testPermissionMutationsRejectAKeylessPersistedSubjectBeforeMutation(
+        string $method,
+        array $arguments,
+    ): void {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->givePermissionTo('edit-news');
+        $keylessUser = User::query()
+            ->select('email')
+            ->where('email', $this->testUser->email)
+            ->firstOrFail();
+
+        try {
+            $keylessUser->{$method}(...$arguments);
+            $this->fail('Expected a missing subject key exception was not thrown.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString($keylessUser->getKeyName(), $exception->getMessage());
+        }
+
+        $user = $this->testUser->fresh();
+
+        $this->assertTrue($user->hasDirectPermission('edit-news'));
+        $this->assertFalse($user->hasDirectPermission('edit-articles'));
+        $this->assertFalse($user->hasDeniedPermission('edit-blog'));
+    }
+
+    public static function permissionOwnerMutationProvider(): array
+    {
+        return [
+            'give permission' => ['givePermissionTo', ['edit-articles']],
+            'deny permission' => ['denyPermissionTo', ['edit-blog']],
+            'sync permissions' => ['syncPermissions', ['edit-articles']],
+            'sync permission effects' => ['syncPermissionEffects', [['edit-articles'], ['edit-blog']]],
+            'revoke permission' => ['revokePermissionTo', ['edit-news']],
+        ];
+    }
+
+    public function testRevokingAPermissionArrayPreservesNameBasedResolution(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->givePermissionTo('edit-blog');
+        $keylessPermission = app(Permission::class)->select(['name', 'guard_name'])->where('name', 'edit-blog')->firstOrFail();
+
+        $this->testUser->revokePermissionTo([$keylessPermission]);
+
+        $this->assertFalse($this->testUser->fresh()->hasDirectPermission('edit-blog'));
     }
 
     public function testItDoesNotRemoveAlreadyAssociatedPermissionsWhenAssigningNewPermissions(): void

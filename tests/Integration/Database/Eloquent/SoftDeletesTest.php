@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Eloquent;
 
 use Carbon\CarbonInterface;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class SoftDeletesTest extends DatabaseTestCase
 {
@@ -80,6 +82,8 @@ class SoftDeletesTest extends DatabaseTestCase
 
     public function testTrashedMethodReturnsTrue(): void
     {
+        Model::preventAccessingMissingAttributes(false);
+
         $post = SoftPost::create(['title' => 'Test', 'body' => 'Body']);
 
         $this->assertFalse($post->trashed());
@@ -87,6 +91,33 @@ class SoftDeletesTest extends DatabaseTestCase
         $post->delete();
 
         $this->assertTrue($post->trashed());
+    }
+
+    public function testTrashedRejectsPersistedModelsMissingTheDeletedAtColumn(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $post = SoftPost::create(['title' => 'Test', 'body' => 'Body']);
+        $partialPost = SoftPost::query()->select('id')->findOrFail($post->id);
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('The attribute [deleted_at]');
+
+        $partialPost->trashed();
+    }
+
+    public function testTrashedAllowsMissingDeletedAtStateOnFreshAndJustCreatedModels(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $freshPost = new SoftPost;
+        $createdPost = SoftPost::create(['title' => 'Test', 'body' => 'Body']);
+
+        $this->assertArrayNotHasKey('deleted_at', $freshPost->getAttributes());
+        $this->assertFalse($freshPost->trashed());
+        $this->assertArrayNotHasKey('deleted_at', $createdPost->getAttributes());
+        $this->assertTrue($createdPost->wasRecentlyCreated);
+        $this->assertFalse($createdPost->trashed());
     }
 
     public function testRestoreModel(): void
@@ -112,6 +143,38 @@ class SoftDeletesTest extends DatabaseTestCase
         $post->forceDelete();
 
         $this->assertNull(SoftPost::withTrashed()->find($postId));
+    }
+
+    #[DataProvider('softDeleteOperations')]
+    public function testSoftDeleteOperationsRejectMissingPrimaryKeys(string $operation): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $post = SoftPost::create(['title' => 'Partial', 'body' => 'Body']);
+        $partialPost = SoftPost::query()
+            ->select('title', 'body', 'deleted_at')
+            ->findOrFail($post->id);
+
+        try {
+            $partialPost->{$operation}();
+
+            $this->fail("The [{$operation}] operation did not reject a missing primary key.");
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString('The attribute [id]', $exception->getMessage());
+        }
+
+        $this->assertDatabaseHas('soft_posts', [
+            'id' => $post->id,
+            'deleted_at' => null,
+        ]);
+    }
+
+    public static function softDeleteOperations(): array
+    {
+        return [
+            'soft delete' => ['delete'],
+            'force delete' => ['forceDelete'],
+        ];
     }
 
     public function testSoftDeletedEventsAreFired(): void
