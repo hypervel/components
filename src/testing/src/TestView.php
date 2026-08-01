@@ -53,14 +53,20 @@ class TestView implements Stringable
         } elseif ($value instanceof Closure) {
             PHPUnit::assertTrue($value(Arr::get($this->view->gatherData(), $key)));
         } elseif ($value instanceof Model) {
-            PHPUnit::assertTrue($value->is(Arr::get($this->view->gatherData(), $key)));
+            $actual = Arr::get($this->view->gatherData(), $key);
+
+            PHPUnit::assertTrue($actual instanceof Model && ($value === $actual || $value->is($actual)));
         } elseif ($value instanceof EloquentCollection) {
             $actual = Arr::get($this->view->gatherData(), $key);
 
             PHPUnit::assertInstanceOf(EloquentCollection::class, $actual);
             PHPUnit::assertSameSize($value, $actual);
 
-            $value->each(fn ($item, $index) => PHPUnit::assertTrue($actual->get($index)->is($item)));
+            $value->each(function ($item, $index) use ($actual): void {
+                $actualItem = $actual->get($index);
+
+                PHPUnit::assertTrue($actualItem instanceof Model && ($item === $actualItem || $item->is($actualItem)));
+            });
         } else {
             PHPUnit::assertEquals($value, Arr::get($this->view->gatherData(), $key));
         }
