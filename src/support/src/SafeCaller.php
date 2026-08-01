@@ -18,6 +18,8 @@ class SafeCaller
     /**
      * Execute the given closure, catching any exceptions and reporting them.
      *
+     * A failing reporter must not replace the caught exception or prevent the caller's default from being returned.
+     *
      * @template TReturn
      * @template TDefault
      *
@@ -31,7 +33,14 @@ class SafeCaller
             return $closure();
         } catch (Throwable $exception) {
             if ($this->container->has(ExceptionHandlerContract::class)) {
-                $this->container->make(ExceptionHandlerContract::class)->report($exception);
+                try {
+                    $this->container->make(ExceptionHandlerContract::class)->report($exception);
+                } catch (Throwable $reportingFailure) {
+                    try {
+                        error_log((string) $exception . PHP_EOL . (string) $reportingFailure);
+                    } catch (Throwable) {
+                    }
+                }
             }
         }
 
