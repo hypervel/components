@@ -397,7 +397,7 @@ class Command extends SymfonyCommand
      *
      * @throws ManuallyFailedException|Throwable
      */
-    public function fail(string|Throwable|null $exception = null): void
+    public function fail(string|Throwable|null $exception = null): never
     {
         if (is_null($exception)) {
             $exception = 'Command failed manually.';
