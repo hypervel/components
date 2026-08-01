@@ -185,17 +185,18 @@ class RateLimiterTest extends TestCase
         $this->assertSame('int-limit', $rateLimiter->limiter(IntBackedEnumNamedRateLimiter::First)());
     }
 
-    public function testNamedLimiterKeyPreservesExistingHashedAndRawFormats(): void
+    public function testNamedLimiterKeyUsesCanonicalHashedAndRawFormats(): void
     {
         $rateLimiter = new RateLimiter(m::mock(Cache::class));
         $limit = Limit::perMinute(10)->by('user-1');
+        $key = '3:api6:user-1';
 
         $this->assertSame(
-            hash('xxh128', 'apiuser-1'),
+            hash('xxh128', $key),
             $rateLimiter->resolveNamedLimiterKey('api', $limit),
         );
         $this->assertSame(
-            'api:user-1',
+            $key,
             $rateLimiter->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
         );
     }
@@ -210,26 +211,27 @@ class RateLimiterTest extends TestCase
             return 'account-1';
         });
         $limit = Limit::perMinute(10)->by('user-1');
+        $key = '9:account-13:api6:user-1';
 
         $this->assertSame(
-            hash('xxh128', 'account-1:apiuser-1'),
+            hash('xxh128', $key),
             $rateLimiter->resolveNamedLimiterKey('api', $limit),
         );
         $this->assertSame(
-            'account-1:api:user-1',
+            $key,
             $rateLimiter->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
         );
         $this->assertSame('api', $resolvedName);
     }
 
-    public function testNullScopeAndClearedResolverPreserveExistingKey(): void
+    public function testNullScopeAndClearedResolverUseTheUnscopedKey(): void
     {
         $rateLimiter = new RateLimiter(m::mock(Cache::class));
         $limit = Limit::perMinute(10)->by('user-1');
 
         $rateLimiter->resolveKeyScopeUsing(fn () => null);
         $this->assertSame(
-            hash('xxh128', 'apiuser-1'),
+            hash('xxh128', '3:api6:user-1'),
             $rateLimiter->resolveNamedLimiterKey('api', $limit),
         );
 
@@ -237,7 +239,7 @@ class RateLimiterTest extends TestCase
         $rateLimiter->resolveKeyScopeUsing(null);
 
         $this->assertSame(
-            hash('xxh128', 'apiuser-1'),
+            hash('xxh128', '3:api6:user-1'),
             $rateLimiter->resolveNamedLimiterKey('api', $limit),
         );
     }
@@ -251,11 +253,11 @@ class RateLimiterTest extends TestCase
         $limit = new GlobalLimit(10);
 
         $this->assertSame(
-            hash('xxh128', 'api'),
+            hash('xxh128', '3:api0:'),
             $rateLimiter->resolveNamedLimiterKey('api', $limit),
         );
         $this->assertSame(
-            'api:',
+            '3:api0:',
             $rateLimiter->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
         );
     }
@@ -267,12 +269,63 @@ class RateLimiterTest extends TestCase
         $fallbackLimit = Limit::perMinute(10)->by($emptyLimit->fallbackKey());
 
         $this->assertSame(
-            hash('xxh128', 'api'),
+            hash('xxh128', '3:api0:'),
             $rateLimiter->resolveNamedLimiterKey('api', $emptyLimit),
         );
         $this->assertSame(
-            hash('xxh128', 'apiattempts:10:decay:60'),
+            hash('xxh128', '3:api20:attempts:10:decay:60'),
             $rateLimiter->resolveNamedLimiterKey('api', $fallbackLimit),
+        );
+    }
+
+    public function testNamedLimiterKeysPreserveNameAndKeyBoundaries(): void
+    {
+        $rateLimiter = new RateLimiter(m::mock(Cache::class));
+        $first = Limit::perMinute(10)->by('c');
+        $second = Limit::perMinute(10)->by('bc');
+
+        $this->assertNotSame(
+            $rateLimiter->resolveNamedLimiterKey('ab', $first),
+            $rateLimiter->resolveNamedLimiterKey('a', $second),
+        );
+        $this->assertNotSame(
+            $rateLimiter->resolveNamedLimiterKey('ab', $first, shouldHashKeys: false),
+            $rateLimiter->resolveNamedLimiterKey('a', $second, shouldHashKeys: false),
+        );
+    }
+
+    public function testNamedLimiterKeysPreserveScopeAndNameBoundaries(): void
+    {
+        $first = new RateLimiter(m::mock(Cache::class));
+        $first->resolveKeyScopeUsing(fn () => 'scope:one');
+        $second = new RateLimiter(m::mock(Cache::class));
+        $second->resolveKeyScopeUsing(fn () => 'scope');
+        $limit = Limit::perMinute(10)->by('user-1');
+
+        $this->assertNotSame(
+            $first->resolveNamedLimiterKey('api', $limit),
+            $second->resolveNamedLimiterKey('one:api', $limit),
+        );
+        $this->assertNotSame(
+            $first->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
+            $second->resolveNamedLimiterKey('one:api', $limit, shouldHashKeys: false),
+        );
+    }
+
+    public function testNamedLimiterKeysPreserveOptionalScopeArity(): void
+    {
+        $unscoped = new RateLimiter(m::mock(Cache::class));
+        $scoped = new RateLimiter(m::mock(Cache::class));
+        $scoped->resolveKeyScopeUsing(fn () => 'account-1');
+        $limit = Limit::perMinute(10)->by('user-1');
+
+        $this->assertNotSame(
+            $unscoped->resolveNamedLimiterKey('account-1:api', $limit),
+            $scoped->resolveNamedLimiterKey('api', $limit),
+        );
+        $this->assertNotSame(
+            $unscoped->resolveNamedLimiterKey('account-1:api', $limit, shouldHashKeys: false),
+            $scoped->resolveNamedLimiterKey('api', $limit, shouldHashKeys: false),
         );
     }
 }

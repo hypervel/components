@@ -828,23 +828,26 @@ public function resolveNamedLimiterKey(
         ? null
         : $this->keyScopeResolver?->__invoke($limiterName);
 
-    if ($scope === null) {
-        return $shouldHashKeys
-            ? hash('xxh128', $limiterName . $limit->key)
-            : $limiterName . ':' . $limit->key;
+    // Length prefixes keep arbitrary segment values injective before hashing.
+    $key = strlen($limiterName) . ':' . $limiterName
+        . strlen($limit->key) . ':' . $limit->key;
+
+    if ($scope !== null) {
+        $key = strlen($scope) . ':' . $scope . $key;
     }
 
     return $shouldHashKeys
-        ? hash('xxh128', $scope . ':' . $limiterName . $limit->key)
-        : $scope . ':' . $limiterName . ':' . $limit->key;
+        ? hash('xxh128', $key)
+        : $key;
 }
 ```
 
 Properties:
 
-- no resolver produces the exact existing bytes;
-- the scoped hashed path performs one xxh128 operation, not nested hashes;
-- `GlobalLimit` does not invoke the resolver and keeps its exact stock key;
+- absent scope produces the same canonical two-segment key regardless of whether a resolver is unset or returns `null`;
+- length-prefixed segments keep limiter name, limit key, and optional scope boundaries injective;
+- every hashed path performs one xxh128 operation, not nested hashes;
+- `GlobalLimit` does not invoke the resolver and uses the canonical unscoped key;
 - `Unlimited`, which extends `GlobalLimit`, is still handled before key construction by both middleware paths;
 - the HTTP middleware passes its existing `self::$shouldHashKeys` flag;
 - queue `RateLimited` uses the default `true`;
