@@ -151,6 +151,56 @@ class ScopedNodeTest extends TestCase
         }
     }
 
+    #[DataProvider('nodeObjectPositionalQueries')]
+    public function testNodeObjectPositionalQueriesRequireSelectedScope(string $method): void
+    {
+        $node = MenuItem::query()
+            ->select(['id', '_lft', '_rgt'])
+            ->findOrFail(6);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set node [Hypervel\Tests\NestedSet\Models\MenuItem] must have scope attribute [menu_id] selected.',
+        );
+
+        MenuItem::query()->{$method}($node)->get();
+    }
+
+    public static function nodeObjectPositionalQueries(): array
+    {
+        return [
+            'ancestors' => ['whereAncestorOf'],
+            'descendants' => ['whereDescendantOf'],
+            'before' => ['whereIsBefore'],
+            'after' => ['whereIsAfter'],
+        ];
+    }
+
+    #[DataProvider('directScopedPositionQueries')]
+    public function testDirectNodePositionQueriesRequireSelectedScope(string $method): void
+    {
+        $node = MenuItem::query()
+            ->select(['id', '_lft', '_rgt', 'parent_id'])
+            ->findOrFail(3);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set node [Hypervel\Tests\NestedSet\Models\MenuItem] must have scope attribute [menu_id] selected.',
+        );
+
+        $node->{$method}()->get();
+    }
+
+    public static function directScopedPositionQueries(): array
+    {
+        return [
+            'next nodes' => ['nextNodes'],
+            'previous nodes' => ['prevNodes'],
+            'next siblings' => ['nextSiblings'],
+            'previous siblings' => ['prevSiblings'],
+        ];
+    }
+
     #[DataProvider('lowLevelScopedOperations')]
     public function testLowLevelTreeOperationsRequireAConcreteScope(string $operation): void
     {

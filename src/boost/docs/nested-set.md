@@ -402,6 +402,8 @@ $nextSibling = $category->getNextSibling();
 $previousSibling = $category->getPrevSibling();
 ```
 
+When selecting specific columns for an eager-loaded sibling relationship, include the configured parent and scope columns. The `siblings` relationship also requires the model's primary key so it can exclude the node itself.
+
 You may also query neighboring nodes without limiting the result to siblings:
 
 ```php
@@ -568,6 +570,8 @@ $tree = $categories->toTree();
 $flatTree = $categories->toFlatTree();
 ```
 
+When selecting specific columns for collection tree methods, include the model's primary key and configured parent column. The `toTree` and `toFlatTree` methods also require `_lft` when you do not pass a root; a root model passed to either method must include its primary key.
+
 You may build a tree for a specific root node by passing the root model or key to `toTree`:
 
 ```php
@@ -610,6 +614,8 @@ $isBroken = Category::isBroken();
 ```
 
 The total is useful as a broken-or-healthy signal. Since one damaged node may violate more than one invariant, it is not a unique count of damaged nodes.
+
+The `countErrors`, `getTotalErrors`, and `isBroken` methods use a SQL window function. When using MySQL, these methods require MySQL 8.0 or newer. Every other database supported by Hypervel meets this requirement at its minimum supported version.
 
 <a name="fixing-existing-trees"></a>
 ### Fixing Existing Trees

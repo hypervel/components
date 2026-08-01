@@ -526,6 +526,11 @@ predicates require a persisted parent, the same concrete scope, and the
 child's non-null normalized parent ID to equal the parent's persisted key.
 Only `null` means no parent; `0` and `''` remain valid.
 
+In-memory ancestor/descendant predicates require the bounds used by their
+interval comparison and return false when a bound was not selected.
+Self-inclusive predicates retain their persisted same-node fast path without
+requiring bounds.
+
 Rename the protected target guard to `assertNodeInTree()`:
 
 ```php
@@ -570,11 +575,24 @@ under the requested boolean so `boolean: 'or'` semantics remain correct. Pass
 node coordinate bindings with their raw predicates and remove comments that
 claim scalar lookups are unscoped.
 
+Type positional model-or-key parameters as `Model|int|string`, matching the
+maintained upstream surface and the model key contract; do not retain `mixed`
+for values these methods cannot consume. Reject a `Model` that is not a Nested
+Set node at the shared positional-query boundary.
+
 Node-object ancestor, descendant, before, and after predicates require the
 query model and supplied node to address the same normalized connection and
-model table. Different model classes sharing that store remain valid. Every
-node-object positional predicate and next/previous-node builder requires
-loaded bounds and fails descriptively without adding I/O.
+model table and to have every configured scope attribute selected. Different
+model classes sharing that store remain valid. Every node-object positional
+predicate and next/previous-node builder requires loaded bounds and fails
+descriptively without adding I/O. Strict node-object ancestor exclusion uses
+the candidate's right bound rather than the supplied node's optional key;
+scalar lookups retain key exclusion.
+
+Direct next/previous node and sibling builders also require every configured
+scope attribute to be selected before constructing their scoped query. Keep
+this model-projection message separate from the builder's `scoped([...])`
+guidance and add no hidden hydration.
 
 ## 6. Relations and adaptive eager matching
 
@@ -617,11 +635,17 @@ Direct node-object positional builders throw when bounds are absent. Lazy
 ancestor/descendant relations instead constrain to no rows when bounds or
 concrete scope are missing, and eager preparation removes those parents
 before building positional constraints. Sibling relations apply the same
-empty-result boundary for missing parentage or scope. Relationships cannot
-hydrate arbitrary caller projections. The lazy and eager paths are
-independently load-bearing because Eloquent constructs eager/existence
-relations through `noConstraints()`. Keep separate small checks for bounds,
-parentage, and scope rather than one structural-completeness abstraction.
+empty-result boundary for missing parentage or scope, and strict siblings also
+require the parent model's key so self can be excluded. Strict eager sibling
+matching throws when its related projection omits the primary key, and both
+sibling modes throw before treating an omitted related parent column as the
+valid root value. Configured scope columns remain required projection columns;
+their incomplete identity is guaranteed not to match a concrete bucket.
+`siblingsAndSelf()` needs no primary key for self exclusion. The lazy and eager
+paths are independently load-bearing because Eloquent constructs
+eager/existence relations through `noConstraints()`. Keep these
+relation-specific checks separate rather than adding one
+structural-completeness abstraction.
 
 Eager constraints deduplicate and reduce parent intervals within each exact
 scope, and constrain to no rows when the parent set is empty. Sibling matching
@@ -657,6 +681,15 @@ the collection to infer the root and explicit `null` selects root-level nodes.
 Reject meaningless `true`. Never use `$root ?: null`.
 
 Rebuild linking from array-backed parent buckets plus a separate roots list.
+Before grouping, require every node to have a non-null model key and its
+configured parent column selected. An absent key must not be interpreted as
+the roots bucket, which would create a self-referencing tree and an unbounded
+flat-tree traversal. Reject incomplete projections at this shared boundary;
+do not add an iteration cap.
+Root inference additionally requires the left bound on every collection node;
+an explicitly supplied root model must be a Nested Set node and requires its
+key but not its bounds. Keep these checks in `getRootNodeId()` rather than
+rejecting valid explicit-root or relation-linking projections.
 Clear stale parent/children relations before relinking. Each parent gets one
 relation-free clone shared by its children; this exposes legitimate loaded
 parent data without creating parent/children serialization cycles. Apply the
@@ -680,7 +713,7 @@ movement range rather than Aimeos's broader overlap update, which includes
 containing ancestors in no-op updates and widens locks.
 
 Use known source/target bounds and depth in movement SQL. Refresh the source
-only when the coroutine freshness marker proves another structural operation
+only when the coroutine structural revision proves another operation
 could have made it stale or its bounds/depth were not selected. Reject direct
 builder node data with absent or null structural values. Publish freshness
 after that check and immediately before the movement update; publish new-node
@@ -778,6 +811,10 @@ concrete scope value. Check presence with `array_key_exists()` against raw
 attributes: `scoped(['menu_id' => null])` is concrete, while a blank model is
 not. Otherwise throw a `LogicException` naming `scoped()`.
 
+These three diagnostics use a SQL window function and require MySQL 8.0 or
+newer. Every other database supported by Hypervel satisfies the requirement at
+its framework minimum version. Add no runtime version check or legacy query.
+
 `getTotalErrors()` remains the sum for compatibility, but documentation states
 that non-zero means broken and its magnitude is not a unique-node count.
 `isBroken()` performs cheap indexed/aggregate existence checks first and the
@@ -860,8 +897,9 @@ Update `src/boost/docs/nested-set.md` in nearby Laravel-style language for:
 - bigint/integer/UUID/ULID helpers and scoped index prefixes;
 - mandatory stored depth and the optional application depth index;
 - sibling relations and custom builders;
+- required key, parent, and scope columns in eager sibling projections;
 - literal nested-set scopes versus visibility global scopes;
-- error categories and required scoped diagnostics;
+- error categories, required scoped diagnostics, and their MySQL version floor;
 - repair extra columns and rebuild contracts;
 - bulk versus protected evented descendant deletion;
 - per-mutation transactions and application serialization;
@@ -912,7 +950,10 @@ Hypervel tests while preserving Hypervel-specific regressions.
 ### Unit and SQLite/Testbench regressions
 
 - collection inference and explicit roots: null, `0`, empty string, integer,
-  numeric string, UUID, ULID, and model;
+  numeric string, UUID, ULID, and model, plus key/parent projection refusal
+  across linking, tree building, and flat-tree building, inferred-root left
+  bound refusal, invalid and keyless supplied-root refusal, and explicit roots
+  without bounds;
 - parent fill-order, numeric request strings, UUID/ULID parents, missing and
   trashed parents, key `0`, absent versus present-null scope, and cross-scope
   rejection;
@@ -927,13 +968,19 @@ Hypervel tests while preserving Hypervel-specific regressions.
   default/explicit logical connection aliases, and persisted 0/0 target
   rejection, plus cross-connection mutation-target rejection and
   concrete-scope enforcement for every scalar or low-level scoped lookup,
-  cross-store node predicates, and same-store model aliases;
+  cross-store node predicates, same-store model aliases, bounds-only strict
+  ancestors, selected-scope enforcement for node-object predicates, and
+  selected-scope enforcement for direct next/previous node and sibling
+  builders;
 - lazy/eager/existence/count sibling relations, custom parent columns,
   configured plain foreign keys across sibling/ancestor/descendant relations,
   qualified relation predicates after joins, null-root correlation, null
   scopes, root-to-parent ancestors, nested `whereHas()` alias correlation,
   event-free connection-preserving existence-query construction, and exactly
-  one scope predicate per relation;
+  one scope predicate per relation, plus keyless and mixed incomplete parents
+  and missing related keys or parent columns in eager projections;
+- in-memory ancestor/descendant predicates and eager matching with each used
+  bound omitted independently;
 - joined root/leaf/has-children/before/after/default-order,
   `withoutRoot()` / `hasParent()`, and all next/previous node and sibling
   queries with qualified structural columns;

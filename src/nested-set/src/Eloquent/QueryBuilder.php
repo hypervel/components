@@ -13,6 +13,7 @@ use Hypervel\Database\Query\JoinClause;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\NestedSet\NodeContext;
 use Hypervel\Support\Collection as BaseCollection;
+use InvalidArgumentException;
 use LogicException;
 
 class QueryBuilder extends EloquentBuilder
@@ -69,18 +70,15 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Limit results to ancestors of specified node.
      */
-    public function whereAncestorOf(mixed $id, bool $andSelf = false, string $boolean = 'and'): static
+    public function whereAncestorOf(Model|int|string $id, bool $andSelf = false, string $boolean = 'and'): static
     {
-        $keyName = $this->model->qualifyColumn($this->model->getKeyName());
         $model = null;
 
-        if (NestedSet::isNode($id)) {
+        if ($id instanceof Model) {
             $model = $id;
             $this->assertUsableNodeForPositionalQuery($model);
             $value = '?';
-            $bindings = [$id->getRgt()];
-
-            $id = $id->getKey();
+            $bindings = [$id->getRgt()]; /* @phpstan-ignore method.notFound */
         } else {
             $this->assertConcreteNestedSetScope('scalar lookup');
 
@@ -97,16 +95,24 @@ class QueryBuilder extends EloquentBuilder
             $bindings = [];
         }
 
-        $this->query->whereNested(function ($inner) use ($model, $value, $bindings, $andSelf, $id, $keyName) {
+        $this->query->whereNested(function ($inner) use ($model, $value, $bindings, $andSelf, $id) {
             [$lft, $rgt] = $this->wrappedColumns();
 
             $inner->whereRaw("{$value} between {$lft} and {$rgt}", $bindings);
 
             if (! $andSelf) {
-                $inner->where($keyName, '<>', $id);
+                if ($model === null) {
+                    $inner->where(
+                        $this->model->qualifyColumn($this->model->getKeyName()),
+                        '<>',
+                        $id,
+                    );
+                } else {
+                    $inner->whereRaw("{$rgt} > ?", [$model->getRgt()]); /* @phpstan-ignore method.notFound */
+                }
             }
             if ($model !== null) {
-                $model->applyNestedSetScope($inner);
+                $model->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound */
             }
         }, $boolean);
 
@@ -116,7 +122,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Add an `or` constraint for ancestors of a node.
      */
-    public function orWhereAncestorOf(mixed $id, bool $andSelf = false): static
+    public function orWhereAncestorOf(Model|int|string $id, bool $andSelf = false): static
     {
         return $this->whereAncestorOf($id, $andSelf, 'or');
     }
@@ -124,7 +130,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Limit results to ancestors and the node itself.
      */
-    public function whereAncestorOrSelf(mixed $id): static
+    public function whereAncestorOrSelf(Model|int|string $id): static
     {
         return $this->whereAncestorOf($id, true);
     }
@@ -132,7 +138,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get ancestors of specified node.
      */
-    public function ancestorsOf(mixed $id, array $columns = ['*']): BaseCollection
+    public function ancestorsOf(Model|int|string $id, array $columns = ['*']): BaseCollection
     {
         return $this->whereAncestorOf($id)->get($columns);
     }
@@ -140,7 +146,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get ancestors and the node itself.
      */
-    public function ancestorsAndSelf(mixed $id, array $columns = ['*']): BaseCollection
+    public function ancestorsAndSelf(Model|int|string $id, array $columns = ['*']): BaseCollection
     {
         return $this->whereAncestorOf($id, true)->get($columns);
     }
@@ -171,13 +177,13 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Add constraint statement to descendants of specified node.
      */
-    public function whereDescendantOf(mixed $id, string $boolean = 'and', bool $not = false, bool $andSelf = false): static
+    public function whereDescendantOf(Model|int|string $id, string $boolean = 'and', bool $not = false, bool $andSelf = false): static
     {
         $this->query->whereNested(function (BaseQueryBuilder $inner) use ($id, $andSelf, $not) {
-            if (NestedSet::isNode($id)) {
+            if ($id instanceof Model) {
                 $this->assertUsableNodeForPositionalQuery($id);
-                $id->applyNestedSetScope($inner);
-                $data = $id->getBounds();
+                $id->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound */
+                $data = $id->getBounds(); /* @phpstan-ignore method.notFound */
             } else {
                 $this->assertConcreteNestedSetScope('scalar lookup');
 
@@ -200,7 +206,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Exclude descendants of a node.
      */
-    public function whereNotDescendantOf(mixed $id): static
+    public function whereNotDescendantOf(Model|int|string $id): static
     {
         return $this->whereDescendantOf($id, 'and', true);
     }
@@ -208,7 +214,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Add an `or` constraint for descendants of a node.
      */
-    public function orWhereDescendantOf(mixed $id): static
+    public function orWhereDescendantOf(Model|int|string $id): static
     {
         return $this->whereDescendantOf($id, 'or');
     }
@@ -216,7 +222,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Add an `or` exclusion for descendants of a node.
      */
-    public function orWhereNotDescendantOf(mixed $id): static
+    public function orWhereNotDescendantOf(Model|int|string $id): static
     {
         return $this->whereDescendantOf($id, 'or', true);
     }
@@ -224,7 +230,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Limit results to descendants and the node itself.
      */
-    public function whereDescendantOrSelf(mixed $id, string $boolean = 'and', bool $not = false): static
+    public function whereDescendantOrSelf(Model|int|string $id, string $boolean = 'and', bool $not = false): static
     {
         return $this->whereDescendantOf($id, $boolean, $not, true);
     }
@@ -232,7 +238,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get descendants of specified node.
      */
-    public function descendantsOf(mixed $id, array $columns = ['*'], bool $andSelf = false): BaseCollection
+    public function descendantsOf(Model|int|string $id, array $columns = ['*'], bool $andSelf = false): BaseCollection
     {
         try {
             return $this->whereDescendantOf($id, 'and', false, $andSelf)->get($columns);
@@ -244,7 +250,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get descendants and the node itself.
      */
-    public function descendantsAndSelf(mixed $id, array $columns = ['*']): BaseCollection
+    public function descendantsAndSelf(Model|int|string $id, array $columns = ['*']): BaseCollection
     {
         return $this->descendantsOf($id, $columns, true);
     }
@@ -252,15 +258,15 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Add a positional constraint relative to a node.
      */
-    protected function whereIsBeforeOrAfter(mixed $id, string $operator, string $boolean): static
+    protected function whereIsBeforeOrAfter(Model|int|string $id, string $operator, string $boolean): static
     {
         $model = null;
 
-        if (NestedSet::isNode($id)) {
+        if ($id instanceof Model) {
             $model = $id;
             $this->assertUsableNodeForPositionalQuery($model);
             $value = '?';
-            $bindings = [$id->getLft()];
+            $bindings = [$id->getLft()]; /* @phpstan-ignore method.notFound */
         } else {
             $this->assertConcreteNestedSetScope('scalar lookup');
 
@@ -287,7 +293,7 @@ class QueryBuilder extends EloquentBuilder
             $bindings,
         ) {
             if ($model !== null) {
-                $model->applyNestedSetScope($inner);
+                $model->applyNestedSetScope($inner); /* @phpstan-ignore method.notFound */
             }
 
             $inner->whereRaw("{$lft} {$operator} {$value}", $bindings);
@@ -299,7 +305,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Constraint nodes to those that are after specified node.
      */
-    public function whereIsAfter(mixed $id, string $boolean = 'and'): static
+    public function whereIsAfter(Model|int|string $id, string $boolean = 'and'): static
     {
         return $this->whereIsBeforeOrAfter($id, '>', $boolean);
     }
@@ -307,7 +313,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Constraint nodes to those that are before specified node.
      */
-    public function whereIsBefore(mixed $id, string $boolean = 'and'): static
+    public function whereIsBefore(Model|int|string $id, string $boolean = 'and'): static
     {
         return $this->whereIsBeforeOrAfter($id, '<', $boolean);
     }
@@ -975,6 +981,13 @@ class QueryBuilder extends EloquentBuilder
      */
     protected function assertUsableNodeForPositionalQuery(Model $node): void
     {
+        if (! NestedSet::isNode($node)) {
+            throw new InvalidArgumentException(sprintf(
+                'Model [%s] must be node.',
+                $node::class,
+            ));
+        }
+
         $queryIdentity = NodeContext::structuralIdentity($this->model);
         $nodeIdentity = NodeContext::structuralIdentity($node);
 
@@ -995,6 +1008,18 @@ class QueryBuilder extends EloquentBuilder
                 'Nested set node [%s] must have loaded bounds.',
                 $node::class,
             ));
+        }
+
+        $attributes = $node->getAttributes();
+
+        foreach (array_keys($node->getNestedSetScope()) as $attribute) { /* @phpstan-ignore method.notFound */
+            if (! array_key_exists($attribute, $attributes)) {
+                throw new LogicException(sprintf(
+                    'Nested set node [%s] must have scope attribute [%s] selected.',
+                    $node::class,
+                    $attribute,
+                ));
+            }
         }
     }
 

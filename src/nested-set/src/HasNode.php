@@ -503,6 +503,7 @@ trait HasNode
     public function nextNodes(): QueryBuilder
     {
         $this->assertBoundsLoaded();
+        $this->assertScopeLoaded();
 
         return $this->newScopedQuery()
             ->where(
@@ -518,6 +519,7 @@ trait HasNode
     public function prevNodes(): QueryBuilder
     {
         $this->assertBoundsLoaded();
+        $this->assertScopeLoaded();
 
         return $this->newScopedQuery()
             ->where(
@@ -1397,11 +1399,18 @@ trait HasNode
      */
     public function isDescendantOf(self $other): bool
     {
+        $lft = $this->getLft();
+        $otherLft = $other->getLft();
+        $otherRgt = $other->getRgt();
+
         return $this->exists
             && $other->exists
+            && $lft !== null
+            && $otherLft !== null
+            && $otherRgt !== null
             && $this->isSameTree($other)
-            && $this->getLft() > $other->getLft()
-            && $this->getLft() < $other->getRgt()
+            && $lft > $otherLft
+            && $lft < $otherRgt
             && ! $this->isSameNode($other);
     }
 
@@ -1410,14 +1419,21 @@ trait HasNode
      */
     public function isSelfOrDescendantOf(self $other): bool
     {
+        $lft = $this->getLft();
+        $otherLft = $other->getLft();
+        $otherRgt = $other->getRgt();
+
         return $this->exists
             && $other->exists
             && $this->isSameTree($other)
             && (
                 $this->isSameNode($other)
                 || (
-                    $this->getLft() > $other->getLft()
-                    && $this->getLft() < $other->getRgt()
+                    $lft !== null
+                    && $otherLft !== null
+                    && $otherRgt !== null
+                    && $lft > $otherLft
+                    && $lft < $otherRgt
                 )
             );
     }
@@ -1618,6 +1634,22 @@ trait HasNode
                 'Nested set node [%s] must have a loaded parent.',
                 static::class,
             ));
+        }
+    }
+
+    /**
+     * Assert that this node has loaded scope attributes.
+     */
+    protected function assertScopeLoaded(): void
+    {
+        foreach ($this->getScopeAttributes() as $attribute) {
+            if (! array_key_exists($attribute, $this->attributes)) {
+                throw new LogicException(sprintf(
+                    'Nested set node [%s] must have scope attribute [%s] selected.',
+                    static::class,
+                    $attribute,
+                ));
+            }
         }
     }
 

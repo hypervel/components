@@ -18,6 +18,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\NestedSet\Models\Category;
+use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -1120,6 +1121,50 @@ class NodeTest extends TestCase
         $this->assertFalse($first->isSelfOrAncestorOf($second));
     }
 
+    #[DataProvider('partialAncestryPredicates')]
+    public function testAncestryPredicatesTreatMissingBoundsAsFalse(
+        array $descendantColumns,
+        array $ancestorColumns,
+    ): void {
+        $descendant = Category::query()
+            ->select($descendantColumns)
+            ->findOrFail(7);
+        $ancestor = Category::query()
+            ->select($ancestorColumns)
+            ->findOrFail(5);
+
+        $this->assertFalse($descendant->isDescendantOf($ancestor));
+        $this->assertFalse($descendant->isSelfOrDescendantOf($ancestor));
+        $this->assertFalse($ancestor->isAncestorOf($descendant));
+        $this->assertFalse($ancestor->isSelfOrAncestorOf($descendant));
+    }
+
+    public static function partialAncestryPredicates(): array
+    {
+        return [
+            'missing descendant left bound' => [
+                ['id', '_rgt'],
+                ['id', '_lft', '_rgt'],
+            ],
+            'missing ancestor left bound' => [
+                ['id', '_lft', '_rgt'],
+                ['id', '_rgt'],
+            ],
+            'missing ancestor right bound' => [
+                ['id', '_lft', '_rgt'],
+                ['id', '_lft'],
+            ],
+        ];
+    }
+
+    public function testSelfInclusiveAncestryPredicatesNeedOnlyPersistedIdentity(): void
+    {
+        $same = Category::query()->select(['id'])->findOrFail(3);
+
+        $this->assertTrue($same->isSelfOrDescendantOf($same));
+        $this->assertTrue($same->isSelfOrAncestorOf($same));
+    }
+
     public function testSiblingsAreRealLazyLoadableRelations(): void
     {
         $node = $this->findCategory('samsung');
@@ -1147,6 +1192,75 @@ class NodeTest extends TestCase
         $this->assertEquals([6, 7, 9, 10], $this->getAll($nodes->find(7)->siblingsAndSelf->pluck('id')));
     }
 
+    public function testStrictSiblingRelationsTreatMissingModelKeyAsEmpty(): void
+    {
+        $node = Category::query()
+            ->select(['parent_id'])
+            ->where('name', '=', 'apple')
+            ->firstOrFail();
+
+        $this->assertNull($node->getKey());
+        $this->assertTrue($node->siblings()->get()->isEmpty());
+        $this->assertSame(
+            [3, 4],
+            $node->siblingsAndSelf()->orderBy('id')->pluck('id')->all(),
+        );
+
+        $node->load(['siblings', 'siblingsAndSelf']);
+
+        $this->assertTrue($node->siblings->isEmpty());
+        $this->assertSame(
+            [3, 4],
+            $node->siblingsAndSelf->pluck('id')->sort()->values()->all(),
+        );
+    }
+
+    #[DataProvider('strictSiblingEagerParentIds')]
+    public function testStrictSiblingEagerLoadingRequiresTheRelatedKey(array $parentIds): void
+    {
+        $nodes = Category::whereIn('id', $parentIds)->get();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set sibling matching for [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column in the eager load projection.',
+        );
+
+        $nodes->load([
+            'siblings' => fn ($query) => $query->select(['parent_id', 'name']),
+        ]);
+    }
+
+    public static function strictSiblingEagerParentIds(): array
+    {
+        return [
+            'single parent' => [[3]],
+            'multiple parents' => [[3, 6]],
+        ];
+    }
+
+    #[DataProvider('siblingRelations')]
+    public function testSiblingEagerLoadingRequiresTheRelatedParentColumn(string $relation): void
+    {
+        $nodes = Category::whereIn('id', [1, 3])->get();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set sibling matching for [Hypervel\Tests\NestedSet\Models\Category] requires the [parent_id] column in the eager load projection.',
+        );
+
+        $nodes->load([
+            $relation => fn ($query) => $query->select(['id', 'name']),
+        ]);
+    }
+
+    public static function siblingRelations(): array
+    {
+        return [
+            'siblings' => ['siblings'],
+            'siblings and self' => ['siblingsAndSelf'],
+        ];
+    }
+
     public function testSiblingRelationsTreatMissingParentageAsEmpty(): void
     {
         $node = Category::query()->select(['id'])->findOrFail(7);
@@ -1164,6 +1278,14 @@ class NodeTest extends TestCase
             $this->assertTrue($partial->siblings->isEmpty());
             $this->assertTrue($partial->siblingsAndSelf->isEmpty());
         }
+
+        $complete = Category::findOrFail(1);
+        $mixed = $complete->newCollection([$nodes->first(), $complete]);
+
+        $mixed->load('siblings');
+
+        $this->assertTrue($mixed->first()->siblings->isEmpty());
+        $this->assertSame([11], $complete->siblings->pluck('id')->all());
     }
 
     public function testRootSiblingsSupportEagerAndExistenceQueries(): void
@@ -1264,6 +1386,102 @@ class NodeTest extends TestCase
         $this->assertNotSame($root, $root->children->first()->parent);
         $this->assertSame($root->getKey(), $root->children->first()->parent->getKey());
         $this->assertSame([], $root->children->first()->parent->getRelations());
+    }
+
+    #[DataProvider('treeBuildingProjectionRequirements')]
+    public function testTreeBuildingRequiresStructuralProjection(
+        string $method,
+        array $columns,
+        string $requiredColumn,
+    ): void {
+        $nodes = Category::defaultOrder()->get($columns);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(sprintf(
+            'Nested set tree building for [Hypervel\Tests\NestedSet\Models\Category] requires the [%s] column in the projection.',
+            $requiredColumn,
+        ));
+
+        $nodes->{$method}();
+    }
+
+    public static function treeBuildingProjectionRequirements(): array
+    {
+        return [
+            'link nodes without key' => ['linkNodes', ['_lft', 'parent_id', 'name'], 'id'],
+            'tree without key' => ['toTree', ['_lft', 'parent_id', 'name'], 'id'],
+            'flat tree without key' => ['toFlatTree', ['_lft', 'parent_id', 'name'], 'id'],
+            'link nodes without parent' => ['linkNodes', ['id', '_lft', 'name'], 'parent_id'],
+            'tree without parent' => ['toTree', ['id', '_lft', 'name'], 'parent_id'],
+            'flat tree without parent' => ['toFlatTree', ['id', '_lft', 'name'], 'parent_id'],
+        ];
+    }
+
+    #[DataProvider('treeBuildingMethods')]
+    public function testInferredRootTreeBuildingRequiresTheLeftBound(string $method): void
+    {
+        $nodes = Category::query()
+            ->whereBetween('_lft', [2, 7])
+            ->defaultOrder()
+            ->get(['id', 'parent_id', 'name']);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set tree building for [Hypervel\Tests\NestedSet\Models\Category] requires the [_lft] column in the projection.',
+        );
+
+        $nodes->{$method}();
+    }
+
+    #[DataProvider('treeBuildingMethods')]
+    public function testTreeBuildingRequiresAKeyOnTheSuppliedRoot(string $method): void
+    {
+        $root = Category::query()
+            ->select(['_lft', '_rgt', 'name'])
+            ->findOrFail(2);
+        $nodes = Category::defaultOrder()->get();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set tree building for [Hypervel\Tests\NestedSet\Models\Category] requires the [id] column on the supplied root.',
+        );
+
+        $nodes->{$method}($root);
+    }
+
+    #[DataProvider('treeBuildingMethods')]
+    public function testTreeBuildingRejectsRootModelsWithoutNestedSet(string $method): void
+    {
+        $root = new class extends Model {
+        };
+        $nodes = Category::defaultOrder()->get();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(sprintf(
+            'Model [%s] must be node.',
+            $root::class,
+        ));
+
+        $nodes->{$method}($root);
+    }
+
+    public static function treeBuildingMethods(): array
+    {
+        return [
+            'tree' => ['toTree'],
+            'flat tree' => ['toFlatTree'],
+        ];
+    }
+
+    public function testExplicitRootTreeBuildingDoesNotRequireTheLeftBound(): void
+    {
+        $root = Category::query()->select(['id'])->findOrFail(2);
+        $nodes = Category::query()
+            ->whereBetween('_lft', [2, 7])
+            ->get(['id', 'parent_id', 'name']);
+
+        $this->assertSame([3, 4], $nodes->toTree($root)->modelKeys());
+        $this->assertSame([3, 4], $nodes->toFlatTree($root)->modelKeys());
     }
 
     public function testToTreeWithSpecifiedRoot(): void
@@ -1773,6 +1991,21 @@ class NodeTest extends TestCase
         ];
     }
 
+    #[DataProvider('nodeObjectPositionalQueries')]
+    public function testNodeObjectPositionalQueriesRejectModelsWithoutNestedSet(string $method): void
+    {
+        $node = new class extends Model {
+        };
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(sprintf(
+            'Model [%s] must be node.',
+            $node::class,
+        ));
+
+        Category::query()->{$method}($node)->get();
+    }
+
     #[DataProvider('directNodePositionQueries')]
     public function testDirectNodePositionQueriesRequireLoadedBounds(string $method): void
     {
@@ -1853,6 +2086,42 @@ class NodeTest extends TestCase
         $ancestors = $this->getAll(Category::whereAncestorOf($category)->pluck('id'));
 
         $this->assertEquals([1, 2], $ancestors);
+    }
+
+    public function testAncestorsByNodeWithoutSelectedKey(): void
+    {
+        $category = Category::query()
+            ->select(['_lft', '_rgt'])
+            ->where('name', '=', 'apple')
+            ->firstOrFail();
+
+        $this->assertNull($category->getKey());
+        $this->assertSame(
+            [1, 2],
+            Category::whereAncestorOf($category)->orderBy('id')->pluck('id')->all(),
+        );
+        $this->assertSame(
+            [1, 2, 3],
+            Category::whereAncestorOf($category, true)->orderBy('id')->pluck('id')->all(),
+        );
+
+        $root = Category::query()
+            ->select(['_lft', '_rgt'])
+            ->findOrFail(1);
+
+        $this->assertTrue(Category::whereAncestorOf($root)->get()->isEmpty());
+        $this->assertSame([1], Category::whereAncestorOf($root, true)->pluck('id')->all());
+    }
+
+    public function testAncestorEagerMatchingTreatsMissingRelatedBoundAsEmpty(): void
+    {
+        $category = Category::findOrFail(3);
+
+        $category->load([
+            'ancestors' => fn ($query) => $query->select(['id', '_rgt']),
+        ]);
+
+        $this->assertTrue($category->ancestors->isEmpty());
     }
 
     public function testDescendantsByNode(): void

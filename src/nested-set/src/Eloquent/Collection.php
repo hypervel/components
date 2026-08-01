@@ -7,6 +7,8 @@ namespace Hypervel\NestedSet\Eloquent;
 use Hypervel\Database\Eloquent\Collection as BaseCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\NestedSet;
+use InvalidArgumentException;
+use LogicException;
 
 class Collection extends BaseCollection
 {
@@ -86,8 +88,25 @@ class Collection extends BaseCollection
      */
     protected function getRootNodeId(Model|int|string|false|null $root = false): int|string|null
     {
-        if (NestedSet::isNode($root)) {
-            return $root->getKey();
+        if ($root instanceof Model) {
+            if (! NestedSet::isNode($root)) {
+                throw new InvalidArgumentException(sprintf(
+                    'Model [%s] must be node.',
+                    $root::class,
+                ));
+            }
+
+            $key = $root->getKey();
+
+            if ($key === null) {
+                throw new LogicException(sprintf(
+                    'Nested set tree building for [%s] requires the [%s] column on the supplied root.',
+                    $root::class,
+                    $root->getKeyName(),
+                ));
+            }
+
+            return $key;
         }
 
         if ($root !== false) {
@@ -100,6 +119,16 @@ class Collection extends BaseCollection
         $rootNodeId = null;
 
         foreach ($this->items as $node) {
+            $lftName = $node->getLftName(); /* @phpstan-ignore method.notFound */
+
+            if (! array_key_exists($lftName, $node->getAttributes())) {
+                throw new LogicException(sprintf(
+                    'Nested set tree building for [%s] requires the [%s] column in the projection.',
+                    $node::class,
+                    $lftName,
+                ));
+            }
+
             $lft = $node->getLft(); /* @phpstan-ignore method.notFound */
 
             if ($lft !== null && $lft < $leastValue) {
@@ -141,6 +170,24 @@ class Collection extends BaseCollection
         $roots = [];
 
         foreach ($this->items as $node) {
+            if ($node->getKey() === null) {
+                throw new LogicException(sprintf(
+                    'Nested set tree building for [%s] requires the [%s] column in the projection.',
+                    $node::class,
+                    $node->getKeyName(),
+                ));
+            }
+
+            $parentIdName = $node->getParentIdName(); /* @phpstan-ignore method.notFound */
+
+            if (! array_key_exists($parentIdName, $node->getAttributes())) {
+                throw new LogicException(sprintf(
+                    'Nested set tree building for [%s] requires the [%s] column in the projection.',
+                    $node::class,
+                    $parentIdName,
+                ));
+            }
+
             $parentId = $node->getParentId(); /* @phpstan-ignore method.notFound */
 
             if ($parentId === null) {

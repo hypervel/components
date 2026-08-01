@@ -6,6 +6,7 @@ namespace Hypervel\NestedSet\Eloquent;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use LogicException;
 
 class SiblingsRelation extends BaseRelation
 {
@@ -33,7 +34,7 @@ class SiblingsRelation extends BaseRelation
             return;
         }
 
-        if (! $this->hasLoadedParent($this->parent) || ! $this->hasConcreteScope($this->parent)) {
+        if (! $this->canResolveSiblings($this->parent)) {
             $this->query->whereRaw('0 = 1');
 
             return;
@@ -60,7 +61,7 @@ class SiblingsRelation extends BaseRelation
         $result = [];
 
         foreach (parent::prepareEagerModels($models) as $model) {
-            if ($this->hasLoadedParent($model) && $this->hasConcreteScope($model)) {
+            if ($this->canResolveSiblings($model)) {
                 $result[] = $model;
             }
         }
@@ -147,7 +148,7 @@ class SiblingsRelation extends BaseRelation
         }
 
         $parentId = $model->getParentId(); /* @phpstan-ignore method.notFound */
-        $relatedParentId = $related->getParentId(); /* @phpstan-ignore method.notFound */
+        $relatedParentId = $this->getRelatedParentIdForMatching($related);
         $sameParent = $parentId === null || $relatedParentId === null
             ? $parentId === $relatedParentId
             : (string) $parentId === (string) $relatedParentId;
@@ -157,11 +158,11 @@ class SiblingsRelation extends BaseRelation
         }
 
         $key = $model->getKey();
-        $relatedKey = $related->getKey();
+        $relatedKey = $this->getRelatedKeyForMatching($related);
 
-        return $key === null
-            || $relatedKey === null
-            || (string) $key !== (string) $relatedKey;
+        // Strict parents without a key are removed before the eager query, so
+        // this matcher is only reached with a concrete source key.
+        return (string) $key !== (string) $relatedKey;
     }
 
     /**
@@ -173,7 +174,7 @@ class SiblingsRelation extends BaseRelation
 
         foreach ($results as $related) {
             $scope = $this->scopeKey($related);
-            $parentId = $related->getParentId(); /* @phpstan-ignore method.notFound */
+            $parentId = $this->getRelatedParentIdForMatching($related);
 
             if ($parentId === null) {
                 $index[$scope]['roots'][] = $related;
@@ -190,6 +191,10 @@ class SiblingsRelation extends BaseRelation
      */
     protected function matchFromIndex(Model $model, array $indexed): Collection
     {
+        if (! $this->canResolveSiblings($model)) {
+            return $this->related->newCollection();
+        }
+
         $scope = $indexed[$this->scopeKey($model)] ?? null;
 
         if ($scope === null) {
@@ -209,14 +214,59 @@ class SiblingsRelation extends BaseRelation
         $matches = [];
 
         foreach ($candidates as $candidate) {
-            $candidateKey = $candidate->getKey();
+            $candidateKey = $this->getRelatedKeyForMatching($candidate);
 
-            if ($key === null || $candidateKey === null || (string) $candidateKey !== (string) $key) {
+            if ((string) $candidateKey !== (string) $key) {
                 $matches[] = $candidate;
             }
         }
 
         return $this->related->newCollection($matches);
+    }
+
+    /**
+     * Determine whether a model has enough information to resolve its siblings.
+     */
+    protected function canResolveSiblings(Model $model): bool
+    {
+        return $this->hasLoadedParent($model)
+            && $this->hasConcreteScope($model)
+            && ($this->andSelf || $model->getKey() !== null);
+    }
+
+    /**
+     * Get the related parent ID required for sibling matching.
+     */
+    protected function getRelatedParentIdForMatching(Model $related): int|string|null
+    {
+        if (! $this->hasLoadedParent($related)) {
+            throw new LogicException(sprintf(
+                'Nested set sibling matching for [%s] requires the [%s] column in the eager load projection.',
+                $related::class,
+                $related->getParentIdName(), /* @phpstan-ignore method.notFound */
+            ));
+        }
+
+        return $related->getParentId(); /* @phpstan-ignore method.notFound */
+    }
+
+    /**
+     * Get the related key required for strict sibling matching.
+     */
+    protected function getRelatedKeyForMatching(Model $related): int|string
+    {
+        /** @var null|int|string $key */
+        $key = $related->getKey();
+
+        if ($key === null) {
+            throw new LogicException(sprintf(
+                'Nested set sibling matching for [%s] requires the [%s] column in the eager load projection.',
+                $related::class,
+                $related->getKeyName(),
+            ));
+        }
+
+        return $key;
     }
 
     /**
