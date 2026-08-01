@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Events\EventsDispatcherTest;
 use Error;
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Events\Dispatchable;
 use Hypervel\Tests\Events\Fixtures\CacheInvalidationEvent;
@@ -1091,6 +1093,33 @@ class EventsDispatcherTest extends TestCase
         $this->assertFalse($d->hasListeners('foo'));
     }
 
+    public function testThrowingCatchAllListenerDoesNotSuppressLaterCatchAllObserver(): void
+    {
+        $dispatcher = new Dispatcher;
+        $observerFailure = new RuntimeException('Observer failed.');
+        $order = [];
+
+        $dispatcher->listen('*', function () use (&$order, $observerFailure): void {
+            $order[] = 'listen:*';
+
+            throw $observerFailure;
+        });
+        $dispatcher->observe('*', function () use (&$order): void {
+            $order[] = 'observe:*';
+        });
+
+        $thrown = null;
+
+        try {
+            $dispatcher->dispatch('foo');
+        } catch (RuntimeException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame(['listen:*', 'observe:*'], $order);
+        $this->assertSame($observerFailure, $thrown);
+    }
+
     public function testObserverRunsAfterActiveListenersHalt()
     {
         $d = new Dispatcher;
@@ -1124,6 +1153,105 @@ class EventsDispatcherTest extends TestCase
         $d->dispatch('foo');
 
         $this->assertFalse($secondListenerInvoked);
+        $this->assertTrue($observerInvoked);
+    }
+
+    public function testObserverRunsWhenActiveListenerThrows(): void
+    {
+        $dispatcher = new Dispatcher;
+        $listenerFailure = new RuntimeException('Listener failed.');
+        $observerInvoked = false;
+
+        $dispatcher->listen('foo', fn () => throw $listenerFailure);
+        $dispatcher->observe('foo', function () use (&$observerInvoked): void {
+            $observerInvoked = true;
+        });
+
+        $thrown = null;
+
+        try {
+            $dispatcher->dispatch('foo');
+        } catch (RuntimeException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame($listenerFailure, $thrown);
+        $this->assertTrue($observerInvoked);
+    }
+
+    public function testLaterObserverRunsWhenEarlierObserverThrows(): void
+    {
+        $dispatcher = new Dispatcher;
+        $observerFailure = new RuntimeException('Observer failed.');
+        $order = [];
+
+        $dispatcher->observe('foo', function () use (&$order, $observerFailure): void {
+            $order[] = 'first';
+
+            throw $observerFailure;
+        });
+        $dispatcher->observe('foo', function () use (&$order): void {
+            $order[] = 'second';
+        });
+
+        $thrown = null;
+
+        try {
+            $dispatcher->dispatch('foo');
+        } catch (RuntimeException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame(['first', 'second'], $order);
+        $this->assertSame($observerFailure, $thrown);
+    }
+
+    public function testActiveListenerFailureRemainsPrimaryWhenObserverAlsoThrows(): void
+    {
+        $dispatcher = new Dispatcher;
+        $listenerFailure = new RuntimeException('Listener failed.');
+        $secondObserverInvoked = false;
+
+        $dispatcher->listen('foo', fn () => throw $listenerFailure);
+        $dispatcher->observe('foo', fn () => throw new RuntimeException('Observer failed.'));
+        $dispatcher->observe('foo', function () use (&$secondObserverInvoked): void {
+            $secondObserverInvoked = true;
+        });
+
+        $thrown = null;
+
+        try {
+            $dispatcher->dispatch('foo');
+        } catch (RuntimeException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame($listenerFailure, $thrown);
+        $this->assertTrue($secondObserverInvoked);
+    }
+
+    public function testObserverRunsWhenAfterCommitListenerThrows(): void
+    {
+        $dispatcher = new Dispatcher;
+        $listenerFailure = new RuntimeException('Listener failed.');
+        $observerInvoked = false;
+        $event = new class implements ShouldDispatchAfterCommit {};
+
+        $dispatcher->setTransactionManagerResolver(fn (): DatabaseTransactionsManager => new DatabaseTransactionsManager);
+        $dispatcher->listen($event::class, fn () => throw $listenerFailure);
+        $dispatcher->observe($event::class, function () use (&$observerInvoked): void {
+            $observerInvoked = true;
+        });
+
+        $thrown = null;
+
+        try {
+            $dispatcher->dispatch($event);
+        } catch (RuntimeException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame($listenerFailure, $thrown);
         $this->assertTrue($observerInvoked);
     }
 

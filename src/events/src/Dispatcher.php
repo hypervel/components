@@ -42,6 +42,7 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use ReflectionClass;
 use ReflectionException;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -248,8 +249,10 @@ class Dispatcher implements DispatcherContract
      * the worker lifetime; per-request registration races across coroutines.
      *
      * Observers receive dispatched events but are not counted by hasListeners().
-     * They are invoked after all active listeners, do not participate in halt
-     * or propagation-stop semantics, and run synchronously (no queue support).
+     * They run after active listener processing ends, including when a listener
+     * throws, do not participate in halt or propagation-stop semantics, and run
+     * synchronously (no queue support). Every observer is attempted before the
+     * first observer failure is rethrown.
      *
      * Use this for observability tooling (tracing, metrics, logging) that must
      * not influence whether guarded events fire.
@@ -437,18 +440,13 @@ class Dispatcher implements DispatcherContract
             && $parsedPayload[0] instanceof ShouldDispatchAfterCommit
             && ! is_null($transactions = $this->resolveTransactionManager())) {
             $transactions->addCallback(function () use ($parsedEvent, $parsedPayload, $halt) {
-                $this->invokeListeners($parsedEvent, $parsedPayload, $halt);
-                $this->invokeObservers($parsedEvent, $parsedPayload);
+                $this->invokeListenersAndObservers($parsedEvent, $parsedPayload, $halt);
             });
 
             return null;
         }
 
-        $result = $this->invokeListeners($parsedEvent, $parsedPayload, $halt);
-
-        $this->invokeObservers($parsedEvent, $parsedPayload);
-
-        return $result;
+        return $this->invokeListenersAndObservers($parsedEvent, $parsedPayload, $halt);
     }
 
     /**
@@ -488,15 +486,51 @@ class Dispatcher implements DispatcherContract
     }
 
     /**
+     * Invoke active listeners followed by passive observers.
+     *
+     * An active listener failure remains primary after every observer is
+     * attempted; otherwise the first observer failure is rethrown.
+     */
+    protected function invokeListenersAndObservers(string $event, array $payload, bool $halt = false): mixed
+    {
+        try {
+            $result = $this->invokeListeners($event, $payload, $halt);
+        } catch (Throwable $exception) {
+            try {
+                $this->invokeObservers($event, $payload);
+            } catch (Throwable) {
+                // An observer failure must not replace the active listener failure.
+            }
+
+            throw $exception;
+        }
+
+        $this->invokeObservers($event, $payload);
+
+        return $result;
+    }
+
+    /**
      * Invoke passive observers for the event.
      *
      * Observers do not participate in halt or propagation-stop semantics.
-     * They always run, and their return values are ignored.
+     * Every observer is attempted, their return values are ignored, and the
+     * first observer failure is rethrown after the remaining observers run.
      */
     protected function invokeObservers(string $event, array $payload): void
     {
+        $firstException = null;
+
         foreach ($this->getObservers($event) as $observer) {
-            $observer($event, $payload);
+            try {
+                $observer($event, $payload);
+            } catch (Throwable $exception) {
+                $firstException ??= $exception;
+            }
+        }
+
+        if ($firstException !== null) {
+            throw $firstException;
         }
     }
 
