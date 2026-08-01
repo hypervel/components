@@ -728,6 +728,43 @@ class NodeTest extends TestCase
         $this->assertEquals($expected, $descendants);
     }
 
+    #[DataProvider('partialNodeStateMethods')]
+    public function testPersistedNodeStateCountsRequireLoadedBounds(string $method, array $columns): void
+    {
+        $node = Category::query()->select($columns)->findOrFail(5);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set node [Hypervel\Tests\NestedSet\Models\Category] must have loaded bounds.',
+        );
+
+        $node->{$method}();
+    }
+
+    public static function partialNodeStateMethods(): array
+    {
+        return [
+            'height without left bound' => ['getNodeHeight', ['id', '_rgt']],
+            'height without right bound' => ['getNodeHeight', ['id', '_lft']],
+            'descendant count without left bound' => ['getDescendantCount', ['id', '_rgt']],
+            'descendant count without right bound' => ['getDescendantCount', ['id', '_lft']],
+        ];
+    }
+
+    #[DataProvider('partialLeafProjections')]
+    public function testLeafPredicateTreatsMissingBoundsAsFalse(array $columns): void
+    {
+        $this->assertFalse(Category::query()->select($columns)->findOrFail(3)->isLeaf());
+    }
+
+    public static function partialLeafProjections(): array
+    {
+        return [
+            'missing left bound' => [['id', '_rgt']],
+            'missing right bound' => [['id', '_lft']],
+        ];
+    }
+
     public function testWithDepthWorks(): void
     {
         $nodes = $this->getAll(Category::withDepth()->limit(4)->pluck('depth'));
@@ -1286,6 +1323,78 @@ class NodeTest extends TestCase
 
         $this->assertTrue($mixed->first()->siblings->isEmpty());
         $this->assertSame([11], $complete->siblings->pluck('id')->all());
+    }
+
+    #[DataProvider('eagerRelationParents')]
+    public function testPartialEagerParentDoesNotSuppressACompleteInstanceOfTheSameRow(
+        string $relation,
+        int $parentId,
+        array $expected,
+        bool $partialFirst,
+    ): void {
+        $partial = Category::query()->select(['id'])->findOrFail($parentId);
+        $complete = Category::findOrFail($parentId);
+        $models = $partialFirst
+            ? [$partial, $complete]
+            : [$complete, $partial];
+
+        $complete->newCollection($models)->load($relation);
+
+        $this->assertTrue($partial->getRelation($relation)->isEmpty());
+        $this->assertSame(
+            $expected,
+            $complete->getRelation($relation)->pluck('id')->sort()->values()->all(),
+        );
+    }
+
+    public static function eagerRelationParents(): array
+    {
+        return [
+            'ancestors, partial first' => ['ancestors', 3, [1, 2], true],
+            'ancestors, complete first' => ['ancestors', 3, [1, 2], false],
+            'descendants, partial first' => ['descendants', 2, [3, 4], true],
+            'descendants, complete first' => ['descendants', 2, [3, 4], false],
+            'siblings, partial first' => ['siblings', 3, [4], true],
+            'siblings, complete first' => ['siblings', 3, [4], false],
+            'siblings and self, partial first' => ['siblingsAndSelf', 3, [3, 4], true],
+            'siblings and self, complete first' => ['siblingsAndSelf', 3, [3, 4], false],
+        ];
+    }
+
+    #[DataProvider('eagerRelationNames')]
+    public function testAllIncompleteEagerParentsSkipTheRelationQuery(string $relation): void
+    {
+        $nodes = Category::query()
+            ->select(['id'])
+            ->whereIn('id', [3, 7])
+            ->get();
+        DB::flushQueryLog();
+
+        $nodes->load($relation);
+
+        $this->assertSame([], DB::getQueryLog());
+
+        foreach ($nodes as $node) {
+            $this->assertTrue($node->getRelation($relation)->isEmpty());
+        }
+    }
+
+    #[DataProvider('eagerRelationNames')]
+    public function testIncompleteLazyParentsKeepTheirEmptyQueryConstraint(string $relation): void
+    {
+        $node = Category::query()->select(['id'])->findOrFail(7);
+
+        $this->assertStringContainsString('0 = 1', $node->{$relation}()->toSql());
+    }
+
+    public static function eagerRelationNames(): array
+    {
+        return [
+            'ancestors' => ['ancestors'],
+            'descendants' => ['descendants'],
+            'siblings' => ['siblings'],
+            'siblings and self' => ['siblingsAndSelf'],
+        ];
     }
 
     public function testRootSiblingsSupportEagerAndExistenceQueries(): void
@@ -2113,15 +2222,60 @@ class NodeTest extends TestCase
         $this->assertSame([1], Category::whereAncestorOf($root, true)->pluck('id')->all());
     }
 
-    public function testAncestorEagerMatchingTreatsMissingRelatedBoundAsEmpty(): void
-    {
-        $category = Category::findOrFail(3);
+    #[DataProvider('eagerRelatedProjections')]
+    public function testEagerMatchingUsesOnlyTruthfulRelatedProjections(
+        string $relation,
+        array $parentIds,
+        array $columns,
+        array $expected,
+    ): void {
+        $categories = Category::query()->whereIn('id', $parentIds)->get();
 
-        $category->load([
-            'ancestors' => fn ($query) => $query->select(['id', '_rgt']),
+        $categories->load([
+            $relation => fn ($query) => $query->select($columns),
         ]);
 
-        $this->assertTrue($category->ancestors->isEmpty());
+        foreach ($expected as $parentId => $relatedIds) {
+            $this->assertSame(
+                $relatedIds,
+                $categories->find($parentId)
+                    ->getRelation($relation)
+                    ->pluck('id')
+                    ->sort()
+                    ->values()
+                    ->all(),
+            );
+        }
+    }
+
+    public static function eagerRelatedProjections(): array
+    {
+        return [
+            'ancestor without left bound' => [
+                'ancestors',
+                [3],
+                ['id', '_rgt'],
+                [3 => []],
+            ],
+            'ancestors without right bound across multiple parents' => [
+                'ancestors',
+                [3, 8],
+                ['id', '_lft'],
+                [3 => [], 8 => []],
+            ],
+            'descendants without left bound across multiple parents' => [
+                'descendants',
+                [2, 5],
+                ['id', '_rgt'],
+                [2 => [], 5 => []],
+            ],
+            'descendants need no related right bound' => [
+                'descendants',
+                [2, 5],
+                ['id', '_lft'],
+                [2 => [3, 4], 5 => [6, 7, 8, 9, 10]],
+            ],
+        ];
     }
 
     public function testDescendantsByNode(): void

@@ -2,8 +2,8 @@
 
 ## Status
 
-Investigation, benchmarks, owner gates, plan review, implementation, a fresh
-package-wide audit, and final review are complete.
+Investigation, benchmarks, owner gates, plan review, implementation, fresh
+package-wide and read-path audits, validation, and final review are complete.
 
 ## Scope
 
@@ -333,6 +333,11 @@ soft-deleted rows, orders containing nodes by `_lft` descending, and is served
 by `(scope..., _lft)`. There is no `-1` sentinel, caller-side `+1`, or shadowed
 `$depth` variable.
 
+Node-state helpers do not hydrate missing projections. Boolean predicates fail
+closed when a required attribute is absent. Persisted `getNodeHeight()` and
+`getDescendantCount()` require both bounds and throw because no truthful integer
+result exists; unsaved node height remains `2`.
+
 ## 4. Structural state and builder ownership
 
 Delete deleted-at state from `NodeContext`. During `restored`, read the exact
@@ -646,6 +651,19 @@ paths are independently load-bearing because Eloquent constructs
 eager/existence relations through `noConstraints()`. Keep these
 relation-specific checks separate rather than adding one
 structural-completeness abstraction.
+
+Filter relation-specific eager eligibility before shared scope/key
+deduplication so a partial instance cannot suppress a complete same-row
+instance in an application-composed collection. When no eligible eager parents
+remain, set Eloquent's inherited eager-empty flag and skip the relation query.
+Lazy constraints retain their `0 = 1` guard because lazy loading does not use
+that flag.
+
+Custom eager projections must include every attribute the relation consumes.
+The source query needs both bounds and configured scope columns. Related
+ancestors need both bounds and scope columns; related descendants need the left
+bound and scope columns. A missing value deliberately yields an empty relation
+without hidden hydration. Sibling projection requirements remain separate.
 
 Eager constraints deduplicate and reduce parent intervals within each exact
 scope, and constrain to no rows when the parent set is empty. Sibling matching
@@ -980,7 +998,15 @@ Hypervel tests while preserving Hypervel-specific regressions.
   one scope predicate per relation, plus keyless and mixed incomplete parents
   and missing related keys or parent columns in eager projections;
 - in-memory ancestor/descendant predicates and eager matching with each used
-  bound omitted independently;
+  bound omitted independently, across single-parent, multi-parent, indexed,
+  and multi-scope paths; descendants also succeed with the minimal related
+  left-bound projection;
+- eager matching with partial and complete instances of the same row in both
+  input orders for ancestors, descendants, siblings, and siblings-with-self;
+  all-ineligible eager loads issue no relation query while lazy incomplete
+  relations retain their empty-query guard;
+- node-state predicates with either bound omitted, plus persisted height and
+  descendant-count refusal rather than numeric coercion;
 - joined root/leaf/has-children/before/after/default-order,
   `withoutRoot()` / `hasParent()`, and all next/previous node and sibling
   queries with qualified structural columns;

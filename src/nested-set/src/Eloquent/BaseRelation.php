@@ -128,7 +128,7 @@ abstract class BaseRelation extends Relation
         $models = $this->prepareEagerModels($models);
 
         if ($models === []) {
-            $this->query->whereRaw('0 = 1');
+            $this->eagerKeysWereEmpty = true;
 
             return;
         }

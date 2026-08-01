@@ -58,15 +58,15 @@ class SiblingsRelation extends BaseRelation
      */
     protected function prepareEagerModels(array $models): array
     {
-        $result = [];
+        $eligible = [];
 
-        foreach (parent::prepareEagerModels($models) as $model) {
+        foreach ($models as $model) {
             if ($this->canResolveSiblings($model)) {
-                $result[] = $model;
+                $eligible[] = $model;
             }
         }
 
-        return $result;
+        return parent::prepareEagerModels($eligible);
     }
 
     /**

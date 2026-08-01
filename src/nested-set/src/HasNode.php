@@ -1177,6 +1177,8 @@ trait HasNode
             return 2;
         }
 
+        $this->assertBoundsLoaded();
+
         return $this->getRgt() - $this->getLft() + 1;
     }
 
@@ -1229,7 +1231,10 @@ trait HasNode
      */
     public function isLeaf(): bool
     {
-        return $this->getLft() + 1 === $this->getRgt();
+        $lft = $this->getLft();
+        $rgt = $this->getRgt();
+
+        return $lft !== null && $rgt !== null && $lft + 1 === $rgt;
     }
 
     /**

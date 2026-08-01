@@ -40,13 +40,17 @@ class DescendantsRelation extends BaseRelation
      */
     protected function prepareEagerModels(array $models): array
     {
+        $eligible = [];
+
+        foreach ($models as $model) {
+            if ($this->hasLoadedBounds($model) && $this->hasConcreteScope($model)) {
+                $eligible[] = $model;
+            }
+        }
+
         $groups = [];
 
-        foreach (parent::prepareEagerModels($models) as $model) {
-            if (! $this->hasLoadedBounds($model) || ! $this->hasConcreteScope($model)) {
-                continue;
-            }
-
+        foreach (parent::prepareEagerModels($eligible) as $model) {
             $groups[$this->scopeKey($model)][] = $model;
         }
 

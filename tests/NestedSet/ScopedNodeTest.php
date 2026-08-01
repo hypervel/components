@@ -732,6 +732,62 @@ class ScopedNodeTest extends TestCase
         $this->assertEquals(5, $filteredNodes->find(2)->descendants[0]->id);
         $this->assertEquals(6, $filteredNodes->find(4)->descendants[0]->id);
     }
+
+    #[DataProvider('scopedEagerRelatedProjections')]
+    public function testScopedEagerMatchingUsesOnlyTruthfulRelatedProjections(
+        string $relation,
+        string $parentTitle,
+        array $columns,
+        array $expected,
+    ): void {
+        $nodes = MenuItem::where('title', $parentTitle)->get();
+
+        $nodes->load([
+            $relation => fn ($query) => $query->select($columns),
+        ]);
+
+        foreach ($expected as $parentId => $relatedIds) {
+            $this->assertSame(
+                $relatedIds,
+                $nodes->find($parentId)
+                    ->getRelation($relation)
+                    ->pluck('id')
+                    ->sort()
+                    ->values()
+                    ->all(),
+            );
+        }
+    }
+
+    public static function scopedEagerRelatedProjections(): array
+    {
+        return [
+            'ancestors without left bound' => [
+                'ancestors',
+                'menu item 3',
+                ['id', 'menu_id', '_rgt'],
+                [5 => [], 6 => []],
+            ],
+            'ancestors without right bound' => [
+                'ancestors',
+                'menu item 3',
+                ['id', 'menu_id', '_lft'],
+                [5 => [], 6 => []],
+            ],
+            'descendants without left bound' => [
+                'descendants',
+                'menu item 2',
+                ['id', 'menu_id', '_rgt'],
+                [2 => [], 4 => []],
+            ],
+            'descendants need no related right bound' => [
+                'descendants',
+                'menu item 2',
+                ['id', 'menu_id', '_lft'],
+                [2 => [5], 4 => [6]],
+            ],
+        ];
+    }
 }
 
 class NullableMenuItem extends MenuItem

@@ -358,6 +358,8 @@ $ancestors = $category->getAncestors();
 $descendants = $category->getDescendants();
 ```
 
+When selecting specific columns for eager loading, include `_lft`, `_rgt`, and any scope columns on the models being loaded. Ancestor results also require both bounds and any scope columns. Descendant results require `_lft` and any scope columns. If a required column is missing, the relation is empty; Hypervel does not issue a hidden query to load it.
+
 To include the node itself in the result, use the query builder methods and pass the node's key:
 
 ```php
@@ -451,7 +453,7 @@ $descendantCount = $category->getDescendantCount();
 $moved = $category->hasMoved();
 ```
 
-Node state helpers use the structural columns already loaded on the model and do not issue hidden queries. Select `parent_id` before calling `isRoot`, and select both `_lft` and `_rgt` before calling `getNodeHeight` or `getDescendantCount`; those two values are not meaningful without both bounds.
+Node state helpers use the columns already loaded on the model and do not issue hidden queries. Select `parent_id` before calling `isRoot`. Select both `_lft` and `_rgt` before calling `isLeaf`, `getNodeHeight`, or `getDescendantCount`. With an incomplete projection, `isLeaf` returns `false`, while the numeric methods throw a `LogicException` because no correct value can be calculated.
 
 <a name="querying-trees"></a>
 ## Querying Trees
