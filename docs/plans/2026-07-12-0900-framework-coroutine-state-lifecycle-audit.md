@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `reverb`; completed parallel work unit: `nested-set`
-- **Ledger entries required for the active or completed parallel work:** `Preserve configuration identity across worker reloads`; `Normalize framework enum identifiers at string boundaries`; `Complete Console command, scheduling, and generator lifecycles`; `Unify HTTP response emission and harden native server boundaries`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; `Complete Horizon cluster, process, publication, and current Laravel parity`; `Complete Nested Set invariants, performance, and modern APIs`.
-- **Pending revalidation carried into the active work:** `config-02`, `support-02`, `reverb-03`, `reverb-04`, `redis-10`, `redis-11`, `reverb-05`, `http-server-06`, and `reverb-06`. `nested-set-13` revalidation is complete for Testing and remains indexed for its later full audit.
+- **Active package or work unit:** `reverb`; completed parallel work units: `nested-set`, `eloquent-identity-and-partial-projection-safety`
+- **Ledger entries required for the active or completed parallel work:** `Preserve configuration identity across worker reloads`; `Normalize framework enum identifiers at string boundaries`; `Complete Console command, scheduling, and generator lifecycles`; `Unify HTTP response emission and harden native server boundaries`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; `Complete Horizon cluster, process, publication, and current Laravel parity`; `Complete Nested Set invariants, performance, and modern APIs`; `Harden Eloquent identity and partial-projection safety`.
+- **Pending revalidation carried into the active work:** `config-02`, `support-02`, `reverb-03`, `reverb-04`, `redis-10`, `redis-11`, `reverb-05`, `http-server-06`, and `reverb-06`. `nested-set-13` revalidation is complete for Testing. The Eloquent-safety findings below are complete for Database and Queue where identified and remain indexed for their later full consumer audits.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1118,6 +1118,29 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `fortify-01` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `fortify-01` |
 | `reverb-06` | `reverb` | `reverb` (targeted correction complete); later full `reverb` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `reverb-06` |
 | `nested-set-13` | `nested-set` | `testing` (revalidation complete); later full `testing` audit | `Complete Nested Set invariants, performance, and modern APIs`; finding `nested-set-13` |
+| `database-15` | `database` | `database` and `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `database-15` |
+| `database-16` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-16` |
+| `database-17` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-17` |
+| `database-18` | `database` | `database` and `queue` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-18` |
+| `database-19` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-19` |
+| `database-20` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-20` |
+| `permission-01` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-01` |
+| `permission-02` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-02` |
+| `permission-03` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-03` |
+| `permission-04` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-04` |
+| `permission-05` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-05` |
+| `fortify-02` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Harden Eloquent identity and partial-projection safety`; finding `fortify-02` |
+| `pagination-01` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-01` |
+| `pagination-02` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-02` |
+| `queue-41` | `database`, `queue` | `database`, `queue`, and `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `queue-41` |
+| `scout-01` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-01` |
+| `scout-02` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-02` |
+| `notifications-08` | `notifications` | `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `notifications-08` |
+| `http-04` | `http` | `http` (targeted correction complete); later full `http` audit | `Harden Eloquent identity and partial-projection safety`; finding `http-04` |
+| `http-05` | `http` | `http` (targeted correction complete); later full `http` audit | `Harden Eloquent identity and partial-projection safety`; finding `http-05` |
+| `http-06` | `http` | `http` (targeted correction complete); later full `http` audit | `Harden Eloquent identity and partial-projection safety`; finding `http-06` |
+| `testing-01` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-01` |
+| `testing-02` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-02` |
 
 ## Package checklist
 
