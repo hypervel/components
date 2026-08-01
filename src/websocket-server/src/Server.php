@@ -293,9 +293,18 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
      */
     protected function handleException(Throwable $throwable): Response
     {
-        $handler = $this->container->make(WebSocketExceptionHandler::class);
+        // Keep the original in flight while it is handled, so a failure in
+        // resolution or handling carries it as that failure's previous. The
+        // return suppresses it once a response exists.
+        try {
+            /* @phpstan-ignore finally.exitPoint */
+            throw $throwable;
+        } finally {
+            $handler = $this->container->make(WebSocketExceptionHandler::class);
 
-        return $handler->handle($throwable, new Response);
+            /* @phpstan-ignore finally.exitPoint */
+            return $handler->handle($throwable, new Response);
+        }
     }
 
     /**

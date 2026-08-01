@@ -20,6 +20,7 @@ use Hypervel\WebSocketServer\Context as WebSocketContext;
 use Hypervel\WebSocketServer\Events\ConnectionClosed;
 use Hypervel\WebSocketServer\Events\ConnectionOpened;
 use Hypervel\WebSocketServer\Events\MessageReceived;
+use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Server;
 use Mockery as m;
 use RuntimeException;
@@ -28,6 +29,7 @@ use Swoole\Http\Request as SwooleRequest;
 use Swoole\Server as SwooleServer;
 use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WebSocketSwooleServer;
+use Symfony\Component\HttpFoundation\Response;
 
 class ServerTest extends TestCase
 {
@@ -424,6 +426,53 @@ class ServerTest extends TestCase
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
         $this->assertNull(FdCollector::get(1));
         $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
+    }
+
+    public function testExceptionHandlerResponseSuppressesHandshakeException(): void
+    {
+        $original = new RuntimeException('handshake failed');
+        $response = new Response('Unauthorized', Response::HTTP_UNAUTHORIZED);
+        $handler = m::mock(WebSocketExceptionHandler::class);
+        $handler->shouldReceive('handle')
+            ->once()
+            ->with($original, m::type(Response::class))
+            ->andReturn($response);
+
+        $container = $this->createContainer();
+        $container->shouldReceive('make')
+            ->once()
+            ->with(WebSocketExceptionHandler::class)
+            ->andReturn($handler);
+
+        $this->assertSame(
+            $response,
+            (new ClassInvoker(new Server($container)))->handleException($original)
+        );
+    }
+
+    public function testExceptionHandlerFailureRetainsHandshakeException(): void
+    {
+        $original = new RuntimeException('handshake failed');
+        $handlingFailure = new RuntimeException('exception handler failed');
+        $handler = m::mock(WebSocketExceptionHandler::class);
+        $handler->shouldReceive('handle')
+            ->once()
+            ->with($original, m::type(Response::class))
+            ->andThrow($handlingFailure);
+
+        $container = $this->createContainer();
+        $container->shouldReceive('make')
+            ->once()
+            ->with(WebSocketExceptionHandler::class)
+            ->andReturn($handler);
+
+        try {
+            (new ClassInvoker(new Server($container)))->handleException($original);
+            $this->fail('Expected exception handling to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($handlingFailure, $exception);
+            $this->assertSame($original, $exception->getPrevious());
+        }
     }
 
     /**
