@@ -4,24 +4,28 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
-use Carbon\CarbonInterface;
-use Exception;
+use DateTimeInterface;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
-use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\NestedSet\Eloquent\AncestorsRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\DescendantsRelation;
 use Hypervel\NestedSet\Eloquent\QueryBuilder;
+use Hypervel\NestedSet\Eloquent\SiblingsRelation;
 use Hypervel\Support\Arr;
 use LogicException;
+use Stringable;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @template TModel of Model
  *
- * @property int $parent_id
+ * @property null|int|string $parent_id
+ * @property ?int $depth
  * @property ?static $parent
  */
 trait HasNode
@@ -37,16 +41,34 @@ trait HasNode
     protected bool $moved = false;
 
     /**
-     * Whether the node has soft delete.
+     * Whether the node is being deleted by an evented descendant cascade.
      */
-    protected static ?bool $hasSoftDelete = null;
+    protected bool $deletingAsDescendant = false;
 
     /**
      * Create a new Eloquent query builder for the model.
      */
     public function newEloquentBuilder(BaseQueryBuilder $query): QueryBuilder
     {
-        return new QueryBuilder($query);
+        $builderClass = static::$resolvedBuilderClasses[static::class]
+            ??= $this->resolveCustomBuilderClass();
+
+        if ($builderClass === false) {
+            return new QueryBuilder($query);
+        }
+
+        if (! is_subclass_of($builderClass, QueryBuilder::class)) {
+            throw new LogicException(sprintf(
+                'Nested set model [%s] must use a builder that extends [%s].',
+                static::class,
+                QueryBuilder::class,
+            ));
+        }
+
+        /** @var QueryBuilder $builder */
+        $builder = new $builderClass($query);
+
+        return $builder;
     }
 
     /**
@@ -54,19 +76,37 @@ trait HasNode
      */
     public static function bootHasNode(): void
     {
-        // Keep event registration in the boot phase; soft-delete detection avoids
-        // constructing a model before boot publication.
-        static::saving(fn ($model) => $model->callPendingActions());
+        static::saving(function ($model): void {
+            $model->assertNestedSetScopeIsUnchanged();
+            $model->callPendingActions();
+        });
 
-        static::deleting(fn ($model) => $model->refreshNode());
+        static::deleting(function ($model): void {
+            if (! $model->deletingAsDescendant) {
+                $model->prepareForNestedSetMutation();
+            }
+        });
 
-        static::deleted(fn ($model) => $model->deleteDescendants());
+        static::deleted(function ($model): void {
+            if (! $model->deletingAsDescendant) {
+                $model->deleteDescendants();
+            }
+        });
 
-        if (static::usesSoftDelete()) {
-            static::restoring(fn ($model) => NodeContext::keepDeletedAt($model));
-            static::restored(
-                fn ($model) => $model->restoreDescendants(NodeContext::restoreDeletedAt($model))
-            );
+        // The restore events are supplied by SoftDeletes rather than Model.
+        if (static::isSoftDeletable()) {
+            static::restoring(function ($model): void {
+                $model->prepareForNestedSetMutation([$model->getDeletedAtColumn()]);
+            });
+
+            static::restored(function ($model): void {
+                /** @var null|DateTimeInterface|int|string $deletedAt */
+                $deletedAt = $model->getPrevious()[$model->getDeletedAtColumn()] ?? null;
+
+                if ($deletedAt !== null) {
+                    $model->restoreDescendants($deletedAt);
+                }
+            });
         }
     }
 
@@ -95,7 +135,14 @@ trait HasNode
             return;
         }
 
-        $method = 'action' . ucfirst(array_shift($this->pending));
+        $action = array_shift($this->pending);
+
+        if ($action !== 'raw') {
+            $this->ensureMutationIdentityIsLoaded();
+            $this->assertConcreteNestedSetScope('mutation');
+        }
+
+        $method = 'action' . ucfirst($action);
         $parameters = $this->pending;
 
         $this->pending = [];
@@ -103,22 +150,51 @@ trait HasNode
         $this->moved = call_user_func_array([$this, $method], $parameters);
     }
 
+    /**
+     * Determine whether the model uses soft deletes.
+     */
     public static function usesSoftDelete(): bool
     {
-        if (! is_null(static::$hasSoftDelete)) {
-            return static::$hasSoftDelete;
-        }
-
-        return static::$hasSoftDelete = in_array(
-            SoftDeletes::class,
-            class_uses_recursive(static::class),
-            true,
-        );
+        return static::isSoftDeletable();
     }
 
+    /**
+     * Apply a raw node action.
+     */
     protected function actionRaw(): bool
     {
+        if (! $this->exists || $this->isDirty([
+            $this->getParentIdName(),
+            $this->getLftName(),
+            $this->getRgtName(),
+            $this->getDepthName(),
+        ])) {
+            NodeContext::markTreeChanged($this);
+        }
+
         return true;
+    }
+
+    /**
+     * Resolve the deferred parent and append the node to it.
+     */
+    protected function actionAppendToParentId(int|string $parentId): bool
+    {
+        $query = $this->newNestedSetQuery();
+
+        if (static::isSoftDeletable()) {
+            $query->withoutTrashed();
+        }
+
+        $parent = $query->findOrFail($parentId);
+
+        $this->assertNodeInTree($parent)
+            ->assertNotDescendant($parent)
+            ->assertSameTree($parent);
+
+        $this->setParent($parent)->dirtyBounds();
+
+        return $this->actionAppendOrPrepend($parent);
     }
 
     /**
@@ -126,17 +202,20 @@ trait HasNode
      */
     protected function actionRoot(): bool
     {
-        // Simplest case that do not affect other nodes.
+        $this->setParent(null)->dirtyBounds();
+
+        // Simplest case that does not affect other nodes.
         if (! $this->exists) {
             $cut = $this->getLowerBound() + 1;
 
             $this->setLft($cut);
             $this->setRgt($cut + 1);
+            $this->setDepth(0);
 
             return true;
         }
 
-        return $this->insertAt($this->getLowerBound() + 1);
+        return $this->insertAt($this->getLowerBound() + 1, 0);
     }
 
     /**
@@ -152,10 +231,19 @@ trait HasNode
      */
     protected function actionAppendOrPrepend(self $parent, bool $prepend = false): bool
     {
-        $parent->refreshNode();
-        $cut = $prepend ? $parent->getLft() + 1 : $parent->getRgt();
+        $parent->prepareForNestedSetMutation();
 
-        if (! $this->insertAt($cut)) {
+        $this->assertNodeInTree($parent)
+            ->assertNotDescendant($parent)
+            ->assertSameTree($parent)
+            ->setParent($parent)
+            ->dirtyBounds();
+
+        $cut = $prepend ? $parent->getLft() + 1 : $parent->getRgt();
+        $parentDepth = $parent->getDepth();
+        $targetDepth = $parentDepth === null ? null : $parentDepth + 1;
+
+        if (! $this->insertAt($cut, $targetDepth)) {
             return false;
         }
 
@@ -176,13 +264,39 @@ trait HasNode
     }
 
     /**
+     * Apply the current parent of a sibling without resolving its relation.
+     */
+    protected function setParentFromSibling(self $node): static
+    {
+        $parentId = $node->getParentId();
+
+        if ($parentId === null) {
+            return $this->setParent(null);
+        }
+
+        $this->setParentId($parentId);
+        $this->unsetRelation('parent');
+
+        return $this;
+    }
+
+    /**
      * Insert node before or after another node.
      */
     protected function actionBeforeOrAfter(self $node, bool $after = false): bool
     {
-        $node->refreshNode();
+        $node->prepareForNestedSetMutation();
 
-        return $this->insertAt($after ? $node->getRgt() + 1 : $node->getLft());
+        $this->assertNodeInTree($node)
+            ->assertNotDescendant($node)
+            ->assertSameTree($node)
+            ->setParentFromSibling($node)
+            ->dirtyBounds();
+
+        return $this->insertAt(
+            $after ? $node->getRgt() + 1 : $node->getLft(),
+            $node->getDepth(),
+        );
     }
 
     /**
@@ -190,13 +304,115 @@ trait HasNode
      */
     public function refreshNode(): void
     {
-        if (! $this->exists || ! NodeContext::hasPerformed($this)) {
+        $this->refreshNodeAttributes($this->getStructuralColumns());
+    }
+
+    /**
+     * Refresh structural values without erasing staged movement dirtiness.
+     */
+    protected function refreshNodeForMove(): void
+    {
+        $this->refreshNodeAttributes($this->getStructuralColumns(), false);
+    }
+
+    /**
+     * Prepare a model to participate in a structural mutation.
+     */
+    protected function prepareForNestedSetMutation(array $extraColumns = []): void
+    {
+        $this->assertNestedSetScopeIsUnchanged();
+        $this->refreshNodeAttributes([
+            ...$this->getMutationIdentityColumns(),
+            ...$extraColumns,
+        ]);
+        $this->assertConcreteNestedSetScope('mutation');
+    }
+
+    /**
+     * Load persisted mutation identity when it is incomplete or stale.
+     */
+    protected function ensureMutationIdentityIsLoaded(): void
+    {
+        $this->refreshNodeAttributes($this->getMutationIdentityColumns());
+    }
+
+    /**
+     * Refresh selected attributes from the exact row on the write connection.
+     */
+    protected function refreshNodeAttributes(array $columns, bool $syncOriginal = true): void
+    {
+        if (! $this->exists) {
             return;
         }
 
-        $attributes = $this->newNestedSetQuery()->getNodeData($this->getKey());
+        if ($this->hasLoadedNodeAttributes($columns) && NodeContext::isCurrent($this)) {
+            return;
+        }
+
+        $attributes = $this->getPersistedNodeAttributes($columns);
 
         $this->attributes = array_merge($this->attributes, $attributes);
+
+        if ($syncOriginal) {
+            $this->syncOriginalAttributes($columns);
+        }
+
+        NodeContext::markCurrent($this);
+        $this->unsetNestedSetRelations();
+    }
+
+    /**
+     * Read selected attributes from the exact persisted row.
+     */
+    protected function getPersistedNodeAttributes(array $columns): array
+    {
+        return $this->newModelQuery()
+            ->useWritePdo()
+            ->whereKey($this->getKey())
+            ->firstOrFail($columns)
+            ->getAttributes();
+    }
+
+    /**
+     * Get the columns that define structural position.
+     *
+     * @return list<string>
+     */
+    protected function getStructuralColumns(): array
+    {
+        return [
+            $this->getLftName(),
+            $this->getRgtName(),
+            $this->getDepthName(),
+        ];
+    }
+
+    /**
+     * Get the columns that identify one mutable tree row.
+     *
+     * @return list<string>
+     */
+    protected function getMutationIdentityColumns(): array
+    {
+        return [
+            ...$this->getStructuralColumns(),
+            $this->getParentIdName(),
+            ...$this->getScopeAttributes(),
+        ];
+    }
+
+    /**
+     * Determine whether every selected node attribute is loaded.
+     */
+    protected function hasLoadedNodeAttributes(array $columns): bool
+    {
+        foreach ($columns as $column) {
+            if (! array_key_exists($column, $this->attributes)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -204,7 +420,7 @@ trait HasNode
      */
     public function parent(): BelongsTo
     {
-        return $this->belongsTo(get_class($this), $this->getParentIdName())
+        return $this->belongsTo(static::class, $this->getParentIdName())
             ->setModel($this);
     }
 
@@ -213,7 +429,7 @@ trait HasNode
      */
     public function children(): HasMany
     {
-        return $this->hasMany(get_class($this), $this->getParentIdName())
+        return $this->hasMany(static::class, $this->getParentIdName())
             ->setModel($this);
     }
 
@@ -228,24 +444,21 @@ trait HasNode
     /**
      * Get query for siblings of the node.
      */
-    public function siblings(): QueryBuilder
+    public function siblings(): SiblingsRelation
     {
-        return $this->newScopedQuery()
-            ->where($this->getKeyName(), '<>', $this->getKey())
-            ->where($this->getParentIdName(), '=', $this->getParentId());
+        return new SiblingsRelation($this->newQuery(), $this);
+    }
+
+    /**
+     * Get the relation for the node siblings and the node itself.
+     */
+    public function siblingsAndSelf(): SiblingsRelation
+    {
+        return new SiblingsRelation($this->newQuery(), $this, true);
     }
 
     /**
      * Get the node siblings and the node itself.
-     */
-    public function siblingsAndSelf(): QueryBuilder
-    {
-        return $this->newScopedQuery()
-            ->where($this->getParentIdName(), '=', $this->getParentId());
-    }
-
-    /**
-     * Get query for the node siblings and the node itself.
      *
      * @return Collection<int, TModel>
      */
@@ -259,8 +472,14 @@ trait HasNode
      */
     public function nextSiblings(): QueryBuilder
     {
+        $this->assertParentageLoaded();
+
         return $this->nextNodes()
-            ->where($this->getParentIdName(), '=', $this->getParentId());
+            ->where(
+                $this->qualifyColumn($this->getParentIdName()),
+                '=',
+                $this->getParentId(),
+            );
     }
 
     /**
@@ -268,8 +487,14 @@ trait HasNode
      */
     public function prevSiblings(): QueryBuilder
     {
+        $this->assertParentageLoaded();
+
         return $this->prevNodes()
-            ->where($this->getParentIdName(), '=', $this->getParentId());
+            ->where(
+                $this->qualifyColumn($this->getParentIdName()),
+                '=',
+                $this->getParentId(),
+            );
     }
 
     /**
@@ -277,8 +502,15 @@ trait HasNode
      */
     public function nextNodes(): QueryBuilder
     {
+        $this->assertBoundsLoaded();
+        $this->assertScopeLoaded();
+
         return $this->newScopedQuery()
-            ->where($this->getLftName(), '>', $this->getLft());
+            ->where(
+                $this->qualifyColumn($this->getLftName()),
+                '>',
+                $this->getLft(),
+            );
     }
 
     /**
@@ -286,8 +518,15 @@ trait HasNode
      */
     public function prevNodes(): QueryBuilder
     {
+        $this->assertBoundsLoaded();
+        $this->assertScopeLoaded();
+
         return $this->newScopedQuery()
-            ->where($this->getLftName(), '<', $this->getLft());
+            ->where(
+                $this->qualifyColumn($this->getLftName()),
+                '<',
+                $this->getLft(),
+            );
     }
 
     /**
@@ -313,6 +552,10 @@ trait HasNode
      */
     public function saveAsRoot(): bool
     {
+        if ($this->exists) {
+            $this->prepareForNestedSetMutation();
+        }
+
         if ($this->exists && $this->isRoot()) {
             return $this->save();
         }
@@ -352,11 +595,17 @@ trait HasNode
         return $this->appendOrPrependTo($parent, true);
     }
 
+    /**
+     * Prepare the node for insertion as a child.
+     */
     public function appendOrPrependTo(self $parent, bool $prepend = false): static
     {
-        $this->assertNodeExists($parent)
+        $this->prepareForNestedSetMutation();
+        $parent->prepareForNestedSetMutation();
+
+        $this->assertNodeInTree($parent)
             ->assertNotDescendant($parent)
-            ->assertSameScope($parent);
+            ->assertSameTree($parent);
 
         $this->setParent($parent)->dirtyBounds();
 
@@ -379,17 +628,19 @@ trait HasNode
         return $this->beforeOrAfterNode($node);
     }
 
+    /**
+     * Prepare the node for insertion beside another node.
+     */
     public function beforeOrAfterNode(self $node, bool $after = false): static
     {
-        $this->assertNodeExists($node)
+        $this->prepareForNestedSetMutation();
+        $node->prepareForNestedSetMutation();
+
+        $this->assertNodeInTree($node)
             ->assertNotDescendant($node)
-            ->assertSameScope($node);
+            ->assertSameTree($node);
 
-        if (! $this->isSiblingOf($node)) {
-            $this->setParent($node->getRelationValue('parent'));
-        }
-
-        $this->dirtyBounds();
+        $this->setParentFromSibling($node)->dirtyBounds();
 
         return $this->setNodeAction('beforeOrAfter', $node, $after);
     }
@@ -399,7 +650,13 @@ trait HasNode
      */
     public function insertAfterNode(self $node): bool
     {
-        return $this->afterNode($node)->save();
+        if (! $this->afterNode($node)->save()) {
+            return false;
+        }
+
+        $node->refreshNode();
+
+        return true;
     }
 
     /**
@@ -417,9 +674,21 @@ trait HasNode
         return true;
     }
 
-    public function rawNode(mixed $lft, mixed $rgt, mixed $parentId): static
-    {
-        $this->setLft($lft)->setRgt($rgt)->setParentId($parentId);
+    /**
+     * Set raw structural values.
+     */
+    public function rawNode(
+        int $lft,
+        int $rgt,
+        int|string|null $parentId,
+        ?int $depth,
+    ): static {
+        $this->prepareForNestedSetMutation();
+
+        $this->setLft($lft)
+            ->setRgt($rgt)
+            ->setParentId($parentId)
+            ->setDepth($depth);
 
         return $this->setNodeAction('raw');
     }
@@ -429,6 +698,10 @@ trait HasNode
      */
     public function up(int $amount = 1): bool
     {
+        if ($amount < 1) {
+            return false;
+        }
+
         $sibling = $this->prevSiblings()
             ->defaultOrder('desc')
             ->skip($amount - 1)
@@ -446,6 +719,10 @@ trait HasNode
      */
     public function down(int $amount = 1): bool
     {
+        if ($amount < 1) {
+            return false;
+        }
+
         $sibling = $this->nextSiblings()
             ->defaultOrder()
             ->skip($amount - 1)
@@ -461,25 +738,57 @@ trait HasNode
     /**
      * Insert node at specific position.
      */
-    protected function insertAt(int $position): bool
+    protected function insertAt(int $position, ?int $targetDepth = null): bool
     {
-        NodeContext::setHasPerformed($this);
-
         return $this->exists
-            ? $this->moveNode($position)
-            : $this->insertNode($position);
+            ? $this->moveNode($position, $targetDepth)
+            : $this->insertNode($position, $targetDepth);
     }
 
     /**
      * Move a node to the new position.
      */
-    protected function moveNode(int $position): bool
+    protected function moveNode(int $position, ?int $targetDepth = null): bool
     {
-        $updated = $this->newNestedSetQuery()
-            ->moveNode($this->getKey(), $position) > 0;
+        $this->refreshNodeForMove();
+
+        $lft = $this->getLft();
+        $rgt = $this->getRgt();
+        $height = $rgt - $lft + 1;
+
+        $updated = $this->newNestedSetQuery()->moveNode(
+            $this->getKey(),
+            $position,
+            $targetDepth,
+            [
+                $this->getLftName() => $lft,
+                $this->getRgtName() => $rgt,
+                $this->getDepthName() => $this->getDepth(),
+            ],
+        ) > 0;
 
         if ($updated) {
-            $this->refreshNode();
+            if ($position > $lft) {
+                $this->setLft($position - $height);
+                $this->setRgt($position - 1);
+            } else {
+                $this->setLft($position);
+                $this->setRgt($position + $height - 1);
+            }
+
+            if ($targetDepth !== null) {
+                $this->setDepth($targetDepth);
+            } else {
+                $this->refreshNode();
+            }
+
+            $this->syncOriginalAttributes([
+                $this->getLftName(),
+                $this->getRgtName(),
+                $this->getDepthName(),
+            ]);
+
+            $this->unsetNestedSetRelations();
         }
 
         return $updated;
@@ -488,7 +797,7 @@ trait HasNode
     /**
      * Insert new node at specified position.
      */
-    protected function insertNode(int $position): bool
+    protected function insertNode(int $position, ?int $targetDepth = null): bool
     {
         $this->newNestedSetQuery()->makeGap($position, 2);
 
@@ -496,6 +805,7 @@ trait HasNode
 
         $this->setLft($position);
         $this->setRgt($position + $height - 1);
+        $this->setDepth($targetDepth ?? $this->newNestedSetQuery()->depthForPosition($position));
 
         return true;
     }
@@ -508,11 +818,15 @@ trait HasNode
         $lft = $this->getLft();
         $rgt = $this->getRgt();
 
-        $method = $this->usesSoftDelete() && $this->forceDeleting
+        $method = static::isSoftDeletable() && $this->forceDeleting
             ? 'forceDelete'
             : 'delete';
 
-        $this->descendants()->{$method}();
+        if ($this->shouldFireDescendantEvents()) {
+            $this->deleteDescendantsWithEvents($method === 'forceDelete');
+        } else {
+            $this->descendants()->{$method}();
+        }
 
         if ($this->hasForceDeleting()) {
             $height = $rgt - $lft + 1;
@@ -521,15 +835,80 @@ trait HasNode
 
             // In case if user wants to re-create the node
             $this->makeRoot();
-
-            NodeContext::setHasPerformed($this);
         }
+    }
+
+    /**
+     * Determine whether descendant model events should be fired during deletion.
+     */
+    protected function shouldFireDescendantEvents(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Get the descendant deletion chunk size.
+     */
+    protected function getDescendantDeleteChunkSize(): int
+    {
+        return 1000;
+    }
+
+    /**
+     * Delete descendants through their model lifecycle in children-first chunks.
+     */
+    protected function deleteDescendantsWithEvents(bool $forceDelete): void
+    {
+        $lftName = $this->getLftName();
+        $query = $this->newNestedSetQuery()
+            ->where($lftName, '>', $this->getLft())
+            ->where($lftName, '<', $this->getRgt())
+            ->orderBy($lftName, 'desc');
+
+        if (static::isSoftDeletable() && ! $forceDelete) {
+            $query->whereNull($this->getDeletedAtColumn());
+        }
+
+        $cursor = null;
+
+        do {
+            $chunk = clone $query;
+
+            if ($cursor !== null) {
+                $chunk->where($lftName, '<', $cursor);
+            }
+
+            $descendants = $chunk
+                ->limit($this->getDescendantDeleteChunkSize())
+                ->get();
+
+            foreach ($descendants as $descendant) {
+                $cursor = $descendant->getLft(); /* @phpstan-ignore method.notFound */
+                $descendant->deletingAsDescendant = true; /* @phpstan-ignore property.notFound */
+
+                try {
+                    $deleted = $forceDelete
+                        ? $descendant->forceDelete()
+                        : $descendant->delete();
+
+                    if ($deleted === false) {
+                        throw new LogicException(sprintf(
+                            'Deleting nested set descendant [%s] with key [%s] was vetoed.',
+                            $descendant::class,
+                            $descendant->getKey() ?? 'null',
+                        ));
+                    }
+                } finally {
+                    $descendant->deletingAsDescendant = false; /* @phpstan-ignore property.notFound */
+                }
+            }
+        } while ($descendants->isNotEmpty());
     }
 
     /**
      * Restore the descendants.
      */
-    protected function restoreDescendants(CarbonInterface|string $deletedAt): void
+    protected function restoreDescendants(DateTimeInterface|int|string $deletedAt): void
     {
         $this->descendants()
             ->where($this->getDeletedAtColumn(), '>=', $deletedAt)
@@ -537,35 +916,38 @@ trait HasNode
     }
 
     /**
-     * Create a new Model query builder for the model.
-     *
-     * @param BaseQueryBuilder $query
-     */
-    public function newModelBuilder($query): QueryBuilder
-    {
-        return new QueryBuilder($query);
-    }
-
-    /**
      * Get a new base query that includes deleted nodes.
      */
-    public function newNestedSetQuery(?string $table = null): mixed
+    public function newNestedSetQuery(?string $table = null): QueryBuilder
     {
-        $builder = $this->usesSoftDelete()
-            ? $this->withTrashed()
-            : $this->newQuery();
+        $builder = $this->newQuery()->withoutGlobalScopes();
 
         return $this->applyNestedSetScope($builder, $table);
     }
 
-    public function newScopedQuery(?string $table = null): mixed
+    /**
+     * Get a new query with ordinary visibility and the concrete tree scope.
+     */
+    public function newScopedQuery(?string $table = null): QueryBuilder
     {
         return $this->applyNestedSetScope($this->newQuery(), $table);
     }
 
-    public function applyNestedSetScope(mixed $query, ?string $table = null): mixed
-    {
-        if (! $scoped = $this->getScopeAttributes()) {
+    /**
+     * Apply the concrete tree scope to the query.
+     *
+     * @template TQuery of BaseQueryBuilder|EloquentBuilder
+     *
+     * @param TQuery $query
+     * @return TQuery
+     */
+    public function applyNestedSetScope(
+        BaseQueryBuilder|EloquentBuilder $query,
+        ?string $table = null,
+    ): BaseQueryBuilder|EloquentBuilder {
+        $scope = $this->getNestedSetScope();
+
+        if ($scope === []) {
             return $query;
         }
 
@@ -573,23 +955,168 @@ trait HasNode
             $table = $this->getTable();
         }
 
-        foreach ($scoped as $attribute) {
+        foreach ($scope as $attribute => $value) {
             $query->where(
                 $table . '.' . $attribute,
                 '=',
-                $this->getAttributeValue($attribute)
+                $value,
             );
         }
 
         return $query;
     }
 
+    /**
+     * Get the attributes that partition nested set trees.
+     */
     protected function getScopeAttributes(): array
     {
         return [];
     }
 
-    public static function scoped(array $attributes): mixed
+    /**
+     * Determine whether every configured scope attribute is loaded.
+     */
+    protected function hasCompleteNestedSetScope(): bool
+    {
+        foreach ($this->getScopeAttributes() as $attribute) {
+            if (! array_key_exists($attribute, $this->attributes)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Assert that an existing model has not changed tree scope.
+     */
+    protected function assertNestedSetScopeIsUnchanged(): void
+    {
+        $scopeAttributes = $this->getScopeAttributes();
+
+        if (! $this->exists || $scopeAttributes === []) {
+            return;
+        }
+
+        $missingOriginals = [];
+
+        foreach ($scopeAttributes as $attribute) {
+            if (! array_key_exists($attribute, $this->original)) {
+                $missingOriginals[] = $attribute;
+            }
+        }
+
+        if ($missingOriginals !== []) {
+            $persisted = $this->getPersistedNodeAttributes($this->getMutationIdentityColumns());
+
+            foreach ($persisted as $attribute => $value) {
+                if (! array_key_exists($attribute, $this->attributes)) {
+                    $this->attributes[$attribute] = $value;
+                }
+
+                if (! array_key_exists($attribute, $this->original)) {
+                    $this->original[$attribute] = $value;
+                }
+            }
+        }
+
+        foreach ($scopeAttributes as $attribute) {
+            if ($this->isDirty($attribute)) {
+                throw new LogicException(sprintf(
+                    'Nested set scope attribute [%s] cannot be changed on an existing [%s] model.',
+                    $attribute,
+                    static::class,
+                ));
+            }
+        }
+    }
+
+    /**
+     * Assert that a model selects one concrete nested set scope.
+     */
+    protected function assertConcreteNestedSetScope(string $operation): void
+    {
+        foreach ($this->getScopeAttributes() as $attribute) {
+            if (! array_key_exists($attribute, $this->attributes)) {
+                throw new LogicException(sprintf(
+                    'Nested set %s for [%s] requires a concrete scoped([...]) selection because attribute [%s] was not selected.',
+                    $operation,
+                    static::class,
+                    $attribute,
+                ));
+            }
+        }
+    }
+
+    /**
+     * Get the normalized scope values for this tree.
+     *
+     * @return array<string, null|int|string>
+     */
+    public function getNestedSetScope(): array
+    {
+        $scope = [];
+
+        foreach ($this->getScopeAttributes() as $attribute) {
+            $scope[$attribute] = $this->normalizeNestedSetScopeValue(
+                $attribute,
+                $this->getAttributeValue($attribute),
+            );
+        }
+
+        return $scope;
+    }
+
+    /**
+     * Normalize a nested set scope value for SQL and identity comparisons.
+     */
+    protected function normalizeNestedSetScopeValue(string $attribute, mixed $value): int|string|null
+    {
+        $value = enum_value($value);
+
+        return match (true) {
+            $value === null, is_int($value), is_string($value) => $value,
+            is_bool($value) => (int) $value,
+            // Mirror Grammar::getDateFormat() without resolving a
+            // connection for each eager result.
+            $value instanceof DateTimeInterface => $value->format(
+                $this->dateFormat ?: 'Y-m-d H:i:s',
+            ),
+            $value instanceof Stringable => (string) $value,
+            default => throw new LogicException(sprintf(
+                'Nested set model [%s] has unsupported scope value [%s] for attribute [%s].',
+                static::class,
+                get_debug_type($value),
+                $attribute,
+            )),
+        };
+    }
+
+    /**
+     * Get the stable identity key for this tree scope.
+     */
+    public function getNestedSetScopeKey(): string
+    {
+        if (! $this->hasCompleteNestedSetScope()) {
+            return 'incomplete:' . spl_object_id($this);
+        }
+
+        $key = '';
+
+        foreach ($this->getNestedSetScope() as $value) {
+            $key .= $value === null
+                ? '-1:'
+                : strlen((string) $value) . ':' . $value;
+        }
+
+        return $key;
+    }
+
+    /**
+     * Begin a query for one concrete nested set scope.
+     */
+    public static function scoped(array $attributes): QueryBuilder
     {
         $instance = new static;
 
@@ -599,6 +1126,8 @@ trait HasNode
     }
 
     /**
+     * Create a new nested set collection.
+     *
      * @return Collection<int, TModel>
      */
     public function newCollection(array $models = []): Collection
@@ -609,7 +1138,7 @@ trait HasNode
     /**
      * Use `children` key on `$attributes` to create child nodes.
      */
-    public static function create(array $attributes = [], ?self $parent = null): ?static
+    public static function create(array $attributes = [], ?self $parent = null): static
     {
         $children = Arr::pull($attributes, 'children');
 
@@ -624,12 +1153,17 @@ trait HasNode
         $relation = new Collection;
 
         foreach ((array) $children as $child) {
-            $relation->add($child = static::create($child, $instance));
-
-            $child->setRelation('parent', $instance);
+            $relation->add(static::create($child, $instance));
         }
 
         $instance->refreshNode();
+
+        $relationParent = clone $instance;
+        $relationParent->setRelations([]);
+
+        foreach ($relation as $child) {
+            $child->setRelation('parent', $relationParent);
+        }
 
         return $instance->setRelation('children', $relation);
     }
@@ -642,6 +1176,8 @@ trait HasNode
         if (! $this->exists) {
             return 2;
         }
+
+        $this->assertBoundsLoaded();
 
         return $this->getRgt() - $this->getLft() + 1;
     }
@@ -657,20 +1193,28 @@ trait HasNode
     /**
      * Set the value of model's parent id key.
      * Behind the scenes node is appended to found parent node.
-     *
-     * @throws Exception If parent node doesn't exists
      */
-    public function setParentIdAttribute(?int $value): void
+    public function setParentIdAttribute(int|string|null $value): void
     {
-        if ($this->getParentId() == $value) {
+        $parentIdName = $this->getParentIdName();
+        $hasCurrent = array_key_exists($parentIdName, $this->attributes);
+        $current = $this->getParentId();
+
+        if ($hasCurrent && (
+            $current === $value
+            || ($current !== null && $value !== null && (string) $current === (string) $value)
+        )) {
             return;
         }
 
-        if ($value) {
-            $this->appendToNode($this->newScopedQuery()->findOrFail($value));
-        } else {
+        if ($value === null) {
             $this->makeRoot();
+
+            return;
         }
+
+        $this->setParentId($value);
+        $this->setNodeAction('appendToParentId', $value);
     }
 
     /**
@@ -678,12 +1222,19 @@ trait HasNode
      */
     public function isRoot(): bool
     {
-        return is_null($this->getParentId());
+        return array_key_exists($this->getParentIdName(), $this->attributes)
+            && $this->getParentId() === null;
     }
 
+    /**
+     * Determine whether the node is a leaf.
+     */
     public function isLeaf(): bool
     {
-        return $this->getLft() + 1 == $this->getRgt();
+        $lft = $this->getLft();
+        $rgt = $this->getRgt();
+
+        return $lft !== null && $rgt !== null && $lft + 1 === $rgt;
     }
 
     /**
@@ -711,6 +1262,14 @@ trait HasNode
     }
 
     /**
+     * Get the depth column name.
+     */
+    public function getDepthName(): string
+    {
+        return NestedSet::DEPTH;
+    }
+
+    /**
      * Get the value of the model's lft key.
      */
     public function getLft(): ?int
@@ -733,9 +1292,19 @@ trait HasNode
     /**
      * Get the value of the model's parent id key.
      */
-    public function getParentId(): ?int
+    public function getParentId(): int|string|null
     {
         return $this->getAttributeValue($this->getParentIdName());
+    }
+
+    /**
+     * Get the node depth.
+     */
+    public function getDepth(): ?int
+    {
+        $value = $this->getAttributeValue($this->getDepthName());
+
+        return $value === null ? null : (int) $value;
     }
 
     /**
@@ -744,7 +1313,7 @@ trait HasNode
      *
      * @return null|TModel
      */
-    public function getNextNode(array $columns = ['*']): mixed
+    public function getNextNode(array $columns = ['*']): ?Model
     {
         return $this->nextNodes()->defaultOrder()->first($columns);
     }
@@ -755,12 +1324,14 @@ trait HasNode
      *
      * @return null|TModel
      */
-    public function getPrevNode(array $columns = ['*']): mixed
+    public function getPrevNode(array $columns = ['*']): ?Model
     {
         return $this->prevNodes()->defaultOrder('desc')->first($columns);
     }
 
     /**
+     * Get the node's ancestors.
+     *
      * @return Collection<int, TModel>
      */
     public function getAncestors(array $columns = ['*']): Collection
@@ -769,6 +1340,8 @@ trait HasNode
     }
 
     /**
+     * Get the node's descendants.
+     *
      * @return Collection<int, TModel>
      */
     public function getDescendants(array $columns = ['*']): Collection
@@ -777,6 +1350,8 @@ trait HasNode
     }
 
     /**
+     * Get the node's siblings.
+     *
      * @return Collection<int, TModel>
      */
     public function getSiblings(array $columns = ['*']): Collection
@@ -785,6 +1360,8 @@ trait HasNode
     }
 
     /**
+     * Get siblings after the node.
+     *
      * @return Collection<int, TModel>
      */
     public function getNextSiblings(array $columns = ['*']): Collection
@@ -793,6 +1370,8 @@ trait HasNode
     }
 
     /**
+     * Get siblings before the node.
+     *
      * @return Collection<int, TModel>
      */
     public function getPrevSiblings(array $columns = ['*']): Collection
@@ -801,17 +1380,21 @@ trait HasNode
     }
 
     /**
+     * Get the next sibling.
+     *
      * @return null|TModel
      */
-    public function getNextSibling(array $columns = ['*']): mixed
+    public function getNextSibling(array $columns = ['*']): ?Model
     {
         return $this->nextSiblings()->defaultOrder()->first($columns);
     }
 
     /**
+     * Get the previous sibling.
+     *
      * @return null|TModel
      */
-    public function getPrevSibling(array $columns = ['*']): mixed
+    public function getPrevSibling(array $columns = ['*']): ?Model
     {
         return $this->prevSiblings()->defaultOrder('desc')->first($columns);
     }
@@ -821,9 +1404,19 @@ trait HasNode
      */
     public function isDescendantOf(self $other): bool
     {
-        return $this->getLft() > $other->getLft()
-            && $this->getLft() < $other->getRgt()
-            && $this->isSameScope($other);
+        $lft = $this->getLft();
+        $otherLft = $other->getLft();
+        $otherRgt = $other->getRgt();
+
+        return $this->exists
+            && $other->exists
+            && $lft !== null
+            && $otherLft !== null
+            && $otherRgt !== null
+            && $this->isSameTree($other)
+            && $lft > $otherLft
+            && $lft < $otherRgt
+            && ! $this->isSameNode($other);
     }
 
     /**
@@ -831,8 +1424,23 @@ trait HasNode
      */
     public function isSelfOrDescendantOf(self $other): bool
     {
-        return $this->getLft() >= $other->getLft()
-            && $this->getLft() < $other->getRgt();
+        $lft = $this->getLft();
+        $otherLft = $other->getLft();
+        $otherRgt = $other->getRgt();
+
+        return $this->exists
+            && $other->exists
+            && $this->isSameTree($other)
+            && (
+                $this->isSameNode($other)
+                || (
+                    $lft !== null
+                    && $otherLft !== null
+                    && $otherRgt !== null
+                    && $lft > $otherLft
+                    && $lft < $otherRgt
+                )
+            );
     }
 
     /**
@@ -840,7 +1448,15 @@ trait HasNode
      */
     public function isChildOf(self $other): bool
     {
-        return $this->getParentId() == $other->getKey();
+        $parentId = $this->getParentId();
+        $otherKey = $other->getKey();
+
+        return $this->exists
+            && $other->exists
+            && $parentId !== null
+            && $otherKey !== null
+            && $this->isSameTree($other)
+            && (string) $parentId === (string) $otherKey;
     }
 
     /**
@@ -848,7 +1464,22 @@ trait HasNode
      */
     public function isSiblingOf(self $other): bool
     {
-        return $this->getParentId() == $other->getParentId();
+        if (! $this->exists
+            || ! $other->exists
+            || ! array_key_exists($this->getParentIdName(), $this->attributes)
+            || ! array_key_exists($other->getParentIdName(), $other->attributes)
+            || ! $this->isSameTree($other)
+            || $this->isSameNode($other)
+        ) {
+            return false;
+        }
+
+        $parentId = $this->getParentId();
+        $otherParentId = $other->getParentId();
+
+        return $parentId === null || $otherParentId === null
+            ? $parentId === $otherParentId
+            : (string) $parentId === (string) $otherParentId;
     }
 
     /**
@@ -875,24 +1506,17 @@ trait HasNode
         return $this->moved;
     }
 
-    protected function getArrayableRelations(): array
-    {
-        $result = parent::getArrayableRelations();
-
-        unset($result['parent']);
-
-        return $result;
-    }
-
     /**
      * Get whether user is intended to delete the model from database entirely.
      */
     protected function hasForceDeleting(): bool
     {
-        return ! $this->usesSoftDelete() || $this->forceDeleting;
+        return ! static::isSoftDeletable() || $this->forceDeleting;
     }
 
     /**
+     * Get the node bounds.
+     *
      * @return array{?int, ?int}
      */
     public function getBounds(): array
@@ -900,27 +1524,49 @@ trait HasNode
         return [$this->getLft(), $this->getRgt()];
     }
 
-    public function setLft(mixed $value): static
+    /**
+     * Set the left bound.
+     */
+    public function setLft(?int $value): static
     {
         $this->attributes[$this->getLftName()] = $value;
 
         return $this;
     }
 
-    public function setRgt(mixed $value): static
+    /**
+     * Set the right bound.
+     */
+    public function setRgt(?int $value): static
     {
         $this->attributes[$this->getRgtName()] = $value;
 
         return $this;
     }
 
-    public function setParentId(mixed $value): static
+    /**
+     * Set the parent key.
+     */
+    public function setParentId(int|string|null $value): static
     {
         $this->attributes[$this->getParentIdName()] = $value;
 
         return $this;
     }
 
+    /**
+     * Set the node depth.
+     */
+    public function setDepth(?int $value): static
+    {
+        $this->attributes[$this->getDepthName()] = $value;
+
+        return $this;
+    }
+
+    /**
+     * Mark the stored bounds as dirty.
+     */
     protected function dirtyBounds(): static
     {
         $this->original[$this->getLftName()] = null;
@@ -929,58 +1575,150 @@ trait HasNode
         return $this;
     }
 
+    /**
+     * Forget relations derived from the node's structural position.
+     */
+    protected function unsetNestedSetRelations(): void
+    {
+        foreach ([
+            'parent',
+            'children',
+            'ancestors',
+            'descendants',
+            'siblings',
+            'siblingsAndSelf',
+        ] as $relation) {
+            $this->unsetRelation($relation);
+        }
+    }
+
+    /**
+     * Assert that a node is not this node's descendant.
+     */
     protected function assertNotDescendant(self $node): static
     {
-        if ($node == $this || $node->isDescendantOf($this)) {
+        if ($node === $this || $this->isSameNode($node) || $node->isDescendantOf($this)) {
             throw new LogicException('Node must not be a descendant.');
         }
 
         return $this;
     }
 
-    protected function assertNodeExists(self $node): static
+    /**
+     * Assert that a node has persisted tree bounds.
+     */
+    protected function assertNodeInTree(self $node): static
     {
-        if (! $node->getLft() || ! $node->getRgt()) {
-            throw new LogicException('Node must exists.');
+        if (($node->getLft() ?? 0) < 1 || ($node->getRgt() ?? 0) < 1) {
+            throw new LogicException('Node must be part of a tree.');
         }
 
         return $this;
     }
 
-    protected function assertSameScope(self $node): void
+    /**
+     * Assert that this node has loaded bounds.
+     */
+    protected function assertBoundsLoaded(): void
     {
-        if (! $scoped = $this->getScopeAttributes()) {
-            return;
+        if ($this->getLft() === null || $this->getRgt() === null) {
+            throw new LogicException(sprintf(
+                'Nested set node [%s] must have loaded bounds.',
+                static::class,
+            ));
         }
+    }
 
-        foreach ($scoped as $attr) {
-            if ($this->getAttribute($attr) != $node->getAttribute($attr)) {
-                throw new LogicException('Nodes must be in the same scope');
+    /**
+     * Assert that this node has loaded parentage.
+     */
+    protected function assertParentageLoaded(): void
+    {
+        if (! array_key_exists($this->getParentIdName(), $this->attributes)) {
+            throw new LogicException(sprintf(
+                'Nested set node [%s] must have a loaded parent.',
+                static::class,
+            ));
+        }
+    }
+
+    /**
+     * Assert that this node has loaded scope attributes.
+     */
+    protected function assertScopeLoaded(): void
+    {
+        foreach ($this->getScopeAttributes() as $attribute) {
+            if (! array_key_exists($attribute, $this->attributes)) {
+                throw new LogicException(sprintf(
+                    'Nested set node [%s] must have scope attribute [%s] selected.',
+                    static::class,
+                    $attribute,
+                ));
             }
         }
     }
 
+    /**
+     * Assert that a node belongs to the same nested set tree.
+     */
+    protected function assertSameTree(self $node): static
+    {
+        if (! $this->isSameTree($node)) {
+            throw new LogicException('Nodes must be in the same tree.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Determine whether a node belongs to the same concrete scope.
+     */
     protected function isSameScope(self $node): bool
     {
-        if (! $scoped = $this->getScopeAttributes()) {
+        return $this->hasCompleteNestedSetScope()
+            && $node->hasCompleteNestedSetScope()
+            && $this->getNestedSetScopeKey() === $node->getNestedSetScopeKey();
+    }
+
+    /**
+     * Determine whether the models address the same nested set tree.
+     */
+    protected function isSameTree(self $node): bool
+    {
+        return NodeContext::structuralIdentity($this) === NodeContext::structuralIdentity($node)
+            && $this->isSameScope($node);
+    }
+
+    /**
+     * Determine whether the models address the same persisted row.
+     */
+    protected function isSameNode(self $node): bool
+    {
+        $key = $this->getKey();
+        $nodeKey = $node->getKey();
+
+        if ($key === null || $nodeKey === null) {
+            return false;
+        }
+
+        if ($this->is($node)) {
             return true;
         }
 
-        foreach ($scoped as $attr) {
-            if ($this->getAttribute($attr) != $node->getAttribute($attr)) {
-                return false;
-            }
-        }
-
-        return true;
+        return (string) $key === (string) $nodeKey
+            && NodeContext::structuralIdentity($this) === NodeContext::structuralIdentity($node);
     }
 
+    /**
+     * Clone the node without structural attributes.
+     */
     public function replicate(?array $except = null): static
     {
         $defaults = [
             $this->getParentIdName(),
             $this->getLftName(),
             $this->getRgtName(),
+            $this->getDepthName(),
         ];
 
         $except = $except ? array_unique(array_merge($except, $defaults)) : $defaults;

@@ -202,6 +202,7 @@ class CoroutineTest extends TestCase
     public function testExceptionHandlerFailureFallsBackToThePhpErrorLog(): void
     {
         $directory = ParallelTesting::tempDir('CoroutineTest');
+        (new Filesystem)->deleteDirectory($directory);
         mkdir($directory, 0777, true);
         $errorLog = $directory . '/php-error.log';
         $previousErrorLog = ini_set('error_log', $errorLog);

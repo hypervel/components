@@ -27,9 +27,8 @@ class FilesystemTest extends TestCase
 
         $this->tempDir = ParallelTesting::tempDir('FilesystemTest');
 
-        if (! is_dir($this->tempDir)) {
-            mkdir($this->tempDir, 0777, true);
-        }
+        (new Filesystem)->deleteDirectory($this->tempDir);
+        mkdir($this->tempDir, 0777, true);
     }
 
     protected function tearDown(): void

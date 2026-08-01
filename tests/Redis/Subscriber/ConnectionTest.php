@@ -180,6 +180,7 @@ class ConnectionTest extends TestCase
     public function testUnixSocketOperation(): void
     {
         $directory = ParallelTesting::tempDir('RedisSubscriberConnectionTest');
+        (new Filesystem)->deleteDirectory($directory);
         mkdir($directory, 0777, true);
         $path = $directory . '/redis.sock';
         $server = new RespServer('unix://' . $path);

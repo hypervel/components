@@ -1122,6 +1122,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `reverb-24` | `reverb` | `foundation` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `reverb-24` |
 | `server-10` | `server` | `server` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `server-10` |
 | `grpc-01` | `grpc` | `reverb` (revalidation complete); later full `grpc` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
+| `nested-set-13` | `nested-set` | `testing` (revalidation complete); later full `testing` audit | `Complete Nested Set invariants, performance, and modern APIs`; finding `nested-set-13` |
 
 ## Package checklist
 
@@ -1222,7 +1223,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `telescope`
 - [ ] `sentry`
 - [ ] `inertia`
-- [ ] `nested-set`
+- [x] `nested-set`
 - [ ] `json-schema`
 
 ### Tooling and developer surfaces

@@ -34,6 +34,8 @@ class VendorPublishCommandTest extends TestCase
         $this->sourceDir = ParallelTesting::tempDir('VendorPublishCommandSource');
         $this->destDir = ParallelTesting::tempDir('VendorPublishCommandDestination');
 
+        $this->filesystem->deleteDirectory($this->sourceDir);
+        $this->filesystem->deleteDirectory($this->destDir);
         $this->filesystem->ensureDirectoryExists($this->sourceDir);
         $this->filesystem->ensureDirectoryExists($this->destDir);
     }

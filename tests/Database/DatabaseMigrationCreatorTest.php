@@ -109,6 +109,7 @@ class DatabaseMigrationCreatorTest extends TestCase
         $stubPath = $directory . '/package.stub';
         $stub = '<?php return new class DummyTable {};';
 
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
         $filesystem->put($stubPath, $stub);
         Date::setTestNow('2026-07-23 12:00:00');
@@ -213,6 +214,7 @@ class DatabaseMigrationCreatorTest extends TestCase
         $secondPath = $directory . '/second';
         $stubPath = $directory . '/migration.stub';
 
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($firstPath);
         $filesystem->ensureDirectoryExists($secondPath);
         $filesystem->put($stubPath, '<?php return new class {};');

@@ -23,6 +23,7 @@ class RequestBridgeTest extends TestCase
         parent::setUp();
 
         $this->tempDirectory = ParallelTesting::tempDir('RequestBridgeTest');
+        (new Filesystem)->deleteDirectory($this->tempDirectory);
         mkdir($this->tempDirectory, 0777, true);
     }
 

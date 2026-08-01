@@ -101,6 +101,7 @@ SQL);
     {
         $directory = ParallelTesting::tempDir('DatabaseSqliteSchemaBuilderTest');
         $files = new Filesystem;
+        $files->deleteDirectory($directory);
         $files->ensureDirectoryExists($directory);
         $path = $directory . '/database.sqlite';
         $files->put($path, '');

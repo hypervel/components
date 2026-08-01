@@ -62,6 +62,8 @@ class FilesystemManagerTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('FilesystemManager');
+        $filesystem = new Flysystem(new LocalFilesystemAdapter(dirname($this->tempDir)));
+        $filesystem->deleteDirectory(basename($this->tempDir));
     }
 
     protected function tearDownInCoroutine(): void

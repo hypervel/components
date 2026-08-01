@@ -25,6 +25,7 @@ class DatabaseConnectionsTest extends DatabaseTestCase
 
         $filesystem = new Filesystem;
         static::$databaseDirectory = ParallelTesting::tempDir('DatabaseConnectionsTest');
+        $filesystem->deleteDirectory(static::$databaseDirectory);
         $filesystem->ensureDirectoryExists(static::$databaseDirectory);
 
         static::$readPath = static::$databaseDirectory . '/read.sqlite';

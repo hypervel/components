@@ -265,6 +265,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
     {
         $directory = ParallelTesting::tempDir('ApiInstallCommandComposerFailure');
         $files = new Filesystem;
+        $files->deleteDirectory($directory);
         $files->ensureDirectoryExists($directory);
         $composer = $directory . '/composer.php';
         $files->put($composer, '<?php exit(17);');
@@ -313,6 +314,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
 
         $directory = ParallelTesting::tempDir('ApiInstallCommandMigrationDirectory');
         $files = new Filesystem;
+        $files->deleteDirectory($directory);
         $files->ensureDirectoryExists($directory);
         $migrationPath = $directory . '/migrations';
         $files->put($migrationPath, 'not a directory');

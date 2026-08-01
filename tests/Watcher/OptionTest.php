@@ -25,6 +25,7 @@ class OptionTest extends TestCase
 
         $this->filesystem = new Filesystem;
         $this->tempDir = ParallelTesting::tempDir('OptionTest');
+        $this->filesystem->deleteDirectory($this->tempDir);
         mkdir($this->tempDir, 0777, true);
 
         // Create subdirectories for is_dir() checks in fromConfig()
@@ -40,7 +41,7 @@ class OptionTest extends TestCase
         parent::tearDown();
     }
 
-    public function testFromConfigParsesBareDirectory()
+    public function testFromConfigParsesBareDirectory(): void
     {
         $option = Option::fromConfig(['watch' => ['app']], $this->tempDir);
 
@@ -51,7 +52,7 @@ class OptionTest extends TestCase
         $this->assertNull($paths[0]->pattern);
     }
 
-    public function testFromConfigParsesGlobWithExtension()
+    public function testFromConfigParsesGlobWithExtension(): void
     {
         $option = Option::fromConfig(['watch' => ['config/**/*.php']], $this->tempDir);
 
@@ -62,7 +63,7 @@ class OptionTest extends TestCase
         $this->assertSame('config/**/*.php', $paths[0]->pattern);
     }
 
-    public function testFromConfigParsesCompoundExtensionGlob()
+    public function testFromConfigParsesCompoundExtensionGlob(): void
     {
         $option = Option::fromConfig(['watch' => ['resources/**/*.blade.php']], $this->tempDir);
 
@@ -73,7 +74,7 @@ class OptionTest extends TestCase
         $this->assertSame('resources/**/*.blade.php', $paths[0]->pattern);
     }
 
-    public function testFromConfigParsesMiddleWildcard()
+    public function testFromConfigParsesMiddleWildcard(): void
     {
         $option = Option::fromConfig(['watch' => ['app/*/Actions/*.php']], $this->tempDir);
 
@@ -84,7 +85,7 @@ class OptionTest extends TestCase
         $this->assertSame('app/*/Actions/*.php', $paths[0]->pattern);
     }
 
-    public function testFromConfigParsesQuestionMarkGlob()
+    public function testFromConfigParsesQuestionMarkGlob(): void
     {
         $option = Option::fromConfig(['watch' => ['routes/?.php']], $this->tempDir);
 
@@ -95,7 +96,7 @@ class OptionTest extends TestCase
         $this->assertSame('routes/?.php', $paths[0]->pattern);
     }
 
-    public function testFromConfigParsesBraceGlob()
+    public function testFromConfigParsesBraceGlob(): void
     {
         $option = Option::fromConfig(['watch' => ['config/{app,queue}.php']], $this->tempDir);
 
@@ -106,7 +107,7 @@ class OptionTest extends TestCase
         $this->assertSame('config/{app,queue}.php', $paths[0]->pattern);
     }
 
-    public function testFromConfigParsesBracketGlob()
+    public function testFromConfigParsesBracketGlob(): void
     {
         $option = Option::fromConfig(['watch' => ['lang/[a-z][a-z].php']], $this->tempDir);
 
@@ -117,7 +118,7 @@ class OptionTest extends TestCase
         $this->assertSame('lang/[a-z][a-z].php', $paths[0]->pattern);
     }
 
-    public function testFromConfigParsesSpecificFile()
+    public function testFromConfigParsesSpecificFile(): void
     {
         $option = Option::fromConfig(['watch' => ['.env']], $this->tempDir);
 
@@ -128,7 +129,7 @@ class OptionTest extends TestCase
         $this->assertNull($paths[0]->pattern);
     }
 
-    public function testFromConfigParsesDotlessFile()
+    public function testFromConfigParsesDotlessFile(): void
     {
         $option = Option::fromConfig(['watch' => ['composer.json']], $this->tempDir);
 
@@ -139,7 +140,7 @@ class OptionTest extends TestCase
         $this->assertNull($paths[0]->pattern);
     }
 
-    public function testFromConfigMergesExtraPaths()
+    public function testFromConfigMergesExtraPaths(): void
     {
         $option = Option::fromConfig(
             ['watch' => ['app', '.env']],
@@ -156,7 +157,7 @@ class OptionTest extends TestCase
         $this->assertSame('composer.json', $paths[3]->path);
     }
 
-    public function testFromConfigDeduplicatesPaths()
+    public function testFromConfigDeduplicatesPaths(): void
     {
         $option = Option::fromConfig(
             ['watch' => ['app', '.env']],
@@ -170,35 +171,35 @@ class OptionTest extends TestCase
         $this->assertSame('.env', $paths[1]->path);
     }
 
-    public function testFromConfigUsesDefaultDriver()
+    public function testFromConfigUsesDefaultDriver(): void
     {
         $option = Option::fromConfig([], $this->tempDir);
 
         $this->assertSame(ScanFileDriver::class, $option->getDriver());
     }
 
-    public function testFromConfigUsesConfiguredDriver()
+    public function testFromConfigUsesConfiguredDriver(): void
     {
         $option = Option::fromConfig(['driver' => FswatchDriver::class], $this->tempDir);
 
         $this->assertSame(FswatchDriver::class, $option->getDriver());
     }
 
-    public function testFromConfigUsesDefaultScanInterval()
+    public function testFromConfigUsesDefaultScanInterval(): void
     {
         $option = Option::fromConfig([], $this->tempDir);
 
         $this->assertSame(2000, $option->getScanInterval());
     }
 
-    public function testFromConfigUsesConfiguredScanInterval()
+    public function testFromConfigUsesConfiguredScanInterval(): void
     {
         $option = Option::fromConfig(['scan_interval' => 1500], $this->tempDir);
 
         $this->assertSame(1500, $option->getScanInterval());
     }
 
-    public function testScanIntervalSecondsConversion()
+    public function testScanIntervalSecondsConversion(): void
     {
         $option = new Option(scanInterval: 2000);
         $this->assertSame(2.0, $option->getScanIntervalSeconds());
@@ -207,7 +208,7 @@ class OptionTest extends TestCase
         $this->assertSame(1.5, $option->getScanIntervalSeconds());
     }
 
-    public function testGetDirectoryPathsFiltersCorrectly()
+    public function testGetDirectoryPathsFiltersCorrectly(): void
     {
         $option = new Option(watchPaths: [
             new WatchPath('app', WatchPathType::Directory),
@@ -221,7 +222,7 @@ class OptionTest extends TestCase
         $this->assertSame('config', $dirs[1]->path);
     }
 
-    public function testGetFilePathsFiltersCorrectly()
+    public function testGetFilePathsFiltersCorrectly(): void
     {
         $option = new Option(watchPaths: [
             new WatchPath('app', WatchPathType::Directory),
@@ -235,7 +236,7 @@ class OptionTest extends TestCase
         $this->assertSame('composer.json', $files[1]->path);
     }
 
-    public function testGlobWithNoBaseDir()
+    public function testGlobWithNoBaseDir(): void
     {
         $option = Option::fromConfig(['watch' => ['**/*.php']], $this->tempDir);
 
@@ -246,7 +247,7 @@ class OptionTest extends TestCase
         $this->assertSame('**/*.php', $paths[0]->pattern);
     }
 
-    public function testConstructorDirectlyWithWatchPaths()
+    public function testConstructorDirectlyWithWatchPaths(): void
     {
         $watchPaths = [
             new WatchPath('app', WatchPathType::Directory),

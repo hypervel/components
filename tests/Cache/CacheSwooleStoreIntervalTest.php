@@ -34,6 +34,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         IntervalReentryProbe::reset();
 
         $this->tempDir = ParallelTesting::tempDir('CacheSwooleStoreIntervalTest');
+        (new Filesystem)->deleteDirectory($this->tempDir);
         mkdir($this->tempDir, 0777, true);
     }
 

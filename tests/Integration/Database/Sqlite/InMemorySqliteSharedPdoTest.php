@@ -243,7 +243,9 @@ class InMemorySqliteSharedPdoTest extends TestCase
         $config = $this->app->make('config');
 
         $tempDirectory = ParallelTesting::tempDir('InMemorySqliteSharedPdoTest');
-        (new Filesystem)->ensureDirectoryExists($tempDirectory);
+        $files = new Filesystem;
+        $files->deleteDirectory($tempDirectory);
+        $files->ensureDirectoryExists($tempDirectory);
         $tempFile = $tempDirectory . '/database.sqlite';
         touch($tempFile);
 

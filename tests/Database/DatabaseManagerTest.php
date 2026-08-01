@@ -239,6 +239,7 @@ class DatabaseManagerTest extends TestCase
     {
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('DatabaseManagerTest-read-reconnect');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
 
         $readPath = $directory . '/read.sqlite';
@@ -280,6 +281,7 @@ class DatabaseManagerTest extends TestCase
     {
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('DatabaseManagerTest-write-reconnect');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
 
         $readPath = $directory . '/read.sqlite';

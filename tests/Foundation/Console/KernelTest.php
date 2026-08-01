@@ -49,6 +49,42 @@ class KernelTest extends TestCase
         $this->assertSame(1, $result);
     }
 
+    public function testHandleRetainsTheOriginalExceptionWhenReportingFails(): void
+    {
+        $original = new RuntimeException('Bootstrap failed');
+        $reportingFailure = new RuntimeException('Reporting failed');
+
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldReceive('report')->once()->with($original)->andThrow($reportingFailure);
+        $handler->shouldNotReceive('renderForConsole');
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+
+        $kernel = new class($this->app, $this->app->make('events'), $original) extends Kernel {
+            public function __construct(Application $app, Dispatcher $events, private readonly RuntimeException $exception)
+            {
+                parent::__construct($app, $events);
+            }
+
+            protected function bootstrappers(): array
+            {
+                return [];
+            }
+
+            public function bootstrap(): void
+            {
+                throw $this->exception;
+            }
+        };
+
+        try {
+            $kernel->handle(new StringInput(''), new BufferedOutput);
+            $this->fail('Expected exception reporting to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($reportingFailure, $exception);
+            $this->assertSame($original, $exception->getPrevious());
+        }
+    }
+
     public function testBootstrapWithoutBootingProvidersSkipsBootProviders()
     {
         $bootstrappedWith = null;

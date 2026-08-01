@@ -287,6 +287,7 @@ class CacheFileStoreTest extends TestCase
     public function testAddReturnsFalseWhenFileLockCannotBeAcquired(): void
     {
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         $store = new FileStore(new Filesystem, $tempDir);
@@ -306,6 +307,7 @@ class CacheFileStoreTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-add-header');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         try {
@@ -322,6 +324,7 @@ class CacheFileStoreTest extends TestCase
     public function testRefreshReturnsFalseWhenFileLockCannotBeAcquired(): void
     {
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         $store = new FileStore(new Filesystem, $tempDir);
@@ -344,6 +347,7 @@ class CacheFileStoreTest extends TestCase
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh-header');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         try {
@@ -619,6 +623,7 @@ class CacheFileStoreTest extends TestCase
     public function testItHandlesForgettingNonFlexibleKeys()
     {
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         try {

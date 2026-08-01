@@ -9,6 +9,8 @@ use Hypervel\Support\Env;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use ReflectionMethod;
@@ -255,6 +257,77 @@ class BootstrapperTest extends TestCase
         }
     }
 
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    #[Test]
+    public function itPurgesStaleRuntimeCopiesAcrossWorkerTokens(): void
+    {
+        $token = 'bootstrapper-current-copy';
+        $staleToken = 'bootstrapper-stale-copy';
+        $packagePath = $this->temporaryDirectory('stale-copy-package');
+        $sourcePath = $this->temporaryDirectory('stale-copy-source');
+        $runtimePath = $this->runtimeDirectory($token, getmypid());
+        $staleRuntimePath = $this->runtimeDirectory($staleToken, getmypid());
+        $parentRuntimePath = $this->runtimeDirectory($staleToken, posix_getppid());
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+        mkdir($staleRuntimePath, 0777, true);
+        mkdir($parentRuntimePath, 0777, true);
+        file_put_contents($sourcePath . '/fresh.txt', 'fresh');
+        file_put_contents($staleRuntimePath . '/stale.txt', 'stale');
+        file_put_contents($parentRuntimePath . '/active.txt', 'active');
+
+        try {
+            $this->assertTrue(posix_kill(posix_getppid(), 0));
+
+            $this->withRuntimeCopyEnvironment($token, false, function () use ($sourcePath, $packagePath, $runtimePath, $staleRuntimePath, $parentRuntimePath): void {
+                $this->assertSame($runtimePath, $this->createRuntimeCopy($sourcePath, $packagePath));
+                $this->assertDirectoryDoesNotExist($staleRuntimePath);
+                $this->assertSame('fresh', file_get_contents($runtimePath . '/fresh.txt'));
+                $this->assertSame('active', file_get_contents($parentRuntimePath . '/active.txt'));
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+            $this->deleteDirectory($staleRuntimePath);
+            $this->deleteDirectory($parentRuntimePath);
+        }
+    }
+
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    #[Test]
+    public function itPreservesTheActiveRuntimeCopy(): void
+    {
+        $token = 'bootstrapper-active-copy';
+        $packagePath = $this->temporaryDirectory('active-copy-package');
+        $sourcePath = $this->temporaryDirectory('active-copy-source');
+        $runtimePath = $this->runtimeDirectory($token, getmypid());
+        $reflection = new ReflectionClass(Bootstrapper::class);
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+        mkdir($runtimePath, 0777, true);
+        file_put_contents($sourcePath . '/fresh.txt', 'fresh');
+        file_put_contents($runtimePath . '/active.txt', 'active');
+
+        try {
+            $this->withRuntimeCopyEnvironment($token, false, function () use ($reflection, $sourcePath, $packagePath, $runtimePath): void {
+                $reflection->setStaticPropertyValue('runtimePath', $runtimePath);
+
+                $this->assertSame($runtimePath, $this->createRuntimeCopy($sourcePath, $packagePath));
+                $this->assertSame('active', file_get_contents($runtimePath . '/active.txt'));
+                $this->assertSame('fresh', file_get_contents($runtimePath . '/fresh.txt'));
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
     #[Test]
     public function itRecognizesAMatchingServeProcessIdentity(): void
     {
@@ -409,6 +482,16 @@ class BootstrapperTest extends TestCase
     {
         return sys_get_temp_dir() . DIRECTORY_SEPARATOR . "hypervel-bootstrapper-{$name}-"
             . getmypid() . '-' . bin2hex(random_bytes(6));
+    }
+
+    /**
+     * Get the Testbench runtime directory for a worker token and process.
+     */
+    private function runtimeDirectory(string $token, int $pid): string
+    {
+        $tempDir = realpath(sys_get_temp_dir()) ?: sys_get_temp_dir();
+
+        return $tempDir . "/hypervel-components-testbench-{$token}-{$pid}";
     }
 
     /**

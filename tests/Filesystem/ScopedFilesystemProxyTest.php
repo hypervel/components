@@ -40,6 +40,8 @@ class ScopedFilesystemProxyTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('ScopedFilesystemProxy');
+        $filesystem = new Filesystem(new LocalFilesystemAdapter(dirname($this->tempDir)));
+        $filesystem->deleteDirectory(basename($this->tempDir));
         $adapter = new LocalFilesystemAdapter($this->tempDir);
         $this->disk = new FilesystemAdapter(new Filesystem($adapter), $adapter, ['root' => $this->tempDir]);
     }

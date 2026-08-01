@@ -20,9 +20,19 @@ class WebSocketKernel extends WebSocketServer
      */
     protected function handleException(Throwable $throwable): Response
     {
-        $handler = $this->container->make(ExceptionHandlerContract::class);
-        $handler->report($throwable);
+        // Keep the original in flight while it is handled, so a failure in
+        // reporting or rendering carries it as that failure's previous. The
+        // return suppresses it once a response exists.
+        try {
+            /* @phpstan-ignore finally.exitPoint */
+            throw $throwable;
+        } finally {
+            $handler = $this->container->make(ExceptionHandlerContract::class);
 
-        return $handler->render(RequestContext::get(), $throwable);
+            $handler->report($throwable);
+
+            /* @phpstan-ignore finally.exitPoint */
+            return $handler->render(RequestContext::get(), $throwable);
+        }
     }
 }

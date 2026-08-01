@@ -30,7 +30,9 @@ class QueryDurationThresholdPooledTest extends TestCase
         parent::setUpBeforeClass();
 
         self::$databaseDirectory = ParallelTesting::tempDir('QueryDurationThresholdPooledTest');
-        (new Filesystem)->ensureDirectoryExists(self::$databaseDirectory);
+        $files = new Filesystem;
+        $files->deleteDirectory(self::$databaseDirectory);
+        $files->ensureDirectoryExists(self::$databaseDirectory);
         self::$primaryDatabasePath = self::$databaseDirectory . '/primary.sqlite';
         self::$analyticsDatabasePath = self::$databaseDirectory . '/analytics.sqlite';
 

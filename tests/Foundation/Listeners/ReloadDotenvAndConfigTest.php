@@ -158,6 +158,7 @@ class ReloadDotenvAndConfigTest extends TestCase
         (new LoadConfiguration)->bootstrap($app);
         DotenvManager::load([$app->environmentPath()]);
         $tempDirectory = ParallelTesting::tempDir('ReloadDotenvAndConfigTest-package');
+        (new Filesystem)->deleteDirectory($tempDirectory);
         mkdir($tempDirectory, 0777, true);
         $packageConfigPath = $tempDirectory . '/package.php';
 
