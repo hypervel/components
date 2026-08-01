@@ -15,12 +15,14 @@ use InvalidArgumentException;
 abstract class BaseRelation extends Relation
 {
     /**
-     * The count of self joins.
+     * The nested-set query builder instance.
+     *
+     * @var QueryBuilder
      */
-    protected static int $selfJoinCount = 0;
+    protected EloquentBuilder $query;
 
     /**
-     * AncestorsRelation constructor.
+     * Create a new nested set relation.
      */
     public function __construct(QueryBuilder $builder, Model $model)
     {
@@ -31,16 +33,35 @@ abstract class BaseRelation extends Relation
         parent::__construct($builder, $model);
     }
 
+    /**
+     * Determine whether a related node matches a parent.
+     */
     abstract protected function matches(Model $model, Model $related): bool;
 
+    /**
+     * Add an eager constraint for a parent.
+     */
     abstract protected function addEagerConstraint(QueryBuilder $query, Model $model): void;
 
+    /**
+     * Get the relation existence condition.
+     */
     abstract protected function relationExistenceCondition(string $hash, string $table, string $lft, string $rgt): string;
 
+    /**
+     * Get the relation existence query.
+     */
     public function getRelationExistenceQuery(EloquentBuilder $query, EloquentBuilder $parentQuery, mixed $columns = ['*']): EloquentBuilder
     {
-        /* @phpstan-ignore-next-line */
-        $query = $this->getParent()->replicate()->newScopedQuery()->select($columns);
+        $parent = $this->getParent();
+
+        // Start from the class-default table so a relation alias cannot become
+        // a FROM source; Eloquent applies caller constraints afterward.
+        $model = new ($parent::class);
+        $model->setConnection($parent->getConnectionName());
+
+        $query = $model->newQuery();
+        $query->select($columns);
 
         $table = $query->getModel()->getTable();
 
@@ -52,20 +73,33 @@ abstract class BaseRelation extends Relation
 
         $condition = $this->relationExistenceCondition(
             $grammar->wrapTable($hash),
-            $grammar->wrapTable($table),
-            $grammar->wrap($this->parent->getLftName()), /* @phpstan-ignore-line */
-            $grammar->wrap($this->parent->getRgtName()) /* @phpstan-ignore-line */
+            $grammar->wrapTable($parentQuery->getModel()->getTable()),
+            $grammar->wrap($this->parent->getLftName()), /* @phpstan-ignore method.notFound */
+            $grammar->wrap($this->parent->getRgtName()) /* @phpstan-ignore method.notFound */
         );
 
-        return $query->whereRaw($condition);
+        $query->whereRaw($condition);
+
+        foreach (array_keys($this->scopeValues($this->parent)) as $attribute) {
+            $relatedColumn = $hash . '.' . $attribute;
+            $parentColumn = $parentQuery->getModel()->getTable() . '.' . $attribute;
+
+            $query->where(function (EloquentBuilder $query) use ($relatedColumn, $parentColumn) {
+                $query->whereColumn($relatedColumn, '=', $parentColumn)
+                    ->orWhere(function (EloquentBuilder $query) use ($relatedColumn, $parentColumn) {
+                        $query->whereNull($relatedColumn)
+                            ->whereNull($parentColumn);
+                    });
+            });
+        }
+
+        return $query;
     }
 
     /**
      * Initialize the relation on a set of models.
-     *
-     * @param string $relation
      */
-    public function initRelation(array $models, $relation): array
+    public function initRelation(array $models, string $relation): array
     {
         return $models;
     }
@@ -81,7 +115,7 @@ abstract class BaseRelation extends Relation
     /**
      * Get the results of the relationship.
      */
-    public function getResults(): mixed
+    public function getResults(): Collection
     {
         return $this->query->get();
     }
@@ -91,27 +125,37 @@ abstract class BaseRelation extends Relation
      */
     public function addEagerConstraints(array $models): void
     {
+        $models = $this->prepareEagerModels($models);
+
+        if ($models === []) {
+            $this->eagerKeysWereEmpty = true;
+
+            return;
+        }
+
         $this->query->whereNested(function (Builder $inner) use ($models) {
             // We will use this query in order to apply constraints to the
             // base query builder
             /** @var QueryBuilder $outer */
             $outer = $this->parent->newQuery()->setQuery($inner);
 
-            foreach ($models as $model) {
-                $this->addEagerConstraint($outer, $model);
-            }
+            $this->constrainEagerModels($outer, $models);
         });
     }
 
     /**
      * Match the eagerly loaded results to their parents.
-     *
-     * @param string $relation
      */
-    public function match(array $models, Collection $results, $relation): array
+    public function match(array $models, Collection $results, string $relation): array
     {
+        $indexed = $this->shouldIndexResults($models)
+            ? $this->indexResults($results)
+            : null;
+
         foreach ($models as $model) {
-            $related = $this->matchForModel($model, $results);
+            $related = $indexed === null
+                ? $this->matchForModel($model, $results)
+                : $this->matchFromIndex($model, $indexed);
 
             $model->setRelation($relation, $related);
         }
@@ -119,6 +163,9 @@ abstract class BaseRelation extends Relation
         return $models;
     }
 
+    /**
+     * Match query results for one parent.
+     */
     protected function matchForModel(Model $model, Collection $results): Collection
     {
         $result = $this->related->newCollection();
@@ -133,22 +180,158 @@ abstract class BaseRelation extends Relation
     }
 
     /**
-     * Get the plain foreign key.
+     * Apply eager constraints for the prepared parent models.
      */
-    public function getForeignKeyName(): mixed
+    protected function constrainEagerModels(QueryBuilder $query, array $models): void
     {
-        // Return a stub value for relation
-        // resolvers which need this function.
-        return NestedSet::PARENT_ID;
+        foreach ($models as $model) {
+            $this->addEagerConstraint($query, $model);
+        }
     }
 
     /**
-     * Flush all static state.
+     * Deduplicate the parent models used to constrain an eager query.
      */
-    public static function flushState(): void
+    protected function prepareEagerModels(array $models): array
     {
-        // Relation::flushState() uses late static binding, so this resets the
-        // nested-set alias counter that shadows the parent relation counter.
-        parent::flushState();
+        $result = [];
+        $seenKeys = [];
+        $seenObjects = [];
+
+        foreach ($models as $model) {
+            $scope = $this->scopeKey($model);
+            $key = $model->getKey();
+
+            if ($key === null) {
+                $objectId = spl_object_id($model);
+
+                if (isset($seenObjects[$scope][$objectId])) {
+                    continue;
+                }
+
+                $seenObjects[$scope][$objectId] = true;
+            } else {
+                if (isset($seenKeys[$scope][$key])) {
+                    continue;
+                }
+
+                $seenKeys[$scope][$key] = true;
+            }
+
+            $result[] = $model;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Determine whether eager results should be indexed by tree scope.
+     */
+    protected function shouldIndexResults(array $models): bool
+    {
+        return count($models) > 1;
+    }
+
+    /**
+     * Index eager results by exact nested-set scope while preserving query order.
+     */
+    protected function indexResults(Collection $results): array
+    {
+        /** @var array<string, array{models: list<Model>}> $indexed */
+        $indexed = [];
+
+        foreach ($results as $related) {
+            $scope = $this->scopeKey($related);
+
+            if (! isset($indexed[$scope])) {
+                $indexed[$scope] = [
+                    'models' => [],
+                ];
+            }
+
+            $indexed[$scope]['models'][] = $related;
+        }
+
+        return $indexed;
+    }
+
+    /**
+     * Match a parent from its exact scope bucket.
+     */
+    protected function matchFromIndex(Model $model, array $indexed): Collection
+    {
+        $bucket = $indexed[$this->scopeKey($model)]['models'] ?? [];
+
+        return $this->matchForModel($model, $this->related->newCollection($bucket));
+    }
+
+    /**
+     * Get the normalized nested-set scope values for a node.
+     *
+     * @return array<string, null|int|string>
+     */
+    protected function scopeValues(Model $model): array
+    {
+        return $model->getNestedSetScope(); /* @phpstan-ignore method.notFound */
+    }
+
+    /**
+     * Get the stable identity key for a node's nested-set scope.
+     */
+    protected function scopeKey(Model $model): string
+    {
+        return $model->getNestedSetScopeKey(); /* @phpstan-ignore method.notFound */
+    }
+
+    /**
+     * Determine whether a model has loaded tree bounds.
+     */
+    protected function hasLoadedBounds(Model $model): bool
+    {
+        return $model->getLft() !== null /* @phpstan-ignore method.notFound */
+            && $model->getRgt() !== null; /* @phpstan-ignore method.notFound */
+    }
+
+    /**
+     * Determine whether a model has loaded parentage.
+     */
+    protected function hasLoadedParent(Model $model): bool
+    {
+        return array_key_exists(
+            $model->getParentIdName(), /* @phpstan-ignore method.notFound */
+            $model->getAttributes(),
+        );
+    }
+
+    /**
+     * Determine whether a model has a concrete nested-set scope.
+     */
+    protected function hasConcreteScope(Model $model): bool
+    {
+        $attributes = $model->getAttributes();
+
+        foreach (array_keys($this->scopeValues($model)) as $attribute) {
+            if (! array_key_exists($attribute, $attributes)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the plain foreign key.
+     */
+    public function getForeignKeyName(): string
+    {
+        return $this->parent->getParentIdName(); /* @phpstan-ignore method.notFound */
+    }
+
+    /**
+     * Get the qualified foreign key name.
+     */
+    public function getQualifiedForeignKeyName(): string
+    {
+        return $this->related->qualifyColumn($this->getForeignKeyName());
     }
 }

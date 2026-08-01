@@ -1,6 +1,6 @@
 NestedSet for Hypervel
 ===
 
-Migrated from: https://github.com/lazychaser/laravel-nestedset
+Ported from: https://github.com/aimeos/laravel-nestedset
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/nested-set)
