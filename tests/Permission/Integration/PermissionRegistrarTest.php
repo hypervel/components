@@ -16,6 +16,7 @@ use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission as TestPermission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role as TestRole;
 use Hypervel\Tests\Permission\TestCase;
+use InvalidArgumentException;
 
 class PermissionRegistrarTest extends TestCase
 {
@@ -237,5 +238,82 @@ class PermissionRegistrarTest extends TestCase
         $this->assertSame('testRole', $role->name);
         $this->assertSame('web', $role->guard_name);
         $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
+    }
+
+    public function testInitializeCacheAcceptsDefaultColumnExclusions(): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $registrar->initializeCache();
+
+        $this->assertSame(HypervelRole::class, $registrar->getRoleClass());
+        $this->assertSame(HypervelPermission::class, $registrar->getPermissionClass());
+    }
+
+    public function testInitializeCacheRejectsRequiredDefaultModelColumns(): void
+    {
+        $this->app->make('config')->set(
+            'permission.cache.column_names_except',
+            ['id', 'name', 'guard_name'],
+        );
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('role columns [id, name, guard_name]');
+        $this->expectExceptionMessage('permission columns [id, name, guard_name]');
+
+        $this->app->make(PermissionRegistrar::class)->initializeCache();
+    }
+
+    public function testInitializeCacheUsesConfiguredModelPrimaryKeys(): void
+    {
+        $this->app->make('config')->set([
+            'permission.models.role' => TestRole::class,
+            'permission.models.permission' => TestPermission::class,
+            'permission.cache.column_names_except' => ['role_test_id', 'permission_test_id'],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('role columns [role_test_id]');
+        $this->expectExceptionMessage('permission columns [permission_test_id]');
+
+        $this->app->make(PermissionRegistrar::class)->initializeCache();
+    }
+
+    public function testInitializeCacheRejectsTheTeamColumnOnlyForRoles(): void
+    {
+        $this->app->make('config')->set([
+            'permission.teams' => true,
+            'permission.cache.column_names_except' => ['team_test_id'],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('role columns [team_test_id]');
+
+        $this->app->make(PermissionRegistrar::class)->initializeCache();
+    }
+
+    public function testInitializeCacheValidatesThePartitionColumnWithoutResolvingIt(): void
+    {
+        $resolverCalled = false;
+
+        PermissionRegistrar::flushState();
+        $this->app->forgetInstance(PermissionRegistrar::class);
+        PermissionRegistrar::resolvePartitionUsing('workspace_id', function () use (&$resolverCalled): string {
+            $resolverCalled = true;
+
+            return 'workspace-a';
+        });
+        $this->app->make('config')->set('permission.cache.column_names_except', ['workspace_id']);
+
+        try {
+            $this->app->make(PermissionRegistrar::class);
+
+            $this->fail('The required partition column was accepted as a cache exclusion.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertStringContainsString('role columns [workspace_id]', $exception->getMessage());
+            $this->assertStringContainsString('permission columns [workspace_id]', $exception->getMessage());
+        }
+
+        $this->assertFalse($resolverCalled);
     }
 }
