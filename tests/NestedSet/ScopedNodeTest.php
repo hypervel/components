@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\NestedSet;
 
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\NestedSet\Models\MenuItem;
 use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ScopedNodeTest extends TestCase
 {
@@ -146,6 +151,32 @@ class ScopedNodeTest extends TestCase
         }
     }
 
+    #[DataProvider('lowLevelScopedOperations')]
+    public function testLowLevelTreeOperationsRequireAConcreteScope(string $operation): void
+    {
+        $query = MenuItem::query();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('scoped([...])');
+
+        match ($operation) {
+            'lookup' => $query->getNodeData(1),
+            'movement' => $query->moveNode(1, 1),
+            'depth' => $query->depthForPosition(1),
+            'gap' => $query->makeGap(1, 2),
+        };
+    }
+
+    public static function lowLevelScopedOperations(): array
+    {
+        return [
+            'node lookup' => ['lookup'],
+            'movement' => ['movement'],
+            'depth lookup' => ['depth'],
+            'gap mutation' => ['gap'],
+        ];
+    }
+
     public function testNullIsAConcreteScopeValueWhenTheAttributeIsPresent(): void
     {
         $model = new MenuItem;
@@ -160,6 +191,30 @@ class ScopedNodeTest extends TestCase
             'wrong_parent' => 0,
             'wrong_depth' => 0,
         ], $model->newScopedQuery()->countErrors());
+    }
+
+    public function testNewNodeRequiresItsConfiguredScopeAttribute(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('attribute [menu_id] was not selected');
+
+        (new MenuItem(['title' => 'missing scope']))->save();
+    }
+
+    public function testPresentNullScopeCanBePersisted(): void
+    {
+        Schema::create('nullable_menu_items', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedInteger('menu_id')->nullable();
+            $table->string('title')->nullable();
+            NestedSet::columns($table, ['menu_id']);
+        });
+
+        $node = new NullableMenuItem(['menu_id' => null, 'title' => 'null scope']);
+
+        $this->assertTrue($node->save());
+        $this->assertNull($node->menu_id);
+        $this->assertSame(0, $node->getDepth());
     }
 
     public function testMovingNodeNotAffectingOtherMenu(): void
@@ -259,6 +314,30 @@ class ScopedNodeTest extends TestCase
         $this->assertEquals([3, 4], $nodes->find(3)->siblingsAndSelf->pluck('id')->sort()->values()->all());
     }
 
+    public function testRelationsTreatMissingScopeAndParentageAsEmpty(): void
+    {
+        $node = MenuItem::query()
+            ->select(['id', '_lft', '_rgt', 'depth'])
+            ->findOrFail(5);
+
+        $this->assertTrue($node->ancestors()->get()->isEmpty());
+        $this->assertTrue($node->descendants()->get()->isEmpty());
+        $this->assertTrue($node->siblings()->get()->isEmpty());
+
+        $nodes = MenuItem::query()
+            ->select(['id', '_lft', '_rgt', 'depth'])
+            ->whereIn('id', [5, 6])
+            ->get();
+
+        $nodes->load(['ancestors', 'descendants', 'siblings']);
+
+        foreach ($nodes as $partial) {
+            $this->assertTrue($partial->ancestors->isEmpty());
+            $this->assertTrue($partial->descendants->isEmpty());
+            $this->assertTrue($partial->siblings->isEmpty());
+        }
+    }
+
     public function testRelationExistenceQueriesCorrelateExactScopes(): void
     {
         DB::table('menu_items')->insert([
@@ -347,9 +426,24 @@ class ScopedNodeTest extends TestCase
             ->map
             ->getBounds()
             ->all();
+        DB::flushQueryLog();
 
         MenuItem::scoped(['menu_id' => 1])->fixTree();
 
+        $queries = array_column(DB::getQueryLog(), 'query');
+
+        $this->assertTrue(collect($queries)->contains(
+            static fn (string $query): bool => preg_match(
+                '/^select .*menu_id.* from .*menu_items/i',
+                $query,
+            ) === 1,
+        ));
+        $this->assertFalse(collect($queries)->contains(
+            static fn (string $query): bool => preg_match(
+                '/^select .*_lft.*_rgt.*depth.*parent_id.*menu_id.*limit 1$/i',
+                $query,
+            ) === 1,
+        ));
         $this->assertTreeNotBroken(1);
         $this->assertSame(
             $otherScope,
@@ -417,6 +511,80 @@ class ScopedNodeTest extends TestCase
         MenuItem::create(['parent_id' => 5, 'menu_id' => 2]);
     }
 
+    public function testExistingModelCannotChangeItsNestedSetScope(): void
+    {
+        $node = MenuItem::findOrFail(5);
+        $node->menu_id = 2;
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Nested set scope attribute [menu_id] cannot be changed on an existing [Hypervel\Tests\NestedSet\Models\MenuItem] model.',
+        );
+
+        $node->save();
+    }
+
+    public function testPartialExistingModelCannotHideANestedSetScopeChange(): void
+    {
+        $node = MenuItem::query()->select(['id'])->findOrFail(5);
+        $node->menu_id = null;
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('scope attribute [menu_id] cannot be changed');
+
+        $node->save();
+    }
+
+    public function testSavingTheSameNestedSetScopeValueRemainsValid(): void
+    {
+        $node = MenuItem::findOrFail(5);
+        $node->menu_id = 1;
+        $node->title = 'updated';
+
+        $this->assertTrue($node->save());
+        $this->assertSame(1, MenuItem::findOrFail(5)->menu_id);
+    }
+
+    public function testDeferredNewNodeMutationRevalidatesItsScope(): void
+    {
+        $node = new MenuItem(['menu_id' => 1]);
+        $node->appendToNode(MenuItem::findOrFail(2));
+        $node->menu_id = 2;
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Nodes must be in the same tree.');
+
+        $node->save();
+    }
+
+    #[DataProvider('partialCrossScopeMutationModels')]
+    public function testCrossScopeMutationHydratesPartialModels(string $partial): void
+    {
+        $source = $partial === 'source'
+            ? MenuItem::query()
+                ->select(['id', '_lft', '_rgt', 'parent_id', 'depth'])
+                ->findOrFail(1)
+            : MenuItem::findOrFail(1);
+        $target = $partial === 'target'
+            ? MenuItem::query()
+                ->select(['id', '_lft', '_rgt', 'parent_id', 'depth'])
+                ->findOrFail(3)
+            : MenuItem::findOrFail(3);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Nodes must be in the same tree.');
+
+        $source->appendToNode($target);
+    }
+
+    public static function partialCrossScopeMutationModels(): array
+    {
+        return [
+            'partial source' => ['source'],
+            'partial target' => ['target'],
+        ];
+    }
+
     public function testDeletion(): void
     {
         MenuItem::find(2)->delete();
@@ -426,6 +594,40 @@ class ScopedNodeTest extends TestCase
         $this->assertEquals(2, $node->getRgt());
 
         $this->assertOtherScopeNotAffected();
+    }
+
+    public function testDeletingPartiallySelectedScopedNodeHydratesItsTreeIdentity(): void
+    {
+        $node = MenuItem::query()->select(['id'])->findOrFail(2);
+
+        $node->delete();
+
+        $this->assertNull(MenuItem::find(2));
+        $this->assertNull(MenuItem::find(5));
+        $this->assertNotNull(MenuItem::find(4));
+        $this->assertNotNull(MenuItem::find(6));
+        $this->assertTreeNotBroken(1);
+        $this->assertTreeNotBroken(2);
+    }
+
+    public function testRestoringPartiallySelectedScopedNodeHydratesItsTreeIdentity(): void
+    {
+        Schema::table('menu_items', fn (Blueprint $table) => $table->softDeletes());
+
+        SoftDeletingMenuItem::findOrFail(2)->delete();
+
+        $node = SoftDeletingMenuItem::withTrashed()
+            ->select(['id', 'deleted_at'])
+            ->findOrFail(2);
+
+        $node->restore();
+
+        $this->assertNotNull(SoftDeletingMenuItem::find(2));
+        $this->assertNotNull(SoftDeletingMenuItem::find(5));
+        $this->assertNotNull(SoftDeletingMenuItem::find(4));
+        $this->assertNotNull(SoftDeletingMenuItem::find(6));
+        $this->assertTreeNotBroken(1);
+        $this->assertTreeNotBroken(2);
     }
 
     public function testMoving(): void
@@ -480,4 +682,16 @@ class ScopedNodeTest extends TestCase
         $this->assertEquals(5, $filteredNodes->find(2)->descendants[0]->id);
         $this->assertEquals(6, $filteredNodes->find(4)->descendants[0]->id);
     }
+}
+
+class NullableMenuItem extends MenuItem
+{
+    protected ?string $table = 'nullable_menu_items';
+}
+
+class SoftDeletingMenuItem extends MenuItem
+{
+    use SoftDeletes;
+
+    protected ?string $table = 'menu_items';
 }

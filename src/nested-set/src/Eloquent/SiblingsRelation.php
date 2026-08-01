@@ -33,6 +33,12 @@ class SiblingsRelation extends BaseRelation
             return;
         }
 
+        if (! $this->hasLoadedParent($this->parent) || ! $this->hasConcreteScope($this->parent)) {
+            $this->query->whereRaw('0 = 1');
+
+            return;
+        }
+
         $this->whereParentId($this->query, $this->parent);
 
         $this->parent->applyNestedSetScope($this->query); /* @phpstan-ignore method.notFound */
@@ -44,6 +50,22 @@ class SiblingsRelation extends BaseRelation
                 $this->parent->getKey(),
             );
         }
+    }
+
+    /**
+     * Remove parents that cannot identify a concrete sibling bucket.
+     */
+    protected function prepareEagerModels(array $models): array
+    {
+        $result = [];
+
+        foreach (parent::prepareEagerModels($models) as $model) {
+            if ($this->hasLoadedParent($model) && $this->hasConcreteScope($model)) {
+                $result[] = $model;
+            }
+        }
+
+        return $result;
     }
 
     /**

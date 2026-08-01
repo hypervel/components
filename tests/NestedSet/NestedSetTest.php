@@ -139,27 +139,40 @@ class NestedSetTest extends TestCase
 
     public function testScopeKeysDistinguishCompositeValuesWithoutSeparatorsColliding(): void
     {
+        $defaults = ['third' => null, 'fourth' => null, 'fifth' => null];
+
         $first = new NestedSetTestScopeNodeModel;
-        $first->setRawAttributes(['first' => '1', 'second' => '23']);
+        $first->setRawAttributes(['first' => '1', 'second' => '23', ...$defaults]);
 
         $second = new NestedSetTestScopeNodeModel;
-        $second->setRawAttributes(['first' => '12', 'second' => '3']);
+        $second->setRawAttributes(['first' => '12', 'second' => '3', ...$defaults]);
 
         $integer = new NestedSetTestScopeNodeModel;
-        $integer->setRawAttributes(['first' => 1, 'second' => null]);
+        $integer->setRawAttributes(['first' => 1, 'second' => null, ...$defaults]);
 
         $string = new NestedSetTestScopeNodeModel;
-        $string->setRawAttributes(['first' => '1', 'second' => null]);
+        $string->setRawAttributes(['first' => '1', 'second' => null, ...$defaults]);
 
         $empty = new NestedSetTestScopeNodeModel;
-        $empty->setRawAttributes(['first' => '']);
+        $empty->setRawAttributes(['first' => '', 'second' => null, ...$defaults]);
 
         $null = new NestedSetTestScopeNodeModel;
-        $null->setRawAttributes(['first' => null]);
+        $null->setRawAttributes(['first' => null, 'second' => null, ...$defaults]);
 
         $this->assertNotSame($first->getNestedSetScopeKey(), $second->getNestedSetScopeKey());
         $this->assertSame($integer->getNestedSetScopeKey(), $string->getNestedSetScopeKey());
         $this->assertNotSame($empty->getNestedSetScopeKey(), $null->getNestedSetScopeKey());
+    }
+
+    public function testIncompleteScopeKeysCannotMatchEachOther(): void
+    {
+        $first = new NestedSetTestScopeNodeModel;
+        $first->setRawAttributes(['first' => 1]);
+
+        $second = new NestedSetTestScopeNodeModel;
+        $second->setRawAttributes(['first' => 1]);
+
+        $this->assertNotSame($first->getNestedSetScopeKey(), $second->getNestedSetScopeKey());
     }
 
     #[DataProvider('unsupportedScopeValues')]

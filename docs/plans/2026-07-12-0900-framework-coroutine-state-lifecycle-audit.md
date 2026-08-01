@@ -1218,7 +1218,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `telescope`
 - [ ] `sentry`
 - [ ] `inertia`
-- [ ] `nested-set`
+- [x] `nested-set`
 - [ ] `json-schema`
 
 ### Tooling and developer surfaces

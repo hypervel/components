@@ -22,6 +22,8 @@ class QueryBuilder extends EloquentBuilder
      */
     public function getNodeData(int|string $id, bool $required = false): array
     {
+        $this->assertConcreteNestedSetScope('node lookup');
+
         $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound */
         $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound */
         $depthName = $this->model->getDepthName(); /* @phpstan-ignore method.notFound */
@@ -74,6 +76,7 @@ class QueryBuilder extends EloquentBuilder
 
         if (NestedSet::isNode($id)) {
             $model = $id;
+            $this->assertUsableNodeForPositionalQuery($model);
             $value = '?';
             $bindings = [$id->getRgt()];
 
@@ -172,6 +175,7 @@ class QueryBuilder extends EloquentBuilder
     {
         $this->query->whereNested(function (BaseQueryBuilder $inner) use ($id, $andSelf, $not) {
             if (NestedSet::isNode($id)) {
+                $this->assertUsableNodeForPositionalQuery($id);
                 $id->applyNestedSetScope($inner);
                 $data = $id->getBounds();
             } else {
@@ -254,6 +258,7 @@ class QueryBuilder extends EloquentBuilder
 
         if (NestedSet::isNode($id)) {
             $model = $id;
+            $this->assertUsableNodeForPositionalQuery($model);
             $value = '?';
             $bindings = [$id->getLft()];
         } else {
@@ -435,6 +440,8 @@ class QueryBuilder extends EloquentBuilder
         ?int $targetDepth = null,
         array $nodeData = [],
     ): int {
+        $this->assertConcreteNestedSetScope('node movement');
+
         $data = $nodeData ?: $this->model->newNestedSetQuery()->getNodeData($key, true); /* @phpstan-ignore method.notFound */
         $lftName = $this->model->getLftName(); /* @phpstan-ignore method.notFound */
         $rgtName = $this->model->getRgtName(); /* @phpstan-ignore method.notFound */
@@ -467,7 +474,7 @@ class QueryBuilder extends EloquentBuilder
         // The height of node that is being moved
         $height = $rgt - $lft + 1;
 
-        // The distance that our node will travel to reach it's destination
+        // The distance that our node will travel to reach its destination
         $distance = $to - $from + 1 - $height;
 
         // If no distance to travel, just return
@@ -490,6 +497,8 @@ class QueryBuilder extends EloquentBuilder
             ->where($this->model->getRgtName(), '>=', $boundary[0]) /* @phpstan-ignore method.notFound */
             ->where($this->model->getLftName(), '<=', $boundary[1]); /* @phpstan-ignore method.notFound */
 
+        NodeContext::markTreeChanged($this->model);
+
         return $query->update($this->patch($params));
     }
 
@@ -498,6 +507,8 @@ class QueryBuilder extends EloquentBuilder
      */
     public function depthForPosition(int $position): int
     {
+        $this->assertConcreteNestedSetScope('depth lookup');
+
         $depth = $this->model
             ->newNestedSetQuery()
             ->where($this->model->getLftName(), '<', $position) /* @phpstan-ignore method.notFound */
@@ -517,10 +528,14 @@ class QueryBuilder extends EloquentBuilder
             return 0;
         }
 
+        $this->assertConcreteNestedSetScope('gap mutation');
+
         $params = compact('cut', 'height');
 
         $query = $this->toBase()
             ->where($this->model->getRgtName(), '>=', $cut); /* @phpstan-ignore method.notFound */
+
+        NodeContext::markTreeChanged($this->model);
 
         return $query->update($this->patch($params));
     }
@@ -956,6 +971,34 @@ class QueryBuilder extends EloquentBuilder
     }
 
     /**
+     * Assert that a node can supply coordinates to this query.
+     */
+    protected function assertUsableNodeForPositionalQuery(Model $node): void
+    {
+        $queryIdentity = NodeContext::structuralIdentity($this->model);
+        $nodeIdentity = NodeContext::structuralIdentity($node);
+
+        if ($queryIdentity !== $nodeIdentity) {
+            throw new LogicException(sprintf(
+                'Nested set node [%s] uses store [%s], but query model [%s] uses store [%s].',
+                $node::class,
+                $nodeIdentity,
+                $this->model::class,
+                $queryIdentity,
+            ));
+        }
+
+        if ($node->getLft() === null /* @phpstan-ignore method.notFound */
+            || $node->getRgt() === null /* @phpstan-ignore method.notFound */
+        ) {
+            throw new LogicException(sprintf(
+                'Nested set node [%s] must have loaded bounds.',
+                $node::class,
+            ));
+        }
+    }
+
+    /**
      * Assert that a subtree repair root has complete persisted structural data.
      */
     protected function assertRepairRootIsComplete(Model $root, string $operation): void
@@ -967,12 +1010,13 @@ class QueryBuilder extends EloquentBuilder
             && $root->getLft() !== null /* @phpstan-ignore method.notFound */
             && $root->getRgt() !== null /* @phpstan-ignore method.notFound */
             && $root->getDepth() !== null /* @phpstan-ignore method.notFound */
+            && array_key_exists($root->getParentIdName(), $root->getAttributes()) /* @phpstan-ignore method.notFound */
         ) {
             return;
         }
 
         throw new LogicException(sprintf(
-            'Nested set %s root [%s] with key [%s] must be persisted with loaded bounds and depth.',
+            'Nested set %s root [%s] with key [%s] must be persisted with loaded bounds, depth, and parent.',
             $operation,
             $root::class,
             $root->getKey() ?? 'null',
@@ -996,6 +1040,18 @@ class QueryBuilder extends EloquentBuilder
             ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
             ->select($keyName)
             ->whereBetween($lftName, $bounds);
+
+        $rootIsSelected = (clone $selectedKeys)
+            ->where($keyName, '=', $root->getKey())
+            ->exists();
+
+        if (! $rootIsSelected) {
+            throw new LogicException(sprintf(
+                'Nested set subtree for [%s] with key [%s] cannot be repaired because the root row is missing or outside its stored bounds.',
+                $root::class,
+                $root->getKey() ?? 'null',
+            ));
+        }
 
         $crossesBoundary = $root
             ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
@@ -1055,12 +1111,14 @@ class QueryBuilder extends EloquentBuilder
         }
 
         $model = $root ?? $this->model;
+        $scopeColumns = array_keys($model->getNestedSetScope()); /* @phpstan-ignore method.notFound */
         $columns = array_values(array_unique([
             $model->getKeyName(),
             $model->getParentIdName(), /* @phpstan-ignore method.notFound */
             $model->getLftName(), /* @phpstan-ignore method.notFound */
             $model->getRgtName(), /* @phpstan-ignore method.notFound */
             $model->getDepthName(), /* @phpstan-ignore method.notFound */
+            ...$scopeColumns,
             ...$extraColumns,
         ]));
 
@@ -1155,10 +1213,6 @@ class QueryBuilder extends EloquentBuilder
 
         $grown = $parent ? $cut - $parent->getRgt() : 0; /* @phpstan-ignore method.notFound */
 
-        if ($updated !== [] || $grown !== 0) {
-            NodeContext::setHasPerformed($parent ?? $this->model);
-        }
-
         if ($parent !== null && $grown !== 0) {
             $gapCut = $parent->getRgt() + 1; /* @phpstan-ignore method.notFound */
             $moved = $parent
@@ -1242,7 +1296,8 @@ class QueryBuilder extends EloquentBuilder
                 $frame = array_pop($stack);
                 $model = $frame['model'];
 
-                $model->rawNode(
+                static::assignRepairNode(
+                    $model,
                     $frame['lft'],
                     $cut,
                     $frame['parent_id'],
@@ -1297,6 +1352,22 @@ class QueryBuilder extends EloquentBuilder
     }
 
     /**
+     * Assign structural values to a model owned by repair or rebuild.
+     */
+    protected static function assignRepairNode(
+        Model $model,
+        int $lft,
+        int $rgt,
+        int|string|null $parentId,
+        ?int $depth,
+    ): void {
+        $model->setLft($lft); /* @phpstan-ignore method.notFound */
+        $model->setRgt($rgt); /* @phpstan-ignore method.notFound */
+        $model->setParentId($parentId); /* @phpstan-ignore method.notFound */
+        $model->setDepth($depth); /* @phpstan-ignore method.notFound */
+    }
+
+    /**
      * Add a repair node to its parent bucket.
      */
     protected static function addRepairNode(
@@ -1329,6 +1400,15 @@ class QueryBuilder extends EloquentBuilder
      */
     protected static function saveRepairNode(Model $model): void
     {
+        if ($model->exists && $model->isDirty([
+            $model->getParentIdName(), /* @phpstan-ignore method.notFound */
+            $model->getLftName(), /* @phpstan-ignore method.notFound */
+            $model->getRgtName(), /* @phpstan-ignore method.notFound */
+            $model->getDepthName(), /* @phpstan-ignore method.notFound */
+        ])) {
+            NodeContext::markTreeChanged($model);
+        }
+
         if ($model->save()) {
             return;
         }
@@ -1388,7 +1468,7 @@ class QueryBuilder extends EloquentBuilder
             $usesSoftDeletes = $model::isSoftDeletable();
 
             if ($delete && ! $usesSoftDeletes) {
-                NodeContext::setHasPerformed($model);
+                NodeContext::markTreeChanged($model);
 
                 $model
                     ->newNestedSetQuery() /* @phpstan-ignore method.notFound */
@@ -1467,7 +1547,8 @@ class QueryBuilder extends EloquentBuilder
                 $model = $existing[$key];
 
                 // Set the intended parent without scheduling a tree action.
-                $model->rawNode(
+                static::assignRepairNode(
+                    $model,
                     $model->getLft(), /* @phpstan-ignore method.notFound */
                     $model->getRgt(), /* @phpstan-ignore method.notFound */
                     $parentId,
@@ -1477,18 +1558,19 @@ class QueryBuilder extends EloquentBuilder
                 unset($existing[$key]);
             }
 
-            unset($itemData['children'], $itemData[$keyName]);
-
-            $model->fill($itemData);
-
-            if (! $model->exists || $model->isDirty([
+            foreach ([
+                'children',
+                $keyName,
                 $model->getParentIdName(), /* @phpstan-ignore method.notFound */
                 $model->getLftName(), /* @phpstan-ignore method.notFound */
                 $model->getRgtName(), /* @phpstan-ignore method.notFound */
                 $model->getDepthName(), /* @phpstan-ignore method.notFound */
-            ])) {
-                NodeContext::setHasPerformed($model);
+                ...array_keys($model->getNestedSetScope()), /* @phpstan-ignore method.notFound */
+            ] as $ownedAttribute) {
+                unset($itemData[$ownedAttribute]);
             }
+
+            $model->fill($itemData);
 
             static::saveRepairNode($model);
             static::addRepairNode($roots, $childrenByParent, $parentOrder, $model);

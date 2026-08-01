@@ -18,6 +18,12 @@ class DescendantsRelation extends BaseRelation
             return;
         }
 
+        if (! $this->hasLoadedBounds($this->parent) || ! $this->hasConcreteScope($this->parent)) {
+            $this->query->whereRaw('0 = 1');
+
+            return;
+        }
+
         $this->query->whereDescendantOf($this->parent);
     }
 
@@ -37,6 +43,10 @@ class DescendantsRelation extends BaseRelation
         $groups = [];
 
         foreach (parent::prepareEagerModels($models) as $model) {
+            if (! $this->hasLoadedBounds($model) || ! $this->hasConcreteScope($model)) {
+                continue;
+            }
+
             $groups[$this->scopeKey($model)][] = $model;
         }
 

@@ -2,8 +2,8 @@
 
 ## Status
 
-Investigation, benchmarks, owner gates, implementation, validation,
-self-review, peer code review, and final audit-record review are complete.
+Investigation, benchmarks, owner gates, plan review, implementation, a fresh
+package-wide audit, and final review are complete.
 
 ## Scope
 
@@ -351,11 +351,19 @@ restored row.
 Delete `HasNode::$hasSoftDelete` and use `Model::isSoftDeletable()`. Eloquent
 already owns the correct per-class worker cache and cleanup.
 
-Key freshness by a length-delimited logical identity derived from the resolved
-connection's `getName()`, falling back through the resolver's default and then
-to a stable default marker when a custom resolver provides neither, plus the
-model table. Explicit and default aliases for one logical connection must
-converge. Do not use model class, connection object identity, or scope.
+Key freshness by a length-delimited logical identity derived without resolving
+a connection: use the model's connection name, then the resolver default, then
+a stable default marker; normalize the final name through
+`ConnectionName::parse(...)->base` and append the model table. Default,
+explicit, read, and write names for one configured connection converge. Do not
+use model class, connection object identity, scope, or a worker cache.
+
+After the first structural write, keep one coroutine-local revision state per
+logical table. Every structural write advances the revision; a weak model map
+records exact identity hydration at that revision so repeated validation does
+not repeat indexed reads. Replicated coroutine context copies the revision but
+not model observations. Clones are likewise unobserved. The state is released
+with coroutine context and needs no static cleanup.
 
 Pending-action APIs stage parentage and action intent only; the action owns
 bounds and depth. In each `insertAt()` branch, publish freshness immediately
@@ -365,7 +373,9 @@ mutations. Do not defer publication until `callPendingActions()` returns:
 append/prepend refreshes the parent after `insertAt()`, and that in-action
 refresh must observe the new `_rgt`.
 Table-wide invalidation may cause an extra refresh across scopes but cannot
-miss a structural write.
+miss a structural write. Freshness is conservative and is not rolled back with
+a database transaction; a vetoed repair may therefore cause one unnecessary
+later refresh, never stale structure.
 
 The internal structural builder is:
 
@@ -383,8 +393,27 @@ every row. `newScopedQuery()` stays user-facing and retains ordinary global
 scopes. Parent resolution uses the structural builder plus `withoutTrashed()`.
 
 Apply this boundary to movement, gap changes, deletion/restoration, depth,
-integrity, repair, and rebuild. A blank model must never contribute null scope
-values to aliased structural queries.
+integrity, repair, and rebuild. Public low-level `moveNode()` and `makeGap()`
+publish immediately before their UPDATE, after their no-op guards; model
+callers do not duplicate that publication. A raw-node action publishes only
+when a new model or dirty parent/bounds/depth will be written. A blank model
+must never contribute null scope values to a structural write.
+
+Separate structural refresh from mutation identity. One shared exact-key
+loader uses `newModelQuery()->useWritePdo()`, requires the row, merges selected
+attributes, and optionally synchronizes their originals:
+
+- public/post-operation refresh loads bounds and depth and synchronizes them;
+- the internal source move refresh loads bounds and depth without erasing
+  `dirtyBounds()` state; and
+- mutation staging, deferred targets, delete, and pre-restore load bounds,
+  depth, parent, and every configured scope attribute and synchronize them;
+  pre-restore also loads the exact deletion timestamp before `SoftDeletes`
+  clears it so `getPrevious()` remains truthful.
+
+The loader returns without querying for non-persisted hand-positioned targets.
+Normal complete models skip the query unless coroutine freshness says the
+table changed. Deleted or stale persisted rows fail before interval writes.
 
 Qualify model-owned structural columns in user-composable read predicates and
 ordering so they remain valid after joins. This covers `whereIsRoot()`,
@@ -428,6 +457,15 @@ public function applyNestedSetScope(
 Add one public model-owned `getNestedSetScope()` returning the configured
 attribute names and normalized values in declared order. Both SQL predicates
 and eager bucket identity consume this map.
+
+Attribute presence is part of concrete scope identity. Present null is a valid
+scope value; an absent configured scope is incomplete. Incomplete scope keys
+cannot match concrete eager buckets, `isSameScope()` rejects either incomplete
+side, and actual single-tree builder operations throw the existing
+`scoped([...])` error rather than applying an impossible write predicate.
+Mutation boundaries hydrate missing persisted scope first. Existing models
+cannot save a dirty configured scope attribute through model events; raw,
+quiet, and event-disabled writes remain deliberate escape hatches.
 
 Normalize each value as:
 
@@ -509,6 +547,11 @@ continues to resolve an active row from the source tree.
 Defer parent-ID lookup until all filled scope attributes are present at the
 saving action boundary. Preserve the `void` mutator and accept
 `int|string|null`. Parent lookup is structural and excludes trashed parents.
+An absent parent attribute is not an explicit root: parent assignment cannot
+take the equality no-op, `isRoot()` and `isSiblingOf()` are conservative, lazy
+or eager sibling reads do not classify it as root, and direct next/previous
+sibling builders throw. `saveAsRoot()` hydrates persisted identity before
+testing `isRoot()`.
 
 ```php
 public function setParentIdAttribute(int|string|null $value): void;
@@ -526,6 +569,12 @@ before/after predicates group the node's exact scope and coordinate comparison
 under the requested boolean so `boolean: 'or'` semantics remain correct. Pass
 node coordinate bindings with their raw predicates and remove comments that
 claim scalar lookups are unscoped.
+
+Node-object ancestor, descendant, before, and after predicates require the
+query model and supplied node to address the same normalized connection and
+model table. Different model classes sharing that store remain valid. Every
+node-object positional predicate and next/previous-node builder requires
+loaded bounds and fails descriptively without adding I/O.
 
 ## 6. Relations and adaptive eager matching
 
@@ -563,6 +612,16 @@ table.
 predicate. Remove the duplicate trailing scope predicate from both relation
 `addConstraints()` methods. The new sibling relation applies scope exactly
 once.
+
+Direct node-object positional builders throw when bounds are absent. Lazy
+ancestor/descendant relations instead constrain to no rows when bounds or
+concrete scope are missing, and eager preparation removes those parents
+before building positional constraints. Sibling relations apply the same
+empty-result boundary for missing parentage or scope. Relationships cannot
+hydrate arbitrary caller projections. The lazy and eager paths are
+independently load-bearing because Eloquent constructs eager/existence
+relations through `noConstraints()`. Keep separate small checks for bounds,
+parentage, and scope rather than one structural-completeness abstraction.
 
 Eager constraints deduplicate and reduce parent intervals within each exact
 scope, and constrain to no rows when the parent set is empty. Sibling matching
@@ -628,6 +687,13 @@ after that check and immediately before the movement update; publish new-node
 insertion immediately before its gap update. Refresh `insertAfterNode()`'s
 target after success, matching `insertBeforeNode()`, and invalidate structural
 relations on refreshed or moved models.
+
+Hydrate persisted source and target mutation identity before staging. At
+execution, refresh the deferred target again, revalidate tree and descendant
+rules, and derive before/after parentage from the target's current parent.
+This prevents scope changes and intervening target moves from reusing stale
+coordinates. `up()` and `down()` return `false` without querying for amounts
+below one.
 
 Publication remains before the builder call when a requested movement has zero
 distance. That may cause one conservative later refresh, but moving it after
@@ -721,16 +787,16 @@ database-side duplicate guard. Keep SQL work bounded; do not materialize the
 tree in PHP or use a quadratic crossing join.
 
 `fixTree(?Model $root = null, array $extraColumns = [])` and
-`fixSubtree(Model $root, array $extraColumns = [])` select only structural
-columns plus explicit observer-required fields and use the structural builder.
+`fixSubtree(Model $root, array $extraColumns = [])` select structural and
+configured scope columns plus explicit observer-required fields and use the
+structural builder.
 Before subtree repair/rebuild writes, require a persisted root with a key,
-loaded bounds/depth, and every concrete scope attribute. Scope errors retain
-the `scoped([...])` guidance and name the absent attribute. A separate
-`exists` query with a `whereIn` subquery then rejects a parentage edge that
-leaves the supplied root's stored interval. This proves the range-selected
-repair set is complete; otherwise the operation fails descriptively rather
-than reporting success over rows it could not see. Rebuild performs both
-checks before creating any temporary zero-bound nodes.
+loaded bounds/depth/parent, and every concrete scope attribute. Scope errors
+retain the `scoped([...])` guidance and name the absent attribute. The existing
+database selection check proves the root row itself lies at its supplied key
+and bounds and rejects a parentage edge that leaves that interval. This catches
+deleted or coordinate-stale roots and proves the range-selected repair set is
+complete before creating temporary zero-bound rebuild nodes.
 Repair maintains depth with iterative traversal over a separate ordered roots
 list and plain non-null parent buckets. Whole-tree unresolved components become
 database roots; subtree unresolved components become direct children of the
@@ -740,9 +806,24 @@ without recursion, a second scan, or a null marker that collides with a valid
 empty-string model key. When a subtree gap update can shift selected rows,
 reconcile each selected model's original snapshot with the exact gap
 transformation, then persist every renumbered row without rereading it. Keep
-the pre-gap dirty-node tally separate for the public result. Repair/rebuild use
-the structural builder for every read and gap write. Every repair/rebuild save
-is checked through one shared helper. A model-event veto throws
+the pre-gap dirty-node tally separate for the public result.
+
+Persisted models loaded by repair/rebuild receive their computed structure
+through a protected `QueryBuilder` assignment helper, not caller-facing
+`rawNode()`. The builder owns those models, and subtree descendant selection
+excludes the caller's root. This placement is required because a protected
+model helper is inaccessible to the unrelated builder, while a public bypass
+would expose unchecked mutation. New rebuild models retain `rawNode()` so the
+pending raw action prevents implicit root placement. A supplied subtree root
+also retains `rawNode()` so its observable `hasMoved()` state and structural
+relation invalidation remain correct; its refresh is bounded to one query.
+The shared save helper publishes freshness before a dirty persisted structural
+save, replacing the aggregate repair marker and avoiding per-row identity
+reloads. Its duplicate publication for the supplied raw-action root is an
+intentional idempotent context set, smaller than pending-action bookkeeping.
+
+Repair/rebuild use the structural builder for every read and gap write. Every
+save is checked through one shared helper. A model-event veto throws
 `LogicException` naming the model class and key so the caller's transaction
 rolls back every earlier structural write.
 
@@ -753,9 +834,10 @@ public function rebuildTree(array $data, bool $delete = false, ?Model $root = nu
 public function rebuildSubtree(Model $root, array $data, bool $delete = false): int;
 ```
 
-Copy each payload and unset `children` plus the model key before `fill()`.
-Primary keys identify matches and are never mass-assigned. Maintain depth and
-scope throughout repair/rebuild.
+Copy each payload and unset `children`, the model key, parent, bounds, depth,
+and configured scope attributes before `fill()`. Primary keys identify
+matches; nesting owns parentage; the selected builder/root owns scope; repair
+owns structural values. Maintain depth and scope throughout repair/rebuild.
 
 ## 10. Bounded immutable metadata cache
 
@@ -785,15 +867,17 @@ Update `src/boost/docs/nested-set.md` in nearby Laravel-style language for:
 - per-mutation transactions and application serialization;
 - aborting the transaction when an ordinary boolean-returning model mutation
   is vetoed; and
+- selecting the structural columns required by node-state accessors and the
+  active-versus-explicit-trashed parent target distinction; and
 - measured index/read/write tradeoffs without internal algorithm narration.
 
 Update canonical examples from `increments()` to `$table->id()`. Remove stale
 parent metadata, dead commented fixture resets, unused `dumpTree()` and
 duplicate integrity assertions/helpers, unused `NestedSet::BEFORE` and
 `NestedSet::AFTER`, obsolete PHPStan ignores, and any comments that describe
-replaced behavior. Review all 112 current package-local PHPStan suppressions;
-remove those made obsolete by corrected types and convert every survivor to
-the exact diagnostic identifier it owns. Trait-provided Nested Set methods
+replaced behavior. Review every package-local PHPStan suppression; remove
+those made obsolete by corrected types and convert every survivor to the exact
+diagnostic identifier it owns. Trait-provided Nested Set methods
 reached through a base `Model` type require local `method.notFound`
 suppressions because PHPStan rejects traits as types. Do not add an
 analyzer-only package interface. Add truthful native types to modified fixture
@@ -816,10 +900,9 @@ rejected concerns, API result, cross-package revalidation, gates, and review.
 Keep `database-10` revalidated and record use of Eloquent's existing
 soft-delete/builder metadata rather than a new package cache.
 
-This remediation does not by itself mark the package checklist complete: the
-owner will decide afterward whether the prior audit is sufficient or a fresh
-package-wide audit is required. Do not replace the independently active
-Reverb routing entry.
+Mark the package checklist complete after the fresh package-wide audit,
+validation, and final review. Do not replace the independently active Reverb
+routing entry.
 
 ## Test plan
 
@@ -831,7 +914,8 @@ Hypervel tests while preserving Hypervel-specific regressions.
 - collection inference and explicit roots: null, `0`, empty string, integer,
   numeric string, UUID, ULID, and model;
 - parent fill-order, numeric request strings, UUID/ULID parents, missing and
-  trashed parents, key `0`, and cross-scope rejection;
+  trashed parents, key `0`, absent versus present-null scope, and cross-scope
+  rejection;
 - per-class soft-delete metadata and re-entrant exact-timestamp restore,
   including a descendant deleted before the nested restore cutoff;
 - shared-table model aliases, logical connection aliases, tables,
@@ -842,7 +926,8 @@ Hypervel tests while preserving Hypervel-specific regressions.
   grouping, structural coordinate lookups across trashed visibility modes,
   default/explicit logical connection aliases, and persisted 0/0 target
   rejection, plus cross-connection mutation-target rejection and
-  concrete-scope enforcement for every scalar scoped lookup;
+  concrete-scope enforcement for every scalar or low-level scoped lookup,
+  cross-store node predicates, and same-store model aliases;
 - lazy/eager/existence/count sibling relations, custom parent columns,
   configured plain foreign keys across sibling/ancestor/descendant relations,
   qualified relation predicates after joins, null-root correlation, null
@@ -866,8 +951,11 @@ Hypervel tests while preserving Hypervel-specific regressions.
   targets and sources through both insert and move paths, root-position
   derivation, source/target truthfulness, relation invalidation,
   append/prepend returning with the caller's parent `_rgt` refreshed in
-  memory, no redundant first-operation source refresh, replication depth
-  exclusion, and zero-height gap with no query;
+  memory, no redundant first-operation source refresh, exact second-operation
+  and recursive-create identity-read counts, copied-context observation
+  isolation, replication depth exclusion, zero/negative sibling movement,
+  zero-height and zero-distance writes with no freshness publication, and
+  direct-builder freshness;
 - `defaultOrder()` replacing raw and union ordering without leaving stale
   bindings;
 - bulk and evented deletion query/chunk behavior, order, veto, partial-source
@@ -881,8 +969,12 @@ Hypervel tests while preserving Hypervel-specific regressions.
   incomplete root and complete subtree selection refusal before writes,
   post-gap persistence of unchanged rows, `rebuildSubtree()` through the
   shared repair path, model-only roots, key exclusion, delete-missing,
-  iterative traversal, and transaction-backed rollback of ordinary and
-  structural model writes when a repair or rebuild save is vetoed;
+  iterative traversal, deleted or coordinate-stale roots, payload attempts to
+  override parent/scope/structure, and transaction-backed rollback of ordinary
+  and structural model writes when a repair or rebuild save is vetoed; scoped
+  repair must select configured scope identity without per-row reloads, while
+  unchanged and reparents-first unscoped rebuilds pin the absence of
+  marker-driven identity reloads and false-positive writes;
 - `isNode()` class separation, trait-of-trait detection, non-object/null
   handling, and framework cleanup registration; and
 - Blueprint macro use in separate test methods, proving flush/re-registration.
@@ -911,7 +1003,8 @@ Across the matrix, prove:
   repair, relations, and diagnostics;
 - MySQL/MariaDB depth-before-bound assignment correctness; and
 - persisted moved-subtree depth across every database driver; and
-- portable endpoint-window SQL and schema introspection.
+- portable composite diagnostics, compound-query ordering, endpoint-window
+  SQL, and schema introspection.
 
 Do not assert elapsed time, a chosen optimizer plan, or cross-transaction lock
 timing in normal tests. Benchmark evidence remains in this plan; functional

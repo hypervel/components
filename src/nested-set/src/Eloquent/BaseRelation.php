@@ -284,6 +284,42 @@ abstract class BaseRelation extends Relation
     }
 
     /**
+     * Determine whether a model has loaded tree bounds.
+     */
+    protected function hasLoadedBounds(Model $model): bool
+    {
+        return $model->getLft() !== null /* @phpstan-ignore method.notFound */
+            && $model->getRgt() !== null; /* @phpstan-ignore method.notFound */
+    }
+
+    /**
+     * Determine whether a model has loaded parentage.
+     */
+    protected function hasLoadedParent(Model $model): bool
+    {
+        return array_key_exists(
+            $model->getParentIdName(), /* @phpstan-ignore method.notFound */
+            $model->getAttributes(),
+        );
+    }
+
+    /**
+     * Determine whether a model has a concrete nested-set scope.
+     */
+    protected function hasConcreteScope(Model $model): bool
+    {
+        $attributes = $model->getAttributes();
+
+        foreach (array_keys($this->scopeValues($model)) as $attribute) {
+            if (! array_key_exists($attribute, $attributes)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Get the plain foreign key.
      */
     public function getForeignKeyName(): string

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\NestedSet;
 
-use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\NodeContext;
@@ -15,29 +14,27 @@ use function Hypervel\Coroutine\parallel;
 
 class NodeContextTest extends TestCase
 {
-    public function testStructuralIdentityUsesTheResolvedConnectionAndTable(): void
+    public function testStructuralIdentityUsesTheNormalizedConnectionNameAndTableWithoutResolving(): void
     {
-        $primary = m::mock(Connection::class);
-        $primary->shouldReceive('getName')->andReturn('primary');
-
-        $secondary = m::mock(Connection::class);
-        $secondary->shouldReceive('getName')->andReturn('secondary');
-
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($primary);
-        $resolver->shouldReceive('connection')->with('alias')->andReturn($primary);
-        $resolver->shouldReceive('connection')->with('secondary')->andReturn($secondary);
+        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary::write');
+        $resolver->shouldNotReceive('connection');
 
         Model::setConnectionResolver($resolver);
 
         $default = new NodeContextTestModel;
-        $alias = (new NodeContextTestAliasModel)->setConnection('alias');
+        $read = (new NodeContextTestAliasModel)->setConnection('primary::read');
+        $write = (new NodeContextTestAliasModel)->setConnection('primary::write');
         $otherTable = new NodeContextTestOtherTableModel;
         $otherConnection = (new NodeContextTestModel)->setConnection('secondary');
 
         $this->assertSame(
             NodeContext::structuralIdentity($default),
-            NodeContext::structuralIdentity($alias),
+            NodeContext::structuralIdentity($read),
+        );
+        $this->assertSame(
+            NodeContext::structuralIdentity($default),
+            NodeContext::structuralIdentity($write),
         );
         $this->assertNotSame(
             NodeContext::structuralIdentity($default),
@@ -51,12 +48,7 @@ class NodeContextTest extends TestCase
 
     public function testStructuralIdentityFallsBackToTheResolversDefaultConnection(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->andReturn(null);
-
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
-        $resolver->shouldReceive('connection')->with('primary')->andReturn($connection);
         $resolver->shouldReceive('getDefaultConnection')->andReturn('primary');
 
         Model::setConnectionResolver($resolver);
@@ -72,11 +64,7 @@ class NodeContextTest extends TestCase
 
     public function testStructuralIdentityUsesAStableMarkerWithoutAnyConnectionName(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->andReturn(null);
-
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
         $resolver->shouldReceive('getDefaultConnection')->andReturn(null);
 
         Model::setConnectionResolver($resolver);
@@ -87,37 +75,41 @@ class NodeContextTest extends TestCase
         );
     }
 
-    public function testFreshnessIsSharedByLogicalTableAndSeparatedByConnectionAndTable(): void
+    public function testFreshnessRevisionIsSharedByLogicalTableAndSeparatedByConnectionAndTable(): void
     {
-        $primary = m::mock(Connection::class);
-        $primary->shouldReceive('getName')->andReturn('primary');
-
-        $secondary = m::mock(Connection::class);
-        $secondary->shouldReceive('getName')->andReturn('secondary');
-
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($primary);
-        $resolver->shouldReceive('connection')->with('alias')->andReturn($primary);
-        $resolver->shouldReceive('connection')->with('secondary')->andReturn($secondary);
+        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary');
 
         Model::setConnectionResolver($resolver);
 
-        NodeContext::setHasPerformed(new NodeContextTestModel);
+        $model = new NodeContextTestModel;
+        $alias = (new NodeContextTestAliasModel)->setConnection('primary::read');
 
-        $this->assertTrue(NodeContext::hasPerformed((new NodeContextTestAliasModel)->setConnection('alias')));
-        $this->assertFalse(NodeContext::hasPerformed(new NodeContextTestOtherTableModel));
-        $this->assertFalse(NodeContext::hasPerformed(
+        $this->assertTrue(NodeContext::isCurrent($model));
+
+        NodeContext::markTreeChanged($model);
+
+        $this->assertFalse(NodeContext::isCurrent($model));
+        $this->assertFalse(NodeContext::isCurrent($alias));
+        $this->assertTrue(NodeContext::isCurrent(new NodeContextTestOtherTableModel));
+        $this->assertTrue(NodeContext::isCurrent(
             (new NodeContextTestModel)->setConnection('secondary'),
         ));
+
+        NodeContext::markCurrent($alias);
+
+        $this->assertTrue(NodeContext::isCurrent($alias));
+        $this->assertFalse(NodeContext::isCurrent($model));
+
+        NodeContext::markTreeChanged($model);
+
+        $this->assertFalse(NodeContext::isCurrent($alias));
     }
 
     public function testFreshnessIsIsolatedBetweenCoroutines(): void
     {
-        $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->andReturn('primary');
-
         $resolver = m::mock(ConnectionResolverInterface::class);
-        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary');
 
         Model::setConnectionResolver($resolver);
 
@@ -125,20 +117,47 @@ class NodeContextTest extends TestCase
 
         [$writer, $reader] = parallel([
             function () use ($model): bool {
-                NodeContext::setHasPerformed($model);
+                NodeContext::markTreeChanged($model);
+                NodeContext::markCurrent($model);
                 usleep(5000);
 
-                return NodeContext::hasPerformed($model);
+                return NodeContext::isCurrent($model);
             },
             function () use ($model): bool {
                 usleep(1000);
 
-                return NodeContext::hasPerformed($model);
+                return NodeContext::isCurrent($model);
             },
         ]);
 
         $this->assertTrue($writer);
-        $this->assertFalse($reader);
+        $this->assertTrue($reader);
+    }
+
+    public function testCopiedCoroutineFreshnessDoesNotCopyModelObservations(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('getDefaultConnection')->andReturn('primary');
+
+        Model::setConnectionResolver($resolver);
+
+        $model = new NodeContextTestModel;
+        NodeContext::markTreeChanged($model);
+        NodeContext::markCurrent($model);
+
+        [$child] = parallel([
+            function () use ($model): array {
+                $before = NodeContext::isCurrent($model);
+                NodeContext::markCurrent($model);
+                $afterObservation = NodeContext::isCurrent($model);
+                NodeContext::markTreeChanged($model);
+
+                return [$before, $afterObservation, NodeContext::isCurrent($model)];
+            },
+        ], copyContext: true);
+
+        $this->assertSame([false, true, false], $child);
+        $this->assertTrue(NodeContext::isCurrent($model));
     }
 }
 

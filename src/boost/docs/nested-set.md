@@ -237,6 +237,8 @@ $accessories = Category::create([
 ]);
 ```
 
+Assigning `parent_id` resolves an active parent. To intentionally target a soft-deleted parent, pass a model retrieved with `withTrashed()` to `appendToNode` or `prependToNode`.
+
 <a name="creating-trees-from-arrays"></a>
 ### Creating Trees From Arrays
 
@@ -447,6 +449,8 @@ $descendantCount = $category->getDescendantCount();
 $moved = $category->hasMoved();
 ```
 
+Node state helpers use the structural columns already loaded on the model and do not issue hidden queries. Select `parent_id` before calling `isRoot`, and select both `_lft` and `_rgt` before calling `getNodeHeight` or `getDescendantCount`; those two values are not meaningful without both bounds.
+
 <a name="querying-trees"></a>
 ## Querying Trees
 
@@ -624,7 +628,7 @@ You may also fix a subtree:
 $fixed = Category::fixSubtree($rootNode);
 ```
 
-Repair selects only structural columns by default. If a model observer needs other attributes, pass them explicitly:
+Repair selects only structural and scope columns by default. If a model observer needs other attributes, pass them explicitly:
 
 ```php
 $fixed = Category::fixTree(extraColumns: ['name', 'slug']);
@@ -684,6 +688,8 @@ Category::rebuildSubtree($rootNode, [
 ]);
 ```
 
+The nested array controls parentage. Primary keys identify existing nodes, while `parent_id`, `_lft`, `_rgt`, `depth`, and scope values in the payload are ignored.
+
 Rebuilding a subtree has the same boundary requirement. If a parentage edge crosses the root's stored bounds, repair the complete tree with `fixTree()` first.
 
 <a name="scoped-trees"></a>
@@ -735,6 +741,8 @@ $table->uuidNestedSet(['tenant_id', 'menu_id']);
 ```
 
 Return `['tenant_id', 'menu_id']` from `getScopeAttributes()` and provide both values when starting a scoped query.
+
+Set every scope value before saving a new node. A stored node cannot be moved to another scope by changing those attributes.
 
 When querying a scoped tree by plain IDs, start from the `scoped` query:
 

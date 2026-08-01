@@ -164,6 +164,52 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
         $this->assertFalse(IntegerNestedSetNode::query()->isBroken());
     }
 
+    public function testCompositeDiagnosticsAndCompoundOrderingArePortable(): void
+    {
+        $first = IntegerNestedSetNode::create(['name' => 'first']);
+        $second = IntegerNestedSetNode::create(['name' => 'second']);
+
+        $this->assertSame(
+            [$first->getKey(), $second->getKey()],
+            IntegerNestedSetNode::query()
+                ->select(['id', NestedSet::LFT])
+                ->whereKey($first->getKey())
+                ->union(
+                    IntegerNestedSetNode::query()
+                        ->select(['id', NestedSet::LFT])
+                        ->whereKey($second->getKey()),
+                )
+                ->orderByRaw('case when name = ? then 0 else 1 end', ['second'])
+                ->defaultOrder()
+                ->pluck('id')
+                ->all(),
+        );
+
+        $root = $this->createUuidNode(
+            '018f3a2b-0000-7000-8000-000000000501',
+            self::FIRST_TENANT,
+            'root',
+        );
+        $this->createUuidNode(
+            '018f3a2b-0000-7000-8000-000000000502',
+            self::FIRST_TENANT,
+            'child',
+            $root,
+        );
+
+        $this->assertSame([
+            'invalid_intervals' => 0,
+            'duplicate_endpoints' => 0,
+            'missing_endpoints' => 0,
+            'crossing_intervals' => 0,
+            'missing_parent' => 0,
+            'wrong_parent' => 0,
+            'wrong_depth' => 0,
+        ], UuidNestedSetNode::scoped([
+            'tenant_id' => self::FIRST_TENANT,
+        ])->countErrors());
+    }
+
     public function testUuidTreeRepairAndSoftDeleteRemainScopeCorrect(): void
     {
         $root = $this->createUuidNode(
