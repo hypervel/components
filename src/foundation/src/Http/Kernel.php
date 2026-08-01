@@ -144,9 +144,18 @@ class Kernel implements KernelContract
 
             return $response;
         } catch (Throwable $e) {
-            $this->reportException($e);
+            // Keep the original in flight while it is handled, so a failure in
+            // reporting or rendering carries it as that failure's previous. The
+            // return suppresses it once a response exists.
+            try {
+                /* @phpstan-ignore finally.exitPoint */
+                throw $e;
+            } finally {
+                $this->reportException($e);
 
-            return $this->renderException($request, $e);
+                /* @phpstan-ignore finally.exitPoint */
+                return $this->renderException($request, $e);
+            }
         }
     }
 
@@ -596,7 +605,7 @@ class Kernel implements KernelContract
      */
     protected function reportException(Throwable $e): void
     {
-        $this->app[ExceptionHandler::class]->report($e);
+        $this->app->make(ExceptionHandler::class)->report($e);
     }
 
     /**
@@ -604,7 +613,7 @@ class Kernel implements KernelContract
      */
     protected function renderException(Request $request, Throwable $e): Response
     {
-        return $this->app[ExceptionHandler::class]->render($request, $e);
+        return $this->app->make(ExceptionHandler::class)->render($request, $e);
     }
 
     /**
