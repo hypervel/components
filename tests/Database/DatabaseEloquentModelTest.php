@@ -2679,13 +2679,13 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertNull($replicated->updated_at);
     }
 
-    public function testReplicatingEventIsFiredWhenReplicatingModel()
+    public function testReplicatingEventIsFiredWhenReplicatingModel(): void
     {
         $model = new ModelStub;
 
         $model->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('dispatch')->once()->with('eloquent.replicating: ' . get_class($model), m::on(function ($m) use ($model) {
-            return $model->is($m);
+        $events->shouldReceive('dispatch')->once()->with('eloquent.replicating: ' . get_class($model), m::on(function ($replicated) use ($model) {
+            return $replicated instanceof ModelStub && $replicated !== $model;
         }));
 
         $model->replicate();
@@ -3738,6 +3738,32 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertFalse($firstInstance->is($secondInstance));
     }
 
+    public function testIsWithNullDoesNotReadAMissingLocalKey(): void
+    {
+        $originalMode = Model::preventsAccessingMissingAttributes();
+        Model::preventAccessingMissingAttributes();
+
+        try {
+            $model = new ModelStub;
+            $model->exists = true;
+
+            $this->assertFalse($model->is(null));
+            $this->assertTrue($model->isNot(null));
+        } finally {
+            Model::preventAccessingMissingAttributes($originalMode);
+        }
+    }
+
+    public function testKeylessModelsDoNotHaveTheSameStoredIdentity(): void
+    {
+        $firstInstance = new ModelStub;
+        $secondInstance = new ModelStub;
+
+        $this->assertFalse($firstInstance->is($firstInstance));
+        $this->assertFalse($firstInstance->is($secondInstance));
+        $this->assertTrue($firstInstance->isNot($secondInstance));
+    }
+
     public function testIsWithTheSameModelInstance()
     {
         $firstInstance = new ModelStub(['id' => 1]);
@@ -3770,6 +3796,30 @@ class DatabaseEloquentModelTest extends TestCase
         $secondInstance->setConnection('foo');
         $result = $firstInstance->is($secondInstance);
         $this->assertFalse($result);
+    }
+
+    public function testSaveQueryRejectsAMissingPrimaryKey(): void
+    {
+        $model = new ModelStub;
+        $model->exists = true;
+        $query = m::mock(Builder::class);
+        $query->shouldNotReceive('where');
+
+        $this->expectException(MissingAttributeException::class);
+
+        (new ClassInvoker($model))->setKeysForSaveQuery($query);
+    }
+
+    public function testSelectQueryRejectsAMissingPrimaryKey(): void
+    {
+        $model = new ModelStub;
+        $model->exists = true;
+        $query = m::mock(Builder::class);
+        $query->shouldNotReceive('where');
+
+        $this->expectException(MissingAttributeException::class);
+
+        (new ClassInvoker($model))->setKeysForSelectQuery($query);
     }
 
     public function testWithoutTouchingCallback()

@@ -104,7 +104,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->assertTrue($default->hasCast('time', 'datetime'));
     }
 
-    public function testThrowsExceptionIfCastableAttributeWasNotRetrievedAndPreventMissingAttributesIsEnabled()
+    public function testThrowsExceptionIfCastableAttributeWasNotRetrievedAndPreventMissingAttributesIsEnabled(): void
     {
         Time::create(['time' => now()]);
         $originalMode = Model::preventsAccessingMissingAttributes();
@@ -112,8 +112,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
 
         $this->expectException(MissingAttributeException::class);
         try {
-            $time = Time::query()->select('id')->first();
-            $this->assertNull($time->time);
+            Time::query()->select('id')->first()->time;
         } finally {
             Model::preventAccessingMissingAttributes($originalMode);
         }
