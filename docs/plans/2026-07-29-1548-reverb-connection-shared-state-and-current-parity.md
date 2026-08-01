@@ -108,6 +108,10 @@ All other accepted items are defect fixes, current-upstream ports, typing correc
 | `reverb-36` | Reject Redis Cluster for pub/sub scaling while retaining it for webhook buffering. | `HypervelServerProvider` configuration validation |
 | `reverb-37` | Document that Swoole's global request counter also recycles Reverb workers. | Reverb operations documentation |
 | `reverb-38` | Distinguish malformed Pusher input from internal failures and report only the latter. | Pusher protocol validation and error handling |
+| `reverb-39` | Preserve the original request failure if Reverb's isolated HTTP exception handling or response emission fails. | `Servers\Hypervel\HttpServer` |
+| `websocket-server-13` | Preserve the original handshake failure when the base exception handler fails. | Completed WebSocket Server exception boundary |
+| `testbench-02` | Preserve the original bootstrap or command failure when Testbench exception handling fails. | Testbench Commander exception boundary |
+| `support-27` | Preserve `SafeCaller`'s default response when exception reporting fails. | Completed Support exception boundary |
 | `cache-11` | Retain successful native cache timer IDs for the worker lifetime and clear them on worker exit. | Cache timer listener and provider lifecycle |
 | `cache-20` | Type Cache's striped-lock constants without breaking its late-bound deterministic test seam. | Cache Swoole shared-state lock |
 | `server-10` | Contain pipe callback failures at the native Server event boundary. | Completed Server package registration boundary |
@@ -406,7 +410,7 @@ Every existing two-key Lua script then remains in one Redis Cluster slot. App ID
 
 When `appendAndCheckSchedule()` reports that this call newly acquired the flush lock and queue dispatch throws, clear that owned lock and rethrow. The durable appended event remains. Do not clear when another call owns the lock, add a retry loop, or acknowledge buffered data.
 
-### 8. Current Laravel parity and extension contracts (`reverb-20`–`26`)
+### 8. Current Laravel parity, extension contracts, and HTTP diagnostics (`reverb-20`–`26`, `reverb-39`)
 
 Port current upstream behavior, adapted only for Hypervel's immutable scope:
 
@@ -442,6 +446,12 @@ Remove owned default duplication:
 - initialize `HttpServer::$maxRequestSize` only during `bootstrapForServer()`;
 - delete `DEFAULT_MAX_REQUEST_SIZE`, the property initializer, and the config getter's default argument;
 - correct every shared-table diagnostic and document that max-connection-enabled apps also consume a main-table row.
+
+Reverb's isolated `HttpServer` keeps a caught request failure in flight while resolving the exception handler, reporting, rendering, and emitting the error response. A failure at any of those boundaries therefore carries the request failure in its previous exception chain, matching Foundation's HTTP and WebSocket kernels. Successful handling still emits one response and suppresses the original; ordinary responses retain one emission call.
+
+Apply the same native chaining pattern to the completed WebSocket Server's base handshake handler and Testbench's Commander. The former otherwise lets `SafeCaller` report only a secondary handler failure; the latter otherwise replaces the actionable bootstrap or command failure. Both corrections run only after an operation has already failed and preserve existing response/status behavior.
+
+`SafeCaller` contains an exception-handler resolution or reporting failure, writes both failures to PHP's error log through a no-throw fallback, and still returns its documented default. Do not contain the caller-supplied default or add a shared reporter abstraction.
 
 ### 9. Truthful Pusher error classification (`reverb-38`)
 
@@ -532,6 +542,8 @@ After explicit bulk-edit approval, add `: void` to the 522 test methods missing 
 | Broadcast fan-out | A failing local recipient does not abandon later recipients or escape; whole-population failures attempt independent populations before propagating; post-commit presence publication reports instead of falsely rejecting membership. |
 | Webhook batching | Cluster slot equality for hostile app IDs; durable append plus scheduling failure clears only the newly-owned lock; later scheduling succeeds. |
 | Pusher errors | Existing malformed-shape responses remain byte-identical and are not reported; an injected internal handler failure sends the same 4200 payload and reports the identical original throwable; a public scalar-channel-data subscription leaves both shared count and local channel absent. |
+| Reverb HTTP errors | Successful handling emits one response; reporting and error-response emission failures preserve the original request failure in their previous chain. |
+| Related exception boundaries | WebSocket Server handler failure retains the handshake failure; Testbench reporting failure retains the bootstrap or command failure; SafeCaller reporter failure logs both failures and returns the exact default. |
 | Parity/contracts | Raw socket exclusion locally and remotely, batch/null cases, custom manager and logger bindings, direct lookup, full-map union, signature arrays/non-strings, path-bearing config. |
 | Config/metadata | Required bootstrap initialization, no duplicate defaults, Cluster scaling rejected without pool creation, Cluster webhook buffering retained, complete/minimal split dependencies, orphan trait absent, complete flush. |
 
@@ -583,6 +595,9 @@ The existing integration workflow already exercises unscaled single-worker, scal
 - Redis subscriber recovery retains one coroutine, one optional subscriber, and one worker-exit-aware timed wait only while disconnected; ordinary connected operation gains no polling, timer, or extra Redis command.
 - Cache timer retention adds one small worker-0-lifetime ID list and cold worker-exit clears; it adds no request or message work.
 - Pusher validation adds only direct local type checks that replace implicit PHP errors; exception-handler resolution occurs only for unexpected failures.
+- Isolated HTTP requests add no success-path work; the exception-preservation frame exists only after request handling fails.
+- WebSocket Server and Testbench exception preservation adds work only after the primary operation has failed.
+- SafeCaller containment adds work only when both the protected operation and its exception reporter fail.
 - No unbounded registry, heartbeat, lease, reconciliation system, or recovery job is introduced.
 
 ## Audit records
@@ -598,6 +613,8 @@ After implementation and review:
 - record `ArrayChannelManager::flush()`'s intentional whole-repository reset divergence so a future upstream sync does not restore the broken per-app loop;
 - record the approved unscaled user-termination HTTP 500 divergence and distributed behavior of public presence `data()`;
 - add a cross-package dependency row for `server-10`, amend the completed Server entry, and record the confirmed Swoole partial-serialization defect without a package workaround;
+- add cross-package dependency rows for `websocket-server-13` and `testbench-02`, amend the completed WebSocket Server entry, and route Testbench for later full-audit revalidation;
+- add a cross-package dependency row for `support-27`, amend the completed Support entry, and revalidate WebSocket Server while confirming Reverb remains unaffected through Foundation's override;
 - amend completed package entries only where this work changes their assumptions;
 - update the routing index, cross-package dependency index, and Reverb checklist state;
 - record Laravel-facing result, validation, code-review sign-off, and explicit owner approvals for the gates;
