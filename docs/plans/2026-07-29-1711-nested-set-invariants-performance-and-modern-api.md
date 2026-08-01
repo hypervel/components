@@ -1050,7 +1050,12 @@ Hypervel tests while preserving Hypervel-specific regressions.
   marker-driven identity reloads and false-positive writes;
 - `isNode()` class separation, trait-of-trait detection, non-object/null
   handling, and framework cleanup registration; and
-- Blueprint macro use in separate test methods, proving flush/re-registration.
+- Blueprint macro use in separate test methods, proving flush/re-registration;
+  and
+- load-bearing regression assertions for coroutine isolation, exact tree and
+  mutation results, scope/store identity, eager empty results, child ordering,
+  complete cross-scope snapshots, and UUID soft-delete restoration; remove
+  dead or unrelated tests rather than count them as coverage.
 
 ### Database integration
 
@@ -1096,8 +1101,8 @@ composer fix
 Run driver integration groups with the repository `.env` credentials for
 MySQL, MariaDB, PostgreSQL, and SQLite. Finish with a fresh diff review of
 every caller/callee, scope and lifecycle boundary, SQL shape, retained memory,
-public API/doc statement, dead path, and added mechanism before requesting
-code review.
+public API/doc statement, dead path, added mechanism, and regression assertion
+before requesting code review.
 
 ## Explicit rejections
 

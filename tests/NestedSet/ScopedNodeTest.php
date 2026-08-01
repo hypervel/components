@@ -341,13 +341,16 @@ class ScopedNodeTest extends TestCase
         $secondScopeRoot = MenuItem::findOrFail(3);
         $firstScopeParent = MenuItem::findOrFail(2);
         $firstScopeChild = MenuItem::findOrFail(5);
-        $secondScopeChild = MenuItem::findOrFail(6);
+        $secondScopeParent = MenuItem::findOrFail(4);
 
         $this->assertTrue($firstScopeChild->isChildOf($firstScopeParent));
-        $this->assertFalse($secondScopeChild->isChildOf($firstScopeParent));
+        // Change only the scope to isolate isSameScope(), then restore it for the cross-scope interval checks.
+        $firstScopeChild->menu_id = 2;
+        $this->assertFalse($firstScopeChild->isChildOf($firstScopeParent));
+        $firstScopeChild->menu_id = 1;
         $this->assertFalse($firstScopeRoot->isSiblingOf($secondScopeRoot));
-        $this->assertFalse($firstScopeRoot->isSelfOrDescendantOf($secondScopeRoot));
-        $this->assertFalse($firstScopeRoot->isSelfOrAncestorOf($secondScopeRoot));
+        $this->assertFalse($firstScopeChild->isSelfOrDescendantOf($secondScopeParent));
+        $this->assertFalse($secondScopeParent->isSelfOrAncestorOf($firstScopeChild));
     }
 
     public function testSiblingsEagerMatchingUsesExactScopeBuckets(): void
@@ -401,11 +404,26 @@ class ScopedNodeTest extends TestCase
         ]);
 
         $this->assertFalse(MenuItem::whereKey(7)->has('siblings')->exists());
-        $this->assertFalse(MenuItem::whereKey(7)->has('ancestors')->exists());
+        $this->assertSame(
+            [5],
+            MenuItem::whereHas(
+                'ancestors',
+                fn ($query) => $query->whereKey(2),
+            )->orderBy('id')->pluck('id')->all(),
+        );
 
-        $node = MenuItem::with(['siblings', 'ancestors'])->findOrFail(7);
+        $node = MenuItem::with('siblings')->findOrFail(7);
 
         $this->assertTrue($node->siblings->isEmpty());
+    }
+
+    public function testEagerAncestorsHandleAnEmptyQueryResult(): void
+    {
+        DB::flushQueryLog();
+
+        $node = MenuItem::with('ancestors')->findOrFail(1);
+
+        $this->assertCount(2, DB::getQueryLog());
         $this->assertTrue($node->ancestors->isEmpty());
     }
 
@@ -470,12 +488,6 @@ class ScopedNodeTest extends TestCase
     public function testFixTreeRepairsOnlyTheSelectedScope(): void
     {
         DB::table('menu_items')->where('id', 5)->update(['_lft' => 3]);
-        $otherScope = MenuItem::scoped(['menu_id' => 2])
-            ->defaultOrder()
-            ->get()
-            ->map
-            ->getBounds()
-            ->all();
         DB::flushQueryLog();
 
         MenuItem::scoped(['menu_id' => 1])->fixTree();
@@ -495,15 +507,7 @@ class ScopedNodeTest extends TestCase
             ) === 1,
         ));
         $this->assertTreeNotBroken(1);
-        $this->assertSame(
-            $otherScope,
-            MenuItem::scoped(['menu_id' => 2])
-                ->defaultOrder()
-                ->get()
-                ->map
-                ->getBounds()
-                ->all(),
-        );
+        $this->assertOtherScopeNotAffected();
     }
 
     public function testSaveAsRoot(): void
@@ -690,9 +694,19 @@ class ScopedNodeTest extends TestCase
 
     protected function assertOtherScopeNotAffected(): void
     {
-        $node = MenuItem::find(3);
-
-        $this->assertEquals(1, $node->getLft());
+        $this->assertSame(
+            [
+                ['id' => 3, 'menu_id' => 2, '_lft' => 1, '_rgt' => 2, 'parent_id' => null, 'depth' => 0],
+                ['id' => 4, 'menu_id' => 2, '_lft' => 3, '_rgt' => 6, 'parent_id' => null, 'depth' => 0],
+                ['id' => 6, 'menu_id' => 2, '_lft' => 4, '_rgt' => 5, 'parent_id' => 4, 'depth' => 1],
+            ],
+            DB::table('menu_items')
+                ->where('menu_id', 2)
+                ->orderBy('id')
+                ->get(['id', 'menu_id', '_lft', '_rgt', 'parent_id', 'depth'])
+                ->map(fn (object $row): array => (array) $row)
+                ->all(),
+        );
     }
 
     public function testAppendingToAnotherScopeFails(): void

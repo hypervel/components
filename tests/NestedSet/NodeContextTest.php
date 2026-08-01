@@ -118,7 +118,6 @@ class NodeContextTest extends TestCase
         [$writer, $reader] = parallel([
             function () use ($model): bool {
                 NodeContext::markTreeChanged($model);
-                NodeContext::markCurrent($model);
                 usleep(5000);
 
                 return NodeContext::isCurrent($model);
@@ -130,7 +129,7 @@ class NodeContextTest extends TestCase
             },
         ]);
 
-        $this->assertTrue($writer);
+        $this->assertFalse($writer);
         $this->assertTrue($reader);
     }
 

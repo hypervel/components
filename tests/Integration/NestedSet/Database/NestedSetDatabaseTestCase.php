@@ -210,7 +210,7 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
         ])->countErrors());
     }
 
-    public function testUuidTreeRepairAndSoftDeleteRemainScopeCorrect(): void
+    public function testUuidTreeRepairRemainsScopeCorrect(): void
     {
         $root = $this->createUuidNode(
             '018f3a2b-0000-7000-8000-000000000301',
@@ -250,12 +250,49 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
         $this->assertFalse(UuidNestedSetNode::scoped([
             'tenant_id' => self::FIRST_TENANT,
         ])->isBroken());
+    }
+
+    public function testUuidTreeSoftDeleteAndRestoreRemainScopeCorrect(): void
+    {
+        $root = $this->createUuidNode(
+            '018f3a2b-0000-7000-8000-000000000601',
+            self::FIRST_TENANT,
+            'root',
+        );
+        $child = $this->createUuidNode(
+            '018f3a2b-0000-7000-8000-000000000602',
+            self::FIRST_TENANT,
+            'child',
+            $root,
+        );
+        $otherRoot = $this->createUuidNode(
+            '018f3a2b-0000-7000-8000-000000000701',
+            self::SECOND_TENANT,
+            'other root',
+        );
 
         $root->delete();
-        $root->restore();
 
+        $this->assertNull(UuidNestedSetNode::find($root->getKey()));
+        $this->assertNull(UuidNestedSetNode::find($child->getKey()));
+        $this->assertNotNull(UuidNestedSetNode::find($otherRoot->getKey()));
         $this->assertFalse(UuidNestedSetNode::scoped([
             'tenant_id' => self::FIRST_TENANT,
+        ])->isBroken());
+        $this->assertFalse(UuidNestedSetNode::scoped([
+            'tenant_id' => self::SECOND_TENANT,
+        ])->isBroken());
+
+        $root->restore();
+
+        $this->assertNotNull(UuidNestedSetNode::find($root->getKey()));
+        $this->assertNotNull(UuidNestedSetNode::find($child->getKey()));
+        $this->assertNotNull(UuidNestedSetNode::find($otherRoot->getKey()));
+        $this->assertFalse(UuidNestedSetNode::scoped([
+            'tenant_id' => self::FIRST_TENANT,
+        ])->isBroken());
+        $this->assertFalse(UuidNestedSetNode::scoped([
+            'tenant_id' => self::SECOND_TENANT,
         ])->isBroken());
     }
 

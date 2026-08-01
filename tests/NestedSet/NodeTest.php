@@ -7,7 +7,6 @@ namespace Hypervel\Tests\NestedSet;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
-use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\NestedSet\Eloquent\Collection;
@@ -121,12 +120,6 @@ class NodeTest extends TestCase
         $query = $withTrashed ? $category->withTrashed() : $category->newQuery();
 
         return $query->whereName($name)->first();
-    }
-
-    protected function testTreeNotBroken(): void
-    {
-        $this->assertTreeNotBroken();
-        $this->assertFalse(Category::isBroken());
     }
 
     protected function nodeValues($node): array
@@ -443,6 +436,7 @@ class NodeTest extends TestCase
     public function testFailsToInsertIntoChild(): void
     {
         $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Node must not be a descendant.');
 
         $node = $this->findCategory('notebooks');
         $target = $node->children()->first();
@@ -453,6 +447,7 @@ class NodeTest extends TestCase
     public function testFailsToAppendIntoItself(): void
     {
         $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Node must not be a descendant.');
 
         $node = $this->findCategory('notebooks');
 
@@ -557,11 +552,33 @@ class NodeTest extends TestCase
         ];
     }
 
+    public function testStructuralPredicatesRequireTheSameStore(): void
+    {
+        $connection = DB::getDefaultConnection();
+
+        config([
+            'database.connections.nested_set_other' => config(
+                "database.connections.{$connection}",
+            ),
+        ]);
+
+        $child = $this->findCategory('apple');
+        $parent = $this->findCategory('notebooks')
+            ->setConnection('nested_set_other');
+        $sibling = Category::findOrFail(4)
+            ->setConnection('nested_set_other');
+
+        $this->assertFalse($child->isChildOf($parent));
+        $this->assertFalse($child->isDescendantOf($parent));
+        $this->assertFalse($child->isSiblingOf($sibling));
+    }
+
     public function testWithoutRootWorks(): void
     {
-        $result = Category::withoutRoot()->pluck('name');
-
-        $this->assertNotEquals('store', $result);
+        $this->assertSame(
+            [2, 3, 4, 5, 6, 7, 8, 9, 10],
+            Category::withoutRoot()->orderBy('id')->pluck('id')->all(),
+        );
     }
 
     public function testStructuralReadQueriesQualifyTheirColumnsAfterJoins(): void
@@ -752,16 +769,21 @@ class NodeTest extends TestCase
     }
 
     #[DataProvider('partialLeafProjections')]
-    public function testLeafPredicateTreatsMissingBoundsAsFalse(array $columns): void
+    public function testLeafPredicateTreatsMissingBoundsAsFalse(array $attributes): void
     {
-        $this->assertFalse(Category::query()->select($columns)->findOrFail(3)->isLeaf());
+        $node = new Category;
+        $node->setRawAttributes($attributes, true);
+        $node->exists = true;
+
+        $this->assertFalse($node->isLeaf());
     }
 
     public static function partialLeafProjections(): array
     {
         return [
-            'missing left bound' => [['id', '_rgt']],
-            'missing right bound' => [['id', '_lft']],
+            'missing left bound' => [['id' => 3, '_rgt' => 4]],
+            'missing right bound' => [['id' => 3, '_lft' => 3]],
+            'missing left bound at the coercion edge' => [['id' => 99, '_rgt' => 1]],
         ];
     }
 
@@ -776,7 +798,7 @@ class NodeTest extends TestCase
     {
         $node = Category::whereIsRoot()->withDepth('level')->first();
 
-        $this->assertTrue(isset($node['level']));
+        $this->assertSame(0, $node['level']);
     }
 
     public function testWithDepthWorksAlongWithDefaultKeys(): void
@@ -803,14 +825,6 @@ class NodeTest extends TestCase
         $this->assertTrue($node->isRoot());
     }
 
-    public function testFailsToSaveNodeUntilNotInserted(): void
-    {
-        $this->expectException(QueryException::class);
-
-        $node = new Category;
-        $node->save();
-    }
-
     public function testNodeIsDeletedWithDescendants(): void
     {
         $node = $this->findCategory('mobile');
@@ -818,7 +832,7 @@ class NodeTest extends TestCase
 
         $this->assertTreeNotBroken();
 
-        $nodes = Category::whereIn('id', [5, 6, 7, 8, 9])->count();
+        $nodes = Category::whereIn('id', [5, 6, 7, 8, 9, 10])->count();
         $this->assertEquals(0, $nodes);
 
         $root = Category::root();
@@ -881,7 +895,7 @@ class NodeTest extends TestCase
         $node = $this->findCategory('mobile');
         $node->delete();
 
-        $nodes = Category::whereIn('id', [5, 6, 7, 8, 9])->count();
+        $nodes = Category::whereIn('id', [5, 6, 7, 8, 9, 10])->count();
         $this->assertEquals(0, $nodes);
 
         $originalRgt = $root->getRgt();
@@ -1478,6 +1492,7 @@ class NodeTest extends TestCase
         $root = $tree->first();
         $this->assertEquals('mobile', $root->name);
         $this->assertEquals(4, count($root->children));
+        $this->assertSame([6, 7, 9, 10], $root->children->modelKeys());
     }
 
     public function testToTreeBuildsWithCustomOrder(): void
@@ -1492,6 +1507,7 @@ class NodeTest extends TestCase
         $root = $tree->first();
         $this->assertEquals('mobile', $root->name);
         $this->assertEquals(4, count($root->children));
+        $this->assertSame([10, 6, 7, 9], $root->children->modelKeys());
         $this->assertNotSame($root, $root->children->first()->parent);
         $this->assertSame($root->getKey(), $root->children->first()->parent->getKey());
         $this->assertSame([], $root->children->first()->parent->getRelations());
@@ -1725,11 +1741,11 @@ class NodeTest extends TestCase
         $this->assertSame(2000, $flat->last()->getKey());
     }
 
-    public function testToTreeBuildsWithDefaultOrderAndMultipleRootNodes(): void
+    public function testToTreeBuildsMultipleRootNodes(): void
     {
         $tree = Category::withoutRoot()->get()->toTree();
 
-        $this->assertEquals(2, count($tree));
+        $this->assertSame([2, 5], $tree->modelKeys());
     }
 
     public function testToTreeBuildsWithRootItemIdProvided(): void
@@ -1801,15 +1817,17 @@ class NodeTest extends TestCase
     public function testMultipleAppendageWorks(): void
     {
         $parent = $this->findCategory('mobile');
-
         $child = new Category(['name' => 'test']);
+        $subchild = new Category(['name' => 'sub']);
+        $sibling = new Category(['name' => 'test2']);
 
         $parent->appendNode($child);
+        $child->appendNode($subchild);
+        $parent->appendNode($sibling);
 
-        $child->appendNode(new Category(['name' => 'sub']));
-
-        $parent->appendNode(new Category(['name' => 'test2']));
-
+        $this->assertSame($parent->getKey(), $child->getParentId());
+        $this->assertSame($child->getKey(), $subchild->getParentId());
+        $this->assertSame($parent->getKey(), $sibling->getParentId());
         $this->assertTreeNotBroken();
     }
 
@@ -1997,8 +2015,10 @@ class NodeTest extends TestCase
     {
         $node = $this->findCategory('apple');
 
-        $node->children()->create(['name' => 'test']);
+        $child = $node->children()->create(['name' => 'test']);
 
+        $this->assertSame($node->getKey(), $child->getParentId());
+        $this->assertSame(3, $child->getDepth());
         $this->assertTreeNotBroken();
     }
 
@@ -2286,7 +2306,7 @@ class NodeTest extends TestCase
         $this->assertEquals([3, 4], $res);
     }
 
-    public function testMultipleDeletionsDoNotBrakeTree(): void
+    public function testMultipleDeletionsDoNotBreakTree(): void
     {
         $category = $this->findCategory('mobile');
 
@@ -2294,6 +2314,8 @@ class NodeTest extends TestCase
             $child->forceDelete();
         }
 
+        $this->assertSame(0, Category::whereIn('id', [6, 7, 8])->count());
+        $this->assertSame(2, Category::whereIn('id', [9, 10])->count());
         $this->assertTreeNotBroken();
     }
 
