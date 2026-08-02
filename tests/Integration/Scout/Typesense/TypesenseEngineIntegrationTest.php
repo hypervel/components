@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
 
 /**
@@ -180,5 +181,81 @@ class TypesenseEngineIntegrationTest extends TypesenseScoutIntegrationTestCase
         $keys = TypesenseSearchableModel::search('')->keys();
 
         $this->assertCount(2, $keys);
+    }
+
+    public function testResolvedWriteTargetOverridesSchemaName(): void
+    {
+        $model = TypesenseReadWriteSearchableModel::create([
+            'title' => 'Write target',
+            'body' => 'Content',
+        ]);
+
+        $this->engine->update(new EloquentCollection([$model]));
+
+        $results = TypesenseReadWriteSearchableModel::search('Write')
+            ->within($model->indexableAs())
+            ->get();
+
+        $this->assertSame([$model->id], $results->pluck('id')->all());
+    }
+
+    public function testQueuedRemovalDeletesStoredCustomScoutKeyAfterModelIsGone(): void
+    {
+        $model = TypesenseCustomScoutKeyModel::withoutSyncingToSearch(function () {
+            return TypesenseCustomScoutKeyModel::create([
+                'title' => 'Custom key',
+                'body' => 'Content',
+            ]);
+        });
+
+        $this->engine->update(new EloquentCollection([$model]));
+
+        $document = $this->typesense->collections[$model->indexableAs()]
+            ->documents[(string) $model->getScoutKey()]
+            ->retrieve();
+
+        $this->assertSame($model->getScoutKey(), $document['id']);
+
+        $job = new RemoveFromSearch(new EloquentCollection([$model]));
+
+        TypesenseCustomScoutKeyModel::query()->whereKey($model->getKey())->delete();
+
+        unserialize(serialize($job))->handle();
+
+        $this->expectException(\Typesense\Exceptions\ObjectNotFound::class);
+
+        $this->typesense->collections[$model->indexableAs()]
+            ->documents[(string) $model->getScoutKey()]
+            ->retrieve();
+    }
+}
+
+class TypesenseReadWriteSearchableModel extends TypesenseSearchableModel
+{
+    public function indexableAs(): string
+    {
+        return $this->searchableAs() . '_write';
+    }
+
+    public function typesenseCollectionSchema(): array
+    {
+        return array_merge(parent::typesenseCollectionSchema(), [
+            'name' => $this->searchableAs() . '_stale',
+        ]);
+    }
+}
+
+class TypesenseCustomScoutKeyModel extends TypesenseSearchableModel
+{
+    public function getScoutKey(): mixed
+    {
+        return 'custom-key.' . $this->id;
+    }
+
+    public function toSearchableArray(): array
+    {
+        return array_merge(parent::toSearchableArray(), [
+            'id' => (string) $this->getScoutKey(),
+        ]);
     }
 }

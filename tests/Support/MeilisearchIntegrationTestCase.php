@@ -8,7 +8,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithMeilisearch;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Throwable;
 
 /**
  * Base test case for Meilisearch integration tests.
@@ -100,22 +99,5 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
     {
         $indexName = $this->prefixedIndexName($name);
         $this->meilisearch->createIndex($indexName, $options);
-    }
-
-    /**
-     * Wait for Meilisearch tasks to complete.
-     */
-    protected function waitForTasks(int $timeoutMs = 5000): void
-    {
-        try {
-            $tasks = $this->meilisearch->getTasks();
-            foreach ($tasks->getResults() as $task) {
-                if (in_array($task['status'], ['enqueued', 'processing'], true)) {
-                    $this->meilisearch->waitForTask($task['uid'], $timeoutMs);
-                }
-            }
-        } catch (Throwable) {
-            // Ignore timeout errors
-        }
     }
 }

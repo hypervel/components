@@ -18,6 +18,13 @@ use Hypervel\Tests\Scout\ScoutTestCase;
  */
 class MakeRangeSearchableTest extends ScoutTestCase
 {
+    public function testJobFailsOnTimeout(): void
+    {
+        $this->assertTrue(
+            (new MakeRangeSearchable(SearchableModel::class, 1, 2))->failOnTimeout
+        );
+    }
+
     public function testHandleDispatchesMakeSearchableForModelsInRange(): void
     {
         for ($i = 1; $i <= 5; ++$i) {

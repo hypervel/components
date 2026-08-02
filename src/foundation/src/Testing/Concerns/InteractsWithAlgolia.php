@@ -81,7 +81,11 @@ trait InteractsWithAlgolia
     {
         try {
             if ($this->algolia !== null) {
-                $this->cleanupAlgoliaIndices();
+                try {
+                    $this->cleanupAlgoliaIndices();
+                } catch (Throwable) {
+                    // Ignore cleanup errors
+                }
             }
         } finally {
             $this->algolia = null;
@@ -121,18 +125,21 @@ trait InteractsWithAlgolia
             return;
         }
 
-        try {
-            $indices = $this->algolia->listIndices();
+        $tasks = [];
+        $indices = $this->algolia->listIndices();
 
-            foreach ($indices['items'] ?? [] as $index) {
-                $name = $index['name'] ?? null;
+        foreach ($indices['items'] ?? [] as $index) {
+            $name = $index['name'] ?? null;
 
-                if (is_string($name) && str_starts_with($name, $this->algoliaTestPrefix)) {
-                    $this->algolia->deleteIndex($name);
-                }
+            if (is_string($name) && str_starts_with($name, $this->algoliaTestPrefix)) {
+                /** @var array{taskID: int} $task */
+                $task = $this->algolia->deleteIndex($name);
+                $tasks[] = ['indexName' => $name, 'taskID' => $task['taskID']];
             }
-        } catch (Throwable) {
-            // Ignore errors during cleanup
+        }
+
+        foreach ($tasks as $task) {
+            $this->algolia->waitForTask($task['indexName'], $task['taskID']);
         }
     }
 }

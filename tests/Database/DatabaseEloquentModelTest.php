@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentModelTest;
 
+use ArgumentCountError;
 use Carbon\CarbonInterface;
 use DateTime;
 use DateTimeImmutable;
@@ -4405,6 +4406,14 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertInstanceOf(CustomEloquentCollection::class, $collection);
     }
 
+    public function testPositionalCollectedByAttribute(): void
+    {
+        $model = new ModelWithPositionalCollectedByAttribute;
+        $collection = $model->newCollection([$model]);
+
+        $this->assertInstanceOf(CustomEloquentCollection::class, $collection);
+    }
+
     public function testCollectedByAttributeIsInherited(): void
     {
         $model = new ModelChildWithCollectedByAttribute;
@@ -4435,6 +4444,13 @@ class DatabaseEloquentModelTest extends TestCase
         $collection = $model->newCollection([$model]);
 
         $this->assertInstanceOf(CustomChildEloquentCollection::class, $collection);
+    }
+
+    public function testMalformedCollectedByAttributeFailsFast(): void
+    {
+        $this->expectException(ArgumentCountError::class);
+
+        (new ModelWithMalformedCollectedByAttribute)->newCollection();
     }
 
     public function testUseFactoryAttribute()
@@ -5352,8 +5368,13 @@ class ModelWithMutators extends Model
     }
 }
 
-#[CollectedBy(CustomEloquentCollection::class)]
+#[CollectedBy(collectionClass: CustomEloquentCollection::class)]
 class ModelWithCollectedByAttribute extends Model
+{
+}
+
+#[CollectedBy(CustomEloquentCollection::class)]
+class ModelWithPositionalCollectedByAttribute extends Model
 {
 }
 
@@ -5377,8 +5398,13 @@ class ModelConcreteChild extends ModelAbstractParent
 {
 }
 
-#[CollectedBy(CustomChildEloquentCollection::class)]
+#[CollectedBy(collectionClass: CustomChildEloquentCollection::class)]
 class ModelChildWithCollectedByAttributeOverride extends ModelWithCollectedByAttribute
+{
+}
+
+#[CollectedBy]
+class ModelWithMalformedCollectedByAttribute extends Model
 {
 }
 

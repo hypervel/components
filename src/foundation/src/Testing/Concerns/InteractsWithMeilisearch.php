@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Meilisearch\Client as MeilisearchClient;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -113,16 +114,21 @@ trait InteractsWithMeilisearch
             return;
         }
 
-        try {
-            $indexes = $this->meilisearch->getIndexes();
+        $taskUids = [];
+        $indexes = $this->meilisearch->getIndexes();
 
-            foreach ($indexes->getResults() as $index) {
-                if (str_starts_with($index->getUid(), $this->meilisearchTestPrefix)) {
-                    $this->meilisearch->deleteIndex($index->getUid());
-                }
+        foreach ($indexes->getResults() as $index) {
+            if (str_starts_with($index->getUid(), $this->meilisearchTestPrefix)) {
+                $task = $this->meilisearch->deleteIndex($index->getUid());
+
+                /** @var int $taskUid */
+                $taskUid = $task['taskUid'];
+                $taskUids[] = $taskUid;
             }
-        } catch (Throwable) {
-            // Ignore errors during cleanup
+        }
+
+        foreach ($taskUids as $taskUid) {
+            $this->waitForMeilisearchTask($taskUid);
         }
     }
 
@@ -135,15 +141,29 @@ trait InteractsWithMeilisearch
             return;
         }
 
-        try {
-            $tasks = $this->meilisearch->getTasks();
-            foreach ($tasks->getResults() as $task) {
-                if (in_array($task['status'], ['enqueued', 'processing'], true)) {
-                    $this->meilisearch->waitForTask($task['uid'], $timeoutMs);
-                }
+        $tasks = $this->meilisearch->getTasks();
+
+        foreach ($tasks->getResults() as $task) {
+            if (in_array($task['status'], ['enqueued', 'processing'], true)) {
+                /** @var int $taskUid */
+                $taskUid = $task['uid'];
+                $this->waitForMeilisearchTask($taskUid, $timeoutMs);
             }
-        } catch (Throwable) {
-            // Ignore timeout errors
+        }
+    }
+
+    /**
+     * Wait for a Meilisearch task to complete successfully.
+     */
+    protected function waitForMeilisearchTask(int $taskUid, int $timeoutMs = 5000): void
+    {
+        $task = $this->meilisearch->waitForTask($taskUid, $timeoutMs);
+
+        if ($task['status'] !== 'succeeded') {
+            throw new RuntimeException(
+                $task['error']['message']
+                    ?? "Meilisearch task [{$task['uid']}] ended with status [{$task['status']}]."
+            );
         }
     }
 }

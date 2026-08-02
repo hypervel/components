@@ -19,13 +19,15 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Coroutine\go;
 
 class AlgoliaEngineTest extends TestCase
 {
-    public function testUpdateSavesObjects()
+    public function testUpdateSavesObjects(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -46,7 +48,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->update(new EloquentCollection([$model]));
     }
 
-    public function testUpdateEmptyCollectionDoesNothing()
+    public function testUpdateEmptyCollectionDoesNothing(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldNotReceive('saveObjects');
@@ -57,7 +59,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testUpdateFiltersOutEmptySearchableArrays()
+    public function testUpdateFiltersOutEmptySearchableArrays(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldNotReceive('saveObjects');
@@ -71,7 +73,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->update(new EloquentCollection([$model]));
     }
 
-    public function testUpdateIncludesScoutMetadata()
+    public function testUpdateIncludesScoutMetadata(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -92,7 +94,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->update(new EloquentCollection([$model]));
     }
 
-    public function testUpdateWithSoftDeletesAddsSoftDeleteMetadata()
+    public function testUpdateWithSoftDeletesAddsSoftDeleteMetadata(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -114,7 +116,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->update(new EloquentCollection([$model]));
     }
 
-    public function testDeleteRemovesObjects()
+    public function testDeleteRemovesObjects(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -132,7 +134,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->delete(new EloquentCollection([$model]));
     }
 
-    public function testDeleteWithCustomScoutKey()
+    public function testDeleteWithCustomScoutKey(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -150,7 +152,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->delete(new EloquentCollection([$model]));
     }
 
-    public function testDeleteWithRemoveableScoutCollection()
+    public function testDeleteWithRemoveableScoutCollection(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -173,7 +175,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->delete($collection);
     }
 
-    public function testDeleteEmptyCollection()
+    public function testDeleteEmptyCollection(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldNotReceive('deleteObjects');
@@ -184,7 +186,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testDeleteIndex()
+    public function testDeleteIndex(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -200,7 +202,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals(['taskID' => 123], $result);
     }
 
-    public function testFlush()
+    public function testFlush(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -216,7 +218,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->flush($model);
     }
 
-    public function testUpdateIndexSettings()
+    public function testUpdateIndexSettings(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -228,7 +230,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->updateIndexSettings('users', ['searchableAttributes' => ['name', 'email']]);
     }
 
-    public function testCreateIndexThrows()
+    public function testCreateIndexThrows(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -238,13 +240,13 @@ class AlgoliaEngineTest extends TestCase
         $engine->createIndex('users');
     }
 
-    public function testSearchSendsCorrectParameters()
+    public function testSearchSendsCorrectParameters(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'numericFilters' => ['foo=1']], []);
+            ->with('users', ['query' => 'zonda', 'filters' => "foo:'1'"], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -257,13 +259,125 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testSearchSendsCorrectParametersForWhereInSearch()
+    public function testSearchSendsBooleanInequalityAndEscapedFilters(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'numericFilters' => ['foo=1', ['bar=1', 'bar=2']]], []);
+            ->with('users', [
+                'query' => 'zonda',
+                'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND is_featured>1 AND is_disabled<=0 AND rank>=10 AND score>=9223372036854775808 AND ratio<1.25",
+            ], []);
+
+        $engine = new AlgoliaEngine($client);
+
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('users');
+
+        $builder = new Builder($model, 'zonda');
+        $builder->where('is_live', true)
+            ->where('is_archived', '=', false)
+            ->where('status', '!=', 'draft')
+            ->where('label', '!=', "manager's draft\\review")
+            ->where('is_deleted', '!=', true)
+            ->where('is_featured', '>', true)
+            ->where('is_disabled', '<=', false)
+            ->where('rank', '>=', 10)
+            ->where('score', '>=', '9223372036854775808')
+            ->where('ratio', '<', 1.25);
+
+        $engine->search($builder);
+    }
+
+    #[DataProvider('invalidFilterValues')]
+    public function testSearchRejectsInvalidFilters(string $operator, mixed $value, string $message): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldNotReceive('searchSingleIndex');
+
+        $engine = new AlgoliaEngine($client);
+        $builder = new Builder(m::mock(AlgoliaTestSearchableModel::class), 'zonda');
+        $builder->where('value', $operator, $value);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $engine->search($builder);
+    }
+
+    /**
+     * Provide invalid Algolia filter values.
+     *
+     * @return array<string, array{string, mixed, string}>
+     */
+    public static function invalidFilterValues(): array
+    {
+        return [
+            'unsupported operator' => ['LIKE', "a' OR x:'y", 'Unsupported Algolia filter operator [LIKE].'],
+            'null equality' => ['=', null, 'Algolia filters do not support null values.'],
+            'null inequality' => ['!=', null, 'Algolia filters do not support null values.'],
+            'null ordering' => ['>', null, 'Algolia filters do not support null values.'],
+            'nonnumeric string ordering' => ['>', "1 OR x:'2", 'Algolia ordering filters require a numeric value.'],
+            'leading-zero string ordering' => ['>', '01', 'Algolia ordering filters require a numeric value.'],
+            'exponent string ordering' => ['>', '1e3', 'Algolia ordering filters require a numeric value.'],
+            'non-scalar ordering' => ['>', [1, 2], 'Algolia ordering filters require a numeric value.'],
+            'infinite float' => ['>', INF, 'Algolia filters require finite numeric values.'],
+            'not-a-number float' => ['=', NAN, 'Algolia filters require finite numeric values.'],
+        ];
+    }
+
+    public function testSearchSendsBackedEnumFilters(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+
+        $client->shouldReceive('searchSingleIndex')
+            ->once()
+            ->with('users', [
+                'query' => 'zonda',
+                'filters' => "status:'published' AND priority:'1' AND (statuses:'draft' OR statuses:'published') AND NOT priorities:'1' AND NOT priorities:'2'",
+            ], []);
+
+        $engine = new AlgoliaEngine($client);
+
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('users');
+
+        $builder = new Builder($model, 'zonda');
+        $builder->where('status', AlgoliaStringStatus::Published)
+            ->where('priority', AlgoliaIntegerPriority::High)
+            ->whereIn('statuses', [AlgoliaStringStatus::Draft, AlgoliaStringStatus::Published])
+            ->whereNotIn('priorities', [AlgoliaIntegerPriority::High, AlgoliaIntegerPriority::Low]);
+
+        $engine->search($builder);
+    }
+
+    public function testSearchPreservesStringZeroIndex(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+
+        $client->shouldReceive('searchSingleIndex')
+            ->once()
+            ->with('0', ['query' => 'zonda'], []);
+
+        $engine = new AlgoliaEngine($client);
+
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldNotReceive('searchableAs');
+
+        $builder = new Builder($model, 'zonda');
+        $builder->within('0');
+
+        $engine->search($builder);
+    }
+
+    public function testSearchSendsCorrectParametersForWhereInSearch(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+
+        $client->shouldReceive('searchSingleIndex')
+            ->once()
+            ->with('users', ['query' => 'zonda', 'filters' => "foo:'1' AND (bar:'1' OR bar:'2')"], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -276,13 +390,13 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testSearchSendsCorrectParametersForEmptyWhereInSearch()
+    public function testSearchSendsCorrectParametersForEmptyWhereInSearch(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'numericFilters' => ['foo=1', '0=1']], []);
+            ->with('users', ['query' => 'zonda', 'filters' => "foo:'1' AND 0:1"], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -295,13 +409,13 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testSearchSendsCorrectParametersForWhereNotInSearch()
+    public function testSearchSendsCorrectParametersForWhereNotInSearch(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
         $client->shouldReceive('searchSingleIndex')
             ->once()
-            ->with('users', ['query' => 'zonda', 'numericFilters' => ['foo!=1', 'foo!=2']], []);
+            ->with('users', ['query' => 'zonda', 'filters' => "NOT foo:'1' AND NOT foo:'2'"], []);
 
         $engine = new AlgoliaEngine($client);
 
@@ -314,7 +428,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testSearchIgnoresEmptyWhereNotIn()
+    public function testSearchIgnoresEmptyWhereNotIn(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -333,7 +447,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testSearchSendsCorrectParametersForMixedSearch()
+    public function testSearchSendsCorrectParametersForMixedSearch(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -341,7 +455,7 @@ class AlgoliaEngineTest extends TestCase
             ->once()
             ->with(
                 'users',
-                ['query' => 'zonda', 'numericFilters' => ['foo=1', ['bar=1', 'bar=2'], 'baz!=1', 'baz!=2']],
+                ['query' => 'zonda', 'filters' => "foo:'1' AND (bar:'1' OR bar:'2') AND NOT baz:'1' AND NOT baz:'2'"],
                 [],
             );
 
@@ -358,7 +472,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testSearchWithCallbackUsesCallback()
+    public function testSearchWithCallbackUsesCallback(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldNotReceive('searchSingleIndex');
@@ -383,7 +497,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals(['hits' => [], 'nbHits' => 0], $result);
     }
 
-    public function testPaginateComputesCorrectPage()
+    public function testPaginateComputesCorrectPage(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -403,7 +517,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->paginate($builder, 15, 2);
     }
 
-    public function testMapReturnsEmptyWhenNoHits()
+    public function testMapReturnsEmptyWhenNoHits(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -418,7 +532,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertCount(0, $results);
     }
 
-    public function testMapPopulatesScoutMetadataFromUnderscoreKeys()
+    public function testMapPopulatesScoutMetadataFromUnderscoreKeys(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -447,7 +561,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertCount(1, $results);
     }
 
-    public function testMapRespectsOrder()
+    public function testMapRespectsOrder(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -483,7 +597,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals([1, 2, 4, 3], $resultIds);
     }
 
-    public function testLazyMapRespectsOrder()
+    public function testLazyMapRespectsOrder(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -520,7 +634,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals([1, 2, 4, 3], $resultIds);
     }
 
-    public function testGetTotalCount()
+    public function testGetTotalCount(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -528,7 +642,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals(42, $engine->getTotalCount(['nbHits' => 42]));
     }
 
-    public function testMapIdsReturnsObjectIDs()
+    public function testMapIdsReturnsObjectIDs(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -545,7 +659,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals(['a', 'b', 'c'], $results->all());
     }
 
-    public function testConfigureSoftDeleteFilter()
+    public function testConfigureSoftDeleteFilter(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
         $engine = new AlgoliaEngine($client);
@@ -560,7 +674,7 @@ class AlgoliaEngineTest extends TestCase
         );
     }
 
-    public function testIdentifyDisabledSendsEmptyRequestOptions()
+    public function testIdentifyDisabledSendsEmptyRequestOptions(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -578,7 +692,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testIdentifyEnabledSendsHeadersFromRequest()
+    public function testIdentifyEnabledSendsHeadersFromRequest(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -599,7 +713,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testIdentifyEnabledWithAuthenticatedUserAddsUserToken()
+    public function testIdentifyEnabledWithAuthenticatedUserAddsUserToken(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -629,7 +743,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testIdentifyIgnoresPrivateIPs()
+    public function testIdentifyIgnoresPrivateIPs(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -650,7 +764,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->search($builder);
     }
 
-    public function testIdentifyHeadersReflectTheCurrentRequestNotTheCachedOne()
+    public function testIdentifyHeadersReflectTheCurrentRequestNotTheCachedOne(): void
     {
         // Regression test for the deliberate divergence from Laravel's
         // EngineManager::defaultAlgoliaHeaders(). The engine is constructed
@@ -692,7 +806,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertSame(['203.0.113.10', '198.51.100.20'], $capturedHeaders);
     }
 
-    public function testIdentifyHeadersDoNotLeakAcrossCoroutines()
+    public function testIdentifyHeadersDoNotLeakAcrossCoroutines(): void
     {
         // Companion regression test: RequestContext is coroutine-local, so
         // two concurrent coroutines each seeding their own request must each
@@ -737,7 +851,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertSame(['198.51.100.20', '203.0.113.10'], $capturedHeaders);
     }
 
-    public function testUpdateSoftDeletedWithEmptySearchableArrayDoesNotSave()
+    public function testUpdateSoftDeletedWithEmptySearchableArrayDoesNotSave(): void
     {
         // Covers the Laravel Feature-test gap (test_update_empty_searchable_
         // array_from_soft_deleted_model_does_not_add_objects_to_index). With
@@ -757,7 +871,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->update(new EloquentCollection([$model]));
     }
 
-    public function testCallForwardsUnknownMethodsToClient()
+    public function testCallForwardsUnknownMethodsToClient(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -771,7 +885,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals('result', $engine->customMethod('arg'));
     }
 
-    public function testDeleteAllIndexesWithPrefixScopesToPrefixedIndexes()
+    public function testDeleteAllIndexesWithPrefixScopesToPrefixedIndexes(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -793,7 +907,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->deleteAllIndexes('test_');
     }
 
-    public function testDeleteAllIndexesWithNullPrefixDeletesEverything()
+    public function testDeleteAllIndexesWithNullPrefixDeletesEverything(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -815,7 +929,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->deleteAllIndexes(null);
     }
 
-    public function testDeleteAllIndexesWithEmptyStringPrefixDeletesEverything()
+    public function testDeleteAllIndexesWithEmptyStringPrefixDeletesEverything(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -837,7 +951,7 @@ class AlgoliaEngineTest extends TestCase
         $engine->deleteAllIndexes('');
     }
 
-    public function testDeleteAllIndexesReturnsResponses()
+    public function testDeleteAllIndexesReturnsResponses(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -859,7 +973,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals([['taskID' => 1], ['taskID' => 2]], $responses);
     }
 
-    public function testDeleteAllIndexesWithNoIndexesReturnsEmptyArray()
+    public function testDeleteAllIndexesWithNoIndexesReturnsEmptyArray(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -875,7 +989,7 @@ class AlgoliaEngineTest extends TestCase
         $this->assertEquals([], $result);
     }
 
-    public function testDeleteAllIndexesSkipsEntriesWithoutStringNames()
+    public function testDeleteAllIndexesSkipsEntriesWithoutStringNames(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
 
@@ -992,4 +1106,16 @@ class AlgoliaTestUser
     {
         return $this->key;
     }
+}
+
+enum AlgoliaStringStatus: string
+{
+    case Draft = 'draft';
+    case Published = 'published';
+}
+
+enum AlgoliaIntegerPriority: int
+{
+    case Low = 2;
+    case High = 1;
 }

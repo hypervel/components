@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 
 /**
@@ -58,6 +60,31 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
 
         // Verify it's gone
         $results = $this->meilisearch->index($model->searchableAs())->search('Delete');
+        $this->assertCount(0, $results->getHits());
+    }
+
+    public function testQueuedRemovalDeletesTheExactCustomScoutKey(): void
+    {
+        $model = CustomScoutKeyModel::create(['title' => 'Custom key', 'body' => 'Content']);
+
+        $this->engine->update(new EloquentCollection([$model]));
+        $this->waitForMeilisearchTasks();
+
+        $results = $this->meilisearch->index($model->indexableAs())->search('');
+
+        $this->assertCount(1, $results->getHits());
+        $this->assertSame($model->getScoutKey(), $results->getHits()[0][$model->getScoutKeyName()]);
+
+        $job = new RemoveFromSearch(new EloquentCollection([$model]));
+        CustomScoutKeyModel::query()->whereKey($model->getKey())->delete();
+
+        /** @var RemoveFromSearch $restored */
+        $restored = unserialize(serialize($job));
+        $restored->handle();
+        $this->waitForMeilisearchTasks();
+
+        $results = $this->meilisearch->index($model->indexableAs())->search('');
+
         $this->assertCount(0, $results->getHits());
     }
 

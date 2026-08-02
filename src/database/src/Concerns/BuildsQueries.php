@@ -38,6 +38,10 @@ trait BuildsQueries
      */
     public function chunk(int $count, callable $callback): bool
     {
+        if ($count < 1) {
+            throw new InvalidArgumentException('The chunk size should be at least 1');
+        }
+
         $this->enforceOrderBy();
 
         $skip = $this->getOffset();
@@ -143,6 +147,10 @@ trait BuildsQueries
      */
     public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
+        if ($count < 1) {
+            throw new InvalidArgumentException('The chunk size should be at least 1');
+        }
+
         $column ??= $this->defaultKeyName();
         $alias ??= $column;
         $lastId = null;

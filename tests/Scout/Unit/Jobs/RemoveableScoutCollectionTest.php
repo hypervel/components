@@ -42,9 +42,9 @@ class RemoveableScoutCollectionTest extends ScoutTestCase
         $collection = RemoveableScoutCollection::make([$model1, $model2, $model3]);
 
         $this->assertEquals([
-            'custom-key.1',
-            'custom-key.2',
-            'custom-key.3',
+            'custom-key-1',
+            'custom-key-2',
+            'custom-key-3',
         ], $collection->getQueueableIds());
     }
 
@@ -70,7 +70,7 @@ class RemoveableScoutCollectionTest extends ScoutTestCase
         $ids1 = $collection1->getQueueableIds();
 
         // Both models use Searchable trait, so getScoutKey() is called on each
-        $this->assertEquals([100, 'custom-key.200'], $ids1);
+        $this->assertEquals([100, 'custom-key-200'], $ids1);
     }
 
     public function testNonSearchableFallbackPreservesCustomQueueableIds(): void

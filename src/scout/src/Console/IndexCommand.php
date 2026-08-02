@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -40,8 +41,10 @@ class IndexCommand extends Command
 
         $options = [];
 
-        if ($this->option('key')) {
-            $options = ['primaryKey' => $this->option('key')];
+        $key = $this->option('key');
+
+        if ($key !== null && $key !== '') {
+            $options = ['primaryKey' => $key];
         }
 
         $model = null;
@@ -58,10 +61,8 @@ class IndexCommand extends Command
         if ($engine instanceof UpdatesIndexSettings) {
             $driver = $config->string('scout.driver');
 
-            $class = $model !== null ? get_class($model) : null;
-
-            $settings = $config->get("scout.{$driver}.index-settings.{$name}")
-                ?? ($class !== null ? $config->get("scout.{$driver}.index-settings.{$class}") : null)
+            $settings = $config->get("scout.{$driver}.index-settings.{$modelName}")
+                ?? $config->get("scout.{$driver}.index-settings.{$name}")
                 ?? [];
 
             if ($model !== null
@@ -75,7 +76,7 @@ class IndexCommand extends Command
             }
         }
 
-        $this->info("Synchronised index [\"{$name}\"] successfully.");
+        $this->info("Synchronized index [\"{$name}\"] successfully.");
 
         return self::SUCCESS;
     }
@@ -87,7 +88,11 @@ class IndexCommand extends Command
      */
     protected function createIndex(Engine $engine, string $name, array $options): void
     {
-        $engine->createIndex($name, $options);
+        try {
+            $engine->createIndex($name, $options);
+        } catch (NotSupportedException) {
+            // The engine creates indexes implicitly.
+        }
     }
 
     /**

@@ -28,6 +28,7 @@ class QueueImportCommand extends Command
         {--min= : The minimum key value to start queuing from}
         {--max= : The maximum key value to queue up to}
         {--c|chunk= : The number of records to queue in a single job (Defaults to configuration value: `scout.chunk.searchable`)}
+        {--order=asc : The order in which ranges should be queued (`asc` or `desc`)}
         {--queue= : The queue that should be used (Defaults to configuration value: `scout.queue.queue`)}';
 
     /**
@@ -40,7 +41,7 @@ class QueueImportCommand extends Command
      *
      * @throws ScoutException
      */
-    public function handle(Repository $config): void
+    public function handle(Repository $config): int
     {
         $class = $this->resolveModelClass((string) $this->argument('model'));
 
@@ -50,18 +51,23 @@ class QueueImportCommand extends Command
         $chunk = max(1, (int) ($this->option('chunk') ?? $config->integer('scout.chunk.searchable', 500)));
         $queueName = $this->option('queue') ?? $model->syncWithSearchUsingQueue();
         $connection = $model->syncWithSearchUsing();
+        $order = (string) $this->option('order');
 
-        if ($model->getScoutKeyType() === 'int') {
-            $this->dispatchIntegerRange($class, $model, $chunk, $queueName, $connection);
-        } else {
-            $this->dispatchStringRange($class, $model, $chunk, $queueName, $connection);
+        if (! in_array($order, ['asc', 'desc'], true)) {
+            $this->error('The order option must be either "asc" or "desc".');
+
+            return Command::FAILURE;
         }
+
+        return in_array($model->getScoutKeyType(), ['int', 'integer'], true)
+            ? $this->dispatchIntegerRange($class, $model, $chunk, $order, $queueName, $connection)
+            : $this->dispatchStringRange($class, $model, $chunk, $order, $queueName, $connection);
     }
 
     /**
      * Dispatch range jobs for an integer-keyed model using min/max arithmetic.
      */
-    protected function dispatchIntegerRange(string $class, SearchableInterface $model, int $chunk, ?string $queueName, ?string $connection): void
+    protected function dispatchIntegerRange(string $class, SearchableInterface $model, int $chunk, string $order, ?string $queueName, ?string $connection): int
     {
         $query = $class::makeAllSearchableQuery();
         $keyName = $model->getScoutKeyName();
@@ -73,26 +79,60 @@ class QueueImportCommand extends Command
         if ($min === null || $max === null) {
             $this->info("No records found for [{$class}].");
 
-            return;
+            return Command::SUCCESS;
         }
 
-        if ((int) $min > (int) $max) {
+        $min = $this->parseIntegerBound($min);
+        $max = $this->parseIntegerBound($max);
+
+        if ($min === false || $max === false) {
+            $this->error("The minimum and maximum keys for [{$class}] must be valid integers.");
+
+            return Command::FAILURE;
+        }
+
+        if ($min > $max) {
             $this->error("Invalid range for [{$class}]: --min ({$min}) is greater than --max ({$max}).");
 
-            return;
+            return Command::FAILURE;
         }
 
-        for ($start = (int) $min; $start <= (int) $max; $start += $chunk) {
-            $end = min($start + $chunk - 1, (int) $max);
+        // An overflowed distance exceeds every integer offset, so the selected endpoint stays representable.
+        $offset = $chunk - 1;
 
-            MakeRangeSearchable::dispatch($class, $start, $end)
-                ->onQueue($queueName)
-                ->onConnection($connection);
+        if ($order === 'asc') {
+            for ($start = $min; $start <= $max; $start = $end + 1) {
+                $end = $max - $start < $offset ? $max : $start + $offset;
 
-            $this->line("<comment>Queued [{$class}] models up to ID:</comment> {$end}");
+                MakeRangeSearchable::dispatch($class, $start, $end)
+                    ->onQueue($queueName)
+                    ->onConnection($connection);
+
+                $this->line("<comment>Queued [{$class}] models up to ID:</comment> {$end}");
+
+                if ($end === $max) {
+                    break;
+                }
+            }
+        } else {
+            for ($end = $max; $end >= $min; $end = $start - 1) {
+                $start = $end - $min < $offset ? $min : $end - $offset;
+
+                MakeRangeSearchable::dispatch($class, $start, $end)
+                    ->onQueue($queueName)
+                    ->onConnection($connection);
+
+                $this->line("<comment>Queued [{$class}] models down to ID:</comment> {$start}");
+
+                if ($start === $min) {
+                    break;
+                }
+            }
         }
 
         $this->info("All [{$class}] records have been queued for importing.");
+
+        return Command::SUCCESS;
     }
 
     /**
@@ -102,7 +142,7 @@ class QueueImportCommand extends Command
      * dispatches one MakeRangeSearchable per chunk with the first/last keys
      * in that chunk. Workers re-query their range via whereBetween.
      */
-    protected function dispatchStringRange(string $class, SearchableInterface $model, int $chunk, ?string $queueName, ?string $connection): void
+    protected function dispatchStringRange(string $class, SearchableInterface $model, int $chunk, string $order, ?string $queueName, ?string $connection): int
     {
         $query = $class::makeAllSearchableQuery();
         $keyName = $model->getScoutKeyName();
@@ -110,36 +150,57 @@ class QueueImportCommand extends Command
         $min = $this->option('min');
         $max = $this->option('max');
 
-        if ($min !== null && $max !== null && (string) $min > (string) $max) {
-            $this->error("Invalid range for [{$class}]: --min ({$min}) is greater than --max ({$max}).");
-
-            return;
-        }
-
         $jobsDispatched = 0;
 
-        $query
+        $query = $query
             ->select("{$qualified} as {$keyName}")
             ->when($min !== null, fn ($q) => $q->where($qualified, '>=', $min))
-            ->when($max !== null, fn ($q) => $q->where($qualified, '<=', $max))
-            ->chunkById($chunk, function ($keys) use ($class, $keyName, $queueName, $connection, &$jobsDispatched): void {
-                $start = $keys->first()->{$keyName};
-                $end = $keys->last()->{$keyName};
+            ->when($max !== null, fn ($q) => $q->where($qualified, '<=', $max));
 
-                MakeRangeSearchable::dispatch($class, $start, $end)
-                    ->onQueue($queueName)
-                    ->onConnection($connection);
+        $dispatch = function ($keys) use ($class, $keyName, $order, $queueName, $connection, &$jobsDispatched): void {
+            $start = (string) ($order === 'asc' ? $keys->first()->{$keyName} : $keys->last()->{$keyName});
+            $end = (string) ($order === 'asc' ? $keys->last()->{$keyName} : $keys->first()->{$keyName});
 
-                $this->line("<comment>Queued [{$class}] models up to key:</comment> {$end}");
-                ++$jobsDispatched;
-            }, $qualified, $keyName);
+            MakeRangeSearchable::dispatch($class, $start, $end)
+                ->onQueue($queueName)
+                ->onConnection($connection);
+
+            $this->line($order === 'asc'
+                ? "<comment>Queued [{$class}] models up to key:</comment> {$end}"
+                : "<comment>Queued [{$class}] models down to key:</comment> {$start}");
+            ++$jobsDispatched;
+        };
+
+        if ($order === 'asc') {
+            $query->chunkById($chunk, $dispatch, $qualified, $keyName);
+        } else {
+            $query->chunkByIdDesc($chunk, $dispatch, $qualified, $keyName);
+        }
 
         if ($jobsDispatched === 0) {
             $this->info("No records found for [{$class}].");
 
-            return;
+            return Command::SUCCESS;
         }
 
         $this->info("All [{$class}] records have been queued for importing.");
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Parse an integer range boundary.
+     */
+    protected function parseIntegerBound(mixed $value): int|false
+    {
+        if (is_string($value) && preg_match('/^[+-]?(?:0|[1-9][0-9]*)$/D', $value) !== 1) {
+            return false;
+        }
+
+        if (! is_int($value) && ! is_string($value)) {
+            return false;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_INT);
     }
 }

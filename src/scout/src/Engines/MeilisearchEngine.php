@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
+use BackedEnum;
 use DateTimeImmutable;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
+use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
@@ -94,7 +96,9 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
         $firstModel = $models->first();
         $index = $this->meilisearch->index($firstModel->indexableAs());
 
-        $keys = $models->map(fn (SearchableInterface $model) => $model->getScoutKey())->values()->all();
+        $keys = $models instanceof RemoveableScoutCollection
+            ? $models->pluck($firstModel->getScoutKeyName())->values()->all()
+            : $models->map(fn (SearchableInterface $model) => $model->getScoutKey())->values()->all();
 
         $index->deleteDocuments($keys);
     }
@@ -160,18 +164,26 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
     protected function filters(Builder $builder): string
     {
         $filters = collect($builder->wheres)
-            ->map(function ($value, $key) {
+            ->map(function (array $where): string {
+                $field = $where['field'];
+                $operator = $where['operator'];
+                $value = $where['value'];
+
+                if ($value instanceof BackedEnum) {
+                    $value = $value->value;
+                }
+
                 if (is_bool($value)) {
-                    return sprintf('%s=%s', $key, $value ? 'true' : 'false');
+                    return sprintf('%s%s%s', $field, $operator, $value ? 'true' : 'false');
                 }
 
                 if ($value === null) {
-                    return sprintf('%s IS NULL', $key);
+                    return sprintf('%s %s', $field, $operator === '!=' ? 'IS NOT NULL' : 'IS NULL');
                 }
 
                 return is_numeric($value)
-                    ? sprintf('%s=%s', $key, $value)
-                    : sprintf('%s="%s"', $key, addcslashes((string) $value, '"\\'));
+                    ? sprintf('%s%s%s', $field, $operator, $value)
+                    : sprintf('%s%s"%s"', $field, $operator, addcslashes((string) $value, '"\\'));
             });
 
         $whereInOperators = [
@@ -185,14 +197,18 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
                     '%s %s [%s]',
                     $key,
                     $operator,
-                    collect($values)->map(function ($value) {
+                    collect($values)->map(function (mixed $value): string {
+                        if ($value instanceof BackedEnum) {
+                            $value = $value->value;
+                        }
+
                         if (is_bool($value)) {
                             return $value ? 'true' : 'false';
                         }
 
                         return filter_var($value, FILTER_VALIDATE_INT) !== false
                             ? (string) $value
-                            : sprintf('"%s"', $value);
+                            : sprintf('"%s"', addcslashes((string) $value, '"\\'));
                     })->implode(', ')
                 ));
             }
@@ -359,7 +375,11 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
     {
         try {
             $index = $this->meilisearch->getIndex($name);
-        } catch (ApiException) {
+        } catch (ApiException $exception) {
+            if ($exception->httpStatus !== 404) {
+                throw $exception;
+            }
+
             $index = null;
         }
 
@@ -367,7 +387,15 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
             return $index;
         }
 
-        return $this->meilisearch->createIndex($name, $options);
+        try {
+            return $this->meilisearch->createIndex($name, $options);
+        } catch (ApiException $exception) {
+            if ($exception->errorCode !== 'index_already_exists') {
+                throw $exception;
+            }
+
+            return $this->meilisearch->index($name);
+        }
     }
 
     /**

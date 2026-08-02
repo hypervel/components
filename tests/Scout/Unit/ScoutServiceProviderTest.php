@@ -30,7 +30,7 @@ class ScoutServiceProviderTest extends TestCase
         return [ScoutServiceProvider::class];
     }
 
-    public function testTypesenseClientUsesGuzzle()
+    public function testTypesenseClientUsesGuzzle(): void
     {
         $this->app->make('config')->set('scout.typesense.client-settings', [
             'api_key' => 'test-key',
@@ -59,7 +59,7 @@ class ScoutServiceProviderTest extends TestCase
         }
     }
 
-    public function testTypesenseClientRespectsExplicitClientConfig()
+    public function testTypesenseClientRespectsExplicitClientConfig(): void
     {
         $customClient = new GuzzleClient(['timeout' => 99]);
 
@@ -84,7 +84,7 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertSame($customClient, $client);
     }
 
-    public function testMeilisearchClientUsesExplicitGuzzle()
+    public function testMeilisearchClientUsesExplicitGuzzle(): void
     {
         // Closes the pre-existing gap where the binding fell through to
         // Psr18ClientDiscovery::find(). Verifies our explicit Guzzle injection
@@ -100,7 +100,7 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertInstanceOf(GuzzleClient::class, $psr18);
     }
 
-    public function testAlgoliaClientIsRegistered()
+    public function testAlgoliaClientIsRegistered(): void
     {
         // Algolia4SearchConfig throws if appId or apiKey is empty, so seed
         // non-empty credentials before resolving.
@@ -113,7 +113,7 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertInstanceOf(AlgoliaSearchClient::class, $client);
     }
 
-    public function testAlgoliaSdkUsesExplicitGuzzleAfterProviderBoot()
+    public function testAlgoliaSdkUsesExplicitGuzzleAfterProviderBoot(): void
     {
         $wrapper = Algolia::getHttpClient();
 
@@ -128,7 +128,7 @@ class ScoutServiceProviderTest extends TestCase
         );
     }
 
-    public function testAlgoliaClientUsesExplicitGuzzle()
+    public function testAlgoliaClientUsesExplicitGuzzle(): void
     {
         // Pins the behaviour: provider boot configures the Algolia SDK to use
         // our Guzzle-backed HTTP client before the client binding is resolved.
@@ -148,7 +148,7 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertInstanceOf(GuzzleClient::class, $inner);
     }
 
-    public function testAlgoliaClientHasScoutTelescopeTags()
+    public function testAlgoliaClientHasScoutTelescopeTags(): void
     {
         $this->app->make('config')->set('scout.algolia.id', 'test-app-id');
         $this->app->make('config')->set('scout.algolia.secret', 'test-secret');
@@ -165,7 +165,7 @@ class ScoutServiceProviderTest extends TestCase
         );
     }
 
-    public function testMeilisearchClientHasScoutTelescopeTags()
+    public function testMeilisearchClientHasScoutTelescopeTags(): void
     {
         /** @var MeilisearchClient $client */
         $client = $this->app->make(MeilisearchClient::class);
@@ -247,7 +247,7 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertSame(1, $mock->count(), 'only the first response should be consumed when retries are disabled');
     }
 
-    public function testTypesenseClientHasScoutTelescopeTags()
+    public function testTypesenseClientHasScoutTelescopeTags(): void
     {
         $this->app->make('config')->set('scout.typesense.client-settings', [
             'api_key' => 'test-key',

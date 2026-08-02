@@ -16,7 +16,6 @@ use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use ReflectionMethod;
@@ -302,9 +301,9 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 call_user_func($builder->callback, $query, $builder, $builder->query);
             })
             ->when($builder->callback === null && count($builder->wheres) > 0, function (EloquentBuilder $query) use ($builder): void {
-                foreach ($builder->wheres as $key => $value) {
-                    if ($key !== '__soft_deleted') {
-                        $query->where($key, '=', $value);
+                foreach ($builder->wheres as $where) {
+                    if ($where['field'] !== '__soft_deleted') {
+                        $query->where($where['field'], $where['operator'], $where['value']);
                     }
                 }
             })
@@ -328,14 +327,14 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     protected function constrainForSoftDeletes(Builder $builder, EloquentBuilder $query): EloquentBuilder
     {
-        $softDeletedValue = Arr::get($builder->wheres, '__soft_deleted');
+        $softDeleteWhere = collect($builder->wheres)->firstWhere('field', '__soft_deleted');
 
-        if ($softDeletedValue === 0) {
+        if ($softDeleteWhere !== null && $softDeleteWhere['value'] === 0) {
             /* @phpstan-ignore method.notFound (SoftDeletes adds this method via global scope) */
             return $query->withoutTrashed();
         }
 
-        if ($softDeletedValue === 1) {
+        if ($softDeleteWhere !== null && $softDeleteWhere['value'] === 1) {
             /* @phpstan-ignore method.notFound (SoftDeletes adds this method via global scope) */
             return $query->onlyTrashed();
         }
@@ -396,7 +395,9 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 continue;
             }
 
-            $columns = array_merge($columns, Arr::wrap($attribute->getArguments()[0]));
+            /** @var SearchUsingFullText|SearchUsingPrefix $attributeInstance */
+            $attributeInstance = $attribute->newInstance();
+            $columns = array_merge($columns, $attributeInstance->columns);
         }
 
         return $this->attributeColumns[$modelClass][$attributeClass] = $columns;
@@ -420,8 +421,9 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         $reflection = new ReflectionMethod($builder->model, 'toSearchableArray');
 
         foreach ($reflection->getAttributes(SearchUsingFullText::class) as $attribute) {
-            $arguments = $attribute->getArguments()[1] ?? [];
-            $options = array_merge($options, Arr::wrap($arguments));
+            /** @var SearchUsingFullText $attributeInstance */
+            $attributeInstance = $attribute->newInstance();
+            $options = array_merge($options, $attributeInstance->options);
         }
 
         return $this->fullTextOptions[$modelClass] = $options;

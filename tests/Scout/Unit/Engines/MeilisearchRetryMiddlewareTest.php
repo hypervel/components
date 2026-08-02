@@ -34,7 +34,7 @@ use Hypervel\Tests\TestCase;
  */
 class MeilisearchRetryMiddlewareTest extends TestCase
 {
-    public function testEngineSmokeTestRetriesOn5xxThenSucceeds()
+    public function testEngineSmokeTestRetriesOn5xxThenSucceeds(): void
     {
         $mock = new MockHandler([
             new Response(500),
@@ -48,7 +48,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(0, $mock->count(), 'all queued responses consumed');
     }
 
-    public function test500ThenSuccessRetriesOnce()
+    public function test500ThenSuccessRetriesOnce(): void
     {
         $mock = new MockHandler([
             new Response(500),
@@ -62,7 +62,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(0, $mock->count(), '2 attempts consumed');
     }
 
-    public function test429ThenSuccessRetriesOnce()
+    public function test429ThenSuccessRetriesOnce(): void
     {
         $mock = new MockHandler([
             new Response(429),
@@ -76,7 +76,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(0, $mock->count(), '2 attempts consumed');
     }
 
-    public function test400IsNotRetried()
+    public function test400IsNotRetried(): void
     {
         $mock = new MockHandler([
             new Response(400),
@@ -91,7 +91,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(1, $mock->count(), 'only the first response was consumed (no retry)');
     }
 
-    public function testConnectionExceptionThenSuccessRetriesOnce()
+    public function testConnectionExceptionThenSuccessRetriesOnce(): void
     {
         $request = new Psr7Request('POST', 'http://example.test/x');
         $mock = new MockHandler([
@@ -106,7 +106,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(0, $mock->count(), '2 attempts consumed');
     }
 
-    public function testRepeated5xxStopsAtConfiguredRetries()
+    public function testRepeated5xxStopsAtConfiguredRetries(): void
     {
         $mock = new MockHandler([
             new Response(500),
@@ -130,7 +130,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(1, $mock->count(), '4 attempts consumed (1 initial + 3 retries); 5th response untouched');
     }
 
-    public function testRetriesZeroDisablesRetrying()
+    public function testRetriesZeroDisablesRetrying(): void
     {
         $mock = new MockHandler([
             new Response(500),
@@ -150,7 +150,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(1, $mock->count(), 'only the first response was consumed (retries disabled)');
     }
 
-    public function testHappyPathDoesNotRetryWhenFirstAttemptSucceeds()
+    public function testHappyPathDoesNotRetryWhenFirstAttemptSucceeds(): void
     {
         $mock = new MockHandler([
             new Response(200),
@@ -165,7 +165,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(1, $mock->count(), 'only the first response was consumed (no retry needed)');
     }
 
-    public function testCombinedRetryableConditionsAcrossAttempts()
+    public function testCombinedRetryableConditionsAcrossAttempts(): void
     {
         $request = new Psr7Request('POST', 'http://example.test/x');
         $mock = new MockHandler([
@@ -182,7 +182,7 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $this->assertSame(0, $mock->count(), 'all 4 attempts consumed');
     }
 
-    public function testRequestPreservedAcrossRetries()
+    public function testRequestPreservedAcrossRetries(): void
     {
         $container = [];
         $mock = new MockHandler([
