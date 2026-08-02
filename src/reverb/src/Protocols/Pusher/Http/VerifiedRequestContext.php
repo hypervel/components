@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Reverb\Protocols\Pusher\Http;
 
 use Hypervel\Reverb\Application;
-use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
+use Hypervel\Reverb\Protocols\Pusher\Contracts\ScopedChannelManager;
 
 final readonly class VerifiedRequestContext
 {

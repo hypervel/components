@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
-use Exception;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
+use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
+use Hypervel\Reverb\Protocols\Pusher\Exceptions\InvalidMessageFormat;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Support\Str;
+use JsonException;
 
 class EventHandler
 {
@@ -29,6 +31,23 @@ class EventHandler
     {
         $event = Str::after($event, 'pusher:');
 
+        if (in_array($event, ['subscribe', 'unsubscribe'], true)
+            && ! is_string($payload['channel'] ?? null)) {
+            throw new InvalidMessageFormat('Invalid subscription channel');
+        }
+
+        if ($event === 'subscribe'
+            && isset($payload['auth'])
+            && ! is_string($payload['auth'])) {
+            throw new InvalidMessageFormat('Invalid subscription authentication');
+        }
+
+        if ($event === 'subscribe'
+            && isset($payload['channel_data'])
+            && ! is_string($payload['channel_data'])) {
+            throw new InvalidMessageFormat('Invalid subscription channel data');
+        }
+
         match ($event) {
             'connection_established' => $this->acknowledge($connection),
             'subscribe' => $this->subscribe(
@@ -40,7 +59,7 @@ class EventHandler
             'unsubscribe' => $this->unsubscribe($connection, $payload['channel']),
             'ping' => $this->pong($connection),
             'pong' => $connection->touch(),
-            default => throw new Exception('Unknown Pusher event: ' . $event),
+            default => throw new InvalidMessageFormat('Unknown Pusher event: ' . $event),
         };
     }
 
@@ -60,15 +79,31 @@ class EventHandler
      */
     public function subscribe(Connection $connection, string $channel, ?string $auth = null, ?string $data = null): void
     {
-        if ($data !== null && ! json_validate($data)) {
-            throw new Exception('Invalid subscription data');
+        if ($data !== null) {
+            try {
+                $decodedData = json_decode($data, associative: true, flags: JSON_THROW_ON_ERROR);
+            } catch (JsonException $exception) {
+                throw new InvalidMessageFormat('Invalid subscription data', previous: $exception);
+            }
+
+            if (! is_array($decodedData)) {
+                throw new InvalidMessageFormat('Subscription data must be a JSON object');
+            }
         }
 
-        $channel = $this->channels
-            ->for($connection->app())
-            ->findOrCreate($channel);
+        $channels = $this->channels->for($connection->app());
+        $channelExisted = $channels->exists($channel);
+        $channel = $channels->findOrCreate($channel);
 
-        $channel->subscribe($connection, $auth, $data);
+        try {
+            $channel->subscribe($connection, $auth, $data);
+        } catch (ConnectionUnauthorized $exception) {
+            if (! $channelExisted && $channel->connections() === []) {
+                $channels->remove($channel);
+            }
+
+            throw $exception;
+        }
 
         $this->afterSubscribe($channel, $connection);
     }

@@ -6,13 +6,11 @@ namespace Hypervel\Reverb\Protocols\Pusher\Http\Controllers;
 
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
-use Hypervel\Reverb\Protocols\Pusher\Concerns\InteractsWithChannelInformation;
 use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
+use Hypervel\Reverb\Protocols\Pusher\MetricType;
 
 class ChannelUsersController extends Controller
 {
-    use InteractsWithChannelInformation;
-
     /**
      * Handle the request.
      */
@@ -20,19 +18,25 @@ class ChannelUsersController extends Controller
     {
         $context = $this->verify($request, $appId);
 
-        $channelInstance = $context->channels->find($channel);
+        $presence = app(MetricsHandler::class)->gather(
+            $context->application,
+            MetricType::Presence->value,
+            ['channel' => $channel],
+        );
 
-        if (! $channelInstance) {
+        if (! $presence['exists']) {
             return new JsonResponse((object) [], 404);
         }
 
-        if (! $this->isPresenceChannel($channelInstance)) {
+        if (! $presence['presence']) {
             return new JsonResponse((object) [], 400);
         }
 
-        $connections = app(MetricsHandler::class)
-            ->gather($context->application, 'channel_users', ['channel' => $channelInstance->name()]);
+        $users = collect($presence['users'])
+            ->map(fn (array $user): array => ['id' => $user['user_id']])
+            ->values()
+            ->all();
 
-        return new JsonResponse(['users' => $connections]);
+        return new JsonResponse(['users' => $users]);
     }
 }

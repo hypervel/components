@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher\Managers;
 
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
-use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
+use Hypervel\Reverb\Protocols\Pusher\Contracts\ScopedChannelManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 
@@ -28,7 +28,7 @@ class ChannelManagerTest extends ReverbTestCase
         $this->channel = $this->channelManager->findOrCreate('test-channel-0');
     }
 
-    public function testCanSubscribeToAChannel()
+    public function testCanSubscribeToAChannel(): void
     {
         collect(static::factory(5))
             ->each(fn ($connection) => $this->channel->subscribe($connection->connection()));
@@ -36,7 +36,7 @@ class ChannelManagerTest extends ReverbTestCase
         $this->assertCount(5, $this->channel->connections());
     }
 
-    public function testCanUnsubscribeFromAChannel()
+    public function testCanUnsubscribeFromAChannel(): void
     {
         $connections = collect(static::factory(5))
             ->each(fn ($connection) => $this->channel->subscribe($connection->connection()));
@@ -46,7 +46,7 @@ class ChannelManagerTest extends ReverbTestCase
         $this->assertCount(4, $this->channel->connections());
     }
 
-    public function testCanGetAllChannels()
+    public function testCanGetAllChannels(): void
     {
         $channels = collect(['test-channel-1', 'test-channel-2', 'test-channel-3']);
 
@@ -59,7 +59,7 @@ class ChannelManagerTest extends ReverbTestCase
         $this->assertCount(4, $this->channelManager->all());
     }
 
-    public function testCanDetermineWhetherAChannelExists()
+    public function testCanDetermineWhetherAChannelExists(): void
     {
         $this->channelManager->findOrCreate('test-channel-1');
 
@@ -67,7 +67,7 @@ class ChannelManagerTest extends ReverbTestCase
         $this->assertFalse($this->channelManager->exists('test-channel-2'));
     }
 
-    public function testCanGetAllConnectionsSubscribedToAChannel()
+    public function testCanGetAllConnectionsSubscribedToAChannel(): void
     {
         $connections = collect(static::factory(5))
             ->each(fn ($connection) => $this->channel->subscribe($connection->connection()));
@@ -77,7 +77,7 @@ class ChannelManagerTest extends ReverbTestCase
         $connections->each(fn ($connection) => $this->assertContains($connection->id(), $connectionKeys));
     }
 
-    public function testCanUnsubscribeAConnectionFromAllChannels()
+    public function testCanUnsubscribeAConnectionFromAllChannels(): void
     {
         $channels = collect(['test-channel-0', 'test-channel-1', 'test-channel-2']);
 
@@ -90,7 +90,7 @@ class ChannelManagerTest extends ReverbTestCase
         collect($this->channelManager->all())->each(fn ($channel) => $this->assertCount(0, $channel->connections()));
     }
 
-    public function testCanGetTheDataForAConnectionSubscribedToAChannel()
+    public function testCanGetTheDataForAConnectionSubscribedToAChannel(): void
     {
         collect(static::factory(5))->each(fn ($connection) => $this->channel->subscribe(
             $connection->connection(),
@@ -102,7 +102,7 @@ class ChannelManagerTest extends ReverbTestCase
         });
     }
 
-    public function testCanGetAllConnectionsForAllChannels()
+    public function testCanGetAllConnectionsForAllChannels(): void
     {
         $connections = static::factory(12);
 
@@ -130,5 +130,18 @@ class ChannelManagerTest extends ReverbTestCase
         $this->assertCount(4, $channelOne->connections());
         $this->assertCount(8, $channelTwo->connections());
         $this->assertCount(12, $channelThree->connections());
+    }
+
+    public function testCanFindAConnectionDirectlyAcrossChannels(): void
+    {
+        $connection = new FakeConnection;
+        $socketId = $connection->id();
+        $this->channelManager->findOrCreate('test-channel-1')->subscribe($connection);
+
+        $this->assertSame(
+            $connection,
+            $this->channelManager->findConnection($socketId)?->connection(),
+        );
+        $this->assertNull($this->channelManager->findConnection('missing-connection'));
     }
 }

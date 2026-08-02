@@ -22,8 +22,9 @@ class WebhookBatchBuffer
      */
     public function appendAndCheckSchedule(string $appId, array $eventData): bool
     {
-        $bufferKey = "reverb:webhook:buffer:{$appId}";
-        $lockKey = "reverb:webhook:flush:{$appId}";
+        $tag = $this->appHashTag($appId);
+        $bufferKey = "reverb:webhook:{{$tag}}:buffer";
+        $lockKey = "reverb:webhook:{{$tag}}:flush";
 
         return (bool) $this->redis->evalWithShaCache(
             $this->appendAndLockScript(),
@@ -48,8 +49,9 @@ class WebhookBatchBuffer
      */
     public function claim(string $appId, int $maxEvents, int $maxPayloadBytes): array
     {
-        $bufferKey = "reverb:webhook:buffer:{$appId}";
-        $processingKey = "reverb:webhook:processing:{$appId}";
+        $tag = $this->appHashTag($appId);
+        $bufferKey = "reverb:webhook:{{$tag}}:buffer";
+        $processingKey = "reverb:webhook:{{$tag}}:processing";
 
         $rawEvents = $this->redis->evalWithShaCache(
             $this->claimScript(),
@@ -78,8 +80,9 @@ class WebhookBatchBuffer
      */
     public function recoverStaleProcessingKeys(string $appId, int $maxAgeSeconds = 60): bool
     {
-        $processingKey = "reverb:webhook:processing:{$appId}";
-        $bufferKey = "reverb:webhook:buffer:{$appId}";
+        $tag = $this->appHashTag($appId);
+        $processingKey = "reverb:webhook:{{$tag}}:processing";
+        $bufferKey = "reverb:webhook:{{$tag}}:buffer";
 
         return (bool) $this->redis->evalWithShaCache(
             $this->recoverScript(),
@@ -93,7 +96,9 @@ class WebhookBatchBuffer
      */
     public function acknowledge(string $appId): void
     {
-        $this->redis->del("reverb:webhook:processing:{$appId}");
+        $tag = $this->appHashTag($appId);
+
+        $this->redis->del("reverb:webhook:{{$tag}}:processing");
     }
 
     /**
@@ -101,7 +106,9 @@ class WebhookBatchBuffer
      */
     public function hasRemaining(string $appId): bool
     {
-        return (int) $this->redis->llen("reverb:webhook:buffer:{$appId}") > 0;
+        $tag = $this->appHashTag($appId);
+
+        return (int) $this->redis->llen("reverb:webhook:{{$tag}}:buffer") > 0;
     }
 
     /**
@@ -109,7 +116,17 @@ class WebhookBatchBuffer
      */
     public function clearFlushLock(string $appId): void
     {
-        $this->redis->del("reverb:webhook:flush:{$appId}");
+        $tag = $this->appHashTag($appId);
+
+        $this->redis->del("reverb:webhook:{{$tag}}:flush");
+    }
+
+    /**
+     * Build the Redis Cluster hash tag for an application.
+     */
+    protected function appHashTag(string $appId): string
+    {
+        return hash('xxh128', 'app|' . strlen($appId) . ':' . $appId);
     }
 
     /**

@@ -11,7 +11,7 @@ use ReflectionMethod;
 
 class RouteIsolationTest extends ReverbTestCase
 {
-    public function testReverbRouterRejectsNonReverbPaths()
+    public function testReverbRouterRejectsNonReverbPaths(): void
     {
         // Register a route on the global Router (simulates an app route)
         $this->app->make('router')->get('/api/users', fn () => 'app response');
@@ -22,7 +22,7 @@ class RouteIsolationTest extends ReverbTestCase
         $response->assertNotFound();
     }
 
-    public function testReverbRouterServesReverbRoutes()
+    public function testReverbRouterServesReverbRoutes(): void
     {
         $response = $this->reverbGet('/up');
 
@@ -30,7 +30,7 @@ class RouteIsolationTest extends ReverbTestCase
         $this->assertSame('{"health":"OK"}', $response->getContent());
     }
 
-    public function testWebSocketServerUsesReverbRouter()
+    public function testWebSocketServerUsesReverbRouter(): void
     {
         $wsServer = $this->app->make(WebSocketServer::class);
 

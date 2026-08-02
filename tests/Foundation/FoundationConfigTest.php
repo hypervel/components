@@ -51,6 +51,15 @@ class FoundationConfigTest extends TestCase
         $this->assertFalse($config['settings'][Constant::OPTION_DAEMONIZE]);
     }
 
+    public function testReverbBroadcastingConfigUsesTheServerPath(): void
+    {
+        $config = $this->withEnvironmentValue('REVERB_SERVER_PATH', '/socket', function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
+        });
+
+        $this->assertSame('/socket', $config['connections']['reverb']['options']['path']);
+    }
+
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void
     {
         $key = 'VIEW_COMPILED_PATH';

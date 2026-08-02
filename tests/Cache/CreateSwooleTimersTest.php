@@ -185,6 +185,52 @@ class CreateSwooleTimersTest extends TestCase
         $this->assertSame([12, 11], $timer->cleared);
     }
 
+    public function testStopsEveryRegisteredTimerInReverseOrderAndIsIdempotent(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
+            'fast' => [
+                'driver' => 'swoole',
+            ],
+        ]);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $timer = new FakeSwooleTimer([41, 42]);
+        $listener = new CreateSwooleTimers($container, $timer);
+
+        $listener->handle($this->workerEvent(workerId: 0));
+        $listener->stop();
+        $listener->stop();
+
+        $this->assertSame([42, 41], $timer->cleared);
+    }
+
+    public function testStopAttemptsEveryTimerAndPreservesTheFirstClearFailure(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
+            'fast' => [
+                'driver' => 'swoole',
+            ],
+        ]);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $timer = new FakeSwooleTimer([11, 12], [11], [12]);
+        $listener = new CreateSwooleTimers($container, $timer);
+        $listener->handle($this->workerEvent(workerId: 0));
+
+        try {
+            $listener->stop();
+            $this->fail('Expected timer cleanup to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to clear Swoole cache timer [12].', $exception->getMessage());
+        }
+
+        $listener->stop();
+
+        $this->assertSame([12, 11], $timer->cleared);
+    }
+
     private function workerEvent(int $workerId, bool $taskworker = false): AfterWorkerStart
     {
         $server = m::mock(SwooleServer::class);
@@ -209,10 +255,12 @@ class FakeSwooleTimer extends SwooleTimer
     /**
      * @param list<false|int|Throwable> $results
      * @param list<int> $clearFailures
+     * @param list<int> $falseClearResults
      */
     public function __construct(
         protected array $results = [],
         protected array $clearFailures = [],
+        protected array $falseClearResults = [],
     ) {
     }
 
@@ -239,6 +287,10 @@ class FakeSwooleTimer extends SwooleTimer
 
         if (in_array($timerId, $this->clearFailures, true)) {
             throw new RuntimeException("Unable to clear timer [{$timerId}].");
+        }
+
+        if (in_array($timerId, $this->falseClearResults, true)) {
+            return false;
         }
 
         return true;

@@ -6,6 +6,8 @@ namespace Hypervel\Reverb\Protocols\Pusher\Channels\Concerns;
 
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\EventDispatcher;
+use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
+use Hypervel\Reverb\Protocols\Pusher\MetricType;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
@@ -21,12 +23,20 @@ trait InteractsWithPresenceChannels
     {
         $this->verify($connection, $auth, $data);
 
-        $userData = $data ? json_decode($data, associative: true, flags: JSON_THROW_ON_ERROR) : [];
+        $userData = $this->decodeSubscriptionData($data);
         $presenceUserId = (string) ($userData['user_id'] ?? '');
 
-        parent::subscribe($connection, $auth, $data, $presenceUserId === '' ? null : $presenceUserId);
+        $result = $this->subscribeToChannel(
+            $connection,
+            $userData,
+            $presenceUserId === '' ? null : $presenceUserId,
+        );
 
-        $result = $this->lastSubscriptionResult();
+        if ($result === null) {
+            return;
+        }
+
+        $this->afterSubscribed($connection, $result);
 
         if ($result->memberAdded || $presenceUserId === '') {
             // Internal protocol event always fires — other connected clients
@@ -80,11 +90,18 @@ trait InteractsWithPresenceChannels
         $subscription = $this->connections->find($connection);
         $presenceUserId = (string) ($subscription?->data('user_id') ?? '');
 
-        parent::unsubscribe($connection, $presenceUserId === '' ? null : $presenceUserId);
+        $result = $this->unsubscribeFromChannel(
+            $connection,
+            $presenceUserId === '' ? null : $presenceUserId,
+        );
 
-        $result = $this->lastSubscriptionResult();
+        if ($result === null) {
+            return;
+        }
 
-        if ($subscription === null || $presenceUserId === '') {
+        $this->afterUnsubscribed($connection, $result);
+
+        if ($presenceUserId === '') {
             return;
         }
 
@@ -124,9 +141,24 @@ trait InteractsWithPresenceChannels
      */
     public function data(): array
     {
-        $connections = collect($this->connections->all())
-            ->map(fn ($connection) => $connection->data())
-            ->unique('user_id');
+        $connection = collect($this->connections->all())->first();
+
+        if ($connection === null) {
+            return [
+                'presence' => [
+                    'count' => 0,
+                    'ids' => [],
+                    'hash' => [],
+                ],
+            ];
+        }
+
+        $snapshot = app(MetricsHandler::class)->gather(
+            $connection->app(),
+            MetricType::Presence->value,
+            ['channel' => $this->name()],
+        );
+        $connections = collect($snapshot['users']);
 
         if ($connections->contains(fn ($connection) => ! isset($connection['user_id']))) {
             return [

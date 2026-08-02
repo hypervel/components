@@ -4,16 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Reverb\Connection;
+use Hypervel\Reverb\Contracts\WebSocketConnection;
 use Hypervel\Reverb\Events\ConnectionClosed;
 use Hypervel\Reverb\Events\ConnectionEstablished;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
+use Hypervel\Reverb\Protocols\Pusher\EventHandler;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Server;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 class ServerTest extends ReverbTestCase
 {
@@ -26,11 +32,12 @@ class ServerTest extends ReverbTestCase
         $this->server = $this->app->make(Server::class);
     }
 
-    public function testCanHandleAConnection()
+    public function testCanHandleAConnection(): void
     {
         $this->server->open($connection = new FakeConnection);
 
         $this->assertNotNull($connection->lastSeenAt());
+        $this->assertTrue($connection->isEstablished());
 
         $connection->assertReceived([
             'event' => 'pusher:connection_established',
@@ -41,7 +48,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanHandleADisconnection()
+    public function testCanHandleADisconnection(): void
     {
         $scopedManager = m::spy(ScopedChannelManager::class);
 
@@ -52,12 +59,13 @@ class ServerTest extends ReverbTestCase
         $this->app->forgetInstance(Server::class);
         $server = $this->app->make(Server::class);
 
-        $server->close(new FakeConnection);
+        $server->open($connection = new FakeConnection);
+        $server->close($connection);
 
         $scopedManager->shouldHaveReceived('unsubscribeFromAll');
     }
 
-    public function testCanHandleANewMessage()
+    public function testCanHandleANewMessage(): void
     {
         $this->server->open($connection = new FakeConnection);
         $this->server->message(
@@ -86,7 +94,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testSendsAnErrorIfSomethingFails()
+    public function testSendsAnErrorIfSomethingFails(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -121,7 +129,66 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanSubscribeAUserToAChannel()
+    public function testRejectsScalarSubscriptionDataBeforePublishingSharedMembership(): void
+    {
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $this->server->message(
+            $connection = new FakeConnection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => [
+                    'channel' => 'public-channel',
+                    'channel_data' => '1',
+                ],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:error',
+            'data' => json_encode([
+                'code' => 4200,
+                'message' => 'Invalid message format',
+            ]),
+        ]);
+
+        $this->assertSame(
+            0,
+            $this->app->make(SharedState::class)->getSubscriptionCount('123456', 'public-channel'),
+        );
+        $this->assertNull($this->channels()->find('public-channel'));
+    }
+
+    public function testReportsUnexpectedMessageFailuresWithoutChangingTheClientPayload(): void
+    {
+        $exception = new RuntimeException('Internal handler failure');
+        $handler = m::mock(EventHandler::class);
+        $handler->shouldReceive('handle')->once()->andThrow($exception);
+
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldReceive('report')->once()->with($exception);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $server = new Server($this->app->make(ChannelManager::class), $handler);
+        $server->message(
+            $connection = new FakeConnection,
+            json_encode([
+                'event' => 'pusher:ping',
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:error',
+            'data' => json_encode([
+                'code' => 4200,
+                'message' => 'Invalid message format',
+            ]),
+        ]);
+    }
+
+    public function testCanSubscribeAUserToAChannel(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -143,7 +210,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanSubscribeAUserToAPrivateChannel()
+    public function testCanSubscribeAUserToAPrivateChannel(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -163,7 +230,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanSubscribeAUserToAPresenceChannel()
+    public function testCanSubscribeAUserToAPresenceChannel(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -189,7 +256,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testReceivesNoDataWhenNoPreviousEventTriggeredWhenJoiningACacheChannel()
+    public function testReceivesNoDataWhenNoPreviousEventTriggeredWhenJoiningACacheChannel(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -213,7 +280,7 @@ class ServerTest extends ReverbTestCase
         $connection->assertReceivedCount(2);
     }
 
-    public function testReceivesLastTriggeredEventWhenJoiningACacheChannel()
+    public function testReceivesLastTriggeredEventWhenJoiningACacheChannel(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -248,7 +315,7 @@ class ServerTest extends ReverbTestCase
         $connection->assertReceivedCount(2);
     }
 
-    public function testUnsubscribesAUserFromAChannelOnDisconnection()
+    public function testUnsubscribesAUserFromAChannelOnDisconnection(): void
     {
         $this->server->open($connection = new FakeConnection);
         $this->server->message(
@@ -266,7 +333,7 @@ class ServerTest extends ReverbTestCase
         $this->assertNull($this->channels()->find('test-channel'));
     }
 
-    public function testUnsubscribesAUserFromAPrivateChannelOnDisconnection()
+    public function testUnsubscribesAUserFromAPrivateChannelOnDisconnection(): void
     {
         $connection = new FakeConnection;
         $this->server->open($connection);
@@ -288,7 +355,7 @@ class ServerTest extends ReverbTestCase
         $this->assertNull($this->channels()->find('private-test-channel'));
     }
 
-    public function testUnsubscribesAUserFromAPresenceChannelOnDisconnection()
+    public function testUnsubscribesAUserFromAPresenceChannelOnDisconnection(): void
     {
         $connection = new FakeConnection;
         $this->server->open($connection);
@@ -313,11 +380,12 @@ class ServerTest extends ReverbTestCase
     }
 
     #[DataProvider('invalidOriginProvider')]
-    public function testRejectsAConnectionFromAnInvalidOrigin(string $origin, array $allowedOrigins)
+    public function testRejectsAConnectionFromAnInvalidOrigin(string $origin, array $allowedOrigins): void
     {
         $this->app['config']->set('reverb.apps.apps.0.allowed_origins', $allowedOrigins);
         $this->server->open($connection = new FakeConnection(origin: $origin));
 
+        $this->assertFalse($connection->isEstablished());
         $connection->assertReceived([
             'event' => 'pusher:error',
             'data' => json_encode([
@@ -336,12 +404,28 @@ class ServerTest extends ReverbTestCase
         ];
     }
 
+    public function testRejectsAConnectionWithoutAnOrigin(): void
+    {
+        $this->app['config']->set('reverb.apps.apps.0.allowed_origins', ['localhost']);
+
+        $webSocket = m::mock(WebSocketConnection::class);
+        $webSocket->shouldReceive('send')->once();
+        $application = $this->app->make(\Hypervel\Reverb\Contracts\ApplicationProvider::class)
+            ->findByKey('reverb-key');
+        $connection = new Connection($webSocket, $application, null);
+
+        $this->server->open($connection);
+
+        $this->assertFalse($connection->isEstablished());
+    }
+
     #[DataProvider('validOriginProvider')]
-    public function testAcceptsAConnectionFromAValidOrigin(string $origin, array $allowedOrigins)
+    public function testAcceptsAConnectionFromAValidOrigin(string $origin, array $allowedOrigins): void
     {
         $this->app['config']->set('reverb.apps.apps.0.allowed_origins', $allowedOrigins);
         $this->server->open($connection = new FakeConnection(origin: $origin));
 
+        $this->assertTrue($connection->isEstablished());
         $connection->assertReceived([
             'event' => 'pusher:connection_established',
             'data' => json_encode([
@@ -359,7 +443,7 @@ class ServerTest extends ReverbTestCase
         ];
     }
 
-    public function testRejectsAConnectionWhenTheAppIsOverTheConnectionLimit()
+    public function testRejectsAConnectionWhenTheAppIsOverTheConnectionLimit(): void
     {
         $this->app['config']->set('reverb.apps.apps.0.max_connections', 1);
         $this->server->open($connection = new FakeConnection);
@@ -374,6 +458,8 @@ class ServerTest extends ReverbTestCase
         );
         $this->server->open($connectionTwo = new FakeConnection);
 
+        $this->assertTrue($connection->isEstablished());
+        $this->assertFalse($connectionTwo->isEstablished());
         $connectionTwo->assertReceived([
             'event' => 'pusher:error',
             'data' => json_encode([
@@ -383,7 +469,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testSendsAnErrorIfSomethingFailsForEventType()
+    public function testSendsAnErrorIfSomethingFailsForEventType(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -401,7 +487,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testSendsAnErrorIfSomethingFailsForDataType()
+    public function testSendsAnErrorIfSomethingFailsForDataType(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -420,7 +506,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testSendsAnErrorIfSomethingFailsForDataChannelType()
+    public function testSendsAnErrorIfSomethingFailsForDataChannelType(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -455,7 +541,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testSendsAnErrorIfSomethingFailsForDataAuthType()
+    public function testSendsAnErrorIfSomethingFailsForDataAuthType(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -477,7 +563,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testSendsAnErrorIfSomethingFailsForDataChannelDataType()
+    public function testSendsAnErrorIfSomethingFailsForDataChannelDataType(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -520,7 +606,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testSendsAnErrorIfSomethingFailsForChannelType()
+    public function testSendsAnErrorIfSomethingFailsForChannelType(): void
     {
         $this->server->message(
             $connection = new FakeConnection,
@@ -539,7 +625,7 @@ class ServerTest extends ReverbTestCase
         ]);
     }
 
-    public function testRejectsAMessageWhenTheRateLimitIsExceeded()
+    public function testRejectsAMessageWhenTheRateLimitIsExceeded(): void
     {
         $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
@@ -624,7 +710,37 @@ class ServerTest extends ReverbTestCase
         $this->assertFalse($connection->wasTerminated);
     }
 
-    public function testTerminatesTheConnectionWhenRateLimitIsExceededAndConfiguredToTerminate()
+    public function testCloseClearsInitializedMessageRateLimiterState(): void
+    {
+        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+            'enabled' => true,
+            'max_attempts' => 1,
+            'decay_seconds' => 60,
+            'terminate_on_limit' => false,
+        ]);
+
+        $this->server->open($connection = new FakeConnection);
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel'],
+            ])
+        );
+
+        $cache = $this->app->make('cache')->store('worker-array');
+        $key = 'reverb:message:' . $connection->id();
+
+        $this->assertTrue($connection->hasInitializedRateLimiter());
+        $this->assertTrue($cache->has($key));
+
+        $this->server->close($connection);
+
+        $this->assertFalse($connection->hasInitializedRateLimiter());
+        $this->assertFalse($cache->has($key));
+    }
+
+    public function testTerminatesTheConnectionWhenRateLimitIsExceededAndConfiguredToTerminate(): void
     {
         $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
@@ -662,7 +778,7 @@ class ServerTest extends ReverbTestCase
         $this->assertTrue($connection->wasTerminated);
     }
 
-    public function testAllowsUnlimitedMessagesWhenNoRateLimitIsConfigured()
+    public function testAllowsUnlimitedMessagesWhenNoRateLimitIsConfigured(): void
     {
         $this->server->open($connection = new FakeConnection);
 
@@ -679,7 +795,7 @@ class ServerTest extends ReverbTestCase
         $connection->assertReceivedCount(11);
     }
 
-    public function testAllowReceivingClientEventWithEmptyData()
+    public function testAllowReceivingClientEventWithEmptyData(): void
     {
         $channel = $this->channels()->findOrCreate('private-chat.1');
 
@@ -701,7 +817,7 @@ class ServerTest extends ReverbTestCase
         $connection->connection()->assertNothingReceived();
     }
 
-    public function testCloseDoesNotTerminateTheConnection()
+    public function testCloseDoesNotTerminateTheConnection(): void
     {
         $scopedManager = m::spy(ScopedChannelManager::class);
 
@@ -713,6 +829,7 @@ class ServerTest extends ReverbTestCase
         $server = $this->app->make(Server::class);
 
         $connection = new FakeConnection;
+        $server->open($connection);
         $server->close($connection);
 
         // close() is the "client already disconnected" cleanup path.
@@ -721,7 +838,7 @@ class ServerTest extends ReverbTestCase
         $this->assertFalse($connection->wasTerminated);
     }
 
-    public function testCloseSetsDisconnectingFlag()
+    public function testCloseSetsDisconnectingFlag(): void
     {
         $scopedManager = m::spy(ScopedChannelManager::class);
 
@@ -735,12 +852,13 @@ class ServerTest extends ReverbTestCase
         $connection = new FakeConnection;
         $this->assertFalse($connection->isDisconnecting());
 
+        $server->open($connection);
         $server->close($connection);
 
         $this->assertTrue($connection->isDisconnecting());
     }
 
-    public function testConnectionEstablishedEventIsDispatched()
+    public function testConnectionEstablishedEventIsDispatched(): void
     {
         Event::fake();
 
@@ -751,7 +869,7 @@ class ServerTest extends ReverbTestCase
         });
     }
 
-    public function testConnectionEstablishedEventNotDispatchedOnFailure()
+    public function testConnectionEstablishedEventNotDispatchedOnFailure(): void
     {
         Event::fake();
 
@@ -761,11 +879,12 @@ class ServerTest extends ReverbTestCase
         Event::assertNotDispatched(ConnectionEstablished::class);
     }
 
-    public function testConnectionClosedEventIsDispatched()
+    public function testConnectionClosedEventIsDispatched(): void
     {
         Event::fake();
 
         $connection = new FakeConnection;
+        $this->server->open($connection);
         $this->server->close($connection);
 
         Event::assertDispatched(ConnectionClosed::class, function (ConnectionClosed $event) use ($connection) {

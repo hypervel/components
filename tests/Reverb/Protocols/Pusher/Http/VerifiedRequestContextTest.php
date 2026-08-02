@@ -10,7 +10,7 @@ use ReflectionClass;
 
 class VerifiedRequestContextTest extends ReverbTestCase
 {
-    public function testControllerHasNoMutableRequestState()
+    public function testControllerHasNoMutableRequestState(): void
     {
         $reflection = new ReflectionClass(Controller::class);
         $properties = collect($reflection->getProperties())

@@ -16,6 +16,9 @@ interface ChannelConnectionManager
 
     /**
      * Add a connection.
+     *
+     * Implementations must synchronously commit every decoded subscription
+     * array without throwing.
      */
     public function add(Connection $connection, array $data): void;
 

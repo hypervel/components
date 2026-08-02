@@ -4,19 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Reverb\Contracts\Logger;
 use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisPubSubProvider;
-use Hypervel\Support\Sleep;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JsonException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
+
+use function Hypervel\Coroutine\go;
 
 class RedisPubSubProviderTest extends ReverbTestCase
 {
@@ -26,52 +33,74 @@ class RedisPubSubProviderTest extends ReverbTestCase
     {
         parent::setUp();
 
-        $this->logger = m::mock(Logger::class);
-        $this->logger->shouldReceive('info', 'error')->zeroOrMoreTimes();
+        $this->logger = m::spy(Logger::class);
         $this->app->instance(Logger::class, $this->logger);
         Log::flushState();
     }
 
     #[RunInSeparateProcess]
-    public function testSpawnFailureRollsBackTheCommittedSubscriber(): void
+    public function testSpawnFailureRollsBackTheLifecycleOwner(): void
     {
         SwooleCoroutine::set(['max_coroutine' => 1]);
 
-        $subscriber = $this->subscriber();
-        $subscriber->shouldReceive('subscribe')->once()->with('reverb');
-        $subscriber->shouldReceive('close')->once()->andReturnUsing(function () use ($subscriber): void {
-            $subscriber->closed = true;
-        });
         $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('subscriber')->once()->andReturn($subscriber);
+        $redis->shouldNotReceive('subscriber');
+        $provider = $this->provider($redis);
+
+        try {
+            $provider->connect();
+            $this->fail('Expected lifecycle coroutine creation to fail.');
+        } catch (CoroutineCreateException) {
+            $this->assertFalse($provider->runningForTest());
+        }
+    }
+
+    public function testDuplicateConnectCallsRetainOneLifecycleOwner(): void
+    {
+        $messages = new Channel(1);
+        $subscriber = $this->subscriber($messages);
+        $subscriber->expects('subscribe')->with('reverb');
+        $this->expectSubscriberClose($subscriber, $messages);
+        $redis = m::mock(RedisProxy::class);
+        $redis->expects('subscriber')->andReturn($subscriber);
         $provider = $this->provider($redis);
 
         $provider->connect();
+        $provider->connect();
 
-        $this->assertNull($provider->subscriberForTest());
-        $this->assertSame(1, $provider->reconnectCount);
-        $this->assertTrue($subscriber->closed);
+        $this->assertTrue($provider->runningForTest());
+
+        $provider->disconnect();
+        $this->waitUntilStopped($provider);
     }
 
-    public function testRepeatedConnectionFailuresReachTheRetryLimit(): void
+    public function testConnectionFailuresContinuePastTheOldRetryLimitAndAreLoggedAtABoundedRate(): void
     {
-        Sleep::fake();
         $redis = m::mock(RedisProxy::class);
-        $redis->shouldReceive('subscriber')
-            ->times(60)
-            ->andThrow(new RuntimeException('redis unavailable'));
-        $provider = new RedisPubSubProvider(
-            m::mock(PubSubIncomingMessageHandler::class),
-            $redis,
-            'reverb',
+        $provider = $this->provider($redis);
+        $attempts = 0;
+        $redis->expects('subscriber')->times(61)->andReturnUsing(
+            function () use (&$attempts, $provider): never {
+                ++$attempts;
+
+                if ($attempts === 61) {
+                    $provider->disconnect();
+                }
+
+                throw new RuntimeException('redis unavailable');
+            },
         );
 
         $provider->connect();
+        $this->waitUntilStopped($provider);
 
-        Sleep::assertSleptTimes(59);
+        $this->assertSame(61, $attempts);
+        $this->logger->shouldHaveReceived('error')
+            ->with('Redis connection failed: redis unavailable')
+            ->twice();
     }
 
-    public function testDisconnectDuringSubscriptionDoesNotCommitOrSpawn(): void
+    public function testDisconnectDuringSubscriptionDoesNotCommitOrRetry(): void
     {
         $subscriber = $this->subscriber();
         $redis = m::mock(RedisProxy::class);
@@ -81,16 +110,85 @@ class RedisPubSubProviderTest extends ReverbTestCase
                 $provider->disconnect();
             },
         );
-        $subscriber->shouldReceive('close')->once()->andReturnUsing(function () use ($subscriber): void {
-            $subscriber->closed = true;
-        });
-        $redis->shouldReceive('subscriber')->once()->andReturn($subscriber);
+        $this->expectSubscriberClose($subscriber);
+        $redis->expects('subscriber')->andReturn($subscriber);
 
         $provider->connect();
+        $this->waitUntilStopped($provider);
 
         $this->assertNull($provider->subscriberForTest());
-        $this->assertSame(0, $provider->reconnectCount);
         $this->assertTrue($subscriber->closed);
+    }
+
+    public function testTransportFailureClosesTheCommittedSubscriberAndRecovers(): void
+    {
+        $failedMessages = m::mock(Channel::class);
+        $failedMessages->expects('pop')->andThrow(new RuntimeException('connection lost'));
+        $failedSubscriber = $this->subscriber($failedMessages);
+        $failedSubscriber->expects('subscribe')->with('reverb');
+        $this->expectSubscriberClose($failedSubscriber);
+
+        $recoveredSubscriber = $this->subscriber();
+        $redis = m::mock(RedisProxy::class);
+        $provider = $this->provider($redis);
+        $recoveredSubscriber->expects('subscribe')->with('reverb')->andReturnUsing(
+            function () use ($provider): void {
+                $provider->disconnect();
+            },
+        );
+        $this->expectSubscriberClose($recoveredSubscriber);
+        $redis->expects('subscriber')->twice()->andReturn($failedSubscriber, $recoveredSubscriber);
+
+        $provider->connect();
+        $this->waitUntilStopped($provider);
+
+        $this->assertTrue($failedSubscriber->closed);
+        $this->assertTrue($recoveredSubscriber->closed);
+        $this->logger->shouldHaveReceived('error')
+            ->with('Redis connection failed: connection lost')
+            ->once();
+    }
+
+    public function testMessageHandlerFailureDoesNotReplaceTheSubscriber(): void
+    {
+        $messages = new Channel(1);
+        $messages->push(new Message('prefix:reverb', 'payload'));
+        $subscriber = $this->subscriber($messages);
+        $subscriber->expects('subscribe')->with('reverb');
+        $redis = m::mock(RedisProxy::class);
+        $redis->expects('subscriber')->andReturn($subscriber);
+        $provider = $this->provider($redis);
+        $this->expectSubscriberClose($subscriber, $messages);
+        $handlerFailure = new RuntimeException('handler failed');
+        $provider->messageHandlerForTest()
+            ->expects('handle')
+            ->with('payload')
+            ->andReturnUsing(function () use ($provider, $handlerFailure): never {
+                $provider->disconnect();
+
+                throw $handlerFailure;
+            });
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($handlerFailure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $provider->connect();
+        $this->waitUntilStopped($provider);
+
+        $this->logger->shouldNotHaveReceived('error', ['Redis connection failed: handler failed']);
+    }
+
+    public function testRetryWaitWakesWhenTheWorkerExits(): void
+    {
+        $provider = $this->provider(m::mock(RedisProxy::class));
+        $provider->useRealRetryWait = true;
+        $result = new Channel(1);
+
+        go(fn () => $result->push($provider->waitBeforeRetryForTest()));
+        usleep(1000);
+        CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
+
+        $this->assertTrue($result->pop(1));
     }
 
     public function testPublishUsesIndependentRedisConnectionWithoutSubscriber(): void
@@ -145,27 +243,65 @@ class RedisPubSubProviderTest extends ReverbTestCase
         );
     }
 
-    protected function subscriber(): Subscriber
+    protected function subscriber(?Channel $messages = null): Subscriber
     {
         $subscriber = m::mock(Subscriber::class);
         $subscriber->prefix = 'prefix:';
         $subscriber->closed = false;
 
+        if ($messages !== null) {
+            $subscriber->allows('channel')->andReturn($messages);
+        }
+
         return $subscriber;
+    }
+
+    protected function expectSubscriberClose(Subscriber $subscriber, ?Channel $messages = null): void
+    {
+        $subscriber->expects('close')->andReturnUsing(function () use ($subscriber, $messages): void {
+            $subscriber->closed = true;
+            $messages?->close();
+        });
+    }
+
+    protected function waitUntilStopped(RedisPubSubProviderProbe $provider): void
+    {
+        for ($attempt = 0; $attempt < 1000 && $provider->runningForTest(); ++$attempt) {
+            usleep(1000);
+        }
+
+        $this->assertFalse($provider->runningForTest(), 'The Redis subscriber lifecycle did not stop.');
     }
 }
 
 class RedisPubSubProviderProbe extends RedisPubSubProvider
 {
-    public int $reconnectCount = 0;
+    public bool $useRealRetryWait = false;
 
     public function subscriberForTest(): ?Subscriber
     {
         return $this->subscriber;
     }
 
-    protected function reconnect(): void
+    public function runningForTest(): bool
     {
-        ++$this->reconnectCount;
+        return $this->running;
+    }
+
+    public function messageHandlerForTest(): PubSubIncomingMessageHandler
+    {
+        return $this->messageHandler;
+    }
+
+    public function waitBeforeRetryForTest(): bool
+    {
+        return $this->waitBeforeRetry();
+    }
+
+    protected function waitBeforeRetry(): bool
+    {
+        return $this->useRealRetryWait
+            ? parent::waitBeforeRetry()
+            : false;
     }
 }

@@ -15,7 +15,6 @@ use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
 use Hypervel\Reverb\Jobs\PingInactiveConnections;
 use Hypervel\Reverb\Jobs\PruneStaleConnections;
-use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Loggers\NullLogger;
 use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
@@ -30,13 +29,19 @@ use Hypervel\Reverb\Protocols\Pusher\Http\Controllers\HealthCheckController;
 use Hypervel\Reverb\Protocols\Pusher\Http\Controllers\UsersTerminateController;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelManager;
-use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
+use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
+use Hypervel\Reverb\Protocols\Pusher\MetricType;
+use Hypervel\Reverb\Protocols\Pusher\PendingMetric;
+use Hypervel\Reverb\Protocols\Pusher\UserConnectionTerminator;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\HttpServer;
+use Hypervel\Reverb\Servers\Hypervel\MetricsRequestPipeMessage;
+use Hypervel\Reverb\Servers\Hypervel\MetricsResponsePipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
+use Hypervel\Reverb\Servers\Hypervel\TerminateUserPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketServer;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
@@ -47,7 +52,9 @@ use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Server\Event;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Server\TlsOptions;
+use Hypervel\Support\Facades\Log;
 use Hypervel\Support\ServiceProvider;
+use RuntimeException;
 use Swoole\Table;
 use Throwable;
 
@@ -63,7 +70,7 @@ class ReverbServiceProvider extends ServiceProvider
             'reverb'
         );
 
-        if (! $this->app->make('config')->boolean('reverb.enabled', true)) {
+        if (! $this->app->make('config')->boolean('reverb.enabled')) {
             return;
         }
 
@@ -76,19 +83,26 @@ class ReverbServiceProvider extends ServiceProvider
             fn ($app) => $app->make(ApplicationManager::class)->driver()
         );
 
-        $this->app->instance(Logger::class, new NullLogger);
+        if (! $this->app->bound(Logger::class)) {
+            $this->app->instance(Logger::class, new NullLogger);
+        }
 
         $this->app->singleton(ServerProviderManager::class);
 
-        $this->app->singleton(ChannelManager::class, ArrayChannelManager::class);
-        $this->app->bind(ChannelConnectionManager::class, ArrayChannelConnectionManager::class);
+        if (! $this->app->bound(ChannelManager::class)) {
+            $this->app->singleton(ChannelManager::class, ArrayChannelManager::class);
+        }
+
+        if (! $this->app->bound(ChannelConnectionManager::class)) {
+            $this->app->bind(ChannelConnectionManager::class, ArrayChannelConnectionManager::class);
+        }
 
         $this->app->singleton(WebhookDispatcher::class, HttpWebhookDispatcher::class);
         $this->app->singleton(DeferredWebhookManager::class);
 
         $this->app->singleton(WebhookBatchBuffer::class, function ($app) {
             $connectionName = $app->make('config')
-                ->string('reverb.servers.reverb.scaling.connection', 'reverb');
+                ->string('reverb.servers.reverb.scaling.connection');
 
             /** @var RedisFactory $redis */
             $redis = $app->make('redis');
@@ -99,6 +113,8 @@ class ReverbServiceProvider extends ServiceProvider
         });
 
         $this->app->make(ServerProviderManager::class)->register();
+
+        // Laravel's standalone development commands are omitted; Hypervel's Swoole server owns this lifecycle.
     }
 
     /**
@@ -109,23 +125,23 @@ class ReverbServiceProvider extends ServiceProvider
      * register-time config mutation: it must run before ServerStartCommand
      * reads `server.servers` and before workers or coroutines exist. Do not
      * move this into boot/runtime code; config is process-global in Swoole
-     * workers.
+     * workers. This replaces Laravel Reverb's standalone ReactPHP server.
      */
     protected function registerWebSocketServer(): void
     {
         $config = $this->app->make('config');
-        $reverbServer = $config->array('reverb.servers.reverb', []);
+        $reverbServer = $config->array('reverb.servers.reverb');
 
         $servers = $config->array('server.servers', []);
         /** @var array<string, mixed> $tlsConfiguration */
-        $tlsConfiguration = $reverbServer['options']['tls'] ?? [];
+        $tlsConfiguration = $reverbServer['options']['tls'];
         $tls = TlsOptions::fromArray($tlsConfiguration);
 
         $servers[] = [
             'name' => 'reverb',
             'type' => ServerInterface::SERVER_WEBSOCKET,
-            'host' => $reverbServer['host'] ?? '0.0.0.0',
-            'port' => (int) ($reverbServer['port'] ?? 8080),
+            'host' => $reverbServer['host'],
+            'port' => (int) $reverbServer['port'],
             'sock_type' => $tls->socketType(),
             'callbacks' => [
                 Event::ON_REQUEST => [HttpServer::class, 'onRequest'],
@@ -141,6 +157,9 @@ class ReverbServiceProvider extends ServiceProvider
 
     /**
      * Resolve Swoole settings for the Reverb server.
+     *
+     * TLS uses the server package's options instead of package-owned
+     * certificate discovery.
      */
     protected function resolveServerSettings(TlsOptions $tls): array
     {
@@ -169,7 +188,7 @@ class ReverbServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(ReverbRouter $router): void
     {
-        $path = $this->app->make('config')->string('reverb.servers.reverb.path', '');
+        $path = $this->app->make('config')->string('reverb.servers.reverb.path');
 
         $router->prefix($path)->group(function () use ($router) {
             $router->get('/app/{appKey}', WebSocketHandler::class);
@@ -199,10 +218,11 @@ class ReverbServiceProvider extends ServiceProvider
             ], ['reverb', 'reverb-config']);
         }
 
-        if (! $this->app->make('config')->boolean('reverb.enabled', true)) {
+        if (! $this->app->make('config')->boolean('reverb.enabled')) {
             return;
         }
 
+        // Laravel Pulse integration is omitted; Reverb activity is recorded by Telescope.
         $this->registerRoutes($this->app->make(ReverbRouter::class));
 
         $this->app->make(ServerProviderManager::class)->boot();
@@ -245,6 +265,43 @@ class ReverbServiceProvider extends ServiceProvider
         $events = $this->app->make('events');
 
         $events->listen(OnPipeMessage::class, function (OnPipeMessage $event) {
+            if ($event->data instanceof MetricsResponsePipeMessage) {
+                $this->app->make(MetricsHandler::class)->receive($event->data);
+
+                return;
+            }
+
+            if ($event->data instanceof MetricsRequestPipeMessage) {
+                $message = $event->data;
+                $application = $this->app->make(ApplicationProvider::class)->findById($message->appId);
+                $metric = new PendingMetric(
+                    $message->requestId,
+                    $application,
+                    MetricType::from($message->metricType),
+                    $message->options,
+                );
+                $response = new MetricsResponsePipeMessage(
+                    $message->requestId,
+                    $this->app->make(MetricsHandler::class)->get($metric),
+                );
+
+                if (! $event->server->sendMessage($response, $event->fromWorkerId)) {
+                    throw new RuntimeException(
+                        "Unable to return Reverb metrics to worker [{$event->fromWorkerId}].",
+                    );
+                }
+
+                return;
+            }
+
+            if ($event->data instanceof TerminateUserPipeMessage) {
+                $message = $event->data;
+                $application = $this->app->make(ApplicationProvider::class)->findById($message->appId);
+                $this->app->make(UserConnectionTerminator::class)->terminate($application, $message->userId);
+
+                return;
+            }
+
             if (! $event->data instanceof ChannelBroadcastPipeMessage) {
                 return;
             }
@@ -252,30 +309,38 @@ class ReverbServiceProvider extends ServiceProvider
             $message = $event->data;
             $application = $this->app->make(ApplicationProvider::class)->findById($message->appId);
             $channels = $this->app->make(ChannelManager::class)->for($application);
+            $except = $message->exceptSocketId
+                ? $channels->findConnection($message->exceptSocketId)
+                : null;
+            $exception = null;
 
             foreach ($message->channels as $channelName) {
-                $channel = $channels->find($channelName);
+                try {
+                    $channel = $channels->find($channelName);
 
-                if (! $channel) {
-                    continue;
-                }
-
-                $except = $message->exceptSocketId
-                    ? $channels->connections()[$message->exceptSocketId] ?? null
-                    : null;
-
-                $payload = $message->payload;
-                $payload['channel'] = $channel->name();
-
-                if ($message->internal) {
-                    $channel->broadcastInternally($payload, $except?->connection());
-                } else {
-                    $channel->broadcast($payload, $except?->connection());
-
-                    if ($channel instanceof CacheChannel) {
-                        $this->app->make(SharedState::class)->clearCacheMissLock($application->id(), $channel->name());
+                    if (! $channel) {
+                        continue;
                     }
+
+                    $payload = $message->payload;
+                    $payload['channel'] = $channel->name();
+
+                    if ($message->internal) {
+                        $channel->broadcastInternally($payload, $except?->connection());
+                    } else {
+                        $channel->broadcast($payload, $except?->connection());
+
+                        if ($channel instanceof CacheChannel) {
+                            $this->app->make(SharedState::class)->clearCacheMissLock($application->id(), $channel->name());
+                        }
+                    }
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
                 }
+            }
+
+            if ($exception !== null) {
+                throw $exception;
             }
         });
     }
@@ -302,20 +367,20 @@ class ReverbServiceProvider extends ServiceProvider
 
             try {
                 $this->drainConnections();
-            } catch (Throwable $e) {
-                Log::error('Shutdown: connection drain failed — ' . $e->getMessage());
+            } catch (Throwable $throwable) {
+                $this->reportShutdownFailure($throwable);
             }
 
             try {
                 $this->disconnectScalingSubscriber();
-            } catch (Throwable $e) {
-                Log::error('Shutdown: scaling subscriber disconnect failed — ' . $e->getMessage());
+            } catch (Throwable $throwable) {
+                $this->reportShutdownFailure($throwable);
             }
 
             try {
                 $this->flushWebhookBuffers();
-            } catch (Throwable $e) {
-                Log::error('Shutdown: webhook buffer flush failed — ' . $e->getMessage());
+            } catch (Throwable $throwable) {
+                $this->reportShutdownFailure($throwable);
             }
         });
     }
@@ -329,23 +394,37 @@ class ReverbServiceProvider extends ServiceProvider
      */
     public function drainConnections(): void
     {
-        $pusherServer = $this->app->make(PusherServer::class);
+        $handler = $this->app->make(WebSocketHandler::class);
+        $exception = null;
 
         foreach (array_keys(WebSocketHandler::connections()) as $fd) {
             try {
-                $connection = WebSocketHandler::takeConnection($fd);
+                $lifecycle = WebSocketHandler::takeConnection($fd);
 
-                if ($connection === null) {
+                if ($lifecycle === null) {
                     continue;
                 }
 
-                $pusherServer->close($connection);
-
-                $connection->disconnect(1001, 'Server restarting');
-            } catch (Throwable $e) {
-                Log::error("Shutdown: failed to drain connection fd={$fd} — " . $e->getMessage());
+                $handler->closeLifecycle(
+                    $lifecycle,
+                    fn () => $lifecycle->connection()?->disconnect(1001, 'Server restarting'),
+                );
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
             }
         }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Report a shutdown failure without interrupting remaining cleanup.
+     */
+    protected function reportShutdownFailure(Throwable $throwable): void
+    {
+        FailureReporter::report($throwable);
     }
 
     /**
@@ -404,12 +483,12 @@ class ReverbServiceProvider extends ServiceProvider
 
         $this->checkSwooleTableUsage(
             $sharedState->table(),
-            'Reverb shared state table is %.0f%% full (%d/%d rows). Increase reverb.swoole_shared_state.rows to avoid connection failures.',
+            'Reverb shared state table is %.0f%% full (%d/%d rows). Increase reverb.servers.reverb.swoole_shared_state.rows to avoid connection failures.',
         );
 
         $this->checkSwooleTableUsage(
             $sharedState->lockTable(),
-            'Reverb webhook lock table is %.0f%% full (%d/%d rows). Increase reverb.swoole_shared_state.lock_rows to avoid missed webhook throttling.',
+            'Reverb webhook lock table is %.0f%% full (%d/%d rows). Increase reverb.servers.reverb.swoole_shared_state.lock_rows to avoid missed webhook throttling.',
         );
     }
 
@@ -429,7 +508,7 @@ class ReverbServiceProvider extends ServiceProvider
         $usage = $used / $total;
 
         if ($usage > 0.8) {
-            Log::error(sprintf(
+            Log::warning(sprintf(
                 $messageFormat,
                 $usage * 100,
                 $stats['num'],

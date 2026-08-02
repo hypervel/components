@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Servers\Hypervel;
 
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Redis\RedisConfig;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Reverb\Contracts\ServerProvider;
 use Hypervel\Reverb\Protocols\Pusher\PusherPubSubIncomingMessageHandler;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
@@ -14,6 +17,7 @@ use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisPubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisSharedState;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Support\Facades\Redis;
+use InvalidArgumentException;
 use Swoole\Table;
 
 class HypervelServerProvider extends ServerProvider
@@ -27,10 +31,10 @@ class HypervelServerProvider extends ServerProvider
      * Create a new server provider instance.
      */
     public function __construct(
-        protected \Hypervel\Contracts\Container\Container $app,
+        protected Container $app,
         protected array $config,
     ) {
-        $this->publishesEvents = (bool) ($this->config['scaling']['enabled'] ?? false);
+        $this->publishesEvents = (bool) $this->config['scaling']['enabled'];
     }
 
     /**
@@ -39,6 +43,8 @@ class HypervelServerProvider extends ServerProvider
     public function register(): void
     {
         if ($this->shouldPublishEvents()) {
+            $this->validateScalingRedisConnection();
+
             $this->app->singleton(SharedState::class, fn () => new RedisSharedState(
                 $this->scalingRedisConnection(),
             ));
@@ -48,12 +54,12 @@ class HypervelServerProvider extends ServerProvider
             // in the main process so they're shared across all workers via
             // copy-on-write. Using instance() instead of singleton() ensures
             // the object is created now, not lazily in a worker.
-            $rows = (int) ($this->config['swoole_shared_state']['rows'] ?? 65536);
+            $rows = (int) $this->config['swoole_shared_state']['rows'];
             $table = new Table($rows);
             $table->column('count', Table::TYPE_INT);
             $table->create();
 
-            $lockRows = (int) ($this->config['swoole_shared_state']['lock_rows'] ?? 8192);
+            $lockRows = (int) $this->config['swoole_shared_state']['lock_rows'];
             $lockTable = new Table($lockRows);
             $lockTable->column('locked_at', Table::TYPE_FLOAT);
             $lockTable->create();
@@ -69,7 +75,7 @@ class HypervelServerProvider extends ServerProvider
         $this->app->singleton(PubSubProvider::class, fn ($app) => new RedisPubSubProvider(
             $app->make(PubSubIncomingMessageHandler::class),
             $this->scalingRedisConnection(),
-            $this->config['scaling']['channel'] ?? 'reverb',
+            $this->config['scaling']['channel'],
         ));
     }
 
@@ -113,14 +119,29 @@ class HypervelServerProvider extends ServerProvider
     /**
      * Get the Redis connection for scaling operations.
      *
-     * Uses the connection name from the scaling config, defaulting to 'reverb'.
-     * This ensures subscribe, publish, and shared-state all use the same
-     * Redis connection with consistent prefix, auth, and host settings.
+     * Uses the configured scaling connection so subscribe, publish, and
+     * shared state share the same prefix, authentication, and endpoint.
      */
-    protected function scalingRedisConnection(): \Hypervel\Redis\RedisProxy
+    protected function scalingRedisConnection(): RedisProxy
     {
-        $connectionName = (string) ($this->config['scaling']['connection'] ?? 'reverb');
+        $connectionName = (string) $this->config['scaling']['connection'];
 
         return Redis::connection($connectionName);
+    }
+
+    /**
+     * Ensure the scaling connection provides exact pub/sub subscriber counts.
+     */
+    protected function validateScalingRedisConnection(): void
+    {
+        $connectionName = (string) $this->config['scaling']['connection'];
+        $connection = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
+
+        if ((bool) ($connection['cluster']['enable'] ?? false)) {
+            throw new InvalidArgumentException(sprintf(
+                "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.%s.cluster.enable' to false.",
+                $connectionName,
+            ));
+        }
     }
 }

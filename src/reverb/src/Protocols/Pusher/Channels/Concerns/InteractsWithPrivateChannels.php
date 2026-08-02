@@ -17,7 +17,15 @@ trait InteractsWithPrivateChannels
     {
         $this->verify($connection, $auth, $data);
 
-        parent::subscribe($connection, $auth, $data, $userId);
+        $result = $this->subscribeToChannel(
+            $connection,
+            $this->decodeSubscriptionData($data),
+            $userId,
+        );
+
+        if ($result !== null) {
+            $this->afterSubscribed($connection, $result);
+        }
     }
 
     /**

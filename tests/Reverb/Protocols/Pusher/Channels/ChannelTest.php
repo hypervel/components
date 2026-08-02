@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher\Channels;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\EventHandler;
+use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Server;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
@@ -17,6 +19,10 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
+use RuntimeException;
+use Swoole\Coroutine\Channel as CoroutineChannel;
+
+use function Hypervel\Coroutine\go;
 
 class ChannelTest extends ReverbTestCase
 {
@@ -29,37 +35,30 @@ class ChannelTest extends ReverbTestCase
         parent::setUp();
 
         $this->connection = new FakeConnection;
-        $this->channelConnectionManager = m::spy(ChannelConnectionManager::class);
-        $this->channelConnectionManager->shouldReceive('for')
-            ->andReturn($this->channelConnectionManager);
+        $this->channelConnectionManager = new ArrayChannelConnectionManager;
         $this->app->bind(ChannelConnectionManager::class, fn () => $this->channelConnectionManager);
     }
 
-    public function testCanSubscribeAConnectionToAChannel()
+    public function testCanSubscribeAConnectionToAChannel(): void
     {
         $channel = new Channel('test-channel');
-
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once()
-            ->with($this->connection, []);
 
         $channel->subscribe($this->connection);
+
+        $this->assertTrue($channel->subscribed($this->connection));
     }
 
-    public function testCanUnsubscribeAConnectionFromAChannel()
+    public function testCanUnsubscribeAConnectionFromAChannel(): void
     {
         $channel = new Channel('test-channel');
 
-        $this->channelConnectionManager->shouldReceive('remove')
-            ->once()
-            ->with($this->connection);
-
-        // Subscribe first so SharedState has a count to decrement
         $channel->subscribe($this->connection);
         $channel->unsubscribe($this->connection);
+
+        $this->assertFalse($channel->subscribed($this->connection));
     }
 
-    public function testRemovesAChannelWhenNoSubscribersRemain()
+    public function testRemovesAChannelWhenNoSubscribersRemain(): void
     {
         $scopedManager = m::spy(ScopedChannelManager::class);
         $channelManager = m::mock(ChannelManager::class);
@@ -67,13 +66,6 @@ class ChannelTest extends ReverbTestCase
         $this->app->singleton(ChannelManager::class, fn () => $channelManager);
 
         $channel = new Channel('test-channel');
-
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once()
-            ->with($this->connection, []);
-        $this->channelConnectionManager->shouldReceive('remove')
-            ->once()
-            ->with($this->connection);
 
         $channel->subscribe($this->connection);
         $channel->unsubscribe($this->connection);
@@ -83,30 +75,200 @@ class ChannelTest extends ReverbTestCase
             ->with($channel);
     }
 
-    public function testCanBroadcastToAllConnectionsOfAChannel()
+    public function testDuplicateSubscribeAndNonmemberUnsubscribeDoNotPublishSharedState(): void
+    {
+        $sharedState = m::mock(SharedState::class);
+        $sharedState->shouldReceive('subscribe')
+            ->once()
+            ->andReturn(new SubscriptionResult(false, false, false, false, 1));
+        $sharedState->shouldNotReceive('unsubscribe');
+        $this->app->instance(SharedState::class, $sharedState);
+
+        $channel = new Channel('test-channel');
+        $otherConnection = new FakeConnection;
+
+        $channel->subscribe($this->connection);
+        $channel->subscribe($this->connection);
+        $channel->unsubscribe($otherConnection);
+
+        $this->assertCount(1, $channel->connections());
+        $this->assertTrue($channel->subscribed($this->connection));
+    }
+
+    public function testSharedSubscribeFailureDoesNotPublishLocalMembership(): void
+    {
+        $sharedState = m::mock(SharedState::class);
+        $sharedState->shouldReceive('subscribe')->once()->andThrow(new RuntimeException('subscribe failed'));
+        $this->app->instance(SharedState::class, $sharedState);
+
+        $channel = $this->channels()->findOrCreate('test-channel');
+
+        $this->expectException(RuntimeException::class);
+
+        try {
+            $channel->subscribe($this->connection);
+        } finally {
+            $this->assertFalse($channel->subscribed($this->connection));
+            $this->assertNull($this->channels()->find('test-channel'));
+        }
+    }
+
+    public function testSharedUnsubscribeFailureRetainsLocalMembership(): void
+    {
+        $channel = $this->channels()->findOrCreate('test-channel');
+        $channel->subscribe($this->connection);
+
+        $sharedState = m::mock(SharedState::class);
+        $sharedState->shouldReceive('unsubscribe')->once()->andThrow(new RuntimeException('unsubscribe failed'));
+        $this->app->instance(SharedState::class, $sharedState);
+
+        $this->expectException(RuntimeException::class);
+
+        try {
+            $channel->unsubscribe($this->connection);
+        } finally {
+            $this->assertTrue($channel->subscribed($this->connection));
+            $this->assertSame($channel, $this->channels()->find('test-channel'));
+        }
+    }
+
+    public function testPendingJoinKeepsAnOtherwiseEmptyChannelDiscoverable(): void
+    {
+        $channel = $this->channels()->findOrCreate('test-channel');
+        $channel->subscribe($this->connection);
+
+        $joiningConnection = new FakeConnection;
+        $joinStarted = new CoroutineChannel(1);
+        $releaseJoin = new CoroutineChannel(1);
+        $joinFinished = new CoroutineChannel(1);
+        $sharedState = m::mock(SharedState::class);
+        $sharedState->shouldReceive('subscribe')
+            ->once()
+            ->andReturnUsing(function () use ($joinStarted, $releaseJoin): SubscriptionResult {
+                $joinStarted->push(true);
+                $releaseJoin->pop();
+
+                return new SubscriptionResult(false, false, false, false, 1);
+            });
+        $sharedState->shouldReceive('unsubscribe')
+            ->once()
+            ->andReturn(new SubscriptionResult(false, false, false, false, 0));
+        $this->app->instance(SharedState::class, $sharedState);
+
+        go(function () use ($channel, $joiningConnection, $joinFinished): void {
+            $channel->subscribe($joiningConnection);
+            $joinFinished->push(true);
+        });
+
+        $joinStarted->pop();
+        $channel->unsubscribe($this->connection);
+
+        $this->assertSame($channel, $this->channels()->find('test-channel'));
+        $this->assertEmpty($channel->connections());
+
+        $releaseJoin->push(true);
+
+        $this->assertTrue($joinFinished->pop(1));
+        $this->assertTrue($channel->subscribed($joiningConnection));
+        $this->assertSame($channel, $this->channels()->find('test-channel'));
+    }
+
+    public function testFailedPendingJoinReclaimsTheIdleChannel(): void
+    {
+        $channel = $this->channels()->findOrCreate('test-channel');
+        $joinStarted = new CoroutineChannel(1);
+        $releaseJoin = new CoroutineChannel(1);
+        $joinFailed = new CoroutineChannel(1);
+        $sharedState = m::mock(SharedState::class);
+        $sharedState->shouldReceive('subscribe')
+            ->once()
+            ->andReturnUsing(function () use ($joinStarted, $releaseJoin): never {
+                $joinStarted->push(true);
+                $releaseJoin->pop();
+
+                throw new RuntimeException('subscribe failed');
+            });
+        $this->app->instance(SharedState::class, $sharedState);
+
+        go(function () use ($channel, $joinFailed): void {
+            try {
+                $channel->subscribe($this->connection);
+            } catch (RuntimeException) {
+                $joinFailed->push(true);
+            }
+        });
+
+        $joinStarted->pop();
+
+        $this->assertSame($channel, $this->channels()->find('test-channel'));
+
+        $releaseJoin->push(true);
+
+        $this->assertTrue($joinFailed->pop(1));
+        $this->assertNull($this->channels()->find('test-channel'));
+    }
+
+    public function testCanBroadcastToAllConnectionsOfAChannel(): void
     {
         $channel = new Channel('test-channel');
+        $connections = static::factory(3);
 
-        $this->channelConnectionManager->shouldReceive('add');
-
-        $this->channelConnectionManager->shouldReceive('all')
-            ->once()
-            ->andReturn($connections = static::factory(3));
+        foreach ($connections as $connection) {
+            $this->channelConnectionManager->add($connection->connection(), []);
+        }
 
         $channel->broadcast(['foo' => 'bar']);
 
         collect($connections)->each(fn ($connection) => $connection->assertReceived(['foo' => 'bar']));
     }
 
-    public function testDoesNotBroadcastToTheConnectionSendingTheMessage()
+    public function testBroadcastAttemptsEveryConnectionAndReportsTheFirstFailure(): void
+    {
+        $firstFailure = new RuntimeException('first send failed');
+        $secondFailure = new RuntimeException('second send failed');
+        $failingConnection = static fn (RuntimeException $failure): FakeConnection => new class($failure) extends FakeConnection {
+            public bool $attempted = false;
+
+            public function __construct(private RuntimeException $failure)
+            {
+                parent::__construct();
+            }
+
+            public function send(string $message): void
+            {
+                $this->attempted = true;
+
+                throw $this->failure;
+            }
+        };
+        $first = $failingConnection($firstFailure);
+        $middle = new FakeConnection;
+        $second = $failingConnection($secondFailure);
+        $last = new FakeConnection;
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->once()->with($firstFailure);
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        foreach ([$first, $middle, $second, $last] as $connection) {
+            $this->channelConnectionManager->add($connection, []);
+        }
+
+        (new Channel('test-channel'))->broadcast(['foo' => 'bar']);
+
+        $this->assertTrue($first->attempted);
+        $this->assertTrue($second->attempted);
+        $middle->assertReceived(['foo' => 'bar']);
+        $last->assertReceived(['foo' => 'bar']);
+    }
+
+    public function testDoesNotBroadcastToTheConnectionSendingTheMessage(): void
     {
         $channel = new Channel('test-channel');
+        $connections = static::factory(3);
 
-        $this->channelConnectionManager->shouldReceive('add');
-
-        $this->channelConnectionManager->shouldReceive('all')
-            ->once()
-            ->andReturn($connections = static::factory(3));
+        foreach ($connections as $connection) {
+            $this->channelConnectionManager->add($connection->connection(), []);
+        }
 
         $channel->broadcast(['foo' => 'bar'], collect($connections)->first()->connection());
 
@@ -116,7 +278,7 @@ class ChannelTest extends ReverbTestCase
 
     // ── Subscription count webhook ────────────────────────────────────
 
-    public function testSubscribeFiresSubscriptionCountWebhook()
+    public function testSubscribeFiresSubscriptionCountWebhook(): void
     {
         Queue::fake();
 
@@ -137,7 +299,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testUnsubscribeFiresSubscriptionCountWebhook()
+    public function testUnsubscribeFiresSubscriptionCountWebhook(): void
     {
         Queue::fake();
 
@@ -164,7 +326,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testSubscriptionCountNotFiredWhenOptInIsFalse()
+    public function testSubscriptionCountNotFiredWhenOptInIsFalse(): void
     {
         Queue::fake();
 
@@ -181,7 +343,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testSubscriptionCountNotFiredForPresenceChannels()
+    public function testSubscriptionCountNotFiredForPresenceChannels(): void
     {
         Queue::fake();
 
@@ -198,7 +360,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testSubscriptionCountNotFiredForPresenceCacheChannels()
+    public function testSubscriptionCountNotFiredForPresenceCacheChannels(): void
     {
         Queue::fake();
 
@@ -215,7 +377,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testSubscriptionCountFiredForPrivateChannels()
+    public function testSubscriptionCountFiredForPrivateChannels(): void
     {
         Queue::fake();
 
@@ -232,7 +394,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testSubscriptionCountFiredForCacheChannels()
+    public function testSubscriptionCountFiredForCacheChannels(): void
     {
         Queue::fake();
 
@@ -251,7 +413,7 @@ class ChannelTest extends ReverbTestCase
 
     // ── Disconnect smoothing ──────────────────────────────────────────
 
-    public function testDisconnectDefersChannelVacatedWebhook()
+    public function testDisconnectDefersChannelVacatedWebhook(): void
     {
         Queue::fake();
 
@@ -274,7 +436,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testExplicitUnsubscribeFiresChannelVacatedImmediately()
+    public function testExplicitUnsubscribeFiresChannelVacatedImmediately(): void
     {
         Queue::fake();
 
@@ -299,7 +461,7 @@ class ChannelTest extends ReverbTestCase
 
     // ── Reconnect suppression ─────────────────────────────────────────
 
-    public function testReconnectWithinSmoothingWindowSuppressesChannelOccupied()
+    public function testReconnectWithinSmoothingWindowSuppressesChannelOccupied(): void
     {
         Queue::fake();
 
@@ -325,7 +487,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testNormalSubscribeFiresChannelOccupied()
+    public function testNormalSubscribeFiresChannelOccupied(): void
     {
         Queue::fake();
 
@@ -343,7 +505,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testCrossWorkerSmoothingMarkerSuppressesChannelOccupied()
+    public function testCrossWorkerSmoothingMarkerSuppressesChannelOccupied(): void
     {
         Queue::fake();
 
@@ -368,7 +530,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testConsumedMarkerDoesNotSuppressSubsequentLegitimateOccupied()
+    public function testConsumedMarkerDoesNotSuppressSubsequentLegitimateOccupied(): void
     {
         Queue::fake();
 
@@ -402,7 +564,7 @@ class ChannelTest extends ReverbTestCase
 
     // ── Subscription count throttling ─────────────────────────────────
 
-    public function testSubscriptionCountThrottledAbove100Subscribers()
+    public function testSubscriptionCountThrottledAbove100Subscribers(): void
     {
         Queue::fake();
 
@@ -437,7 +599,7 @@ class ChannelTest extends ReverbTestCase
         });
     }
 
-    public function testSubscriptionCountFiresAbove100WhenLockAcquired()
+    public function testSubscriptionCountFiresAbove100WhenLockAcquired(): void
     {
         Queue::fake();
 

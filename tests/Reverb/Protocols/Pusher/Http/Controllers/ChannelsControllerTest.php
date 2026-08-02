@@ -8,7 +8,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class ChannelsControllerTest extends ReverbTestCase
 {
-    public function testCanReturnAllChannelInformation()
+    public function testCanReturnAllChannelInformation(): void
     {
         $this->subscribeConnection('test-channel-one');
         $this->subscribeConnection('presence-test-channel-two', ['user_id' => 1, 'user_info' => ['name' => 'Taylor']]);
@@ -23,7 +23,7 @@ class ChannelsControllerTest extends ReverbTestCase
         $this->assertSame(1, $body['channels']['presence-test-channel-two']['user_count']);
     }
 
-    public function testCanReturnFilteredChannelsByPrefix()
+    public function testCanReturnFilteredChannelsByPrefix(): void
     {
         $this->subscribeConnection('test-channel-one');
         $this->subscribeConnection('presence-test-channel-two', ['user_id' => 1, 'user_info' => ['name' => 'Taylor']]);
@@ -38,7 +38,7 @@ class ChannelsControllerTest extends ReverbTestCase
         $this->assertSame(1, $body['channels']['presence-test-channel-two']['user_count']);
     }
 
-    public function testReturnsEmptyResultsIfNoMetricsRequested()
+    public function testReturnsEmptyResultsIfNoMetricsRequested(): void
     {
         $this->subscribeConnection('test-channel-one');
         $this->subscribeConnection('test-channel-two');
@@ -53,7 +53,7 @@ class ChannelsControllerTest extends ReverbTestCase
         $this->assertSame([], (array) $body['channels']['test-channel-two']);
     }
 
-    public function testOnlyReturnsOccupiedChannels()
+    public function testOnlyReturnsOccupiedChannels(): void
     {
         $connectionOne = $this->subscribeConnection('test-channel-one');
         $this->subscribeConnection('test-channel-two');
@@ -71,7 +71,7 @@ class ChannelsControllerTest extends ReverbTestCase
         $this->assertArrayHasKey('test-channel-two', $body['channels']);
     }
 
-    public function testCanReturnSubscriptionCount()
+    public function testCanReturnSubscriptionCount(): void
     {
         $this->subscribeConnection('test-channel-one');
         $this->subscribeConnection('test-channel-one');
@@ -84,14 +84,14 @@ class ChannelsControllerTest extends ReverbTestCase
         $this->assertSame(2, $body['channels']['test-channel-one']['subscription_count']);
     }
 
-    public function testFailsWhenUsingAnInvalidSignature()
+    public function testFailsWhenUsingAnInvalidSignature(): void
     {
         $response = $this->reverbGet('/apps/123456/channels?info=user_count');
 
         $response->assertStatus(401);
     }
 
-    public function testReturnsEmptyChannelsWhenNoneOccupied()
+    public function testReturnsEmptyChannelsWhenNoneOccupied(): void
     {
         $response = $this->signedRequest('channels');
 

@@ -88,12 +88,12 @@ return [
             | track channel subscription counts, presence member counts,
             | and per-app connection limits across all workers.
             |
-            | Each active channel and each unique user in a presence
-            | channel consumes one row. A typical busy app with 1,000
-            | channels and 200 presence channels averaging 50 users
-            | each uses ~11,000 rows. The default of 65,536 is
-            | sufficient for most workloads. Reverb logs a warning
-            | at 80% capacity.
+            | Each active channel, each unique user in a presence
+            | channel, and each app with a connection limit consumes
+            | one row. A typical busy app with 1,000 channels and 200
+            | presence channels averaging 50 users each uses ~11,000
+            | rows. The default of 65,536 is sufficient for most
+            | workloads. Reverb logs a warning at 80% capacity.
             |
             | This setting has no effect when scaling is enabled —
             | Redis is used for shared state instead.

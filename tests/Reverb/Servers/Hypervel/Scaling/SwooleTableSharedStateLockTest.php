@@ -7,8 +7,11 @@ namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Swoole\Atomic;
+use Swoole\Coroutine\Channel;
 use Swoole\Process;
 use Swoole\Table;
+use Throwable;
 
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\run;
@@ -132,12 +135,51 @@ class SwooleTableSharedStateLockTest extends TestCase
         $state->setSmoothingPending('app', 'channel', 1_000);
         $state->setMemberSmoothingPending('app', 'channel', 'user', 1_000);
 
-        $this->assertSame([
-            'cache-miss-lock:app:channel',
-            'smoothing:app:channel',
-            'smoothing:app:channel:user',
-        ], $state->reportedKeys);
+        $this->assertSame(['m', 'h', 'p'], array_map(
+            static fn (string $key): string => $key[0],
+            $state->reportedKeys,
+        ));
+        $this->assertSame([33, 33, 33], array_map('strlen', $state->reportedKeys));
         $this->assertFalse($state->reportedWhileLocked);
+    }
+
+    public function testPresenceMutationAcquiresSharedStripeOnlyOnce(): void
+    {
+        $state = $this->createState(AtomicPresenceProbeSharedState::class);
+        [$channel, $userId] = $state->presenceIdentityForSharedStripe();
+
+        $result = $state->subscribe('app', $channel, $userId);
+
+        $this->assertTrue($result->channelOccupied);
+        $this->assertTrue($result->memberAdded);
+        $this->assertSame(1, $state->acquisitions);
+        $this->assertSame(1, $state->releases);
+    }
+
+    public function testOppositePresenceStripeOrderCannotDeadlock(): void
+    {
+        $state = $this->createState(AtomicPresenceProbeSharedState::class);
+        [$first, $second] = $state->oppositePresenceIdentities();
+        $results = new Channel(2);
+        $outcomes = [];
+
+        run(function () use ($state, $first, $second, $results, &$outcomes): void {
+            foreach ([$first, $second] as [$channel, $userId]) {
+                go(function () use ($state, $channel, $userId, $results): void {
+                    try {
+                        $state->subscribe('app', $channel, $userId);
+                        $results->push(true);
+                    } catch (Throwable $exception) {
+                        $results->push($exception);
+                    }
+                });
+            }
+
+            $outcomes[] = $results->pop(2);
+            $outcomes[] = $results->pop(2);
+        });
+
+        $this->assertSame([true, true], $outcomes);
     }
 
     /**
@@ -194,7 +236,7 @@ class SwooleTableSharedStateLockTest extends TestCase
 
 class LockTestSharedState extends SwooleTableSharedState
 {
-    protected const LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 50_000_000;
+    protected const int LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 50_000_000;
 
     public function holdLockFor(string $key): void
     {
@@ -236,5 +278,93 @@ class ReportingProbeSharedState extends SwooleTableSharedState
         $this->reportedKeys[] = $key;
         $this->reportedWhileLocked = $this->reportedWhileLocked
             || $this->lockFor($key)->get() !== 0;
+    }
+}
+
+class AtomicPresenceProbeSharedState extends SwooleTableSharedState
+{
+    public int $acquisitions = 0;
+
+    public int $releases = 0;
+
+    /**
+     * Find a channel/member identity whose rows share one stripe.
+     *
+     * @return array{string, string}
+     */
+    public function presenceIdentityForSharedStripe(): array
+    {
+        for ($index = 0; $index < 10_000; ++$index) {
+            $channel = "channel-{$index}";
+            $userId = "user-{$index}";
+
+            if ($this->presenceStripePair($channel, $userId)[0]
+                === $this->presenceStripePair($channel, $userId)[1]) {
+                return [$channel, $userId];
+            }
+        }
+
+        throw new RuntimeException('Unable to find a shared-stripe presence identity.');
+    }
+
+    /**
+     * Find two identities that encounter the same stripes in opposite order.
+     *
+     * @return array{array{string, string}, array{string, string}}
+     */
+    public function oppositePresenceIdentities(): array
+    {
+        $identities = [];
+
+        for ($index = 0; $index < 10_000; ++$index) {
+            $channel = "channel-{$index}";
+            $userId = "user-{$index}";
+            [$channelStripe, $userStripe] = $this->presenceStripePair($channel, $userId);
+
+            if ($channelStripe === $userStripe) {
+                continue;
+            }
+
+            $opposite = "{$userStripe}:{$channelStripe}";
+
+            if (isset($identities[$opposite])) {
+                return [$identities[$opposite], [$channel, $userId]];
+            }
+
+            $identities["{$channelStripe}:{$userStripe}"] = [$channel, $userId];
+        }
+
+        throw new RuntimeException('Unable to find opposite-order presence identities.');
+    }
+
+    protected function acquire(Atomic $lock): void
+    {
+        parent::acquire($lock);
+        ++$this->acquisitions;
+    }
+
+    protected function release(Atomic $lock): void
+    {
+        ++$this->releases;
+        parent::release($lock);
+    }
+
+    protected function ensurePresenceRowsExist(string $channelKey, string $userKey): void
+    {
+        parent::ensurePresenceRowsExist($channelKey, $userKey);
+        usleep(5_000);
+    }
+
+    /**
+     * Get the channel/member stripe pair for a presence identity.
+     *
+     * @return array{int, int}
+     */
+    private function presenceStripePair(string $channel, string $userId): array
+    {
+        return [
+            $this->lockIndexFor($this->physicalKey(self::SUBSCRIPTION_KEY_TYPE, 'app', $channel)),
+            $this->lockIndexFor($this->physicalKey(self::USER_KEY_TYPE, 'app', $channel, $userId)),
+        ];
     }
 }

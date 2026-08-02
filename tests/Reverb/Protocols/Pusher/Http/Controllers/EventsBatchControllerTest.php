@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher\Http\Controllers;
 
+use Hypervel\Reverb\ServerProviderManager;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use Mockery as m;
 
 class EventsBatchControllerTest extends ReverbTestCase
 {
-    public function testCanReceiveAnEventBatchTrigger()
+    public function testCanReceiveAnEventBatchTrigger(): void
     {
         $response = $this->signedPostRequest('batch_events', ['batch' => [
             [
@@ -22,7 +25,7 @@ class EventsBatchControllerTest extends ReverbTestCase
         $this->assertSame('{"batch":{}}', $response->getContent());
     }
 
-    public function testCanReceiveABatchWithMultipleEvents()
+    public function testCanReceiveABatchWithMultipleEvents(): void
     {
         $response = $this->signedPostRequest('batch_events', ['batch' => [
             [
@@ -41,7 +44,35 @@ class EventsBatchControllerTest extends ReverbTestCase
         $this->assertSame('{"batch":{}}', $response->getContent());
     }
 
-    public function testCanReturnInfoForEachBatchEvent()
+    public function testPublishesARemoteSocketIdFromABatchItem(): void
+    {
+        app(ServerProviderManager::class)->withPublishing();
+        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub->expects('publish')->with([
+            'type' => 'message',
+            'app_id' => '123456',
+            'payload' => [
+                'event' => 'NewEvent',
+                'channel' => 'test-channel',
+                'data' => '{"some":"data"}',
+            ],
+            'socket_id' => 'remote-socket',
+        ])->andReturn(1);
+        $this->app->instance(PubSubProvider::class, $pubSub);
+
+        $response = $this->signedPostRequest('batch_events', ['batch' => [
+            [
+                'name' => 'NewEvent',
+                'channel' => 'test-channel',
+                'data' => json_encode(['some' => 'data']),
+                'socket_id' => 'remote-socket',
+            ],
+        ]]);
+
+        $response->assertStatus(200);
+    }
+
+    public function testCanReturnInfoForEachBatchEvent(): void
     {
         $this->subscribeConnection('presence-test-channel', ['user_id' => 1, 'user_info' => ['name' => 'Taylor']]);
         $this->subscribeConnection('test-channel-two');
@@ -77,7 +108,7 @@ class EventsBatchControllerTest extends ReverbTestCase
         $this->assertSame(['subscription_count' => 1], (array) $body['batch'][2]);
     }
 
-    public function testCanReturnInfoForSomeBatchEvents()
+    public function testCanReturnInfoForSomeBatchEvents(): void
     {
         $this->subscribeConnection('presence-test-channel', ['user_id' => 1, 'user_info' => ['name' => 'Taylor']]);
 
@@ -103,7 +134,7 @@ class EventsBatchControllerTest extends ReverbTestCase
         $this->assertSame([], (array) $body['batch'][1]);
     }
 
-    public function testValidatesMissingBatchKey()
+    public function testValidatesMissingBatchKey(): void
     {
         $response = $this->signedPostRequest('batch_events', [
             'name' => 'NewEvent',
@@ -114,7 +145,7 @@ class EventsBatchControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testValidatesMissingNameInBatchItem()
+    public function testValidatesMissingNameInBatchItem(): void
     {
         $response = $this->signedPostRequest('batch_events', ['batch' => [
             [
@@ -126,7 +157,7 @@ class EventsBatchControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testValidatesMissingDataInBatchItem()
+    public function testValidatesMissingDataInBatchItem(): void
     {
         $response = $this->signedPostRequest('batch_events', ['batch' => [
             [
@@ -138,14 +169,14 @@ class EventsBatchControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testFailsWhenPayloadIsInvalid()
+    public function testFailsWhenPayloadIsInvalid(): void
     {
         $response = $this->signedPostRequest('batch_events', null);
 
         $response->assertStatus(500);
     }
 
-    public function testFailsWhenUsingAnInvalidSignature()
+    public function testFailsWhenUsingAnInvalidSignature(): void
     {
         $response = $this->reverbCall('POST', '/apps/123456/batch_events', [
             'CONTENT_TYPE' => 'application/json',
@@ -160,7 +191,7 @@ class EventsBatchControllerTest extends ReverbTestCase
         $response->assertStatus(401);
     }
 
-    public function testBroadcastsBatchEventsToSubscribers()
+    public function testBroadcastsBatchEventsToSubscribers(): void
     {
         $connection = $this->subscribeConnection('test-channel');
 

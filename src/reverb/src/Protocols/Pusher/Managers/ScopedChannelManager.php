@@ -8,6 +8,7 @@ use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
+use Hypervel\Reverb\Protocols\Pusher\Contracts\ScopedChannelManager as ScopedChannelManagerContract;
 
 /**
  * Immutable scoped proxy for the ArrayChannelManager.
@@ -16,7 +17,7 @@ use Hypervel\Reverb\Protocols\Pusher\Channels\ChannelConnection;
  * underlying manager with the app ID. This is coroutine-safe —
  * each caller gets its own proxy instance with a fixed app scope.
  */
-class ScopedChannelManager
+class ScopedChannelManager implements ScopedChannelManagerContract
 {
     /**
      * Create a new scoped channel manager instance.
@@ -77,6 +78,14 @@ class ScopedChannelManager
     public function connections(?string $channel = null): array
     {
         return $this->manager->channelConnections($this->application->id(), $channel);
+    }
+
+    /**
+     * Find a connection by its socket ID.
+     */
+    public function findConnection(string $socketId): ?ChannelConnection
+    {
+        return $this->manager->findConnection($this->application->id(), $socketId);
     }
 
     /**

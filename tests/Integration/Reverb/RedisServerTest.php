@@ -17,7 +17,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
 
     // ── Broadcast via Redis pub/sub ────────────────────────────────────
 
-    public function testCanPublishAndSubscribeToATriggeredEventViaRedis()
+    public function testCanPublishAndSubscribeToATriggeredEventViaRedis(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'presence-redis-broadcast-channel', [
@@ -38,7 +38,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanPublishAndSubscribeToAClientWhisperViaRedis()
+    public function testCanPublishAndSubscribeToAClientWhisperViaRedis(): void
     {
         ['client' => $sender, 'socketId' => $senderSocketId] = $this->connect();
         $this->subscribe($sender, $senderSocketId, 'private-redis-whisper-channel');
@@ -66,7 +66,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
 
     // ── Terminate via Redis pub/sub ────────────────────────────────────
 
-    public function testTerminatesUserAcrossServersViaRedis()
+    public function testTerminatesUserAcrossServersViaRedis(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-redis-terminate-channel', [
@@ -106,7 +106,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
 
     // ── Basic connectivity with Redis scaling ──────────────────────────
 
-    public function testCanConnectAndSubscribeWithRedisScaling()
+    public function testCanConnectAndSubscribeWithRedisScaling(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -124,7 +124,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanSubscribeToPresenceChannelWithRedisScaling()
+    public function testCanSubscribeToPresenceChannelWithRedisScaling(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
 
@@ -145,7 +145,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testPresenceMemberNotificationsWithRedisScaling()
+    public function testPresenceMemberNotificationsWithRedisScaling(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-redis-notify-channel', [
@@ -170,7 +170,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
 
     // ── HTTP API with Redis scaling ────────────────────────────────────
 
-    public function testHttpApiConnectionCountWithRedisScaling()
+    public function testHttpApiConnectionCountWithRedisScaling(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'redis-conn-count-channel');
@@ -186,7 +186,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testHttpApiChannelsListWithRedisScaling()
+    public function testHttpApiChannelsListWithRedisScaling(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'redis-list-channel-one');
@@ -201,7 +201,7 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testHttpApiSocketIdExclusionWithRedisScaling()
+    public function testHttpApiSocketIdExclusionWithRedisScaling(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'redis-exclude-channel');

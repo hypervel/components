@@ -236,13 +236,23 @@ class Commander
         }
 
         if ($this->app instanceof HypervelApplication) {
-            tap($this->app->make(ExceptionHandler::class), static function ($handler) use ($error, $output) {
+            // Keep the original in flight while it is handled, so a failure in
+            // resolution, reporting, or rendering carries it as that failure's
+            // previous. The return suppresses it once the status is produced.
+            try {
+                /* @phpstan-ignore finally.exitPoint */
+                throw $error;
+            } finally {
+                $handler = $this->app->make(ExceptionHandler::class);
                 $handler->report($error);
                 $handler->renderForConsole($output, $error);
-            });
-        } else {
-            (new ConsoleApplication)->renderThrowable($error, $output);
+
+                /* @phpstan-ignore finally.exitPoint */
+                return 1;
+            }
         }
+
+        (new ConsoleApplication)->renderThrowable($error, $output);
 
         return 1;
     }

@@ -4,13 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\EventHandler;
+use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
+use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
+use Hypervel\Reverb\ServerProviderManager;
+use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
+use Hypervel\Reverb\Servers\Hypervel\MetricsRequestPipeMessage;
+use Hypervel\Reverb\Servers\Hypervel\MetricsResponsePipeMessage;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use JsonException;
+use Mockery as m;
+use RuntimeException;
+use Swoole\Server;
 
 class EventHandlerTest extends ReverbTestCase
 {
@@ -26,7 +38,7 @@ class EventHandlerTest extends ReverbTestCase
         $this->pusher = new EventHandler($this->app->make(ChannelManager::class));
     }
 
-    public function testCanSendAnAcknowledgement()
+    public function testCanSendAnAcknowledgement(): void
     {
         $this->pusher->handle(
             $this->connection,
@@ -42,7 +54,7 @@ class EventHandlerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanSubscribeToAChannel()
+    public function testCanSubscribeToAChannel(): void
     {
         $this->pusher->handle(
             $this->connection,
@@ -57,7 +69,156 @@ class EventHandlerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanSubscribeToAnEmptyChannel()
+    public function testPresenceSubscriptionSurvivesSiblingPublicationFailure(): void
+    {
+        $failure = new RuntimeException('Unable to reach a sibling worker.');
+        $metrics = null;
+        $server = m::mock(Server::class);
+        $server->setting = ['worker_num' => 2];
+        $server->worker_id = 0;
+        $server->expects('sendMessage')
+            ->twice()
+            ->andReturnUsing(function (object $message, int $workerId) use ($failure, &$metrics): bool {
+                $this->assertSame(1, $workerId);
+
+                if ($message instanceof ChannelBroadcastPipeMessage) {
+                    throw $failure;
+                }
+
+                $this->assertInstanceOf(MetricsRequestPipeMessage::class, $message);
+                $metrics->receive(new MetricsResponsePipeMessage(
+                    $message->requestId,
+                    ['exists' => false, 'presence' => false, 'users' => []],
+                ));
+
+                return true;
+            });
+        $this->app->instance(Server::class, $server);
+        $metrics = $this->app->make(MetricsHandler::class);
+
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $data = ['user_id' => '1', 'user_info' => ['name' => 'Taylor']];
+        $encodedData = json_encode($data);
+
+        $this->pusher->subscribe(
+            $this->connection,
+            'presence-test-channel',
+            static::validAuth($this->connection->id(), 'presence-test-channel', $encodedData),
+            $encodedData,
+        );
+
+        $this->connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => json_encode([
+                'presence' => [
+                    'count' => 1,
+                    'ids' => ['1'],
+                    'hash' => ['1' => ['name' => 'Taylor']],
+                ],
+            ]),
+            'channel' => 'presence-test-channel',
+        ]);
+        $this->assertSame(1, $this->app->make(SharedState::class)->getSubscriptionCount(
+            $this->connection->app()->id(),
+            'presence-test-channel',
+        ));
+    }
+
+    public function testPresenceSubscriptionSurvivesRedisPublicationFailure(): void
+    {
+        $failure = new RuntimeException('Redis publication failed.');
+        $listener = null;
+        $metricKey = null;
+        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub->expects('on')
+            ->with(m::type('string'), m::type('callable'))
+            ->andReturnUsing(function (string $key, callable $callback) use (&$listener, &$metricKey): void {
+                $metricKey = $key;
+                $listener = $callback;
+            });
+        $pubSub->expects('publish')
+            ->twice()
+            ->andReturnUsing(function (array $payload) use ($failure, &$listener): int {
+                if ($payload['type'] === 'message') {
+                    throw $failure;
+                }
+
+                $this->assertSame('metrics_request', $payload['type']);
+                $listener([
+                    'payload' => [
+                        'exists' => true,
+                        'presence' => true,
+                        'users' => [
+                            ['user_id' => '1', 'user_info' => ['name' => 'Taylor']],
+                        ],
+                    ],
+                ]);
+
+                return 1;
+            });
+        $pubSub->expects('stopListening')
+            ->with(m::on(function (string $key) use (&$metricKey): bool {
+                return $key === $metricKey;
+            }));
+        $this->app->instance(PubSubProvider::class, $pubSub);
+        $this->app->make(ServerProviderManager::class)->withPublishing();
+
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failure);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $data = ['user_id' => '1', 'user_info' => ['name' => 'Taylor']];
+        $encodedData = json_encode($data);
+
+        $this->pusher->subscribe(
+            $this->connection,
+            'presence-test-channel',
+            static::validAuth($this->connection->id(), 'presence-test-channel', $encodedData),
+            $encodedData,
+        );
+
+        $this->connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => json_encode([
+                'presence' => [
+                    'count' => 1,
+                    'ids' => ['1'],
+                    'hash' => ['1' => ['name' => 'Taylor']],
+                ],
+            ]),
+            'channel' => 'presence-test-channel',
+        ]);
+        $this->assertSame(1, $this->app->make(SharedState::class)->getSubscriptionCount(
+            $this->connection->app()->id(),
+            'presence-test-channel',
+        ));
+    }
+
+    public function testFailedAuthorizationRemovesOnlyANewEmptyChannel(): void
+    {
+        $channels = $this->app->make(ChannelManager::class)->for($this->connection->app());
+
+        try {
+            $this->pusher->subscribe($this->connection, 'private-new-channel', 'invalid');
+            $this->fail('Expected authorization to fail.');
+        } catch (ConnectionUnauthorized) {
+            $this->assertFalse($channels->exists('private-new-channel'));
+        }
+
+        $existing = $channels->findOrCreate('private-existing-channel');
+
+        try {
+            $this->pusher->subscribe($this->connection, 'private-existing-channel', 'invalid');
+            $this->fail('Expected authorization to fail.');
+        } catch (ConnectionUnauthorized) {
+            $this->assertSame($existing, $channels->find('private-existing-channel'));
+        }
+    }
+
+    public function testCanSubscribeToAnEmptyChannel(): void
     {
         $this->pusher->handle(
             $this->connection,
@@ -71,7 +232,7 @@ class EventHandlerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanUnsubscribeFromAChannel()
+    public function testCanUnsubscribeFromAChannel(): void
     {
         $this->pusher->handle(
             $this->connection,
@@ -82,7 +243,7 @@ class EventHandlerTest extends ReverbTestCase
         $this->connection->assertNothingReceived();
     }
 
-    public function testCanRespondToAPing()
+    public function testCanRespondToAPing(): void
     {
         $this->pusher->handle(
             $this->connection,
@@ -94,7 +255,7 @@ class EventHandlerTest extends ReverbTestCase
         ]);
     }
 
-    public function testCanCorrectlyFormatAPayload()
+    public function testCanCorrectlyFormatAPayload(): void
     {
         $payload = $this->pusher->formatPayload(
             'foo',
@@ -115,7 +276,7 @@ class EventHandlerTest extends ReverbTestCase
         ]), $payload);
     }
 
-    public function testCanCorrectlyFormatAnInternalPayload()
+    public function testCanCorrectlyFormatAnInternalPayload(): void
     {
         $payload = $this->pusher->formatInternalPayload(
             'foo',
@@ -137,14 +298,14 @@ class EventHandlerTest extends ReverbTestCase
         ]), $payload);
     }
 
-    public function testFormatPayloadReturnsString()
+    public function testFormatPayloadReturnsString(): void
     {
         $payload = $this->pusher->formatPayload('foo', ['bar' => 'baz']);
 
         $this->assertIsString($payload);
     }
 
-    public function testFormatPayloadThrowsOnUnencodableData()
+    public function testFormatPayloadThrowsOnUnencodableData(): void
     {
         $this->expectException(JsonException::class);
 
@@ -154,7 +315,7 @@ class EventHandlerTest extends ReverbTestCase
 
     // ── Cache miss webhook ────────────────────────────────────────────
 
-    public function testCacheMissFiresWebhook()
+    public function testCacheMissFiresWebhook(): void
     {
         Queue::fake();
 
@@ -173,7 +334,7 @@ class EventHandlerTest extends ReverbTestCase
         });
     }
 
-    public function testCacheHitDoesNotFireWebhook()
+    public function testCacheHitDoesNotFireWebhook(): void
     {
         Queue::fake();
 
@@ -201,7 +362,7 @@ class EventHandlerTest extends ReverbTestCase
         });
     }
 
-    public function testCacheMissWebhookIsDeduplicated()
+    public function testCacheMissWebhookIsDeduplicated(): void
     {
         Queue::fake();
 
@@ -227,7 +388,7 @@ class EventHandlerTest extends ReverbTestCase
         $this->assertSame(1, $count);
     }
 
-    public function testCacheMissWebhookRespectsEventFilter()
+    public function testCacheMissWebhookRespectsEventFilter(): void
     {
         Queue::fake();
 
@@ -243,7 +404,7 @@ class EventHandlerTest extends ReverbTestCase
         });
     }
 
-    public function testCacheMissWithNoWebhooksDoesNotTouchLock()
+    public function testCacheMissWithNoWebhooksDoesNotTouchLock(): void
     {
         // Default config — no webhook URL configured
         $sharedState = $this->app->make(\Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState::class);
