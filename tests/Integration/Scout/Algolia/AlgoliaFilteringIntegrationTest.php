@@ -141,6 +141,34 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
         );
     }
 
+    public function testApplicationFiltersComposeWithBuilderFiltersForSearchAndDeletion(): void
+    {
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['id' => 701, 'title' => 'Target', 'body' => 'Body']),
+            SearchableModel::create(['id' => 702, 'title' => 'Other', 'body' => 'Body']),
+            SearchableModel::create(['id' => 703, 'title' => 'Excluded', 'body' => 'Body']),
+        ]));
+        $index = $models->first()->searchableAs();
+
+        $this->engine->update($models);
+        $this->pollSearch($index, '', 3);
+
+        $results = SearchableModel::search('')
+            ->options(['filters' => "title:'Target' OR title:'Other'"])
+            ->where('id', 701)
+            ->get();
+
+        $this->assertSame([701], $results->pluck('id')->all());
+
+        $this->engine->deleteByFilter(
+            SearchableModel::search('')
+                ->options(['filters' => "title:'Target' OR title:'Other'"])
+                ->where('id', 701)
+        );
+
+        $this->assertCount(2, $this->pollSearch($index, '', 2));
+    }
+
     /**
      * Poll an Algolia index until the search returns the expected hit count.
      *
