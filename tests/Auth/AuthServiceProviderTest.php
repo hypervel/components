@@ -9,14 +9,17 @@ use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Config\Repository as ConfigRepositoryContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -52,12 +55,18 @@ class AuthServiceProviderTest extends TestCase
                 return $callback instanceof Closure;
             }))
             ->andReturnSelf();
-        $application = $this->consoleApplication($manager, $config);
+        $application = $this->consoleApplication();
         $application->shouldReceive('booted')->once();
 
-        (new AuthServiceProvider($application))->boot();
+        (new AuthServiceProvider($application))->boot(
+            $manager,
+            $config,
+            m::mock(GateContract::class),
+        );
 
         $this->assertInstanceOf(Closure::class, $resolver);
+        $this->assertTrue(EloquentBuilder::hasGlobalMacro('whereCan'));
+        $this->assertTrue(EloquentBuilder::hasGlobalMacro('withCan'));
         $this->assertSame([
             AuthProviderUser::class,
             AuthProviderAdmin::class,
@@ -91,7 +100,7 @@ class AuthServiceProviderTest extends TestCase
             ->once()
             ->with($redisRepository, 'Auth user provider []');
         $bootedCallback = null;
-        $application = $this->consoleApplication($manager, $config);
+        $application = $this->consoleApplication();
         $application->shouldReceive('make')
             ->once()
             ->with(ModelCacheStoreValidator::class)
@@ -104,7 +113,11 @@ class AuthServiceProviderTest extends TestCase
                 return $callback instanceof Closure;
             }));
 
-        (new AuthServiceProvider($application))->boot();
+        (new AuthServiceProvider($application))->boot(
+            $manager,
+            $config,
+            m::mock(GateContract::class),
+        );
 
         $this->assertInstanceOf(Closure::class, $bootedCallback);
         $bootedCallback();
@@ -127,7 +140,7 @@ class AuthServiceProviderTest extends TestCase
         $manager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
         $manager->shouldNotReceive('store');
         $bootedCallback = null;
-        $application = $this->consoleApplication($manager, $config);
+        $application = $this->consoleApplication();
         $application->shouldNotReceive('make')->with(ModelCacheStoreValidator::class);
         $application->shouldReceive('booted')
             ->once()
@@ -137,7 +150,11 @@ class AuthServiceProviderTest extends TestCase
                 return $callback instanceof Closure;
             }));
 
-        (new AuthServiceProvider($application))->boot();
+        (new AuthServiceProvider($application))->boot(
+            $manager,
+            $config,
+            m::mock(GateContract::class),
+        );
 
         $this->assertSame([], $this->capturedResolver($manager)());
         $this->assertInstanceOf(Closure::class, $bootedCallback);
@@ -177,13 +194,13 @@ class AuthServiceProviderTest extends TestCase
             }));
         $application = m::mock(Application::class);
         $application->shouldReceive('make')
-            ->twice()
+            ->once()
             ->with(CacheManager::class)
-            ->andReturn($masterManager, $workerManager);
+            ->andReturn($workerManager);
         $application->shouldReceive('make')
-            ->twice()
+            ->once()
             ->with(ConfigRepositoryContract::class)
-            ->andReturn($masterConfig, $workerConfig);
+            ->andReturn($workerConfig);
         $application->shouldReceive('make')->once()->with('events')->andReturn($events);
         $application->shouldReceive('make')
             ->once()
@@ -192,13 +209,46 @@ class AuthServiceProviderTest extends TestCase
         $application->shouldReceive('runningInConsole')->once()->andReturnFalse();
         $application->shouldNotReceive('booted');
 
-        (new AuthServiceProvider($application))->boot();
+        (new AuthServiceProvider($application))->boot(
+            $masterManager,
+            $masterConfig,
+            m::mock(GateContract::class),
+        );
 
         $this->assertInstanceOf(Closure::class, $listener);
         $server = m::mock(SwooleServer::class);
         // Store validation runs in request workers and taskworkers, unlike Swoole timer registration.
         $server->taskworker = true;
         $listener(new AfterWorkerStart($server, 8));
+    }
+
+    public function testBootReplacesQueryBuilderMacrosWithFreshGate(): void
+    {
+        $config = new ConfigRepository([
+            'auth' => ['providers' => []],
+        ]);
+        $firstManager = m::mock(CacheManager::class);
+        $firstManager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
+        $secondManager = m::mock(CacheManager::class);
+        $secondManager->shouldReceive('allowSerializableClassesUsing')->once()->andReturnSelf();
+        $firstGate = m::mock(GateContract::class);
+        $firstGate->shouldNotReceive('scope');
+        $secondGate = m::mock(GateContract::class);
+        $secondGate->shouldReceive('scope')
+            ->once()
+            ->with('edit', m::type(EloquentBuilder::class))
+            ->andReturnUsing(static fn (mixed $ability, EloquentBuilder $query): EloquentBuilder => $query);
+        $firstApplication = $this->consoleApplication();
+        $firstApplication->shouldReceive('booted')->once();
+        $secondApplication = $this->consoleApplication();
+        $secondApplication->shouldReceive('booted')->once();
+
+        (new AuthServiceProvider($firstApplication))->boot($firstManager, $config, $firstGate);
+        (new AuthServiceProvider($secondApplication))->boot($secondManager, $config, $secondGate);
+
+        $query = new EloquentBuilder(m::mock(QueryBuilder::class));
+
+        $this->assertSame($query, $query->whereCan('edit'));
     }
 
     public function testSelectedProviderRequiresAnEloquentAuthenticatableModel(): void
@@ -263,19 +313,9 @@ class AuthServiceProviderTest extends TestCase
     /**
      * Create a console application double for provider boot.
      */
-    private function consoleApplication(
-        CacheManager $manager,
-        ConfigRepositoryContract $config,
-    ): Application|m\MockInterface {
+    private function consoleApplication(): Application|m\MockInterface
+    {
         $application = m::mock(Application::class);
-        $application->shouldReceive('make')
-            ->once()
-            ->with(CacheManager::class)
-            ->andReturn($manager);
-        $application->shouldReceive('make')
-            ->once()
-            ->with(ConfigRepositoryContract::class)
-            ->andReturn($config);
         $application->shouldReceive('runningInConsole')->once()->andReturnTrue();
 
         return $application;
@@ -297,10 +337,14 @@ class AuthServiceProviderTest extends TestCase
                 return $callback instanceof Closure;
             }))
             ->andReturnSelf();
-        $application = $this->consoleApplication($manager, $config);
+        $application = $this->consoleApplication();
         $application->shouldReceive('booted')->once();
 
-        (new AuthServiceProvider($application))->boot();
+        (new AuthServiceProvider($application))->boot(
+            $manager,
+            $config,
+            m::mock(GateContract::class),
+        );
 
         $this->assertInstanceOf(Closure::class, $resolver);
 
