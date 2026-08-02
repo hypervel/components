@@ -13,14 +13,14 @@ use RuntimeException;
 
 class MeilisearchRetryPolicyTest extends TestCase
 {
-    public function testNextDelayMsReturnsBaseForFirstAttempt()
+    public function testNextDelayMsReturnsBaseForFirstAttempt(): void
     {
         $this->assertSame(100, MeilisearchRetryPolicy::nextDelayMs(1, 100));
         $this->assertSame(50, MeilisearchRetryPolicy::nextDelayMs(1, 50));
         $this->assertSame(250, MeilisearchRetryPolicy::nextDelayMs(1, 250));
     }
 
-    public function testNextDelayMsDoublesEachAttempt()
+    public function testNextDelayMsDoublesEachAttempt(): void
     {
         $this->assertSame(100, MeilisearchRetryPolicy::nextDelayMs(1, 100));
         $this->assertSame(200, MeilisearchRetryPolicy::nextDelayMs(2, 100));
@@ -28,21 +28,21 @@ class MeilisearchRetryPolicyTest extends TestCase
         $this->assertSame(800, MeilisearchRetryPolicy::nextDelayMs(4, 100));
     }
 
-    public function testNextDelayMsScalesWithAlternateBase()
+    public function testNextDelayMsScalesWithAlternateBase(): void
     {
         $this->assertSame(50, MeilisearchRetryPolicy::nextDelayMs(1, 50));
         $this->assertSame(100, MeilisearchRetryPolicy::nextDelayMs(2, 50));
         $this->assertSame(200, MeilisearchRetryPolicy::nextDelayMs(3, 50));
     }
 
-    public function testShouldRetryOnConnectException()
+    public function testShouldRetryOnConnectException(): void
     {
         $exception = new ConnectException('Connection refused', new Request('POST', 'http://localhost'));
 
         $this->assertTrue(MeilisearchRetryPolicy::shouldRetry(null, $exception));
     }
 
-    public function testShouldRetryOn5xxResponses()
+    public function testShouldRetryOn5xxResponses(): void
     {
         $this->assertTrue(MeilisearchRetryPolicy::shouldRetry(new Response(500), null));
         $this->assertTrue(MeilisearchRetryPolicy::shouldRetry(new Response(502), null));
@@ -50,12 +50,12 @@ class MeilisearchRetryPolicyTest extends TestCase
         $this->assertTrue(MeilisearchRetryPolicy::shouldRetry(new Response(504), null));
     }
 
-    public function testShouldRetryOn429Response()
+    public function testShouldRetryOn429Response(): void
     {
         $this->assertTrue(MeilisearchRetryPolicy::shouldRetry(new Response(429), null));
     }
 
-    public function testShouldNotRetryOnSuccessfulResponses()
+    public function testShouldNotRetryOnSuccessfulResponses(): void
     {
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(200), null));
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(201), null));
@@ -63,14 +63,14 @@ class MeilisearchRetryPolicyTest extends TestCase
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(204), null));
     }
 
-    public function testShouldNotRetryOnRedirectResponses()
+    public function testShouldNotRetryOnRedirectResponses(): void
     {
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(301), null));
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(302), null));
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(304), null));
     }
 
-    public function testShouldNotRetryOnClientErrors()
+    public function testShouldNotRetryOnClientErrors(): void
     {
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(400), null));
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(401), null));
@@ -79,14 +79,14 @@ class MeilisearchRetryPolicyTest extends TestCase
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(new Response(422), null));
     }
 
-    public function testShouldNotRetryOnUnrelatedException()
+    public function testShouldNotRetryOnUnrelatedException(): void
     {
         $exception = new RuntimeException('Something else went wrong');
 
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(null, $exception));
     }
 
-    public function testShouldNotRetryWhenBothResponseAndExceptionAreNull()
+    public function testShouldNotRetryWhenBothResponseAndExceptionAreNull(): void
     {
         $this->assertFalse(MeilisearchRetryPolicy::shouldRetry(null, null));
     }
