@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Scout\Unit;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Scout\Console\ConcurrentImportRunner;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Scout;
@@ -32,10 +33,14 @@ class ConfigTest extends ScoutTestCase
             $model->queueMakeSearchable(new Collection([$model]));
         });
 
-        $scoutRunner = CoroutineContext::get(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY);
+        $runner = CoroutineContext::get(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY);
 
-        $this->assertInstanceOf(WaitConcurrent::class, $scoutRunner);
-        $this->assertSame(25, (new ClassInvoker($scoutRunner))->limit);
+        $this->assertInstanceOf(ConcurrentImportRunner::class, $runner);
+
+        $concurrent = (new ClassInvoker($runner))->concurrent;
+
+        $this->assertInstanceOf(WaitConcurrent::class, $concurrent);
+        $this->assertSame(25, (new ClassInvoker($concurrent))->limit);
     }
 
     public function testChunkSearchableConfigAffectsImportEvents(): void

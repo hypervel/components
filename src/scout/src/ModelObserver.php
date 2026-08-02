@@ -100,13 +100,11 @@ class ModelObserver
 
         $forceSaving = (bool) CoroutineContext::get(self::FORCE_SAVING_CONTEXT_KEY, false);
 
-        /* @phpstan-ignore method.notFound (provided by Searchable trait) */
         if (! $forceSaving && ! $model->searchIndexShouldBeUpdated()) {
             return;
         }
 
         if (! $model->shouldBeSearchable()) {
-            /* @phpstan-ignore method.notFound (provided by Searchable trait) */
             if ($model->wasSearchableBeforeUpdate()) {
                 $model->unsearchable();
             }
@@ -128,8 +126,11 @@ class ModelObserver
             return;
         }
 
-        /* @phpstan-ignore method.notFound (provided by Searchable trait) */
         if (! $model->wasSearchableBeforeDelete()) {
+            return;
+        }
+
+        if ($this->usesSoftDelete($model) && $model->isForceDeleting()) {
             return;
         }
 
