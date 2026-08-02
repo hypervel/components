@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use JsonSerializable;
 use Override;
 use RuntimeException;
+use Stringable;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class Response extends SymfonyResponse
@@ -73,6 +74,12 @@ class Response extends SymfonyResponse
         // that might be thrown and have their errors obscured by PHP's handling.
         elseif ($content instanceof Renderable) {
             $content = $content->render();
+        }
+
+        // Laravel gets this coercion from weak mode; reproduce it explicitly before Symfony's string setter.
+        if (! is_string($content) && $content !== null
+            && (is_scalar($content) || $content instanceof Stringable)) {
+            $content = (string) $content;
         }
 
         parent::setContent($content);
