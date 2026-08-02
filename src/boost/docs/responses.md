@@ -30,6 +30,8 @@
 
 All routes and controllers should return a response to be sent back to the user's browser. Hypervel provides several different ways to return responses. The most basic response is returning a string from a route or controller. The framework will automatically convert the string into a full HTTP response:
 
+Return responses from your routes and controllers so Hypervel's Swoole server bridge can send them. Do not call `send` or `sendContent` directly.
+
 ```php
 Route::get('/', function () {
     return 'Hello World';

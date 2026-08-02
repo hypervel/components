@@ -68,6 +68,8 @@ Route::get('/', function (Request $request) {
 });
 ```
 
+Hypervel's Swoole server bridge creates the current request. Access it through dependency injection or the `request()` helper rather than capturing PHP globals.
+
 <a name="dependency-injection-route-parameters"></a>
 #### Dependency Injection and Route Parameters
 
