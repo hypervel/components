@@ -6,6 +6,7 @@ namespace Hypervel\Http\Middleware;
 
 use Closure;
 use Hypervel\Http\Request;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
 
 class TrustProxies
@@ -20,7 +21,7 @@ class TrustProxies
     /**
      * The trusted proxies headers for the application.
      */
-    protected int $headers = Request::HEADER_X_FORWARDED_FOR
+    protected int|string $headers = Request::HEADER_X_FORWARDED_FOR
         | Request::HEADER_X_FORWARDED_HOST
         | Request::HEADER_X_FORWARDED_PORT
         | Request::HEADER_X_FORWARDED_PROTO
@@ -58,7 +59,9 @@ class TrustProxies
      */
     protected function setTrustedProxyIpAddresses(Request $request): void
     {
-        $trustedIps = $this->proxies() ?: config('trustedproxy.proxies');
+        $trustedIps = $this->proxies();
+
+        // Laravel Cloud, Forge, and Vapor proxy discovery has no Hypervel equivalent.
 
         if ($trustedIps === '*' || $trustedIps === '**') {
             $this->setTrustedProxyIpAddressesToTheCallingIp($request);
@@ -90,15 +93,15 @@ class TrustProxies
     }
 
     /**
-     * Set the trusted proxy to be the IP address calling this server.
+     * Set the trusted proxies to catchall addresses for IPv4 and IPv6.
      */
     protected function setTrustedProxyIpAddressesToTheCallingIp(Request $request): void
     {
-        $request->setTrustedProxies([$request->server->get('REMOTE_ADDR')], $this->getTrustedHeaderNames());
+        $request->setTrustedProxies(['0.0.0.0/0', '::/0'], $this->getTrustedHeaderNames());
     }
 
     /**
-     * Retrieve trusted header name(s), falling back to defaults if config not set.
+     * Resolve the trusted-header bitmask.
      *
      * @return int a bit field of Request::HEADER_*, to set which headers to trust from your proxies
      */
@@ -118,7 +121,9 @@ class TrustProxies
             'HEADER_X_FORWARDED_PORT' => Request::HEADER_X_FORWARDED_PORT,
             'HEADER_X_FORWARDED_PROTO' => Request::HEADER_X_FORWARDED_PROTO,
             'HEADER_X_FORWARDED_PREFIX' => Request::HEADER_X_FORWARDED_PREFIX,
-            default => Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_HOST | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_PREFIX | Request::HEADER_X_FORWARDED_AWS_ELB,
+            'HEADER_X_FORWARDED_ALL' => Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_HOST | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_PREFIX | Request::HEADER_X_FORWARDED_AWS_ELB,
+            'HEADER_X_FORWARDED_TRAEFIK' => Request::HEADER_X_FORWARDED_TRAEFIK,
+            default => throw new InvalidArgumentException("Unsupported trusted header configuration [{$headers}]."),
         };
     }
 
@@ -127,7 +132,7 @@ class TrustProxies
      */
     protected function headers(): int|string
     {
-        return static::$alwaysTrustHeaders ?: $this->headers;
+        return static::$alwaysTrustHeaders ?? $this->headers;
     }
 
     /**
@@ -135,7 +140,7 @@ class TrustProxies
      */
     protected function proxies(): array|string|null
     {
-        return static::$alwaysTrustProxies ?: $this->proxies;
+        return static::$alwaysTrustProxies ?? $this->proxies;
     }
 
     /**
