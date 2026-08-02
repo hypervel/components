@@ -132,6 +132,8 @@ Apart from the approved `database-21` behavior correction, no accepted item adds
 | `database-22` | Attribute defect and upstream defect | Major | `CollectedBy` is instantiated so its named `collectionClass` is honored before worker caching. |
 | `database-23` | Descending cursor type defect | Major | `forPageBeforeId()` accepts string keys so descending chunk and lazy traversal work beyond the first page. |
 | `scout-40` | Integer range defect and upstream defect | Major | Descending queue-import ranges use overflow-safe remaining-distance arithmetic; the ascending branch uses the same exact formulation instead of relying on mixed numeric tie-breaking. |
+| `foundation-17` | Integration-test harness defect | Major | Foundation's Meilisearch waiter reports failed awaited tasks and timeouts, while cleanup waits for its exact deletion tasks; Scout uses that single owner, a service-valid custom-key fixture, and documents Meilisearch's identifier alphabet. |
+| `foundation-18` | Integration-test harness defect | Major | Foundation's Algolia cleanup waits for each exact index-deletion task before setup or teardown continues. |
 
 ## Implementation design
 
@@ -317,6 +319,12 @@ Add `: void` to the identified 218 public test methods in `CollectionEngineTest`
 
 The two existing `DatabaseQueryBuilderTest` methods retain their current signatures; typing only those methods would leave that legacy file inconsistent. The new `HasUuidsTest` regression uses `: void`, matching its class and the rule for new tests.
 
+### 9. External search integration task truthfulness (`foundation-17`, `foundation-18`)
+
+Use Foundation's `InteractsWithMeilisearch::waitForMeilisearchTasks()` as the single wait owner. Preserve its current selection of all pending tasks, inspect each terminal result returned by `waitForTask()`, throw its error when the status is not `succeeded`, and let timeout or transport exceptions propagate. Meilisearch cleanup waits for the exact `taskUid` values returned by its deletions; Algolia cleanup waits for each exact index name and `taskID`. Setup failures propagate, while teardown remains exception-safe. Delete the duplicate Support implementation; Scout keeps its longer timeout through parent delegation.
+
+The shared custom-key fixture uses a Meilisearch-valid hyphenated key while remaining distinct from the database key. Keep the positive remote precondition before queued removal. Add deterministic harness coverage for successful, failed, and timed-out waits rather than racing the real service, and state the Meilisearch identifier alphabet once in the custom-key guide. Do not poll in production, change `Engine::update(): void`, scan already-terminal global failures, filter by test prefix, or add a task watermark.
+
 ## Test plan
 
 ### Focused unit and feature regressions
@@ -339,6 +347,7 @@ The two existing `DatabaseQueryBuilderTest` methods retain their current signatu
 - Named SearchUsingPrefix/SearchUsingFullText columns/options and cache reuse; named CollectedBy inheritance/override; malformed attributes fail fast.
 - Database `chunk()` and `orderedChunkById()` reject zero/negative counts; `forPageBeforeId()` accepts a string cursor; Scout macro and command consumers inherit the corrected contracts without local checks.
 - Split metadata, README provenance/differences, config shape/env removal, contract completeness, command text, and test typing.
+- Meilisearch waits complete normally on success, surface an awaited task failure with its service error, propagate timeouts, and await exact cleanup tasks; Algolia awaits exact index-deletion tasks. The real custom-key removal first proves that its valid transformed key was indexed.
 
 ### External-service integration
 
@@ -379,6 +388,8 @@ If an unexpected defect or design contradiction appears, stop that edit, complet
 Normal searches gain only the approved fresh container construction and small local filter-shape checks. Queued job creation gains three config reads. Typesense remote operations gain four temporary wrappers plus one array removal while eliminating unbounded per-name retention. In return, no-listener imports avoid event construction and dispatch traversal; Typesense removes per-delete, per-flush, and per-update network calls; empty transformed batches do no I/O. No lock, additional serialization layer, polling, logging, broad retry, per-request client, or worker registry is introduced.
 
 Laravel public names and signatures are restored or preserved. Nonpositive Database chunk sizes become an owner-approved behavior correction: they throw consistently with Laravel's lazy chunk APIs instead of returning success or issuing an unbounded fetch. Other intentional differences are limited to the approved Hypervel configuration structure, coroutine/nonqueue execution, bounded command concurrency, Algolia 4-only support, stronger escaping/error truthfulness, Swoole-safe clients/retries, exact delete-all safety, and Typesense operator behavior. No compatibility shim or obscure-API workaround remains.
+
+Foundation's test-only Meilisearch waiter reports the asynchronous task failures and timeouts it observes, and Meilisearch and Algolia cleanup own the deletion tasks they enqueue. This adds no production request, allocation, retry, or API change.
 
 ## Completion criteria
 

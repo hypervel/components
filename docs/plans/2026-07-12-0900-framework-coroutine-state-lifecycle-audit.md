@@ -1076,6 +1076,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `http-03` | `http`, `foundation` | `contracts` and `foundation` (revalidation complete); later full `http` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `http-03` |
 | `auth-02` | `auth` | `foundation` (revalidation complete); later full `auth` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `auth-02` |
 | `database-03` | `database` | `foundation` and `database` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `database-03` |
+| `foundation-17` | `foundation` | `foundation` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `foundation-17` |
+| `foundation-18` | `foundation` | `foundation` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `foundation-18` |
 | `database-04` | `database` | `console` and `database` (revalidation complete) | `Complete Console command, scheduling, and generator lifecycles`; finding `database-04` |
 | `reverb-04` | `reverb` | `reverb` (revalidation complete) | `Complete Console command, scheduling, and generator lifecycles`; finding `reverb-04` |
 | `watcher-10` | `support` | `watcher`, `foundation`, and `horizon` (revalidation complete) | `Make Watcher drivers and managed processes lifecycle-safe`; finding `watcher-10` |

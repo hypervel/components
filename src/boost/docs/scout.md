@@ -447,6 +447,9 @@ class User extends Model implements SearchableInterface
 > [!NOTE]
 > The `getScoutKey` and `getScoutKeyName` methods have no effect when using the database engine, which always uses the model's primary key.
 
+> [!WARNING]
+> Meilisearch document identifiers may contain only letters, numbers, hyphens, and underscores, so custom Scout keys must follow that format when using Meilisearch.
+
 <a name="algolia-configuration"></a>
 ### Algolia
 

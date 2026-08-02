@@ -126,7 +126,7 @@ class RemoveFromSearchTest extends ScoutTestCase
         $this->assertInstanceOf(CustomScoutKeyModel::class, $restoredModel);
         $this->assertSame('archive', $restoredModel->getConnectionName());
         $this->assertSame('string', $restoredModel->getKeyType());
-        $this->assertSame('custom-key.42', $restoredModel->getAttribute('id'));
+        $this->assertSame('custom-key-42', $restoredModel->getAttribute('id'));
     }
 
     public function testMorphAliasesAreResolvedWhileRestoringModels(): void

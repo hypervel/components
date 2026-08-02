@@ -47,6 +47,6 @@ abstract class MeilisearchScoutIntegrationTestCase extends MeilisearchIntegratio
      */
     protected function waitForMeilisearchTasks(int $timeoutMs = 10000): void
     {
-        $this->waitForTasks($timeoutMs);
+        parent::waitForMeilisearchTasks($timeoutMs);
     }
 }
