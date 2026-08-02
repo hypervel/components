@@ -70,6 +70,11 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
         $this->engine->update(new EloquentCollection([$model]));
         $this->waitForMeilisearchTasks();
 
+        $results = $this->meilisearch->index($model->indexableAs())->search('');
+
+        $this->assertCount(1, $results->getHits());
+        $this->assertSame($model->getScoutKey(), $results->getHits()[0][$model->getScoutKeyName()]);
+
         $job = new RemoveFromSearch(new EloquentCollection([$model]));
         CustomScoutKeyModel::query()->whereKey($model->getKey())->delete();
 

@@ -18,6 +18,7 @@ use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use InvalidArgumentException;
 
 /**
  * Algolia search engine implementation (v4 client).
@@ -213,11 +214,36 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
                 $operator = $where['operator'];
                 $value = $where['value'];
 
+                if (! in_array($operator, ['=', '!=', '<', '>', '<=', '>='], true)) {
+                    throw new InvalidArgumentException("Unsupported Algolia filter operator [{$operator}].");
+                }
+
                 if ($value instanceof BackedEnum) {
                     $value = $value->value;
                 }
 
-                if (is_string($value) || (is_bool($value) && in_array($operator, ['=', '!='], true))) {
+                if ($value === null) {
+                    throw new InvalidArgumentException('Algolia filters do not support null values.');
+                }
+
+                if (is_float($value) && ! is_finite($value)) {
+                    throw new InvalidArgumentException('Algolia filters require finite numeric values.');
+                }
+
+                if (in_array($operator, ['<', '>', '<=', '>='], true)) {
+                    if (is_bool($value)) {
+                        $value = $value ? '1' : '0';
+                    } elseif (is_int($value) || is_float($value)) {
+                        $value = (string) $value;
+                    } elseif (! is_string($value)
+                        || preg_match('/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/D', $value) !== 1) {
+                        throw new InvalidArgumentException('Algolia ordering filters require a numeric value.');
+                    }
+
+                    return $field . $operator . $value;
+                }
+
+                if (is_string($value) || is_bool($value)) {
                     $value = $this->formatFilterValue($value);
 
                     if ($operator === '!=') {

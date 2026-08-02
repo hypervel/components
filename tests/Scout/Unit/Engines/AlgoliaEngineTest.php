@@ -19,7 +19,9 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Coroutine\go;
 
@@ -265,7 +267,7 @@ class AlgoliaEngineTest extends TestCase
             ->once()
             ->with('users', [
                 'query' => 'zonda',
-                'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND score>=10",
+                'filters' => "is_live:true AND is_archived:false AND NOT status:'draft' AND NOT label:'manager\\'s draft\\\\review' AND NOT is_deleted:true AND is_featured>1 AND is_disabled<=0 AND rank>=10 AND score>=9223372036854775808 AND ratio<1.25",
             ], []);
 
         $engine = new AlgoliaEngine($client);
@@ -279,9 +281,50 @@ class AlgoliaEngineTest extends TestCase
             ->where('status', '!=', 'draft')
             ->where('label', '!=', "manager's draft\\review")
             ->where('is_deleted', '!=', true)
-            ->where('score', '>=', 10);
+            ->where('is_featured', '>', true)
+            ->where('is_disabled', '<=', false)
+            ->where('rank', '>=', 10)
+            ->where('score', '>=', '9223372036854775808')
+            ->where('ratio', '<', 1.25);
 
         $engine->search($builder);
+    }
+
+    #[DataProvider('invalidFilterValues')]
+    public function testSearchRejectsInvalidFilters(string $operator, mixed $value, string $message): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldNotReceive('searchSingleIndex');
+
+        $engine = new AlgoliaEngine($client);
+        $builder = new Builder(m::mock(AlgoliaTestSearchableModel::class), 'zonda');
+        $builder->where('value', $operator, $value);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $engine->search($builder);
+    }
+
+    /**
+     * Provide invalid Algolia filter values.
+     *
+     * @return array<string, array{string, mixed, string}>
+     */
+    public static function invalidFilterValues(): array
+    {
+        return [
+            'unsupported operator' => ['LIKE', "a' OR x:'y", 'Unsupported Algolia filter operator [LIKE].'],
+            'null equality' => ['=', null, 'Algolia filters do not support null values.'],
+            'null inequality' => ['!=', null, 'Algolia filters do not support null values.'],
+            'null ordering' => ['>', null, 'Algolia filters do not support null values.'],
+            'nonnumeric string ordering' => ['>', "1 OR x:'2", 'Algolia ordering filters require a numeric value.'],
+            'leading-zero string ordering' => ['>', '01', 'Algolia ordering filters require a numeric value.'],
+            'exponent string ordering' => ['>', '1e3', 'Algolia ordering filters require a numeric value.'],
+            'non-scalar ordering' => ['>', [1, 2], 'Algolia ordering filters require a numeric value.'],
+            'infinite float' => ['>', INF, 'Algolia filters require finite numeric values.'],
+            'not-a-number float' => ['=', NAN, 'Algolia filters require finite numeric values.'],
+        ];
     }
 
     public function testSearchSendsBackedEnumFilters(): void

@@ -78,7 +78,7 @@ The implementation decisions are owner-approved:
 | Gate | Status, decision, and cost |
 |---|---|
 | `scout-08`, `scout-09` | Use `Container::makeWith()` for the model-selected Builder and four generic paginator paths. It honors Laravel substitutions and stays fresh through Hypervel's parameterized-resolution path. Cost is one cached build-recipe lookup and override push/pop per search or generic pagination, beside required DB/network work. |
-| `scout-18` | Consolidate on top-level `scout.after_commit` / `SCOUT_AFTER_COMMIT`; remove nested `queue.after_commit` / `SCOUT_QUEUE_AFTER_COMMIT`. Observer and manual queued dispatch use the same concept. |
+| `scout-18` | Consolidate on top-level `scout.after_commit` / `SCOUT_AFTER_COMMIT`; remove nested `queue.after_commit` / `SCOUT_QUEUE_AFTER_COMMIT`. Cast the shipped env value to boolean because the observer consumes it through the strict typed getter. |
 | `scout-31` | Add the three methods directly required by `ModelObserver` to `SearchableInterface`. Every conforming implementation must provide them. |
 | `scout-32` | Database raw pagination honors the declared model-pagination capabilities. It returns model paginators and therefore has no engine-raw result for `withRawResults()` to transform, matching current Scout. |
 | `scout-34` | Typesense rejects unknown comparison operators instead of silently rewriting them to equality. Validation remains engine-local so custom engines may support other operators. |
@@ -92,7 +92,7 @@ Apart from the approved `database-21` behavior correction, no accepted item adds
 | ID | Category | Severity | Owning boundary and final result |
 |---|---|---:|---|
 | `scout-03` | Defect and parity | Major | `Builder` stores ordered `{field, operator, value}` constraints; Collection, Database, Meili, Typesense, and every soft-delete consumer use that shape. |
-| `scout-04` | Defect and parity | Major | Algolia uses escaped `filters`; Meili escapes IN values; Algolia, Meili, and Typesense preserve native backed-enum scalar types at their formatter boundaries. |
+| `scout-04` | Defect and parity | Major | Algolia uses escaped `filters`, validates its six supported operators, preserves canonical numeric strings and boolean `0`/`1` for ordering, and rejects unrepresentable null or nonnumeric ordering values; Meili escapes IN values; all remote engines preserve native backed-enum scalar types at their formatter boundaries. |
 | `scout-05` | Defect | Major | A force-deleted soft-delete model issues one remote removal. |
 | `scout-06` | Coroutine lifecycle defect | Major | Nested `withoutSyncingToSearch()` restores the prior enabled/disabled behavior. |
 | `scout-07` | Relation correctness defect | Major | `HasManyThrough` macros use the relation's through-key-aware chunk query. |
@@ -106,7 +106,7 @@ Apart from the approved `database-21` behavior correction, no accepted item adds
 | `scout-15` | Error-classification defect | Major | Meilisearch creates only after 404 and accepts only `index_already_exists` races. |
 | `scout-16` | Queue restoration defect | Major | Every queued removal restores a `RemoveableScoutCollection` of exact synthetic Scout identities without a DB query; all remote engines delete the serialized key. |
 | `scout-17` | Package metadata defect | Major | The split manifest declares Guzzle and PSR HTTP Message directly. |
-| `scout-18` | Transaction/config defect | Major | One top-level after-commit setting governs observer and queued manual dispatch paths. |
+| `scout-18` | Transaction/config defect | Major | One boolean top-level after-commit setting governs observer and queued manual dispatch paths, including conventional env `1`/`0` values. |
 | `scout-19` | Provenance/documentation defect | Minor | README gains upstream provenance and concise actionable differences, retaining its setext heading. |
 | `scout-20` | Public docs/CLI defect | Minor | Boost docs cover accepted APIs in existing Laravel-style sections; spelling and CLI language are corrected. |
 | `scout-21` | Typesense target defect | Major | Search uses explicit `within()` or `searchableAs()`; update/delete/flush use `indexableAs()`; creation uses the already-resolved target. |
@@ -156,6 +156,10 @@ Port Algolia's complete current filter path, not only operators:
 - replace `numericFilters` with the single `filters` expression;
 - escape backslashes and quotes, render booleans correctly, use `NOT` for `!=`, group OR terms, join NOT-IN terms with AND, and retain the `0:1` empty-set sentinel;
 - unwrap a scalar `BackedEnum` to its native backing value before branch dispatch, and unwrap IN/NOT-IN values inside `formatFilterValue()`;
+- reject operators outside `=`, `!=`, `<`, `>`, `>=`, and `<=` before dispatch so an unsupported operator cannot be silently rewritten or reach raw interpolation;
+- keep equality and inequality on their facet grammar (`true`/`false` for booleans), while ordering uses numeric grammar: integers, finite floats, canonical decimal strings emitted without precision-losing casts, and booleans normalized to `1`/`0`;
+- reject null for every operator and reject other nonnumeric ordering values before building a malformed or injectable filter expression;
+- reject non-scalar ordering values before interpolation; array equality or inequality remains a caller error surfaced by PHP, and `whereIn()` is the supported array API;
 - use null-aware index selection so literal index `"0"` remains valid.
 
 Meilisearch unwraps a `BackedEnum` before the existing bool/null/numeric/escaped-string path rather than copying upstream's escaping-bypassing early return. Its IN/NOT-IN mapper applies the same unwrapping and `addcslashes()` escaping. Typesense accepts `BackedEnum` at `parseFilterValue()`, unwraps before recursion/boolean handling, and throws for any operator outside `=`, `!=`, `<`, `>`, `<=`, `>=`. Database/Collection leave raw enum values to Database's `castBinding()`.
@@ -224,7 +228,7 @@ Move after-commit outside the queue group:
     'connection' => env('SCOUT_QUEUE_CONNECTION'),
     'queue' => env('SCOUT_QUEUE_NAME'),
 ],
-'after_commit' => env('SCOUT_AFTER_COMMIT', false),
+'after_commit' => (bool) env('SCOUT_AFTER_COMMIT', false),
 ```
 
 The observer and both queued manual collection paths read `scout.after_commit`. Automatic nonqueued model events are deferred at the observer; direct manual nonqueued collection calls retain their existing coroutine-defer semantics without a new transaction layer.
@@ -318,14 +322,14 @@ The two existing `DatabaseQueryBuilderTest` methods retain their current signatu
 ### Focused unit and feature regressions
 
 - Builder two/three-argument constraints, duplicate-field comparisons, exact soft-delete entry shape, and normal/with/only trashed behavior in Builder, Database, and Collection.
-- Exact Algolia filter strings for quoted/backslashed values, booleans, inequality, empty IN, grouping, string/int backed enums, and `within('0')`.
+- Exact Algolia filter strings for quoted/backslashed values, facet and ordered booleans, canonical numeric strings, inequality, empty IN, grouping, string/int backed enums, and `within('0')`; unsupported operators, null, nonnumeric ordering strings, and non-finite floats fail locally.
 - Exact Meilisearch escaping and backed enums in scalar, IN, and NOT-IN forms; Typesense enum and unsupported-operator behavior.
 - One force-delete removal; nested normal/exceptional suppression and sibling-coroutine isolation.
 - HasManyThrough search/removal with colliding far/through `id` or timestamp columns, custom chunks, and far-model Scout keys.
 - Custom/default Builder resolution, all four paginator substitution paths, and zero per-page fallback; Database raw model pagination and raw-callback consequence.
 - No-listener, real-listener, and EventFake bulk event behavior with independent progress.
 - Configured/absent/subclass-overridden job options; timeout properties; unique ordering/class/key identity and JSON failure.
-- RemoveFromSearch serialization round trips for persisted, deleted, custom-key, morph-alias, and nondefault-connection models; no DB query; exact Algolia/Meili/Typesense delete keys.
+- RemoveFromSearch serialization round trips for persisted, deleted, custom-key, morph-alias, and nondefault-connection models; no DB query; exact Algolia/Meili/Typesense delete keys, with positive remote preconditions before queued custom-key removal.
 - Queue-import asc/desc for integer and string keys, multiple descending string chunks, normalized string job bounds, `int`/`integer`, string collation, zero/signs, malformed/leading-zero/fraction/exponent/overflow/reversed bounds, queue/connection pass-through, and exit status.
 - Strict platform-extreme integer range assertions for both directions; descending reproduces the prior underflow and ascending protects the symmetric exact formulation.
 - Index unsupported-create/settings continuation, logical and physical settings lookup, primary key `"0"`, and operational error propagation.

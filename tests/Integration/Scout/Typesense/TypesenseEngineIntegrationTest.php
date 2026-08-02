@@ -210,6 +210,12 @@ class TypesenseEngineIntegrationTest extends TypesenseScoutIntegrationTestCase
 
         $this->engine->update(new EloquentCollection([$model]));
 
+        $document = $this->typesense->collections[$model->indexableAs()]
+            ->documents[(string) $model->getScoutKey()]
+            ->retrieve();
+
+        $this->assertSame($model->getScoutKey(), $document['id']);
+
         $job = new RemoveFromSearch(new EloquentCollection([$model]));
 
         TypesenseCustomScoutKeyModel::query()->whereKey($model->getKey())->delete();
