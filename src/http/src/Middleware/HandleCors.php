@@ -20,7 +20,7 @@ class HandleCors
     /**
      * The closure used to resolve CORS configuration for the current request.
      *
-     * @var null|Closure(Request): array
+     * @var null|Closure(Request): array<string, mixed>
      */
     protected static ?Closure $configResolver = null;
 
@@ -50,14 +50,15 @@ class HandleCors
             }
         }
 
-        if (! $this->hasMatchingPath($request)) {
+        $config = static::$configResolver !== null
+            ? (static::$configResolver)($request)
+            : $this->container->make('config')->array('cors');
+
+        if (! $this->hasMatchingPath($request, $config['paths'] ?? [])) {
             return $next($request);
         }
 
-        $config = static::$configResolver !== null
-            ? (static::$configResolver)($request)
-            : $this->container->make('config')->array('cors', []);
-
+        // Middleware instances are shared by a worker, so mutable CORS state stays request-local.
         $cors = new CorsService($config);
 
         if ($cors->isPreflightRequest($request)) {
@@ -80,9 +81,9 @@ class HandleCors
     /**
      * Get the path from the configuration to determine if the CORS service should run.
      */
-    protected function hasMatchingPath(Request $request): bool
+    protected function hasMatchingPath(Request $request, array $paths): bool
     {
-        $paths = $this->getPathsByHost($request->getHost());
+        $paths = $this->getPathsByHost($request->getHost(), $paths);
 
         foreach ($paths as $path) {
             if ($path !== '/') {
@@ -100,10 +101,8 @@ class HandleCors
     /**
      * Get the CORS paths for the given host.
      */
-    protected function getPathsByHost(string $host): array
+    protected function getPathsByHost(string $host, array $paths): array
     {
-        $paths = $this->container->make('config')->array('cors.paths', []);
-
         if (isset($paths[$host])) {
             return $paths[$host];
         }
@@ -120,7 +119,7 @@ class HandleCors
      * options array; useful for multi-tenant CORS where the config varies by
      * host or other request data. Persists for the worker lifetime.
      *
-     * @param null|Closure(Request): array $callback
+     * @param null|Closure(Request): array<string, mixed> $callback
      */
     public static function resolveConfigUsing(?Closure $callback): void
     {
