@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Http\Resources;
+namespace Hypervel\Tests\Http\Resources\JsonApi;
 
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Tests\TestCase;

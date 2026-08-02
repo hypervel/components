@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Http\Resources;
+namespace Hypervel\Tests\Http\Resources\JsonApi;
 
+use BadMethodCallException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\JsonApi\Exceptions\ResourceIdentificationException;
 use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
@@ -15,6 +17,29 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class JsonApiResourceTest extends TestCase
 {
+    public function testResponseWrapperIsHardCodedToData(): void
+    {
+        JsonResource::wrap('hypervel');
+
+        $this->assertSame('data', JsonApiResource::$wrap);
+    }
+
+    public function testUnableToSetWrapper(): void
+    {
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::wrap() method is not allowed.');
+
+        JsonApiResource::wrap('hypervel');
+    }
+
+    public function testUnableToUnsetWrapper(): void
+    {
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::withoutWrapping() method is not allowed.');
+
+        JsonApiResource::withoutWrapping();
+    }
+
     public function testFlushStateRestoresDefaultRelationshipDepth(): void
     {
         $this->assertSame(5, JsonApiResource::$maxRelationshipDepth);

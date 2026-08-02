@@ -7,6 +7,7 @@ namespace Hypervel\Http\Resources\JsonApi;
 use Closure;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use InvalidArgumentException;
 
 /**
  * @internal
@@ -16,7 +17,7 @@ class RelationResolver
     /**
      * The relation resolver.
      *
-     * @var Closure(mixed):(null|\Hypervel\Database\Eloquent\Collection|\Hypervel\Database\Eloquent\Model)
+     * @var Closure(mixed):(null|\Hypervel\Database\Eloquent\Collection|\Hypervel\Database\Eloquent\Model|\Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection|\Hypervel\Http\Resources\JsonApi\JsonApiResource)
      */
     public Closure $relationResolver;
 
@@ -30,7 +31,9 @@ class RelationResolver
     /**
      * Construct a new resource relationship resolver.
      *
-     * @param null|class-string<\Hypervel\Http\Resources\JsonApi\JsonApiResource>|Closure(mixed):(null|\Hypervel\Database\Eloquent\Collection|\Hypervel\Database\Eloquent\Model) $resolver
+     * @param null|class-string<\Hypervel\Http\Resources\JsonApi\JsonApiResource>|Closure(mixed):(null|\Hypervel\Database\Eloquent\Collection|\Hypervel\Database\Eloquent\Model|\Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection|\Hypervel\Http\Resources\JsonApi\JsonApiResource) $resolver
+     *
+     * @throws InvalidArgumentException
      */
     public function __construct(public string $relationName, Closure|string|null $resolver = null)
     {
@@ -39,7 +42,13 @@ class RelationResolver
             default => fn ($resource) => $resource->getRelation($this->relationName),
         };
 
-        if (is_string($resolver) && class_exists($resolver)) {
+        if (is_string($resolver)) {
+            if (! class_exists($resolver)) {
+                throw new InvalidArgumentException(
+                    "Resource class [{$resolver}] for relationship [{$this->relationName}] does not exist."
+                );
+            }
+
             $this->relationResourceClass = $resolver;
         }
     }
@@ -49,7 +58,21 @@ class RelationResolver
      */
     public function handle(mixed $resource): Collection|Model|null
     {
-        return value($this->relationResolver, $resource);
+        $resolved = value($this->relationResolver, $resource);
+
+        if ($resolved instanceof AnonymousResourceCollection) {
+            $this->relationResourceClass ??= $resolved->collects;
+
+            return new Collection($resolved->collection->map->resource);
+        }
+
+        if ($resolved instanceof JsonApiResource) {
+            $this->relationResourceClass ??= $resolved::class;
+
+            return $resolved->resource;
+        }
+
+        return $resolved;
     }
 
     /**
