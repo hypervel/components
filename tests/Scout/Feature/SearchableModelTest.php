@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Scout\Feature;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use LogicException;
+use Mockery as m;
 use RuntimeException;
 
 class SearchableModelTest extends ScoutTestCase
@@ -213,6 +217,31 @@ class SearchableModelTest extends ScoutTestCase
         $query = SearchableModel::makeAllSearchableQuery();
 
         $this->assertInstanceOf(\Hypervel\Database\Eloquent\Builder::class, $query);
+    }
+
+    public function testRemoveAllFromSearchGuardsTheResolvedEngineBeforeFlushing(): void
+    {
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('flush')
+            ->once()
+            ->with(m::type(SearchableModel::class));
+        $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('engine')->once()->andReturn($engine);
+        $this->app->instance(EngineManager::class, $manager);
+        $guarded = false;
+        Scout::guardModelFlushUsing(function (Model $model, Engine $givenEngine, bool $force) use (
+            $engine,
+            &$guarded
+        ): void {
+            $this->assertInstanceOf(SearchableModel::class, $model);
+            $this->assertSame($engine, $givenEngine);
+            $this->assertFalse($force);
+            $guarded = true;
+        });
+
+        SearchableModel::removeAllFromSearch();
+
+        $this->assertTrue($guarded);
     }
 
     public function testScoutMetadataCanBeSetAndRetrieved(): void

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Scout\Unit\Console;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Console\Kernel;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
@@ -13,6 +14,7 @@ use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Scout\Models\SearchableModel;
@@ -52,6 +54,12 @@ class ImportCommandTest extends ScoutTestCase
     public function testScoutImportFreshIgnoresQueueEnabledConfig(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
+        $guarded = false;
+        Scout::guardModelFlushUsing(function (Model $model, Engine $engine, bool $force) use (&$guarded): void {
+            $this->assertInstanceOf(SearchableModel::class, $model);
+            $this->assertFalse($force);
+            $guarded = true;
+        });
 
         for ($i = 1; $i <= 3; ++$i) {
             SearchableModel::create(['title' => "Title {$i}", 'body' => 'Body']);
@@ -65,6 +73,7 @@ class ImportCommandTest extends ScoutTestCase
 
         Bus::assertNotDispatched(MakeSearchable::class);
         Bus::assertNotDispatched(RemoveFromSearch::class);
+        $this->assertTrue($guarded);
     }
 
     public function testScoutImportDoesNotForgetExistingModelsImportedListeners(): void
