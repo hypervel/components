@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Auth\Fixtures;
 
 use stdClass;
 
-class NoScopePostPolicy
+class NoQueryPostPolicy
 {
     /**
      * Determine if the user can edit the post.
