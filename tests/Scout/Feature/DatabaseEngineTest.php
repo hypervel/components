@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
+use ArgumentCountError;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Engines\DatabaseEngine;
@@ -56,6 +57,21 @@ class DatabaseEngineTest extends ScoutTestCase
 
         $this->assertCount(1, $results);
         $this->assertEquals($model1->id, $results->first()->id);
+    }
+
+    public function testSearchWithMultipleComparisonsOnTheSameField(): void
+    {
+        SearchableModel::create(['title' => 'First', 'body' => 'Body']);
+        $second = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
+        $third = SearchableModel::create(['title' => 'Third', 'body' => 'Body']);
+        SearchableModel::create(['title' => 'Fourth', 'body' => 'Body']);
+
+        $results = SearchableModel::search('')
+            ->where('id', '>=', $second->id)
+            ->where('id', '<=', $third->id)
+            ->get();
+
+        $this->assertSame([$third->id, $second->id], $results->pluck('id')->all());
     }
 
     public function testSearchWithWhereInClause(): void
@@ -195,6 +211,32 @@ class DatabaseEngineTest extends ScoutTestCase
             $invoker->attributeColumns[SearchableModel::class][SearchUsingFullText::class]
         );
         $this->assertSame([], $invoker->fullTextOptions[SearchableModel::class]);
+    }
+
+    public function testNamedSearchAttributeArgumentsUseTheAttributeContract(): void
+    {
+        $engine = new DatabaseEngine;
+        $invoker = new ClassInvoker($engine);
+        $builder = NamedSearchAttributesModel::search('hello');
+
+        $this->assertSame(['title'], $invoker->getPrefixColumns($builder));
+        $this->assertSame(['body'], $invoker->getFullTextColumns($builder));
+        $this->assertSame(
+            ['mode' => 'websearch', 'language' => 'english'],
+            $invoker->getFullTextOptions($builder)
+        );
+
+        $this->assertSame(['title'], $invoker->getPrefixColumns($builder));
+        $this->assertSame(['body'], $invoker->getFullTextColumns($builder));
+    }
+
+    public function testMalformedSearchAttributeFailsFast(): void
+    {
+        $this->expectException(ArgumentCountError::class);
+
+        (new ClassInvoker(new DatabaseEngine))->getPrefixColumns(
+            MalformedSearchAttributeModel::search('hello')
+        );
     }
 
     public function testCreateAndDeleteIndexAreNoOps(): void
@@ -341,5 +383,24 @@ class DatabaseEngineTest extends ScoutTestCase
         $results = SearchableModel::search('Test')->get();
 
         $this->assertCount(2, $results);
+    }
+}
+
+class NamedSearchAttributesModel extends SearchableModel
+{
+    #[SearchUsingPrefix(columns: ['title'])]
+    #[SearchUsingFullText(columns: ['body'], options: ['mode' => 'websearch', 'language' => 'english'])]
+    public function toSearchableArray(): array
+    {
+        return parent::toSearchableArray();
+    }
+}
+
+class MalformedSearchAttributeModel extends SearchableModel
+{
+    #[SearchUsingPrefix]
+    public function toSearchableArray(): array
+    {
+        return parent::toSearchableArray();
     }
 }

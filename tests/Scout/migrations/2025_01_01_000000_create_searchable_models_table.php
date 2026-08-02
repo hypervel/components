@@ -23,5 +23,23 @@ return new class extends Migration {
             $table->timestamps();
             $table->softDeletes();
         });
+
+        Schema::create('scout_through_owners', function (Blueprint $table) {
+            $table->id();
+            $table->timestamps();
+        });
+
+        Schema::create('scout_through_intermediates', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('owner_id');
+            $table->timestamps();
+        });
+
+        Schema::create('scout_through_models', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('intermediate_id');
+            $table->string('title');
+            $table->timestamps();
+        });
     }
 };
