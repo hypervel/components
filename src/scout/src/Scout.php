@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
+use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -13,31 +14,28 @@ use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 
 /**
- * Scout utility class for job customization and engine access.
+ * Scout utility class for lifecycle customization and engine access.
  *
  * Provides static configuration for customizing the job classes used
  * when indexing models via the queue. Set these in a service provider
  * boot method to use custom job implementations.
  *
  * Note: These static properties are set at boot time and read during
- * request handling. This is safe in Swoole/coroutine environments
- * because they store class names (strings), not stateful objects.
+ * request handling. Job classes are stable strings, while lifecycle
+ * callbacks may capture objects and therefore must never be registered
+ * from request handling.
  */
 class Scout
 {
     /**
-     * The job class that makes models searchable.
-     *
-     * @var class-string<MakeSearchable>
+     * The default job class that makes models searchable.
      */
-    public static string $makeSearchableJob = MakeSearchable::class;
+    protected const DEFAULT_MAKE_SEARCHABLE_JOB = MakeSearchable::class;
 
     /**
-     * The job class that removes models from the search index.
-     *
-     * @var class-string<RemoveFromSearch>
+     * The default job class that removes models from the search index.
      */
-    public static string $removeFromSearchJob = RemoveFromSearch::class;
+    protected const DEFAULT_REMOVE_FROM_SEARCH_JOB = RemoveFromSearch::class;
 
     /**
      * Coroutine-local context key indicating that scout:import is currently running.
@@ -53,11 +51,153 @@ class Scout
     public const IMPORT_PROGRESS_CONTEXT_KEY = '__scout.import_progress';
 
     /**
+     * The job class that makes models searchable.
+     *
+     * @var class-string<MakeSearchable>
+     */
+    public static string $makeSearchableJob = self::DEFAULT_MAKE_SEARCHABLE_JOB;
+
+    /**
+     * The job class that removes models from the search index.
+     *
+     * @var class-string<RemoveFromSearch>
+     */
+    public static string $removeFromSearchJob = self::DEFAULT_REMOVE_FROM_SEARCH_JOB;
+
+    /**
+     * The callback that prepares a Builder before terminal execution.
+     *
+     * @var null|(Closure(Builder, Engine): void)
+     */
+    protected static ?Closure $prepareBuilderCallback = null;
+
+    /**
+     * The callback that prepares a final searchable document.
+     *
+     * @var null|(Closure(array<string, mixed>, Model, Engine): array<string, mixed>)
+     */
+    protected static ?Closure $prepareSearchableDocumentCallback = null;
+
+    /**
+     * The callback that prepares final index settings.
+     *
+     * @var null|(Closure(array<string, mixed>, null|Model, Engine, string): array<string, mixed>)
+     */
+    protected static ?Closure $prepareIndexSettingsCallback = null;
+
+    /**
+     * The callback that guards a whole-model index flush.
+     *
+     * @var null|(Closure(Model, Engine, bool): void)
+     */
+    protected static ?Closure $guardModelFlushCallback = null;
+
+    /**
      * Get a Scout engine instance by name.
      */
     public static function engine(?string $name = null): Engine
     {
         return app(EngineManager::class)->engine($name);
+    }
+
+    /**
+     * Specify the callback that prepares a Builder before terminal execution.
+     *
+     * Boot-only. The callback persists for the worker lifetime, so registering
+     * it per request would leak captured request state into later requests.
+     *
+     * @param callable(Builder, Engine): void $callback
+     */
+    public static function prepareBuilderUsing(callable $callback): void
+    {
+        static::$prepareBuilderCallback = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Prepare a Builder before terminal execution.
+     */
+    public static function prepareBuilder(Builder $builder, Engine $engine): void
+    {
+        if (static::$prepareBuilderCallback !== null) {
+            (static::$prepareBuilderCallback)($builder, $engine);
+        }
+    }
+
+    /**
+     * Specify the callback that prepares a final searchable document.
+     *
+     * Boot-only. The callback persists for the worker lifetime, so registering
+     * it per request would leak captured request state into later requests.
+     *
+     * @param callable(array<string, mixed>, Model, Engine): array<string, mixed> $callback
+     */
+    public static function prepareSearchableDocumentUsing(callable $callback): void
+    {
+        static::$prepareSearchableDocumentCallback = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Prepare a final searchable document.
+     *
+     * @param array<string, mixed> $document
+     *
+     * @return array<string, mixed>
+     */
+    public static function prepareSearchableDocument(array $document, Model $model, Engine $engine): array
+    {
+        return static::$prepareSearchableDocumentCallback === null
+            ? $document
+            : (static::$prepareSearchableDocumentCallback)($document, $model, $engine);
+    }
+
+    /**
+     * Specify the callback that prepares final index settings.
+     *
+     * Boot-only. The callback persists for the worker lifetime, so registering
+     * it per request would leak captured request state into later requests.
+     *
+     * @param callable(array<string, mixed>, null|Model, Engine, string): array<string, mixed> $callback
+     */
+    public static function prepareIndexSettingsUsing(callable $callback): void
+    {
+        static::$prepareIndexSettingsCallback = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Prepare final index settings.
+     *
+     * @param array<string, mixed> $settings
+     *
+     * @return array<string, mixed>
+     */
+    public static function prepareIndexSettings(array $settings, ?Model $model, Engine $engine, string $index): array
+    {
+        return static::$prepareIndexSettingsCallback === null
+            ? $settings
+            : (static::$prepareIndexSettingsCallback)($settings, $model, $engine, $index);
+    }
+
+    /**
+     * Specify the callback that guards a whole-model index flush.
+     *
+     * Boot-only. The callback persists for the worker lifetime, so registering
+     * it per request would leak captured request state into later requests.
+     *
+     * @param callable(Model, Engine, bool): void $callback
+     */
+    public static function guardModelFlushUsing(callable $callback): void
+    {
+        static::$guardModelFlushCallback = Closure::fromCallable($callback);
+    }
+
+    /**
+     * Guard a whole-model index flush.
+     */
+    public static function guardModelFlush(Model $model, Engine $engine, bool $force): void
+    {
+        if (static::$guardModelFlushCallback !== null) {
+            (static::$guardModelFlushCallback)($model, $engine, $force);
+        }
     }
 
     /**
@@ -161,7 +301,11 @@ class Scout
      */
     public static function flushState(): void
     {
-        static::$makeSearchableJob = MakeSearchable::class;
-        static::$removeFromSearchJob = RemoveFromSearch::class;
+        static::$makeSearchableJob = self::DEFAULT_MAKE_SEARCHABLE_JOB;
+        static::$removeFromSearchJob = self::DEFAULT_REMOVE_FROM_SEARCH_JOB;
+        static::$prepareBuilderCallback = null;
+        static::$prepareSearchableDocumentCallback = null;
+        static::$prepareIndexSettingsCallback = null;
+        static::$guardModelFlushCallback = null;
     }
 }
