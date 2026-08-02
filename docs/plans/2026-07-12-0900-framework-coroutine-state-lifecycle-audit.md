@@ -990,7 +990,7 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** none — Reverb is complete and the next package is not selected.
+- **Active package or work unit:** none — Scout is complete and the next package is not selected.
 - **Ledger entries required for the active work:** none.
 - **Pending revalidation carried into the active work:** none.
 
@@ -1149,6 +1149,9 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `http-06` | `http` | `http` (targeted correction complete); later full `http` audit | `Harden Eloquent identity and partial-projection safety`; finding `http-06` |
 | `testing-01` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-01` |
 | `testing-02` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-02` |
+| `database-21` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-21` |
+| `database-22` | `database` | `database` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-22` |
+| `database-23` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-23` |
 
 ## Package checklist
 
@@ -1245,7 +1248,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `passkeys`
 - [ ] `permission`
 - [ ] `jwt`
-- [ ] `scout`
+- [x] `scout`
 - [ ] `telescope`
 - [ ] `sentry`
 - [ ] `inertia`
