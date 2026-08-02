@@ -32,6 +32,7 @@
 - [Query Scopes](#query-scopes)
     - [Global Scopes](#global-scopes)
     - [Local Scopes](#local-scopes)
+    - [Applying Scope Callbacks](#applying-scope-callbacks)
     - [Pending Attributes](#pending-attributes)
     - [Custom Eloquent Builders](#custom-eloquent-builders)
 - [Comparing Models](#comparing-models)
@@ -1703,6 +1704,30 @@ Once the expected arguments have been added to your scope method's signature, yo
 ```php
 $users = User::ofType('admin')->get();
 ```
+
+<a name="applying-scope-callbacks"></a>
+### Applying Scope Callbacks
+
+Sometimes you may want to apply a reusable query callback with the same logical grouping that Eloquent provides for scopes. You may use the `applyScopeCallback` method to apply the callback to the current builder:
+
+```php
+use Hypervel\Database\Eloquent\Builder;
+
+$visibleToUser = function (Builder $query) use ($user): void {
+    $query->where('team_id', $user->team_id)
+        ->orWhere('is_public', true);
+};
+
+$projects = Project::query()
+    ->where('active', true)
+    ->applyScopeCallback($visibleToUser)
+    ->orderBy('name')
+    ->get();
+```
+
+The callback receives the same builder, and `applyScopeCallback` returns that builder so you may continue chaining the query. Eloquent keeps the existing and callback-added `where` conditions separate, grouping either set when it contains an `or`. This prevents either set's `or` conditions from escaping the other. In the example above, a project must be active and must either belong to the user's team or be public.
+
+The `tap` method also returns the same builder after invoking a callback, but it does not provide this scope-style grouping of added `where` conditions.
 
 <a name="pending-attributes"></a>
 ### Pending Attributes
