@@ -107,7 +107,11 @@ class MeilisearchCommandsIntegrationTest extends MeilisearchScoutIntegrationTest
             $this->createTestIndex('scoped_b');
 
             // One unprefixed index — create directly, clean up manually below.
-            $this->meilisearch->createIndex($unrelatedIndex);
+            $task = $this->meilisearch->createIndex($unrelatedIndex);
+
+            /** @var int $taskUid */
+            $taskUid = $task['taskUid'];
+            $this->waitForMeilisearchTask($taskUid);
 
             $this->waitForMeilisearchTasks();
 
