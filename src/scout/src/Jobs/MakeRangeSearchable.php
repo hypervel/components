@@ -16,6 +16,13 @@ class MakeRangeSearchable implements ShouldQueue
     use Queueable;
 
     /**
+     * Indicates if the job should be marked as failed on timeout.
+     *
+     * @var bool
+     */
+    public $failOnTimeout = true;
+
+    /**
      * Create a new job instance.
      *
      * @param string $class the model class to be made searchable

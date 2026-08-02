@@ -35,6 +35,25 @@ class ConfigFileTest extends TestCase
         $this->assertIsArray($config['algolia']['index-settings']);
     }
 
+    public function testQueuedJobDefaultsArePresentInConfigFile(): void
+    {
+        $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+        $this->assertSame([
+            'tries' => null,
+            'backoff' => null,
+            'max_exceptions' => null,
+        ], $config['jobs']);
+    }
+
+    public function testAfterCommitHasOneTopLevelOwner(): void
+    {
+        $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+        $this->assertFalse($config['after_commit']);
+        $this->assertArrayNotHasKey('after_commit', $config['queue']);
+    }
+
     public function testMeilisearchRetryDefaultsArePresentInConfigFile(): void
     {
         $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
