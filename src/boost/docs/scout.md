@@ -6,6 +6,7 @@
 - [Driver Prerequisites](#driver-prerequisites)
 - [Configuration](#configuration)
     - [Configuring Searchable Data](#configuring-searchable-data)
+    - [Customizing the Scout Builder](#customizing-the-scout-builder)
 - [Database, Collection, and Null Engines](#database-and-collection-engines)
     - [Database Engine](#database-engine)
     - [Collection Engine](#collection-engine)
@@ -91,20 +92,32 @@ Of course, if you customize the connection and queue that Scout jobs utilize, yo
 php artisan queue:work redis --queue=scout
 ```
 
-Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, `SCOUT_QUEUE_NAME`, and `SCOUT_QUEUE_AFTER_COMMIT` environment variables.
+Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, and `SCOUT_QUEUE_NAME` environment variables.
 
 #### Transaction-Safe Dispatch
 
 If your indexing happens inside a database transaction, set `after_commit` so the queued job is only dispatched once the transaction commits:
 
 ```php
-'queue' => [
-    'enabled' => true,
-    'after_commit' => true,
-],
+'after_commit' => true,
 ```
 
-This stops the queue worker from picking up an indexing job for a record that no longer exists because the transaction was rolled back.
+This option may also be set using the `SCOUT_AFTER_COMMIT` environment variable. It stops the queue worker from picking up an indexing job for a record that no longer exists because the transaction was rolled back.
+
+#### Unique Jobs
+
+In write-heavy applications, you may prevent Scout from queueing duplicate jobs for the same model records by registering the unique job classes in a service provider:
+
+```php
+use Hypervel\Scout\Jobs\MakeSearchableUniquely;
+use Hypervel\Scout\Jobs\RemoveFromSearchUniquely;
+use Hypervel\Scout\Scout;
+
+Scout::makeSearchableUsing(MakeSearchableUniquely::class);
+Scout::removeFromSearchUsing(RemoveFromSearchUniquely::class);
+```
+
+These jobs use [unique job locks](/docs/{{version}}/queues#unique-jobs) while a matching indexing operation is waiting to be processed.
 
 #### When to Use Each Mode
 
@@ -258,6 +271,19 @@ class User extends Model implements SearchableInterface
     }
 }
 ```
+
+<a name="customizing-the-scout-builder"></a>
+### Customizing the Scout Builder
+
+To use a custom Scout query builder for a model, define the `$scoutBuilder` property on the model:
+
+```php
+use App\Scout\CustomScoutBuilder;
+
+protected static string $scoutBuilder = CustomScoutBuilder::class;
+```
+
+The custom class should extend `Hypervel\Scout\Builder` and will be resolved through the service container for each search.
 
 <a name="database-and-collection-engines"></a>
 ## Database, Collection, and Null Engines
@@ -583,7 +609,7 @@ public function toSearchableArray(): array
 }
 ```
 
-You may define your Typesense collection schema in your application's `config/scout.php` file under `typesense.model-settings`, or directly on the model by defining a `typesenseCollectionSchema` method. A collection schema describes the data types of each field that is searchable via Typesense. For more information on all available schema options, please consult the [Typesense documentation](https://typesense.org/docs/latest/api/collections.html#schema-parameters).
+You may define your Typesense collection schema in your application's `config/scout.php` file under `typesense.model-settings`, or directly on the model by defining a `typesenseCollectionSchema` method. A collection schema describes the data types of each field that is searchable via Typesense. Scout derives the collection name from the model's index name, so a `name` key in the schema is ignored. For more information on all available schema options, please consult the [Typesense documentation](https://typesense.org/docs/latest/api/collections.html#schema-parameters).
 
 If you need to change your Typesense collection's schema after it has been defined, you may either run `scout:flush` and `scout:import`, which will delete all existing indexed data and recreate the schema. Or, you may use Typesense's API to modify the collection's schema without removing any indexed data.
 
@@ -648,6 +674,12 @@ You may optionally control the chunk size, the ID range, and the destination que
 
 ```shell
 php artisan scout:queue-import "App\Models\Post" --chunk=500 --min=1000 --max=50000 --queue=imports
+```
+
+Imports run in ascending key order by default. To process the range from the highest key to the lowest, pass `--order=desc`:
+
+```shell
+php artisan scout:queue-import "App\Models\Post" --order=desc
 ```
 
 The `--min` and `--max` options are useful for resuming a partial import, or for running several imports in parallel against different ranges. There is no `--fresh` option — to rebuild the index from scratch, run `scout:flush` first.
@@ -892,6 +924,18 @@ public function boot(): void
 
 Custom job classes should extend the corresponding default job and override only the methods you need to change. These overrides only affect queue-mode indexing — in the default mode, indexing runs inline via `Coroutine::defer` and does not pass through a job class.
 
+You may configure the attempts, retry delay, and maximum unhandled exceptions for the default jobs in `config/scout.php`:
+
+```php
+'jobs' => [
+    'tries' => 3,
+    'backoff' => [1, 5, 10],
+    'max_exceptions' => 2,
+],
+```
+
+Values defined by a custom job class take precedence over these settings.
+
 <a name="searching"></a>
 ## Searching
 
@@ -942,7 +986,7 @@ use App\Models\Order;
 $orders = Order::search('Star Trek')->where('user_id', 1)->get();
 ```
 
-You may also use the `=`, `!=`, `<`, `>`, `>=`, `<=` comparsion operators to build more advanced queries:
+You may also use the `=`, `!=`, `<`, `>`, `>=`, `<=` comparison operators to build more advanced queries:
 
 ```php
 Order::search('Star Trek')
