@@ -11,7 +11,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
@@ -89,9 +88,9 @@ class CollectionEngine extends Engine
                 call_user_func($builder->callback, $query, $builder, $builder->query);
             })
             ->when($builder->callback === null && count($builder->wheres) > 0, function ($query) use ($builder) {
-                foreach ($builder->wheres as $key => $value) {
-                    if ($key !== '__soft_deleted') {
-                        $query->where($key, $value);
+                foreach ($builder->wheres as $where) {
+                    if ($where['field'] !== '__soft_deleted') {
+                        $query->where($where['field'], $where['operator'], $where['value']);
                     }
                 }
             })
@@ -138,7 +137,7 @@ class CollectionEngine extends Engine
                     return false;
                 }
 
-                if (! $builder->query) {
+                if ($builder->query === '') {
                     return true;
                 }
 
@@ -168,12 +167,14 @@ class CollectionEngine extends Engine
      */
     protected function ensureSoftDeletesAreHandled(Builder $builder, EloquentBuilder $query): EloquentBuilder
     {
-        if (Arr::get($builder->wheres, '__soft_deleted') === 0) {
+        $softDeleteWhere = collect($builder->wheres)->firstWhere('field', '__soft_deleted');
+
+        if ($softDeleteWhere !== null && $softDeleteWhere['value'] === 0) {
             /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
             return $query->withoutTrashed();
         }
 
-        if (Arr::get($builder->wheres, '__soft_deleted') === 1) {
+        if ($softDeleteWhere !== null && $softDeleteWhere['value'] === 1) {
             /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
             return $query->onlyTrashed();
         }

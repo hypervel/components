@@ -37,8 +37,8 @@ class ScoutTestCase extends TestCase
                     'enabled' => false,
                     'connection' => null,
                     'queue' => null,
-                    'after_commit' => false,
                 ],
+                'after_commit' => false,
                 'soft_delete' => false,
                 'chunk' => [
                     'searchable' => 500,

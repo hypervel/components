@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Scout\Unit;
 
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Tests for the on-disk scout config file defaults.
@@ -33,6 +34,25 @@ class ConfigFileTest extends TestCase
         $this->assertArrayHasKey('secret', $config['algolia']);
         $this->assertArrayHasKey('index-settings', $config['algolia']);
         $this->assertIsArray($config['algolia']['index-settings']);
+    }
+
+    public function testQueuedJobDefaultsArePresentInConfigFile(): void
+    {
+        $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+        $this->assertSame([
+            'tries' => null,
+            'backoff' => null,
+            'max_exceptions' => null,
+        ], $config['jobs']);
+    }
+
+    public function testAfterCommitHasOneTopLevelOwner(): void
+    {
+        $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+        $this->assertFalse($config['after_commit']);
+        $this->assertArrayNotHasKey('after_commit', $config['queue']);
     }
 
     public function testMeilisearchRetryDefaultsArePresentInConfigFile(): void
@@ -110,41 +130,54 @@ class ConfigFileTest extends TestCase
         }
     }
 
-    public function testSoftDeleteEnvironmentValueIsLoadedAsBoolean(): void
+    #[DataProvider('booleanEnvironmentValues')]
+    public function testBooleanEnvironmentValuesAreLoadedAsBooleans(string $environmentKey, string $configKey): void
     {
-        $key = 'SCOUT_SOFT_DELETE';
-        $originalPutenv = getenv($key);
-        $originalServerExists = array_key_exists($key, $_SERVER);
-        $originalServer = $_SERVER[$key] ?? null;
-        $originalEnvExists = array_key_exists($key, $_ENV);
-        $originalEnv = $_ENV[$key] ?? null;
+        $originalPutenv = getenv($environmentKey);
+        $originalServerExists = array_key_exists($environmentKey, $_SERVER);
+        $originalServer = $_SERVER[$environmentKey] ?? null;
+        $originalEnvExists = array_key_exists($environmentKey, $_ENV);
+        $originalEnv = $_ENV[$environmentKey] ?? null;
 
         try {
-            unset($_SERVER[$key], $_ENV[$key]);
-            putenv("{$key}=1");
+            unset($_SERVER[$environmentKey], $_ENV[$environmentKey]);
+            putenv("{$environmentKey}=1");
             Env::flushRepository();
 
             $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
 
-            $this->assertTrue($config['soft_delete']);
+            $this->assertTrue($config[$configKey]);
         } finally {
             $originalPutenv === false
-                ? putenv($key)
-                : putenv("{$key}={$originalPutenv}");
+                ? putenv($environmentKey)
+                : putenv("{$environmentKey}={$originalPutenv}");
 
             if ($originalServerExists) {
-                $_SERVER[$key] = $originalServer;
+                $_SERVER[$environmentKey] = $originalServer;
             } else {
-                unset($_SERVER[$key]);
+                unset($_SERVER[$environmentKey]);
             }
 
             if ($originalEnvExists) {
-                $_ENV[$key] = $originalEnv;
+                $_ENV[$environmentKey] = $originalEnv;
             } else {
-                unset($_ENV[$key]);
+                unset($_ENV[$environmentKey]);
             }
 
             Env::flushRepository();
         }
+    }
+
+    /**
+     * Provide boolean Scout environment values.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function booleanEnvironmentValues(): array
+    {
+        return [
+            'soft deletes' => ['SCOUT_SOFT_DELETE', 'soft_delete'],
+            'after commit' => ['SCOUT_AFTER_COMMIT', 'after_commit'],
+        ];
     }
 }

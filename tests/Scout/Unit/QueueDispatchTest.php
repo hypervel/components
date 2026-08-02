@@ -20,7 +20,7 @@ class QueueDispatchTest extends ScoutTestCase
     public function testQueueMakeSearchableDispatchesJobWhenQueueEnabled(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
-        $this->app->make('config')->set('scout.queue.after_commit', false);
+        $this->app->make('config')->set('scout.after_commit', false);
 
         Bus::fake([MakeSearchable::class]);
 
@@ -38,7 +38,7 @@ class QueueDispatchTest extends ScoutTestCase
     public function testQueueMakeSearchableDispatchesWithAfterCommitWhenEnabled(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
-        $this->app->make('config')->set('scout.queue.after_commit', true);
+        $this->app->make('config')->set('scout.after_commit', true);
 
         Bus::fake([MakeSearchable::class]);
 
@@ -55,7 +55,7 @@ class QueueDispatchTest extends ScoutTestCase
     public function testQueueRemoveFromSearchDispatchesJobWhenQueueEnabled(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
-        $this->app->make('config')->set('scout.queue.after_commit', false);
+        $this->app->make('config')->set('scout.after_commit', false);
 
         Bus::fake([RemoveFromSearch::class]);
 
@@ -73,7 +73,7 @@ class QueueDispatchTest extends ScoutTestCase
     public function testQueueRemoveFromSearchDispatchesWithAfterCommitWhenEnabled(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
-        $this->app->make('config')->set('scout.queue.after_commit', true);
+        $this->app->make('config')->set('scout.after_commit', true);
 
         Bus::fake([RemoveFromSearch::class]);
 

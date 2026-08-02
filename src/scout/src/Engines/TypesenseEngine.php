@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
+use BackedEnum;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -11,8 +12,10 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use InvalidArgumentException;
 use stdClass;
 use Typesense\Client as Typesense;
 use Typesense\Collection as TypesenseCollection;
@@ -56,8 +59,6 @@ class TypesenseEngine extends Engine
         /** @var Model&SearchableInterface $firstModel */
         $firstModel = $models->first();
 
-        $collection = $this->getOrCreateCollectionFromModel($firstModel);
-
         if ($this->usesSoftDelete($firstModel) && $this->getConfig('soft_delete', false)) {
             $models->each->pushSoftDeleteMetadata();
         }
@@ -79,7 +80,17 @@ class TypesenseEngine extends Engine
             ->values()
             ->all();
 
-        if (! empty($objects)) {
+        if (empty($objects)) {
+            return;
+        }
+
+        $collectionName = $firstModel->indexableAs();
+        $collection = $this->collection($collectionName);
+
+        try {
+            $this->importDocuments($collection, $objects);
+        } catch (ObjectNotFound) {
+            $this->createCollectionFromModel($firstModel, $collectionName);
             $this->importDocuments($collection, $objects);
         }
     }
@@ -139,11 +150,15 @@ class TypesenseEngine extends Engine
      */
     public function delete(EloquentCollection $models): void
     {
-        $models->each(function (Model $model): void {
+        $models->each(function (Model $model) use ($models): void {
             /** @var Model&SearchableInterface $model */
+            $modelId = $models instanceof RemoveableScoutCollection
+                ? $model->getAttribute($model->getScoutKeyName())
+                : $model->getScoutKey();
+
             $this->deleteDocument(
-                $this->getOrCreateCollectionFromModel($model, null, false),
-                $model->getScoutKey()
+                $this->collection($model->indexableAs()),
+                $modelId,
             );
         });
     }
@@ -162,11 +177,8 @@ class TypesenseEngine extends Engine
         $document = $collectionIndex->getDocuments()[(string) $modelId];
 
         try {
-            $document->retrieve();
-
             return $document->delete();
         } catch (ObjectNotFound) {
-            // Document already gone, nothing to delete
             return [];
         }
     }
@@ -222,11 +234,8 @@ class TypesenseEngine extends Engine
      */
     protected function performSearch(Builder $builder, array $options = []): mixed
     {
-        $documents = $this->getOrCreateCollectionFromModel(
-            $builder->model,
-            $builder->index,
-            false,
-        )->getDocuments();
+        $collectionName = $builder->index ?? $builder->model->searchableAs();
+        $documents = $this->collection($collectionName)->getDocuments();
 
         if ($builder->callback !== null) {
             return call_user_func($builder->callback, $documents, $builder->query, $options);
@@ -235,7 +244,7 @@ class TypesenseEngine extends Engine
         try {
             return $documents->search($options);
         } catch (ObjectNotFound) {
-            $this->getOrCreateCollectionFromModel($builder->model, $builder->index, true);
+            $this->createCollectionFromModel($builder->model, $collectionName);
 
             return $documents->search($options);
         }
@@ -341,7 +350,11 @@ class TypesenseEngine extends Engine
     protected function filters(Builder $builder): string
     {
         $whereFilter = collect($builder->wheres)
-            ->map(fn (mixed $value, string $key): string => $this->parseWhereFilter($this->parseFilterValue($value), $key))
+            ->map(fn (array $where): string => $this->parseWhereFilter(
+                $this->parseFilterValue($where['value']),
+                $where['field'],
+                $where['operator'],
+            ))
             ->values()
             ->implode(' && ');
 
@@ -363,13 +376,17 @@ class TypesenseEngine extends Engine
     /**
      * Parse the given filter value.
      *
-     * @param array<mixed>|bool|float|int|string $value
+     * @param array<mixed>|BackedEnum|bool|float|int|string $value
      * @return array<mixed>|float|int|string
      */
-    protected function parseFilterValue(array|string|bool|int|float $value): array|string|int|float
+    protected function parseFilterValue(array|string|bool|int|float|BackedEnum $value): array|string|int|float
     {
         if (is_array($value)) {
             return array_map([$this, 'parseFilterValue'], $value);
+        }
+
+        if ($value instanceof BackedEnum) {
+            return $value->value;
         }
 
         if (is_bool($value)) {
@@ -384,11 +401,24 @@ class TypesenseEngine extends Engine
      *
      * @param array<mixed>|float|int|string $value
      */
-    protected function parseWhereFilter(array|string|int|float $value, string $key): string
-    {
+    protected function parseWhereFilter(
+        array|string|int|float $value,
+        string $key,
+        string $operator = '='
+    ): string {
+        $operator = match ($operator) {
+            '=' => ':=',
+            '!=' => ':!=',
+            '<' => ':<',
+            '>' => ':>',
+            '<=' => ':<=',
+            '>=' => ':>=',
+            default => throw new InvalidArgumentException("Unsupported Typesense filter operator [{$operator}]."),
+        };
+
         return is_array($value)
-            ? sprintf('%s:%s', $key, implode('', $value))
-            : sprintf('%s:=%s', $key, $value);
+            ? sprintf('%s%s%s', $key, $operator, implode('', $value))
+            : sprintf('%s%s%s', $key, $operator, $value);
     }
 
     /**
@@ -528,7 +558,11 @@ class TypesenseEngine extends Engine
      */
     public function flush(Model $model): void
     {
-        $this->getOrCreateCollectionFromModel($model)->delete();
+        try {
+            $this->collection($model->indexableAs())->delete();
+        } catch (ObjectNotFound) {
+            // The collection is already absent.
+        }
     }
 
     /**
@@ -550,42 +584,17 @@ class TypesenseEngine extends Engine
      */
     public function deleteIndex(string $name): array
     {
-        return $this->typesense->getCollections()->{$name}->delete();
+        return $this->collection($name)->delete();
     }
 
     /**
-     * Get collection from model or create new one.
+     * Create the model's Typesense collection.
      *
      * @param Model&SearchableInterface $model
      * @throws TypesenseClientError
      */
-    protected function getOrCreateCollectionFromModel(
-        Model $model,
-        ?string $collectionName = null,
-        bool $indexOperation = true
-    ): TypesenseCollection {
-        if (! $indexOperation) {
-            $collectionName = $collectionName ?? $model->searchableAs();
-        } else {
-            $collectionName = $model->indexableAs();
-        }
-
-        $collection = $this->typesense->getCollections()->{$collectionName};
-
-        if (! $indexOperation) {
-            return $collection;
-        }
-
-        // Determine if the collection exists in Typesense
-        try {
-            $collection->retrieve();
-            $collection->setExists(true);
-
-            return $collection;
-        } catch (TypesenseClientError) {
-            // Collection doesn't exist, will create it
-        }
-
+    protected function createCollectionFromModel(Model $model, string $collectionName): void
+    {
         $modelClass = get_class($model);
         $schema = $this->getConfig("typesense.model-settings.{$modelClass}.collection-schema", []);
 
@@ -593,17 +602,23 @@ class TypesenseEngine extends Engine
             $schema = $model->typesenseCollectionSchema();
         }
 
-        if (! isset($schema['name'])) {
-            $schema['name'] = $model->searchableAs();
-        }
+        $schema['name'] = $collectionName;
 
         try {
             $this->typesense->getCollections()->create($schema);
         } catch (ObjectAlreadyExists) {
-            // Collection already exists
+            // Another process created the collection first.
         }
+    }
 
-        $collection->setExists(true);
+    /**
+     * Get a detached Typesense collection handle.
+     */
+    protected function collection(string $name): TypesenseCollection
+    {
+        $collections = $this->typesense->getCollections();
+        $collection = $collections[$name];
+        unset($collections[$name]);
 
         return $collection;
     }

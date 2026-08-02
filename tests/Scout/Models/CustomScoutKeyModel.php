@@ -24,7 +24,7 @@ class CustomScoutKeyModel extends Model implements SearchableInterface
      */
     public function getScoutKey(): mixed
     {
-        return 'custom-key.' . $this->id;
+        return 'custom-key-' . $this->id;
     }
 
     public function getScoutKeyName(): string

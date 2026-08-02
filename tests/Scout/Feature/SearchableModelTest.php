@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Feature;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Builder;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\Models\SoftDeletableSearchableModel;
@@ -29,7 +30,7 @@ class SearchableModelTest extends ScoutTestCase
         ));
     }
 
-    public function testSearchReturnsBuilder()
+    public function testSearchReturnsBuilder(): void
     {
         $builder = SearchableModel::search('test');
 
@@ -37,14 +38,26 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertSame('test', $builder->query);
     }
 
-    public function testSearchableAsReturnsTableName()
+    public function testSearchUsesModelSelectedBuilder(): void
+    {
+        $this->assertInstanceOf(CustomScoutBuilder::class, CustomScoutBuilderModel::search('test'));
+    }
+
+    public function testSearchHonorsBuilderContainerSubstitution(): void
+    {
+        $this->app->bind(Builder::class, ContainerScoutBuilder::class);
+
+        $this->assertInstanceOf(ContainerScoutBuilder::class, SearchableModel::search('test'));
+    }
+
+    public function testSearchableAsReturnsTableName(): void
     {
         $model = new SearchableModel;
 
         $this->assertSame('searchable_models', $model->searchableAs());
     }
 
-    public function testSearchableAsReturnsTableNameWithPrefix()
+    public function testSearchableAsReturnsTableNameWithPrefix(): void
     {
         // Set a prefix in the config
         $this->app->make('config')
@@ -55,7 +68,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertSame('test_searchable_models', $model->searchableAs());
     }
 
-    public function testToSearchableArrayReturnsModelArray()
+    public function testToSearchableArrayReturnsModelArray(): void
     {
         $model = SearchableModel::create([
             'title' => 'Test Title',
@@ -70,7 +83,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertSame('Test Title', $searchable['title']);
     }
 
-    public function testGetScoutKeyReturnsModelKey()
+    public function testGetScoutKeyReturnsModelKey(): void
     {
         $model = SearchableModel::create([
             'title' => 'Test Title',
@@ -104,21 +117,21 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertNull((new SearchableModel)->getScoutKey());
     }
 
-    public function testGetScoutKeyNameReturnsModelKeyName()
+    public function testGetScoutKeyNameReturnsModelKeyName(): void
     {
         $model = new SearchableModel;
 
         $this->assertSame('id', $model->getScoutKeyName());
     }
 
-    public function testShouldBeSearchableReturnsTrueByDefault()
+    public function testShouldBeSearchableReturnsTrueByDefault(): void
     {
         $model = new SearchableModel;
 
         $this->assertTrue($model->shouldBeSearchable());
     }
 
-    public function testDisableSearchSyncingPreventsIndexing()
+    public function testDisableSearchSyncingPreventsIndexing(): void
     {
         // Initially syncing is enabled
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
@@ -134,7 +147,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
     }
 
-    public function testWithoutSyncingToSearchExecutesCallbackAndRestoresState()
+    public function testWithoutSyncingToSearchExecutesCallbackAndRestoresState(): void
     {
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
 
@@ -149,7 +162,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertSame('callback result', $result);
     }
 
-    public function testWithoutSyncingToSearchRestoresStateOnException()
+    public function testWithoutSyncingToSearchRestoresStateOnException(): void
     {
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
 
@@ -165,14 +178,44 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
     }
 
-    public function testMakeAllSearchableQueryReturnsBuilder()
+    public function testWithoutSyncingToSearchPreservesOuterDisabledScope(): void
+    {
+        SearchableModel::withoutSyncingToSearch(function (): void {
+            $this->assertFalse(SearchableModel::isSearchSyncingEnabled());
+
+            SearchableModel::withoutSyncingToSearch(function (): void {
+                $this->assertFalse(SearchableModel::isSearchSyncingEnabled());
+            });
+
+            $this->assertFalse(SearchableModel::isSearchSyncingEnabled());
+        });
+
+        $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
+    }
+
+    public function testWithoutSyncingToSearchRestoresPreexistingDisabledState(): void
+    {
+        SearchableModel::disableSearchSyncing();
+
+        try {
+            SearchableModel::withoutSyncingToSearch(function (): void {
+                $this->assertFalse(SearchableModel::isSearchSyncingEnabled());
+            });
+
+            $this->assertFalse(SearchableModel::isSearchSyncingEnabled());
+        } finally {
+            SearchableModel::enableSearchSyncing();
+        }
+    }
+
+    public function testMakeAllSearchableQueryReturnsBuilder(): void
     {
         $query = SearchableModel::makeAllSearchableQuery();
 
         $this->assertInstanceOf(\Hypervel\Database\Eloquent\Builder::class, $query);
     }
 
-    public function testScoutMetadataCanBeSetAndRetrieved()
+    public function testScoutMetadataCanBeSetAndRetrieved(): void
     {
         $model = new SearchableModel;
 
@@ -185,7 +228,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertSame(['title' => '<em>test</em>'], $metadata['_highlight']);
     }
 
-    public function testModelCanBeSearched()
+    public function testModelCanBeSearched(): void
     {
         // Create some models
         SearchableModel::create(['title' => 'First Post', 'body' => 'Content']);
@@ -198,7 +241,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertCount(2, $results);
     }
 
-    public function testSoftDeletedModelsAreExcludedByDefault()
+    public function testSoftDeletedModelsAreExcludedByDefault(): void
     {
         // Set soft delete config
         $this->app->make('config')
@@ -218,7 +261,7 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertCount(0, $results);
     }
 
-    public function testSoftDeletedModelsCanBeIncludedWithWithTrashed()
+    public function testSoftDeletedModelsCanBeIncludedWithWithTrashed(): void
     {
         // Set soft delete config
         $this->app->make('config')
@@ -241,42 +284,42 @@ class SearchableModelTest extends ScoutTestCase
         $this->assertCount(1, $results);
     }
 
-    public function testSearchIndexShouldBeUpdatedReturnsTrueByDefault()
+    public function testSearchIndexShouldBeUpdatedReturnsTrueByDefault(): void
     {
         $model = new SearchableModel;
 
         $this->assertTrue($model->searchIndexShouldBeUpdated());
     }
 
-    public function testWasSearchableBeforeUpdateReturnsTrueByDefault()
+    public function testWasSearchableBeforeUpdateReturnsTrueByDefault(): void
     {
         $model = new SearchableModel;
 
         $this->assertTrue($model->wasSearchableBeforeUpdate());
     }
 
-    public function testWasSearchableBeforeDeleteReturnsTrueByDefault()
+    public function testWasSearchableBeforeDeleteReturnsTrueByDefault(): void
     {
         $model = new SearchableModel;
 
         $this->assertTrue($model->wasSearchableBeforeDelete());
     }
 
-    public function testIndexableAsReturnsSearchableAsByDefault()
+    public function testIndexableAsReturnsSearchableAsByDefault(): void
     {
         $model = new SearchableModel;
 
         $this->assertSame($model->searchableAs(), $model->indexableAs());
     }
 
-    public function testGetScoutKeyTypeReturnsModelKeyType()
+    public function testGetScoutKeyTypeReturnsModelKeyType(): void
     {
         $model = new SearchableModel;
 
         $this->assertSame('int', $model->getScoutKeyType());
     }
 
-    public function testMakeSearchableUsingReturnsModelsUnchangedByDefault()
+    public function testMakeSearchableUsingReturnsModelsUnchangedByDefault(): void
     {
         $model = new SearchableModel;
         $collection = $model->newCollection([new SearchableModel, new SearchableModel]);
@@ -285,4 +328,17 @@ class SearchableModelTest extends ScoutTestCase
 
         $this->assertSame($collection, $result);
     }
+}
+
+class CustomScoutBuilderModel extends SearchableModel
+{
+    protected static string $scoutBuilder = CustomScoutBuilder::class;
+}
+
+class CustomScoutBuilder extends Builder
+{
+}
+
+class ContainerScoutBuilder extends Builder
+{
 }

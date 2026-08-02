@@ -29,7 +29,7 @@ use function Hypervel\Coroutine\go;
  */
 class CoroutineSafetyTest extends ScoutTestCase
 {
-    public function testDisableSyncingIsCoroutineIsolated()
+    public function testDisableSyncingIsCoroutineIsolated(): void
     {
         // Initially syncing is enabled
         $this->assertTrue(SearchableModel::isSearchSyncingEnabled());
@@ -65,7 +65,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertTrue($results['coroutine2']);
     }
 
-    public function testWithoutSyncingToSearchIsCoroutineIsolated()
+    public function testWithoutSyncingToSearchIsCoroutineIsolated(): void
     {
         $results = [];
         $waiter = new WaitGroup;
@@ -103,7 +103,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertTrue($results['concurrent']);
     }
 
-    public function testMultipleConcurrentDisableSync()
+    public function testMultipleConcurrentDisableSync(): void
     {
         $results = [];
         $waiter = new WaitGroup;
@@ -155,7 +155,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         }
     }
 
-    public function testNestedCoroutinesHaveIsolatedContext()
+    public function testNestedCoroutinesHaveIsolatedContext(): void
     {
         $results = [];
         $waiter = new WaitGroup;
@@ -192,7 +192,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertTrue($results['child']);
     }
 
-    public function testWhileImportingIsCoroutineIsolated()
+    public function testWhileImportingIsCoroutineIsolated(): void
     {
         $results = [];
         $waiter = new WaitGroup;
@@ -224,7 +224,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertFalse($results['coroutine2']);
     }
 
-    public function testWhileImportingRestoresStateAfterCallbackAndOnException()
+    public function testWhileImportingRestoresStateAfterCallbackAndOnException(): void
     {
         // Normal-return path
         $beforeNormal = Scout::isImporting();
@@ -256,7 +256,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertFalse($afterException);
     }
 
-    public function testImportProgressReportingIsCoroutineIsolated()
+    public function testImportProgressReportingIsCoroutineIsolated(): void
     {
         $results = [];
         $waiter = new WaitGroup;
@@ -303,7 +303,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertSame(['B'], $results['b']);
     }
 
-    public function testQueueMakeSearchableBypassIsCoroutineIsolated()
+    public function testQueueMakeSearchableBypassIsCoroutineIsolated(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
 
@@ -339,7 +339,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         Bus::assertDispatchedTimes(MakeSearchable::class, 1);
     }
 
-    public function testQueueRemoveFromSearchBypassIsCoroutineIsolated()
+    public function testQueueRemoveFromSearchBypassIsCoroutineIsolated(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
 
@@ -374,7 +374,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         Bus::assertDispatchedTimes(RemoveFromSearch::class, 1);
     }
 
-    public function testRunnerStateIsCoroutineIsolated()
+    public function testRunnerStateIsCoroutineIsolated(): void
     {
         // queue.enabled=false so dispatch goes through dispatchSearchableJob (which sets up the runner)
         $this->app->make('config')->set('scout.queue.enabled', false);
@@ -411,7 +411,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertFalse($results['b_has_runner']);
     }
 
-    public function testModelObserverForceSavingIsCoroutineIsolated()
+    public function testModelObserverForceSavingIsCoroutineIsolated(): void
     {
         $observer = new ModelObserver;
         $forcingModel = new ForceSavingSearchableModel;
@@ -448,7 +448,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertSame(1, $results['blocked_update_checks']);
     }
 
-    public function testModelObserverRestoredForcesSearchableUpdate()
+    public function testModelObserverRestoredForcesSearchableUpdate(): void
     {
         $observer = new ModelObserver;
         $model = new ForceSavingSearchableModel;
@@ -459,7 +459,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertSame(0, $model->searchIndexUpdateChecks);
     }
 
-    public function testWhileImportingIsNestingSafe()
+    public function testWhileImportingIsNestingSafe(): void
     {
         $results = [];
 

@@ -2485,6 +2485,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->forPageBeforeId(15, 0);
         $this->assertSame('select * from "users" where "id" < ? order by "id" desc limit 15', $builder->toSql());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->forPageBeforeId(15, '019abc');
+        $this->assertSame('select * from "users" where "id" < ? order by "id" desc limit 15', $builder->toSql());
+        $this->assertSame(['019abc'], $builder->getBindings());
     }
 
     public function testForPageAfterId()
@@ -2496,6 +2501,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->forPageAfterId(15, 0);
         $this->assertSame('select * from "users" where "id" > ? order by "id" asc limit 15', $builder->toSql());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->forPageAfterId(15, '019abc');
+        $this->assertSame('select * from "users" where "id" > ? order by "id" asc limit 15', $builder->toSql());
+        $this->assertSame(['019abc'], $builder->getBindings());
     }
 
     public function testGetCountForPaginationWithBindings()
@@ -5551,20 +5561,27 @@ SQL;
         });
     }
 
-    public function testChunkWithCountZero()
+    public function testChunkRejectsNonpositiveCounts()
     {
         $builder = $this->getMockQueryBuilder();
         $builder->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
-        $builder->shouldReceive('getOffset')->once()->andReturnNull();
-        $builder->shouldReceive('getLimit')->once()->andReturnNull();
+        $builder->shouldReceive('getOffset')->never();
+        $builder->shouldReceive('getLimit')->never();
         $builder->shouldReceive('offset')->never();
         $builder->shouldReceive('limit')->never();
         $builder->shouldReceive('get')->never();
 
-        $builder->chunk(0, function () {
-            $this->fail('Should never be called.');
-        });
+        foreach ([0, -1] as $count) {
+            try {
+                $builder->chunk($count, function () {
+                    $this->fail('Should never be called.');
+                });
+                $this->fail('The nonpositive chunk size was accepted.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('The chunk size should be at least 1', $exception->getMessage());
+            }
+        }
     }
 
     public function testChunkByIdOnArrays()
@@ -5633,17 +5650,26 @@ SQL;
         }, 'someIdField');
     }
 
-    public function testChunkPaginatesUsingIdWithCountZero()
+    public function testChunkByIdRejectsNonpositiveCounts()
     {
         $builder = $this->getMockQueryBuilder();
         $builder->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
+        $builder->shouldReceive('getOffset')->never();
+        $builder->shouldReceive('getLimit')->never();
         $builder->shouldReceive('forPageAfterId')->never();
         $builder->shouldReceive('get')->never();
 
-        $builder->chunkById(0, function () {
-            $this->fail('Should never be called.');
-        }, 'someIdField');
+        foreach ([0, -1] as $count) {
+            try {
+                $builder->chunkById($count, function () {
+                    $this->fail('Should never be called.');
+                }, 'someIdField');
+                $this->fail('The nonpositive chunk size was accepted.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('The chunk size should be at least 1', $exception->getMessage());
+            }
+        }
     }
 
     public function testChunkPaginatesUsingIdWithAlias()

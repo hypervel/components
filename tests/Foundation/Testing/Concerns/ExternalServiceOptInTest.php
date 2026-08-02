@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Algolia\AlgoliaSearch\Algolia;
+use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Http\HttpClientInterface;
 use Algolia\AlgoliaSearch\Http\Psr7\Response;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAlgolia;
@@ -14,6 +15,11 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithServer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTypesense;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
+use Meilisearch\Client as MeilisearchClient;
+use Meilisearch\Contracts\IndexesResults;
+use Meilisearch\Contracts\TasksResults;
+use Meilisearch\Endpoints\Indexes;
+use Meilisearch\Exceptions\TimeOutException;
 use Mockery as m;
 use RuntimeException;
 use Throwable;
@@ -150,6 +156,138 @@ class ExternalServiceOptInTest extends TestCase
         } finally {
             $this->assertSame('custom_', $harness->prefixAtClientInitialization);
         }
+    }
+
+    public function testMeilisearchWaitAcceptsSuccessfulTasks(): void
+    {
+        $client = m::mock(MeilisearchClient::class);
+        $client->shouldReceive('getTasks')
+            ->once()
+            ->andReturn(new TasksResults([
+                'results' => [['uid' => 17, 'status' => 'enqueued']],
+            ]));
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(17, 5000)
+            ->andReturn(['uid' => 17, 'status' => 'succeeded']);
+
+        $harness = new MeilisearchOptInHarness;
+        $harness->useClient($client);
+        $harness->waitForTasks();
+    }
+
+    public function testMeilisearchWaitRejectsFailedTasks(): void
+    {
+        $client = m::mock(MeilisearchClient::class);
+        $client->shouldReceive('getTasks')
+            ->once()
+            ->andReturn(new TasksResults([
+                'results' => [['uid' => 17, 'status' => 'processing']],
+            ]));
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(17, 5000)
+            ->andReturn([
+                'uid' => 17,
+                'status' => 'failed',
+                'error' => ['message' => 'Document identifier is invalid.'],
+            ]);
+
+        $harness = new MeilisearchOptInHarness;
+        $harness->useClient($client);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Document identifier is invalid.');
+
+        $harness->waitForTasks();
+    }
+
+    public function testMeilisearchWaitPropagatesTimeouts(): void
+    {
+        $timeout = new TimeOutException;
+        $client = m::mock(MeilisearchClient::class);
+        $client->shouldReceive('getTasks')
+            ->once()
+            ->andReturn(new TasksResults([
+                'results' => [['uid' => 17, 'status' => 'enqueued']],
+            ]));
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(17, 5000)
+            ->andThrow($timeout);
+
+        $harness = new MeilisearchOptInHarness;
+        $harness->useClient($client);
+
+        $this->expectExceptionObject($timeout);
+
+        $harness->waitForTasks();
+    }
+
+    public function testMeilisearchCleanupWaitsForExactDeletionTasks(): void
+    {
+        $index = m::mock(Indexes::class);
+        $index->shouldReceive('getUid')->andReturn('test_users');
+
+        $client = m::mock(MeilisearchClient::class);
+        $client->shouldReceive('getIndexes')
+            ->once()
+            ->andReturn(new IndexesResults([
+                'results' => [$index],
+                'offset' => 0,
+                'limit' => 20,
+                'total' => 1,
+            ]));
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_users')
+            ->andReturn(['taskUid' => 29]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(29, 5000)
+            ->andReturn(['uid' => 29, 'status' => 'succeeded']);
+
+        $harness = new MeilisearchOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+        $harness->runCleanup();
+    }
+
+    public function testMeilisearchCleanupPropagatesDeletionTaskFailures(): void
+    {
+        $index = m::mock(Indexes::class);
+        $index->shouldReceive('getUid')->andReturn('test_users');
+
+        $client = m::mock(MeilisearchClient::class);
+        $client->shouldReceive('getIndexes')
+            ->once()
+            ->andReturn(new IndexesResults([
+                'results' => [$index],
+                'offset' => 0,
+                'limit' => 20,
+                'total' => 1,
+            ]));
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_users')
+            ->andReturn(['taskUid' => 29]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(29, 5000)
+            ->andReturn([
+                'uid' => 29,
+                'status' => 'failed',
+                'error' => ['message' => 'Index deletion failed.'],
+            ]);
+
+        $harness = new MeilisearchOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Index deletion failed.');
+
+        $harness->runCleanup();
     }
 
     public function testTypesenseSkipsBeforeInitializingClientWhenHostIsNotConfigured(): void
@@ -291,6 +429,55 @@ class ExternalServiceOptInTest extends TestCase
         } finally {
             Algolia::setHttpClient($originalClient);
         }
+    }
+
+    public function testAlgoliaCleanupWaitsForExactDeletionTasks(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('listIndices')
+            ->once()
+            ->andReturn(['items' => [
+                ['name' => 'test_users'],
+                ['name' => 'production_users'],
+            ]]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_users')
+            ->andReturn(['taskID' => 31]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('test_users', 31)
+            ->andReturn(['status' => 'published']);
+
+        $harness = new AlgoliaOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+        $harness->runCleanup();
+    }
+
+    public function testAlgoliaCleanupPropagatesDeletionTaskFailures(): void
+    {
+        $failure = new RuntimeException('Index deletion failed.');
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('listIndices')
+            ->once()
+            ->andReturn(['items' => [['name' => 'test_users']]]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_users')
+            ->andReturn(['taskID' => 31]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('test_users', 31)
+            ->andThrow($failure);
+
+        $harness = new AlgoliaOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+
+        $this->expectExceptionObject($failure);
+
+        $harness->runCleanup();
     }
 
     public function testAlgoliaRestoresTheExactHttpClientWhenSetupFails(): void
@@ -474,6 +661,30 @@ class MeilisearchOptInHarness
     }
 
     /**
+     * Use the given Meilisearch client.
+     */
+    public function useClient(MeilisearchClient $client): void
+    {
+        $this->meilisearch = $client;
+    }
+
+    /**
+     * Wait for Meilisearch tasks to complete.
+     */
+    public function waitForTasks(): void
+    {
+        $this->waitForMeilisearchTasks();
+    }
+
+    /**
+     * Clean up Meilisearch indexes.
+     */
+    public function runCleanup(): void
+    {
+        $this->cleanupMeilisearchIndexes();
+    }
+
+    /**
      * Initialize the Meilisearch client.
      */
     protected function initializeMeilisearchClient(): void
@@ -581,6 +792,22 @@ class AlgoliaOptInHarness
     public function runTearDown(): void
     {
         $this->tearDownInteractsWithAlgolia();
+    }
+
+    /**
+     * Use the given Algolia client.
+     */
+    public function useClient(AlgoliaSearchClient $client): void
+    {
+        $this->algolia = $client;
+    }
+
+    /**
+     * Clean up Algolia indexes.
+     */
+    public function runCleanup(): void
+    {
+        $this->cleanupAlgoliaIndices();
     }
 
     /**

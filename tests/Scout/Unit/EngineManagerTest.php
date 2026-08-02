@@ -24,7 +24,7 @@ use Typesense\Client as TypesenseClient;
 
 class EngineManagerTest extends TestCase
 {
-    public function testResolveNullEngine()
+    public function testResolveNullEngine(): void
     {
         $container = $this->createMockContainer(['driver' => 'null']);
 
@@ -34,7 +34,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(NullEngine::class, $engine);
     }
 
-    public function testResolveCollectionEngine()
+    public function testResolveCollectionEngine(): void
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
@@ -44,7 +44,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(CollectionEngine::class, $engine);
     }
 
-    public function testResolveAlgoliaEngine()
+    public function testResolveAlgoliaEngine(): void
     {
         $container = $this->createMockContainerWithAlgolia([
             'driver' => 'algolia',
@@ -63,7 +63,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(AlgoliaEngine::class, $engine);
     }
 
-    public function testResolveAlgoliaEngineWithSoftDelete()
+    public function testResolveAlgoliaEngineWithSoftDelete(): void
     {
         $container = $this->createMockContainerWithAlgolia([
             'driver' => 'algolia',
@@ -83,7 +83,7 @@ class EngineManagerTest extends TestCase
         $this->assertTrue((new ClassInvoker($engine))->softDelete);
     }
 
-    public function testResolveAlgoliaEngineWithIdentify()
+    public function testResolveAlgoliaEngineWithIdentify(): void
     {
         $container = $this->createMockContainerWithAlgolia([
             'driver' => 'algolia',
@@ -103,7 +103,7 @@ class EngineManagerTest extends TestCase
         $this->assertTrue((new ClassInvoker($engine))->identify);
     }
 
-    public function testResolveMeilisearchEngine()
+    public function testResolveMeilisearchEngine(): void
     {
         $container = $this->createMockContainer([
             'driver' => 'meilisearch',
@@ -121,7 +121,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(MeilisearchEngine::class, $engine);
     }
 
-    public function testResolveMeilisearchEngineWithSoftDelete()
+    public function testResolveMeilisearchEngineWithSoftDelete(): void
     {
         $container = $this->createMockContainer([
             'driver' => 'meilisearch',
@@ -139,7 +139,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(MeilisearchEngine::class, $engine);
     }
 
-    public function testResolveDatabaseEngine()
+    public function testResolveDatabaseEngine(): void
     {
         $container = $this->createMockContainer(['driver' => 'database']);
 
@@ -149,7 +149,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(DatabaseEngine::class, $engine);
     }
 
-    public function testResolveTypesenseEngine()
+    public function testResolveTypesenseEngine(): void
     {
         $container = $this->createMockContainerWithTypesense([
             'driver' => 'typesense',
@@ -167,7 +167,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(TypesenseEngine::class, $engine);
     }
 
-    public function testEngineUsesDefaultDriver()
+    public function testEngineUsesDefaultDriver(): void
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
@@ -177,7 +177,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(CollectionEngine::class, $engine);
     }
 
-    public function testEngineDefaultsToNullWhenNoDriverConfigured()
+    public function testEngineDefaultsToNullWhenNoDriverConfigured(): void
     {
         $container = $this->createMockContainer(['driver' => null]);
 
@@ -187,7 +187,7 @@ class EngineManagerTest extends TestCase
         $this->assertInstanceOf(NullEngine::class, $engine);
     }
 
-    public function testEngineCachesInstances()
+    public function testEngineCachesInstances(): void
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
@@ -199,7 +199,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame($engine1, $engine2);
     }
 
-    public function testForgetEnginesClearsCache()
+    public function testForgetEnginesClearsCache(): void
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
@@ -212,7 +212,7 @@ class EngineManagerTest extends TestCase
         $this->assertNotSame($engine1, $engine2);
     }
 
-    public function testForgetEngineClearsSpecificEngine()
+    public function testForgetEngineClearsSpecificEngine(): void
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
@@ -230,7 +230,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame($null1, $null2);
     }
 
-    public function testExtendRegisterCustomDriver()
+    public function testExtendRegisterCustomDriver(): void
     {
         $container = $this->createMockContainer(['driver' => 'custom']);
 
@@ -246,7 +246,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame($customEngine, $engine);
     }
 
-    public function testExtendCustomDriverReceivesContainer()
+    public function testExtendCustomDriverReceivesContainer(): void
     {
         $container = $this->createMockContainer(['driver' => 'custom']);
 
@@ -264,7 +264,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame($container, $receivedContainer);
     }
 
-    public function testCustomDriverOverridesBuiltIn()
+    public function testCustomDriverOverridesBuiltIn(): void
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
@@ -280,7 +280,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame($customEngine, $engine);
     }
 
-    public function testThrowsExceptionForUnsupportedDriver()
+    public function testThrowsExceptionForUnsupportedDriver(): void
     {
         $container = $this->createMockContainer(['driver' => 'unsupported']);
 
@@ -292,7 +292,7 @@ class EngineManagerTest extends TestCase
         $manager->engine('unsupported');
     }
 
-    public function testGetDefaultDriverReturnsConfiguredDriver()
+    public function testGetDefaultDriverReturnsConfiguredDriver(): void
     {
         $container = $this->createMockContainer(['driver' => 'meilisearch']);
 
@@ -301,7 +301,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame('meilisearch', $manager->getDefaultDriver());
     }
 
-    public function testGetDefaultDriverReturnsNullWhenNotConfigured()
+    public function testGetDefaultDriverReturnsNullWhenNotConfigured(): void
     {
         $container = $this->createMockContainer(['driver' => null]);
 
@@ -310,7 +310,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame('null', $manager->getDefaultDriver());
     }
 
-    public function testSeparateManagerInstancesDoNotShareEngineCache()
+    public function testSeparateManagerInstancesDoNotShareEngineCache(): void
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 

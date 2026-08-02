@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Algolia;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Throwable;
 
@@ -54,6 +56,27 @@ class AlgoliaEngineIntegrationTest extends AlgoliaScoutIntegrationTestCase
         $this->engine->delete(new EloquentCollection([$model]));
 
         $hits = $this->pollSearch($model->searchableAs(), 'Delete', expectedCount: 0);
+        $this->assertCount(0, $hits);
+    }
+
+    public function testQueuedRemovalDeletesTheExactCustomScoutKey(): void
+    {
+        $model = CustomScoutKeyModel::withoutSyncingToSearch(function () {
+            return CustomScoutKeyModel::create(['title' => 'Custom key', 'body' => 'Content']);
+        });
+
+        $this->engine->update(new EloquentCollection([$model]));
+        $this->pollSearch($model->indexableAs(), 'Custom', expectedCount: 1);
+
+        $job = new RemoveFromSearch(new EloquentCollection([$model]));
+        CustomScoutKeyModel::query()->whereKey($model->getKey())->delete();
+
+        /** @var RemoveFromSearch $restored */
+        $restored = unserialize(serialize($job));
+        $restored->handle();
+
+        $hits = $this->pollSearch($model->indexableAs(), 'Custom', expectedCount: 0);
+
         $this->assertCount(0, $hits);
     }
 
