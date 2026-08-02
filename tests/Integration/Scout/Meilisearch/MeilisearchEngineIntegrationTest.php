@@ -66,10 +66,12 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
         ]);
         $uid = $key->getUid();
         $secret = $key->getKey();
-        $this->assertNotNull($uid);
-        $this->assertNotNull($secret);
+        $cleanupIdentifier = $uid ?? $secret;
 
         try {
+            $this->assertNotNull($uid);
+            $this->assertNotNull($secret);
+
             $rules = [$indexName => ['filter' => 'id = 701']];
             $token = $this->engine->generateTenantToken($rules, $uid, $secret);
             $tenantClient = new Client($this->getMeilisearchHost(), $token);
@@ -92,7 +94,9 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
                 $this->assertSame(403, $exception->httpStatus);
             }
         } finally {
-            $this->meilisearch->deleteKey($uid);
+            if ($cleanupIdentifier !== null) {
+                $this->meilisearch->deleteKey($cleanupIdentifier);
+            }
         }
     }
 

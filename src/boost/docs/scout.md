@@ -954,6 +954,8 @@ $engine->deleteByFilter($builder);
 
 Filtered deletion refuses an empty filter. It uses an explicit `within` index when provided and otherwise targets the model's writable `indexableAs` index. A missing target index is a successful no-op. The method returns only after the engine reports completion; SDK timeout and transport exceptions are not hidden.
 
+Since Algolia and Meilisearch perform these deletions asynchronously, Scout waits for them to finish before returning. Large deletions may take several minutes; Meilisearch waits up to 500 seconds and checks every five seconds, so long deletions should run in a queued job or console command instead of a web request. Typesense deletes synchronously.
+
 <a name="pausing-indexing"></a>
 ### Pausing Indexing
 

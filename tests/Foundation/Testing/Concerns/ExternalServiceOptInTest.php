@@ -516,21 +516,66 @@ class ExternalServiceOptInTest extends TestCase
         ];
     }
 
+    public function testAlgoliaCleanupWaitsForRemainingTasksBeforeRejectingAnIncompleteResult(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('listIndices')
+            ->once()
+            ->andReturn(['items' => [
+                ['name' => 'test_users'],
+                ['name' => 'test_orders'],
+            ]]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_users')
+            ->andReturn(['taskID' => 31]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_orders')
+            ->andReturn(['taskID' => 32]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('test_users', 31)
+            ->andReturn(null);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('test_orders', 32)
+            ->andReturn(['status' => 'published']);
+
+        $harness = new AlgoliaOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Algolia index deletion task [31] for [test_users] did not complete.');
+
+        $harness->runCleanup();
+    }
+
     public function testAlgoliaCleanupPropagatesDeletionTaskFailures(): void
     {
         $failure = new RuntimeException('Index deletion failed.');
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldReceive('listIndices')
             ->once()
-            ->andReturn(['items' => [['name' => 'test_users']]]);
+            ->andReturn(['items' => [
+                ['name' => 'test_users'],
+                ['name' => 'test_orders'],
+            ]]);
         $client->shouldReceive('deleteIndex')
             ->once()
             ->with('test_users')
             ->andReturn(['taskID' => 31]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_orders')
+            ->andReturn(['taskID' => 32]);
         $client->shouldReceive('waitForTask')
             ->once()
             ->with('test_users', 31)
             ->andThrow($failure);
+        $client->shouldNotReceive('waitForTask')
+            ->with('test_orders', 32);
 
         $harness = new AlgoliaOptInHarness;
         $harness->usePrefix('test_');

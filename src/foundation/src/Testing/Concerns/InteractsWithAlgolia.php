@@ -120,6 +120,8 @@ trait InteractsWithAlgolia
 
     /**
      * Clean up all test indexes matching the test prefix.
+     *
+     * Every scheduled deletion is awaited before the first incomplete task is reported.
      */
     protected function cleanupAlgoliaIndices(): void
     {
@@ -140,15 +142,21 @@ trait InteractsWithAlgolia
             }
         }
 
+        $failure = null;
+
         foreach ($tasks as $task) {
             /** @var null|array<string, mixed>|GetTaskResponse $result */
             $result = $this->algolia->waitForTask($task['indexName'], $task['taskID']);
 
             if (($result['status'] ?? null) !== 'published') {
-                throw new RuntimeException(
+                $failure ??= new RuntimeException(
                     "Algolia index deletion task [{$task['taskID']}] for [{$task['indexName']}] did not complete."
                 );
             }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 }
