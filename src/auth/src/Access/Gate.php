@@ -9,16 +9,18 @@ use Exception;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Attributes\UsePolicy;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use LogicException;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionParameter;
@@ -861,122 +863,253 @@ class Gate implements GateContract
     /**
      * Apply the policy's scope method to filter a query to authorized rows.
      *
-     * Runs before() callbacks first. If a before callback returns true (allow all),
-     * the query is returned unmodified. If it returns false (deny all), a "no rows"
-     * constraint is added. If null (no opinion), the policy's *Scope method is called.
+     * A policy scope is preferred, with a scalar selection used as the fallback.
      *
-     * After callbacks are not run — they expect a boolean result, not a Builder.
-     *
+     * @throws LogicException
      * @throws RuntimeException
      */
-    public function scope(string $ability, Builder $query): Builder
+    public function scope(UnitEnum|string $ability, Builder $query): Builder
     {
-        $user = $this->resolveUser();
+        $ability = (string) enum_value($ability);
+        $abilityMethod = $this->formatAbilityToMethod($ability);
+        $scopeMethod = $abilityMethod . 'Scope';
+        $selectMethod = $abilityMethod . 'Select';
 
-        $beforeResult = $this->callBeforeCallbacks($user, $ability, [$query->getModel()]);
+        [$user, $policy, $method, $beforeResult] = $this->resolveQueryPolicy(
+            $ability,
+            $query,
+            $scopeMethod,
+            $selectMethod,
+        );
 
         if ($beforeResult === true) {
             return $query;
         }
 
         if ($beforeResult === false) {
-            $query->whereRaw('0 = 1');
-
-            return $query;
+            return $this->denyQuery($query);
         }
 
-        $policy = $this->getPolicyFor($query->getModel());
-        $method = $this->formatAbilityToMethod($ability) . 'Scope';
-
-        if (! $policy || ! method_exists($policy, $method)) {
-            throw new RuntimeException(
-                'Policy [' . ($policy ? get_class($policy) : 'null')
-                . '] does not define a [' . $method . '] method.'
-            );
-        }
-
-        $policyBeforeResult = $this->callPolicyBefore($policy, $user, $ability, [$query->getModel()]);
-
-        if ($policyBeforeResult === true) {
-            return $query;
-        }
-
-        if ($policyBeforeResult === false) {
-            $query->whereRaw('0 = 1');
-
-            return $query;
-        }
-
+        /** @var string $method */
         if (! $this->canBeCalledWithUser($user, $policy, $method)) {
-            $query->whereRaw('0 = 1');
+            return $this->denyQuery($query);
+        }
+
+        if ($method === $scopeMethod) {
+            $this->callPolicyScope($policy, $method, $user, $query);
 
             return $query;
         }
 
-        return $policy->{$method}($user, $query);
+        $selection = $this->callPolicySelection($policy, $method, $user, $query);
+
+        $query->applyScopeCallback(function (Builder $scopeQuery) use ($selection): void {
+            if ($selection instanceof ExpressionContract) {
+                $scopeQuery->whereRaw(sprintf(
+                    '(%s)',
+                    $selection->getValue($scopeQuery->getQuery()->getGrammar()),
+                ));
+            } else {
+                $scopeQuery->whereRaw(
+                    '(' . $selection->toSql() . ')',
+                    $selection->getBindings(),
+                );
+            }
+        });
+
+        return $query;
     }
 
     /**
-     * Get a SQL expression from the policy for per-row authorization.
-     *
-     * Runs before() callbacks first. If a before callback returns true,
-     * DB::raw('true') is returned. If false, DB::raw('false'). If null,
-     * the policy's *Select method is called.
-     *
-     * After callbacks are not run — they expect a boolean result, not an Expression.
-     *
-     * Accepts a Builder for full query context, or a model class/instance
-     * as shorthand (internally creates a fresh query).
+     * Get a scalar boolean selection from the policy for per-row authorization.
      *
      * @param Builder|class-string<Model>|Model $query
      *
+     * @throws LogicException
      * @throws RuntimeException
      */
-    public function select(string $ability, Builder|Model|string $query): Expression
+    public function select(UnitEnum|string $ability, Builder|Model|string $query): ExpressionContract|QueryBuilder
     {
+        $ability = (string) enum_value($ability);
+
         if (! $query instanceof Builder) {
             $query = is_object($query)
                 ? $query->newQuery()
                 : (new $query)->newQuery();
         }
 
-        $user = $this->resolveUser();
+        $abilityMethod = $this->formatAbilityToMethod($ability);
+        $selectMethod = $abilityMethod . 'Select';
+        $scopeMethod = $abilityMethod . 'Scope';
 
-        $beforeResult = $this->callBeforeCallbacks($user, $ability, [$query->getModel()]);
+        [$user, $policy, $method, $beforeResult] = $this->resolveQueryPolicy(
+            $ability,
+            $query,
+            $selectMethod,
+            $scopeMethod,
+        );
 
         if ($beforeResult === true) {
-            return DB::raw('true');
+            return new Expression('true');
         }
 
         if ($beforeResult === false) {
-            return DB::raw('false');
+            return new Expression('false');
         }
 
-        $policy = $this->getPolicyFor($query->getModel());
-        $method = $this->formatAbilityToMethod($ability) . 'Select';
+        /** @var string $method */
+        if (! $this->canBeCalledWithUser($user, $policy, $method)) {
+            return new Expression('false');
+        }
 
-        if (! $policy || ! method_exists($policy, $method)) {
-            throw new RuntimeException(
-                'Policy [' . ($policy ? get_class($policy) : 'null')
-                . '] does not define a [' . $method . '] method.'
+        if ($method === $selectMethod) {
+            $selection = $this->callPolicySelection($policy, $method, $user, $query);
+
+            if ($selection instanceof ExpressionContract) {
+                return new Expression(sprintf(
+                    'coalesce((%s), false)',
+                    $selection->getValue($query->getQuery()->getGrammar()),
+                ));
+            }
+
+            return $selection->newQuery()->selectRaw(
+                'coalesce((' . $selection->toSql() . '), false)',
+                $selection->getBindings(),
             );
         }
 
-        $policyBeforeResult = $this->callPolicyBefore($policy, $user, $ability, [$query->getModel()]);
+        return $this->buildScopeSelection($ability, $policy, $method, $user, $query);
+    }
 
-        if ($policyBeforeResult === true) {
-            return DB::raw('true');
+    /**
+     * Resolve the policy method and authorization state for a query operation.
+     *
+     * @return array{mixed, mixed, null|string, mixed}
+     */
+    protected function resolveQueryPolicy(
+        string $ability,
+        Builder $query,
+        string $nativeMethod,
+        string $fallbackMethod,
+    ): array {
+        $user = $this->resolveUser();
+        $beforeResult = $this->callBeforeCallbacks($user, $ability, [$query->getModel()]);
+
+        if ($beforeResult === true || $beforeResult === false) {
+            return [$user, null, null, $beforeResult];
         }
 
-        if ($policyBeforeResult === false) {
-            return DB::raw('false');
+        $policy = $this->getPolicyFor($query->getModel());
+
+        if ($policy && is_callable([$policy, $nativeMethod])) {
+            $method = $nativeMethod;
+        } elseif ($policy && is_callable([$policy, $fallbackMethod])) {
+            $method = $fallbackMethod;
+        } else {
+            throw new RuntimeException(
+                'Policy [' . ($policy ? get_class($policy) : 'null')
+                . '] does not define an [' . $nativeMethod . '] or [' . $fallbackMethod . '] method.'
+            );
         }
 
-        if (! $this->canBeCalledWithUser($user, $policy, $method)) {
-            return DB::raw('false');
-        }
+        $beforeResult = $this->callPolicyBefore($policy, $user, $ability, [$query->getModel()]);
 
+        return [$user, $policy, $method, $beforeResult];
+    }
+
+    /**
+     * Deny every row on the given query.
+     *
+     * Scope grouping prevents an existing caller OR from bypassing the denial.
+     */
+    protected function denyQuery(Builder $query): Builder
+    {
+        return $query->applyScopeCallback(function (Builder $scopeQuery): void {
+            $scopeQuery->whereRaw('0 = 1');
+        });
+    }
+
+    /**
+     * Apply a policy scope to the given query.
+     *
+     * @throws LogicException
+     */
+    protected function callPolicyScope(mixed $policy, string $method, mixed $user, Builder $query): void
+    {
+        $scopeResult = null;
+
+        $query->applyScopeCallback(function (Builder $scopeQuery) use (&$scopeResult, $policy, $method, $user): void {
+            $scopeResult = $policy->{$method}($user, $scopeQuery);
+        });
+
+        if ($scopeResult !== $query) {
+            throw new LogicException(
+                'Policy [' . get_class($policy) . '] query scope [' . $method
+                . '] must return the same Eloquent builder instance it receives.'
+            );
+        }
+    }
+
+    /**
+     * Get a scalar boolean selection from a policy method.
+     */
+    protected function callPolicySelection(
+        mixed $policy,
+        string $method,
+        mixed $user,
+        Builder $query,
+    ): ExpressionContract|QueryBuilder {
         return $policy->{$method}($user, $query);
+    }
+
+    /**
+     * Build a correlated scalar selection from a policy scope.
+     *
+     * @throws LogicException
+     */
+    protected function buildScopeSelection(
+        string $ability,
+        mixed $policy,
+        string $method,
+        mixed $user,
+        Builder $query,
+    ): QueryBuilder {
+        $outerModel = $query->getModel();
+        $keyName = $outerModel->getKeyName();
+
+        if ($keyName === '') {
+            throw new LogicException(
+                'Cannot derive a query-policy selection for model [' . $outerModel::class
+                . '] because it does not define a primary key.'
+            );
+        }
+
+        $alias = 'hypervel_reserved_' . hash(
+            'xxh128',
+            $outerModel::class . "\0" . $ability,
+        );
+        $table = $outerModel->getTable();
+        $innerModel = $outerModel->newInstance();
+        $innerQuery = $innerModel
+            ->newQueryWithoutRelationships()
+            ->withoutGlobalScopes();
+
+        $innerQuery->from($table . ' as ' . $alias);
+        $innerModel->setTable($alias);
+
+        $this->callPolicyScope($policy, $method, $user, $innerQuery);
+
+        $innerQuery->whereColumn(
+            $innerModel->qualifyColumn($keyName),
+            $outerModel->getQualifiedKeyName(),
+        );
+
+        $innerBaseQuery = $innerQuery->toBase();
+
+        return $query->getQuery()->newQuery()->selectRaw(
+            'exists (' . $innerBaseQuery->toSql() . ')',
+            $innerBaseQuery->getBindings(),
+        );
     }
 
     /**

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
+use LogicException;
 use RuntimeException;
 
 class SearchableModelTest extends ScoutTestCase
@@ -76,6 +78,30 @@ class SearchableModelTest extends ScoutTestCase
         ]);
 
         $this->assertSame($model->id, $model->getScoutKey());
+    }
+
+    public function testExistingModelMissingItsDefaultScoutKeyCannotBeIndexed(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $model = SearchableModel::create([
+            'title' => 'Test Title',
+            'body' => 'Test Body',
+        ]);
+        $partialModel = SearchableModel::query()
+            ->select('title')
+            ->whereKey($model->getKey())
+            ->firstOrFail();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Model [Hypervel\Tests\Scout\Models\SearchableModel] has no Scout key.');
+
+        $partialModel->getScoutKey();
+    }
+
+    public function testUnsavedModelRetainsNullableScoutKeyIntrospection(): void
+    {
+        $this->assertNull((new SearchableModel)->getScoutKey());
     }
 
     public function testGetScoutKeyNameReturnsModelKeyName()

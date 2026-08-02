@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentModelRefreshTest;
 
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -66,6 +67,32 @@ class EloquentModelRefreshTest extends DatabaseTestCase
 
         $this->assertEmpty($post->getDirty());
         $this->assertEmpty($post->getPrevious());
+    }
+
+    public function testFreshRejectsPersistedModelsMissingThePrimaryKey(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $post = Post::create(['title' => 'partial']);
+        $partialPost = Post::query()->select('title')->findOrFail($post->id);
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('The attribute [id]');
+
+        $partialPost->fresh();
+    }
+
+    public function testRefreshRejectsPersistedModelsMissingThePrimaryKey(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $post = Post::create(['title' => 'partial']);
+        $partialPost = Post::query()->select('title')->findOrFail($post->id);
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('The attribute [id]');
+
+        $partialPost->refresh();
     }
 
     public function testAsPivot()

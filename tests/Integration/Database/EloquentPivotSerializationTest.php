@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\EloquentPivotSerializationTest;
 
 use Hypervel\Database\Eloquent\Collection as DatabaseCollection;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
@@ -14,6 +15,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class EloquentPivotSerializationTest extends DatabaseTestCase
 {
@@ -123,6 +125,57 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         $this->assertEquals($project->tags[1]->pivot->tag_id, $class->pivots[1]->tag_id);
         $this->assertEquals($project->tags[1]->pivot->taggable_id, $class->pivots[1]->taggable_id);
         $this->assertEquals($project->tags[1]->pivot->taggable_type, $class->pivots[1]->taggable_type);
+    }
+
+    #[DataProvider('morphPivotCompoundKeyColumns')]
+    public function testMorphPivotQueueableIdsRejectMissingCompoundKeys(string $missingColumn): void
+    {
+        $pivot = $this->createMorphPivot();
+        $attributes = $pivot->getAttributes();
+
+        unset($attributes[$missingColumn]);
+
+        $pivot->setRawAttributes($attributes, true);
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage("The attribute [{$missingColumn}]");
+
+        $pivot->getQueueableId();
+    }
+
+    public static function morphPivotCompoundKeyColumns(): array
+    {
+        return [
+            'foreign key' => ['taggable_id'],
+            'related key' => ['tag_id'],
+        ];
+    }
+
+    public function testMorphPivotQueueableIdsUseOriginalCompoundKeysAndRelationMorphMetadata(): void
+    {
+        $pivot = $this->createMorphPivot();
+        $originalTagId = $pivot->tag_id;
+        $originalTaggableId = $pivot->taggable_id;
+
+        $pivot->tag_id = 98;
+        $pivot->taggable_id = 99;
+        $pivot->taggable_type = 'changed';
+
+        $this->assertSame(
+            "taggable_id:{$originalTaggableId}:tag_id:{$originalTagId}:taggable_type:"
+                . PivotSerializationTestProject::class,
+            $pivot->getQueueableId()
+        );
+    }
+
+    private function createMorphPivot(): PivotSerializationTestTagAttachment
+    {
+        $project = PivotSerializationTestProject::forceCreate(['name' => 'Test Project']);
+        $tag = PivotSerializationTestTag::forceCreate(['name' => 'Test Tag']);
+
+        $project->tags()->attach($tag);
+
+        return $project->tags()->firstOrFail()->pivot;
     }
 }
 

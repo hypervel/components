@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser;
@@ -26,7 +27,21 @@ trait TwoFactorAuthenticatable
      */
     public function hasEnabledTwoFactorAuthentication(): bool
     {
-        if (Fortify::confirmsTwoFactorAuthentication()) {
+        $requiresConfirmation = Fortify::confirmsTwoFactorAuthentication();
+
+        if ($this->exists && ! $this->wasRecentlyCreated) {
+            $attributes = $this->getAttributes();
+
+            if (! array_key_exists('two_factor_secret', $attributes)) {
+                throw new MissingAttributeException($this, 'two_factor_secret');
+            }
+
+            if ($requiresConfirmation && ! array_key_exists('two_factor_confirmed_at', $attributes)) {
+                throw new MissingAttributeException($this, 'two_factor_confirmed_at');
+            }
+        }
+
+        if ($requiresConfirmation) {
             return ! is_null($this->two_factor_secret)
                    && ! is_null($this->two_factor_confirmed_at);
         }

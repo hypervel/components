@@ -1126,6 +1126,59 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
+    public function testApplyScopeCallbackReceivesAndReturnsSameBuilder(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery();
+        $differentQuery = $model->newQuery();
+        $receivedQuery = null;
+
+        $result = $query->applyScopeCallback(function (Builder $scopeQuery) use (&$receivedQuery, $differentQuery): Builder {
+            $receivedQuery = $scopeQuery;
+
+            return $differentQuery;
+        });
+
+        $this->assertSame($query, $receivedQuery);
+        $this->assertNotSame($query, $differentQuery);
+        $this->assertSame($query, $result);
+    }
+
+    public function testApplyScopeCallbackGroupsExistingAndCallbackOrConditions(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery()
+            ->where('tenant_id', 1)
+            ->orWhere('is_active', true);
+
+        $query->applyScopeCallback(function (Builder $scopeQuery): void {
+            $scopeQuery->where('status', 'draft')->orWhere('is_public', true);
+        });
+
+        $this->assertSame(
+            'select * from "table" where ("tenant_id" = ? or "is_active" = ?) and ("status" = ? or "is_public" = ?)',
+            $query->toSql(),
+        );
+        $this->assertSame([1, true, 'draft', true], $query->getBindings());
+    }
+
+    public function testApplyScopeCallbackWithoutWheresLeavesQueryUnchanged(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery();
+        $sql = $query->toSql();
+        $bindings = $query->getBindings();
+
+        $query->applyScopeCallback(static function (): void {
+        });
+
+        $this->assertSame($sql, $query->toSql());
+        $this->assertSame($bindings, $query->getBindings());
+    }
+
     public function testNestedWhere()
     {
         $nestedQuery = m::mock(Builder::class);

@@ -7,6 +7,7 @@ namespace Hypervel\Permission\Models;
 use Carbon\CarbonInterface;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\UniqueConstraintViolationException;
@@ -54,6 +55,27 @@ class Role extends Model implements RoleContract
 
         $this->guarded[] = $this->primaryKey;
         $this->table = Config::rolesTable() ?: parent::getTable();
+    }
+
+    /**
+     * Get the role's guard name.
+     *
+     * @throws MissingAttributeException
+     */
+    public function guardName(): string
+    {
+        if (! array_key_exists('guard_name', $this->getAttributes())) {
+            if ($this->exists) {
+                throw new MissingAttributeException($this, 'guard_name');
+            }
+
+            return Guard::getDefaultName(static::class);
+        }
+
+        /** @var string $guardName */
+        $guardName = $this->getAttribute('guard_name');
+
+        return $guardName;
     }
 
     /**
@@ -128,7 +150,7 @@ class Role extends Model implements RoleContract
     public function users(): BelongsToMany
     {
         return $this->permissionMorphToMany(
-            getModelForGuard($this->attributes['guard_name'] ?? Config::defaultGuard()),
+            getModelForGuard($this->guardName()),
             Config::modelHasRolesTable(),
             Container::getInstance()->make(PermissionRegistrar::class)->pivotRole,
             Config::morphKey(),

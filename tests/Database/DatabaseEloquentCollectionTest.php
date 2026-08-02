@@ -154,6 +154,34 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertTrue($c->doesntContain(3));
     }
 
+    public function testContainsDistinguishesExactAndDistinctKeylessModels(): void
+    {
+        $model = new CollectionModel;
+        $collection = new Collection([$model]);
+
+        $this->assertTrue($collection->contains($model));
+        $this->assertFalse($collection->doesntContain($model));
+        $this->assertFalse($collection->contains(new CollectionModel));
+        $this->assertTrue($collection->doesntContain(new CollectionModel));
+    }
+
+    public function testContainsRejectsNullModelKeysWithoutNarrowingScalarKeyCompatibility(): void
+    {
+        $keyless = new CollectionModel;
+        $keylessCollection = new Collection([$keyless]);
+
+        $this->assertFalse($keylessCollection->contains(0));
+        $this->assertFalse($keylessCollection->contains('0'));
+        $this->assertFalse($keylessCollection->contains(''));
+
+        $integerKey = (new CollectionModel)->forceFill(['id' => 5]);
+        $leadingZeroKey = (new CollectionModel)->forceFill(['id' => '05']);
+
+        $this->assertTrue((new Collection([$integerKey]))->contains('05'));
+        $this->assertTrue((new Collection([$integerKey]))->contains('5.0'));
+        $this->assertTrue((new Collection([$leadingZeroKey]))->contains(5));
+    }
+
     public function testContainsKeyAndValueIndicatesIfModelInArray()
     {
         $mockModel1 = m::mock(Model::class);
@@ -422,6 +450,49 @@ class DatabaseEloquentCollectionTest extends TestCase
 
         $duplicates = Collection::make([$one, $two, $three, $four])->duplicatesStrict()->all();
         $this->assertSame([1 => $two, 2 => $three], $duplicates);
+    }
+
+    public function testCollectionRetainsDictionaryDuplicateSemanticsForKeylessModels(): void
+    {
+        $first = new CollectionModel;
+        $second = new CollectionModel;
+        $third = new CollectionModel;
+
+        $models = Collection::make([$first, $second, $third]);
+
+        $this->assertSame([1 => $second, 2 => $third], $models->duplicates()->all());
+        $this->assertSame([1 => $second, 2 => $third], $models->duplicatesStrict()->all());
+    }
+
+    public function testKeylessModelsDoNotPoisonLaterKeyedDuplicateDetection(): void
+    {
+        $keyless = new CollectionModel;
+        $keyed = new CollectionModel;
+        $keyed->id = 1;
+
+        $models = Collection::make([$keyless, $keyed]);
+
+        $this->assertSame([], $models->duplicates()->all());
+        $this->assertSame([], $models->duplicatesStrict()->all());
+    }
+
+    public function testCollectionDuplicateDetectionPreservesKeylessTableAndConnectionDistinctions(): void
+    {
+        $firstTable = (new CollectionModel)->setTable('first_models');
+        $secondTable = (new CollectionModel)->setTable('second_models');
+
+        $this->assertSame(
+            [0 => $firstTable],
+            Collection::make([$firstTable, $secondTable])->duplicates()->all()
+        );
+
+        $firstConnection = (new CollectionModel)->setConnection('first');
+        $secondConnection = (new CollectionModel)->setConnection('second');
+
+        $this->assertSame(
+            [0 => $firstConnection],
+            Collection::make([$firstConnection, $secondConnection])->duplicates()->all()
+        );
     }
 
     public function testCollectionIntersectWithNull()

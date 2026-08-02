@@ -28,6 +28,14 @@
 - Convert untyped `$config->get()` calls across `src/` to the typed getters (`string()`, `integer()`, `float()`, `boolean()`, `array()`) without call-site defaults, for every key that isn't genuinely nullable. Defaults live in the merged config files — declare any key currently defaulted only at a call site in its package's config file as part of the conversion. Typed getters throw `InvalidArgumentException` naming the key on misconfiguration instead of letting a wrong type propagate silently, and give phpstan real return types. Bootstrap code that runs before config merging keeps its call-site defaults. Approved modernization per the Porting Packages policy in `AGENTS.md`; new code already follows the rule.
 - Audit unmatched PHPStan inline ignores and global patterns with `reportUnmatchedIgnoredErrors` enabled — currently 196 unmatched inline ignores across 99 files plus 5 unmatched global patterns. Remove only suppressions that no longer match after tracing the underlying code; do not replace correct source with runtime branches or wider types merely to keep static analysis green. Decide as part of the work whether `phpstan.neon.dist` should then set `reportUnmatchedIgnoredErrors: true` permanently, since leaving it `false` lets the suppressions rot again.
 
+## Testing
+
+- Complete Testing assertion coverage: port the remaining current Laravel `TestResponseTest` cases through the incremental upstream-update workflow, and add focused coverage for `TestView`'s public assertion and string surface where Laravel has no equivalent suite.
+
+## HTTP Resources
+
+- Update the already-ported JSON:API resource surface and its test suite from current Laravel through the incremental upstream-update workflow, including every later source, fixture, and regression change rather than porting isolated methods.
+
 ## HTTP Server
 
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.

@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Support\Collection as SupportCollection;
+use LogicException;
 
 trait SerializesAndRestoresModelIdentifiers
 {
@@ -37,9 +38,18 @@ trait SerializesAndRestoresModelIdentifiers
         // Laravel checks the generic queue contract here, but ModelIdentifier
         // restoration requires the Eloquent Model API.
         if ($value instanceof Model) {
+            $queueableId = $value->getQueueableId();
+
+            if ($queueableId === null) {
+                throw new LogicException(sprintf(
+                    'Model [%s] has no queueable ID.',
+                    get_class($value)
+                ));
+            }
+
             return new ModelIdentifier(
                 get_class($value),
-                $value->getQueueableId(),
+                $queueableId,
                 $withRelations ? $value->getQueueableRelations() : [],
                 $value->getQueueableConnection()
             );

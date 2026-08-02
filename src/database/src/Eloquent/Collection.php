@@ -342,10 +342,15 @@ class Collection extends BaseCollection implements QueueableCollection
         }
 
         if ($key instanceof Model) {
-            return parent::contains(fn ($model) => $model->is($key));
+            return parent::contains(fn ($model) => $model === $key || $model->is($key));
         }
 
-        return parent::contains(fn ($model) => $model->getKey() == $key);
+        return parent::contains(function ($model) use ($key) {
+            $modelKey = $model->getKey();
+
+            // Numeric model keys intentionally retain their existing loose scalar compatibility.
+            return $modelKey !== null && $modelKey == $key;
+        });
     }
 
     /**
@@ -759,7 +764,13 @@ class Collection extends BaseCollection implements QueueableCollection
     #[Override]
     protected function duplicateComparator(bool $strict): callable
     {
-        return fn ($a, $b) => $a->is($b);
+        // unique() collapses keyless models into a single dictionary entry, so the
+        // comparator must agree with it or an unsaved model can misreport later keyed items.
+        return fn ($a, $b) => $a->is($b)
+            || ($a->getKey() === null
+                && $b->getKey() === null
+                && $a->getTable() === $b->getTable()
+                && $a->getConnectionName() === $b->getConnectionName());
     }
 
     /**
@@ -814,6 +825,9 @@ class Collection extends BaseCollection implements QueueableCollection
      * Get the identifiers for all of the entities.
      *
      * @return array<int, mixed>
+     *
+     * @throws LogicException
+     * @throws MissingAttributeException
      */
     public function getQueueableIds(): array
     {
@@ -821,7 +835,18 @@ class Collection extends BaseCollection implements QueueableCollection
             return [];
         }
 
-        return $this->map->getQueueableId()->all();
+        return $this->map(function ($model) {
+            $queueableId = $model->getQueueableId();
+
+            if ($queueableId === null) {
+                throw new LogicException(sprintf(
+                    'Model [%s] has no queueable ID.',
+                    get_class($model)
+                ));
+            }
+
+            return $queueableId;
+        })->all();
     }
 
     /**

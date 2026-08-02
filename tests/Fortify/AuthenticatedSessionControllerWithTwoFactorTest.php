@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Carbon\FactoryImmutable;
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationChallenged;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationFailed;
 use Hypervel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided;
 use Hypervel\Fortify\Features;
+use Hypervel\Fortify\Fortify;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Event;
@@ -45,6 +48,30 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
         $response->assertRedirect('/two-factor-challenge');
 
         Event::assertDispatched(TwoFactorAuthenticationChallenged::class);
+    }
+
+    public function testCustomAuthenticationCannotBypassTwoFactorWithAPartialUser(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $user = UserWithTwoFactor::forceCreate([
+            'name' => 'Taylor Otwell',
+            'email' => 'taylor@laravel.com',
+            'password' => bcrypt('secret'),
+            'two_factor_secret' => 'test-secret',
+        ]);
+
+        Fortify::authenticateUsing(
+            fn () => UserWithTwoFactor::query()->select('id')->findOrFail($user->getKey()),
+        );
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('two_factor_secret');
+
+        $this->withoutExceptionHandling()->post('/login', [
+            'email' => 'taylor@laravel.com',
+            'password' => 'secret',
+        ]);
     }
 
     #[DefineEnvironment('withConfirmedTwoFactorAuthentication')]

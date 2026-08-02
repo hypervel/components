@@ -118,15 +118,17 @@ class RateLimiter
             ? null
             : $this->keyScopeResolver?->__invoke($limiterName);
 
-        if ($scope === null) {
-            return $shouldHashKeys
-                ? hash('xxh128', $limiterName . $limit->key)
-                : $limiterName . ':' . $limit->key;
+        // Length prefixes keep arbitrary segment values injective before hashing.
+        $key = strlen($limiterName) . ':' . $limiterName
+            . strlen($limit->key) . ':' . $limit->key;
+
+        if ($scope !== null) {
+            $key = strlen($scope) . ':' . $scope . $key;
         }
 
         return $shouldHashKeys
-            ? hash('xxh128', $scope . ':' . $limiterName . $limit->key)
-            : $scope . ':' . $limiterName . ':' . $limit->key;
+            ? hash('xxh128', $key)
+            : $key;
     }
 
     /**

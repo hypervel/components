@@ -105,7 +105,7 @@ class RateLimitedTest extends TestCase
         $this->assertSame(1, $nextCalls);
         $this->assertSame(
             1,
-            $limiter->attempts(hash('xxh128', 'account-1:uploadsuser-1')),
+            $limiter->attempts(hash('xxh128', '9:account-17:uploads6:user-1')),
         );
     }
 

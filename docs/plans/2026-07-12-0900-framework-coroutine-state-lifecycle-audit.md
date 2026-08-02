@@ -1126,6 +1126,29 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `testbench-02` | `testbench` | `testbench` (targeted correction complete); later full `testbench` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `testbench-02` |
 | `support-27` | `support` | `support` and `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `support-27` |
 | `nested-set-13` | `nested-set` | `testing` (revalidation complete); later full `testing` audit | `Complete Nested Set invariants, performance, and modern APIs`; finding `nested-set-13` |
+| `database-15` | `database` | `database` and `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `database-15` |
+| `database-16` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-16` |
+| `database-17` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-17` |
+| `database-18` | `database` | `database` and `queue` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-18` |
+| `database-19` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-19` |
+| `database-20` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-20` |
+| `permission-01` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-01` |
+| `permission-02` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-02` |
+| `permission-03` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-03` |
+| `permission-04` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-04` |
+| `permission-05` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-05` |
+| `fortify-02` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Harden Eloquent identity and partial-projection safety`; finding `fortify-02` |
+| `pagination-01` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-01` |
+| `pagination-02` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-02` |
+| `queue-41` | `database`, `queue` | `database`, `queue`, and `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `queue-41` |
+| `scout-01` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-01` |
+| `scout-02` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-02` |
+| `notifications-08` | `notifications` | `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `notifications-08` |
+| `http-04` | `http` | `http` (targeted correction complete); later full `http` audit | `Harden Eloquent identity and partial-projection safety`; finding `http-04` |
+| `http-05` | `http` | `http` (targeted correction complete); later full `http` audit | `Harden Eloquent identity and partial-projection safety`; finding `http-05` |
+| `http-06` | `http` | `http` (targeted correction complete); later full `http` audit | `Harden Eloquent identity and partial-projection safety`; finding `http-06` |
+| `testing-01` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-01` |
+| `testing-02` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-02` |
 
 ## Package checklist
 

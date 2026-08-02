@@ -38,7 +38,6 @@ class RemoveableScoutCollection extends Collection
             return $this->map(fn (SearchableInterface $model) => $model->getScoutKey())->all();
         }
 
-        // Fallback to model primary keys (equivalent to Laravel's modelKeys())
-        return $this->modelKeys();
+        return parent::getQueueableIds();
     }
 }

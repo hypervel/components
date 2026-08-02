@@ -18,7 +18,7 @@ use Mockery as m;
 
 class NotificationSendQueuedNotificationTest extends TestCase
 {
-    public function testNotificationsCanBeSent()
+    public function testNotificationsCanBeSent(): void
     {
         $notification = new TestNotification;
         $job = new SendQueuedNotifications('notifiables', $notification);
@@ -31,18 +31,19 @@ class NotificationSendQueuedNotificationTest extends TestCase
         $job->handle($manager);
     }
 
-    public function testSerializationOfNotifiableModel()
+    public function testSerializationOfNotifiableModel(): void
     {
-        $identifier = new ModelIdentifier(NotifiableUser::class, [null], [], null);
+        $notifiable = (new NotifiableUser)->forceFill(['id' => 1]);
+        $identifier = new ModelIdentifier(NotifiableUser::class, [1], [], null);
         $serializedIdentifier = serialize($identifier);
 
-        $job = new SendQueuedNotifications(new NotifiableUser, new TestNotification);
+        $job = new SendQueuedNotifications($notifiable, new TestNotification);
         $serialized = serialize($job);
 
         $this->assertStringContainsString($serializedIdentifier, $serialized);
     }
 
-    public function testSerializationOfNormalNotifiable()
+    public function testSerializationOfNormalNotifiable(): void
     {
         $notifiable = new AnonymousNotifiable;
         $serializedNotifiable = serialize($notifiable);
@@ -53,7 +54,7 @@ class NotificationSendQueuedNotificationTest extends TestCase
         $this->assertStringContainsString($serializedNotifiable, $serialized);
     }
 
-    public function testNotificationCanSetMaxExceptions()
+    public function testNotificationCanSetMaxExceptions(): void
     {
         $notifiable = new NotifiableUser;
         $notification = new class {

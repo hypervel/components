@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 
 use function Hypervel\Coroutine\parallel;
@@ -126,6 +128,34 @@ class CacheTest extends TestCase
 
         $this->testUser->revokePermissionTo('edit-articles');
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+    }
+
+    public function testExplicitInvalidationClearsKeylessAssignmentCacheEntries(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $keylessUser = User::query()
+            ->select('email')
+            ->where('email', $this->testUser->email)
+            ->firstOrFail();
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $store = new ClassInvoker($registrar->getCacheRepository()->getStore());
+
+        $this->assertFalse($keylessUser->hasRole('testRole'));
+        $this->assertFalse($keylessUser->hasDirectPermission('edit-articles'));
+
+        $beforeRoleInvalidation = $store->getCacheItems();
+        $registrar->forgetModelRoleCacheFor($keylessUser, null, null);
+        $afterRoleInvalidation = $store->getCacheItems();
+
+        $this->assertCount(1, array_diff_key($beforeRoleInvalidation, $afterRoleInvalidation));
+        $this->assertSame([], array_diff_key($afterRoleInvalidation, $beforeRoleInvalidation));
+
+        $registrar->forgetModelPermissionCacheFor($keylessUser, null, null);
+        $afterPermissionInvalidation = $store->getCacheItems();
+
+        $this->assertCount(1, array_diff_key($afterRoleInvalidation, $afterPermissionInvalidation));
+        $this->assertSame([], array_diff_key($afterPermissionInvalidation, $afterRoleInvalidation));
     }
 
     public function testSyncPermissionEffectsInvalidatesWarmModelPermissionCache(): void
