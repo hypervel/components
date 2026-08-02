@@ -6,6 +6,7 @@ namespace Hypervel\Scout\Engines;
 
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Exceptions\AlgoliaException;
+use BackedEnum;
 use Hypervel\Context\RequestContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -114,7 +115,7 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function search(Builder $builder): mixed
     {
         return $this->performSearch($builder, array_filter([
-            'numericFilters' => $this->filters($builder),
+            'filters' => $this->filters($builder),
             'hitsPerPage' => $builder->limit,
         ]));
     }
@@ -125,7 +126,7 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function paginate(Builder $builder, int $perPage, int $page): mixed
     {
         return $this->performSearch($builder, [
-            'numericFilters' => $this->filters($builder),
+            'filters' => $this->filters($builder),
             'hitsPerPage' => $perPage,
             'page' => $page - 1,
         ]);
@@ -158,7 +159,7 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
         }
 
         return $this->algolia->searchSingleIndex(
-            $builder->index ?: $builder->model->searchableAs(),
+            $builder->index ?? $builder->model->searchableAs(),
             $queryParams,
             $requestOptions,
         );
@@ -202,37 +203,78 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     }
 
     /**
-     * Get the filter array for the query.
-     *
-     * @return array<int, mixed>
+     * Get the filter expression for the query.
      */
-    protected function filters(Builder $builder): array
+    protected function filters(Builder $builder): string
     {
         $wheres = collect($builder->wheres)
-            ->map(fn ($value, $key) => $key . '=' . $value)
+            ->map(function (array $where): string {
+                $field = $where['field'];
+                $operator = $where['operator'];
+                $value = $where['value'];
+
+                if ($value instanceof BackedEnum) {
+                    $value = $value->value;
+                }
+
+                if (is_string($value) || (is_bool($value) && in_array($operator, ['=', '!='], true))) {
+                    $value = $this->formatFilterValue($value);
+
+                    if ($operator === '!=') {
+                        return 'NOT ' . $field . ':' . $value;
+                    }
+
+                    $operator = ':';
+                } elseif ($operator === '=') {
+                    $operator = ':';
+                    $value = "'{$value}'";
+                }
+
+                return $field . $operator . $value;
+            })
             ->values();
 
-        $whereIns = collect($builder->whereIns)->map(function ($values, $key) {
-            if (empty($values)) {
-                return '0=1';
-            }
+        $whereIns = collect($builder->whereIns)
+            ->map(function (array $values, string $key): string {
+                if ($values === []) {
+                    return '0:1';
+                }
 
-            return collect($values)
-                ->map(fn ($value) => $key . '=' . $value)
-                ->all();
-        })->values();
+                return '(' . collect($values)
+                    ->map(fn (mixed $value): string => $key . ':' . $this->formatFilterValue($value))
+                    ->implode(' OR ') . ')';
+            })
+            ->values();
 
-        $whereNotIns = collect($builder->whereNotIns)->flatMap(function ($values, $key) {
-            if (empty($values)) {
-                return [];
-            }
+        $whereNotIns = collect($builder->whereNotIns)
+            ->map(function (array $values, string $key): string {
+                if ($values === []) {
+                    return '';
+                }
 
-            return collect($values)
-                ->map(fn ($value) => $key . '!=' . $value)
-                ->all();
-        });
+                return collect($values)
+                    ->map(fn (mixed $value): string => 'NOT ' . $key . ':' . $this->formatFilterValue($value))
+                    ->implode(' AND ');
+            })
+            ->values();
 
-        return $wheres->merge($whereIns)->merge($whereNotIns)->values()->all();
+        return $wheres->merge($whereIns)->merge($whereNotIns)->filter()->implode(' AND ');
+    }
+
+    /**
+     * Format the given value for use in an Algolia filter.
+     */
+    protected function formatFilterValue(mixed $value): string
+    {
+        if ($value instanceof BackedEnum) {
+            $value = $value->value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], (string) $value) . "'";
     }
 
     /**
