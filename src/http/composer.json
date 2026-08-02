@@ -30,6 +30,7 @@
     },
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "fruitcake/php-cors": "^1.3",
         "guzzlehttp/guzzle": "^7.15.1",
         "guzzlehttp/uri-template": "^1.0",
@@ -50,6 +51,7 @@
         "hypervel/support": "^0.4"
     },
     "suggest": {
+        "ext-gd": "Required to use Hypervel\\Http\\Testing\\FileFactory::image().",
         "hypervel/validation": "Required for validate() method on requests."
     },
     "config": {

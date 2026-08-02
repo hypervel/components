@@ -1114,7 +1114,7 @@ public function boot(): void
 }
 ```
 
-The closure receives the current HTTP request instance and should return the full CORS options array. It is invoked on every request the middleware applies to, so the returned configuration may be built dynamically from any property of the request — the host, headers, route, authenticated user, and so on.
+The closure receives the current HTTP request instance and should return the full CORS options array, including `paths`. Except for requests explicitly excluded with `skipWhen`, it runs before path matching because its returned paths determine whether CORS applies. Keep the resolver inexpensive since it runs for every request that reaches the middleware.
 
 If you only need to override a few options, you may merge your changes with the values defined in your `cors.php` configuration file:
 

@@ -88,7 +88,7 @@ class File extends UploadedFile
      */
     public function getSize(): int
     {
-        return $this->sizeToReport ?: parent::getSize();
+        return $this->sizeToReport ?? parent::getSize();
     }
 
     /**

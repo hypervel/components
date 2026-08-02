@@ -190,7 +190,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Generate an absolute URL to the given path.
      */
-    public function to(string $path, array|string $extra = [], ?bool $secure = null): string
+    public function to(string $path, mixed $extra = [], ?bool $secure = null): string
     {
         // First we will check if the URL is already a valid URL. If it is we will not
         // try to generate a new one but will simply return the URL as is, which is
@@ -223,7 +223,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Generate an absolute URL with the given query parameters.
      */
-    public function query(string $path, array $query = [], array|string $extra = [], ?bool $secure = null): string
+    public function query(string $path, array $query = [], mixed $extra = [], ?bool $secure = null): string
     {
         [$path, $existingQueryString] = $this->extractQueryString($path);
 
@@ -237,7 +237,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Generate a secure, absolute URL to the given path.
      */
-    public function secure(string $path, array $parameters = []): string
+    public function secure(string $path, mixed $parameters = []): string
     {
         return $this->to($path, $parameters, true);
     }
@@ -361,7 +361,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Create a temporary signed route URL for a named route.
      */
-    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, array $parameters = [], bool $absolute = true): string
+    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, mixed $parameters = [], bool $absolute = true): string
     {
         return $this->signedRoute($name, $parameters, $expiration, $absolute);
     }
@@ -477,7 +477,7 @@ class UrlGenerator implements UrlGeneratorContract
      *
      * @throws InvalidArgumentException
      */
-    public function action(array|string $action, array|string $parameters = [], bool $absolute = true): string
+    public function action(array|string $action, mixed $parameters = [], bool $absolute = true): string
     {
         if (is_null($route = $this->routes->getByAction($action = $this->formatAction($action)))) {
             throw new InvalidArgumentException("Action {$action} not defined.");

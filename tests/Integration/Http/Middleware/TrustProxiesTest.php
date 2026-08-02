@@ -44,7 +44,7 @@ class TrustProxiesTest extends TestCase
         parent::tearDown();
     }
 
-    public function testIpReflectsXForwardedForFromTrustedProxy()
+    public function testIpReflectsXForwardedForFromTrustedProxy(): void
     {
         TrustProxies::at(['10.0.0.1']);
 
@@ -54,7 +54,7 @@ class TrustProxiesTest extends TestCase
         ])->assertOk()->assertContent('9.9.9.9');
     }
 
-    public function testIpIgnoresXForwardedForWhenProxyUntrusted()
+    public function testIpIgnoresXForwardedForWhenProxyUntrusted(): void
     {
         TrustProxies::at(['10.0.0.1']);
 
@@ -64,17 +64,17 @@ class TrustProxiesTest extends TestCase
         ])->assertOk()->assertContent('30.0.0.1');
     }
 
-    public function testWildcardTrustsCallingProxy()
+    public function testWildcardTrustsEveryProxyInTheForwardedChain(): void
     {
         TrustProxies::at('*');
 
         $this->call('GET', '/whoami', server: [
             'REMOTE_ADDR' => '10.0.0.1',
-            'HTTP_X_FORWARDED_FOR' => '9.9.9.9',
+            'HTTP_X_FORWARDED_FOR' => '9.9.9.9, 10.0.0.2',
         ])->assertOk()->assertContent('9.9.9.9');
     }
 
-    public function testFormRequestSeesForwardedIpAfterTrustProxiesMiddleware()
+    public function testFormRequestSeesForwardedIpAfterTrustProxiesMiddleware(): void
     {
         TrustProxies::at(['10.0.0.1']);
 
@@ -88,9 +88,9 @@ class TrustProxiesTest extends TestCase
         $this->assertSame('9.9.9.9', $response->json('routeIp'));
     }
 
-    public function testConcurrentRequestsThroughMiddlewareKeepTrustedProxyStateIsolated()
+    public function testConcurrentRequestsThroughMiddlewareKeepTrustedProxyStateIsolated(): void
     {
-        TrustProxies::at('*');
+        TrustProxies::at('REMOTE_ADDR');
 
         [$responseA, $responseB] = parallel([
             fn () => $this->call('GET', '/slow-whoami', server: [

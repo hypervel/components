@@ -65,7 +65,12 @@ class Response implements ArrayAccess, Stringable
     protected false|int|null $truncateExceptionsAt = null;
 
     /**
-     * The flags passed to json_decode by default.
+     * The flags passed to `json_decode` by default.
+     *
+     * Boot-only. Changing this value during request handling affects JSON decoding in every concurrent
+     * and subsequent request on that worker.
+     *
+     * @var int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR>
      */
     public static int $defaultJsonDecodingFlags = 0;
 
@@ -325,15 +330,15 @@ class Response implements ArrayAccess, Stringable
     /**
      * Throw an exception if a server or client error occurred.
      *
+     * @param null|(callable(Response, RequestException): mixed) $callback
+     *
      * @throws RequestException
      */
-    public function throw(): static
+    public function throw(?callable $callback = null): static
     {
-        $callback = func_get_args()[0] ?? null;
-
         if ($this->failed()) {
             throw tap($this->toException(), function ($exception) use ($callback) {
-                if ($callback && is_callable($callback)) {
+                if ($callback) {
                     $callback($this, $exception);
                 }
             });
@@ -345,31 +350,33 @@ class Response implements ArrayAccess, Stringable
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to true.
      *
+     * @param null|(callable(Response, RequestException): mixed) $callback
+     *
      * @throws RequestException
      */
-    public function throwIf(bool|Closure $condition): static
+    public function throwIf(bool|Closure $condition, ?callable $callback = null): static
     {
-        return value($condition, $this) ? $this->throw(func_get_args()[1] ?? null) : $this;
+        return value($condition, $this) ? $this->throw($callback) : $this;
     }
 
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to false.
      *
+     * @param null|(callable(Response, RequestException): mixed) $callback
+     *
      * @throws RequestException
      */
-    public function throwUnless(bool|Closure $condition): static
+    public function throwUnless(bool|Closure $condition, ?callable $callback = null): static
     {
-        return $this->throwIf(! value($condition, $this));
+        return $this->throwIf(! value($condition, $this), $callback);
     }
 
     /**
      * Throw an exception if the response status code matches the given code.
      *
-     * @param callable|int $statusCode
-     *
      * @throws RequestException
      */
-    public function throwIfStatus($statusCode): static
+    public function throwIfStatus(int|callable $statusCode): static
     {
         if (is_callable($statusCode)
             && $statusCode($this->status(), $this)) {
@@ -382,11 +389,9 @@ class Response implements ArrayAccess, Stringable
     /**
      * Throw an exception unless the response status code matches the given code.
      *
-     * @param callable|int $statusCode
-     *
      * @throws RequestException
      */
-    public function throwUnlessStatus($statusCode): static
+    public function throwUnlessStatus(int|callable $statusCode): static
     {
         if (is_callable($statusCode)) {
             return $statusCode($this->status(), $this) ? $this : throw new RequestException($this, $this->truncateExceptionsAt);

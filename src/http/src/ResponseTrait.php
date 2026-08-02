@@ -125,6 +125,18 @@ trait ResponseTrait
     }
 
     /**
+     * Add multiple cookies to the response.
+     */
+    public function withCookies(array $cookies): static
+    {
+        foreach ($cookies as $cookie) {
+            $this->headers->setCookie($cookie);
+        }
+
+        return $this;
+    }
+
+    /**
      * Expire a cookie when sending the response.
      *
      * @return $this

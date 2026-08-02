@@ -31,10 +31,11 @@
 ## Testing
 
 - Complete Testing assertion coverage: port the remaining current Laravel `TestResponseTest` cases through the incremental upstream-update workflow, and add focused coverage for `TestView`'s public assertion and string surface where Laravel has no equivalent suite.
+- Add the repository-required `: void` return type to the remaining untyped HTTP test methods: 176 in `tests/Http/HttpClientTest.php`, 30 in `tests/Http/HttpRequestTrustedStateTest.php`, and 4 in `tests/Http/HttpRequestTrustedStateCoroutineTest.php`. Verify each file after the mechanical conversion.
 
-## HTTP Resources
+## Image
 
-- Update the already-ported JSON:API resource surface and its test suite from current Laravel through the incremental upstream-update workflow, including every later source, fixture, and regression change rather than porting isolated methods.
+- Port the complete first-party Image component through the dedicated [Image package handoff](notes/image-package.md). The HTTP integration must add `Request::image(string $key): ?Image`, port `testImageMethod` and `testImageMethodReturnsNullForMissingKey`, and add the `hypervel/image` suggestion to `src/http/composer.json` with its package-metadata regression.
 
 ## HTTP Server
 

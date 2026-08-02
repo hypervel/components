@@ -46,8 +46,9 @@ class SetCacheHeaders
     public function handle(Request $request, Closure $next, array|string $options = []): Response
     {
         $response = $next($request);
+        $content = $response->getContent();
 
-        if (! $request->isMethodCacheable() || (! $response->getContent() && ! $response instanceof BinaryFileResponse && ! $response instanceof StreamedResponse)) {
+        if (! $request->isMethodCacheable() || ($content === '' && ! $request->isMethod('HEAD') && ! $response instanceof BinaryFileResponse && ! $response instanceof StreamedResponse)) {
             return $response;
         }
 
@@ -60,7 +61,7 @@ class SetCacheHeaders
         }
 
         if (isset($options['etag']) && $options['etag'] === true) {
-            $options['etag'] = $response->getEtag() ?? ($response->getContent() ? hash('xxh128', $response->getContent()) : null);
+            $options['etag'] = $response->getEtag() ?? ($content !== '' && $content !== false ? hash('xxh128', $content) : null);
         }
 
         if (isset($options['last_modified'])) {

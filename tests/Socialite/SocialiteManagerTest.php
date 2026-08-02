@@ -338,15 +338,12 @@ class SocialiteManagerTest extends TestCase
 
         $originalConfig = (new ReflectionProperty($factory, 'config'))->getValue($factory);
 
-        // Create a new config repository with different values
-        $newConfig = new Repository([
-            'services' => [
-                'github' => [
-                    'client_id' => 'new-client-id',
-                    'client_secret' => 'new-client-secret',
-                    'redirect' => 'https://new.example.com/callback',
-                ],
-            ],
+        // Create a new config repository with different service values
+        $newConfig = new Repository($this->app->make('config')->all());
+        $newConfig->set('services.github', [
+            'client_id' => 'new-client-id',
+            'client_secret' => 'new-client-secret',
+            'redirect' => 'https://new.example.com/callback',
         ]);
 
         // Bind the new config and call setContainer

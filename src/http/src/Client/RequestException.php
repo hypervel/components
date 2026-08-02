@@ -35,9 +35,9 @@ class RequestException extends HttpClientException
         public Response $response,
         false|int|null $truncateExceptionsAt = null,
     ) {
-        parent::__construct($this->prepareMessage($response), $response->status());
-
         $this->truncateExceptionsAt = $truncateExceptionsAt;
+
+        parent::__construct($this->prepareMessage($response), $response->status());
     }
 
     /**
