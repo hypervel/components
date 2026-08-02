@@ -144,6 +144,11 @@ trait InteractsWithMeilisearch
         $tasks = $this->meilisearch->getTasks();
 
         foreach ($tasks->getResults() as $task) {
+            if (! is_string($task['indexUid'] ?? null)
+                || ! str_starts_with($task['indexUid'], $this->meilisearchTestPrefix)) {
+                continue;
+            }
+
             if (in_array($task['status'], ['enqueued', 'processing'], true)) {
                 /** @var int $taskUid */
                 $taskUid = $task['uid'];
