@@ -600,6 +600,8 @@ If you would like to deny all authorization checks for a particular type of user
 
 Sometimes, you may need to apply an authorization rule to a database query instead of a single model instance. For example, you may want an index page to only retrieve posts the current user is allowed to edit. Hypervel supports query-aware policy methods for this purpose.
 
+For a single model, or a small number of models already loaded into memory, use normal policy checks. Use `whereCan` when the database should filter a list to only authorized rows. Use `withCan` when every row in a list needs boolean authorization attributes for actions such as editing or deleting.
+
 Begin with the normal per-model policy method, then define a matching method using the ability name followed by `Scope`. The scope method receives the authenticated user and an Eloquent query builder:
 
 ```php
@@ -636,6 +638,17 @@ class PostPolicy
 ```
 
 The scope defines set membership: it should add the constraints that identify authorized model keys and return the exact builder it receives. Returning another builder is not supported.
+
+When a policy scope adds a join, `whereCan` applies that join directly to the query being built. Select the model's own columns to prevent joined columns from being hydrated onto the model or replacing attributes with the same name:
+
+```php
+$posts = Post::query()
+    ->select('posts.*')
+    ->whereCan('collaborate')
+    ->get();
+```
+
+You do not need to do this with `withCan`, since its joined policy scope runs inside the authorization subquery and does not change the model's selected columns.
 
 You may use the `whereCan` method to filter a query with the current user's policy scope:
 
@@ -704,7 +717,7 @@ By default, the attribute name begins with `can_` and the ability is converted t
 <a name="custom-query-policy-select-methods"></a>
 #### Custom Select Methods
 
-For rules that depend on the outer query shape or can be expressed more directly as a scalar value, you may define an optional policy method using the ability name followed by `Select`. It must return one nullable boolean value for the outer row as either a database expression contract or a base query builder:
+When `withCan` uses a policy scope method, such as `editScope`, it adds a subquery for that ability to the same database query. Sometimes, you may want to optimize this query by defining the corresponding select policy method, such as `editSelect`, that calculates the authorization result more directly. A select policy method may also be useful when the authorization rule depends on the query being built. It must return one nullable boolean value for the outer row as either a database expression contract or a base query builder:
 
 ```php
 <?php
@@ -732,7 +745,7 @@ class PostPolicy
 
 The base query builder carries SQL bindings, so runtime values should be passed as bindings instead of interpolated into SQL. An implementation may return `Hypervel\Contracts\Database\Query\Expression` when its expression needs no runtime value bindings.
 
-`whereCan` prefers a matching `*Scope` method and falls back to `*Select`. `withCan` prefers `*Select` and otherwise derives a correlated `EXISTS` selection from `*Scope`. If a policy defines both methods, the method native to the requested operation takes precedence. A native method that is not eligible for a guest user denies the operation instead of falling back to the other method.
+`whereCan` prefers the scope policy method for the ability, such as `editScope`, and falls back to the corresponding select policy method, such as `editSelect`. `withCan` prefers the select policy method and otherwise derives the result from the scope policy method. When a policy defines both methods, `whereCan` uses the scope method and `withCan` uses the select method. If the preferred method does not accept guests, Hypervel denies the operation instead of trying the other method.
 
 <a name="advanced-query-policy-composition"></a>
 #### Advanced Query Composition
@@ -761,14 +774,14 @@ Gate `after` callbacks are not run. Query-aware operations return a point-in-tim
 
 When `withCan` derives a selection from a policy scope, the outer query controls row visibility. The correlated inner authorization query excludes global-scope constraints but keeps extensions installed by those scopes. For example, an outer query using `withTrashed` may include a deleted post and still annotate it as authorized, while a policy scope may call the retained `withTrashed` extension.
 
-Scope-derived selections require a model with a single primary key. Composite model keys are not supported by Eloquent. The scope must remain a set-membership query on the builder it receives. Use an explicit `*Select` method when authorization depends on a replacement query, a union, a limit or offset window, result ordering, or an outer query whose `from` clause aliases the model table.
+Scope-derived selections require a model with a single primary key. Composite model keys are not supported by Eloquent. The scope must remain a set-membership query on the builder it receives. Use an explicit select policy method, such as `editSelect`, when authorization depends on a replacement query, a union, a limit or offset window, result ordering, or an outer query whose `from` clause aliases the model table.
 
 <a name="testing-query-aware-policies"></a>
 ### Testing Query-Aware Policies
 
 When using query-aware policies, you should test that your query-level authorization matches your per-model policy method. Hypervel provides the `Hypervel\Testing\Concerns\AssertsPolicyQueryConsistency` trait for this purpose.
 
-The `assertWhereCanMatchesPolicy` method verifies that `whereCan` returns the same row set as checking each model individually with `Gate::allows`. This also verifies the Select-to-WHERE fallback when the policy only defines `*Select`:
+The `assertWhereCanMatchesPolicy` method verifies that `whereCan` returns the same row set as checking each model individually with `Gate::allows`. This also verifies that a select policy method, such as `editSelect`, can be used for filtering when no scope policy method is defined:
 
 ```php
 use App\Models\Post;
@@ -795,7 +808,7 @@ class PostPolicyTest extends TestCase
 }
 ```
 
-The `assertWithCanMatchesPolicy` method verifies that `withCan` produces the same strict boolean result for each row. This also verifies Scope-to-selection derivation when the policy only defines `*Scope`:
+The `assertWithCanMatchesPolicy` method verifies that `withCan` produces the same strict boolean result for each row. This also verifies that `withCan` can derive its result from a scope policy method, such as `editScope`, when no select policy method is defined:
 
 ```php
 public function test_edit_annotation_matches_policy(): void
