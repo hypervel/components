@@ -89,7 +89,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
                 return $query->where('dashboard_user_id', $user->id);
             }
 
-            public function EditScope(stdClass $user, Builder $query): Builder
+            public function editScope(stdClass $user, Builder $query): Builder
             {
                 return $query->where('editor_id', $user->id);
             }

@@ -241,6 +241,7 @@ class PostPolicy
         );
     }
 
+    // These scopes intentionally contradict before() so the test proves the hook short-circuits them.
     public function policyBeforeAllowedScope(User $user, Builder $query): Builder
     {
         return $query->whereRaw('0 = 1');

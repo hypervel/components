@@ -341,9 +341,9 @@ class PostPolicy
         return $query->when(
             $user !== null,
             fn (Builder $query): Builder => $query->where(
-                fn (Builder $query): Builder => $query
-                    ->where($query->qualifyColumn('author_id'), $user->id)
-                    ->orWhere($query->qualifyColumn('is_public'), true),
+                fn (Builder $nestedQuery): Builder => $nestedQuery
+                    ->where($nestedQuery->qualifyColumn('author_id'), $user->id)
+                    ->orWhere($nestedQuery->qualifyColumn('is_public'), true),
             ),
             fn (Builder $query): Builder => $query->where($query->qualifyColumn('is_public'), true),
         );

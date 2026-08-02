@@ -56,7 +56,7 @@ trait AssertsPolicyQueryConsistency
 
         $actualIds = $query
             ->whereCan($ability, $user)
-            ->pluck($keyName)
+            ->pluck($query->qualifyColumn($keyName))
             ->sort()
             ->values()
             ->all();

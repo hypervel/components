@@ -30,12 +30,25 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
             $table->unsignedInteger('author_id');
         });
 
+        Schema::create('consistency_post_collaborators', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->unsignedInteger('post_id');
+            $table->unsignedInteger('user_id');
+        });
+
         DB::table('consistency_posts')->insert([
             ['author_id' => 1],
             ['author_id' => 1],
             ['author_id' => 1],
             ['author_id' => 2],
             ['author_id' => 2],
+        ]);
+
+        DB::table('consistency_post_collaborators')->insert([
+            [
+                'post_id' => 4,
+                'user_id' => 1,
+            ],
         ]);
     }
 
@@ -137,6 +150,21 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
         );
     }
 
+    public function testWhereCanMatchesPolicyWithJoiningScope(): void
+    {
+        $this->registerPolicy(JoiningScopeConsistencyPostPolicy::class);
+        $user = $this->user(1);
+
+        $posts = ConsistencyPost::all();
+
+        $this->assertWhereCanMatchesPolicy(
+            'edit',
+            ConsistencyPost::query(),
+            $posts,
+            $user,
+        );
+    }
+
     public function testWithCanMatchesPolicyWithCustomColumnName(): void
     {
         $this->registerPolicy(SelectOnlyConsistencyPostPolicy::class);
@@ -208,6 +236,26 @@ class ScopeOnlyConsistencyPostPolicy
         }
 
         return $query->where($query->qualifyColumn('author_id'), $user->id);
+    }
+}
+
+class JoiningScopeConsistencyPostPolicy
+{
+    public function edit(stdClass $user, ConsistencyPost $post): bool
+    {
+        return $user->id === 1 && $post->getKey() === 4;
+    }
+
+    public function editScope(stdClass $user, Builder $query): Builder
+    {
+        return $query
+            ->join(
+                'consistency_post_collaborators',
+                'consistency_post_collaborators.post_id',
+                '=',
+                $query->qualifyColumn('id'),
+            )
+            ->where('consistency_post_collaborators.user_id', $user->id);
     }
 }
 
