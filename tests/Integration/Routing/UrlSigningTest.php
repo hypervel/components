@@ -11,6 +11,7 @@ use Hypervel\Routing\Middleware\ValidateSignature;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\URL;
+use Hypervel\Support\Uri;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
@@ -85,6 +86,11 @@ class UrlSigningTest extends RoutingTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::create(2018, 1, 1));
         $this->assertIsString($url = URL::temporarySignedRoute('foo', now()->addMinutes(5), ['id' => 1]));
         $this->assertSame('valid', $this->get($url)->original);
+
+        $uri = Uri::temporarySignedRoute('foo', now()->addMinutes(5), ['id' => 1]);
+
+        $this->assertSame(now()->addMinutes(5)->getTimestamp(), $uri->query()->integer('expires'));
+        $this->assertSame('valid', $this->get($uri->value())->original);
 
         CarbonImmutable::setTestNow(CarbonImmutable::create(2018, 1, 1)->addMinutes(10));
         $this->assertSame('invalid', $this->get($url)->original);

@@ -8,9 +8,11 @@ use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Routing\UrlGenerator;
+use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Uri;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class SupportUriTest extends TestCase
 {
@@ -23,6 +25,18 @@ class SupportUriTest extends TestCase
         $this->assertSame('https://hypervel.org/signed-route', Uri::signedRoute('')->value());
         $this->assertSame('https://hypervel.org/signed-route', Uri::temporarySignedRoute('', 60)->value());
         $this->assertSame('https://hypervel.org/action', Uri::action('')->value());
+    }
+
+    public function testSpecialUrlParametersAcceptUrlRoutableInstances(): void
+    {
+        Uri::setUrlGeneratorResolver(fn () => new CustomUrlGeneratorResolver);
+
+        $parameter = m::mock(UrlRoutable::class);
+
+        $this->assertSame('https://hypervel.org/route', Uri::route('', $parameter)->value());
+        $this->assertSame('https://hypervel.org/signed-route', Uri::signedRoute('', $parameter)->value());
+        $this->assertSame('https://hypervel.org/signed-route', Uri::temporarySignedRoute('', 60, $parameter)->value());
+        $this->assertSame('https://hypervel.org/action', Uri::action('', $parameter)->value());
     }
 
     public function testBasicUriInteractions(): void
@@ -311,12 +325,12 @@ class CustomUrlGeneratorResolver implements UrlGenerator
         return 'https://hypervel.org/previous';
     }
 
-    public function to(string $path, array|string $extra = [], ?bool $secure = null): string
+    public function to(string $path, mixed $extra = [], ?bool $secure = null): string
     {
         return 'https://hypervel.org/to';
     }
 
-    public function secure(string $path, array $parameters = []): string
+    public function secure(string $path, mixed $parameters = []): string
     {
         return 'https://hypervel.org/secure';
     }
@@ -336,17 +350,17 @@ class CustomUrlGeneratorResolver implements UrlGenerator
         return 'https://hypervel.org/signed-route';
     }
 
-    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, array $parameters = [], bool $absolute = true): string
+    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, mixed $parameters = [], bool $absolute = true): string
     {
         return 'https://hypervel.org/temporary-signed-route';
     }
 
-    public function query(string $path, array $query = [], array|string $extra = [], ?bool $secure = null): string
+    public function query(string $path, array $query = [], mixed $extra = [], ?bool $secure = null): string
     {
         return 'https://hypervel.org/query';
     }
 
-    public function action(array|string $action, array|string $parameters = [], bool $absolute = true): string
+    public function action(array|string $action, mixed $parameters = [], bool $absolute = true): string
     {
         return 'https://hypervel.org/action';
     }
