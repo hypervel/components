@@ -5,30 +5,43 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Engines;
 
 use BackedEnum;
-use DateTimeImmutable;
+use DateTimeInterface;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Contracts\IndexesQuery;
 use Meilisearch\Exceptions\ApiException;
 use Meilisearch\Search\SearchResult;
-use RuntimeException;
 
 /**
  * Meilisearch search engine implementation.
  *
  * Provides full-text search using Meilisearch as the backend.
  */
-class MeilisearchEngine extends Engine implements UpdatesIndexSettings
+class MeilisearchEngine extends Engine implements DeletesByFilter, UpdatesIndexSettings
 {
+    /**
+     * The maximum time to wait for a filtered deletion task.
+     */
+    protected const FILTER_DELETE_TIMEOUT_IN_MS = 500_000;
+
+    /**
+     * The interval between filtered deletion task checks.
+     */
+    protected const FILTER_DELETE_INTERVAL_IN_MS = 5_000;
+
     /**
      * Create a new MeilisearchEngine instance.
      */
@@ -66,11 +79,13 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
                 return null;
             }
 
-            return array_merge(
+            $document = array_merge(
                 $searchableData,
                 $model->scoutMetadata(),
                 [$model->getScoutKeyName() => $model->getScoutKey()],
             );
+
+            return Scout::prepareSearchableDocument($document, $model, $this);
         })
             ->filter()
             ->values()
@@ -109,7 +124,6 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
     public function search(Builder $builder): mixed
     {
         return $this->performSearch($builder, array_filter([
-            'filter' => $this->filters($builder),
             'hitsPerPage' => $builder->limit,
             'sort' => $this->buildSortFromOrderByClauses($builder),
         ]));
@@ -121,7 +135,6 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
     public function paginate(Builder $builder, int $perPage, int $page): mixed
     {
         return $this->performSearch($builder, array_filter([
-            'filter' => $this->filters($builder),
             'hitsPerPage' => $perPage,
             'page' => $page,
             'sort' => $this->buildSortFromOrderByClauses($builder),
@@ -136,6 +149,13 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
         $meilisearch = $this->meilisearch->index($builder->index ?? $builder->model->searchableAs());
 
         $searchParams = array_merge($builder->options, $searchParams);
+        $filter = $this->combineFilters($searchParams['filter'] ?? null, $this->filters($builder));
+
+        if ($filter === '') {
+            unset($searchParams['filter']);
+        } else {
+            $searchParams['filter'] = $filter;
+        }
 
         if (array_key_exists('attributesToRetrieve', $searchParams)) {
             $searchParams['attributesToRetrieve'] = array_merge(
@@ -215,6 +235,30 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
         }
 
         return $filters->values()->implode(' AND ');
+    }
+
+    /**
+     * Combine application and Builder filters without changing their precedence.
+     *
+     * @param null|array<mixed>|string $applicationFilters
+     *
+     * @return array<mixed>|string
+     */
+    protected function combineFilters(array|string|null $applicationFilters, string $builderFilters): string|array
+    {
+        if ($applicationFilters === null
+            || $applicationFilters === []
+            || (is_string($applicationFilters) && trim($applicationFilters) === '')) {
+            return $builderFilters;
+        }
+
+        if ($builderFilters === '') {
+            return $applicationFilters;
+        }
+
+        return is_array($applicationFilters)
+            ? [...$applicationFilters, $builderFilters]
+            : "({$applicationFilters}) AND ({$builderFilters})";
     }
 
     /**
@@ -367,6 +411,40 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
     }
 
     /**
+     * Delete every document matching the prepared Builder filters.
+     */
+    public function deleteByFilter(Builder $builder): void
+    {
+        Scout::prepareBuilder($builder, $this);
+
+        $filter = $this->combineFilters($builder->options['filter'] ?? null, $this->filters($builder));
+
+        if ($filter === '') {
+            throw new InvalidArgumentException('Meilisearch filter deletion requires a non-empty filter.');
+        }
+
+        $index = $this->meilisearch->index($builder->index ?? $builder->model->indexableAs());
+        $task = $index->deleteDocuments(['filter' => $filter]);
+
+        // Bulk purges favor bounded service load over the SDK's interactive polling cadence.
+        $result = $this->meilisearch->waitForTask(
+            $task['taskUid'],
+            self::FILTER_DELETE_TIMEOUT_IN_MS,
+            self::FILTER_DELETE_INTERVAL_IN_MS,
+        );
+
+        if (($result['status'] ?? null) === 'failed'
+            && ($result['error']['code'] ?? null) === 'index_not_found') {
+            // Meilisearch reports an already-absent index through its asynchronous task.
+            return;
+        }
+
+        if (($result['status'] ?? null) !== 'succeeded') {
+            throw new ScoutException('Meilisearch filter deletion did not complete successfully.');
+        }
+    }
+
+    /**
      * Create a search index.
      *
      * @throws ApiException
@@ -476,44 +554,33 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
      * without exposing the admin API key. All tenants share a single index,
      * with data isolation enforced at query time via embedded filters.
      *
-     * @param array<string, array{filter?: string}> $searchRules Rules per index
+     * @param array<string, array{filter?: array<mixed>|string}> $searchRules Rules per index
      *
      * @see https://www.meilisearch.com/blog/multi-tenancy-guide
      */
     public function generateTenantToken(
         array $searchRules,
-        ?string $apiKeyUid = null,
-        ?DateTimeImmutable $expiresAt = null
+        string $apiKeyUid,
+        string $apiKey,
+        ?DateTimeInterface $expiresAt = null
     ): string {
+        if ($apiKeyUid === '') {
+            throw new InvalidArgumentException('Meilisearch tenant tokens require a non-empty API key UID.');
+        }
+
+        // The SDK substitutes its client key for an empty option, which could sign for the wrong parent key.
+        if ($apiKey === '') {
+            throw new InvalidArgumentException('Meilisearch tenant tokens require a non-empty API key.');
+        }
+
         return $this->meilisearch->generateTenantToken(
-            $apiKeyUid ?? $this->getDefaultApiKeyUid(),
+            $apiKeyUid,
             $searchRules,
             [
+                'apiKey' => $apiKey,
                 'expiresAt' => $expiresAt,
             ]
         );
-    }
-
-    /**
-     * Get the default API key UID for tenant token generation.
-     */
-    protected function getDefaultApiKeyUid(): string
-    {
-        // The API key's UID is typically the first 8 chars of the key
-        // This should be configured or retrieved from Meilisearch
-        $keys = $this->meilisearch->getKeys();
-
-        /** @var array<int, array{uid?: string, actions?: array<string>}> $results */
-        $results = $keys->getResults();
-
-        foreach ($results as $key) {
-            $actions = $key['actions'] ?? [];
-            if (in_array('search', $actions) || in_array('*', $actions)) {
-                return $key['uid'] ?? '';
-            }
-        }
-
-        throw new RuntimeException('No valid API key found for tenant token generation.');
     }
 
     /**

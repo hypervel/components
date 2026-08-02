@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Tests\Scout\Models\SearchableModel;
+use Meilisearch\Exceptions\ApiException;
 
 /**
  * Integration tests for Meilisearch filtering operations.
@@ -176,6 +177,53 @@ class MeilisearchFilteringIntegrationTest extends MeilisearchScoutIntegrationTes
             ->get();
 
         $this->assertSame([401, 402], $results->pluck('id')->sort()->values()->all());
+    }
+
+    public function testApplicationFiltersComposeWithBuilderFiltersForSearchAndDeletion(): void
+    {
+        SearchableModel::withoutSyncingToSearch(function (): void {
+            SearchableModel::create(['id' => 701, 'title' => 'Target', 'body' => 'Body']);
+            SearchableModel::create(['id' => 702, 'title' => 'Other', 'body' => 'Body']);
+            SearchableModel::create(['id' => 703, 'title' => 'Excluded', 'body' => 'Body']);
+        });
+        $this->engine->update(SearchableModel::query()->get());
+        $this->waitForMeilisearchTasks();
+
+        $results = SearchableModel::search('')
+            ->options(['filter' => [['title="Target"', 'title="Other"']]])
+            ->where('id', 701)
+            ->get();
+
+        $this->assertSame([701], $results->pluck('id')->all());
+
+        $this->engine->deleteByFilter(
+            SearchableModel::search('')
+                ->options(['filter' => [['title="Target"', 'title="Other"']]])
+                ->where('id', 701)
+        );
+
+        $this->assertSame(
+            [702, 703],
+            SearchableModel::search('')->get()->pluck('id')->sort()->values()->all(),
+        );
+    }
+
+    public function testFilteredDeletionTreatsAMissingIndexAsAlreadyDeleted(): void
+    {
+        $indexName = $this->prefixedIndexName('missing_filter_delete');
+
+        $this->engine->deleteByFilter(
+            SearchableModel::search('')
+                ->within($indexName)
+                ->where('id', 701)
+        );
+
+        try {
+            $this->meilisearch->getIndex($indexName);
+            $this->fail('Filtered deletion created the missing index.');
+        } catch (ApiException $exception) {
+            $this->assertSame(404, $exception->httpStatus);
+        }
     }
 }
 
