@@ -143,4 +143,49 @@ class MeilisearchFilteringIntegrationTest extends MeilisearchScoutIntegrationTes
         $this->assertTrue($results->contains('id', $model1->id));
         $this->assertTrue($results->contains('id', $model2->id));
     }
+
+    public function testComparisonFiltersReachMeilisearch(): void
+    {
+        SearchableModel::create(['id' => 301, 'title' => 'First', 'body' => 'Body']);
+        SearchableModel::create(['id' => 302, 'title' => 'Second', 'body' => 'Body']);
+        SearchableModel::create(['id' => 303, 'title' => 'Third', 'body' => 'Body']);
+
+        $this->engine->update(SearchableModel::query()->get());
+        $this->waitForMeilisearchTasks();
+
+        $results = SearchableModel::search('')
+            ->where('id', '>', 301)
+            ->where('id', '!=', 303)
+            ->get();
+
+        $this->assertSame([302], $results->pluck('id')->all());
+    }
+
+    public function testBackedEnumsAndEscapedSetValuesReachMeilisearch(): void
+    {
+        SearchableModel::create(['id' => 401, 'title' => 'A "quoted" title', 'body' => 'Body']);
+        SearchableModel::create(['id' => 402, 'title' => 'A \ path', 'body' => 'Body']);
+        SearchableModel::create(['id' => 403, 'title' => 'Other', 'body' => 'Body']);
+
+        $this->engine->update(SearchableModel::query()->get());
+        $this->waitForMeilisearchTasks();
+
+        $results = SearchableModel::search('')
+            ->whereIn('title', [MeilisearchFilterTitle::Quoted, MeilisearchFilterTitle::Path])
+            ->whereNotIn('id', [MeilisearchFilterId::Other])
+            ->get();
+
+        $this->assertSame([401, 402], $results->pluck('id')->sort()->values()->all());
+    }
+}
+
+enum MeilisearchFilterId: int
+{
+    case Other = 403;
+}
+
+enum MeilisearchFilterTitle: string
+{
+    case Quoted = 'A "quoted" title';
+    case Path = 'A \ path';
 }
