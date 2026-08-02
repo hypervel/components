@@ -600,7 +600,7 @@ If you would like to deny all authorization checks for a particular type of user
 
 Sometimes, you may need to apply an authorization rule to a database query instead of a single model instance. For example, you may want an index page to only retrieve posts the current user is allowed to edit. Hypervel supports query-aware policy methods for this purpose.
 
-To filter a query to authorized rows, define a policy method using the ability name followed by `Scope`. The method receives the authenticated user and an Eloquent query builder, and should return the builder:
+Begin with the normal per-model policy method, then define a matching method using the ability name followed by `Scope`. The scope method receives the authenticated user and an Eloquent query builder:
 
 ```php
 <?php
@@ -613,6 +613,14 @@ use Hypervel\Database\Eloquent\Builder;
 
 class PostPolicy
 {
+    /**
+     * Determine if the user can edit the given post.
+     */
+    public function edit(User $user, Post $post): bool
+    {
+        return $user->id === $post->user_id;
+    }
+
     /**
      * Filter posts the user can edit.
      */
@@ -627,18 +635,76 @@ class PostPolicy
 }
 ```
 
-You may apply the policy scope using the `Gate::scope` method:
+The scope defines set membership: it should add the constraints that identify authorized model keys and return the exact builder it receives. Returning another builder is not supported.
+
+You may use the `whereCan` method to filter a query with the current user's policy scope:
 
 ```php
 use App\Models\Post;
-use Hypervel\Support\Facades\Gate;
 
-$posts = Gate::scope('edit', Post::query())->get();
+$posts = Post::whereCan('edit')->paginate();
+
+$publishedPosts = Post::query()
+    ->where('published', true)
+    ->whereCan('edit')
+    ->latest()
+    ->get();
 ```
 
-If your ability contains dashes, Hypervel will convert it to camel case when determining the policy method name. For example, an `edit-post` ability will call an `editPostScope` method.
+You may also check the query from another user's perspective by passing that user as the second argument:
 
-You may also define a policy method using the ability name followed by `Select`. This method should return a SQL expression that evaluates whether each row is authorized:
+```php
+$posts = Post::query()->whereCan('edit', $user)->get();
+```
+
+Omitting the user or passing `null` uses the current authenticated user. A non-null user is applied only to that builder method call. Query-aware methods accept string and enum abilities. If an ability contains dashes, Hypervel converts it to camel case when determining the policy method name, so `edit-post` calls `editPostScope`.
+
+You may chain multiple `whereCan` calls. Each call adds another required policy condition:
+
+```php
+$posts = Post::query()
+    ->whereCan('edit', $user)
+    ->whereCan('publish', $user)
+    ->get();
+```
+
+<a name="adding-authorization-attributes"></a>
+#### Adding Authorization Attributes
+
+The `withCan` method adds strict boolean authorization attributes to the models returned by a query. Hypervel can derive these values from the same policy scope:
+
+```php
+$posts = Post::query()->withCan('edit')->get();
+
+foreach ($posts as $post) {
+    $post->can_edit; // true or false
+}
+```
+
+You may request several abilities at once and give selected results an explicit alias:
+
+```php
+$posts = Post::query()
+    ->withCan([
+        'edit',
+        'delete',
+        'publish as publishable',
+    ], $user)
+    ->get();
+
+$posts->first()->can_edit;
+$posts->first()->can_delete;
+$posts->first()->publishable;
+```
+
+Normal model attributes remain selected. Authorization attributes are cast to strict booleans, including nullable SQL results, which become `false`.
+
+By default, the attribute name begins with `can_` and the ability is converted to snake case. For example, `edit-post` and `editPost` both produce `can_edit_post`. Explicit aliases must begin with a letter or underscore and contain only ASCII letters, numbers, and underscores. Attribute names may not exceed 63 bytes. If a generated name is too long, provide a shorter explicit alias. Duplicate aliases within one `withCan` call are rejected before the query is changed.
+
+<a name="custom-query-policy-select-methods"></a>
+#### Custom Select Methods
+
+For rules that depend on the outer query shape or can be expressed more directly as a scalar value, you may define an optional policy method using the ability name followed by `Select`. It must return one nullable boolean value for the outer row as either a database expression contract or a base query builder:
 
 ```php
 <?php
@@ -646,27 +712,32 @@ You may also define a policy method using the ability name followed by `Select`.
 namespace App\Policies;
 
 use App\Models\User;
-use Hypervel\Database\Eloquent\Builder;
-use Hypervel\Database\Query\Expression;
-use Hypervel\Support\Facades\DB;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 
 class PostPolicy
 {
     /**
-     * Return a SQL expression indicating whether the user can edit each post.
+     * Select whether the user can edit each post.
      */
-    public function editSelect(User $user, Builder $query): Expression
+    public function editSelect(User $user, EloquentBuilder $query): QueryBuilder
     {
-        if ($user->isAdministrator()) {
-            return DB::raw('true');
-        }
-
-        return DB::raw($query->qualifyColumn('user_id') . ' = ' . (int) $user->id);
+        return $query->getQuery()->newQuery()->selectRaw(
+            $query->qualifyColumn('user_id') . ' = ?',
+            [$user->getAuthIdentifier()],
+        );
     }
 }
 ```
 
-You may use the expression returned by `Gate::select` inside a query:
+The base query builder carries SQL bindings, so runtime values should be passed as bindings instead of interpolated into SQL. An implementation may return `Hypervel\Contracts\Database\Query\Expression` when its expression needs no runtime value bindings.
+
+`whereCan` prefers a matching `*Scope` method and falls back to `*Select`. `withCan` prefers `*Select` and otherwise derives a correlated `EXISTS` selection from `*Scope`. If a policy defines both methods, the method native to the requested operation takes precedence. A native method that is not eligible for a guest user denies the operation instead of falling back to the other method.
+
+<a name="advanced-query-policy-composition"></a>
+#### Advanced Query Composition
+
+The `Gate::scope` and `Gate::select` methods provide the lower-level operations used by `whereCan` and `withCan`. They are useful when composing a query that the fluent methods do not directly cover:
 
 ```php
 use App\Models\Post;
@@ -674,19 +745,30 @@ use Hypervel\Support\Facades\Gate;
 
 $query = Post::query();
 
-$posts = $query->addSelect([
-    'can_edit' => Gate::select('edit', $query),
-])->get();
+Gate::scope('edit', $query);
+
+$selection = Gate::select('edit', $query);
 ```
 
-Gate `before` callbacks and policy `before` methods are honored by query-aware policies. Returning `true` leaves the query unmodified or returns a SQL `true` expression. Returning `false` constrains the query to no rows or returns a SQL `false` expression. Gate `after` callbacks are not run for query-aware policy methods because these methods return query builders or SQL expressions instead of a final boolean authorization result.
+Both methods use the same symmetric fallback behavior as the fluent builder methods.
+
+<a name="query-aware-policy-behavior"></a>
+#### Query-Aware Policy Behavior
+
+Gate `before` callbacks and policy `before` methods are honored once for each query-aware operation. Returning `true` leaves a filtered query unmodified or produces a boolean `true` selection. Returning `false` filters out every row or produces a boolean `false` selection. A policy `before` method receives the builder's model prototype, not the model row being authorized. That prototype is not always blank because model-instance shorthand and custom builders may carry state.
+
+Gate `after` callbacks are not run. Query-aware operations return a point-in-time boolean query result, not a final authorization `Response`, so they do not include a denial message or status. Use a normal per-model authorization check when the application needs that response information.
+
+When `withCan` derives a selection from a policy scope, the outer query controls row visibility. The correlated inner authorization query excludes global-scope constraints but keeps extensions installed by those scopes. For example, an outer query using `withTrashed` may include a deleted post and still annotate it as authorized, while a policy scope may call the retained `withTrashed` extension.
+
+Scope-derived selections require a model with a single primary key. Composite model keys are not supported by Eloquent. The scope must remain a set-membership query on the builder it receives. Use an explicit `*Select` method when authorization depends on a replacement query, a union, a limit or offset window, result ordering, or an outer query whose `from` clause aliases the model table.
 
 <a name="testing-query-aware-policies"></a>
 ### Testing Query-Aware Policies
 
 When using query-aware policies, you should test that your query-level authorization matches your per-model policy method. Hypervel provides the `Hypervel\Testing\Concerns\AssertsPolicyQueryConsistency` trait for this purpose.
 
-The `assertScopeMatchesPolicy` method verifies that a policy's `*Scope` method returns the same row set as checking each model individually with `Gate::allows`:
+The `assertWhereCanMatchesPolicy` method verifies that `whereCan` returns the same row set as checking each model individually with `Gate::allows`. This also verifies the Select-to-WHERE fallback when the policy only defines `*Select`:
 
 ```php
 use App\Models\Post;
@@ -698,12 +780,12 @@ class PostPolicyTest extends TestCase
 {
     use AssertsPolicyQueryConsistency;
 
-    public function test_edit_scope_matches_policy(): void
+    public function test_edit_query_matches_policy(): void
     {
         $user = User::factory()->create();
         $posts = Post::factory()->count(3)->create();
 
-        $this->assertScopeMatchesPolicy(
+        $this->assertWhereCanMatchesPolicy(
             'edit',
             Post::query(),
             $posts,
@@ -713,15 +795,15 @@ class PostPolicyTest extends TestCase
 }
 ```
 
-The `assertSelectMatchesPolicy` method verifies that a policy's `*Select` method returns the same per-row result as checking each model individually:
+The `assertWithCanMatchesPolicy` method verifies that `withCan` produces the same strict boolean result for each row. This also verifies Scope-to-selection derivation when the policy only defines `*Scope`:
 
 ```php
-public function test_edit_select_matches_policy(): void
+public function test_edit_annotation_matches_policy(): void
 {
     $user = User::factory()->create();
     $posts = Post::factory()->count(3)->create();
 
-    $this->assertSelectMatchesPolicy(
+    $this->assertWithCanMatchesPolicy(
         'edit',
         Post::query(),
         $posts,
@@ -730,6 +812,8 @@ public function test_edit_select_matches_policy(): void
     );
 }
 ```
+
+The user argument is optional. Omit it or pass `null` to test against the current authenticated user. The assertions and builder macros use the Gate instance captured when the application booted. Register test policies on that Gate, such as with `Gate::policy(Post::class, PostPolicy::class)`, instead of replacing the Gate container binding after the provider has booted.
 
 <a name="authorizing-actions-using-policies"></a>
 ## Authorizing Actions Using Policies
