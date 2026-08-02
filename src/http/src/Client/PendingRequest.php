@@ -14,6 +14,7 @@ use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
@@ -32,6 +33,8 @@ use JsonSerializable;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
+use RuntimeException;
+use SensitiveParameter;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
@@ -310,12 +313,17 @@ class PendingRequest
 
         $this->asMultipart();
 
-        $this->pendingFiles[] = array_filter([
+        $file = [
             'name' => $name,
             'contents' => $contents,
             'headers' => $headers,
-            'filename' => $filename,
-        ]);
+        ];
+
+        if ($filename !== null) {
+            $file['filename'] = $filename;
+        }
+
+        $this->pendingFiles[] = $file;
 
         return $this;
     }
@@ -409,7 +417,7 @@ class PendingRequest
     /**
      * Specify the basic authentication username and password for the request.
      */
-    public function withBasicAuth(string $username, string $password): static
+    public function withBasicAuth(string $username, #[SensitiveParameter] string $password): static
     {
         return tap($this, function () use ($username, $password) {
             $this->options['auth'] = [$username, $password];
@@ -419,7 +427,7 @@ class PendingRequest
     /**
      * Specify the digest authentication username and password for the request.
      */
-    public function withDigestAuth(string $username, string $password): static
+    public function withDigestAuth(string $username, #[SensitiveParameter] string $password): static
     {
         return tap($this, function () use ($username, $password) {
             $this->options['auth'] = [$username, $password, 'digest'];
@@ -429,7 +437,7 @@ class PendingRequest
     /**
      * Specify the NTLM authentication username and password for the request.
      */
-    public function withNtlmAuth(string $username, string $password): static
+    public function withNtlmAuth(string $username, #[SensitiveParameter] string $password): static
     {
         return tap($this, function () use ($username, $password) {
             $this->options['auth'] = [$username, $password, 'ntlm'];
@@ -439,7 +447,7 @@ class PendingRequest
     /**
      * Specify an authorization token for the request.
      */
-    public function withToken(string $token, string $type = 'Bearer'): static
+    public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
         return tap($this, function () use ($token, $type) {
             $this->options['headers']['Authorization'] = trim($type . ' ' . $token);
@@ -451,9 +459,9 @@ class PendingRequest
      */
     public function withUserAgent(bool|string $userAgent): static
     {
-        return tap($this, function () use ($userAgent) {
-            $this->options['headers']['User-Agent'] = trim($userAgent);
-        });
+        $this->options['headers']['User-Agent'] = trim((string) $userAgent);
+
+        return $this;
     }
 
     /**
@@ -511,7 +519,7 @@ class PendingRequest
     /**
      * Specify the path where the body of the response should be stored.
      *
-     * @param resource|string $to
+     * @param resource|StreamInterface|string $to
      */
     public function sink($to): static
     {
@@ -648,32 +656,42 @@ class PendingRequest
 
     /**
      * Throw an exception if a server or client error occurs.
+     *
+     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
      */
     public function throw(?callable $callback = null): static
     {
-        $this->throwCallback = $callback ?: fn () => null;
+        $this->throwCallback = $callback === null ? fn () => null : $callback(...);
 
         return $this;
     }
 
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to true.
+     *
+     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
      */
-    public function throwIf(bool|callable $condition): static
+    public function throwIf(bool|callable $condition, ?callable $callback = null): static
     {
         if (is_callable($condition)) {
-            $this->throwIfCallback = $condition;
+            $this->throwIfCallback = $condition(...);
         }
 
-        return $condition ? $this->throw(func_get_args()[1] ?? null) : $this;
+        return $condition ? $this->throw($callback) : $this;
     }
 
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to false.
+     *
+     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
      */
-    public function throwUnless(bool|callable $condition): static
+    public function throwUnless(bool|callable $condition, ?callable $callback = null): static
     {
-        return $this->throwIf(! $condition);
+        if (is_callable($condition)) {
+            return $this->throwIf(fn (Response $response) => ! $condition($response), $callback);
+        }
+
+        return $this->throwIf(! $condition, $callback);
     }
 
     /**
@@ -739,11 +757,23 @@ class PendingRequest
     }
 
     /**
+     * Issue a QUERY request to the given URL.
+     *
+     * @throws ConnectionException
+     */
+    public function query(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
+    {
+        return $this->send('QUERY', $url, [
+            $this->bodyFormat => $data,
+        ]);
+    }
+
+    /**
      * Issue a POST request to the given URL.
      *
      * @throws ConnectionException
      */
-    public function post(string $url, array|JsonSerializable $data = []): PromiseInterface|Response
+    public function post(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
         return $this->send('POST', $url, [
             $this->bodyFormat => $data,
@@ -755,7 +785,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function patch(string $url, array $data = []): PromiseInterface|Response
+    public function patch(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
         return $this->send('PATCH', $url, [
             $this->bodyFormat => $data,
@@ -767,7 +797,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function put(string $url, array $data = []): PromiseInterface|Response
+    public function put(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
         return $this->send('PUT', $url, [
             $this->bodyFormat => $data,
@@ -779,7 +809,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function delete(string $url, array $data = []): PromiseInterface|Response
+    public function delete(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
         return $this->send(
             'DELETE',
@@ -1348,16 +1378,7 @@ class PendingRequest
      */
     public function buildClient(): ClientInterface
     {
-        if ($this->client !== null) {
-            return $this->client;
-        }
-
-        $handlerStack = $this->buildHandlerStack();
-
-        return $this->factory?->createClient($handlerStack, $this->cookies) ?? new Client([
-            'handler' => $handlerStack,
-            'cookies' => $this->cookies,
-        ]);
+        return $this->client ?? $this->createClient($this->buildHandlerStack());
     }
 
     /**
@@ -1373,7 +1394,18 @@ class PendingRequest
      */
     protected function getReusableClient(): ClientInterface
     {
-        return $this->client ??= $this->buildClient();
+        return $this->client ??= $this->createClient($this->buildHandlerStack());
+    }
+
+    /**
+     * Create a new Guzzle client.
+     */
+    public function createClient(HandlerStack $handlerStack): ClientInterface
+    {
+        return $this->factory?->createClient($handlerStack, $this->cookies) ?? new Client([
+            'handler' => $handlerStack,
+            'cookies' => $this->cookies,
+        ]);
     }
 
     /**
@@ -1427,16 +1459,30 @@ class PendingRequest
             return function ($request, $options) use ($handler) {
                 $promise = $handler($request, $options);
 
-                return $promise->then(function ($response) use ($request, $options) {
-                    $this->factory?->recordRequestResponsePair(
-                        (new Request($request))
-                            ->withData($options['hypervel_data'] ?? [])
-                            ->setRequestAttributes($this->attributes),
-                        $this->newResponse($response)
-                    );
+                return $promise->then(
+                    function ($response) use ($request, $options) {
+                        $this->factory?->recordRequestResponsePair(
+                            (new Request($request))
+                                ->withData($options['hypervel_data'] ?? [])
+                                ->setRequestAttributes($this->attributes),
+                            $this->newResponse($response)
+                        );
 
-                    return $response;
-                });
+                        return $response;
+                    },
+                    function ($reason) use ($request, $options) {
+                        $this->factory?->recordRequestResponsePair(
+                            (new Request($request))
+                                ->withData($options['hypervel_data'] ?? [])
+                                ->setRequestAttributes($this->attributes),
+                            $reason instanceof RequestException && $reason->hasResponse()
+                                ? $this->newResponse($reason->getResponse())
+                                : null,
+                        );
+
+                        return Create::rejectionFor($reason);
+                    },
+                );
             };
         };
     }
@@ -1466,8 +1512,8 @@ class PendingRequest
 
                 $sink = $options['sink'] ?? null;
 
-                if ($sink) {
-                    $response->then($this->sinkStubHandler($sink));
+                if ($sink !== null) {
+                    return $response->then($this->sinkStubHandler($sink));
                 }
 
                 return $response;
@@ -1478,21 +1524,35 @@ class PendingRequest
     /**
      * Get the sink stub handler callback.
      *
-     * @param resource|string $sink
+     * @param resource|StreamInterface|string $sink
      */
     protected function sinkStubHandler($sink): Closure
     {
-        return function ($response) use ($sink) {
-            $body = $response->getBody()->getContents();
+        return function ($psrResponse) use ($sink) {
+            $body = $psrResponse->getBody()->getContents();
 
             if (is_string($sink)) {
-                file_put_contents($sink, $body);
+                if (@file_put_contents($sink, $body) !== strlen($body)) {
+                    throw new RuntimeException("Unable to write response body to sink [{$sink}].");
+                }
 
-                return;
+                return $psrResponse;
             }
 
-            fwrite($sink, $body);
-            rewind($sink);
+            if (is_resource($sink)) {
+                if (@fwrite($sink, $body) === false) {
+                    throw new RuntimeException('Unable to write to stream');
+                }
+
+                rewind($sink);
+
+                return $psrResponse;
+            }
+
+            $sink->write($body);
+            $sink->rewind();
+
+            return $psrResponse;
         };
     }
 
@@ -1545,7 +1605,7 @@ class PendingRequest
     /**
      * Create a new response instance using the given PSR response.
      */
-    protected function newResponse(PromiseInterface|ResponseInterface $response): Response
+    protected function newResponse(ResponseInterface $response): Response
     {
         return tap(new Response($response), function (Response $response) {
             if ($this->truncateExceptionsAt === null) {
@@ -1705,8 +1765,6 @@ class PendingRequest
 
         $request = (new Request($e->getRequest()))->setRequestAttributes($this->attributes);
 
-        $this->factory?->recordRequestResponsePair($request, null);
-
         $this->dispatchConnectionFailedEvent($request, $exception);
 
         throw $exception;
@@ -1723,8 +1781,6 @@ class PendingRequest
 
         $request = (new Request($e->getRequest()))->setRequestAttributes($this->attributes);
 
-        $this->factory?->recordRequestResponsePair($request, null);
-
         $this->dispatchConnectionFailedEvent($request, $exception);
 
         throw $exception;
@@ -1739,11 +1795,6 @@ class PendingRequest
     protected function marshalRequestExceptionWithResponse(RequestException $e): void
     {
         $response = $this->populateResponse($this->newResponse($e->getResponse()));
-
-        $this->factory?->recordRequestResponsePair(
-            (new Request($e->getRequest()))->setRequestAttributes($this->attributes),
-            $response
-        );
 
         throw $response->toException() ?? new ConnectionException($e->getMessage(), 0, $e);
     }
