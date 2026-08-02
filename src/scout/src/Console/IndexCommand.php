@@ -6,11 +6,13 @@ namespace Hypervel\Scout\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -47,6 +49,7 @@ class IndexCommand extends Command
             $options = ['primaryKey' => $key];
         }
 
+        /** @var null|Model $model */
         $model = null;
         $modelName = (string) $this->argument('name');
 
@@ -70,6 +73,8 @@ class IndexCommand extends Command
                 && in_array(SoftDeletes::class, class_uses_recursive($model))) {
                 $settings = $engine->configureSoftDeleteFilter($settings);
             }
+
+            $settings = Scout::prepareIndexSettings($settings, $model, $engine, $name);
 
             if ($settings) {
                 $engine->updateIndexSettings($name, $settings);

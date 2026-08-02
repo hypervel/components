@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Unit\Console;
 
 use Hypervel\Config\Repository;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Console\IndexCommand;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Scout;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -83,6 +85,41 @@ class IndexCommandTest extends TestCase
 
         $command = $this->command('posts');
         $command->shouldReceive('info')->once()->with('Synchronized index ["prod_posts"] successfully.');
+
+        $this->assertSame(0, $command->handle($manager, $config));
+    }
+
+    public function testLifecycleCallbackCanPrepareAnEmptyNamedIndexEntry(): void
+    {
+        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+        $engine->shouldReceive('createIndex')->once()->with('prod_posts', []);
+        $engine->shouldReceive('updateIndexSettings')
+            ->once()
+            ->with('prod_posts', ['filterableAttributes' => ['tenant_id']]);
+        $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('engine')->once()->andReturn($engine);
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('string')->with('scout.prefix', '')->andReturn('prod_');
+        $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
+        $config->shouldReceive('get')->with('scout.meilisearch.index-settings.posts')->andReturn(null);
+        $config->shouldReceive('get')->with('scout.meilisearch.index-settings.prod_posts')->andReturn(null);
+
+        Scout::prepareIndexSettingsUsing(function (
+            array $settings,
+            ?Model $model,
+            Engine $givenEngine,
+            string $index
+        ) use ($engine): array {
+            $this->assertSame([], $settings);
+            $this->assertNull($model);
+            $this->assertSame($engine, $givenEngine);
+            $this->assertSame('prod_posts', $index);
+
+            return ['filterableAttributes' => ['tenant_id']];
+        });
+
+        $command = $this->command('posts');
+        $command->shouldReceive('info')->once();
 
         $this->assertSame(0, $command->handle($manager, $config));
     }

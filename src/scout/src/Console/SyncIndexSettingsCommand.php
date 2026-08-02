@@ -6,9 +6,11 @@ namespace Hypervel\Scout\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -59,6 +61,7 @@ class SyncIndexSettingsCommand extends Command
                 $settings = [];
             }
 
+            /** @var null|Model $model */
             $model = null;
             if (class_exists($name)) {
                 $model = new $name;
@@ -71,6 +74,7 @@ class SyncIndexSettingsCommand extends Command
             }
 
             $indexName = $this->indexName($name, $config);
+            $settings = Scout::prepareIndexSettings($settings, $model, $engine, $indexName);
             $engine->updateIndexSettings($indexName, $settings);
 
             $this->info("Settings for the [{$indexName}] index synced successfully.");
