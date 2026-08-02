@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -32,10 +33,20 @@ class AuthQueryAwarePolicyTest extends DatabaseTestCase
             $table->softDeletes();
         });
 
+        Schema::create('auth_query_post_collaborators', function (Blueprint $table): void {
+            $table->string('id')->primary();
+            $table->string('post_id');
+            $table->string('user_id');
+        });
+
         DB::table('auth_query_posts')->insert([
             ['id' => 'owned', 'owner_id' => "user'o", 'title' => 'Owned', 'deleted_at' => null],
             ['id' => 'other', 'owner_id' => 'other-user', 'title' => 'Other', 'deleted_at' => null],
             ['id' => 'nullable', 'owner_id' => null, 'title' => 'Nullable', 'deleted_at' => null],
+        ]);
+
+        DB::table('auth_query_post_collaborators')->insert([
+            ['id' => 'collaboration', 'post_id' => 'other', 'user_id' => "user'o"],
         ]);
     }
 
@@ -71,6 +82,44 @@ class AuthQueryAwarePolicyTest extends DatabaseTestCase
             $this->assertIsBool($post->can_edit);
             $this->assertIsBool($post->can_manage);
         }
+    }
+
+    public function testSixtyThreeByteAliasHydratesWithoutTruncation(): void
+    {
+        $alias = 'a' . str_repeat('b', 62);
+
+        $posts = Post::query()
+            ->withCan('edit as ' . $alias, $this->user())
+            ->get()
+            ->keyBy('id');
+
+        $this->assertTrue($posts['owned']->{$alias});
+        $this->assertFalse($posts['other']->{$alias});
+        $this->assertFalse($posts['nullable']->{$alias});
+    }
+
+    public function testJoinedPolicyScopeFiltersAndAnnotatesRows(): void
+    {
+        $user = $this->user();
+        $filteredPost = Post::query()
+            ->select('auth_query_posts.*')
+            ->whereCan('collaborate', $user)
+            ->sole();
+        $posts = Post::query()
+            ->withCan('collaborate', $user)
+            ->get()
+            ->keyBy('id');
+
+        $this->assertSame('other', $filteredPost->getKey());
+        $this->assertSame([
+            'id' => 'other',
+            'owner_id' => 'other-user',
+            'title' => 'Other',
+            'deleted_at' => null,
+        ], $filteredPost->getAttributes());
+        $this->assertFalse($posts['owned']->can_collaborate);
+        $this->assertTrue($posts['other']->can_collaborate);
+        $this->assertFalse($posts['nullable']->can_collaborate);
     }
 
     public function testOuterWithTrashedOwnsVisibilityAndInnerScopeExtensionsRemainAvailable(): void
@@ -169,6 +218,27 @@ class PostPolicy
         $query->withTrashed();
 
         return $query->where($query->qualifyColumn('owner_id'), $user->id);
+    }
+
+    public function collaborate(User $user, Post $post): bool
+    {
+        return $post->getKey() === 'other' && $user->id === "user'o";
+    }
+
+    public function collaborateScope(User $user, Builder $query): Builder
+    {
+        return $query->join(
+            'auth_query_post_collaborators',
+            function (JoinClause $join) use ($query, $user): void {
+                $join
+                    ->on(
+                        'auth_query_post_collaborators.post_id',
+                        '=',
+                        $query->qualifyColumn('id'),
+                    )
+                    ->where('auth_query_post_collaborators.user_id', $user->id);
+            },
+        );
     }
 
     public function policyBeforeAllowedScope(User $user, Builder $query): Builder
