@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\Concerns\AssertsPolicyQueryConsistencyTest;
 
-use Hypervel\Auth\Access\Gate;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\DB;
@@ -25,12 +25,17 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
 
     protected function afterRefreshingDatabase(): void
     {
-        Schema::create('consistency_posts', function (Blueprint $table) {
+        Schema::create('consistency_posts', function (Blueprint $table): void {
             $table->increments('id');
             $table->unsignedInteger('author_id');
         });
 
-        // Create posts: 3 owned by user 1, 2 owned by user 2
+        Schema::create('consistency_post_collaborators', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->unsignedInteger('post_id');
+            $table->unsignedInteger('user_id');
+        });
+
         DB::table('consistency_posts')->insert([
             ['author_id' => 1],
             ['author_id' => 1],
@@ -38,30 +43,46 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
             ['author_id' => 2],
             ['author_id' => 2],
         ]);
+
+        DB::table('consistency_post_collaborators')->insert([
+            [
+                'post_id' => 4,
+                'user_id' => 1,
+            ],
+        ]);
     }
 
-    protected function getGate(mixed $user): Gate
+    protected function gate(): GateContract
     {
-        $gate = new Gate($this->app, fn () => $user);
-        $gate->policy(ConsistencyPost::class, ConsistencyPostPolicy::class);
-
-        return $gate;
+        return $this->app->make(GateContract::class);
     }
 
-    protected function setUpGate(mixed $user): void
+    /** @param class-string $policy */
+    protected function registerPolicy(string $policy): void
     {
-        $gate = $this->getGate($user);
-        $this->app->instance(GateContract::class, $gate);
+        $this->gate()->policy(ConsistencyPost::class, $policy);
     }
 
-    public function testScopeMatchesPolicyForOwner()
+    protected function setCurrentUser(?stdClass $user): void
     {
-        $user = (object) ['id' => 1, 'is_admin' => false];
-        $this->setUpGate($user);
+        /** @var AuthManager $auth */
+        $auth = $this->app->make('auth');
+        $auth->resolveUsersUsing(fn () => $user);
+    }
+
+    protected function user(int $id, bool $isAdministrator = false): stdClass
+    {
+        return (object) ['id' => $id, 'is_admin' => $isAdministrator];
+    }
+
+    public function testWhereCanMatchesSelectOnlyPolicyForOwner(): void
+    {
+        $this->registerPolicy(SelectOnlyConsistencyPostPolicy::class);
+        $user = $this->user(1);
 
         $posts = ConsistencyPost::all();
 
-        $this->assertScopeMatchesPolicy(
+        $this->assertWhereCanMatchesPolicy(
             'edit',
             ConsistencyPost::query(),
             $posts,
@@ -69,14 +90,14 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
         );
     }
 
-    public function testScopeMatchesPolicyForAdmin()
+    public function testWhereCanMatchesSelectOnlyPolicyForAdministrator(): void
     {
-        $user = (object) ['id' => 99, 'is_admin' => true];
-        $this->setUpGate($user);
+        $this->registerPolicy(SelectOnlyConsistencyPostPolicy::class);
+        $user = $this->user(99, true);
 
         $posts = ConsistencyPost::all();
 
-        $this->assertScopeMatchesPolicy(
+        $this->assertWhereCanMatchesPolicy(
             'edit',
             ConsistencyPost::query(),
             $posts,
@@ -84,14 +105,28 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
         );
     }
 
-    public function testSelectMatchesPolicyForOwner()
+    public function testWithCanMatchesScopeOnlyPolicyForCurrentUser(): void
     {
-        $user = (object) ['id' => 2, 'is_admin' => false];
-        $this->setUpGate($user);
+        $this->registerPolicy(ScopeOnlyConsistencyPostPolicy::class);
+        $this->setCurrentUser($this->user(2));
 
         $posts = ConsistencyPost::all();
 
-        $this->assertSelectMatchesPolicy(
+        $this->assertWithCanMatchesPolicy(
+            ConsistencyAbility::Edit,
+            ConsistencyPost::query(),
+            $posts,
+        );
+    }
+
+    public function testWithCanMatchesScopeOnlyPolicyForAdministrator(): void
+    {
+        $this->registerPolicy(ScopeOnlyConsistencyPostPolicy::class);
+        $user = $this->user(99, true);
+
+        $posts = ConsistencyPost::all();
+
+        $this->assertWithCanMatchesPolicy(
             'edit',
             ConsistencyPost::query(),
             $posts,
@@ -99,46 +134,45 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
         );
     }
 
-    public function testSelectMatchesPolicyForAdmin()
+    public function testWhereCanMatchesPolicyWithBaseQueryConstraints(): void
     {
-        $user = (object) ['id' => 99, 'is_admin' => true];
-        $this->setUpGate($user);
+        $this->registerPolicy(ScopeOnlyConsistencyPostPolicy::class);
+        $user = $this->user(1);
 
-        $posts = ConsistencyPost::all();
-
-        $this->assertSelectMatchesPolicy(
-            'edit',
-            ConsistencyPost::query(),
-            $posts,
-            $user,
-        );
-    }
-
-    public function testScopeMatchesPolicyWithBaseQueryConstraints()
-    {
-        $user = (object) ['id' => 1, 'is_admin' => false];
-        $this->setUpGate($user);
-
-        // Only check against posts with author_id <= 2 (all posts, but via a constrained query)
-        $baseQuery = ConsistencyPost::where('author_id', '<=', 2);
+        $baseQuery = ConsistencyPost::where('id', '>=', 2);
         $posts = $baseQuery->get();
 
-        $this->assertScopeMatchesPolicy(
+        $this->assertWhereCanMatchesPolicy(
             'edit',
-            ConsistencyPost::where('author_id', '<=', 2),
+            $baseQuery,
             $posts,
             $user,
         );
     }
 
-    public function testSelectMatchesPolicyWithCustomColumnName()
+    public function testWhereCanMatchesPolicyWithJoiningScope(): void
     {
-        $user = (object) ['id' => 1, 'is_admin' => false];
-        $this->setUpGate($user);
+        $this->registerPolicy(JoiningScopeConsistencyPostPolicy::class);
+        $user = $this->user(1);
 
         $posts = ConsistencyPost::all();
 
-        $this->assertSelectMatchesPolicy(
+        $this->assertWhereCanMatchesPolicy(
+            'edit',
+            ConsistencyPost::query(),
+            $posts,
+            $user,
+        );
+    }
+
+    public function testWithCanMatchesPolicyWithCustomColumnName(): void
+    {
+        $this->registerPolicy(SelectOnlyConsistencyPostPolicy::class);
+        $user = $this->user(1);
+
+        $posts = ConsistencyPost::all();
+
+        $this->assertWithCanMatchesPolicy(
             'edit',
             ConsistencyPost::query(),
             $posts,
@@ -147,35 +181,38 @@ class AssertsPolicyQueryConsistencyTest extends TestCase
         );
     }
 
-    public function testScopeAssertionFailsOnEmptyCollection()
+    public function testWhereCanAssertionFailsOnEmptyCollection(): void
     {
-        $user = (object) ['id' => 1, 'is_admin' => false];
-        $this->setUpGate($user);
+        $this->registerPolicy(ScopeOnlyConsistencyPostPolicy::class);
 
         $this->expectException(AssertionFailedError::class);
 
-        $this->assertScopeMatchesPolicy(
+        $this->assertWhereCanMatchesPolicy(
             'edit',
             ConsistencyPost::query(),
             collect(),
-            $user,
+            $this->user(1),
         );
     }
 
-    public function testSelectAssertionFailsOnEmptyCollection()
+    public function testWithCanAssertionFailsOnEmptyCollection(): void
     {
-        $user = (object) ['id' => 1, 'is_admin' => false];
-        $this->setUpGate($user);
+        $this->registerPolicy(SelectOnlyConsistencyPostPolicy::class);
 
         $this->expectException(AssertionFailedError::class);
 
-        $this->assertSelectMatchesPolicy(
+        $this->assertWithCanMatchesPolicy(
             'edit',
             ConsistencyPost::query(),
             collect(),
-            $user,
+            $this->user(1),
         );
     }
+}
+
+enum ConsistencyAbility: string
+{
+    case Edit = 'edit';
 }
 
 class ConsistencyPost extends Model
@@ -185,19 +222,13 @@ class ConsistencyPost extends Model
     public bool $timestamps = false;
 }
 
-class ConsistencyPostPolicy
+class ScopeOnlyConsistencyPostPolicy
 {
-    /**
-     * Per-instance PHP check.
-     */
     public function edit(stdClass $user, ConsistencyPost $post): bool
     {
         return $user->is_admin || $post->author_id === $user->id;
     }
 
-    /**
-     * Query-level scope.
-     */
     public function editScope(stdClass $user, Builder $query): Builder
     {
         if ($user->is_admin) {
@@ -206,16 +237,42 @@ class ConsistencyPostPolicy
 
         return $query->where($query->qualifyColumn('author_id'), $user->id);
     }
+}
 
-    /**
-     * Query-level select expression.
-     */
-    public function editSelect(stdClass $user, Builder $query): Expression
+class JoiningScopeConsistencyPostPolicy
+{
+    public function edit(stdClass $user, ConsistencyPost $post): bool
     {
-        if ($user->is_admin) {
-            return DB::raw('1');
-        }
+        return $user->id === 1 && $post->getKey() === 4;
+    }
 
-        return DB::raw($query->qualifyColumn('author_id') . ' = ' . (int) $user->id);
+    public function editScope(stdClass $user, Builder $query): Builder
+    {
+        return $query
+            ->join(
+                'consistency_post_collaborators',
+                'consistency_post_collaborators.post_id',
+                '=',
+                $query->qualifyColumn('id'),
+            )
+            ->where('consistency_post_collaborators.user_id', $user->id);
+    }
+}
+
+class SelectOnlyConsistencyPostPolicy
+{
+    public function edit(stdClass $user, ConsistencyPost $post): bool
+    {
+        return $user->is_admin || $post->author_id === $user->id;
+    }
+
+    public function editSelect(stdClass $user, Builder $query): QueryBuilder
+    {
+        return $query->getQuery()->newQuery()->selectRaw(
+            $user->is_admin
+                ? 'true'
+                : $query->qualifyColumn('author_id') . ' = ?',
+            $user->is_admin ? [] : [$user->id],
+        );
     }
 }
