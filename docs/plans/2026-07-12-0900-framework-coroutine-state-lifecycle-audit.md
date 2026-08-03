@@ -1068,9 +1068,9 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `core-06` | `core`, `server` | `server` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
 | `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, `http`, and `testing` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
 | `http-server-05` | `testing` | `http-server` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-05` |
-| `http-server-06` | `http-server` | `reverb` and `websocket-server` (revalidation complete), `grpc`; later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
-| `http-server-07` | `http-server` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
-| `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
+| `http-server-06` | `http-server` | `reverb`, `websocket-server`, and `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
+| `http-server-07` | `http-server` | `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
+| `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
 | `foundation-06` | `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `foundation-06` |
 | `console-02` | `console` | `foundation` and `console` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `console-02` |
 | `queue-14` | `foundation`, `queue` | `foundation` and `queue` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
@@ -1124,8 +1124,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `cache-20` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-20` |
 | `reverb-24` | `reverb` | `foundation` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `reverb-24` |
 | `server-10` | `server` | `server` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `server-10` |
-| `grpc-01` | `grpc` | `reverb` and `grpc` (revalidation complete); later full `grpc` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
-| `boost-01` | `boost` | `grpc` (targeted correction complete); later full `boost` audit | `Correct gRPC terminal, buffering, and metadata lifecycles`; finding `boost-01` |
+| `grpc-01` | `grpc` | `reverb` and `grpc` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
+| `boost-01` | `boost` | `grpc` (revalidation complete); later full `boost` audit | `Fix gRPC terminal and response boundaries`; finding `boost-01` |
 | `websocket-server-13` | `websocket-server` | `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `websocket-server-13` |
 | `testbench-02` | `testbench` | `testbench` (targeted correction complete); later full `testbench` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `testbench-02` |
 | `support-27` | `support` | `support` and `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `support-27` |
@@ -1235,7 +1235,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `reverb`
 - [x] `http`
 - [ ] `api-client`
-- [ ] `grpc`
+- [x] `grpc`
 - [ ] `broadcasting`
 - [ ] `mail`
 - [ ] `notifications`
