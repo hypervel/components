@@ -31,7 +31,6 @@ class ServeFile
             $this->isProduction ? 404 : 403
         );
         try {
-            /** @var FilesystemAdapter $disk */
             $disk = Storage::disk($this->disk);
 
             abort_unless($disk->exists($path), 404);
@@ -42,6 +41,8 @@ class ServeFile
             ];
 
             return tap(
+                // The contract omits adapter response methods, which every shipped disk provides.
+                // @phpstan-ignore method.notFound
                 $disk->serve($request, $path, headers: $headers),
                 function ($response) use ($headers) {
                     if (! $response->headers->has('Content-Security-Policy')) {
