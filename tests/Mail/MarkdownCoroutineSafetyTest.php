@@ -20,6 +20,7 @@ use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Messages\MailMessage as NotificationMailMessage;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\HtmlString;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
@@ -34,11 +35,23 @@ use function Hypervel\Coroutine\parallel;
 
 class MarkdownCoroutineSafetyTest extends TestCase
 {
+    protected Filesystem $filesystem;
+
+    protected string $tempDir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->filesystem = new Filesystem;
+        $this->tempDir = ParallelTesting::tempDir('MarkdownCoroutineSafetyTest');
+        $this->filesystem->deleteDirectory($this->tempDir);
+        $this->filesystem->makeDirectory($this->tempDir);
+    }
+
     protected function tearDown(): void
     {
-        Container::setInstance(null);
-        Markdown::flushState();
-        EncodedHtmlString::flushState();
+        $this->filesystem->deleteDirectory($this->tempDir);
 
         parent::tearDown();
     }
@@ -212,10 +225,10 @@ class MarkdownCoroutineSafetyTest extends TestCase
     protected function makeRealViewFactory(): ViewFactory
     {
         $container = new Container;
-        $filesystem = new Filesystem;
+        $filesystem = $this->filesystem;
         $resolver = new EngineResolver;
         $application = m::mock(ApplicationContract::class);
-        $compiledPath = sys_get_temp_dir() . '/hypervel-markdown-coroutine-safety-views';
+        $compiledPath = $this->tempDir . '/views';
         $bladeCompiler = new BladeCompiler($filesystem, $compiledPath, shouldCache: false);
 
         $application->shouldReceive('getNamespace')->andReturn('App\\');
