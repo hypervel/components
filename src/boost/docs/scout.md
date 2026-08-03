@@ -57,7 +57,7 @@ After installing Scout, you should publish the Scout configuration file using th
 php artisan vendor:publish --tag=scout-config
 ```
 
-Finally, add the `Hypervel\Scout\Searchable` trait and the `Hypervel\Scout\Contracts\SearchableInterface` contract to the model you would like to make searchable. The trait will register a model observer that will automatically keep the model in sync with your search driver:
+Finally, add the `Hypervel\Scout\Searchable` trait to the model you would like to make searchable. The trait will register a model observer that will automatically keep the model in sync with your search driver:
 
 ```php
 <?php
@@ -65,10 +65,9 @@ Finally, add the `Hypervel\Scout\Searchable` trait and the `Hypervel\Scout\Contr
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class Post extends Model implements SearchableInterface
+class Post extends Model
 {
     use Searchable;
 }
@@ -222,10 +221,9 @@ By default, the entire `toArray` form of a given model will be persisted to its 
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class Post extends Model implements SearchableInterface
+class Post extends Model
 {
     use Searchable;
 
@@ -256,12 +254,11 @@ When searching, Scout will typically use the default search engine specified in 
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 
-class User extends Model implements SearchableInterface
+class User extends Model
 {
     use Searchable;
 
@@ -421,10 +418,9 @@ When using a third-party engine, each Eloquent model is synced with a given sear
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class Post extends Model implements SearchableInterface
+class Post extends Model
 {
     use Searchable;
 
@@ -461,10 +457,9 @@ By default, Scout will use the primary key of the model as the model's unique ID
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class User extends Model implements SearchableInterface
+class User extends Model
 {
     use Searchable;
 
