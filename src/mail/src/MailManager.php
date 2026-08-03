@@ -142,9 +142,6 @@ class MailManager implements FactoryContract
         /** @var Dispatcher $events */
         $events = $this->app->make('events');
 
-        // Once we have created the mailer instance we will set a container instance
-        // on the mailer. This allows us to resolve mailer classes via containers
-        // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
             $views,

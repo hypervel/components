@@ -114,7 +114,7 @@ Keep current Laravel public APIs, named arguments, protected extension points, m
 | `mail-03` | Queue contract defect | Minor | Accept `UnitEnum` on primary queue-selection APIs and normalize at Queueable. |
 | `mail-04` | Attachment defect/performance | Major | Resolve storage once, preserve explicit MIME, and omit failed MIME detection. |
 | `mail-05` | Current parity | Minor | Port `assertHasNoAttachments()`. |
-| `mail-06` | SES v2 parity | Minor | Forward non-empty `X-SES-TENANT-NAME` as `TenantName`. |
+| `mail-06` | SES v2 parity | Minor | Forward every non-empty `X-SES-TENANT-NAME`, including `"0"`, as `TenantName`. |
 | `mail-07` | Configuration defect | Minor | Remove stale on-demand sendmail/log fallback reads without coupling to named mailers. |
 | `mail-08` | Package boundary defect | Major | Remove unnecessary direct Notifications and Testing requirements; declare actual direct and optional dependencies. |
 | `mail-09` | Test parity defect | Minor | Port and merge the missing current attachment, fake, embed, queue, assertion, and SES regressions. |
@@ -296,7 +296,7 @@ Use `is_int()` for `assertSent()` and `assertQueued()` count routing because str
 
 Regressions must cover dynamic manager defaults, null/empty/`"0"`/enum selection, ordinary and ShouldQueue sends, invalid send and queue consumption, both string and enum queue preservation across every queue alias, failure consumption, named recipients, and zero real transport/queue calls from all five previously forwarded methods. Relax the existing `getDefaultDriver()->once()` mock expectation: it pins the constructor snapshot being removed, while behavioral assertions must prove the one-shot selection contract and ShouldQueue's single pull.
 
-Narrow `NotificationFake::assertSentTo()` from `callable|int|string|null` to `callable|int|null`. Callable strings remain accepted by `callable`; non-callable strings have no supported notification meaning and currently fail later at `sent(..., ?callable)`. Leave its `is_numeric()` check unchanged because the narrowed domain makes it equivalent to `is_int()`. Port current Laravel's complete `SupportTestingNotificationFakeTest.php`; do not add a TypeError-only test that also passes before the fix. Record the separately missing `SupportTestingEventFakeTest.php` port in `docs/todo.md` rather than mixing unrelated Event work into this finding.
+Narrow `NotificationFake::assertSentTo()` from `callable|int|string|null` to `callable|int|null`. Callable strings remain accepted by `callable`; non-callable strings have no supported notification meaning and currently fail later at `sent(..., ?callable)`. Leave its `is_numeric()` check unchanged because the narrowed domain makes it equivalent to `is_int()`. Regenerate the Notification facade from that underlying signature. Port current Laravel's complete `SupportTestingNotificationFakeTest.php`; do not add a TypeError-only test that also passes before the fix. Record the separately missing `SupportTestingEventFakeTest.php` port in `docs/todo.md` rather than mixing unrelated Event work into this finding.
 
 ### 6. Current Mailable and SES v2 APIs
 
@@ -305,12 +305,12 @@ Insert `assertHasNoAttachments()` immediately before `assertHasAttachment()` in 
 For SES v2, copy options locally and add only a non-empty tenant name:
 
 ```php
-if ($tenantName = $this->tenantName($message)) {
+if (($tenantName = $this->tenantName($message)) !== null) {
     $options['TenantName'] = $tenantName;
 }
 ```
 
-The helper reads `X-SES-TENANT-NAME` and returns `$header->getBodyAsString() ?: null`. Cover present, absent, and empty headers. No shared transport options mutate.
+The helper reads `X-SES-TENANT-NAME`, maps only the empty string to null, and preserves every other valid value exactly. Cover present, `"0"`, absent, and empty headers. No shared transport options mutate.
 
 ### 7. Transport construction and source cleanup
 
@@ -376,7 +376,7 @@ Add `tests/Mail/PackageMetadataTest.php` for direct split/root consistency, prov
 
 ### 9. Facade metadata and current tests
 
-Change `MailManager`'s mixin from the narrow Mailer contract to the concrete `Mailer`, matching Laravel and the manager's actual resolver. Unlike arbitrary Filesystem extensions, Mail extensions create transports and cannot replace the concrete mailer. Then refresh the Mail facade from current Laravel in upstream order while retaining Hypervel manager pooling methods, fake assertions, and accurate contract return types. Include `always*`, optional names on `to/cc/bcc`, `html`, `plain`, `render`, queue methods, transport/view/queue accessors, and macros. Underlying signatures remain authoritative for facade-documenter output; do not add a redundant concrete `@see` route. Pin the concrete forwarded surface in `PackageMetadataTest` so a future narrow mixin cannot silently remove it.
+Change `MailManager`'s mixin from the narrow Mailer contract to the concrete `Mailer`, matching Laravel and the manager's actual resolver. Unlike arbitrary Filesystem extensions, Mail extensions create transports and cannot replace the concrete mailer. Then refresh the Mail facade from current Laravel in upstream order while retaining Hypervel manager pooling methods, fake assertions, and accurate contract return types. Include `always*`, optional names on `to/cc/bcc`, `html`, `plain`, `render`, queue methods, transport/view/queue accessors, and macros. Regenerate the Notification facade after narrowing `NotificationFake::assertSentTo()`. Underlying signatures remain authoritative for facade-documenter output; do not add a redundant concrete `@see` route. Pin the concrete forwarded Mail surface in `PackageMetadataTest` so a future narrow mixin cannot silently remove it.
 
 Port or merge, one file at a time:
 
@@ -459,10 +459,12 @@ Run each changed/new test file immediately after editing it. Then run:
 
 1. all `tests/Mail/`, `tests/Integration/Mail/`, `tests/Support/SupportTestingMailFakeTest.php`, and `tests/Support/SupportTestingNotificationFakeTest.php` tests;
 2. `tests/Support/SupportStrTest.php`, `tests/Support/SupportStringableTest.php`, the focused Validation URL tests, and the new Console scheduling email-output test to revalidate existing consumers;
-3. `tests/Integration/Filesystem/ServeFileTest.php`, `composer facade -- 'Hypervel\Support\Facades\Mail'`, its scoped lint form, and package metadata tests for Mail and HTTP;
+3. `tests/Integration/Filesystem/ServeFileTest.php`, facade generation and scoped lint for `Hypervel\Support\Facades\Mail` and `Hypervel\Support\Facades\Notification`, and package metadata tests for Mail and HTTP;
 4. `composer fix`, which runs PHP CS Fixer, both PHPStan configurations, the full parallel suite, the Testbench package suite, and Testbench dogfood.
 
-Counterfactual assertions must fail against the old implementation: explicit delayed queues and every enum queue alias do not type-error; direct and `Envelope(using: [...])` callbacks observe and replace rendered content; short internal HTTP hosts validate while non-HTTP schemes fail; false MIME does not reach a string boundary; disk resolution occurs once; fake side-effect methods never call real transports/queues; invalid fake queue calls throw while consuming selection; explicit fake queues and selected mailers survive recording; ShouldQueue selection pulls once; SES tenant name is exact; the facade exposes the concrete forwarded surface; temporary files cannot collide across workers.
+Counterfactual assertions must fail against the old implementation: explicit delayed queues and every enum queue alias do not type-error; direct and `Envelope(using: [...])` callbacks observe and replace rendered content; short internal HTTP hosts validate while non-HTTP schemes fail; false MIME does not reach a string boundary; disk resolution occurs once; fake side-effect methods never call real transports/queues; invalid fake queue calls throw while consuming selection; explicit fake queues and selected mailers survive recording; ShouldQueue selection pulls once; SES tenant names, including `"0"`, are exact; the Mail facade exposes the concrete forwarded surface.
+
+Additional validation keeps Mail and Notification facade metadata synchronized and revalidates worker-safe temporary-file ownership.
 
 ## Completion records
 

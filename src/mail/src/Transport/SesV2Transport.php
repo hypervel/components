@@ -37,7 +37,7 @@ class SesV2Transport extends AbstractTransport implements Stringable
                 $options['ListManagementOptions'] = $listManagementOptions;
             }
 
-            if ($tenantName = $this->tenantName($message)) {
+            if (($tenantName = $this->tenantName($message)) !== null) {
                 $options['TenantName'] = $tenantName;
             }
 
@@ -109,7 +109,9 @@ class SesV2Transport extends AbstractTransport implements Stringable
     {
         // SES transports receive an Email even though Symfony exposes RawMessage here.
         if ($header = $message->getOriginalMessage()->getHeaders()->get('X-SES-TENANT-NAME')) { // @phpstan-ignore method.notFound
-            return $header->getBodyAsString() ?: null;
+            $tenantName = $header->getBodyAsString();
+
+            return $tenantName === '' ? null : $tenantName;
         }
 
         return null;

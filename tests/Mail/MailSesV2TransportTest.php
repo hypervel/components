@@ -102,6 +102,30 @@ class MailSesV2TransportTest extends TestCase
         (new SesV2Transport($client))->send($message);
     }
 
+    public function testSendWithZeroTenantName(): void
+    {
+        $message = new Email;
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+        $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', '0');
+
+        $client = m::mock(SesV2Client::class);
+        $sesResult = m::mock();
+        $sesResult->shouldReceive('get')
+            ->with('MessageId')
+            ->once()
+            ->andReturn('ses-message-id');
+        $client->shouldReceive('sendEmail')->once()
+            ->with(m::on(function (array $arg): bool {
+                return $arg['TenantName'] === '0';
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
     public function testSendWithoutTenantNameDoesNotSetTheOption(): void
     {
         $message = new Email;

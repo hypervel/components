@@ -156,7 +156,7 @@ class SendingMarkdownMailTest extends TestCase
 
     public function testEmbeddedImageContentIdConsistencyAcrossMailerFailoverClones(): void
     {
-        Mail::to('test@mail.com')->send($mailable = new MarkdownEmbedImageMailable);
+        Mail::to('test@mail.com')->send(new MarkdownEmbedImageMailable);
 
         /** @var Email $originalEmail */
         $originalEmail = $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage();
