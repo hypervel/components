@@ -37,7 +37,6 @@ class GrpcStreamedResponse extends IterableStreamedResponse implements HasTraile
         array $headers,
         private readonly array $trailerNames,
         private readonly Closure $resolveTrailers,
-        private readonly int $reservedContentLength,
     ) {
         parent::__construct($this->completeAfter($chunks), Response::HTTP_OK, $headers);
 
@@ -103,16 +102,6 @@ class GrpcStreamedResponse extends IterableStreamedResponse implements HasTraile
     public function trailers(): array
     {
         return ($this->resolveTrailers)();
-    }
-
-    /**
-     * Return the first-frame content length reserved during header accounting.
-     *
-     * @internal
-     */
-    public function reservedContentLength(): int
-    {
-        return $this->reservedContentLength;
     }
 
     /**

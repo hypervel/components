@@ -309,7 +309,6 @@ class ResponseFactory
                     $failure?->retryPushbackMilliseconds(),
                 );
             },
-            strlen($firstFrame),
         );
     }
 
@@ -530,9 +529,9 @@ class ResponseFactory
             $headers['trailer'] = implode(', ', $trailerNames);
         }
 
-        $headers['content-length'] = (string) ($response instanceof GrpcStreamedResponse
-            ? $response->reservedContentLength()
-            : strlen((string) $response->getContent()));
+        if ($response instanceof GrpcHttpResponse) {
+            $headers['content-length'] = (string) strlen((string) $response->getContent());
+        }
 
         return $this->fieldNamesFit($headers)
             && $this->fieldNamesFit(array_fill_keys($trailerNames, ''))
