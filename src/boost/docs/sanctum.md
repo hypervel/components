@@ -175,9 +175,13 @@ Token caching is disabled by default. You may enable and configure it in your ap
 'cache' => [
     'enabled' => env('SANCTUM_CACHE_ENABLED', false),
     'store' => env('SANCTUM_CACHE_STORE'),
-    'ttl' => env('SANCTUM_CACHE_TTL', 300),
+    'ttl' => (int) env('SANCTUM_CACHE_TTL', 300),
     'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
-    'last_used_at_update_interval' => env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300),
+    'last_used_at_update_interval' => filter_var(
+        env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300),
+        FILTER_VALIDATE_INT,
+        FILTER_NULL_ON_FAILURE,
+    ),
 ],
 ```
 
@@ -197,9 +201,11 @@ public function boot(): void
 }
 ```
 
-These declarations apply to PHP-policy serialization paths. Accepted native Redis serializers preserve model types but bypass the class policy. See [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects) for denied nested-class behavior and remedies.
+These declarations apply to stores that use PHP serialization. Native Redis serializers preserve model types but bypass this class policy. See [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects) for more information.
 
-The `store` option determines which cache store is used. When this value is `null`, Sanctum uses your application's default cache store. The `ttl` option controls how long token and tokenable entries remain cached, in seconds. The `prefix` option is prepended to Sanctum's cache keys.
+The `store` option determines which cache store is used. When this value is `null`, Sanctum uses your application's default cache store. The `ttl` option controls how long token and tokenable entries remain cached, in seconds, and must be a positive integer. The `prefix` option is prepended to Sanctum's cache keys.
+
+The `last_used_at_update_interval` value must be a non-negative integer. Set this option to `0` to update the timestamp after every successful token authentication.
 
 Redis, database, file, storage, Swoole, and stacks containing only supported stores may be used. Stack layers are validated recursively. Array, worker-array, null, session, and failover stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
 

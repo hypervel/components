@@ -6,8 +6,6 @@ namespace Hypervel\Auth;
 
 use Closure;
 use Hypervel\Cache\ModelCacheStoreValidator;
-use Hypervel\Cache\TaggableStore;
-use Hypervel\Cache\TagMode;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -85,12 +83,12 @@ class EloquentUserProvider implements UserProvider
     /**
      * The cache TTL in seconds.
      */
-    protected int $cacheTtl = 300;
+    protected int $cacheTtl;
 
     /**
      * The cache key prefix.
      */
-    protected string $cachePrefix = 'auth_users';
+    protected string $cachePrefix;
 
     /**
      * Static tags applied to every cache write (unioned with whatever the
@@ -275,7 +273,7 @@ class EloquentUserProvider implements UserProvider
      *
      * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires any-mode tag support
      *
-     * @throws InvalidArgumentException when the resolved store is not supported
+     * @throws InvalidArgumentException when the TTL, tags, or resolved store are not supported
      */
     public function enableCache(
         ?string $storeName,
@@ -283,16 +281,26 @@ class EloquentUserProvider implements UserProvider
         ?string $prefix = 'auth_users',
         ?array $tags = null,
     ): static {
+        if ($ttl <= 0) {
+            throw new InvalidArgumentException('The auth user cache TTL must be greater than zero.');
+        }
+
+        if ($tags !== null && ! array_all($tags, static fn (mixed $tag): bool => is_string($tag))) {
+            throw new InvalidArgumentException('The auth user cache tags must contain only strings.');
+        }
+
         $container = Container::getInstance();
         $cache = $container->make('cache')->store($storeName);
 
-        $container->make(ModelCacheStoreValidator::class)->validate(
+        $validator = $container->make(ModelCacheStoreValidator::class);
+        $feature = "Auth user cache for model [{$this->model}]";
+        $validator->validate(
             $cache,
-            "Auth user cache for model [{$this->model}]",
+            $feature,
         );
 
         if ($tags !== null && $tags !== []) {
-            $this->ensureTaggableAnyModeStore($cache);
+            $validator->validateAnyModeTags($cache, $feature);
             $this->cacheTags = array_values($tags);
         } else {
             $this->cacheTags = null;
@@ -383,41 +391,6 @@ class EloquentUserProvider implements UserProvider
         static::$cacheTagsResolver = null;
         static::$cachedProviders = [];
         static::$cacheEventsRegistered = [];
-    }
-
-    /**
-     * Ensure the resolved cache store supports tags in any-mode.
-     *
-     * Auth caching only supports tag-based bulk flush via any-mode because:
-     *  - any-mode keys are independent of tags, so reads and per-user
-     *    forgets stay on the plain repo (no mode branching in the hot path);
-     *  - stack caches can layer short-lived local reads over shared any-mode
-     *    tag indexes without changing auth's plain-key read path;
-     *  - the dynamic tag resolver can't cause cross-context invalidation
-     *    bugs since the auto-invalidation listener never touches tags.
-     *
-     * @throws InvalidArgumentException when the store can't support tags in any-mode
-     */
-    protected function ensureTaggableAnyModeStore(CacheRepository $cache): void
-    {
-        $store = $cache->getStore();
-
-        if (! $store instanceof TaggableStore || ! $store->supportsTags()) {
-            throw new InvalidArgumentException(sprintf(
-                'Auth user caching tags require a store that supports tags; got [%s]. See the auth cache documentation for supported stores.',
-                $store::class,
-            ));
-        }
-
-        $mode = $store->getTagMode();
-
-        if ($mode !== TagMode::Any) {
-            throw new InvalidArgumentException(sprintf(
-                'Auth user caching tags require a store configured in TagMode::Any; got [%s] in mode [%s]. Configure a Redis store with tag_mode=any (or a stack over one) for auth caching.',
-                $store::class,
-                $mode->value,
-            ));
-        }
     }
 
     /**

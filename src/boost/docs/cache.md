@@ -92,6 +92,8 @@ Set this option to an array to add application-owned classes, or to `null` / `tr
 ],
 ```
 
+You should generally list only the application-owned classes your cached values require. Allowing every class permits any class named in a cached value to be instantiated when the value is read.
+
 Packages and applications may contribute classes lazily from a service provider's `boot` method. Contributions are combined with the configured array in registration order, and duplicates are removed:
 
 ```php
@@ -180,7 +182,7 @@ The `storage` cache driver allows you to store cached values on any configured [
 <a name="swoole-table-cache"></a>
 ### Swoole Table Cache
 
-The `swoole` cache driver stores cache values in a Swoole table. This can be useful for very hot cache values that should be served from memory without a Redis or database round trip. Swoole tables are stored in memory and are cleared when the server restarts.
+The `swoole` cache driver stores cache values in a Swoole table. This can be useful for very hot cache values that should be served from memory without a Redis or database round trip. Swoole tables are stored in memory and are cleared when the server restarts. The table is shared by every worker on the same application node, so forgetting a key in one worker removes it for every worker on that node.
 
 Swoole tables are bounded by their configured row count and column size. Hypervel's Swoole cache store supports `lru`, `lfu`, `ttl`, and `noeviction` eviction policies, as well as a memory-limit buffer and eviction proportion:
 

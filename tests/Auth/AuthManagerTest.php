@@ -34,6 +34,7 @@ use Hypervel\Support\Facades\Auth as AuthFacade;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 
 class AuthManagerTest extends TestCase
@@ -244,6 +245,42 @@ class AuthManagerTest extends TestCase
         $manager->provider('bar', fn () => $provider);
 
         $this->assertSame($provider, $manager->createUserProvider('foo'));
+    }
+
+    #[DataProvider('invalidCacheTtlProvider')]
+    public function testCreateEloquentUserProviderRejectsInvalidCacheTtl(mixed $ttl, string $message): void
+    {
+        $manager = new AuthManager($container = $this->getContainer([
+            'providers' => [
+                'users' => [
+                    'driver' => 'eloquent',
+                    'model' => AuthManagerCacheUserStub::class,
+                    'cache' => [
+                        'enabled' => true,
+                        'ttl' => $ttl,
+                    ],
+                ],
+            ],
+        ]));
+
+        Container::setInstance($container);
+        $container->instance('hash', m::mock(HashContract::class));
+
+        $cacheManager = m::mock(CacheManager::class);
+        $cacheManager->shouldNotReceive('store');
+        $container->instance('cache', $cacheManager);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $manager->createUserProvider('users');
+    }
+
+    public static function invalidCacheTtlProvider(): iterable
+    {
+        yield 'zero' => [0, 'The auth user cache TTL must be a positive integer.'];
+        yield 'negative' => [-1, 'The auth user cache TTL must be a positive integer.'];
+        yield 'string' => ['300', 'The auth user cache TTL must be a positive integer.'];
     }
 
     public function testGetUserResolverIsolatedPerCoroutine()

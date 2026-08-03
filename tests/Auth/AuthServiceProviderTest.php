@@ -24,6 +24,7 @@ use Hypervel\Foundation\Auth\User;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Server as SwooleServer;
 
 class AuthServiceProviderTest extends TestCase
@@ -251,7 +252,7 @@ class AuthServiceProviderTest extends TestCase
         $this->assertSame($query, $query->whereCan('edit'));
     }
 
-    public function testSelectedProviderRequiresAnEloquentAuthenticatableModel(): void
+    public function testStartupRequiresAnEloquentAuthenticatableModel(): void
     {
         $config = new ConfigRepository([
             'auth' => [
@@ -261,15 +262,15 @@ class AuthServiceProviderTest extends TestCase
             ],
         ]);
         $manager = m::mock(CacheManager::class);
-        $resolver = $this->bootAndCaptureResolver($manager, $config);
+        $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Authentication provider [users] model must be an Eloquent authenticatable class.');
 
-        $resolver();
+        $startup();
     }
 
-    public function testSelectedProviderRequiresAStringOrNullStore(): void
+    public function testStartupRequiresAStringOrNullStore(): void
     {
         $provider = $this->cachedProvider(AuthProviderUser::class);
         $provider['cache']['store'] = [];
@@ -281,12 +282,102 @@ class AuthServiceProviderTest extends TestCase
             ],
         ]);
         $manager = m::mock(CacheManager::class);
-        $resolver = $this->bootAndCaptureResolver($manager, $config);
+        $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Authentication provider [users] cache store must be a string or null.');
 
-        $resolver();
+        $startup();
+    }
+
+    #[DataProvider('invalidCacheTtlProvider')]
+    public function testStartupRequiresPositiveIntegerCacheTtl(mixed $ttl): void
+    {
+        $provider = $this->cachedProvider(AuthProviderUser::class);
+        $provider['cache']['ttl'] = $ttl;
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $provider,
+                ],
+            ],
+        ]);
+        $manager = m::mock(CacheManager::class);
+        $startup = $this->bootAndCaptureStartupValidation($manager, $config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Authentication provider [users] cache TTL must be a positive integer.');
+
+        $startup();
+    }
+
+    public static function invalidCacheTtlProvider(): iterable
+    {
+        yield 'zero' => [0];
+        yield 'negative' => [-1];
+        yield 'numeric string' => ['300'];
+        yield 'non-numeric string' => ['five minutes'];
+        yield 'float' => [1.5];
+        yield 'boolean' => [true];
+    }
+
+    #[DataProvider('invalidCacheTagsProvider')]
+    public function testStartupRequiresAnArrayOfStringsOrNullCacheTags(mixed $tags): void
+    {
+        $provider = $this->cachedProvider(AuthProviderUser::class);
+        $provider['cache']['tags'] = $tags;
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $provider,
+                ],
+            ],
+        ]);
+        $manager = m::mock(CacheManager::class);
+        $startup = $this->bootAndCaptureStartupValidation($manager, $config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Authentication provider [users] cache tags must be an array of strings or null.');
+
+        $startup();
+    }
+
+    public static function invalidCacheTagsProvider(): iterable
+    {
+        yield 'string' => ['auth_users'];
+        yield 'integer element' => [[123]];
+        yield 'null element' => [[null]];
+        yield 'mixed elements' => [['auth_users', true]];
+    }
+
+    public function testStartupValidatesTagSupportForTaggedProvider(): void
+    {
+        $provider = $this->cachedProvider(AuthProviderUser::class, store: 'redis');
+        $provider['cache']['tags'] = ['auth_users'];
+        $config = new ConfigRepository([
+            'auth' => [
+                'providers' => [
+                    'users' => $provider,
+                ],
+            ],
+        ]);
+        $repository = m::mock(CacheRepository::class);
+        $manager = m::mock(CacheManager::class);
+        $manager->shouldReceive('store')->once()->with('redis')->andReturn($repository);
+        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator->shouldReceive('validate')
+            ->once()
+            ->with($repository, 'Auth user provider [users]');
+        $validator->shouldReceive('validateAnyModeTags')
+            ->once()
+            ->with($repository, 'Auth user provider [users]')
+            ->andThrow(new InvalidArgumentException('TagMode::Any is required.'));
+        $startup = $this->bootAndCaptureStartupValidation($manager, $config, $validator);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('TagMode::Any is required.');
+
+        $startup();
     }
 
     /**
@@ -322,23 +413,33 @@ class AuthServiceProviderTest extends TestCase
     }
 
     /**
-     * Boot the provider and capture its class resolver.
+     * Boot the provider and capture its console startup validation callback.
      */
-    private function bootAndCaptureResolver(
+    private function bootAndCaptureStartupValidation(
         CacheManager|m\MockInterface $manager,
         ConfigRepositoryContract $config,
+        (ModelCacheStoreValidator&m\MockInterface)|null $validator = null,
     ): Closure {
-        $resolver = null;
         $manager->shouldReceive('allowSerializableClassesUsing')
             ->once()
-            ->with(m::on(function (mixed $callback) use (&$resolver): bool {
-                $resolver = $callback;
+            ->andReturnSelf();
+        $startup = null;
+        $application = $this->consoleApplication();
+
+        if ($validator !== null) {
+            $application->shouldReceive('make')
+                ->once()
+                ->with(ModelCacheStoreValidator::class)
+                ->andReturn($validator);
+        }
+
+        $application->shouldReceive('booted')
+            ->once()
+            ->with(m::on(function (mixed $callback) use (&$startup): bool {
+                $startup = $callback;
 
                 return $callback instanceof Closure;
-            }))
-            ->andReturnSelf();
-        $application = $this->consoleApplication();
-        $application->shouldReceive('booted')->once();
+            }));
 
         (new AuthServiceProvider($application))->boot(
             $manager,
@@ -346,9 +447,9 @@ class AuthServiceProviderTest extends TestCase
             m::mock(GateContract::class),
         );
 
-        $this->assertInstanceOf(Closure::class, $resolver);
+        $this->assertInstanceOf(Closure::class, $startup);
 
-        return $resolver;
+        return $startup;
     }
 
     /**

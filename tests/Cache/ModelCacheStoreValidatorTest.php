@@ -17,6 +17,7 @@ use Hypervel\Cache\SessionStore;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StorageStore;
 use Hypervel\Cache\SwooleStore;
+use Hypervel\Cache\TagMode;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -43,6 +44,61 @@ class ModelCacheStoreValidatorTest extends TestCase
             $validator->validate($this->repository($store), 'Auth user cache');
             $this->assertTrue(true);
         }
+    }
+
+    public function testAcceptsAnyModeTags(): void
+    {
+        $store = $this->redisStore()->setTagMode(TagMode::Any);
+
+        $this->validator()->validateAnyModeTags(
+            $this->repository($store),
+            'Auth user cache',
+        );
+
+        $this->assertTrue(true);
+    }
+
+    public function testAcceptsAnyModeTagsThroughAValidStack(): void
+    {
+        $store = new StackStore([
+            m::mock(FileStore::class),
+            $this->redisStore()->setTagMode(TagMode::Any),
+        ]);
+
+        $this->validator()->validateAnyModeTags(
+            $this->repository($store),
+            'Auth user cache',
+        );
+
+        $this->assertTrue(true);
+    }
+
+    public function testRejectsAllModeTags(): void
+    {
+        $store = $this->redisStore()->setTagMode(TagMode::All);
+
+        $this->expectException(UnsupportedModelCacheStoreException::class);
+        $this->expectExceptionMessage('TagMode::Any is required');
+
+        $this->validator()->validateAnyModeTags(
+            $this->repository($store),
+            'Auth user cache',
+        );
+    }
+
+    public function testRejectsStoresWithoutTagSupportBeforeReadingTheMode(): void
+    {
+        $store = m::mock(StackStore::class);
+        $store->shouldReceive('supportsTags')->once()->andReturnFalse();
+        $store->shouldNotReceive('getTagMode');
+
+        $this->expectException(UnsupportedModelCacheStoreException::class);
+        $this->expectExceptionMessage('does not support tags');
+
+        $this->validator()->validateAnyModeTags(
+            $this->repository($store),
+            'Auth user cache',
+        );
     }
 
     public function testRejectsEveryUnsupportedStoreType(): void

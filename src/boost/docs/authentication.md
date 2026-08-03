@@ -8,6 +8,12 @@
     - [Install a Starter Kit](#install-a-starter-kit)
     - [Retrieving the Authenticated User](#retrieving-the-authenticated-user)
     - [User Lookup Cache](#user-lookup-cache)
+        - [Configuration](#user-lookup-cache-configuration)
+        - [Cache Stores](#user-lookup-cache-stores)
+        - [Custom Cache Keys](#user-lookup-cache-custom-keys)
+        - [Invalidating Cached Users](#user-lookup-cache-invalidation)
+        - [Bulk Invalidation](#user-lookup-cache-bulk-invalidation)
+        - [Low-Level Provider API](#user-lookup-cache-provider-api)
     - [Protecting Routes](#protecting-routes)
     - [Login Throttling](#login-throttling)
 - [Manually Authenticating Users](#authenticating-users)
@@ -185,9 +191,12 @@ if (Auth::check()) {
 <a name="user-lookup-cache"></a>
 ### User Lookup Cache
 
-By default, each authenticated request that calls `Auth::user()` or `$request->user()` retrieves the user from your configured user provider. On authenticated endpoints, this can become a large amount of repeated database traffic. Hypervel's Eloquent user provider includes an optional cross-request cache for these user lookups.
+By default, each authenticated request that calls `Auth::user()` or `$request->user()` retrieves the user from your configured user provider. On authenticated endpoints, this can result in many repeated database queries. Hypervel's Eloquent user provider includes an optional cross-request cache for these user lookups.
 
 The user lookup cache only caches `EloquentUserProvider::retrieveById()` results, including missing users. Credential and token lookups, such as `retrieveByCredentials()` and `retrieveByToken()`, are never cached so login attempts and "remember me" checks always read fresh data.
+
+<a name="user-lookup-cache-configuration"></a>
+#### Configuration
 
 You may enable the cache per Eloquent provider in your application's `config/auth.php` file:
 
@@ -199,7 +208,7 @@ You may enable the cache per Eloquent provider in your application's `config/aut
         'cache' => [
             'enabled' => env('AUTH_USERS_CACHE_ENABLED', false),
             'store' => env('AUTH_USERS_CACHE_STORE'),
-            'ttl' => env('AUTH_USERS_CACHE_TTL', 300),
+            'ttl' => (int) env('AUTH_USERS_CACHE_TTL', 300),
             'prefix' => env('AUTH_USERS_CACHE_PREFIX', 'auth_users'),
             'tags' => null,
         ],
@@ -207,7 +216,9 @@ You may enable the cache per Eloquent provider in your application's `config/aut
 ],
 ```
 
-Enabled configured provider models and Hypervel's standard Eloquent collection and pivot classes are added to the cache class policy automatically. Declare application-owned relations, custom collections or pivots, and other nested objects from a service provider:
+The `ttl` value is expressed in seconds and must be a positive integer.
+
+Hypervel automatically allows configured provider models and its standard Eloquent collection and pivot classes to be restored from the cache. If your cached user contains application-owned relations, custom collections or pivots, or other nested objects, declare those classes from a service provider:
 
 ```php
 use App\Models\Organization;
@@ -223,7 +234,10 @@ public function boot(): void
 }
 ```
 
-Providers constructed directly and not represented in `auth.providers` must also declare their root model. These declarations apply to PHP-policy serialization paths. Accepted native Redis serializers preserve model types but bypass the class policy. See [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects) for denied nested-class behavior and remedies.
+Providers constructed directly and not represented in `auth.providers` must also declare their root model. These declarations apply to stores that use PHP serialization. Native Redis serializers preserve model types but bypass this class policy. See [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects) for more information.
+
+<a name="user-lookup-cache-stores"></a>
+#### Cache Stores
 
 When `store` is `null`, Hypervel uses your default cache store. For a single Redis-backed deployment, you may enable the cache like this:
 
@@ -241,16 +255,22 @@ AUTH_USERS_CACHE_STORE=stack
 
 Supported stores are `redis`, `database`, `file`, `storage`, `swoole`, and stacks containing only supported stores. Stack layers are validated recursively. The `array`, `worker-array`, `null`, `session`, and `failover` stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
 
-For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
+The `swoole` and `file` stores are available only on the application node where they are written. A `storage` store is shared only when its configured filesystem disk is shared by every node. Use a shared store when every application node must observe invalidation immediately.
 
-When using a node-local store such as `swoole` or `file`, invalidation is local to that node. A storage store is shared only when its configured filesystem disk is shared. In a multi-node deployment using `stack` with a Swoole L1, a user update clears the current node's L1 and the shared backing store, while other nodes may serve their L1 entry until its short TTL expires. Use a shared store without a node-local L1 when strict cross-node consistency is required.
+For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
 
 Auth cache configuration is read during process startup and must not be changed while a worker is serving requests.
 
-The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_users:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models. If the same user identifier can resolve to different records depending on request context, such as in a multi-tenant application, register a cache key resolver in a service provider:
+<a name="user-lookup-cache-custom-keys"></a>
+#### Custom Cache Keys
+
+The default cache key format is `{prefix}:{user-model-fqcn}:{identifier}`, such as `auth_users:App\Models\User:42`. Including the model class prevents collisions when different guards use different user models.
+
+If the same user identifier can resolve to different records based on request-scoped application state, you may register a cache key resolver in a service provider:
 
 ```php
 use App\Models\User;
+use App\Support\CurrentWorkspace;
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Database\Eloquent\Model;
 
@@ -265,17 +285,24 @@ public function boot(): void
                 return (string) $identifier;
             }
 
-            $tenantId = $user?->tenant_id ?? tenant()->getKey();
+            $workspaceId = $user?->workspace_id ?? CurrentWorkspace::id();
 
-            return $tenantId . ':' . $identifier;
+            return $workspaceId . ':' . $identifier;
         },
     );
 }
 ```
 
-This example partitions the tenant-owned `User` model while leaving other provider models unpartitioned. The resolver controls only the identifier segment of the key. The cache prefix and user model class are still included automatically. The resolver receives the identifier and provider model class. When a user is saved or deleted, automatic invalidation also provides that user model. Lookups and manual invalidation provide `null`. This allows tenant-aware providers to use the current tenant for lookups and the model's owning tenant for invalidation.
+In this example, `CurrentWorkspace` is an application-owned class that reads request-scoped state. The resolver keeps each workspace's `User` cache entries separate while leaving other provider models unchanged. It controls only the identifier segment of the key; the cache prefix and user model class are still included automatically.
 
-Cached users are invalidated automatically when the user model is saved or deleted. This includes provider writes such as "remember me" token updates and automatic password rehashing, because those operations save the Eloquent model. Writes that bypass Eloquent model events, such as raw queries, mass updates, or pivot table changes for roles and permissions, should clear the cached user manually:
+The resolver receives the identifier and provider model class. When a user is saved or deleted, automatic invalidation also provides the user model. Lookups and manual invalidation provide `null`.
+
+<a name="user-lookup-cache-invalidation"></a>
+#### Invalidating Cached Users
+
+Cached users are invalidated automatically when the user model is saved or deleted. This includes provider writes such as "remember me" token updates and automatic password rehashing, because those operations save the Eloquent model. Entries that are not cleared expire after the configured `ttl`.
+
+Writes that bypass Eloquent model events, such as raw queries, mass updates, or pivot table changes for roles and permissions, should clear the cached user manually:
 
 ```php
 use Hypervel\Support\Facades\Auth;
@@ -286,9 +313,16 @@ Auth::clearUserCache($user->getAuthIdentifier());
 Auth::clearUserCache($admin->getAuthIdentifier(), guard: 'admin');
 ```
 
+`clearUserCache` accepts the same identifier as `retrieveById`, which is normally the user's primary key. When the guard argument is omitted, the current default guard is used.
+
 If `withQuery()` eager-loads relations, the first uncached lookup stores that graph. Declare every application relation and custom container class so later cache hits restore the complete shape.
 
-If multiple guards share the same Eloquent provider and user model, one clear call against any of those guards clears that provider's cache keyspace. If different guards use different user models, pass the guard name so Hypervel can clear the correct provider. When a custom key resolver is registered, `clearUserCache` uses that same resolver with a `null` user model and clears the cache entry for the current request context.
+If multiple guards share the same Eloquent provider and user model, one clear call against any of those guards clears that provider's cache keyspace. If different guards use different user models, pass the guard name so Hypervel can clear the correct provider. When a custom key resolver is registered, `clearUserCache` uses that same resolver with a `null` user model and clears the cache entry for the current request context. To clear the same identifier in several application contexts, call `clearUserCache` once for each context.
+
+If the selected guard does not use an Eloquent user provider, or if caching is disabled for that provider, `clearUserCache` does nothing.
+
+<a name="user-lookup-cache-bulk-invalidation"></a>
+#### Bulk Invalidation
 
 If you need to clear many cached users at once, use a dedicated cache store for auth, point `AUTH_USERS_CACHE_STORE` at that store, and flush it:
 
@@ -333,9 +367,13 @@ Cache::store('auth')->tags(['auth_users'])->flush();
 
 Auth cache tags require a store that supports tags in `any` mode. Use a Redis store with `tag_mode` set to `any`, or a valid cache stack whose taggable layers are all any-mode stores. The default Redis tag mode is `all`, so use a separate Redis store or stack when enabling auth cache tags.
 
-You may also add per-request dynamic tags. This is useful when every cached user should keep a broad static tag, such as `auth_users`, plus a narrower request-specific tag, such as the current tenant:
+> [!WARNING]
+> When using a cache stack, treat a non-taggable first layer (L1), such as Swoole, as a short-lived microcache. A tag flush cannot remove matching entries from a non-taggable layer. When that layer is node-local, invalidation on another application node cannot clear its copy either. This is often an acceptable trade-off for faster reads and less traffic to the shared cache. Hypervel's default stack gives its Swoole layer a three-second TTL; keep custom L1 TTLs short, typically 2 to 5 seconds, so stale entries expire quickly.
+
+You may also add dynamic tags based on request-scoped application state. This is useful when every cached user should keep a broad static tag, such as `auth_users`, plus a narrower tag for the current workspace:
 
 ```php
+use App\Support\CurrentWorkspace;
 use Hypervel\Auth\EloquentUserProvider;
 
 /**
@@ -344,12 +382,24 @@ use Hypervel\Auth\EloquentUserProvider;
 public function boot(): void
 {
     EloquentUserProvider::resolveUserCacheTagsUsing(
-        fn (): array => ['tenant:' . tenant()->id],
+        fn (): array => ['workspace:' . CurrentWorkspace::id()],
     );
 }
 ```
 
-Dynamic tags are only applied when static `cache.tags` are configured. Without static tags, the resolver is ignored and writes use the plain cache repository. Per-user invalidation via `Auth::clearUserCache()` still works when tags are configured because it forgets the plain cache key directly.
+Here, `CurrentWorkspace` is the same application-owned class shown in the custom cache key example. Dynamic tags are only applied when static `cache.tags` are configured. Without static tags, the resolver is ignored and writes use the untagged cache. Per-user invalidation via `Auth::clearUserCache()` still works when tags are configured because it forgets the cache key directly.
+
+You may then clear the cached users for one workspace:
+
+```php
+use App\Support\CurrentWorkspace;
+use Hypervel\Support\Facades\Cache;
+
+Cache::store('auth')->tags(['workspace:' . CurrentWorkspace::id()])->flush();
+```
+
+<a name="user-lookup-cache-provider-api"></a>
+#### Low-Level Provider API
 
 If you instantiate `EloquentUserProvider` yourself, the provider exposes lower-level cache APIs:
 
