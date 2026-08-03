@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 #[WithMigration]
 class EloquentNamedScopeAttributeTest extends DatabaseTestCase
 {
-    protected string $query = 'select * from "named_scope_users" where "email_verified_at" is not null';
+    protected string $query = 'select * from "named_scope_users" where ("email_verified_at" is not null)';
 
     protected function setUp(): void
     {

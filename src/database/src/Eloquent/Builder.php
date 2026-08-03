@@ -1437,9 +1437,9 @@ class Builder implements BuilderContract
     /**
      * Apply a scope callback to the query.
      *
-     * Keep existing and callback-added WHERE constraints logically separate.
-     * Either slice is grouped when it contains an OR so neither side's branches
-     * can escape the other.
+     * Keep existing and callback-added WHERE constraints logically separate
+     * so conditions in either group cannot change the meaning of the other,
+     * including when later constraints are added.
      */
     public function applyScopeCallback(callable $scope): static
     {
@@ -1509,21 +1509,16 @@ class Builder implements BuilderContract
      */
     protected function groupWhereSliceForScope(QueryBuilder $query, array $whereSlice): void
     {
-        $whereBooleans = (new BaseCollection($whereSlice))->pluck('boolean');
-
-        // Here we'll check if the given subset of where clauses contains any "or"
-        // booleans and in this case create a nested where expression. That way
-        // we don't add any unnecessary nesting thus keeping the query clean.
-        // @phpstan-ignore argument.type (where clause 'boolean' is always string, pluck loses type info)
-        if ($whereBooleans->contains(fn ($logicalOperator) => str_contains($logicalOperator, 'or'))) {
-            $query->wheres[] = $this->createNestedWhere(
-                // @phpstan-ignore argument.type (where clause 'boolean' is always string)
-                $whereSlice,
-                str_replace(' not', '', $whereBooleans->first())
-            );
-        } else {
-            $query->wheres = array_merge($query->wheres, $whereSlice);
+        if ($whereSlice === []) {
+            return;
         }
+
+        // Raw fragments and expressions may contain logical operators the builder cannot inspect,
+        // and later constraints must not change a scope's meaning.
+        $query->wheres[] = $this->createNestedWhere(
+            $whereSlice,
+            str_replace(' not', '', $whereSlice[0]['boolean']),
+        );
     }
 
     /**

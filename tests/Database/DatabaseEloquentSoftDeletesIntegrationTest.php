@@ -626,7 +626,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         $abigail = User::where('email', 'abigailotwell@gmail.com')->first();
 
         $this->assertSame(
-            'select * from "posts" where "posts"."user_id" = ? and "posts"."user_id" is not null and "posts"."deleted_at" is null',
+            'select * from "posts" where ("posts"."user_id" = ? and "posts"."user_id" is not null) and ("posts"."deleted_at" is null)',
             $abigail->posts()->toSql()
         );
     }
@@ -719,7 +719,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
     public function testSoftDeleteIsAppliedToNewQuery()
     {
         $query = (new User)->newQuery();
-        $this->assertSame('select * from "users" where "users"."deleted_at" is null', $query->toSql());
+        $this->assertSame('select * from "users" where ("users"."deleted_at" is null)', $query->toSql());
     }
 
     public function testSecondLevelRelationshipCanBeSoftDeleted()
