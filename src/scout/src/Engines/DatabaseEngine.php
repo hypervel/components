@@ -203,9 +203,9 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
         return $query->where(function (EloquentBuilder $query) use ($connectionType, $builder, $columns, $prefixColumns, $fullTextColumns): void {
             $canSearchPrimaryKey = ctype_digit((string) $builder->query)
-                && in_array($builder->model->getKeyType(), ['int', 'integer'])
+                && in_array($builder->model->getKeyType(), ['int', 'integer'], true)
                 && ($connectionType !== 'pgsql' || (int) $builder->query <= PHP_INT_MAX)
-                && in_array($builder->model->getScoutKeyName(), $columns);
+                && in_array($builder->model->getScoutKeyName(), $columns, true);
 
             if ($canSearchPrimaryKey) {
                 $query->orWhere($builder->model->getQualifiedKeyName(), $builder->query);
@@ -214,7 +214,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             $likeOperator = $connectionType === 'pgsql' ? 'ilike' : 'like';
 
             foreach ($columns as $column) {
-                if (in_array($column, $fullTextColumns)) {
+                if (in_array($column, $fullTextColumns, true)) {
                     continue;
                 }
 
@@ -222,7 +222,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     continue;
                 }
 
-                $pattern = in_array($column, $prefixColumns)
+                $pattern = in_array($column, $prefixColumns, true)
                     ? $builder->query . '%'
                     : '%' . $builder->query . '%';
 
@@ -341,7 +341,8 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
         $usesSoftDeletes = in_array(
             SoftDeletes::class,
-            class_uses_recursive(get_class($builder->model))
+            class_uses_recursive(get_class($builder->model)),
+            true
         );
 
         if ($usesSoftDeletes && $this->getConfig('soft_delete', false)) {
@@ -445,7 +446,6 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     /**
      * Map the given results to instances of the given model.
      *
-     * @param Model&SearchableInterface $model
      * @return EloquentCollection<int, Model&SearchableInterface>
      */
     public function map(Builder $builder, mixed $results, Model $model): EloquentCollection
@@ -455,8 +455,6 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
     /**
      * Map the given results to instances of the given model via a lazy collection.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection
     {
@@ -479,7 +477,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      *
      * The database engine doesn't need to update an external index.
      *
-     * @param EloquentCollection<int, Model&SearchableInterface> $models
+     * @param EloquentCollection<int, Model> $models
      */
     public function update(EloquentCollection $models): void
     {
@@ -491,7 +489,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      *
      * The database engine doesn't need to remove from an external index.
      *
-     * @param EloquentCollection<int, Model&SearchableInterface> $models
+     * @param EloquentCollection<int, Model> $models
      */
     public function delete(EloquentCollection $models): void
     {
@@ -500,8 +498,6 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
 
     /**
      * Flush all of the model's records from the engine.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function flush(Model $model): void
     {

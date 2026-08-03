@@ -6,13 +6,12 @@ namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
  * UUID7-keyed test fixture for the string-key path in scout:queue-import.
  */
-class UuidSearchableModel extends Model implements SearchableInterface
+class UuidSearchableModel extends Model
 {
     use HasUuids;
     use Searchable;

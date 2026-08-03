@@ -23,7 +23,8 @@ trait UniqueByScoutKeys
     {
         return hash('sha256', json_encode([
             $this->models->getQueueableClass(),
-            $this->models->map(function (Model&SearchableInterface $model) {
+            $this->models->map(function (Model $model) {
+                /** @var Model&SearchableInterface $model */
                 return $model->getScoutKey();
             })->sort()->values()->all(),
         ], JSON_THROW_ON_ERROR));

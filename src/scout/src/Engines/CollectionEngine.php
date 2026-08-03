@@ -115,7 +115,7 @@ class CollectionEngine extends Engine
                 );
             });
 
-        /** @var EloquentCollection<int, Model&SearchableInterface> $models */
+        /** @var EloquentCollection<int, Model> $models */
         $models = $this->ensureSoftDeletesAreHandled($builder, $query)
             ->get()
             ->values();
@@ -127,7 +127,6 @@ class CollectionEngine extends Engine
         /** @var Model&SearchableInterface $firstModel */
         $firstModel = $models->first();
 
-        /** @var EloquentCollection<int, Model&SearchableInterface> $searchableModels */
         $searchableModels = $firstModel->makeSearchableUsing($models);
 
         return $searchableModels
@@ -179,7 +178,7 @@ class CollectionEngine extends Engine
             return $query->onlyTrashed();
         }
 
-        if (in_array(SoftDeletes::class, class_uses_recursive(get_class($builder->model)))
+        if (in_array(SoftDeletes::class, class_uses_recursive(get_class($builder->model)), true)
             && $this->getScoutConfig('soft_delete', false)
         ) {
             /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
@@ -206,11 +205,10 @@ class CollectionEngine extends Engine
 
     /**
      * Map the given results to instances of the given model.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function map(Builder $builder, mixed $results, Model $model): EloquentCollection
     {
+        /** @var Model&SearchableInterface $model */
         $results = $results['results'];
 
         if (count($results) === 0) {
@@ -225,22 +223,21 @@ class CollectionEngine extends Engine
         /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
-        /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
         $scoutModels = $model->getScoutModelsByIds($builder, $objectIds);
 
+        // Scout keys may be cast differently between results and hydrated models.
         return $scoutModels
-            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds, false))
             ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
     }
 
     /**
      * Map the given results to instances of the given model via a lazy collection.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection
     {
+        /** @var Model&SearchableInterface $model */
         $results = $results['results'];
 
         if (count($results) === 0) {
@@ -255,11 +252,10 @@ class CollectionEngine extends Engine
         /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
-        /** @var LazyCollection<int, Model&SearchableInterface> $cursor */
         $cursor = $model->queryScoutModelsByIds($builder, $objectIds)->cursor();
 
         return $cursor
-            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds, false))
             ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
     }

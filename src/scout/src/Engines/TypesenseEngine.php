@@ -49,7 +49,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter
     /**
      * Update the given models in the search index.
      *
-     * @param EloquentCollection<int, Model&SearchableInterface> $models
+     * @param EloquentCollection<int, Model> $models
      * @throws TypesenseClientError
      */
     public function update(EloquentCollection $models): void
@@ -58,7 +58,7 @@ class TypesenseEngine extends Engine implements DeletesByFilter
             return;
         }
 
-        /** @var Model&SearchableInterface $firstModel */
+        /** @var EloquentCollection<int, Model&SearchableInterface> $models */
         $firstModel = $models->first();
 
         if ($this->usesSoftDelete($firstModel) && $this->getConfig('soft_delete', false)) {
@@ -66,7 +66,6 @@ class TypesenseEngine extends Engine implements DeletesByFilter
         }
 
         $objects = $models->map(function (Model $model): ?array {
-            /** @var Model&SearchableInterface $model */
             $searchableData = $model->toSearchableArray();
 
             if (empty($searchableData)) {
@@ -149,13 +148,13 @@ class TypesenseEngine extends Engine implements DeletesByFilter
     /**
      * Remove the given models from the search index.
      *
-     * @param EloquentCollection<int, Model&SearchableInterface> $models
+     * @param EloquentCollection<int, Model> $models
      * @throws TypesenseClientError
      */
     public function delete(EloquentCollection $models): void
     {
+        /** @var EloquentCollection<int, Model&SearchableInterface> $models */
         $models->each(function (Model $model) use ($models): void {
-            /** @var Model&SearchableInterface $model */
             $modelId = $models instanceof RemoveableScoutCollection
                 ? $model->getAttribute($model->getScoutKeyName())
                 : $model->getScoutKey();
@@ -495,11 +494,11 @@ class TypesenseEngine extends Engine implements DeletesByFilter
     /**
      * Map the given results to instances of the given model.
      *
-     * @param Model&SearchableInterface $model
      * @return EloquentCollection<int, Model&SearchableInterface>
      */
     public function map(Builder $builder, mixed $results, Model $model): EloquentCollection
     {
+        /** @var Model&SearchableInterface $model */
         if ($this->getTotalCount($results) === 0) {
             return $model->newCollection();
         }
@@ -520,16 +519,13 @@ class TypesenseEngine extends Engine implements DeletesByFilter
         /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
-        /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
         $scoutModels = $model->getScoutModelsByIds($builder, $objectIds);
 
         return $scoutModels
             ->filter(static function (Model $m) use ($objectIds): bool {
-                /** @var Model&SearchableInterface $m */
                 return in_array($m->getScoutKey(), $objectIds, false);
             })
             ->sortBy(static function (Model $m) use ($objectIdPositions): int {
-                /** @var Model&SearchableInterface $m */
                 return $objectIdPositions[$m->getScoutKey()];
             })
             ->values();
@@ -537,11 +533,10 @@ class TypesenseEngine extends Engine implements DeletesByFilter
 
     /**
      * Map the given results to instances of the given model via a lazy collection.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection
     {
+        /** @var Model&SearchableInterface $model */
         if ((int) ($results['found'] ?? 0) === 0) {
             return LazyCollection::empty();
         }
@@ -557,11 +552,9 @@ class TypesenseEngine extends Engine implements DeletesByFilter
         return $model->queryScoutModelsByIds($builder, $objectIds)
             ->cursor()
             ->filter(static function (Model $m) use ($objectIds): bool {
-                /** @var Model&SearchableInterface $m */
                 return in_array($m->getScoutKey(), $objectIds, false);
             })
             ->sortBy(static function (Model $m) use ($objectIdPositions): int {
-                /** @var Model&SearchableInterface $m */
                 return $objectIdPositions[$m->getScoutKey()];
             })
             ->values();
@@ -578,11 +571,11 @@ class TypesenseEngine extends Engine implements DeletesByFilter
     /**
      * Flush all of the model's records from the engine.
      *
-     * @param Model&SearchableInterface $model
      * @throws TypesenseClientError
      */
     public function flush(Model $model): void
     {
+        /** @var Model&SearchableInterface $model */
         try {
             $this->collection($model->indexableAs())->delete();
         } catch (ObjectNotFound) {

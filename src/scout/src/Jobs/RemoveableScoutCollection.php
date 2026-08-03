@@ -16,7 +16,7 @@ use Hypervel\Scout\Searchable;
  * rather than their database IDs, as the models may already be deleted.
  *
  * @template TKey of array-key
- * @template TModel of Model&SearchableInterface
+ * @template TModel of Model
  * @extends Collection<TKey, TModel>
  */
 class RemoveableScoutCollection extends Collection
@@ -34,8 +34,11 @@ class RemoveableScoutCollection extends Collection
 
         $first = $this->first();
 
-        if (in_array(Searchable::class, class_uses_recursive($first))) {
-            return $this->map(fn (SearchableInterface $model) => $model->getScoutKey())->all();
+        if (in_array(Searchable::class, class_uses_recursive($first), true)) {
+            return $this->map(function (Model $model) {
+                /** @var Model&SearchableInterface $model */
+                return $model->getScoutKey();
+            })->all();
         }
 
         return parent::getQueueableIds();

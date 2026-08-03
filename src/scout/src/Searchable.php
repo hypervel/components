@@ -350,6 +350,9 @@ trait Searchable
 
     /**
      * Get the requested models from an array of object IDs.
+     *
+     * @param array<int|string> $ids
+     * @return Collection<int, static>
      */
     public function getScoutModelsByIds(Builder $builder, array $ids): Collection
     {
@@ -358,6 +361,9 @@ trait Searchable
 
     /**
      * Get a query builder for retrieving the requested models from an array of object IDs.
+     *
+     * @param array<int|string> $ids
+     * @return EloquentBuilder<static>
      */
     public function queryScoutModelsByIds(Builder $builder, array $ids): EloquentBuilder
     {
@@ -369,7 +375,7 @@ trait Searchable
             call_user_func($builder->queryCallback, $query);
         }
 
-        $whereIn = in_array($this->getScoutKeyType(), ['int', 'integer'])
+        $whereIn = in_array($this->getScoutKeyType(), ['int', 'integer'], true)
             ? 'whereIntegerInRaw'
             : 'whereIn';
 
@@ -578,7 +584,7 @@ trait Searchable
      */
     protected static function usesSoftDelete(): bool
     {
-        return in_array(SoftDeletes::class, class_uses_recursive(static::class));
+        return in_array(SoftDeletes::class, class_uses_recursive(static::class), true);
     }
 
     /**

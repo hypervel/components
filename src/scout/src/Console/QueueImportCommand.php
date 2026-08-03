@@ -6,6 +6,7 @@ namespace Hypervel\Scout\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Console\Traits\ResolvesScoutModelClass;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Exceptions\ScoutException;
@@ -45,7 +46,7 @@ class QueueImportCommand extends Command
     {
         $class = $this->resolveModelClass((string) $this->argument('model'));
 
-        /** @var SearchableInterface $model */
+        /** @var Model&SearchableInterface $model */
         $model = new $class;
 
         $chunk = max(1, (int) ($this->option('chunk') ?? $config->integer('scout.chunk.searchable', 500)));
@@ -67,8 +68,9 @@ class QueueImportCommand extends Command
     /**
      * Dispatch range jobs for an integer-keyed model using min/max arithmetic.
      */
-    protected function dispatchIntegerRange(string $class, SearchableInterface $model, int $chunk, string $order, ?string $queueName, ?string $connection): int
+    protected function dispatchIntegerRange(string $class, Model $model, int $chunk, string $order, ?string $queueName, ?string $connection): int
     {
+        /** @var Model&SearchableInterface $model */
         $query = $class::makeAllSearchableQuery();
         $keyName = $model->getScoutKeyName();
         $qualified = $query->qualifyColumn($keyName);
@@ -142,8 +144,9 @@ class QueueImportCommand extends Command
      * dispatches one MakeRangeSearchable per chunk with the first/last keys
      * in that chunk. Workers re-query their range via whereBetween.
      */
-    protected function dispatchStringRange(string $class, SearchableInterface $model, int $chunk, string $order, ?string $queueName, ?string $connection): int
+    protected function dispatchStringRange(string $class, Model $model, int $chunk, string $order, ?string $queueName, ?string $connection): int
     {
+        /** @var Model&SearchableInterface $model */
         $query = $class::makeAllSearchableQuery();
         $keyName = $model->getScoutKeyName();
         $qualified = $query->qualifyColumn($keyName);

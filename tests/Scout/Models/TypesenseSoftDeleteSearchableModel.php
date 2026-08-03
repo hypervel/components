@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
@@ -14,7 +13,7 @@ use Hypervel\Scout\Searchable;
  *
  * Includes typesenseCollectionSchema() with __soft_deleted field.
  */
-class TypesenseSoftDeleteSearchableModel extends Model implements SearchableInterface
+class TypesenseSoftDeleteSearchableModel extends Model
 {
     use Searchable;
     use SoftDeletes;

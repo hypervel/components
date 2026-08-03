@@ -6,13 +6,12 @@ namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
  * Test model that uses prefix search on the title column.
  */
-class PrefixSearchableModel extends Model implements SearchableInterface
+class PrefixSearchableModel extends Model
 {
     use Searchable;
 
