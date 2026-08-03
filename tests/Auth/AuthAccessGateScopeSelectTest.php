@@ -64,7 +64,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $result = $gate->scope('edit', $query);
 
         $this->assertSame($query, $result);
-        $this->assertSame('select * from "posts" where "posts"."author_id" = ?', $query->toSql());
+        $this->assertSame('select * from "posts" where ("posts"."author_id" = ?)', $query->toSql());
         $this->assertSame([1], $query->getBindings());
     }
 
@@ -99,9 +99,9 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $backedEnumQuery = $gate->scope(AbilitiesEnum::ViewDashboard, $this->createQueryBuilder());
         $unitEnumQuery = $gate->scope(QueryAwarePolicyAbility::Edit, $this->createQueryBuilder());
 
-        $this->assertSame('select * from "posts" where "dashboard_user_id" = ?', $backedEnumQuery->toSql());
+        $this->assertSame('select * from "posts" where ("dashboard_user_id" = ?)', $backedEnumQuery->toSql());
         $this->assertSame([1], $backedEnumQuery->getBindings());
-        $this->assertSame('select * from "posts" where "editor_id" = ?', $unitEnumQuery->toSql());
+        $this->assertSame('select * from "posts" where ("editor_id" = ?)', $unitEnumQuery->toSql());
         $this->assertSame([1], $unitEnumQuery->getBindings());
     }
 
@@ -123,7 +123,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
 
         $query = $gate->scope('edit', $this->createQueryBuilder());
 
-        $this->assertSame('select * from "posts" where (posts.author_id = 1)', $query->toSql());
+        $this->assertSame('select * from "posts" where ((posts.author_id = 1))', $query->toSql());
     }
 
     public function testMissingPolicyErrorNamesBothAcceptedMethods(): void
@@ -293,7 +293,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $gate->scope('edit', $query);
 
         $this->assertSame(
-            'select * from "posts" where ("tenant_id" = ? or "is_public" = ?) and 0 = 1',
+            'select * from "posts" where ("tenant_id" = ? or "is_public" = ?) and (0 = 1)',
             $query->toSql(),
         );
         $this->assertSame([10, true], $query->getBindings());
@@ -347,7 +347,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $gate->scope('edit', $query);
         $selection = $gate->select('edit', $this->createQueryBuilder());
 
-        $this->assertSame('select * from "posts" where 1 = 1', $query->toSql());
+        $this->assertSame('select * from "posts" where (1 = 1)', $query->toSql());
         $this->assertSame(
             'coalesce((true), false)',
             $this->expressionValue($selection, $query->getQuery()->getGrammar()),
@@ -365,8 +365,8 @@ class AuthAccessGateScopeSelectTest extends TestCase
 
         $this->assertInstanceOf(QueryBuilder::class, $selection);
         $this->assertSame(
-            'select exists (select * from "posts" as "' . $alias . '" where "' . $alias
-            . '"."author_id" = ? and "' . $alias . '"."id" = "posts"."id")',
+            'select exists (select * from "posts" as "' . $alias . '" where ("' . $alias
+            . '"."author_id" = ?) and "' . $alias . '"."id" = "posts"."id")',
             $selection->toSql(),
         );
         $this->assertSame([1], $selection->getBindings());
@@ -384,7 +384,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $gate->scope('edit', $query);
 
         $this->assertSame(
-            'select * from "posts" where ("tenant_id" = ? or "is_public" = ?) and (select posts.author_id = ?)',
+            'select * from "posts" where ("tenant_id" = ? or "is_public" = ?) and ((select posts.author_id = ?))',
             $query->toSql(),
         );
         $this->assertSame([10, true, 1], $query->getBindings());
@@ -410,7 +410,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
         $gate->scope('edit', $query);
 
         $this->assertSame(
-            'select * from "posts" where ("tenant_id" = ? or "is_featured" = ?) and (posts.author_id = 1 OR posts.is_public = true)',
+            'select * from "posts" where ("tenant_id" = ? or "is_featured" = ?) and ((posts.author_id = 1 OR posts.is_public = true))',
             $query->toSql(),
         );
         $this->assertSame([10, true], $query->getBindings());
@@ -476,7 +476,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
 
         $query = $gate->scope('edit', $this->createQueryBuilder());
 
-        $this->assertSame('select * from "posts" where (select posts.author_id = ?)', $query->toSql());
+        $this->assertSame('select * from "posts" where ((select posts.author_id = ?))', $query->toSql());
         $this->assertSame(["O'Reilly"], $query->getBindings());
         $this->assertStringNotContainsString("O'Reilly", $query->toSql());
     }
@@ -684,7 +684,7 @@ class AuthAccessGateScopeSelectTest extends TestCase
 
         $this->assertSame('select * from "posts"', $allowedQuery->toSql());
         $this->assertSame(
-            'select * from "posts" where ("tenant_id" = ? or "is_public" = ?) and 0 = 1',
+            'select * from "posts" where ("tenant_id" = ? or "is_public" = ?) and (0 = 1)',
             $deniedQuery->toSql(),
         );
         $this->assertSame([10, true], $deniedQuery->getBindings());

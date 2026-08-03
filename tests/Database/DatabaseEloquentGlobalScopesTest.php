@@ -27,7 +27,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new GlobalScopesModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -43,7 +43,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new ClassNameGlobalScopesModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -51,7 +51,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new GlobalScopeInAttributeModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -59,7 +59,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new GlobalScopeInInheritedAttributeModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -67,7 +67,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new GlobalScopeInAttributeChildModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -75,7 +75,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?) order by "name" asc', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -83,7 +83,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new GlobalScopesArrayModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?) order by "name" asc', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -99,7 +99,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery();
-        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?) order by "name" asc', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
 
         $query->withoutGlobalScope('active_scope');
@@ -123,11 +123,11 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScopesExcept(['active_scope']);
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
 
         $query = ClosureGlobalScopesModel::withoutGlobalScopesExcept(['active_scope']);
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([1], $query->getBindings());
     }
 
@@ -136,11 +136,11 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $model = new ClosureGlobalScopesWithOrModel;
 
         $query = $model->newQuery();
-        $this->assertSame('select "email", "password" from "table" where ("email" = ? or "email" = ?) and "active" = ? order by "name" asc', $query->toSql());
+        $this->assertSame('select "email", "password" from "table" where (("email" = ? or "email" = ?)) and ("active" = ?) order by "name" asc', $query->toSql());
         $this->assertEquals(['taylor@gmail.com', 'someone@else.com', 1], $query->getBindings());
 
         $query = $model->newQuery()->where('col1', 'val1')->orWhere('col2', 'val2');
-        $this->assertSame('select "email", "password" from "table" where ("col1" = ? or "col2" = ?) and ("email" = ? or "email" = ?) and "active" = ? order by "name" asc', $query->toSql());
+        $this->assertSame('select "email", "password" from "table" where (("col1" = ? or "col2" = ?) and ("email" = ? or "email" = ?)) and ("active" = ?) order by "name" asc', $query->toSql());
         $this->assertEquals(['val1', 'val2', 'taylor@gmail.com', 'someone@else.com', 1], $query->getBindings());
     }
 
@@ -164,8 +164,8 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $query = GlobalScopesWithRelationModel::has('related')->where('bar', 'baz');
 
-        $subQuery = 'select * from "table" where "table2"."id" = "table"."related_id" and "foo" = ? and "active" = ?';
-        $mainQuery = 'select * from "table2" where exists (' . $subQuery . ') and "bar" = ? and "active" = ? order by "name" asc';
+        $subQuery = 'select * from "table" where ("table2"."id" = "table"."related_id" and "foo" = ?) and ("active" = ?)';
+        $mainQuery = 'select * from "table2" where (exists (' . $subQuery . ') and "bar" = ?) and ("active" = ?) order by "name" asc';
 
         $this->assertEquals($mainQuery, $query->toSql());
         $this->assertEquals(['bar', 1, 'baz', 1], $query->getBindings());
@@ -175,7 +175,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
     {
         $query = ClosureGlobalScopesModel::where('foo', 'foo')->approved()->notApproved();
 
-        $this->assertSame('select * from "table" where "foo" = ? and ("approved" = ? or "should_approve" = ?) and ("approved" = ? or "should_approve" = ?) order by "name" asc', $query->toSql());
+        $this->assertSame('select * from "table" where (("foo" = ?) and ("approved" = ? or "should_approve" = ?)) and ("approved" = ? or "should_approve" = ?) order by "name" asc', $query->toSql());
         $this->assertEquals(['foo', 1, 0, 0, 1], $query->getBindings());
     }
 

@@ -35,7 +35,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $model = new ScopedModel;
         $query = $model->newQuery()->active();
 
-        $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
         $this->assertEquals([true], $query->getBindings());
     }
 
@@ -44,7 +44,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $model = new ScopedModel;
         $query = $model->newQuery()->type('foo');
 
-        $this->assertSame('select * from "table" where "type" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("type" = ?)', $query->toSql());
         $this->assertEquals(['foo'], $query->getBindings());
     }
 
@@ -53,7 +53,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
         $model = new ScopedModel;
         $query = $model->newQuery()->active()->type('foo');
 
-        $this->assertSame('select * from "table" where "active" = ? and "type" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where (("active" = ?)) and ("type" = ?)', $query->toSql());
         $this->assertEquals([true, 'foo'], $query->getBindings());
     }
 
@@ -66,7 +66,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
             ->orWhere('secondWhere', true)
             ->active();
 
-        $this->assertSame('select * from "table" where (not "firstWhere" = ? or "secondWhere" = ?) and "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where (not "firstWhere" = ? or "secondWhere" = ?) and ("active" = ?)', $query->toSql());
         $this->assertEquals([true, true, true], $query->getBindings());
     }
 
@@ -79,7 +79,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
             ->orWhereNot('secondWhere', true)
             ->active();
 
-        $this->assertSame('select * from "table" where ("firstWhere" = ? or not "secondWhere" = ?) and "active" = ?', $query->toSql());
+        $this->assertSame('select * from "table" where ("firstWhere" = ? or not "secondWhere" = ?) and ("active" = ?)', $query->toSql());
         $this->assertEquals([true, true, true], $query->getBindings());
     }
 }
