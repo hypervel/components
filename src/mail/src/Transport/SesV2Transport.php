@@ -37,6 +37,10 @@ class SesV2Transport extends AbstractTransport implements Stringable
                 $options['ListManagementOptions'] = $listManagementOptions;
             }
 
+            if ($tenantName = $this->tenantName($message)) {
+                $options['TenantName'] = $tenantName;
+            }
+
             foreach ($message->getOriginalMessage()->getHeaders()->all() as $header) {
                 if ($header instanceof MetadataHeader) {
                     $options['EmailTags'][] = ['Name' => $header->getKey(), 'Value' => $header->getValue()];
@@ -93,6 +97,19 @@ class SesV2Transport extends AbstractTransport implements Stringable
             if (preg_match('/^(contactListName=)*(?<ContactListName>[^;]+)(;\s?topicName=(?<TopicName>.+))?$/ix', $header->getBodyAsString(), $listManagementOptions)) {
                 return array_filter($listManagementOptions, fn ($e) => in_array($e, ['ContactListName', 'TopicName']), ARRAY_FILTER_USE_KEY);
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract the SES tenant name, if applicable.
+     */
+    protected function tenantName(SentMessage $message): ?string
+    {
+        // SES transports receive an Email even though Symfony exposes RawMessage here.
+        if ($header = $message->getOriginalMessage()->getHeaders()->get('X-SES-TENANT-NAME')) { // @phpstan-ignore method.notFound
+            return $header->getBodyAsString() ?: null;
         }
 
         return null;
