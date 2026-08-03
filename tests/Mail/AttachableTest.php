@@ -8,13 +8,13 @@ use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Http\Testing\File;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Mailable;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class AttachableTest extends TestCase
 {
-    public function testItCanHaveMacroConstructors()
+    public function testItCanHaveMacroConstructors(): void
     {
-        Attachment::macro('fromInvoice', function ($name) {
+        Attachment::macro('fromInvoice', function (string $name): Attachment {
             return Attachment::fromData(fn () => 'pdf content', $name);
         });
         $mailable = new Mailable;
@@ -37,15 +37,15 @@ class AttachableTest extends TestCase
         ], $mailable->rawAttachments[0]);
     }
 
-    public function testItCanUtiliseExistingApisOnNonMailBasedResourcesWithPath()
+    public function testItCanUtiliseExistingApisOnNonMailBasedResourcesWithPath(): void
     {
-        Attachment::macro('size', function () {
+        Attachment::macro('size', function (): int {
             return 99;
         });
         $notification = new class {
-            public $pathArgs;
+            public array $pathArgs;
 
-            public function withPathAttachment()
+            public function withPathAttachment(): void
             {
                 $this->pathArgs = func_get_args();
             }
@@ -72,17 +72,15 @@ class AttachableTest extends TestCase
         ], $notification->pathArgs);
     }
 
-    public function testItCanUtiliseExistingApisOnNonMailBasedResourcesWithArgs()
+    public function testItCanUtiliseExistingApisOnNonMailBasedResourcesWithArgs(): void
     {
-        Attachment::macro('size', function () {
+        Attachment::macro('size', function (): int {
             return 99;
         });
         $notification = new class {
-            public $pathArgs;
+            public array $dataArgs;
 
-            public $dataArgs;
-
-            public function withDataAttachment()
+            public function withDataAttachment(): void
             {
                 $this->dataArgs = func_get_args();
             }
@@ -108,10 +106,10 @@ class AttachableTest extends TestCase
         ], $notification->dataArgs);
     }
 
-    public function testFromUrlMethod()
+    public function testFromUrlMethod(): void
     {
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
                 $this->attach(new class implements Attachable {
                     public function toMailAttachment(): Attachment
@@ -135,10 +133,10 @@ class AttachableTest extends TestCase
         ], $mailable->attachments[0]);
     }
 
-    public function testFromUploadedFileMethod()
+    public function testFromUploadedFileMethod(): void
     {
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
                 $this->attach(new class implements Attachable {
                     public function toMailAttachment(): Attachment

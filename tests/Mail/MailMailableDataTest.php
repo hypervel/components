@@ -4,25 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
+use Closure;
 use Hypervel\Mail\Mailable;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class MailMailableDataTest extends TestCase
 {
-    public function testMailableDataIsNotLost()
+    public function testMailableDataIsNotLost(): void
     {
         $testData = ['first_name' => 'James'];
 
         $mailable = new MailableStub;
-        $mailable->build(function ($m) use ($testData) {
-            $m->view('view', $testData);
+        $mailable->build(function (MailableStub $mailable) use ($testData): void {
+            $mailable->view('view', $testData);
         });
         $expected = array_merge($testData, ['__hypervel_mailable' => MailableStub::class]);
         $this->assertSame($expected, $mailable->buildViewData());
 
         $mailable = new MailableStub;
-        $mailable->build(function ($m) use ($testData) {
-            $m->view('view', $testData)
+        $mailable->build(function (MailableStub $mailable) use ($testData): void {
+            $mailable->view('view', $testData)
                 ->text('text-view');
         });
         $this->assertSame($expected, $mailable->buildViewData());
@@ -33,11 +34,8 @@ class MailableStub extends Mailable
 {
     /**
      * Build the message.
-     *
-     * @param mixed $builder
-     * @return $this
      */
-    public function build($builder)
+    public function build(Closure $builder): void
     {
         $builder($this);
     }

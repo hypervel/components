@@ -23,7 +23,7 @@ class MailLogTransportTest extends TestCase
         $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
-    public function testGetLogTransportWithConfiguredChannel()
+    public function testGetLogTransportWithConfiguredChannel(): void
     {
         $this->app->make('config')->set('mail', [
             'default' => 'log',
@@ -52,7 +52,7 @@ class MailLogTransportTest extends TestCase
         $this->assertInstanceOf(LoggerInterface::class, $logger);
     }
 
-    public function testItDecodesTheMessageBeforeLogging()
+    public function testItDecodesTheMessageBeforeLogging(): void
     {
         $message = (new Message(new Email))
             ->from('noreply@example.com', 'no-reply')
@@ -76,7 +76,7 @@ class MailLogTransportTest extends TestCase
         $this->assertStringContainsString('https://example.com/reset-password=5e113c71a4c210aff04b3fa66f1b1299', $actualLoggedValue);
     }
 
-    public function testItOnlyDecodesQuotedPrintablePartsOfTheMessageBeforeLogging()
+    public function testItOnlyDecodesQuotedPrintablePartsOfTheMessageBeforeLogging(): void
     {
         $message = (new Message(new Email))
             ->from('noreply@example.com', 'no-reply')
@@ -102,7 +102,7 @@ class MailLogTransportTest extends TestCase
         $this->assertStringContainsString('filename=attachment.txt', $actualLoggedValue);
     }
 
-    public function testGetLogTransportWithPsrLogger()
+    public function testGetLogTransportWithPsrLogger(): void
     {
         $this->app->make('config')->set('mail', [
             'default' => 'log',

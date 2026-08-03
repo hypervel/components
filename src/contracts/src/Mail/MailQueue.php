@@ -6,16 +6,17 @@ namespace Hypervel\Contracts\Mail;
 
 use DateInterval;
 use DateTimeInterface;
+use UnitEnum;
 
 interface MailQueue
 {
     /**
      * Queue a new e-mail message for sending.
      */
-    public function queue(array|Mailable|string $view, ?string $queue = null): mixed;
+    public function queue(array|Mailable|string $view, UnitEnum|string|null $queue = null): mixed;
 
     /**
      * Queue a new e-mail message for sending after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, array|Mailable|string $view, ?string $queue = null): mixed;
+    public function later(DateInterval|DateTimeInterface|int $delay, array|Mailable|string $view, UnitEnum|string|null $queue = null): mixed;
 }

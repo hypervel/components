@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hypervel\Mail\Mailables\Headers;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class MailMailableHeadersTest extends TestCase
 {
-    public function test()
+    public function test(): void
     {
         $headers = new Headers(
             '434571BC.8070702@example.net',

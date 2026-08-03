@@ -10,7 +10,9 @@ use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use RuntimeException;
 
 use function with;
@@ -52,6 +54,10 @@ class Attachment
      */
     public static function fromUrl(string $url): static
     {
+        if (! Str::isUrl($url, ['http', 'https'])) {
+            throw new InvalidArgumentException('Attachment URLs must use the http or https scheme.');
+        }
+
         return static::fromPath($url);
     }
 
@@ -93,15 +99,26 @@ class Attachment
     public static function fromStorageDisk(?string $disk, string $path): static
     {
         return new static(function ($attachment, $pathStrategy, $dataStrategy) use ($disk, $path) {
-            $attachment
-                ->as($attachment->as ?? basename($path))
-                ->withMime($attachment->mime ?? static::getStorageDisk($disk)->mimeType($path)); // @phpstan-ignore-line
+            $storage = static::getStorageDisk($disk);
+            $mime = $attachment->mime;
 
-            return $dataStrategy(fn () => static::getStorageDisk($disk)->get($path), $attachment);
+            if ($mime === null) {
+                // The contract omits adapter metadata methods, which every shipped disk provides.
+                // @phpstan-ignore method.notFound
+                $mime = $storage->mimeType($path);
+            }
+
+            $attachment->as($attachment->as ?? basename($path));
+
+            if ($mime !== false) {
+                $attachment->withMime($mime);
+            }
+
+            return $dataStrategy(fn () => $storage->get($path), $attachment);
         });
     }
 
-    // Laravel's fromCloudStorage() helper is intentionally not ported.
+    // REMOVED: Laravel's fromCloudStorage() helper is intentionally not ported.
     // Use fromStorageDisk('s3', $path) or another named disk instead.
 
     /**
@@ -145,13 +162,14 @@ class Attachment
     /**
      * Attach the attachment to a built-in mail type.
      *
-     * @phpstan-ignore-next-line
+     * @param Mailable|MailMessage|Message $mail
+     *
+     * @throws RuntimeException
      */
-    public function attachTo(Mailable|MailMessage|Message $mail, array $options = []): mixed
+    public function attachTo(object $mail, array $options = []): mixed
     {
-        /** @var Mailable $mail */
         return $this->attachWith(
-            fn ($path) => $mail->attach($path, [
+            fn (string $path) => $mail->attach($path, [
                 'as' => $options['as'] ?? $this->as,
                 'mime' => $options['mime'] ?? $this->mime,
             ]),

@@ -8,7 +8,6 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\Mail\MailQueue as MailQueueContract;
@@ -26,6 +25,7 @@ use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
+use UnitEnum;
 
 use function value;
 
@@ -161,7 +161,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Send a new message with only an HTML part.
      */
-    public function html(string $html, mixed $callback): ?SentMessage
+    public function html(string $html, Closure|string $callback): ?SentMessage
     {
         return $this->send(['html' => new HtmlString($html)], [], $callback);
     }
@@ -169,7 +169,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Send a new message with only a raw text part.
      */
-    public function raw(string $text, mixed $callback): ?SentMessage
+    public function raw(string $text, Closure|string $callback): ?SentMessage
     {
         return $this->send(['raw' => $text], [], $callback);
     }
@@ -177,7 +177,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Send a new message with only a plain part.
      */
-    public function plain(string $view, array $data, mixed $callback): ?SentMessage
+    public function plain(string $view, array $data, Closure|string $callback): ?SentMessage
     {
         return $this->send(['text' => $view], $data, $callback);
     }
@@ -227,7 +227,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Send a new message using a view.
      */
-    public function send(array|Mailable|string $view, array $data = [], Closure|string|null $callback = null): ?SentMessage
+    public function send(array|MailableContract|string $view, array $data = [], Closure|string|null $callback = null): ?SentMessage
     {
         if ($view instanceof MailableContract) {
             return $this->sendMailable($view);
@@ -235,21 +235,18 @@ class Mailer implements MailerContract, MailQueueContract
 
         $data['mailer'] = $this->name;
 
-        // First we need to parse the view, which could either be a string or an array
-        // containing both an HTML and plain text versions of the view which should
-        // be used when sending an e-mail. We will extract both of them out here.
+        // Once we have retrieved the view content for the e-mail we will set the body
+        // of this message using the HTML type, which will provide a simple wrapper
+        // to creating view based emails that are able to receive arrays of data.
         [$view, $plain, $raw] = $this->parseView($view);
 
         $data['message'] = $message = $this->createMessage();
 
-        // Once we have retrieved the view content for the e-mail we will set the body
-        // of this message using the HTML type, which will provide a simple wrapper
-        // to creating view based emails that are able to receive arrays of data.
+        $this->addContent($message, $view, $plain, $raw, $data);
+
         if (! is_null($callback)) {
             $callback($message);
         }
-
-        $this->addContent($message, $view, $plain, $raw, $data);
 
         // If a global "to" address has been set, we will set that address on the mail
         // message. This is primarily useful during local development in which each
@@ -379,14 +376,15 @@ class Mailer implements MailerContract, MailQueueContract
      *
      * @throws InvalidArgumentException
      */
-    public function queue(array|MailableContract|string $view, ?string $queue = null): mixed
+    public function queue(array|MailableContract|string $view, UnitEnum|string|null $queue = null): mixed
     {
         if (! $view instanceof MailableContract) {
             throw new InvalidArgumentException('Only mailables may be queued.');
         }
 
-        if (is_string($queue)) {
-            $view->onQueue($queue); // @phpstan-ignore-line
+        if ($queue !== null) {
+            // Queueable owns identifier normalization, so it is intentionally absent from the Mailable contract.
+            $view->onQueue($queue); // @phpstan-ignore method.notFound
         }
 
         return $view->mailer($this->name)->queue($this->queue);
@@ -395,7 +393,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Queue a new mail message for sending on the given queue.
      */
-    public function onQueue(?string $queue, MailableContract $view): mixed
+    public function onQueue(UnitEnum|string|null $queue, MailableContract $view): mixed
     {
         return $this->queue($view, $queue);
     }
@@ -405,7 +403,7 @@ class Mailer implements MailerContract, MailQueueContract
      *
      * This method didn't match rest of framework's "onQueue" phrasing. Added "onQueue".
      */
-    public function queueOn(string $queue, MailableContract $view): mixed
+    public function queueOn(UnitEnum|string $queue, MailableContract $view): mixed
     {
         return $this->onQueue($queue, $view);
     }
@@ -415,22 +413,24 @@ class Mailer implements MailerContract, MailQueueContract
      *
      * @throws InvalidArgumentException
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, array|MailableContract|string $view, ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, array|MailableContract|string $view, UnitEnum|string|null $queue = null): mixed
     {
         if (! $view instanceof MailableContract) {
             throw new InvalidArgumentException('Only mailables may be queued.');
         }
 
-        return $view->mailer($this->name)->later(
-            $delay,
-            is_null($queue) ? $this->queue : $queue
-        );
+        if ($queue !== null) {
+            // Queueable owns identifier normalization, so it is intentionally absent from the Mailable contract.
+            $view->onQueue($queue); // @phpstan-ignore method.notFound
+        }
+
+        return $view->mailer($this->name)->later($delay, $this->queue);
     }
 
     /**
      * Queue a new mail message for sending after (n) seconds on the given queue.
      */
-    public function laterOn(string $queue, DateInterval|DateTimeInterface|int $delay, MailableContract $view): mixed
+    public function laterOn(UnitEnum|string $queue, DateInterval|DateTimeInterface|int $delay, MailableContract $view): mixed
     {
         return $this->later($delay, $view, $queue);
     }
@@ -468,10 +468,7 @@ class Mailer implements MailerContract, MailQueueContract
      */
     protected function sendSymfonyMessage(Email $message): ?SymfonySentMessage
     {
-        try {
-            return $this->transport->send($message, Envelope::create($message));
-        } finally {
-        }
+        return $this->transport->send($message, Envelope::create($message));
     }
 
     /**

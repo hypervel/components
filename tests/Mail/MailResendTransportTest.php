@@ -24,7 +24,7 @@ class MailResendTransportTest extends TestCase
         $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
-    public function testGetTransport()
+    public function testGetTransport(): void
     {
         $this->app->make('config')->set('services.resend', [
             'key' => 're_test_123',
@@ -38,7 +38,7 @@ class MailResendTransportTest extends TestCase
         $this->assertSame('resend', (string) $transport);
     }
 
-    public function testSend()
+    public function testSend(): void
     {
         $message = new Email;
         $message->subject('Test subject');
@@ -70,7 +70,7 @@ class MailResendTransportTest extends TestCase
         (new ResendTransport($client))->send($message);
     }
 
-    public function testSendError()
+    public function testSendError(): void
     {
         $message = new Email;
         $message->subject('Test subject');

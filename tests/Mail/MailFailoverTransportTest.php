@@ -17,7 +17,7 @@ class MailFailoverTransportTest extends TestCase
         $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
-    public function testGetFailoverTransportWithConfiguredTransports()
+    public function testGetFailoverTransportWithConfiguredTransports(): void
     {
         $this->app->make('config')->set('mail', [
             'default' => 'failover',
@@ -47,7 +47,7 @@ class MailFailoverTransportTest extends TestCase
         $this->assertInstanceOf(FailoverTransport::class, $transport);
     }
 
-    public function testGetFailoverTransportWithConfiguredTransportsUsingDefaultMailer()
+    public function testGetFailoverTransportWithConfiguredTransportsUsingDefaultMailer(): void
     {
         $this->app->make('config')->set('mail', [
             'default' => 'failover',

@@ -225,6 +225,8 @@ public function headers(): Headers
 }
 ```
 
+To send through an SES tenant, add an `X-SES-TENANT-NAME` text header containing the tenant name.
+
 If you would like to define [additional options](https://docs.aws.amazon.com/aws-sdk-php/v3/api/api-sesv2-2019-09-27.html#sendemail) that Hypervel should pass to the AWS SDK's `SendEmail` method when sending an email, you may define an `options` array within your `ses` mailer configuration:
 
 ```php
@@ -312,6 +314,8 @@ Named mailers use pooling by default when their transport is poolable. On-demand
 | option array | pooled with the supplied overrides | pooled with the supplied overrides |
 
 Any other value is rejected. Explicitly requesting pooling for a transport that is not poolable is also rejected instead of being silently ignored.
+
+For a pooled mailer, `getSymfonyTransport()` returns a `TransportPoolProxy` rather than one concrete transport. Configure the transport through `config/mail.php`, or set `pool` to `false` if stable concrete transport inspection is required.
 
 Pool identity is derived from the transport's resolved construction input, including fallback credentials from `config/services.php`. Equivalent named mailers and explicitly pooled equivalent mailers created through `Mail::build()` converge on one pool. Credential changes create a different identity. Failover and round-robin identities include each resolved child transport in order, so changing a child or its credentials also changes the composite pool.
 
@@ -603,6 +607,8 @@ public function attachments(): array
     ];
 }
 ```
+
+`Attachment::fromUrl()` accepts HTTP and HTTPS URLs. Use `fromPath()` for local filesystem paths.
 
 When attaching files to a message, you may also specify the display name and / or MIME type for the attachment using the `as` and `withMime` methods:
 
@@ -1093,6 +1099,8 @@ Mail::to($request->user())
     ->queue($message);
 ```
 
+The `queue()`, `later()`, `onQueue()`, `queueOn()`, and `laterOn()` methods accept queue names as strings or PHP enum cases.
+
 <a name="queueing-by-default"></a>
 #### Queueing by Default
 
@@ -1322,6 +1330,8 @@ public function test_mailable_content(): void
 ```
 
 As you might expect, the "HTML" assertions assert that the HTML version of your mailable contains a given string, while the "text" assertions assert that the plain-text version of your mailable contains a given string.
+
+Use `$mailable->assertHasNoAttachments()` when a message should not contain any attachments.
 
 <a name="testing-mailable-sending"></a>
 ### Testing Mailable Sending
