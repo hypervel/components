@@ -55,7 +55,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
     /**
      * Update the given models in the search index.
      *
-     * @param EloquentCollection<int, Model&SearchableInterface> $models
+     * @param EloquentCollection<int, Model> $models
      * @throws AlgoliaException
      */
     public function update(EloquentCollection $models): void
@@ -64,7 +64,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
             return;
         }
 
-        /** @var Model&SearchableInterface $firstModel */
+        /** @var EloquentCollection<int, Model&SearchableInterface> $models */
         $firstModel = $models->first();
         $index = $firstModel->indexableAs();
 
@@ -73,7 +73,6 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
         }
 
         $objects = $models->map(function (Model $model) {
-            /** @var Model&SearchableInterface $model */
             $searchableData = $model->toSearchableArray();
 
             if (empty($searchableData)) {
@@ -100,7 +99,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
     /**
      * Remove the given models from the search index.
      *
-     * @param EloquentCollection<int, Model&SearchableInterface> $models
+     * @param EloquentCollection<int, Model> $models
      */
     public function delete(EloquentCollection $models): void
     {
@@ -108,12 +107,12 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
             return;
         }
 
-        /** @var Model&SearchableInterface $firstModel */
+        /** @var EloquentCollection<int, Model&SearchableInterface> $models */
         $firstModel = $models->first();
 
         $keys = $models instanceof RemoveableScoutCollection
             ? $models->pluck($firstModel->getScoutKeyName())
-            : $models->map(fn (SearchableInterface $model) => $model->getScoutKey());
+            : $models->map(fn (Model $model) => $model->getScoutKey());
 
         $this->algolia->deleteObjects($firstModel->indexableAs(), $keys->all());
     }
@@ -342,11 +341,10 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
 
     /**
      * Map the given results to instances of the given model.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function map(Builder $builder, mixed $results, Model $model): EloquentCollection
     {
+        /** @var Model&SearchableInterface $model */
         if (count($results['hits']) === 0) {
             return $model->newCollection();
         }
@@ -356,13 +354,12 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
         /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
-        /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
         $scoutModels = $model->getScoutModelsByIds($builder, $objectIds);
 
+        // Search engines serialize numeric Scout keys as strings.
         $mapped = $scoutModels
-            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds, false))
             ->map(function ($m) use ($results, $objectIdPositions) {
-                /** @var Model&SearchableInterface $m */
                 $result = $results['hits'][$objectIdPositions[$m->getScoutKey()]] ?? [];
 
                 foreach ($result as $key => $value) {
@@ -381,11 +378,10 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
 
     /**
      * Map the given results to instances of the given model via a lazy collection.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection
     {
+        /** @var Model&SearchableInterface $model */
         if (count($results['hits']) === 0) {
             return LazyCollection::empty();
         }
@@ -395,13 +391,11 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
         /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
-        /** @var LazyCollection<int, Model&SearchableInterface> $cursor */
         $cursor = $model->queryScoutModelsByIds($builder, $objectIds)->cursor();
 
         return $cursor
-            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds, false))
             ->map(function ($m) use ($results, $objectIdPositions) {
-                /** @var Model&SearchableInterface $m */
                 $result = $results['hits'][$objectIdPositions[$m->getScoutKey()]] ?? [];
 
                 foreach ($result as $key => $value) {
@@ -426,11 +420,10 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
 
     /**
      * Flush all of the model's records from the engine.
-     *
-     * @param Model&SearchableInterface $model
      */
     public function flush(Model $model): void
     {
+        /** @var Model&SearchableInterface $model */
         $this->algolia->clearObjects($model->indexableAs());
     }
 
@@ -539,7 +532,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
      */
     protected function usesSoftDelete(Model $model): bool
     {
-        return in_array(SoftDeletes::class, class_uses_recursive($model));
+        return in_array(SoftDeletes::class, class_uses_recursive($model), true);
     }
 
     /**

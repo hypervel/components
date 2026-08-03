@@ -70,7 +70,7 @@ class IndexCommand extends Command
 
             if ($model !== null
                 && $config->boolean('scout.soft_delete', false)
-                && in_array(SoftDeletes::class, class_uses_recursive($model))) {
+                && in_array(SoftDeletes::class, class_uses_recursive($model), true)) {
                 $settings = $engine->configureSoftDeleteFilter($settings);
             }
 

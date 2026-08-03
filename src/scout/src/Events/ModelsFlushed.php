@@ -6,12 +6,11 @@ namespace Hypervel\Scout\Events;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 
 /**
  * Event fired when models are flushed from the search index.
  *
- * @template TModel of Model&SearchableInterface
+ * @template TModel of Model
  */
 class ModelsFlushed
 {
