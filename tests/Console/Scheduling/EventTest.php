@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
+use Closure;
 use DateTimeZone;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
@@ -14,14 +15,17 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Mail\Mailer;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
+use Hypervel\Mail\Message;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Symfony\Component\Mime\Email;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -56,7 +60,7 @@ class EventTest extends TestCase
         $this->container->instance(Filesystem::class, new Filesystem);
     }
 
-    public function testSendOutputToWithIsNotFile()
+    public function testSendOutputToWithIsNotFile(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -v');
 
@@ -71,7 +75,7 @@ class EventTest extends TestCase
         $event->writeOutput($this->container);
     }
 
-    public function testSendOutputTo()
+    public function testSendOutputTo(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -v');
 
@@ -98,7 +102,7 @@ class EventTest extends TestCase
         $event->writeOutput($this->container);
     }
 
-    public function testSendOutputToWithSystemProcess()
+    public function testSendOutputToWithSystemProcess(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -v');
         $event->isSystem = true;
@@ -124,7 +128,7 @@ class EventTest extends TestCase
         CoroutineContext::forget($key);
     }
 
-    public function testDaysOfMonthMethod()
+    public function testDaysOfMonthMethod(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -i');
 
@@ -136,14 +140,14 @@ class EventTest extends TestCase
         $this->assertSame('0 0 1,10,20,30 * *', $event->getExpression());
     }
 
-    public function testEventDoesNotRunWhenPausedByDefault()
+    public function testEventDoesNotRunWhenPausedByDefault(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -i');
 
         $this->assertFalse($event->runsWhenPaused());
     }
 
-    public function testEventRunsWhenMarkedAsEvenWhenPaused()
+    public function testEventRunsWhenMarkedAsEvenWhenPaused(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -i');
         $event->evenWhenPaused();
@@ -151,7 +155,7 @@ class EventTest extends TestCase
         $this->assertTrue($event->runsWhenPaused());
     }
 
-    public function testEventMarksSkippedWhenMutexAlreadyExists()
+    public function testEventMarksSkippedWhenMutexAlreadyExists(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->once()->andReturnFalse();
@@ -166,7 +170,7 @@ class EventTest extends TestCase
         $this->assertTrue($event->skippedBecauseOverlapping);
     }
 
-    public function testEventResetsSkippedBecauseOverlappingWhenItRuns()
+    public function testEventResetsSkippedBecauseOverlappingWhenItRuns(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->andReturnFalse();
@@ -197,7 +201,7 @@ class EventTest extends TestCase
         $this->assertFalse($event->skippedBecauseOverlapping);
     }
 
-    public function testReleaseMutexOnTerminationSignalReleasesOwnedMutex()
+    public function testReleaseMutexOnTerminationSignalReleasesOwnedMutex(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->once()->andReturnTrue();
@@ -211,7 +215,7 @@ class EventTest extends TestCase
         $event->releaseMutexOnTerminationSignal();
     }
 
-    public function testReleaseMutexOnTerminationSignalDoesNotReleaseUnownedMutex()
+    public function testReleaseMutexOnTerminationSignalDoesNotReleaseUnownedMutex(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldNotReceive('forget');
@@ -222,7 +226,7 @@ class EventTest extends TestCase
         $event->releaseMutexOnTerminationSignal();
     }
 
-    public function testReleaseMutexOnTerminationSignalHonorsReleaseFlag()
+    public function testReleaseMutexOnTerminationSignalHonorsReleaseFlag(): void
     {
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->once()->andReturnTrue();
@@ -329,7 +333,7 @@ class EventTest extends TestCase
         $this->assertTrue($afterCalled);
     }
 
-    public function testAppendOutput()
+    public function testAppendOutput(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -v');
 
@@ -418,6 +422,41 @@ class EventTest extends TestCase
         $event->finish($this->container, 0);
     }
 
+    public function testEmailOutputUsesTheMailContractCallback(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -v');
+        $event->sendOutputTo($output = 'test.log');
+        $event->description('Daily report');
+        $event->emailOutputTo($addresses = ['taylor@example.com']);
+
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('isFile')->once()->with($output)->andReturnTrue();
+        $filesystem->shouldReceive('get')->once()->with($output)->andReturn('captured output');
+
+        $mailer = m::mock(Mailer::class);
+        $mailer->shouldReceive('raw')
+            ->once()
+            ->with('captured output', m::type(Closure::class))
+            ->andReturnUsing(function (string $text, Closure $callback) use ($addresses) {
+                $message = new Message(new Email);
+                $callback($message);
+
+                $this->assertSame('captured output', $text);
+                $this->assertSame($addresses, array_map(
+                    static fn ($address) => $address->getAddress(),
+                    $message->getSymfonyMessage()->getTo()
+                ));
+                $this->assertSame('Daily report', $message->getSymfonyMessage()->getSubject());
+
+                return null;
+            });
+
+        $this->container->instance(Filesystem::class, $filesystem);
+        $this->container->instance(Mailer::class, $mailer);
+
+        $event->callAfterCallbacks($this->container);
+    }
+
     public function testProcessIsRetainedThroughAfterCallbacksAndReleasedAfterSuccess(): void
     {
         $outputDuringCallback = null;
@@ -495,7 +534,7 @@ class EventTest extends TestCase
         $this->assertFalse($event->hasRetainedProcess());
     }
 
-    public function testNextRunDate()
+    public function testNextRunDate(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -i');
         $event->dailyAt('10:15');
@@ -503,7 +542,7 @@ class EventTest extends TestCase
         $this->assertSame('10:15:00', $event->nextRunDate()->toTimeString());
     }
 
-    public function testCustomMutexName()
+    public function testCustomMutexName(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -i');
         $event->description('Fancy command description');
@@ -513,7 +552,7 @@ class EventTest extends TestCase
             $event->mutexName()
         );
 
-        $event->createMutexNameUsing(function (Event $event) {
+        $event->createMutexNameUsing(function (Event $event): string {
             return Str::slug($event->description);
         });
 
@@ -651,7 +690,7 @@ class EventTest extends TestCase
         $this->assertSame($tz, $event->timezone);
     }
 
-    public function testBasicCronCompilation()
+    public function testBasicCronCompilation(): void
     {
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
@@ -698,7 +737,7 @@ class EventTest extends TestCase
         );
     }
 
-    public function testEventIsDueCheck()
+    public function testEventIsDueCheck(): void
     {
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
@@ -714,7 +753,7 @@ class EventTest extends TestCase
         $this->assertTrue($event->isDue($app));
     }
 
-    public function testEventIsDueAtUsesGivenTime()
+    public function testEventIsDueAtUsesGivenTime(): void
     {
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
@@ -733,7 +772,7 @@ class EventTest extends TestCase
         }
     }
 
-    public function testEventIsDueAtUsesEventTimezone()
+    public function testEventIsDueAtUsesEventTimezone(): void
     {
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
@@ -746,7 +785,7 @@ class EventTest extends TestCase
         $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 12:59:59', 'UTC')));
     }
 
-    public function testTimeBetweenChecks()
+    public function testTimeBetweenChecks(): void
     {
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
@@ -808,7 +847,7 @@ class EventTest extends TestCase
         $this->assertTrue($event->filtersPass($app));
     }
 
-    public function testTimeUnlessBetweenChecks()
+    public function testTimeUnlessBetweenChecks(): void
     {
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);

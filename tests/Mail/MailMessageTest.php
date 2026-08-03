@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Message;
 use Hypervel\Support\Str;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\TestCase;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
@@ -16,32 +18,46 @@ class MailMessageTest extends TestCase
 {
     protected Message $message;
 
+    protected string $tempDir;
+
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->tempDir = ParallelTesting::tempDir('MailMessageTest');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($this->tempDir);
+        $filesystem->makeDirectory($this->tempDir);
+
         $this->message = new Message(new Email);
     }
 
-    public function testFromMethod()
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->tempDir);
+
+        parent::tearDown();
+    }
+
+    public function testFromMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->from('foo@bar.baz', 'Foo'));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getFrom()[0]);
     }
 
-    public function testSenderMethod()
+    public function testSenderMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->sender('foo@bar.baz', 'Foo'));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getSender());
     }
 
-    public function testReturnPathMethod()
+    public function testReturnPathMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->returnPath('foo@bar.baz'));
         $this->assertEquals(new Address('foo@bar.baz'), $message->getSymfonyMessage()->getReturnPath());
     }
 
-    public function testToMethod()
+    public function testToMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->to('foo@bar.baz', 'Foo'));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getTo()[0]);
@@ -50,45 +66,45 @@ class MailMessageTest extends TestCase
         $this->assertEquals(new Address('bar@bar.baz', 'Bar'), $message->getSymfonyMessage()->getTo()[0]);
     }
 
-    public function testToMethodWithOverride()
+    public function testToMethodWithOverride(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->to('foo@bar.baz', 'Foo', true));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getTo()[0]);
     }
 
-    public function testCcMethod()
+    public function testCcMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->cc('foo@bar.baz', 'Foo'));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getCc()[0]);
     }
 
-    public function testBccMethod()
+    public function testBccMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->bcc('foo@bar.baz', 'Foo'));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getBcc()[0]);
     }
 
-    public function testReplyToMethod()
+    public function testReplyToMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->replyTo('foo@bar.baz', 'Foo'));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getReplyTo()[0]);
     }
 
-    public function testSubjectMethod()
+    public function testSubjectMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->subject('foo'));
         $this->assertSame('foo', $message->getSymfonyMessage()->getSubject());
     }
 
-    public function testPriorityMethod()
+    public function testPriorityMethod(): void
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->priority(1));
         $this->assertEquals(1, $message->getSymfonyMessage()->getPriority());
     }
 
-    public function testBasicAttachment()
+    public function testBasicAttachment(): void
     {
-        file_put_contents($path = __DIR__ . '/foo.jpg', 'expected attachment body');
+        file_put_contents($path = $this->tempDir . '/foo.jpg', 'expected attachment body');
 
         $this->message->attach($path, ['as' => 'bar.jpg', 'mime' => 'image/png']);
 
@@ -98,11 +114,9 @@ class MailMessageTest extends TestCase
         $this->assertSame('Content-Type: image/png; name=bar.jpg', $headers[0]);
         $this->assertSame('Content-Transfer-Encoding: base64', $headers[1]);
         $this->assertSame('Content-Disposition: attachment; name=bar.jpg; filename=bar.jpg', $headers[2]);
-
-        unlink($path);
     }
 
-    public function testDataAttachment()
+    public function testDataAttachment(): void
     {
         $this->message->attachData('expected attachment body', 'foo.jpg', ['mime' => 'image/png']);
 
@@ -114,14 +128,18 @@ class MailMessageTest extends TestCase
         $this->assertSame('Content-Disposition: attachment; name=foo.jpg; filename=foo.jpg', $headers[2]);
     }
 
-    public function testItAttachesFilesViaAttachableContractFromPath()
+    public function testItAttachesFilesViaAttachableContractFromPath(): void
     {
-        file_put_contents($path = __DIR__ . '/foo.jpg', 'expected attachment body');
+        file_put_contents($path = $this->tempDir . '/foo.jpg', 'expected attachment body');
 
-        $this->message->attach(new class implements Attachable {
+        $this->message->attach(new class($path) implements Attachable {
+            public function __construct(private string $path)
+            {
+            }
+
             public function toMailAttachment(): Attachment
             {
-                return Attachment::fromPath(__DIR__ . '/foo.jpg')
+                return Attachment::fromPath($this->path)
                     ->as('bar.jpg')
                     ->withMime('image/png');
             }
@@ -133,11 +151,9 @@ class MailMessageTest extends TestCase
         $this->assertSame('Content-Type: image/png; name=bar.jpg', $headers[0]);
         $this->assertSame('Content-Transfer-Encoding: base64', $headers[1]);
         $this->assertSame('Content-Disposition: attachment; name=bar.jpg; filename=bar.jpg', $headers[2]);
-
-        unlink($path);
     }
 
-    public function testItAttachesFilesViaAttachableContractFromData()
+    public function testItAttachesFilesViaAttachableContractFromData(): void
     {
         $this->message->attach(new class implements Attachable {
             public function toMailAttachment(): Attachment
@@ -155,9 +171,9 @@ class MailMessageTest extends TestCase
         $this->assertSame('Content-Disposition: attachment; name=foo.jpg; filename=foo.jpg', $headers[2]);
     }
 
-    public function testEmbedPath()
+    public function testEmbedPath(): void
     {
-        file_put_contents($path = __DIR__ . '/foo.jpg', 'bar');
+        file_put_contents($path = $this->tempDir . '/foo.jpg', 'bar');
 
         $cid = $this->message->embed($path);
 
@@ -170,11 +186,9 @@ class MailMessageTest extends TestCase
         $this->assertStringContainsString('Content-Type: image/jpeg', $headers[0]);
         $this->assertSame('Content-Transfer-Encoding: base64', $headers[1]);
         $this->assertStringContainsString('Content-Disposition: inline', $headers[2]);
-
-        unlink($path);
     }
 
-    public function testDataEmbed()
+    public function testDataEmbed(): void
     {
         $cid = $this->message->embedData('bar', 'foo.jpg', 'image/png');
 
@@ -189,14 +203,18 @@ class MailMessageTest extends TestCase
         $this->assertSame('Content-Disposition: inline; name=foo.jpg; filename=foo.jpg', $headers[2]);
     }
 
-    public function testItEmbedsFilesViaAttachableContractFromPath()
+    public function testItEmbedsFilesViaAttachableContractFromPath(): void
     {
-        file_put_contents($path = __DIR__ . '/foo.jpg', 'bar');
+        file_put_contents($path = $this->tempDir . '/foo.jpg', 'bar');
 
-        $cid = $this->message->embed(new class implements Attachable {
+        $cid = $this->message->embed(new class($path) implements Attachable {
+            public function __construct(private string $path)
+            {
+            }
+
             public function toMailAttachment(): Attachment
             {
-                return Attachment::fromPath(__DIR__ . '/foo.jpg')->as('baz')->withMime('image/png');
+                return Attachment::fromPath($this->path)->as('baz')->withMime('image/png');
             }
         });
 
@@ -209,18 +227,40 @@ class MailMessageTest extends TestCase
         $this->assertSame('Content-Type: image/png; name=baz', $headers[0]);
         $this->assertSame('Content-Transfer-Encoding: base64', $headers[1]);
         $this->assertSame('Content-Disposition: inline; name=baz; filename=baz', $headers[2]);
-
-        unlink($path);
     }
 
-    public function testItGeneratesARandomNameWhenAttachableHasNone()
+    public function testItEmbedsFilesViaAttachableContractFromData(): void
     {
-        file_put_contents($path = __DIR__ . '/foo.jpg', 'bar');
-
         $cid = $this->message->embed(new class implements Attachable {
             public function toMailAttachment(): Attachment
             {
-                return Attachment::fromPath(__DIR__ . '/foo.jpg');
+                return Attachment::fromData(fn () => 'bar', 'foo.jpg')->withMime('image/png');
+            }
+        });
+
+        $this->assertStringStartsWith('cid:', $cid);
+        $contentId = Str::after($cid, 'cid:');
+        $attachment = $this->message->getSymfonyMessage()->getAttachments()[0];
+        $headers = $attachment->getPreparedHeaders()->toArray();
+        $this->assertSame($contentId, $attachment->getContentId());
+        $this->assertSame('bar', $attachment->getBody());
+        $this->assertStringContainsString('Content-Type: image/png', $headers[0]);
+        $this->assertSame('Content-Transfer-Encoding: base64', $headers[1]);
+        $this->assertStringContainsString('Content-Disposition: inline', $headers[2]);
+    }
+
+    public function testItGeneratesARandomNameWhenAttachableHasNone(): void
+    {
+        file_put_contents($path = $this->tempDir . '/foo.jpg', 'bar');
+
+        $cid = $this->message->embed(new class($path) implements Attachable {
+            public function __construct(private string $path)
+            {
+            }
+
+            public function toMailAttachment(): Attachment
+            {
+                return Attachment::fromPath($this->path);
             }
         });
 
@@ -233,7 +273,5 @@ class MailMessageTest extends TestCase
         $this->assertStringContainsString('Content-Type: image/jpeg', $headers[0]);
         $this->assertSame('Content-Transfer-Encoding: base64', $headers[1]);
         $this->assertStringContainsString('Content-Disposition: inline', $headers[2]);
-
-        unlink($path);
     }
 }

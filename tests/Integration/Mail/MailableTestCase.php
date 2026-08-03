@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Mail;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailables\Content;
 use Hypervel\Mail\Mailables\Envelope;
@@ -12,27 +13,27 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 abstract class MailableTestCase extends TestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['view']->addLocation(__DIR__ . '/Fixtures');
+        $app->make('view')->addLocation(__DIR__ . '/Fixtures');
     }
 
     #[DataProvider('markdownEncodedDataProvider')]
-    public function testItCanAssertMarkdownEncodedString($given, $expected)
+    public function testItCanAssertMarkdownEncodedString(string $given, string $expected): void
     {
         $mailable = new class($given) extends Mailable {
             public function __construct(public string $message)
             {
             }
 
-            public function envelope()
+            public function envelope(): Envelope
             {
                 return new Envelope(
                     subject: 'My basic title',
                 );
             }
 
-            public function content()
+            public function content(): Content
             {
                 return new Content(
                     markdown: 'message',
@@ -43,7 +44,7 @@ abstract class MailableTestCase extends TestCase
         $mailable->assertSeeInHtml($expected, false);
     }
 
-    public static function markdownEncodedDataProvider()
+    public static function markdownEncodedDataProvider(): iterable
     {
         yield ['[Hypervel](https://hypervel.org)', 'My message is: [Hypervel](https://hypervel.org)'];
 

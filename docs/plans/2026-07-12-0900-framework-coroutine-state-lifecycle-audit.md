@@ -1160,6 +1160,12 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `database-21` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-21` |
 | `database-22` | `database` | `database` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-22` |
 | `database-23` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-23` |
+| `mail-17` | `mail` | `mail` and `support` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `mail-17` |
+| `support-28` | `support` | `support` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-28` |
+| `support-29` | `support` | `support`, `mail`, and `validation` (targeted revalidation complete); later full `validation` audit | `Complete Mail correctness, current parity, and package boundaries`; finding `support-29` |
+| `contracts-10` | `contracts` | `contracts` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-10` |
+| `contracts-11` | `contracts` | `contracts`, `mail`, and `console` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-11` |
+| `filesystem-14` | `filesystem` | `filesystem` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `filesystem-14` |
 
 ## Package checklist
 
@@ -1239,7 +1245,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `api-client`
 - [x] `grpc`
 - [x] `broadcasting`
-- [ ] `mail`
+- [x] `mail`
 - [ ] `notifications`
 
 ### Application and domain packages

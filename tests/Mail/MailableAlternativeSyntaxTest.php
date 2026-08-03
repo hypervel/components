@@ -8,12 +8,12 @@ use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailables\Address;
 use Hypervel\Mail\Mailables\Content;
 use Hypervel\Mail\Mailables\Envelope;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
 class MailableAlternativeSyntaxTest extends TestCase
 {
-    public function testBasicMailableInspection()
+    public function testBasicMailableInspection(): void
     {
         $mailable = new MailableWithAlternativeSyntax;
 
@@ -42,7 +42,7 @@ class MailableAlternativeSyntaxTest extends TestCase
         $this->assertEquals(1, count($mailable->bcc));
     }
 
-    public function testEnvelopesCanReceiveAdditionalRecipients()
+    public function testEnvelopesCanReceiveAdditionalRecipients(): void
     {
         $envelope = new Envelope(to: ['taylor@example.com']);
         $envelope->to(new Address('taylorotwell@example.com'));
@@ -71,7 +71,7 @@ class MailableAlternativeSyntaxTest extends TestCase
 
 class MailableWithAlternativeSyntax extends Mailable
 {
-    public function envelope()
+    public function envelope(): Envelope
     {
         return new Envelope(
             to: [new Address('taylor@laravel.com', 'Taylor Otwell')],
@@ -83,7 +83,7 @@ class MailableWithAlternativeSyntax extends Mailable
         );
     }
 
-    public function content()
+    public function content(): Content
     {
         return new Content(
             view: 'test-view',

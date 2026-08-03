@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Mail;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Queue\Middleware\RateLimited;
@@ -13,7 +14,7 @@ use Hypervel\Testbench\TestCase;
 
 class SendingQueuedMailTest extends TestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('mail', [
             'default' => 'array',
@@ -22,21 +23,21 @@ class SendingQueuedMailTest extends TestCase
             ],
         ]);
 
-        $app['view']->addLocation(__DIR__ . '/Fixtures');
+        $app->make('view')->addLocation(__DIR__ . '/Fixtures');
     }
 
-    public function testMailIsSentWithDefaultLocale()
+    public function testMailIsSentWithDefaultLocale(): void
     {
         Queue::fake();
 
         Mail::to('test@mail.com')->queue(new SendingQueuedMailTestMail);
 
-        Queue::assertPushed(SendQueuedMailable::class, function ($job) {
+        Queue::assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job): bool {
             return $job->middleware[0] instanceof RateLimited;
         });
     }
 
-    public function testMailIsSentWhenRoutingQueue()
+    public function testMailIsSentWhenRoutingQueue(): void
     {
         Queue::fake();
 
@@ -47,7 +48,7 @@ class SendingQueuedMailTest extends TestCase
         Queue::connection('mail-connection')->assertPushedOn('mail-queue', SendQueuedMailable::class);
     }
 
-    public function testMailIsSentWithDelay()
+    public function testMailIsSentWithDelay(): void
     {
         Queue::fake();
 
@@ -55,7 +56,7 @@ class SendingQueuedMailTest extends TestCase
 
         Mail::to('test@mail.com')->later($delay, new SendingQueuedMailTestMail);
 
-        Queue::assertPushed(SendQueuedMailable::class, function ($job) use ($delay) {
+        Queue::assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job) use ($delay): bool {
             return $job->delay === $delay;
         });
     }

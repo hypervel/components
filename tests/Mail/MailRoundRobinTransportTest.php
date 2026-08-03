@@ -17,7 +17,7 @@ class MailRoundRobinTransportTest extends TestCase
         $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
-    public function testGetRoundRobinTransportWithConfiguredTransports()
+    public function testGetRoundRobinTransportWithConfiguredTransports(): void
     {
         $this->app->make('config')->set('mail', [
             'default' => 'roundrobin',

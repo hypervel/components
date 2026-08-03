@@ -8,22 +8,17 @@ use Hypervel\Mail\Markdown;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
+use League\CommonMark\Extension\ExtensionInterface;
+use League\CommonMark\Extension\Strikethrough\StrikethroughExtension;
+use League\CommonMark\Extension\TaskList\TaskListExtension;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class MarkdownParserTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Markdown::flushState();
-        EncodedHtmlString::flushState();
-
-        parent::tearDown();
-    }
-
     #[DataProvider('markdownDataProvider')]
-    public function testItCanParseMarkdownString($given, $expected)
+    public function testItCanParseMarkdownString(string $given, string $expected): void
     {
-        tap(Markdown::parse($given), function ($html) use ($expected) {
+        tap(Markdown::parse($given), function (HtmlString $html) use ($expected): void {
             $this->assertInstanceOf(HtmlString::class, $html);
 
             $this->assertStringEqualsStringIgnoringLineEndings($expected . PHP_EOL, (string) $html);
@@ -31,7 +26,7 @@ class MarkdownParserTest extends TestCase
         });
     }
 
-    public static function markdownDataProvider()
+    public static function markdownDataProvider(): iterable
     {
         yield ['[Hypervel](https://hypervel.org)', '<p><a href="https://hypervel.org">Hypervel</a></p>'];
         yield ['\[Hypervel](https://hypervel.org)', '<p>[Hypervel](https://hypervel.org)</p>'];
@@ -43,16 +38,16 @@ class MarkdownParserTest extends TestCase
     }
 
     #[DataProvider('markdownEncodedDataProvider')]
-    public function testItCanParseMarkdownEncodedString($given, $expected)
+    public function testItCanParseMarkdownEncodedString(EncodedHtmlString|string $given, string $expected): void
     {
-        tap(Markdown::parse($given, encoded: true), function ($html) use ($expected) {
+        tap(Markdown::parse($given, encoded: true), function (HtmlString $html) use ($expected): void {
             $this->assertInstanceOf(HtmlString::class, $html);
 
             $this->assertStringEqualsStringIgnoringLineEndings($expected . PHP_EOL, (string) $html);
         });
     }
 
-    public static function markdownEncodedDataProvider()
+    public static function markdownEncodedDataProvider(): iterable
     {
         yield [new EncodedHtmlString('[Hypervel](https://hypervel.org)'), '<p>[Hypervel](https://hypervel.org)</p>'];
 
@@ -90,10 +85,10 @@ class MarkdownParserTest extends TestCase
     public function testItCanParseMarkdownWithCustomExtensionsViaConfig(): void
     {
         $this->configureMarkdownExtensions([
-            \League\CommonMark\Extension\Strikethrough\StrikethroughExtension::class,
+            StrikethroughExtension::class,
         ]);
 
-        tap(Markdown::parse('~~strikethrough text~~'), function ($html) {
+        tap(Markdown::parse('~~strikethrough text~~'), function (HtmlString $html): void {
             $this->assertInstanceOf(HtmlString::class, $html);
 
             $expected = '<p><del>strikethrough text</del></p>';
@@ -107,7 +102,7 @@ class MarkdownParserTest extends TestCase
     {
         $this->configureMarkdownExtensions([]);
 
-        tap(Markdown::parse('~~strikethrough text~~'), function ($html) {
+        tap(Markdown::parse('~~strikethrough text~~'), function (HtmlString $html): void {
             $this->assertInstanceOf(HtmlString::class, $html);
 
             $expected = '<p>~~strikethrough text~~</p>';
@@ -120,11 +115,11 @@ class MarkdownParserTest extends TestCase
     public function testItCanParseMarkdownWithMultipleCustomExtensions(): void
     {
         $this->configureMarkdownExtensions([
-            \League\CommonMark\Extension\Strikethrough\StrikethroughExtension::class,
-            \League\CommonMark\Extension\TaskList\TaskListExtension::class,
+            StrikethroughExtension::class,
+            TaskListExtension::class,
         ]);
 
-        tap(Markdown::parse('~~strikethrough~~'), function ($html) {
+        tap(Markdown::parse('~~strikethrough~~'), function (HtmlString $html): void {
             $this->assertInstanceOf(HtmlString::class, $html);
 
             $expected = '<p><del>strikethrough</del></p>';
@@ -133,7 +128,7 @@ class MarkdownParserTest extends TestCase
             $this->assertSame((string) $html, (string) $html->toHtml());
         });
 
-        tap(Markdown::parse('- [ ] Task item'), function ($html) {
+        tap(Markdown::parse('- [ ] Task item'), function (HtmlString $html): void {
             $this->assertInstanceOf(HtmlString::class, $html);
 
             $expected = "<ul>\n<li><input disabled=\"\" type=\"checkbox\"> Task item</li>\n</ul>";
@@ -146,10 +141,10 @@ class MarkdownParserTest extends TestCase
     public function testItCanParseMarkdownEncodedStringWithCustomExtensions(): void
     {
         $this->configureMarkdownExtensions([
-            \League\CommonMark\Extension\Strikethrough\StrikethroughExtension::class,
+            StrikethroughExtension::class,
         ]);
 
-        tap(Markdown::parse(new EncodedHtmlString('~~strikethrough text~~'), encoded: true), function ($html) {
+        tap(Markdown::parse(new EncodedHtmlString('~~strikethrough text~~'), encoded: true), function (HtmlString $html): void {
             $this->assertInstanceOf(HtmlString::class, $html);
 
             $expected = '<p><del>strikethrough text</del></p>';
@@ -159,7 +154,7 @@ class MarkdownParserTest extends TestCase
     }
 
     /**
-     * @param array<int, class-string<\League\CommonMark\Extension\ExtensionInterface>> $extensions
+     * @param array<int, class-string<ExtensionInterface>> $extensions
      */
     protected function configureMarkdownExtensions(array $extensions): void
     {
