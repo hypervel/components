@@ -8,8 +8,11 @@ use Aws\SesV2\SesV2Client;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\CloudflareTransport;
@@ -42,7 +45,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Contracts\Mail\Mailer
+ * @mixin \Hypervel\Mail\Mailer
  */
 class MailManager implements FactoryContract
 {
@@ -134,18 +137,25 @@ class MailManager implements FactoryContract
             throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
         }
 
+        /** @var ViewFactory $views */
+        $views = $this->app->make('view');
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
         // Once we have created the mailer instance we will set a container instance
         // on the mailer. This allows us to resolve mailer classes via containers
         // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
-            $this->app['view'],
+            $views,
             $this->createMailerTransport($config, [$name], poolByDefault: true),
-            $this->app['events']
+            $events
         );
 
         if ($this->app->bound('queue')) {
-            $mailer->setQueue($this->app['queue']);
+            /** @var QueueFactory $queue */
+            $queue = $this->app->make('queue');
+            $mailer->setQueue($queue);
         }
 
         // Next we will set all of the global addresses on this mailer, which allows
@@ -163,15 +173,22 @@ class MailManager implements FactoryContract
      */
     public function build(array $config): Mailer
     {
+        /** @var ViewFactory $views */
+        $views = $this->app->make('view');
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
         $mailer = new Mailer(
             $config['name'] ?? 'ondemand',
-            $this->app['view'],
+            $views,
             $this->createMailerTransport($config),
-            $this->app['events']
+            $events
         );
 
         if ($this->app->bound('queue')) {
-            $mailer->setQueue($this->app['queue']);
+            /** @var QueueFactory $queue */
+            $queue = $this->app->make('queue');
+            $mailer->setQueue($queue);
         }
 
         return $mailer;
@@ -288,7 +305,7 @@ class MailManager implements FactoryContract
         return match ($transport) {
             'sendmail' => [
                 'transport' => $transport,
-                'path' => $config['path'] ?? $this->config->get('mail.sendmail'),
+                'path' => $config['path'] ?? null,
             ],
             'ses-v2' => array_merge(
                 $this->config->array('services.ses', []),
@@ -328,7 +345,7 @@ class MailManager implements FactoryContract
             ),
             'log' => [
                 'transport' => $transport,
-                'channel' => $config['channel'] ?? $this->config->get('mail.log_channel'),
+                'channel' => $config['channel'] ?? null,
             ],
             'mail', 'array' => ['transport' => $transport],
             default => $config,
@@ -462,6 +479,8 @@ class MailManager implements FactoryContract
     {
         return new SendmailTransport($config['path']);
     }
+
+    // REMOVED: Hypervel supports Amazon SES through the SES v2 API only.
 
     /**
      * Create an instance of the Symfony Amazon SES V2 Transport driver.

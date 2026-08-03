@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Log\LogManager;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\MailManager;
+use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\TransportPoolProxy;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\Support\ClassInvoker;
@@ -16,10 +18,12 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Mailer\Bridge\Postmark\Transport\PostmarkApiTransport;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\RoundRobinTransport;
+use Symfony\Component\Mailer\Transport\SendmailTransport;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\RawMessage;
@@ -227,6 +231,26 @@ class MailManagerTest extends TestCase
             'empty array uses defaults' => [[], 10],
             'partial options override defaults' => [['max_objects' => 3], 3],
         ];
+    }
+
+    public function testOnDemandTransportsDoNotInheritNamedMailerFallbacks(): void
+    {
+        $this->app->make('config')->set('mail.sendmail', '/usr/sbin/sendmail -bs -i');
+        $this->app->make('config')->set('mail.log_channel', 'legacy-channel');
+
+        $logger = m::mock(LoggerInterface::class);
+        $logManager = m::mock(LogManager::class);
+        $logManager->shouldReceive('channel')->once()->with(null)->andReturn($logger);
+        $this->app->instance(LoggerInterface::class, $logManager);
+
+        $manager = new MailManager($this->app);
+        $sendmail = $manager->build(['transport' => 'sendmail'])->getSymfonyTransport();
+        $log = $manager->build(['transport' => 'log'])->getSymfonyTransport();
+
+        $this->assertInstanceOf(SendmailTransport::class, $sendmail);
+        $this->assertSame('/usr/sbin/sendmail -bs', (new ClassInvoker($sendmail))->command);
+        $this->assertInstanceOf(LogTransport::class, $log);
+        $this->assertSame($logger, $log->logger());
     }
 
     public function testFalseDisablesNamedAndOnDemandPooling(): void

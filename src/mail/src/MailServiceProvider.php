@@ -18,7 +18,9 @@ class MailServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register the Illuminate mailer instance.
+     * Register the mailer instance.
+     *
+     * The method name is retained for compatibility with Laravel's protected extension point.
      */
     protected function registerIlluminateMailer(): void
     {
