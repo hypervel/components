@@ -990,8 +990,8 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None.
-- **Ledger entries required for the active work:** None.
+- **Active package or work unit:** `signal` re-audit.
+- **Ledger entries required for the active work:** `Release signal watchers deterministically at process exit`; `Complete Signal handler reliability, public APIs, and deployment guidance`.
 - **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
@@ -1059,6 +1059,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 | `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
 | `server-process-10` | `server-process` | `foundation` (revalidation complete) | `Make custom server processes failure-safe`; finding `server-process-10` |
+| `signal-05` | `contracts`, `signal` | `server-process` (revalidation complete) | `Complete Signal handler reliability, public APIs, and deployment guidance`; finding `signal-05` |
+| `server-11` | `foundation`, `server` | `server-process` and `reverb` (revalidation complete) | `Complete Signal handler reliability, public APIs, and deployment guidance`; finding `server-11` |
 | `bus-03` | `bus`, `contracts`, `foundation` | `foundation` and `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-03` |
 | `bus-10` | `bus`, `queue` | `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-10` |
 | `bus-17` | `bus`, `foundation`, `queue`, `testing` | `log`, `foundation`, and `queue` (revalidation complete); later full `testing` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-17` |
