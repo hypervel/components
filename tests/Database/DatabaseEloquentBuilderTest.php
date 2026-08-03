@@ -1176,6 +1176,106 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([1, true, 'draft', true], $query->getBindings());
     }
 
+    public function testApplyScopeCallbackGroupsStructuredPredicateSlices(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery()->where('status', 'active');
+
+        $query->applyScopeCallback(function (Builder $scopeQuery): void {
+            $scopeQuery->where('tenant_id', 1);
+        });
+
+        $this->assertSame(
+            'select * from "table" where ("status" = ?) and ("tenant_id" = ?)',
+            $query->toSql(),
+        );
+        $this->assertSame(['active', 1], $query->getBindings());
+    }
+
+    public function testApplyScopesPreserveSingleNegatedUserPredicate(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery()
+            ->whereNot('status', 'inactive')
+            ->withGlobalScope('tenant', function (Builder $scopeQuery): void {
+                $scopeQuery->where('tenant_id', 1);
+            });
+
+        $this->assertSame(
+            'select * from "table" where (not "status" = ?) and ("tenant_id" = ?)',
+            $query->toSql(),
+        );
+        $this->assertSame(['inactive', 1], $query->getBindings());
+    }
+
+    public function testApplyScopesGroupOpaqueUserPredicates(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $scope = function (Builder $scopeQuery): void {
+            $scopeQuery->where('tenant_id', 1);
+        };
+
+        $rawQuery = $model->newQuery()
+            ->whereRaw('1 = 1 OR tenant_id = ?', [2])
+            ->withGlobalScope('tenant', $scope);
+
+        $this->assertSame(
+            'select * from "table" where (1 = 1 OR tenant_id = ?) and ("tenant_id" = ?)',
+            $rawQuery->toSql(),
+        );
+        $this->assertSame([2, 1], $rawQuery->getBindings());
+
+        $expressionQuery = $model->newQuery()
+            ->whereNull(new Expression('1 = 1 OR name'))
+            ->withGlobalScope('tenant', $scope);
+
+        $this->assertSame(
+            'select * from "table" where (1 = 1 OR name is null) and ("tenant_id" = ?)',
+            $expressionQuery->toSql(),
+        );
+        $this->assertSame([1], $expressionQuery->getBindings());
+    }
+
+    public function testApplyScopesGroupOpaqueScopePredicates(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery()
+            ->where('status', 'active')
+            ->withGlobalScope('visibility', function (Builder $scopeQuery): void {
+                $scopeQuery->whereRaw('tenant_id = 1 OR is_public = 1');
+            });
+
+        $this->assertSame(
+            'select * from "table" where ("status" = ?) and (tenant_id = 1 OR is_public = 1)',
+            $query->toSql(),
+        );
+        $this->assertSame(['active'], $query->getBindings());
+    }
+
+    public function testApplyScopeCallbackWithoutExistingWheresKeepsScopeConditionsGroupedForLaterConstraints(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery();
+
+        $query->applyScopeCallback(function (Builder $scopeQuery): void {
+            $scopeQuery->where('tenant_id', 1)
+                ->orWhere('is_public', true);
+        });
+
+        $query->where('status', 'active');
+
+        $this->assertSame(
+            'select * from "table" where ("tenant_id" = ? or "is_public" = ?) and "status" = ?',
+            $query->toSql(),
+        );
+        $this->assertSame([1, true, 'active'], $query->getBindings());
+    }
+
     public function testApplyScopeCallbackWithoutWheresLeavesQueryUnchanged(): void
     {
         $model = new Stub;
@@ -1219,7 +1319,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $query = $model->newQuery()->where('foo', '=', 'bar')->where(function ($query) {
             $query->where('baz', '>', 9000);
         });
-        $this->assertSame('select * from "table" where "foo" = ? and ("baz" > ?) and "table"."deleted_at" is null', $query->toSql());
+        $this->assertSame('select * from "table" where ("foo" = ? and ("baz" > ?)) and ("table"."deleted_at" is null)', $query->toSql());
         $this->assertEquals(['bar', 9000], $query->getBindings());
     }
 
@@ -1241,7 +1341,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $query = $model->newQuery()->empty()->where('foo', '=', 'bar')->empty()->where(function ($query) {
             $query->empty()->where('baz', '>', 9000);
         });
-        $this->assertSame('select * from "table" where "foo" = ? and ("baz" > ?) and "table"."deleted_at" is null', $query->toSql());
+        $this->assertSame('select * from "table" where ("foo" = ? and ("baz" > ?)) and ("table"."deleted_at" is null)', $query->toSql());
         $this->assertEquals(['bar', 9000], $query->getBindings());
     }
 
@@ -1310,7 +1410,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->one()->orWhere->two();
-        $this->assertSame('select * from "table" where "one" = ? or ("two" = ?)', $query->toSql());
+        $this->assertSame('select * from "table" where ("one" = ?) or (("two" = ?))', $query->toSql());
     }
 
     public function testRealQueryChainedHigherOrderOrWhereScopes()
@@ -1318,7 +1418,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->one()->orWhere->two()->orWhere->three();
-        $this->assertSame('select * from "table" where "one" = ? or ("two" = ?) or ("three" = ?)', $query->toSql());
+        $this->assertSame('select * from "table" where ("one" = ?) or (("two" = ?)) or (("three" = ?))', $query->toSql());
     }
 
     public function testRealQueryHigherOrderWhereNotScopes()
@@ -1326,7 +1426,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->one()->whereNot->two();
-        $this->assertSame('select * from "table" where "one" = ? and not ("two" = ?)', $query->toSql());
+        $this->assertSame('select * from "table" where ("one" = ?) and not (("two" = ?))', $query->toSql());
     }
 
     public function testRealQueryChainedHigherOrderWhereNotScopes()
@@ -1334,7 +1434,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->one()->whereNot->two()->whereNot->three();
-        $this->assertSame('select * from "table" where "one" = ? and not ("two" = ?) and not ("three" = ?)', $query->toSql());
+        $this->assertSame('select * from "table" where ("one" = ?) and not (("two" = ?)) and not (("three" = ?))', $query->toSql());
     }
 
     public function testRealQueryHigherOrderOrWhereNotScopes()
@@ -1342,7 +1442,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->one()->orWhereNot->two();
-        $this->assertSame('select * from "table" where "one" = ? or not ("two" = ?)', $query->toSql());
+        $this->assertSame('select * from "table" where ("one" = ?) or not (("two" = ?))', $query->toSql());
     }
 
     public function testRealQueryChainedHigherOrderOrWhereNotScopes()
@@ -1350,7 +1450,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new HigherOrderWhereScopeStub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->one()->orWhereNot->two()->orWhereNot->three();
-        $this->assertSame('select * from "table" where "one" = ? or not ("two" = ?) or not ("three" = ?)', $query->toSql());
+        $this->assertSame('select * from "table" where ("one" = ?) or not (("two" = ?)) or not (("three" = ?))', $query->toSql());
     }
 
     public function testSimpleWhere()
@@ -1430,7 +1530,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = ModelParentStub::whereAttachedTo($related, 'roles');
 
-        $this->assertSame('select * from "model_parent_stubs" where exists (select * from "model_far_related_stubs" inner join "user_role" on "model_far_related_stubs"."id" = "user_role"."related_id" where "model_parent_stubs"."id" = "user_role"."self_id" and "model_far_related_stubs"."id" in (49))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where exists (select * from "model_far_related_stubs" inner join "user_role" on "model_far_related_stubs"."id" = "user_role"."related_id" where ("model_parent_stubs"."id" = "user_role"."self_id") and ("model_far_related_stubs"."id" in (49)))', $builder->toSql());
     }
 
     public function testWhereAttachedToCollection()
@@ -1445,7 +1545,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = ModelFarRelatedStub::whereAttachedTo(new Collection([$model1, $model2]), 'roles');
 
-        $this->assertSame('select * from "model_far_related_stubs" where exists (select * from "model_parent_stubs" inner join "user_role" on "model_parent_stubs"."id" = "user_role"."self_id" where "model_far_related_stubs"."id" = "user_role"."related_id" and "model_parent_stubs"."id" in (3, 4))', $builder->toSql());
+        $this->assertSame('select * from "model_far_related_stubs" where exists (select * from "model_parent_stubs" inner join "user_role" on "model_parent_stubs"."id" = "user_role"."self_id" where ("model_far_related_stubs"."id" = "user_role"."related_id") and ("model_parent_stubs"."id" in (3, 4)))', $builder->toSql());
     }
 
     public function testDeleteOverride()
@@ -1483,7 +1583,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $query->where('active', false);
         }]);
 
-        $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "address_count", (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and "active" = ?) as "foo_count" from "model_parent_stubs"', $builder->toSql());
+        $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "address_count", (select count(*) from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("active" = ?)) as "foo_count" from "model_parent_stubs"', $builder->toSql());
     }
 
     public function testWithCountAndMergedWheres()
@@ -1494,7 +1594,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $q->where('bam', '>', 'qux');
         }]);
 
-        $this->assertSame('select "id", (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and "bam" > ? and "active" = ?) as "active_foo_count" from "model_parent_stubs"', $builder->toSql());
+        $this->assertSame('select "id", (select count(*) from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("bam" > ?) and "active" = ?) as "active_foo_count" from "model_parent_stubs"', $builder->toSql());
         $this->assertEquals(['qux', true], $builder->getBindings());
     }
 
@@ -1601,7 +1701,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $q->where('bam', '>', 'qux');
         }])->having('foo_count', '>=', 1);
 
-        $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and "bam" > ?) as "foo_count" from "model_parent_stubs" where "bar" = ? having "foo_count" >= ?', $builder->toSql());
+        $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("bam" > ?)) as "foo_count" from "model_parent_stubs" where "bar" = ? having "foo_count" >= ?', $builder->toSql());
         $this->assertEquals(['qux', 'baz', 1], $builder->getBindings());
     }
 
@@ -1676,7 +1776,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $q->where('bam', '>', 'qux');
         }]);
 
-        $this->assertSame('select "id", exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and "bam" > ? and "active" = ?) as "active_foo_exists" from "model_parent_stubs"', $builder->toSql());
+        $this->assertSame('select "id", exists(select * from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("bam" > ?) and "active" = ?) as "active_foo_exists" from "model_parent_stubs"', $builder->toSql());
         $this->assertEquals(['qux', true], $builder->getBindings());
     }
 
@@ -1762,7 +1862,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $q->having('street', '=', 'fooside dr');
         })->where('age', 29);
 
-        $this->assertSame('select * from "model_parent_stubs" where "name" = ? and exists (select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and ("zipcode" = ? or "zipcode" = ?) having "street" = ?) and "age" = ?', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where "name" = ? and exists (select * from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("zipcode" = ? or "zipcode" = ?) having "street" = ?) and "age" = ?', $builder->toSql());
         $this->assertEquals(['larry', '90210', '90220', 'fooside dr', 29], $builder->getBindings());
     }
 
@@ -1781,7 +1881,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $q->having('street', '=', 'fooside dr');
         })->where('age', 29);
 
-        $this->assertSame('select * from "model_parent_stubs" where "name" = ? and exists (select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and ("zipcode" = ? or "zipcode" = ?) having "street" = ?) and "age" = ?', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where "name" = ? and exists (select * from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("zipcode" = ? or "zipcode" = ?) having "street" = ?) and "age" = ?', $builder->toSql());
         $this->assertEquals(['larry', '90210', '90220', 'fooside dr', 29], $builder->getBindings());
     }
 
@@ -1992,7 +2092,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->doesntHave('foo.bar');
 
-        $this->assertSame('select * from "model_parent_stubs" where not exists (select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and exists (select * from "model_far_related_stubs" where "model_close_related_stubs"."id" = "model_far_related_stubs"."model_close_related_stub_id"))', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not exists (select * from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and (exists (select * from "model_far_related_stubs" where "model_close_related_stubs"."id" = "model_far_related_stubs"."model_close_related_stub_id")))', $builder->toSql());
     }
 
     public function testOrDoesntHave()
@@ -2013,7 +2113,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $query->where('bar', 'baz');
         });
 
-        $this->assertSame('select * from "model_parent_stubs" where not exists (select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and "bar" = ?)', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where not exists (select * from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("bar" = ?))', $builder->toSql());
         $this->assertEquals(['baz'], $builder->getBindings());
     }
 
@@ -2025,7 +2125,7 @@ class DatabaseEloquentBuilderTest extends TestCase
             $query->where('qux', 'quux');
         });
 
-        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not exists (select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" and "qux" = ?)', $builder->toSql());
+        $this->assertSame('select * from "model_parent_stubs" where "bar" = ? or not exists (select * from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("qux" = ?))', $builder->toSql());
         $this->assertEquals(['baz', 'quux'], $builder->getBindings());
     }
 
@@ -2621,7 +2721,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new NestedStub;
         $this->mockConnectionForModel($model, '');
         $query = $model->newQuery()->withoutGlobalScopes()->whereIn('foo', $model->newQuery()->select('id'));
-        $expected = 'select * from "table" where "foo" in (select "id" from "table" where "table"."deleted_at" is null)';
+        $expected = 'select * from "table" where "foo" in (select "id" from "table" where ("table"."deleted_at" is null))';
         $this->assertEquals($expected, $query->toSql());
     }
 
