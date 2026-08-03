@@ -37,14 +37,15 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
-            $chunkSize = $chunk ?? static::getScoutConfig('chunk.searchable', 500);
+            $chunkSize = $chunk ?? config('scout.chunk.searchable', 500);
 
             $builder->chunkById($chunkSize, function (Collection $models) {
                 /** @var EloquentCollection<int, Model&SearchableInterface> $models */
                 /* @phpstan-ignore method.notFound (searchable() added via Searchable trait) */
                 $models->filter(fn ($m) => $m->shouldBeSearchable())->searchable();
 
-                static::dispatchEvent(new ModelsImported($models));
+                // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
+                static::dispatchEvent(ModelsImported::class, $models);
                 Scout::reportImportProgress($models);
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });
@@ -53,35 +54,30 @@ class SearchableScope implements Scope
             /** @var Model&SearchableInterface $model */
             $model = $builder->getModel();
             $scoutKeyName = $model->getScoutKeyName();
-            $chunkSize = $chunk ?? static::getScoutConfig('chunk.unsearchable', 500);
+            $chunkSize = $chunk ?? config('scout.chunk.unsearchable', 500);
 
             $builder->chunkById($chunkSize, function (Collection $models) {
                 /** @var EloquentCollection<int, Model&SearchableInterface> $models */
                 /* @phpstan-ignore method.notFound (unsearchable() added via Searchable trait) */
                 $models->unsearchable();
 
-                static::dispatchEvent(new ModelsFlushed($models));
+                // @phpstan-ignore staticMethod.notFound (local macros retain their lexical class scope at runtime)
+                static::dispatchEvent(ModelsFlushed::class, $models);
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });
     }
 
     /**
-     * Get a Scout configuration value.
+     * Dispatch an event when the dispatcher has listeners for it.
+     *
+     * @param class-string<ModelsFlushed|ModelsImported> $event
      */
-    protected static function getScoutConfig(string $key, mixed $default = null): mixed
+    protected static function dispatchEvent(string $event, Collection $models): void
     {
-        return Container::getInstance()
-            ->make('config')
-            ->get("scout.{$key}", $default);
-    }
+        $events = Container::getInstance()->make(Dispatcher::class);
 
-    /**
-     * Dispatch an event through the event dispatcher.
-     */
-    protected static function dispatchEvent(object $event): void
-    {
-        Container::getInstance()
-            ->make(Dispatcher::class)
-            ->dispatch($event);
+        if ($events->hasListeners($event)) {
+            $events->dispatch(new $event($models));
+        }
     }
 }

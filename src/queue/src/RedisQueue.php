@@ -10,9 +10,12 @@ use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 
 class RedisQueue extends Queue implements QueueContract, ClearableQueue
@@ -91,6 +94,137 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     }
 
     /**
+     * Get the pending jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return $this->inspectJobs($queue);
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return $this->inspectJobs($queue, ':delayed');
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return $this->inspectJobs($queue, ':reserved');
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allPendingJobs(): Collection
+    {
+        return $this->inspectAllQueues();
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return $this->inspectAllQueues(':delayed');
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allReservedJobs(): Collection
+    {
+        return $this->inspectAllQueues(':reserved');
+    }
+
+    /**
+     * Inspect jobs from one queue while holding one Redis connection.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    protected function inspectJobs(?string $queue, string $suffix = ''): Collection
+    {
+        $name = $queue === null || $queue === '' ? $this->default : $queue;
+
+        return $this->getConnection()->withConnection(
+            function (RedisConnection $connection) use ($name, $suffix): Collection {
+                $this->isCluster ??= $connection->isCluster();
+
+                return $this->inspectJobsUsing($connection, $name, $suffix);
+            },
+            transform: false,
+        );
+    }
+
+    /**
+     * Inspect jobs across every queue while holding one Redis connection.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    protected function inspectAllQueues(string $suffix = ''): Collection
+    {
+        return $this->getConnection()->withConnection(
+            function (RedisConnection $connection) use ($suffix): Collection {
+                $this->isCluster ??= $connection->isCluster();
+                $names = [];
+
+                foreach ($connection->safeScan('queues:*') as $key) {
+                    $name = substr($key, strlen('queues:'));
+
+                    foreach ([':delayed', ':reserved', ':notify'] as $storageSuffix) {
+                        if (str_ends_with($name, $storageSuffix)) {
+                            $name = substr($name, 0, -strlen($storageSuffix));
+                            break;
+                        }
+                    }
+
+                    if ($this->isCluster && preg_match('/^\{([^{}]+)\}$/', $name, $matches) === 1) {
+                        $name = $matches[1];
+                    }
+
+                    $names[$name] = true;
+                }
+
+                return Collection::make(array_keys($names))
+                    ->flatMap(fn (string $name): Collection => $this->inspectJobsUsing($connection, $name, $suffix));
+            },
+            transform: false,
+        );
+    }
+
+    /**
+     * Inspect one Redis queue using an already-held raw connection.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    protected function inspectJobsUsing(RedisConnection $connection, string $name, string $suffix): Collection
+    {
+        $key = $this->getQueueRedisKey($name) . $suffix;
+        $payloads = $suffix === ''
+            ? $connection->lrange($key, 0, -1)
+            : $connection->zRange($key, 0, -1);
+
+        return Collection::make($payloads ?: [])
+            ->map(fn (string $payload): InspectedJob => InspectedJob::fromPayload($payload, queue: $name));
+    }
+
+    /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
     public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
@@ -111,17 +245,29 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
-        $this->getConnection()->pipeline(function () use ($jobs, $data, $queue) {
-            $this->getConnection()->transaction(function () use ($jobs, $data, $queue) {
-                foreach ((array) $jobs as $job) {
-                    if (isset($job->delay)) {
-                        $this->later($job->delay, $job, $data, $queue);
-                    } else {
-                        $this->push($job, $data, $queue);
-                    }
+        $connection = $this->getConnection();
+
+        $callback = function () use ($jobs, $data, $queue): void {
+            foreach ($jobs as $job) {
+                $delay = is_object($job)
+                    ? $this->getAttributeValue($job, Delay::class, 'delay')
+                    : null;
+
+                if ($delay !== null) {
+                    $this->later($delay, $job, $data, $queue);
+                } else {
+                    $this->push($job, $data, $queue);
                 }
-            });
-        });
+            }
+        };
+
+        if ($connection->isCluster()) {
+            $connection->transaction($callback);
+        } else {
+            $connection->pipeline(
+                fn () => $connection->transaction($callback)
+            );
+        }
 
         return null;
     }
@@ -136,8 +282,8 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
             $this->createPayload($job, $this->getQueue($queue), $data),
             $queue,
             null,
-            function ($payload, $queue) {
-                return $this->pushRaw($payload, $queue);
+            static function (RedisQueue $owner, string $payload, ?string $queue) {
+                return $owner->pushRaw($payload, $queue);
             }
         );
     }
@@ -170,8 +316,13 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
-            function ($payload, $queue, $delay) {
-                return $this->laterRaw($delay, $payload, $queue);
+            static function (
+                RedisQueue $owner,
+                string $payload,
+                ?string $queue,
+                DateInterval|DateTimeInterface|int $delay
+            ) {
+                return $owner->laterRaw($delay, $payload, $queue);
             }
         );
     }
@@ -214,13 +365,13 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
 
         $block = ! $this->secondaryQueueHadJob && $index === 0;
 
-        [$job, $reserved] = $this->retrieveNextJob($prefixed, $block);
+        [$job, $reserved, $attempts] = $this->retrieveNextJob($prefixed, $block);
 
         if ($index === 0) {
             $this->secondaryQueueHadJob = false;
         }
 
-        if ($reserved) {
+        if ($reserved !== false) {
             if ($index > 0) {
                 $this->secondaryQueueHadJob = true;
             }
@@ -231,7 +382,8 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
                 $job,
                 $reserved,
                 $this->connectionName,
-                $queue === null || $queue === '' ? $this->default : $queue
+                $queue === null || $queue === '' ? $this->default : $queue,
+                $attempts === false ? null : $attempts,
             );
         }
 
@@ -268,6 +420,8 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
 
     /**
      * Retrieve the next job from the queue.
+     *
+     * @return array{false|string, false|string, false|int}
      */
     protected function retrieveNextJob(string $queue, bool $block = true): array
     {
@@ -281,18 +435,18 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
         );
 
         if (empty($nextJob)) {
-            return [null, null];
+            return [false, false, false];
         }
 
-        [$job, $reserved] = $nextJob;
+        [$job, $reserved, $attempts] = $nextJob;
 
-        if (! $job && ! is_null($this->blockFor) && $block
+        if ($job === false && ! is_null($this->blockFor) && $block
             && $this->getConnection()->blpop([$queue . ':notify'], $this->blockFor)
         ) {
             return $this->retrieveNextJob($queue, false);
         }
 
-        return [$job, $reserved];
+        return [$job, $reserved, $attempts];
     }
 
     /**

@@ -56,7 +56,10 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
      */
     protected static ?string $token = null;
 
-    public bool $shouldExitLoop = false;
+    /**
+     * The terminal exit status for this master supervisor.
+     */
+    protected ?int $exitStatus = null;
 
     /**
      * Create a new master supervisor instance.
@@ -176,18 +179,18 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
             sleep(1);
         }
 
-        if (config('horizon.fast_termination')) {
-            /* @phpstan-ignore-next-line */
-            app(CacheFactory::class)->forget('horizon:terminate:wait');
+        if (config()->boolean('horizon.fast_termination')) {
+            app(CacheFactory::class)->store()->forget('horizon:terminate:wait');
         }
 
-        $this->shouldExitLoop = true;
+        $this->pendingSignals = [];
+        $this->exitStatus = $status;
     }
 
     /**
      * Monitor the worker processes.
      */
-    public function monitor(): void
+    public function monitor(): int
     {
         $this->ensureNoOtherMasterSupervisors();
 
@@ -198,11 +201,11 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
         while (true) {
             sleep(1);
 
-            if ($this->shouldExitLoop) {
-                break;
-            }
-
             $this->loop();
+
+            if ($this->exitStatus !== null) {
+                return $this->exitStatus;
+            }
         }
     }
 
@@ -228,6 +231,10 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
 
             $this->processPendingCommands();
 
+            if ($this->exitStatus !== null) {
+                return;
+            }
+
             if ($this->working) {
                 $this->monitorSupervisors();
             }
@@ -246,6 +253,10 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
     protected function processPendingCommands(): void
     {
         foreach (app(HorizonCommandQueue::class)->pending($this->commandQueue()) as $command) {
+            if ($this->exitStatus !== null) {
+                return;
+            }
+
             app($command->command)->process($this, $command->options);
         }
     }
@@ -299,7 +310,9 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
      */
     public static function commandQueueFor(?string $name = null): string
     {
-        return $name ? 'master:' . $name : static::commandQueue();
+        return $name === null || $name === ''
+            ? static::commandQueue()
+            : 'master:' . $name;
     }
 
     /**

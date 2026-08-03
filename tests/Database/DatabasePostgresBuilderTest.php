@@ -216,6 +216,49 @@ class DatabasePostgresBuilderTest extends TestCase
         $builder->getColumnListing('mydatabase.myapp.foo');
     }
 
+    public function testCurrentSchemaNameQueriesTheConnectionRatherThanConfiguredSearchPathOrder(): void
+    {
+        $connection = $this->getConnection();
+        $connection->shouldReceive('getConfig')->once()->with('username')->andReturn('foouser');
+        $connection->shouldReceive('getConfig')->once()->with('search_path')->andReturn('"$user", public');
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(m::mock(PostgresGrammar::class));
+        $connection->shouldReceive('scalar')
+            ->once()
+            ->with('select current_schema()', [], false)
+            ->andReturn('public');
+
+        $builder = $this->getBuilder($connection);
+
+        $this->assertSame(['foouser', 'public'], $builder->getCurrentSchemaListing());
+        $this->assertSame('public', $builder->getCurrentSchemaName());
+    }
+
+    public function testHasViewUsesTheActualCurrentSchema(): void
+    {
+        $connection = $this->getConnection();
+        $grammar = m::mock(PostgresGrammar::class);
+        $processor = m::mock(PostgresProcessor::class);
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('getTablePrefix')->once()->andReturn('');
+        $connection->shouldReceive('scalar')
+            ->once()
+            ->with('select current_schema()', [], false)
+            ->andReturn('public');
+        $grammar->shouldReceive('compileViews')->once()->with('public')->andReturn('sql');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('sql')->andReturn([
+            ['name' => 'active_users'],
+        ]);
+        $connection->shouldReceive('getPostProcessor')->once()->andReturn($processor);
+        $processor->shouldReceive('processViews')->once()->andReturn([
+            ['name' => 'active_users'],
+        ]);
+
+        $builder = $this->getBuilder($connection);
+
+        $this->assertTrue($builder->hasView('active_users'));
+    }
+
     public function testDropAllTablesWhenSearchPathIsString()
     {
         $connection = $this->getConnection();
@@ -288,10 +331,5 @@ class DatabasePostgresBuilderTest extends TestCase
     protected function getBuilder($connection)
     {
         return new PostgresBuilder($connection);
-    }
-
-    protected function getGrammar()
-    {
-        return new PostgresGrammar;
     }
 }

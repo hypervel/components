@@ -270,8 +270,8 @@ Event::observe('eloquent.*', function (string $eventName, array $data) {
 Observers behave differently from listeners in four ways:
 
 - **Not counted by `hasListeners()`.** Passive observers do not contribute to the listener count that determines whether a [guarded event](#checking-for-listeners) will fire — they receive events only when something else (a regular listener or a targeted wildcard registered via `listen()`) makes the dispatch happen.
-- **Run after all listeners.** Observers fire once listener invocation has completed.
-- **No halt or propagation-stop semantics.** Observer return values are ignored; an observer can't stop other listeners or observers from running.
+- **Run after listener processing.** Observers fire after active listener processing ends, including when a listener throws.
+- **No halt or propagation-stop semantics.** Observer return values are ignored; an observer can't stop other listeners or observers from running. If an observer throws, Hypervel attempts the remaining observers before rethrowing the first failure.
 - **Synchronous only.** Observers do not support queueing — `ShouldQueue` on the callback's class has no effect.
 
 A bare `Event::listen('*', ...)` registration is automatically routed through `observe()` so observability tooling can't accidentally defeat `hasListeners()` guards. Targeted wildcards (e.g. `'App\Events\*'`) registered via `listen()` are still counted as listeners and will cause guarded events to fire.

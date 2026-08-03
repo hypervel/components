@@ -34,6 +34,7 @@ class ClusterModeRedisStore extends RedisStore
     public function getContext(): StoreContext
     {
         return $this->clusterContext ??= new ClusterModeStoreContext(
+            $this->getRedis(),
             $this->connection,
             $this->getPrefix(),
             $this->getTagMode(),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Support;
 
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Redis\RedisConnection;
 use Redis;
 
@@ -26,6 +27,7 @@ class Serialization
      */
     public function __construct(
         protected array|bool|null $serializableClasses = null,
+        protected ?SerializableClassPolicy $serializableClassPolicy = null,
     ) {
     }
 
@@ -131,6 +133,10 @@ class Serialization
     {
         if (is_numeric($value)) {
             return $value;
+        }
+
+        if ($this->serializableClassPolicy !== null) {
+            return $this->serializableClassPolicy->unserialize((string) $value);
         }
 
         if ($this->serializableClasses !== null) {

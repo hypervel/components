@@ -82,9 +82,6 @@ class Prune
                     $connection->del($tagKey);
                     ++$stats['empty_sets_deleted'];
                 }
-
-                // Throttle between tags to let Redis breathe
-                usleep(5000); // 5ms
             }
 
             return $stats;
@@ -115,8 +112,12 @@ class Prune
             // ZSCAN returns [member => score, ...] array
             $members = $connection->zScan($tagKey, $iterator, '*', $scanCount);
 
-            if ($members === false || ! is_array($members) || empty($members)) {
+            if ($members === false || ! is_array($members)) {
                 break;
+            }
+
+            if ($members === []) {
+                continue;
             }
 
             $memberKeys = array_keys($members);
@@ -148,7 +149,7 @@ class Prune
                 $connection->zrem($tagKey, ...$orphanedMembers);
                 $removed += count($orphanedMembers);
             }
-        } while ($iterator > 0);
+        } while ($iterator !== 0);
 
         return [
             'checked' => $checked,

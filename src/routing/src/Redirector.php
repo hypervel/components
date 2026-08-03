@@ -104,7 +104,7 @@ class Redirector
     /**
      * Create a new redirect response to a named route.
      */
-    public function route(BackedEnum|string $route, array|string $parameters = [], int $status = 302, array $headers = []): RedirectResponse
+    public function route(BackedEnum|string $route, mixed $parameters = [], int $status = 302, array $headers = []): RedirectResponse
     {
         return $this->to($this->generator->route($route, $parameters), $status, $headers);
     }
@@ -112,7 +112,7 @@ class Redirector
     /**
      * Create a new redirect response to a signed named route.
      */
-    public function signedRoute(BackedEnum|string $route, array|string $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, int $status = 302, array $headers = []): RedirectResponse
+    public function signedRoute(BackedEnum|string $route, mixed $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, int $status = 302, array $headers = []): RedirectResponse
     {
         return $this->to($this->generator->signedRoute($route, $parameters, $expiration), $status, $headers);
     }
@@ -120,7 +120,7 @@ class Redirector
     /**
      * Create a new redirect response to a temporary signed named route.
      */
-    public function temporarySignedRoute(BackedEnum|string $route, DateInterval|DateTimeInterface|int $expiration, array $parameters = [], int $status = 302, array $headers = []): RedirectResponse
+    public function temporarySignedRoute(BackedEnum|string $route, DateInterval|DateTimeInterface|int $expiration, mixed $parameters = [], int $status = 302, array $headers = []): RedirectResponse
     {
         return $this->to($this->generator->temporarySignedRoute($route, $expiration, $parameters), $status, $headers);
     }
@@ -128,7 +128,7 @@ class Redirector
     /**
      * Create a new redirect response to a controller action.
      */
-    public function action(array|string $action, array|string $parameters = [], int $status = 302, array $headers = []): RedirectResponse
+    public function action(array|string $action, mixed $parameters = [], int $status = 302, array $headers = []): RedirectResponse
     {
         return $this->to($this->generator->action($action, $parameters), $status, $headers);
     }

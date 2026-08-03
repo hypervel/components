@@ -40,6 +40,7 @@ class ServerTest extends TestCase
         parent::setUp();
 
         $this->tempDirectory = ParallelTesting::tempDir('HttpServerServerTest');
+        (new Filesystem)->deleteDirectory($this->tempDirectory);
         mkdir($this->tempDirectory, 0777, true);
     }
 

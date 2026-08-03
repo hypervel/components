@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Servers\Hypervel\Scaling;
 
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\Subscriber\Subscriber;
+use Hypervel\Reverb\FailureReporter;
 use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
-use Hypervel\Support\Sleep;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
@@ -28,6 +30,11 @@ class RedisPubSubProvider implements PubSubProvider
      * messages use the prefixed name. This is computed once during connect().
      */
     protected string $subscribedChannel = '';
+
+    /**
+     * Whether the subscriber lifecycle coroutine is running.
+     */
+    protected bool $running = false;
 
     /**
      * Whether the provider should attempt to reconnect.
@@ -50,48 +57,26 @@ class RedisPubSubProvider implements PubSubProvider
     }
 
     /**
-     * Connect to Redis and start subscribing.
+     * Start the Redis subscriber lifecycle.
      *
      * Uses the injected Redis connection's subscriber() factory so the
      * dedicated subscriber inherits its topology, credentials, and prefix.
      */
     public function connect(): void
     {
+        if ($this->running) {
+            return;
+        }
+
         $this->shouldRetry = true;
-        $subscriber = null;
+        $this->running = true;
 
         try {
-            $subscriber = $this->redis->subscriber();
-            $subscribedChannel = $subscriber->prefix . $this->channel;
-            $subscriber->subscribe($this->channel);
+            go(fn () => $this->runSubscriberLifecycle());
+        } catch (Throwable $exception) {
+            $this->running = false;
 
-            if (! $this->shouldRetry()) {
-                $this->closeSubscriber($subscriber);
-
-                return;
-            }
-
-            $this->subscriber = $subscriber;
-            $this->subscribedChannel = $subscribedChannel;
-
-            if (! $this->shouldRetry() || $this->subscriber !== $subscriber) {
-                $this->clearSubscriber($subscriber);
-                $this->closeSubscriber($subscriber);
-
-                return;
-            }
-
-            go(fn () => $this->consumeMessages($subscriber, $subscribedChannel));
-
-            if ($this->subscriber === $subscriber) {
-                $this->retryTimer = 0;
-                Log::info('Redis connection established');
-            }
-        } catch (Throwable $e) {
-            $this->clearSubscriber($subscriber);
-            $this->closeSubscriber($subscriber);
-            Log::error('Redis connection failed: ' . $e->getMessage());
-            $this->reconnect();
+            throw $exception;
         }
     }
 
@@ -107,41 +92,69 @@ class RedisPubSubProvider implements PubSubProvider
     }
 
     /**
+     * Own subscriber construction, consumption, cleanup, and retry.
+     */
+    protected function runSubscriberLifecycle(): void
+    {
+        $workerExit = CoordinatorManager::until(Constants::WORKER_EXIT);
+
+        try {
+            while ($this->shouldRetry() && ! $workerExit->isClosing()) {
+                $subscriber = null;
+
+                try {
+                    $subscriber = $this->redis->subscriber();
+                    $subscribedChannel = $subscriber->prefix . $this->channel;
+                    $subscriber->subscribe($this->channel);
+
+                    if (! $this->shouldRetry()) {
+                        continue;
+                    }
+
+                    $this->subscriber = $subscriber;
+                    $this->subscribedChannel = $subscribedChannel;
+                    $this->retryTimer = 0;
+                    Log::info('Redis connection established');
+                    $this->consumeMessages($subscriber, $subscribedChannel);
+                } catch (Throwable $exception) {
+                    $this->reportConnectionFailure($exception);
+                } finally {
+                    $this->clearSubscriber($subscriber);
+                    $this->closeSubscriber($subscriber);
+                }
+
+                if ($this->shouldRetry() && $this->waitBeforeRetry()) {
+                    break;
+                }
+            }
+        } finally {
+            $this->running = false;
+        }
+    }
+
+    /**
      * Process messages from one committed subscriber.
      */
     protected function consumeMessages(Subscriber $subscriber, string $subscribedChannel): void
     {
-        $shouldReconnect = false;
+        $channel = $subscriber->channel();
 
-        try {
-            $channel = $subscriber->channel();
+        while (true) {
+            $message = $channel->pop();
 
-            while (true) {
-                $message = $channel->pop();
-
-                if ($message === false) {
-                    break;
-                }
-
-                if ($message->channel === $subscribedChannel) {
-                    try {
-                        $this->messageHandler->handle($message->payload);
-                    } catch (Throwable $e) {
-                        Log::error('Failed to handle pub/sub message: ' . $e->getMessage());
-                    }
-                }
+            if ($message === false) {
+                break;
             }
-        } catch (Throwable $e) {
-            // Connection-level errors require reconnection.
-            Log::error('Redis subscriber error: ' . $e->getMessage());
-        } finally {
-            $shouldReconnect = $this->subscriber === $subscriber;
-            $this->clearSubscriber($subscriber);
-            $this->closeSubscriber($subscriber);
-        }
 
-        if ($shouldReconnect) {
-            $this->reconnect();
+            if ($message->channel !== $subscribedChannel) {
+                continue;
+            }
+
+            try {
+                $this->messageHandler->handle($message->payload);
+            } catch (Throwable $exception) {
+                FailureReporter::report($exception);
+            }
         }
     }
 
@@ -178,38 +191,30 @@ class RedisPubSubProvider implements PubSubProvider
     }
 
     /**
-     * Attempt to reconnect to Redis.
+     * Report a connection failure without flooding logs during an outage.
      */
-    protected function reconnect(): void
+    protected function reportConnectionFailure(Throwable $exception): void
     {
-        if (! $this->shouldRetry()) {
-            return;
-        }
-
-        $timeout = 60;
         ++$this->retryTimer;
 
-        if ($this->retryTimer >= $timeout) {
-            Log::error("Failed to connect to Redis after retrying for {$timeout}s.");
-
-            return;
+        if ($this->retryTimer === 1 || $this->retryTimer % 60 === 0) {
+            Log::error('Redis connection failed: ' . $exception->getMessage());
         }
+    }
 
-        Log::info('Attempting Redis reconnection');
-
-        Sleep::sleep(1);
-
-        if (! $this->shouldRetry()) {
-            return;
-        }
-
-        $this->connect();
+    /**
+     * Wait before attempting another connection.
+     */
+    protected function waitBeforeRetry(): bool
+    {
+        return CoordinatorManager::until(Constants::WORKER_EXIT)->yield(1);
     }
 
     /**
      * Determine whether reconnect work remains enabled.
      *
-     * Hooked Redis I/O and Sleep may yield while disconnect() changes this state.
+     * Hooked Redis I/O and coordinator waits may yield while disconnect()
+     * changes this state.
      *
      * @phpstan-impure
      */

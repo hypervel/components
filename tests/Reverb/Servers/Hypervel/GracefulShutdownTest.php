@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Core\Events\OnWorkerExit;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\ServerProviderManager;
+use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
@@ -16,12 +21,16 @@ use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Hypervel\WebSocketServer\Sender;
 use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
+use RuntimeException;
+use Swoole\Server;
+use Throwable;
 
 class GracefulShutdownTest extends ReverbTestCase
 {
@@ -34,7 +43,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Drain connections ─────────────────────────────────────────────
 
-    public function testDrainConnectionsCallsCloseForEachConnection()
+    public function testDrainConnectionsCallsCloseForEachConnection(): void
     {
         $connectionA = $this->createReverbConnection();
         $connectionB = $this->createReverbConnection();
@@ -48,7 +57,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $this->assertEmpty(WebSocketHandler::connections());
     }
 
-    public function testDrainConnectionsRemovesFromRegistryBeforeClose()
+    public function testDrainConnectionsRemovesFromRegistryBeforeClose(): void
     {
         $connection = $this->createReverbConnection();
         $this->addToWebSocketHandler(1, $connection);
@@ -61,7 +70,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $this->assertNull(WebSocketHandler::takeConnection(1));
     }
 
-    public function testDrainConnectionsReleasesConnectionSlots()
+    public function testDrainConnectionsReleasesConnectionSlots(): void
     {
         $connection = $this->createReverbConnection();
         $connection->markConnectionSlotAcquired();
@@ -76,7 +85,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $this->assertFalse($connection->hasAcquiredConnectionSlot());
     }
 
-    public function testDrainConnectionsHandlesEmptyConnectionList()
+    public function testDrainConnectionsHandlesEmptyConnectionList(): void
     {
         $this->assertEmpty(WebSocketHandler::connections());
 
@@ -86,9 +95,94 @@ class GracefulShutdownTest extends ReverbTestCase
         $this->assertEmpty(WebSocketHandler::connections());
     }
 
+    public function testDrainConnectionsAttemptsEveryConnectionAndPreservesTheFirstFailure(): void
+    {
+        $firstFailure = new RuntimeException('First disconnect failed.');
+        $firstSender = m::mock(Sender::class);
+        $firstSender->expects('disconnect')->andThrow($firstFailure);
+        $secondSender = m::mock(Sender::class);
+        $secondSender->expects('disconnect')->with(2, 1001, 'Server restarting')->andReturnTrue();
+
+        $this->addToWebSocketHandler(1, $this->createReverbConnection($firstSender, 1));
+        $this->addToWebSocketHandler(2, $this->createReverbConnection($secondSender, 2));
+
+        $provider = $this->app->getProvider(ReverbServiceProvider::class);
+
+        try {
+            $provider->drainConnections();
+            $this->fail('Expected the connection drain to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstFailure, $exception);
+        }
+
+        $this->assertEmpty(WebSocketHandler::connections());
+    }
+
+    public function testShutdownAttemptsEveryPhaseAndReportsEachFailure(): void
+    {
+        $failures = [
+            'drain' => new RuntimeException('Connection drain failed.'),
+            'subscriber' => new RuntimeException('Subscriber disconnect failed.'),
+            'webhooks' => new RuntimeException('Webhook flush failed.'),
+        ];
+        $events = m::mock(Dispatcher::class);
+        $listener = null;
+        $events->expects('listen')
+            ->with(OnWorkerExit::class, m::on(function (callable $callback) use (&$listener): bool {
+                $listener = $callback;
+
+                return true;
+            }));
+        $this->app->instance('events', $events);
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')->with($failures['drain']);
+        $exceptionHandler->expects('report')->with($failures['subscriber']);
+        $exceptionHandler->expects('report')->with($failures['webhooks']);
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+        $provider = new GracefulShutdownServiceProviderProbe($this->app);
+        $provider->failures = $failures;
+        $provider->registerShutdownHandlerForTest();
+        $server = m::mock(Server::class);
+        $server->taskworker = false;
+
+        $listener(new OnWorkerExit($server, 0));
+
+        $this->assertSame(['drain', 'subscriber', 'webhooks'], $provider->operations);
+    }
+
+    public function testShutdownReportingFallsBackToThePhpErrorLog(): void
+    {
+        $directory = ParallelTesting::tempDir('ReverbShutdownReportingTest');
+        mkdir($directory, 0777, true);
+        $errorLog = $directory . '/php-error.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+        $failure = new RuntimeException('Connection drain failed.');
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->expects('report')
+            ->with($failure)
+            ->andThrow(new RuntimeException('Reporting failed.'));
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+        $provider = new GracefulShutdownServiceProviderProbe($this->app);
+
+        try {
+            $provider->reportShutdownFailureForTest($failure);
+            $contents = file_get_contents($errorLog);
+
+            $this->assertIsString($contents);
+            $this->assertStringContainsString('Connection drain failed.', $contents);
+            $this->assertStringContainsString('Reporting failed.', $contents);
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+
+            (new Filesystem)->deleteDirectory($directory);
+        }
+    }
+
     // ── Server::close slot flag ───────────────────────────────────────
 
-    public function testServerCloseNowClearsSlotFlag()
+    public function testServerCloseNowClearsSlotFlag(): void
     {
         $connection = new FakeConnection;
         $connection->markConnectionSlotAcquired();
@@ -104,7 +198,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Webhook flush ─────────────────────────────────────────────────
 
-    public function testFlushWebhookBuffersSchedulesFlushJob()
+    public function testFlushWebhookBuffersSchedulesFlushJob(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -126,7 +220,7 @@ class GracefulShutdownTest extends ReverbTestCase
         Queue::assertPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testFlushWebhookBuffersSkipsWhenNoBatching()
+    public function testFlushWebhookBuffersSkipsWhenNoBatching(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -138,7 +232,7 @@ class GracefulShutdownTest extends ReverbTestCase
         Queue::assertNotPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testFlushWebhookBuffersSkipsWhenBufferEmpty()
+    public function testFlushWebhookBuffersSkipsWhenBufferEmpty(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -162,18 +256,18 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── takeConnection ────────────────────────────────────────────────
 
-    public function testTakeConnectionReturnsAndRemovesConnection()
+    public function testTakeConnectionReturnsAndRemovesConnection(): void
     {
         $connection = $this->createReverbConnection();
         $this->addToWebSocketHandler(42, $connection);
 
         $taken = WebSocketHandler::takeConnection(42);
 
-        $this->assertSame($connection, $taken);
+        $this->assertSame($connection, $taken?->connection());
         $this->assertEmpty(WebSocketHandler::connections());
     }
 
-    public function testTakeConnectionReturnsNullWhenAlreadyTaken()
+    public function testTakeConnectionReturnsNullWhenAlreadyTaken(): void
     {
         $connection = $this->createReverbConnection();
         $this->addToWebSocketHandler(42, $connection);
@@ -186,7 +280,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Deferred webhook preservation ──────────────────────────────────
 
-    public function testShutdownDoesNotLosePreExistingDeferredWebhooks()
+    public function testShutdownDoesNotLosePreExistingDeferredWebhooks(): void
     {
         Queue::fake();
 
@@ -227,7 +321,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Scaling subscriber ────────────────────────────────────────────
 
-    public function testDisconnectScalingSubscriberCallsDisconnect()
+    public function testDisconnectScalingSubscriberCallsDisconnect(): void
     {
         $this->app['config']->set('reverb.servers.reverb.scaling.enabled', true);
 
@@ -247,7 +341,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $method->invoke($reverbProvider);
     }
 
-    public function testDisconnectScalingSubscriberSkipsWhenNotScaling()
+    public function testDisconnectScalingSubscriberSkipsWhenNotScaling(): void
     {
         $pubSub = m::mock(PubSubProvider::class);
         $pubSub->shouldNotReceive('disconnect');
@@ -260,7 +354,7 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Close code plumbing ───────────────────────────────────────────
 
-    public function testDisconnectWithNoCodeUsesPlainPath()
+    public function testDisconnectWithNoCodeUsesPlainPath(): void
     {
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('disconnect')->once()->with(99)->andReturn(true);
@@ -269,7 +363,7 @@ class GracefulShutdownTest extends ReverbTestCase
         $wsConnection->close();
     }
 
-    public function testDisconnectWithCodeForwardsCodeAndReason()
+    public function testDisconnectWithCodeForwardsCodeAndReason(): void
     {
         $sender = m::mock(Sender::class);
         $sender->shouldReceive('disconnect')->once()->with(99, 1001, 'Server restarting')->andReturn(true);
@@ -280,13 +374,15 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Helpers ───────────────────────────────────────────────────────
 
-    protected function createReverbConnection(): \Hypervel\Reverb\Connection
+    protected function createReverbConnection(?Sender $sender = null, ?int $fd = null): \Hypervel\Reverb\Connection
     {
-        $sender = m::mock(Sender::class);
-        $sender->shouldReceive('push')->zeroOrMoreTimes();
-        $sender->shouldReceive('disconnect')->zeroOrMoreTimes()->andReturn(true);
+        if ($sender === null) {
+            $sender = m::mock(Sender::class);
+            $sender->shouldReceive('push')->zeroOrMoreTimes();
+            $sender->shouldReceive('disconnect')->zeroOrMoreTimes()->andReturn(true);
+        }
 
-        $wsConnection = new \Hypervel\Reverb\Servers\Hypervel\Connection($sender, rand(1, 99999));
+        $wsConnection = new \Hypervel\Reverb\Servers\Hypervel\Connection($sender, $fd ?? rand(1, 99999));
         $app = $this->app->make(\Hypervel\Reverb\Contracts\ApplicationProvider::class)->all()->first();
 
         return new \Hypervel\Reverb\Connection($wsConnection, $app, null);
@@ -294,9 +390,60 @@ class GracefulShutdownTest extends ReverbTestCase
 
     protected function addToWebSocketHandler(int $fd, \Hypervel\Reverb\Connection $connection): void
     {
+        $connection->markEstablished();
+        $lifecycle = new ConnectionLifecycle($fd);
+        $lifecycle->attach($connection);
+
         $reflection = new ReflectionProperty(WebSocketHandler::class, 'connections');
         $connections = $reflection->getValue();
-        $connections[$fd] = $connection;
+        $connections[$fd] = $lifecycle;
         $reflection->setValue(null, $connections);
+    }
+}
+
+class GracefulShutdownServiceProviderProbe extends ReverbServiceProvider
+{
+    /**
+     * @var array<string, Throwable>
+     */
+    public array $failures = [];
+
+    /**
+     * @var list<string>
+     */
+    public array $operations = [];
+
+    public function registerShutdownHandlerForTest(): void
+    {
+        $this->registerShutdownHandler();
+    }
+
+    public function reportShutdownFailureForTest(Throwable $throwable): void
+    {
+        $this->reportShutdownFailure($throwable);
+    }
+
+    public function drainConnections(): void
+    {
+        $this->fail('drain');
+    }
+
+    protected function disconnectScalingSubscriber(): void
+    {
+        $this->fail('subscriber');
+    }
+
+    protected function flushWebhookBuffers(): void
+    {
+        $this->fail('webhooks');
+    }
+
+    private function fail(string $operation): void
+    {
+        $this->operations[] = $operation;
+
+        if (isset($this->failures[$operation])) {
+            throw $this->failures[$operation];
+        }
     }
 }

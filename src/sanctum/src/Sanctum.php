@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -13,12 +14,15 @@ use Mockery\MockInterface;
  */
 class Sanctum
 {
+    /** @var class-string<PersonalAccessToken> */
+    protected const string DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL = PersonalAccessToken::class;
+
     /**
      * The personal access client model class name.
      *
      * @var class-string<TToken>
      */
-    public static string $personalAccessTokenModel = PersonalAccessToken::class;
+    public static string $personalAccessTokenModel = self::DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL;
 
     /**
      * A callback that can get the token from the request.
@@ -55,6 +59,15 @@ class Sanctum
     public static function currentRequestHost(): string
     {
         return ',' . static::$currentRequestHostPlaceholder;
+    }
+
+    /**
+     * Determine if the authenticatable model supports API tokens.
+     */
+    public static function supportsTokens(?Authenticatable $tokenable): bool
+    {
+        return $tokenable !== null
+            && isset(class_uses_recursive($tokenable)[HasApiTokens::class]);
     }
 
     /**
@@ -141,7 +154,7 @@ class Sanctum
      */
     public static function flushState(): void
     {
-        static::$personalAccessTokenModel = PersonalAccessToken::class;
+        static::$personalAccessTokenModel = self::DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL;
         static::$accessTokenRetrievalCallback = null;
         static::$accessTokenAuthenticationCallback = null;
     }

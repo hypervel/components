@@ -38,6 +38,10 @@ class EventsBatchController extends Controller
         }
 
         $items = collect($payload['batch'])->map(function (array $item) use ($context) {
+            $except = isset($item['socket_id'])
+                ? $context->channels->findConnection($item['socket_id'])
+                : null;
+
             EventDispatcher::dispatch(
                 $context->application,
                 [
@@ -45,7 +49,8 @@ class EventsBatchController extends Controller
                     'channel' => $item['channel'],
                     'data' => $item['data'],
                 ],
-                isset($item['socket_id']) ? ($context->channels->connections()[$item['socket_id']] ?? null)?->connection() : null
+                $except?->connection(),
+                $item['socket_id'] ?? null,
             );
 
             if (isset($item['info'])) {

@@ -54,7 +54,7 @@ class ThrottleRequestsTest extends RoutingTestCase
 
         $this->assertSame(
             1,
-            $limiter->attempts(hash('xxh128', 'account-1:uploadsuser-1')),
+            $limiter->attempts(hash('xxh128', '9:account-17:uploads6:user-1')),
         );
     }
 
@@ -71,7 +71,7 @@ class ThrottleRequestsTest extends RoutingTestCase
             'uploads',
         );
 
-        $this->assertSame(1, $limiter->attempts('account-1:uploads:user-1'));
+        $this->assertSame(1, $limiter->attempts('9:account-17:uploads6:user-1'));
     }
 
     public function testGlobalNamedLimiterDoesNotResolveScope(): void
@@ -88,7 +88,7 @@ class ThrottleRequestsTest extends RoutingTestCase
             'uploads',
         );
 
-        $this->assertSame(1, $limiter->attempts(hash('xxh128', 'uploads')));
+        $this->assertSame(1, $limiter->attempts(hash('xxh128', '7:uploads0:')));
     }
 
     public function testUnlimitedNamedLimiterBypassesStorage(): void
@@ -108,7 +108,7 @@ class ThrottleRequestsTest extends RoutingTestCase
         );
 
         $this->assertSame(1, $nextCalls);
-        $this->assertSame(0, $limiter->attempts(hash('xxh128', 'uploads')));
+        $this->assertSame(0, $limiter->attempts(hash('xxh128', '7:uploads0:')));
     }
 
     public function testDefaultSignatureThrottleDoesNotResolveNamedLimiterScope(): void

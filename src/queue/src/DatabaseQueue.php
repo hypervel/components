@@ -12,8 +12,10 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
+use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -87,6 +89,121 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     }
 
     /**
+     * Get the pending jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function pendingJobs(?string $queue = null): Collection
+    {
+        return $this->getDatabase()->table($this->table)
+            ->where('queue', $this->getQueue($queue))
+            ->whereNull('reserved_at')
+            ->where('available_at', '<=', $this->currentTime())
+            ->get()
+            ->map(fn ($record) => InspectedJob::fromPayload(
+                $record->payload,
+                $record->attempts,
+                $record->queue,
+                $record->id,
+            ));
+    }
+
+    /**
+     * Get the delayed jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function delayedJobs(?string $queue = null): Collection
+    {
+        return $this->getDatabase()->table($this->table)
+            ->where('queue', $this->getQueue($queue))
+            ->whereNull('reserved_at')
+            ->where('available_at', '>', $this->currentTime())
+            ->get()
+            ->map(fn ($record) => InspectedJob::fromPayload(
+                $record->payload,
+                $record->attempts,
+                $record->queue,
+                $record->id,
+            ));
+    }
+
+    /**
+     * Get the reserved jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function reservedJobs(?string $queue = null): Collection
+    {
+        return $this->getDatabase()->table($this->table)
+            ->where('queue', $this->getQueue($queue))
+            ->whereNotNull('reserved_at')
+            ->get()
+            ->map(fn ($record) => InspectedJob::fromPayload(
+                $record->payload,
+                $record->attempts,
+                $record->queue,
+                $record->id,
+            ));
+    }
+
+    /**
+     * Get all pending jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allPendingJobs(): Collection
+    {
+        return $this->getDatabase()->table($this->table)
+            ->whereNull('reserved_at')
+            ->where('available_at', '<=', $this->currentTime())
+            ->get()
+            ->map(fn ($record) => InspectedJob::fromPayload(
+                $record->payload,
+                $record->attempts,
+                $record->queue,
+                $record->id,
+            ));
+    }
+
+    /**
+     * Get all delayed jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allDelayedJobs(): Collection
+    {
+        return $this->getDatabase()->table($this->table)
+            ->whereNull('reserved_at')
+            ->where('available_at', '>', $this->currentTime())
+            ->get()
+            ->map(fn ($record) => InspectedJob::fromPayload(
+                $record->payload,
+                $record->attempts,
+                $record->queue,
+                $record->id,
+            ));
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allReservedJobs(): Collection
+    {
+        return $this->getDatabase()->table($this->table)
+            ->whereNotNull('reserved_at')
+            ->get()
+            ->map(fn ($record) => InspectedJob::fromPayload(
+                $record->payload,
+                $record->attempts,
+                $record->queue,
+                $record->id,
+            ));
+    }
+
+    /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
     public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
@@ -109,8 +226,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             $this->createPayload($job, $this->getQueue($queue), $data),
             $queue,
             null,
-            function ($payload, $queue) {
-                return $this->pushToDatabase($queue, $payload);
+            static function (DatabaseQueue $owner, string $payload, ?string $queue) {
+                return $owner->pushToDatabase($queue, $payload);
             }
         );
     }
@@ -133,8 +250,13 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
-            function ($payload, $queue, $delay) {
-                return $this->pushToDatabase($queue, $payload, $delay);
+            static function (
+                DatabaseQueue $owner,
+                string $payload,
+                ?string $queue,
+                DateInterval|DateTimeInterface|int $delay
+            ) {
+                return $owner->pushToDatabase($queue, $payload, $delay);
             }
         );
     }
@@ -150,10 +272,14 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 
         return $this->getDatabase()->table($this->table)->insert(Collection::make((array) $jobs)->map(
             function ($job) use ($queue, $data, $now) {
+                $delay = is_object($job)
+                    ? $this->getAttributeValue($job, Delay::class, 'delay')
+                    : null;
+
                 return $this->buildDatabaseRecord(
                     $queue,
                     $this->createPayload($job, $this->getQueue($queue), $data),
-                    isset($job->delay) ? $this->availableAt($job->delay) : $now,
+                    $delay !== null ? $this->availableAt($delay) : $now,
                 );
             }
         )->all());

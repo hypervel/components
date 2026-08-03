@@ -200,6 +200,15 @@ class Server implements ServerInterface
                 $callback = $this->guardResponseCallback($callback);
             }
 
+            // Failures while receiving another worker's output must not kill a healthy
+            // serving worker. Task, startup, and teardown callbacks remain fail-fast.
+            if (
+                ($event === Event::ON_PIPE_MESSAGE || $event === Event::ON_FINISH)
+                && is_callable($callback)
+            ) {
+                $callback = $this->guardWorkerDeliveryCallback($callback);
+            }
+
             if ($server->on($event, $callback) === false) {
                 throw new ServerException("Failed to register event [{$event}] on server [{$serverName}].");
             }
@@ -216,14 +225,7 @@ class Server implements ServerInterface
                 $callback($request, $response);
             } catch (Throwable $throwable) {
                 if (! $throwable instanceof CanceledException) {
-                    try {
-                        $this->container->make(ExceptionHandler::class)->report($throwable);
-                    } catch (Throwable) {
-                        try {
-                            error_log((string) $throwable);
-                        } catch (Throwable) {
-                        }
-                    }
+                    $this->reportCallbackFailure($throwable);
                 }
 
                 try {
@@ -234,6 +236,39 @@ class Server implements ServerInterface
                 }
             }
         };
+    }
+
+    /**
+     * Guard an inter-worker delivery callback from escaping its transport boundary.
+     *
+     * The source ID is the sending worker ID for pipe messages and the task ID
+     * for task results.
+     */
+    protected function guardWorkerDeliveryCallback(callable $callback): Closure
+    {
+        return function (SwooleServer $server, int $sourceId, mixed $data) use ($callback): void {
+            try {
+                $callback($server, $sourceId, $data);
+            } catch (CanceledException) {
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
+            }
+        };
+    }
+
+    /**
+     * Report a callback failure without escaping the native boundary.
+     */
+    protected function reportCallbackFailure(Throwable $throwable): void
+    {
+        try {
+            $this->container->make(ExceptionHandler::class)->report($throwable);
+        } catch (Throwable $reportingFailure) {
+            try {
+                error_log((string) $throwable . PHP_EOL . (string) $reportingFailure);
+            } catch (Throwable) {
+            }
+        }
     }
 
     /**

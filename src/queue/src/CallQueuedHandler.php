@@ -120,8 +120,8 @@ class CallQueuedHandler
         return (new Pipeline($this->container))
             ->send($command)
             ->through(array_merge(method_exists($command, 'middleware') ? $command->middleware() : [], $command->middleware ?? []))
-            ->finally(function ($command) use (&$lockReleased) {
-                if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $command->job->isReleased() && $command->job->attempts() <= 1) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
+            ->finally(function ($command) use ($job, &$lockReleased) {
+                if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $job->isReleased() && $job->attempts() <= 1) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
                     $this->ensureUniqueJobLockIsReleased($command);
                 }
             })

@@ -97,7 +97,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 1. Read the related Hypervel APIs and tests. Check Laravel or the package upstream for an established public API and behavior.
 2. Decide which state is local, coroutine-scoped, or worker-scoped before writing code — see Coroutine and Worker-Lifetime State.
-3. Keep Laravel API parity unless Hypervel's runtime requires a deliberate difference. Record intentional differences as described under Porting rules.
+3. Preserve Laravel API parity unless it conflicts with a concrete Hypervel architectural constraint, preserves a verified defect, or forces a workaround for an approved enhancement. Any difference requires user approval before planning or editing.
 4. Test the public behavior, failure paths, coroutine isolation, and cleanup the feature needs.
 5. Complete the verification order below.
 
@@ -163,11 +163,11 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **No arbitrary string lengths** — use `->string('name')`, not `->string('name', 100)`. Don't invent limits; specify a length only when the domain or protocol defines one — exact (UUID: 36, ULID: 26, sha-256 hex token: 64) or a defined maximum (IPv6 address: 45).
 - **No database enums** — use string columns plus PHP enums. Adding a value to a database enum requires a migration.
 - **Prefer `timestamp` over `timestampTz` in migrations** — store times in UTC with plain `timestamp` columns, matching the normal convention in Laravel and Hypervel first-party migrations. Reserve `timestampTz` for columns that genuinely need database-level timezone semantics, such as integrating with an existing timezone-aware schema or columns written by clients in different session timezones. The schema API supports both — this is a column-choice convention, not an API restriction.
-- **Guard optional event dispatches with `hasListeners()`** — before constructing and dispatching framework events, guard them with `hasListeners()` so hot paths skip event overhead when nobody is listening. Do not guard dispatches where dispatching is the side effect, such as jobs, broadcasts, webhooks, or command bus calls.
+- **Guard optional event dispatches with `hasListeners()`** — before constructing and dispatching framework events, guard them with `hasListeners()` so hot paths skip event overhead when nobody is listening. Bare `*` listeners are passive observers and do not count; targeted wildcards do. Do not guard dispatches where dispatching is the side effect, such as jobs, broadcasts, webhooks, or command bus calls.
 - **Use `Sleep::usleep()` / `Sleep::sleep()` for delays in source code** — `Sleep` is fakeable in tests. Use raw `sleep()` / `usleep()` only where real time must pass, such as test harnesses and external-process polling.
 - **Use `xxh128` for internal non-cryptographic hashing** — cache and context keys, content checksums, and change detection. It is faster than `sha256`, which is reserved for trust boundaries: stored credential digests, signatures, and anything an attacker gains by forging. Seed it when the hashed value comes from user input, as `SwooleStore` does for its physical table keys.
 - **Use immutable dates by default** — Hypervel defaults to `Hypervel\Support\CarbonImmutable`, including where Laravel uses mutable Carbon. Create public or application-configurable dates through the `Date` facade or date helpers, and use exact `CarbonImmutable` for framework-owned internal or held values. Type configurable Carbon boundaries as `CarbonInterface` and native or third-party boundaries as `DateTimeInterface`. Capture the return value of every date modifier whose result must persist. Use `Hypervel\Support\Carbon` only for explicit mutable opt-out or conversion behavior.
-- **Use typed config getters, no call-site defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, `$config->array()` over `$config->get()` for any key that can't legitimately be null. Typed getters fail fast on misconfiguration — an `InvalidArgumentException` naming the key, instead of a wrong type propagating silently — and give phpstan the real type. Defaults live in config files: `LoadConfiguration` merges the framework base config, and package providers must merge their defaults through `mergeConfigFrom()`. A call-site default is then dead code that can drift from the real default. Declare every key in the package's config file and call the getter without a default — a missing key then fails loudly instead of being silently papered over. Exceptions: bootstrap code that runs before or without config merging (e.g. `LoadConfiguration` itself), and genuinely nullable keys, which keep `get()`.
+- **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
 - **Env var naming** — ported config keeps its upstream env var names. New Hypervel-specific keys start with the config file's domain prefix (`SERVER_`, `APP_`) with the clearest name for the rest, e.g. `SERVER_WORKERS` for the `Constant::OPTION_WORKER_NUM` server option. If a config value mirrors another config key, reuse that key's env var instead of defining a duplicate — e.g. the Slack log channel username falls back to `APP_NAME`.
 - **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
 - **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
@@ -353,6 +353,8 @@ Test supported public behavior, meaningful branches, verified regressions, and r
 
 All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below.
 
+Package-specific tests that require one database driver go in `tests/Integration/{PackageName}/Database/{Postgres|MySql|MariaDb|Sqlite}/`. The database workflows discover these directories by convention.
+
 ### Base classes
 
 **Never extend `PHPUnit\Framework\TestCase` directly.** Always use one of these:
@@ -363,6 +365,12 @@ All tests live in `tests/{PackageName}/` (PascalCase). Tests that require extern
 | `Hypervel\Testbench\TestCase` | Integration tests (needs container for facades, config, DB, etc.) **or any test that needs a full app skeleton / writes through `BASE_PATH`** — testbench clones a disposable runtime skeleton per run and exposes its path via `BASE_PATH` (and `TESTBENCH_BASE_PATH` for subprocesses), deleted on shutdown. Committed source is never mutated. |
 
 Always call `parent::setUp()` in your setUp method.
+
+### Configuration
+
+Put application environment configuration in `defineEnvironment()` or a `#[DefineEnvironment]` method. Do not mutate application config in `setUp()`, because providers or resolved services may already have consumed it.
+
+Within test methods, use the Laravel-style `config()` helper directly for deliberate runtime configuration changes; do not add test-local wrappers around the configuration repository.
 
 ### Test support files
 
@@ -400,7 +408,7 @@ PHPUnit loads test files directly (not via autoloading), so the namespace doesn'
 
 ### Temp directories for file I/O
 
-Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, create in `setUp`, delete via `Filesystem::deleteDirectory()` in `tearDown`. See `FoundationViteTest` or `OptionTest` for the pattern.
+Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, delete any leftover copy and create it fresh in `setUp`, then delete it again via `Filesystem::deleteDirectory()` in `tearDown`. See `FoundationViteTest` or `OptionTest` for the pattern.
 
 The Testbench skeleton clone is shared for the whole worker, so tests that write under `BASE_PATH` must restore or delete the exact files they touch in `tearDown()`. For `.env` files, prefer `useEnvironmentPath()` with an isolated `ParallelTesting::tempDir()` directory.
 
@@ -440,6 +448,8 @@ Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/Coroutine
 ### Request context in tests
 
 `request()` resolves from `RequestContext` — when no request exists in context (tests that don't make HTTP requests), each `request()` call creates a throwaway fallback instance. This means `request()->merge()` has no effect on subsequent `request()` calls. Replace `request()->merge(['key' => 'value'])` with `RequestContext::set(Request::create('/?key=value'))` to seed a stable request in context.
+
+Seed application requests with `RequestContext::set()`; replacing the `'request'` binding with `instance()` bypasses coroutine-local behavior.
 
 ### Static state and test cleanup
 
@@ -672,6 +682,7 @@ Run `./vendor/bin/phpstan` and `./vendor/bin/php-cs-fixer fix` without flags —
 6. **Wrong docblock types should be fixed**, not suppressed. Check the actual runtime behavior (extension docs, reflection, tests) to determine the correct type.
 7. **Type decisions must be evidence-based.** See Development Conventions — check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
 8. **Narrowing / suppression order.** When the code is correct but PHPStan can't follow it, in order: (1) fix the type signature or docblock; (2) `@var` to narrow to the correct runtime type; (3) a line- or identifier-scoped `@phpstan-ignore` (e.g. magic `__call`/`__get` forwarding). Never use `assert()` to narrow types, and never add a neon-wide rule on your own (see #9).
+   When a container string key is also a PHP class name, keep the canonical service key and use `@var` for its actual runtime type; do not change service resolution solely for PHPStan.
 9. **Don't add patterns to `phpstan.neon.dist` on your own.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). Fix new phpstan errors at the source, not by masking them with new neon rules. Under rare circumstances a global suppression genuinely is the best choice — if you think one may be needed, STOP, explain why the error can't be fixed at the source or narrowed locally, and ask for approval before adding it.
 
 ## Porting Packages
@@ -689,7 +700,7 @@ When porting Laravel packages, whether first-party or third-party, keep them as 
 - Not porting deprecated upstream code or backwards-compatibility shims for versions/features Hypervel does not support — Hypervel is a new framework with no backwards-compatibility burden, so deprecated APIs and compatibility code that exist only to support older versions should be omitted rather than ported. Here, "upstream" means the framework or package being ported, not one of its dependencies — a Symfony deprecation does not make a Laravel API deprecated while Laravel still retains it. If a deprecated upstream surface still contains behavior that Hypervel actively needs, keep the behavior but move it onto the correct non-deprecated Hypervel-owned surface instead of porting the deprecated alias/wrapper as-is
 - General performance improvements — but STOP and explain the opportunity to the user first for approval
 
-Hypervel has no obligation to preserve behavior from earlier Hypervel versions, but compatibility with the Laravel public APIs that Hypervel intentionally supports is a current design requirement. Do not use the lack of a backwards-compatibility burden to rename, remove, or change the meaning of those APIs. Propose genuinely different behavior as a distinct Hypervel API; do not hide it inside a Laravel-shaped API.
+Hypervel has no obligation to preserve Hypervel-specific behavior from earlier versions, but supported Laravel APIs—including named arguments and protected extension points—must remain compatible unless the user approves a difference under the API-parity rule above. If a Laravel API appears unsuitable for Hypervel, STOP, explain why, and obtain approval before planning or editing. Hypervel's lack of backwards compatibility constraints is not a reason to rename, remove, or change Laravel APIs.
 
 Approved adaptations take precedence over upstream fidelity. Preserve Laravel upstream naming, structure, and style everywhere else.
 
@@ -752,7 +763,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
   Keep everything else: behavioral descriptions, `@see` links, `@throws` annotations, warnings, contract explanations, usage notes.
   Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it.
   Translate non-English comments to English and fix grammar errors.
-- **Record intentional Laravel differences where future ports will look** — When a Laravel feature is intentionally not ported because it does not fit Hypervel's Swoole/coroutine architecture, or because Hypervel has a better native equivalent, record it in three places so a future port cannot miss it: (1) the package README under `Differences From Laravel`, with the reason and what to use instead; (2) a concise source comment at the natural insertion point where the skipped method/class would otherwise sit; (3) a concise `REMOVED:` comment at the matching upstream test location when tests are skipped. This is a narrow exception to the "don't annotate divergences" rule: it applies only to intentionally omitted methods or features, never to ordinary ported-and-adapted code. Closed decisions only — real gaps still worth doing go in `docs/todo.md`.
+- **Record intentional Laravel differences where future ports will look** — When a Laravel feature is intentionally not ported because it does not fit Hypervel's Swoole/coroutine architecture, or because Hypervel has a better native equivalent, record it in three places so a future port cannot miss it: (1) the package README under `Differences From Laravel` only for differences humans or LLMs using the package need to know or act on, with the reason and what to use instead — internal differences and fixes do not belong there; (2) a concise source comment at the natural insertion point where the skipped method/class would otherwise sit; (3) a concise `REMOVED:` comment at the matching upstream test location when tests are skipped. This is a narrow exception to the "don't annotate divergences" rule: it applies only to intentionally omitted methods or features, never to ordinary ported-and-adapted code. Closed decisions only — real gaps still worth doing go in `docs/todo.md`.
 - **Replace framework names in code** — any occurrence of the word `laravel` or `hyperf` in ported code (string literals, comments, prefixes, identifiers, etc.) must be replaced with `hypervel`, preserving the original casing. For example: `laravel_reserved_` → `hypervel_reserved_`, `LaravelExcelExporter` → `HypervelExcelExporter`, `HYPERF_VERSION` → `HYPERVEL_VERSION`. This does not apply to namespaces (which have their own conversion rules) or to references that describe the upstream source (e.g., docblock `@see` links to Laravel/Hyperf source).
 - **Don't copy Laravel/Hyperf-specific framework details just to stay 1:1** — keep the behavior the same, but if something only exists because of the upstream framework's own packages, providers, bootstrap system, or architecture, translate it to the Hypervel equivalent or STOP and ask if there isn't one.
 

@@ -7,9 +7,14 @@ namespace Hypervel\Horizon;
 class WorkerCommandString
 {
     /**
+     * The default base worker command.
+     */
+    protected const DEFAULT_COMMAND = 'exec @php artisan horizon:work';
+
+    /**
      * The base worker command.
      */
-    public static string $command = 'exec @php artisan horizon:work';
+    public static string $command = self::DEFAULT_COMMAND;
 
     /**
      * Get the command-line representation of the options for a worker.
@@ -38,6 +43,6 @@ class WorkerCommandString
      */
     public static function flushState(): void
     {
-        static::$command = 'exec @php artisan horizon:work';
+        static::$command = self::DEFAULT_COMMAND;
     }
 }

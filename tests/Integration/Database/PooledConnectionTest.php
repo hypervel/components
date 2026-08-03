@@ -101,6 +101,7 @@ class PooledConnectionTest extends DatabaseTestCase
     {
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-url');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
 
         $databasePath = $directory . '/database.sqlite';
@@ -158,6 +159,7 @@ class PooledConnectionTest extends DatabaseTestCase
     {
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-read-url-memory');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
 
         $writePath = $directory . '/write.sqlite';
@@ -192,6 +194,7 @@ class PooledConnectionTest extends DatabaseTestCase
     {
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-file-read');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
 
         $readPath = $directory . '/read.sqlite';
@@ -550,6 +553,7 @@ class PooledConnectionTest extends DatabaseTestCase
     {
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-session-reconnect');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
         $databasePath = $directory . '/database.sqlite';
         touch($databasePath);
@@ -606,6 +610,7 @@ class PooledConnectionTest extends DatabaseTestCase
     {
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-session-refresh-failure');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
         $databasePath = $directory . '/database.sqlite';
         touch($databasePath);
@@ -1030,6 +1035,7 @@ class PooledConnectionTest extends DatabaseTestCase
         // that in-memory SQLite uses).
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-extension');
+        $filesystem->deleteDirectory($directory);
         $filesystem->ensureDirectoryExists($directory);
 
         $databasePath = $directory . '/extension.sqlite';

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing;
 
+use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
@@ -156,6 +157,17 @@ class RoutingRedirectorTest extends RoutingTestCase
         $this->url->shouldReceive('route')->with('home', [])->andReturn('http://foo.com/bar');
 
         $response = $this->redirect->route('home');
+        $this->assertSame('http://foo.com/bar', $response->getTargetUrl());
+    }
+
+    public function testRouteAcceptsUrlRoutableParameters(): void
+    {
+        $parameter = m::mock(UrlRoutable::class);
+
+        $this->url->shouldReceive('route')->with('home', $parameter)->andReturn('http://foo.com/bar');
+
+        $response = $this->redirect->route('home', $parameter);
+
         $this->assertSame('http://foo.com/bar', $response->getTargetUrl());
     }
 

@@ -1114,12 +1114,22 @@ class TestResponse implements ArrayAccess
         } elseif ($value instanceof Closure) {
             PHPUnit::withResponse($this)->assertTrue($value($actual), "Failed asserting that the value at [{$key}] fulfills the expectations defined by the closure.");
         } elseif ($value instanceof Model) {
-            PHPUnit::withResponse($this)->assertTrue($value->is($actual), "Failed asserting that the model at [{$key}] matches the given model.");
+            PHPUnit::withResponse($this)->assertTrue(
+                $actual instanceof Model && ($value === $actual || $value->is($actual)),
+                "Failed asserting that the model at [{$key}] matches the given model."
+            );
         } elseif ($value instanceof EloquentCollection) {
             PHPUnit::withResponse($this)->assertInstanceOf(EloquentCollection::class, $actual);
             PHPUnit::withResponse($this)->assertSameSize($value, $actual);
 
-            $value->each(fn ($item, $index) => PHPUnit::withResponse($this)->assertTrue($actual->get($index)->is($item), "Failed asserting that the collection at [{$key}.[{$index}]]' matches the given collection."));
+            $value->each(function ($item, $index) use ($actual, $key): void {
+                $actualItem = $actual->get($index);
+
+                PHPUnit::withResponse($this)->assertTrue(
+                    $actualItem instanceof Model && ($item === $actualItem || $item->is($actualItem)),
+                    "Failed asserting that the collection at [{$key}.{$index}] matches the given collection."
+                );
+            });
         } else {
             PHPUnit::withResponse($this)->assertEquals($value, $actual, "Failed asserting that [{$key}] matches the expected value.");
         }

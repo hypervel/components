@@ -24,7 +24,7 @@ trait FileHelpers
     /**
      * Get the file's extension.
      */
-    public function extension(): string
+    public function extension(): ?string
     {
         return $this->guessExtension();
     }
@@ -34,7 +34,7 @@ trait FileHelpers
      */
     public function hashName(?string $path = null): string
     {
-        if ($path) {
+        if ($path !== null && $path !== '') {
             $path = rtrim($path, '/') . '/';
         }
 

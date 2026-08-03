@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
@@ -33,6 +34,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         IntervalReentryProbe::reset();
 
         $this->tempDir = ParallelTesting::tempDir('CacheSwooleStoreIntervalTest');
+        (new Filesystem)->deleteDirectory($this->tempDir);
         mkdir($this->tempDir, 0777, true);
     }
 
@@ -228,6 +230,20 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $refresherStore->refreshIntervalCaches();
 
         $this->assertSame('bar', $workerStore->get('foo'));
+        $this->assertSame('bar', $refresherStore->get('foo'));
+    }
+
+    public function testSerializableClassPolicyDoesNotApplyToIntervalResolvers(): void
+    {
+        $state = $this->createState();
+        $policy = new SerializableClassPolicy(static fn (): false => false);
+        $workerStore = $this->createStore($state, serializableClassPolicy: $policy);
+        $refresherStore = $this->createStore($state, serializableClassPolicy: $policy);
+
+        $workerStore->interval('foo', fn () => 'bar', 5);
+
+        $refresherStore->refreshIntervalCaches();
+
         $this->assertSame('bar', $refresherStore->get('foo'));
     }
 
@@ -528,7 +544,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertSame(0, $count);
     }
 
-    public function testIndexRowsAreTouchedDuringRefreshDiscovery(): void
+    public function testIndexRowsArePermanentWhenRegistered(): void
     {
         CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
@@ -537,13 +553,8 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $store->interval('foo', fn () => 'bar', 5);
         $indexKey = $this->indexKey($store, $this->metadataKey($store, 'foo'));
-        $before = $state->table()->get($indexKey)['expiration'];
 
-        CarbonImmutable::setTestNow('2000-01-01 00:00:10');
-
-        $store->refreshIntervalCaches();
-
-        $this->assertGreaterThan($before, $state->table()->get($indexKey)['expiration']);
+        $this->assertSame(PHP_FLOAT_MAX, $state->table()->get($indexKey)['expiration']);
     }
 
     public function testStaleCleanupAndEvictionSkipIntervalControlRows(): void
@@ -712,13 +723,15 @@ PHP);
         ?SwooleTableState $state = null,
         string $policy = SwooleStore::EVICTION_POLICY_TTL,
         float $memoryLimitBuffer = 0.05,
-        float $evictionProportion = 0.05
+        float $evictionProportion = 0.05,
+        SerializableClassPolicy $serializableClassPolicy = new SerializableClassPolicy,
     ): SwooleStore {
         return new SwooleStore(
             $state ?? $this->createState(),
             $memoryLimitBuffer,
             $policy,
-            $evictionProportion
+            $evictionProportion,
+            serializableClassPolicy: $serializableClassPolicy,
         );
     }
 

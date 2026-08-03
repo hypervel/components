@@ -16,7 +16,7 @@ namespace Hypervel\Tests\Integration\Reverb;
  */
 class CrossServerTest extends CrossServerTestCase
 {
-    public function testBroadcastFromServerBReachesSubscriberOnServerA()
+    public function testBroadcastFromServerBReachesSubscriberOnServerA(): void
     {
         // Client subscribes on server A
         ['client' => $clientA, 'socketId' => $socketIdA] = $this->connectToServerA();
@@ -37,7 +37,35 @@ class CrossServerTest extends CrossServerTestCase
         $this->disconnect($clientA);
     }
 
-    public function testConnectionLimitIsGlobalAcrossServers()
+    public function testBroadcastFromServerBExcludesSocketOnServerA(): void
+    {
+        ['client' => $clientA, 'socketId' => $socketIdA] = $this->connectToServerA();
+        $this->subscribeOnServerA($clientA, $socketIdA, 'cross-server-exclusion');
+
+        ['client' => $clientB, 'socketId' => $socketIdB] = $this->connectToServerB();
+        $this->subscribeOnServerB($clientB, $socketIdB, 'cross-server-exclusion');
+
+        $this->signedPostToServerB('events', [
+            'name' => 'App\Events\CrossServerEvent',
+            'channel' => 'cross-server-exclusion',
+            'data' => json_encode(['from' => 'server-b']),
+            'socket_id' => $socketIdA,
+        ]);
+
+        $this->assertNotNull(
+            $this->receiveEvent($clientB, 'App\Events\CrossServerEvent'),
+            'The non-excluded client on server B did not receive the broadcast.',
+        );
+        $this->assertNull(
+            $this->receiveEvent($clientA, 'App\Events\CrossServerEvent', 1),
+            'The excluded client on server A received the broadcast.',
+        );
+
+        $this->disconnect($clientA);
+        $this->disconnect($clientB);
+    }
+
+    public function testConnectionLimitIsGlobalAcrossServers(): void
     {
         // reverb-key-2 app has max_connections=1
         // Connect on server A — should succeed
@@ -59,7 +87,7 @@ class CrossServerTest extends CrossServerTestCase
         $clientB->close();
     }
 
-    public function testPresenceMemberAddedAcrossServers()
+    public function testPresenceMemberAddedAcrossServers(): void
     {
         // Observer on server A
         ['client' => $observer, 'socketId' => $observerSocketId] = $this->connectToServerA();
@@ -94,7 +122,7 @@ class CrossServerTest extends CrossServerTestCase
         $this->disconnect($clientA2);
     }
 
-    public function testWhisperFromServerAReachesServerB()
+    public function testWhisperFromServerAReachesServerB(): void
     {
         // Client A on server A
         ['client' => $clientA, 'socketId' => $socketIdA] = $this->connectToServerA();
@@ -120,7 +148,7 @@ class CrossServerTest extends CrossServerTestCase
         $this->disconnect($clientB);
     }
 
-    public function testPresenceMemberRemovedAcrossServers()
+    public function testPresenceMemberRemovedAcrossServers(): void
     {
         // Observer on server A
         ['client' => $observer, 'socketId' => $observerSocketId] = $this->connectToServerA();

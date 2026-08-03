@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
+use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use RuntimeException;
 use Swoole\Table;
@@ -28,7 +29,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->state = new SwooleTableSharedState($table, $lockTable);
     }
 
-    public function testSubscribeReturnsChannelOccupiedOnFirstSubscriber()
+    public function testSubscribeReturnsChannelOccupiedOnFirstSubscriber(): void
     {
         $result = $this->state->subscribe('app1', 'test-channel');
 
@@ -38,7 +39,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($result->memberRemoved);
     }
 
-    public function testSubscribeReturnsChannelNotOccupiedOnSubsequentSubscriber()
+    public function testSubscribeReturnsChannelNotOccupiedOnSubsequentSubscriber(): void
     {
         $this->state->subscribe('app1', 'test-channel');
         $result = $this->state->subscribe('app1', 'test-channel');
@@ -46,7 +47,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($result->channelOccupied);
     }
 
-    public function testUnsubscribeReturnsChannelVacatedOnLastSubscriber()
+    public function testUnsubscribeReturnsChannelVacatedOnLastSubscriber(): void
     {
         $this->state->subscribe('app1', 'test-channel');
         $result = $this->state->unsubscribe('app1', 'test-channel');
@@ -55,7 +56,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($result->channelOccupied);
     }
 
-    public function testUnsubscribeReturnsChannelNotVacatedWithRemainingSubscribers()
+    public function testUnsubscribeReturnsChannelNotVacatedWithRemainingSubscribers(): void
     {
         $this->state->subscribe('app1', 'test-channel');
         $this->state->subscribe('app1', 'test-channel');
@@ -64,7 +65,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($result->channelVacated);
     }
 
-    public function testSubscribeReturnsMemberAddedOnFirstUserInstance()
+    public function testSubscribeReturnsMemberAddedOnFirstUserInstance(): void
     {
         $result = $this->state->subscribe('app1', 'presence-channel', 'user-1');
 
@@ -72,7 +73,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($result->memberRemoved);
     }
 
-    public function testSubscribeReturnsMemberNotAddedOnDuplicateUser()
+    public function testSubscribeReturnsMemberNotAddedOnDuplicateUser(): void
     {
         $this->state->subscribe('app1', 'presence-channel', 'user-1');
         $result = $this->state->subscribe('app1', 'presence-channel', 'user-1');
@@ -80,7 +81,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($result->memberAdded);
     }
 
-    public function testUnsubscribeReturnsMemberRemovedOnLastUserInstance()
+    public function testUnsubscribeReturnsMemberRemovedOnLastUserInstance(): void
     {
         $this->state->subscribe('app1', 'presence-channel', 'user-1');
         $result = $this->state->unsubscribe('app1', 'presence-channel', 'user-1');
@@ -88,7 +89,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertTrue($result->memberRemoved);
     }
 
-    public function testUnsubscribeReturnsMemberNotRemovedWithRemainingUserInstance()
+    public function testUnsubscribeReturnsMemberNotRemovedWithRemainingUserInstance(): void
     {
         $this->state->subscribe('app1', 'presence-channel', 'user-1');
         $this->state->subscribe('app1', 'presence-channel', 'user-1');
@@ -97,14 +98,14 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($result->memberRemoved);
     }
 
-    public function testSubscribeWithoutUserIdDoesNotTrackMembers()
+    public function testSubscribeWithoutUserIdDoesNotTrackMembers(): void
     {
         $result = $this->state->subscribe('app1', 'test-channel');
 
         $this->assertFalse($result->memberAdded);
     }
 
-    public function testDifferentAppsHaveIsolatedState()
+    public function testDifferentAppsHaveIsolatedState(): void
     {
         $result1 = $this->state->subscribe('app1', 'test-channel');
         $result2 = $this->state->subscribe('app2', 'test-channel');
@@ -113,20 +114,60 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertTrue($result2->channelOccupied);
     }
 
-    public function testAcquireConnectionSlotSucceedsWithinLimit()
+    public function testLongLogicalKeysUseBoundedPhysicalKeys(): void
+    {
+        $appId = str_repeat('app:', 32);
+        $channel = str_repeat('channel:', 32);
+        $userId = str_repeat('user:', 32);
+
+        $result = $this->state->subscribe($appId, $channel, $userId);
+
+        $this->assertTrue($result->channelOccupied);
+        $this->assertTrue($result->memberAdded);
+        $this->assertSame(1, $this->state->getSubscriptionCount($appId, $channel));
+        $this->assertSame(1, $this->state->getUserSubscriptionCount($appId, $channel, $userId));
+
+        foreach ($this->state->table() as $key => $row) {
+            $this->assertLessThanOrEqual(63, strlen($key));
+        }
+    }
+
+    public function testDelimiterBearingLogicalKeysRemainDistinct(): void
+    {
+        $first = $this->state->subscribe('app:one', 'channel');
+        $second = $this->state->subscribe('app', 'one:channel');
+
+        $this->assertTrue($first->channelOccupied);
+        $this->assertTrue($second->channelOccupied);
+        $this->assertSame(1, $this->state->getSubscriptionCount('app:one', 'channel'));
+        $this->assertSame(1, $this->state->getSubscriptionCount('app', 'one:channel'));
+        $this->assertTrue($this->state->trySubscriptionCountLock('app:one', 'channel'));
+        $this->assertTrue($this->state->trySubscriptionCountLock('app', 'one:channel'));
+    }
+
+    public function testChannelAndMemberSmoothingMarkersRemainDistinct(): void
+    {
+        $this->state->setSmoothingPending('app', 'channel:user', 5000);
+        $this->state->setMemberSmoothingPending('app', 'channel', 'user', 5000);
+
+        $this->assertTrue($this->state->clearSmoothingPending('app', 'channel:user', 5000));
+        $this->assertTrue($this->state->clearMemberSmoothingPending('app', 'channel', 'user', 5000));
+    }
+
+    public function testAcquireConnectionSlotSucceedsWithinLimit(): void
     {
         $this->assertTrue($this->state->acquireConnectionSlot('app1', 5));
         $this->assertTrue($this->state->acquireConnectionSlot('app1', 5));
     }
 
-    public function testAcquireConnectionSlotFailsAtLimit()
+    public function testAcquireConnectionSlotFailsAtLimit(): void
     {
         $this->state->acquireConnectionSlot('app1', 1);
 
         $this->assertFalse($this->state->acquireConnectionSlot('app1', 1));
     }
 
-    public function testReleaseConnectionSlotFreesCapacity()
+    public function testReleaseConnectionSlotFreesCapacity(): void
     {
         $this->state->acquireConnectionSlot('app1', 1);
 
@@ -137,7 +178,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertTrue($this->state->acquireConnectionSlot('app1', 1));
     }
 
-    public function testReleaseConnectionSlotIsSafeWhenNoSlotAcquired()
+    public function testReleaseConnectionSlotIsSafeWhenNoSlotAcquired(): void
     {
         $this->state->releaseConnectionSlot('app1');
 
@@ -145,7 +186,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertTrue(true);
     }
 
-    public function testThrowsExceptionWhenTableIsFull()
+    public function testThrowsExceptionWhenTableIsFull(): void
     {
         $smallTable = new Table(4);
         $smallTable->column('count', Table::TYPE_INT);
@@ -158,7 +199,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $state = new SwooleTableSharedState($smallTable, $lockTable);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Reverb shared state table is full');
+        $this->expectExceptionMessage('reverb.servers.reverb.swoole_shared_state.rows');
 
         // Fill the table beyond capacity
         for ($i = 0; $i < 100; ++$i) {
@@ -166,7 +207,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         }
     }
 
-    public function testFailedOpenDoesNotLeakConnectionSlot()
+    public function testFailedOpenDoesNotLeakConnectionSlot(): void
     {
         $this->state->acquireConnectionSlot('app1', 2);
 
@@ -179,7 +220,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($this->state->acquireConnectionSlot('app1', 2));
     }
 
-    public function testUnsubscribeCleansUpZeroCountRows()
+    public function testUnsubscribeCleansUpZeroCountRows(): void
     {
         $this->state->subscribe('app1', 'test-channel', 'user-1');
         $this->state->unsubscribe('app1', 'test-channel', 'user-1');
@@ -191,9 +232,31 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertTrue($result->memberAdded);
     }
 
+    public function testPresenceCreationFailureDoesNotPublishOnlyOneCounter(): void
+    {
+        $table = new Table(128);
+        $table->column('count', Table::TYPE_INT);
+        $table->create();
+
+        $lockTable = new Table(128);
+        $lockTable->column('locked_at', Table::TYPE_FLOAT);
+        $lockTable->create();
+
+        $state = new FailingSecondPresenceRowSharedState($table, $lockTable);
+
+        try {
+            $state->subscribe('app1', 'presence-channel', 'user-1');
+            $this->fail('Expected the second presence row creation to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to create the second presence row.', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $table->count());
+    }
+
     // ── Subscription count ────────────────────────────────────────────
 
-    public function testSubscribeReturnsCorrectSubscriptionCount()
+    public function testSubscribeReturnsCorrectSubscriptionCount(): void
     {
         $result1 = $this->state->subscribe('app1', 'test-channel');
         $this->assertSame(1, $result1->subscriptionCount);
@@ -205,7 +268,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertSame(3, $result3->subscriptionCount);
     }
 
-    public function testUnsubscribeReturnsCorrectSubscriptionCount()
+    public function testUnsubscribeReturnsCorrectSubscriptionCount(): void
     {
         $this->state->subscribe('app1', 'test-channel');
         $this->state->subscribe('app1', 'test-channel');
@@ -221,12 +284,12 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertSame(0, $result->subscriptionCount);
     }
 
-    public function testGetSubscriptionCountReturnsZeroForUnknownChannel()
+    public function testGetSubscriptionCountReturnsZeroForUnknownChannel(): void
     {
         $this->assertSame(0, $this->state->getSubscriptionCount('app1', 'nonexistent'));
     }
 
-    public function testGetSubscriptionCountReturnsCurrentCount()
+    public function testGetSubscriptionCountReturnsCurrentCount(): void
     {
         $this->state->subscribe('app1', 'test-channel');
         $this->state->subscribe('app1', 'test-channel');
@@ -234,7 +297,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertSame(2, $this->state->getSubscriptionCount('app1', 'test-channel'));
     }
 
-    public function testGetSubscriptionCountReturnsZeroAfterAllUnsubscribe()
+    public function testGetSubscriptionCountReturnsZeroAfterAllUnsubscribe(): void
     {
         $this->state->subscribe('app1', 'test-channel');
         $this->state->unsubscribe('app1', 'test-channel');
@@ -244,12 +307,12 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     // ── User subscription count ───────────────────────────────────────
 
-    public function testGetUserSubscriptionCountReturnsZeroForUnknownUser()
+    public function testGetUserSubscriptionCountReturnsZeroForUnknownUser(): void
     {
         $this->assertSame(0, $this->state->getUserSubscriptionCount('app1', 'presence-channel', 'unknown'));
     }
 
-    public function testGetUserSubscriptionCountReturnsCurrentCount()
+    public function testGetUserSubscriptionCountReturnsCurrentCount(): void
     {
         $this->state->subscribe('app1', 'presence-channel', 'user-1');
         $this->state->subscribe('app1', 'presence-channel', 'user-1');
@@ -257,7 +320,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertSame(2, $this->state->getUserSubscriptionCount('app1', 'presence-channel', 'user-1'));
     }
 
-    public function testGetUserSubscriptionCountReturnsZeroAfterAllUnsubscribe()
+    public function testGetUserSubscriptionCountReturnsZeroAfterAllUnsubscribe(): void
     {
         $this->state->subscribe('app1', 'presence-channel', 'user-1');
         $this->state->unsubscribe('app1', 'presence-channel', 'user-1');
@@ -267,18 +330,18 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     // ── Subscription count lock ───────────────────────────────────────
 
-    public function testTrySubscriptionCountLockAcquiresOnFirstCall()
+    public function testTrySubscriptionCountLockAcquiresOnFirstCall(): void
     {
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
     }
 
-    public function testTrySubscriptionCountLockFailsWithinTtl()
+    public function testTrySubscriptionCountLockFailsWithinTtl(): void
     {
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
         $this->assertFalse($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
     }
 
-    public function testTrySubscriptionCountLockSucceedsAfterTtlExpires()
+    public function testTrySubscriptionCountLockSucceedsAfterTtlExpires(): void
     {
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 50));
 
@@ -287,7 +350,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 50));
     }
 
-    public function testClearSubscriptionCountLockAllowsReacquire()
+    public function testClearSubscriptionCountLockAllowsReacquire(): void
     {
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
         $this->assertFalse($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
@@ -299,18 +362,18 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     // ── Cache miss lock ───────────────────────────────────────────────
 
-    public function testTryCacheMissLockAcquiresOnFirstCall()
+    public function testTryCacheMissLockAcquiresOnFirstCall(): void
     {
         $this->assertTrue($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
     }
 
-    public function testTryCacheMissLockFailsWithinTtl()
+    public function testTryCacheMissLockFailsWithinTtl(): void
     {
         $this->assertTrue($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
         $this->assertFalse($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
     }
 
-    public function testClearCacheMissLockAllowsReacquire()
+    public function testClearCacheMissLockAllowsReacquire(): void
     {
         $this->assertTrue($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
         $this->assertFalse($this->state->tryCacheMissLock('app1', 'cache-channel', 10000));
@@ -322,13 +385,13 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     // ── Lock isolation ────────────────────────────────────────────────
 
-    public function testLocksAreIsolatedBetweenApps()
+    public function testLocksAreIsolatedBetweenApps(): void
     {
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'test-channel', 5000));
         $this->assertTrue($this->state->trySubscriptionCountLock('app2', 'test-channel', 5000));
     }
 
-    public function testLocksAreIsolatedBetweenChannels()
+    public function testLocksAreIsolatedBetweenChannels(): void
     {
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'channel-a', 5000));
         $this->assertTrue($this->state->trySubscriptionCountLock('app1', 'channel-b', 5000));
@@ -336,19 +399,19 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     // ── Smoothing markers ─────────────────────────────────────────────
 
-    public function testClearSmoothingPendingReturnsTrueForLiveMarker()
+    public function testClearSmoothingPendingReturnsTrueForLiveMarker(): void
     {
         $this->state->setSmoothingPending('app1', 'test-channel', 5000);
 
         $this->assertTrue($this->state->clearSmoothingPending('app1', 'test-channel', 5000));
     }
 
-    public function testClearSmoothingPendingReturnsFalseWhenNoMarker()
+    public function testClearSmoothingPendingReturnsFalseWhenNoMarker(): void
     {
         $this->assertFalse($this->state->clearSmoothingPending('app1', 'test-channel', 5000));
     }
 
-    public function testClearSmoothingPendingReturnsFalseForExpiredMarker()
+    public function testClearSmoothingPendingReturnsFalseForExpiredMarker(): void
     {
         $this->state->setSmoothingPending('app1', 'test-channel', 50);
 
@@ -357,7 +420,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($this->state->clearSmoothingPending('app1', 'test-channel', 50));
     }
 
-    public function testClearSmoothingPendingConsumesMarkerOnlyOnce()
+    public function testClearSmoothingPendingConsumesMarkerOnlyOnce(): void
     {
         $this->state->setSmoothingPending('app1', 'test-channel', 5000);
 
@@ -365,19 +428,19 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $this->assertFalse($this->state->clearSmoothingPending('app1', 'test-channel', 5000));
     }
 
-    public function testClearMemberSmoothingPendingReturnsTrueForLiveMarker()
+    public function testClearMemberSmoothingPendingReturnsTrueForLiveMarker(): void
     {
         $this->state->setMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000);
 
         $this->assertTrue($this->state->clearMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000));
     }
 
-    public function testClearMemberSmoothingPendingReturnsFalseWhenNoMarker()
+    public function testClearMemberSmoothingPendingReturnsFalseWhenNoMarker(): void
     {
         $this->assertFalse($this->state->clearMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000));
     }
 
-    public function testClearMemberSmoothingPendingReturnsFalseForExpiredMarker()
+    public function testClearMemberSmoothingPendingReturnsFalseForExpiredMarker(): void
     {
         $this->state->setMemberSmoothingPending('app1', 'presence-channel', 'user-1', 50);
 
@@ -388,7 +451,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     // ── Lock table capacity ───────────────────────────────────────────
 
-    public function testTryLockReturnsFalseWhenLockTableFull()
+    public function testTryLockReturnsFalseWhenLockTableFull(): void
     {
         $table = new Table(1024);
         $table->column('count', Table::TYPE_INT);
@@ -399,6 +462,9 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $lockTable->create();
 
         $state = new SwooleTableSharedState($table, $lockTable);
+        Log::shouldReceive('error')
+            ->once()
+            ->withArgs(fn (string $message): bool => str_contains($message, 'swoole_shared_state.lock_rows'));
 
         // Fill the lock table past capacity — Swoole hash tables can hold
         // more than `size` rows via chaining, so use many iterations.
@@ -412,5 +478,19 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         }
 
         $this->assertTrue($hitCapacity, 'Lock table should eventually return false when full');
+    }
+}
+
+class FailingSecondPresenceRowSharedState extends SwooleTableSharedState
+{
+    private int $rowCreations = 0;
+
+    protected function ensureRowExists(string $key): bool
+    {
+        if (++$this->rowCreations === 2) {
+            throw new RuntimeException('Unable to create the second presence row.');
+        }
+
+        return parent::ensureRowExists($key);
     }
 }

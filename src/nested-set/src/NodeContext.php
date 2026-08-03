@@ -4,49 +4,83 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet;
 
-use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Eloquent\Model;
 
 class NodeContext
 {
     /**
-     * Context key prefix for preserved deleted_at timestamps.
+     * Context key prefix for structural freshness state.
      */
-    protected const DELETED_AT_CONTEXT_PREFIX = '__nested_set.deleted_at.';
+    protected const FRESHNESS_CONTEXT_KEY_PREFIX = '__nested_set.freshness.';
 
     /**
-     * Context key prefix for tracking whether a node operation has been performed.
+     * Determine whether the model is current for the logical tree revision.
      */
-    protected const HAS_PERFORMED_CONTEXT_PREFIX = '__nested_set.has_performed.';
-
-    public static function keepDeletedAt(Model $model): void
+    public static function isCurrent(Model $model): bool
     {
-        CoroutineContext::set(
-            self::DELETED_AT_CONTEXT_PREFIX . get_class($model),
-            $model->{$model->getDeletedAtColumn()} // @phpstan-ignore-line
-        );
+        $freshness = static::freshness($model);
+
+        return $freshness === null || $freshness->isCurrent($model);
     }
 
-    public static function restoreDeletedAt(Model $model): DateTimeInterface|int|string
+    /**
+     * Record the model at the current logical tree revision.
+     */
+    public static function markCurrent(Model $model): void
     {
-        $deletedAt = CoroutineContext::get(self::DELETED_AT_CONTEXT_PREFIX . get_class($model));
+        static::freshness($model)?->observe($model);
+    }
 
-        if (! is_null($deletedAt)) {
-            /* @phpstan-ignore-next-line */
-            $model->{$model->getDeletedAtColumn()} = $deletedAt;
+    /**
+     * Mark that the logical tree has changed in this coroutine.
+     */
+    public static function markTreeChanged(Model $model): void
+    {
+        /** @var NodeFreshness $freshness */
+        $freshness = CoroutineContext::getOrSet(
+            static::freshnessKey($model),
+            static fn () => new NodeFreshness,
+        );
+
+        $freshness->advance();
+    }
+
+    /**
+     * Get the model's logical nested set table identity.
+     */
+    public static function structuralIdentity(Model $model): string
+    {
+        $name = $model->getConnectionName();
+
+        if ($name === null || $name === '') {
+            $name = $model::getConnectionResolver()?->getDefaultConnection();
         }
 
-        return $deletedAt;
+        if ($name === null || $name === '') {
+            $name = 'default';
+        }
+
+        $name = ConnectionName::parse($name)->base;
+
+        return strlen($name) . ':' . $name . ':' . $model->getTable();
     }
 
-    public static function hasPerformed(Model $model): bool
+    /**
+     * Get the structural freshness state for the model's logical table.
+     */
+    protected static function freshness(Model $model): ?NodeFreshness
     {
-        return CoroutineContext::get(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), false);
+        /** @var ?NodeFreshness */
+        return CoroutineContext::get(static::freshnessKey($model));
     }
 
-    public static function setHasPerformed(Model $model, bool $performed = true): void
+    /**
+     * Get the structural freshness key for the model's logical table.
+     */
+    protected static function freshnessKey(Model $model): string
     {
-        CoroutineContext::set(self::HAS_PERFORMED_CONTEXT_PREFIX . get_class($model), $performed);
+        return self::FRESHNESS_CONTEXT_KEY_PREFIX . static::structuralIdentity($model);
     }
 }

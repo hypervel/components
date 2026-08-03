@@ -17,6 +17,8 @@ use Throwable;
 
 class RedisJobRepository implements JobRepository
 {
+    use UsesClusterAwarePipeline;
+
     /**
      * The keys stored on the job hashes.
      */
@@ -230,7 +232,7 @@ class RedisJobRepository implements JobRepository
      */
     public function getJobs(array $ids, mixed $indexFrom = 0): Collection
     {
-        $jobs = $this->connection()->pipeline(function ($pipe) use ($ids) {
+        $jobs = $this->pipeline(function ($pipe) use ($ids) {
             foreach ($ids as $id) {
                 $pipe->hmget($id, $this->keys);
             }
@@ -264,7 +266,7 @@ class RedisJobRepository implements JobRepository
      */
     public function pushed(string $connection, string $queue, JobPayload $payload): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($connection, $queue, $payload) {
+        $this->pipeline(function ($pipe) use ($connection, $queue, $payload) {
             $this->storeJobReference($pipe, 'recent_jobs', $payload);
             $this->storeJobReference($pipe, 'pending_jobs', $payload);
 
@@ -327,7 +329,7 @@ class RedisJobRepository implements JobRepository
      */
     public function remember(string $connection, string $queue, JobPayload $payload): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($connection, $queue, $payload) {
+        $this->pipeline(function ($pipe) use ($connection, $queue, $payload) {
             $this->storeJobReference($pipe, 'monitored_jobs', $payload);
 
             $pipe->hmset(
@@ -355,7 +357,7 @@ class RedisJobRepository implements JobRepository
      */
     public function migrated(string $connection, string $queue, Collection $payloads): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($payloads) {
+        $this->pipeline(function ($pipe) use ($payloads) {
             foreach ($payloads as $payload) {
                 $pipe->hmset(
                     $payload->id(),
@@ -379,7 +381,7 @@ class RedisJobRepository implements JobRepository
             $this->updateRetryInformationOnParent($payload, $failed);
         }
 
-        $this->connection()->pipeline(function ($pipe) use ($payload, $silenced) {
+        $this->pipeline(function ($pipe) use ($payload, $silenced) {
             $this->storeJobReference($pipe, $silenced ? 'silenced_jobs' : 'completed_jobs', $payload);
             $this->removeJobReference($pipe, 'pending_jobs', $payload);
 
@@ -432,7 +434,7 @@ class RedisJobRepository implements JobRepository
      */
     public function deleteMonitored(array $ids): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($ids) {
+        $this->pipeline(function ($pipe) use ($ids) {
             foreach ($ids as $id) {
                 $pipe->expireat($id, CarbonImmutable::now()->addDays(7)->getTimestamp());
             }
@@ -444,7 +446,7 @@ class RedisJobRepository implements JobRepository
      */
     public function trimRecentJobs(): void
     {
-        $this->connection()->pipeline(function ($pipe) {
+        $this->pipeline(function ($pipe) {
             $pipe->zRemRangeByScore(
                 'recent_jobs',
                 (string) (CarbonImmutable::now()->subMinutes($this->recentJobExpires)->getTimestamp() * -1),
@@ -527,7 +529,7 @@ class RedisJobRepository implements JobRepository
      */
     public function failed(Throwable $exception, string $connection, string $queue, JobPayload $payload): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($exception, $connection, $queue, $payload) {
+        $this->pipeline(function ($pipe) use ($exception, $connection, $queue, $payload) {
             $this->storeJobReference($pipe, 'failed_jobs', $payload);
             $this->storeJobReference($pipe, 'recent_failed_jobs', $payload);
             $this->removeJobReference($pipe, 'pending_jobs', $payload);
@@ -615,7 +617,7 @@ class RedisJobRepository implements JobRepository
                 2,
                 'recent_jobs',
                 'pending_jobs',
-                config('horizon.prefix'),
+                config()->string('horizon.prefix'),
                 $queue,
                 $cursor,
             );

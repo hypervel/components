@@ -7,6 +7,7 @@ namespace Hypervel\Notifications;
 use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\HasCollection;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 
@@ -64,7 +65,7 @@ class DatabaseNotification extends Model
      */
     public function markAsRead(): void
     {
-        if (is_null($this->read_at)) {
+        if ($this->readAt() === null) {
             $this->forceFill(['read_at' => $this->freshTimestamp()])->save();
         }
     }
@@ -74,7 +75,7 @@ class DatabaseNotification extends Model
      */
     public function markAsUnread(): void
     {
-        if (! is_null($this->read_at)) {
+        if ($this->readAt() !== null) {
             $this->forceFill(['read_at' => null])->save();
         }
     }
@@ -84,7 +85,7 @@ class DatabaseNotification extends Model
      */
     public function read(): bool
     {
-        return $this->read_at !== null;
+        return $this->readAt() !== null;
     }
 
     /**
@@ -92,7 +93,21 @@ class DatabaseNotification extends Model
      */
     public function unread(): bool
     {
-        return $this->read_at === null;
+        return $this->readAt() === null;
+    }
+
+    /**
+     * Get the notification's read state.
+     */
+    private function readAt(): ?CarbonInterface
+    {
+        if ($this->exists
+            && ! $this->wasRecentlyCreated
+            && ! array_key_exists('read_at', $this->getAttributes())) {
+            throw new MissingAttributeException($this, 'read_at');
+        }
+
+        return $this->getAttribute('read_at');
     }
 
     /**

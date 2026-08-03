@@ -209,6 +209,7 @@ class GrpcServiceProviderTest extends TestCase
         $cacheDirectory = ParallelTesting::tempDir('GrpcServiceProviderTest-route-cache');
         $cachePath = $cacheDirectory . '/routes.php';
         $files = new Filesystem;
+        $files->deleteDirectory($cacheDirectory);
         $files->ensureDirectoryExists($cacheDirectory);
         $files->put($cachePath, '<?php return [];');
         $_SERVER['APP_ROUTES_CACHE'] = $cachePath;

@@ -10,13 +10,17 @@ use DateTimeImmutable;
 use Error;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Limiters\ConcurrencyLimiter;
+use Hypervel\Cache\Lock;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
+use RuntimeException;
 use Throwable;
 
 class ConcurrencyLimiterTest extends TestCase
@@ -160,6 +164,33 @@ class ConcurrencyLimiterTest extends TestCase
         });
 
         $this->assertEquals([1], $store);
+    }
+
+    public function testBlockPreservesCallbackFailureWhenReleaseAlsoFails(): void
+    {
+        $lock = null;
+        $store = $this->failingReleaseStore($lock);
+        $limiter = new ConcurrencyLimiter($store, 'key', 1, 5);
+
+        try {
+            $limiter->block(0, fn () => throw new RuntimeException('callback failure'));
+
+            $this->fail('Expected the callback failure to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('callback failure', $exception->getMessage());
+        }
+
+        $this->assertTrue($lock?->released);
+    }
+
+    public function testBlockPropagatesReleaseFailureAfterSuccessfulCallback(): void
+    {
+        $limiter = new ConcurrencyLimiter($this->failingReleaseStore(), 'key', 1, 5);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('release failure');
+
+        $limiter->block(0, fn () => 'result');
     }
 
     public function testFunnelMethodOnRepository(): void
@@ -364,6 +395,39 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertFalse($failureCalled);
     }
 
+    public function testFunnelPreservesCallbackFailureWhenReleaseAlsoFails(): void
+    {
+        $lock = null;
+        $store = $this->failingReleaseStore($lock);
+        $repository = new Repository($store);
+
+        try {
+            $repository->funnel('key')
+                ->limit(1)
+                ->block(0)
+                ->then(fn () => throw new RuntimeException('callback failure'));
+
+            $this->fail('Expected the callback failure to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('callback failure', $exception->getMessage());
+        }
+
+        $this->assertTrue($lock?->released);
+    }
+
+    public function testFunnelPropagatesReleaseFailureAfterSuccessfulCallback(): void
+    {
+        $repository = new Repository($this->failingReleaseStore());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('release failure');
+
+        $repository->funnel('key')
+            ->limit(1)
+            ->block(0)
+            ->then(fn () => 'result');
+    }
+
     public function testFunnelWithZeroLimitDoesNotRunCallback(): void
     {
         $called = false;
@@ -441,6 +505,20 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertEquals([1], $store);
         $this->assertSame('ok', $result);
     }
+
+    /**
+     * Create a lock-capable store whose leases fail during release.
+     */
+    protected function failingReleaseStore(?LimiterFailingReleaseLock &$lock = null): Store&LockProvider
+    {
+        $store = m::mock(Store::class, LockProvider::class);
+        $store->shouldReceive('lock')
+            ->andReturnUsing(function (string $name, int $seconds, ?string $owner) use (&$lock): LockContract {
+                return $lock = new LimiterFailingReleaseLock($name, $seconds, $owner);
+            });
+
+        return $store;
+    }
 }
 
 class ConcurrencyLimiterMockThatDoesntRelease extends ConcurrencyLimiter
@@ -454,6 +532,32 @@ class ConcurrencyLimiterMockThatDoesntRelease extends ConcurrencyLimiter
         }
 
         return true;
+    }
+}
+
+class LimiterFailingReleaseLock extends Lock
+{
+    public bool $released = false;
+
+    public function acquire(): bool
+    {
+        return true;
+    }
+
+    public function release(): bool
+    {
+        $this->released = true;
+
+        throw new RuntimeException('release failure');
+    }
+
+    public function forceRelease(): void
+    {
+    }
+
+    protected function getCurrentOwner(): ?string
+    {
+        return $this->owner;
     }
 }
 

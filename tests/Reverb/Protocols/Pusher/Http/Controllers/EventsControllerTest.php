@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Protocols\Pusher\Http\Controllers;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Reverb\ServerProviderManager;
+use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use Mockery as m;
 
 class EventsControllerTest extends ReverbTestCase
 {
-    public function testCanReceiveAnEventTrigger()
+    public function testCanReceiveAnEventTrigger(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -22,7 +25,7 @@ class EventsControllerTest extends ReverbTestCase
         $this->assertSame('{}', $response->getContent());
     }
 
-    public function testCanReceiveAnEventTriggerForMultipleChannels()
+    public function testCanReceiveAnEventTriggerForMultipleChannels(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -34,7 +37,7 @@ class EventsControllerTest extends ReverbTestCase
         $this->assertSame('{}', $response->getContent());
     }
 
-    public function testCanReturnUserCountsWhenRequested()
+    public function testCanReturnUserCountsWhenRequested(): void
     {
         $this->subscribeConnection('presence-test-channel-one', ['user_id' => 1, 'user_info' => ['name' => 'Taylor']]);
 
@@ -53,7 +56,7 @@ class EventsControllerTest extends ReverbTestCase
         $this->assertSame([], (array) $body['channels']['test-channel-two']);
     }
 
-    public function testCanReturnSubscriptionCountsWhenRequested()
+    public function testCanReturnSubscriptionCountsWhenRequested(): void
     {
         $this->subscribeConnection('test-channel-two');
 
@@ -72,7 +75,7 @@ class EventsControllerTest extends ReverbTestCase
         $this->assertSame([], (array) $body['channels']['presence-test-channel-one']);
     }
 
-    public function testCanIgnoreASubscriber()
+    public function testCanIgnoreASubscriber(): void
     {
         $connection = $this->subscribeConnection('test-channel');
 
@@ -97,7 +100,7 @@ class EventsControllerTest extends ReverbTestCase
         $connection->assertNothingReceived();
     }
 
-    public function testDoesNotFailWhenIgnoringAnInvalidSubscriber()
+    public function testDoesNotFailWhenIgnoringAnInvalidSubscriber(): void
     {
         $connection = $this->subscribeConnection('test-channel');
 
@@ -114,7 +117,33 @@ class EventsControllerTest extends ReverbTestCase
         $connection->assertReceivedCount(1);
     }
 
-    public function testValidatesMissingDataField()
+    public function testPublishesARemoteSocketIdWhenTheConnectionIsNotLocal(): void
+    {
+        app(ServerProviderManager::class)->withPublishing();
+        $pubSub = m::mock(PubSubProvider::class);
+        $pubSub->expects('publish')->with([
+            'type' => 'message',
+            'app_id' => '123456',
+            'payload' => [
+                'event' => 'NewEvent',
+                'channels' => ['test-channel'],
+                'data' => '{"some":"data"}',
+            ],
+            'socket_id' => 'remote-socket',
+        ])->andReturn(1);
+        $this->app->instance(PubSubProvider::class, $pubSub);
+
+        $response = $this->signedPostRequest('events', [
+            'name' => 'NewEvent',
+            'channel' => 'test-channel',
+            'data' => json_encode(['some' => 'data']),
+            'socket_id' => 'remote-socket',
+        ]);
+
+        $response->assertStatus(200);
+    }
+
+    public function testValidatesMissingDataField(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -124,7 +153,7 @@ class EventsControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testValidatesMissingNameField()
+    public function testValidatesMissingNameField(): void
     {
         $response = $this->signedPostRequest('events', [
             'channel' => 'test-channel',
@@ -134,7 +163,7 @@ class EventsControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testValidatesMissingChannelAndChannels()
+    public function testValidatesMissingChannelAndChannels(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -144,7 +173,7 @@ class EventsControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testValidatesNonStringSocketId()
+    public function testValidatesNonStringSocketId(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -156,7 +185,7 @@ class EventsControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testValidatesNonStringInfo()
+    public function testValidatesNonStringInfo(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -168,14 +197,14 @@ class EventsControllerTest extends ReverbTestCase
         $response->assertStatus(422);
     }
 
-    public function testFailsWhenPayloadIsInvalid()
+    public function testFailsWhenPayloadIsInvalid(): void
     {
         $response = $this->signedPostRequest('events', null);
 
         $response->assertStatus(500);
     }
 
-    public function testFailsWhenAppCannotBeFound()
+    public function testFailsWhenAppCannotBeFound(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -186,7 +215,7 @@ class EventsControllerTest extends ReverbTestCase
         $response->assertStatus(404);
     }
 
-    public function testFailsWhenUsingAnInvalidSignature()
+    public function testFailsWhenUsingAnInvalidSignature(): void
     {
         $response = $this->reverbCall('POST', '/apps/123456/events', [
             'CONTENT_TYPE' => 'application/json',
@@ -199,8 +228,24 @@ class EventsControllerTest extends ReverbTestCase
         $response->assertStatus(401);
     }
 
+    public function testRejectsANonStringSignatureWithoutATypeError(): void
+    {
+        $response = $this->reverbCall(
+            'POST',
+            '/apps/123456/events?auth_signature[]=invalid',
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode([
+                'name' => 'NewEvent',
+                'channel' => 'test-channel',
+                'data' => json_encode(['some' => 'data']),
+            ]),
+        );
+
+        $response->assertStatus(401);
+    }
+
     #[DefineEnvironment('withPathPrefix')]
-    public function testCanVerifySignatureWhenUsingACustomServerPath()
+    public function testCanVerifySignatureWhenUsingACustomServerPath(): void
     {
         $appId = '123456';
         $key = 'reverb-key';
@@ -236,7 +281,7 @@ class EventsControllerTest extends ReverbTestCase
         $app['config']->set('reverb.servers.reverb.path', '/ws');
     }
 
-    public function testReturnsEmptyObjectWhenNoInfoRequested()
+    public function testReturnsEmptyObjectWhenNoInfoRequested(): void
     {
         $response = $this->signedPostRequest('events', [
             'name' => 'NewEvent',
@@ -248,7 +293,7 @@ class EventsControllerTest extends ReverbTestCase
         $this->assertSame('{}', $response->getContent());
     }
 
-    public function testBroadcastsToSubscribersOnTheChannel()
+    public function testBroadcastsToSubscribersOnTheChannel(): void
     {
         $connectionOne = $this->subscribeConnection('test-channel');
         $connectionTwo = $this->subscribeConnection('test-channel');

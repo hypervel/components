@@ -12,6 +12,7 @@ use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
+use Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationChallenged;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\LoginRateLimiter;
@@ -37,21 +38,13 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
     public function handle(Request $request, Closure $next): Response
     {
         $user = $this->validateCredentials($request);
-        $secret = $user->getAttribute('two_factor_secret');
-        $confirmedAt = $user->getAttribute('two_factor_confirmed_at');
 
-        if (Fortify::confirmsTwoFactorAuthentication()) {
-            if ($secret
-                && ! is_null($confirmedAt)
-                && in_array(TwoFactorAuthenticatable::class, class_uses_recursive($user), true)) {
-                return $this->twoFactorChallengeResponse($request, $user);
-            }
-
+        if (! in_array(TwoFactorAuthenticatable::class, class_uses_recursive($user), true)) {
             return $next($request);
         }
 
-        if ($secret
-            && in_array(TwoFactorAuthenticatable::class, class_uses_recursive($user), true)) {
+        /** @var Authenticatable&Model&TwoFactorAuthenticationUser $user */
+        if ($user->hasEnabledTwoFactorAuthentication()) {
             return $this->twoFactorChallengeResponse($request, $user);
         }
 

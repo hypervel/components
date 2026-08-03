@@ -40,20 +40,8 @@ class RedirectResponse extends BaseRedirectResponse
     {
         $key = is_array($key) ? $key : [$key => $value];
 
-        foreach ($key as $k => $v) {
-            $this->session->flash($k, $v);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Add multiple cookies to the response.
-     */
-    public function withCookies(array $cookies): static
-    {
-        foreach ($cookies as $cookie) {
-            $this->headers->setCookie($cookie);
+        foreach ($key as $sessionKey => $sessionValue) {
+            $this->session->flash((string) $sessionKey, $sessionValue);
         }
 
         return $this;

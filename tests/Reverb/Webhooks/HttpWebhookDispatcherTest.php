@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Webhooks;
 
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Webhooks\HttpWebhookDispatcher;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
@@ -12,10 +13,11 @@ use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
+use RuntimeException;
 
 class HttpWebhookDispatcherTest extends ReverbTestCase
 {
-    public function testDispatchesJobForAllowedEvent()
+    public function testDispatchesJobForAllowedEvent(): void
     {
         Queue::fake();
 
@@ -35,7 +37,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         });
     }
 
-    public function testSkipsDispatchForDisallowedEvent()
+    public function testSkipsDispatchForDisallowedEvent(): void
     {
         Queue::fake();
 
@@ -47,7 +49,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
-    public function testSkipsWhenNoWebhookConfigured()
+    public function testSkipsWhenNoWebhookConfigured(): void
     {
         Queue::fake();
 
@@ -59,7 +61,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
-    public function testJobUsesRedisConnectionAndDedicatedQueue()
+    public function testJobUsesRedisConnectionAndDedicatedQueue(): void
     {
         Queue::fake();
 
@@ -74,7 +76,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         });
     }
 
-    public function testDispatchesForAllEventsWhenAllowlistIsEmpty()
+    public function testDispatchesForAllEventsWhenAllowlistIsEmpty(): void
     {
         Queue::fake();
 
@@ -89,7 +91,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         });
     }
 
-    public function testClientEventIncludesSocketIdAndStringifiedData()
+    public function testClientEventIncludesSocketIdAndStringifiedData(): void
     {
         Queue::fake();
 
@@ -114,7 +116,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         });
     }
 
-    public function testChannelFilterSkipsNonMatchingChannel()
+    public function testChannelFilterSkipsNonMatchingChannel(): void
     {
         Queue::fake();
 
@@ -130,7 +132,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
-    public function testChannelFilterAllowsMatchingChannel()
+    public function testChannelFilterAllowsMatchingChannel(): void
     {
         Queue::fake();
 
@@ -146,7 +148,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
-    public function testChannelFilterDisabledWhenNull()
+    public function testChannelFilterDisabledWhenNull(): void
     {
         Queue::fake();
 
@@ -162,7 +164,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
-    public function testChannelEndsWithFilterSkipsNonMatchingChannel()
+    public function testChannelEndsWithFilterSkipsNonMatchingChannel(): void
     {
         Queue::fake();
 
@@ -178,7 +180,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
-    public function testChannelEndsWithFilterAllowsMatchingChannel()
+    public function testChannelEndsWithFilterAllowsMatchingChannel(): void
     {
         Queue::fake();
 
@@ -194,7 +196,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
-    public function testChannelEndsWithFilterDisabledWhenNull()
+    public function testChannelEndsWithFilterDisabledWhenNull(): void
     {
         Queue::fake();
 
@@ -210,7 +212,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
-    public function testBothFiltersAppliedAsAnd()
+    public function testBothFiltersAppliedAsAnd(): void
     {
         Queue::fake();
 
@@ -230,7 +232,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
-    public function testBothFiltersRejectWhenOnlyPrefixMatches()
+    public function testBothFiltersRejectWhenOnlyPrefixMatches(): void
     {
         Queue::fake();
 
@@ -249,7 +251,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
-    public function testBothFiltersRejectWhenOnlySuffixMatches()
+    public function testBothFiltersRejectWhenOnlySuffixMatches(): void
     {
         Queue::fake();
 
@@ -268,7 +270,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
-    public function testCustomHeadersPassedToJob()
+    public function testCustomHeadersPassedToJob(): void
     {
         Queue::fake();
 
@@ -286,7 +288,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         });
     }
 
-    public function testBatchingAppendsToBufferAndSchedulesFlush()
+    public function testBatchingAppendsToBufferAndSchedulesFlush(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -316,7 +318,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         });
     }
 
-    public function testBatchingDoesNotScheduleFlushWhenLockAlreadyHeld()
+    public function testBatchingDoesNotScheduleFlushWhenLockAlreadyHeld(): void
     {
         Queue::fake([FlushWebhookBatchJob::class]);
 
@@ -339,7 +341,60 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertNotPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testImmediateDispatchWhenBatchingDisabled()
+    public function testBatchingClearsANewlyOwnedLockWhenQueueDispatchFails(): void
+    {
+        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer->expects('appendAndCheckSchedule')
+            ->with('app-1', m::type('array'))
+            ->andReturnTrue();
+        $buffer->expects('clearFlushLock')->with('app-1');
+        $this->app->instance(WebhookBatchBuffer::class, $buffer);
+        $failure = new RuntimeException('Queue dispatch failed.');
+        $bus = m::mock(BusDispatcher::class);
+        $bus->expects('dispatch')
+            ->with(m::type(FlushWebhookBatchJob::class))
+            ->andThrow($failure);
+        $this->app->instance(BusDispatcher::class, $bus);
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'batching' => ['enabled' => true],
+        ]);
+        $dispatcher = new HttpWebhookDispatcher;
+
+        try {
+            $dispatcher->dispatch($app, 'channel_occupied', ['channel' => 'test-channel']);
+            $this->fail('Expected queue dispatch to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
+    public function testBatchingDoesNotClearALockOwnedByAnotherDispatch(): void
+    {
+        $buffer = m::mock(WebhookBatchBuffer::class);
+        $buffer->expects('appendAndCheckSchedule')->andReturnFalse();
+        $buffer->shouldNotReceive('clearFlushLock');
+        $this->app->instance(WebhookBatchBuffer::class, $buffer);
+        $bus = m::mock(BusDispatcher::class);
+        $bus->shouldNotReceive('dispatch');
+        $this->app->instance(BusDispatcher::class, $bus);
+        $app = $this->makeApp(webhooks: [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_occupied'],
+            'batching' => ['enabled' => true],
+        ]);
+
+        (new HttpWebhookDispatcher)->dispatch(
+            $app,
+            'channel_occupied',
+            ['channel' => 'test-channel'],
+        );
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function testImmediateDispatchWhenBatchingDisabled(): void
     {
         Queue::fake();
 
@@ -355,7 +410,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         Queue::assertPushed(WebhookDeliveryJob::class);
     }
 
-    public function testSubscriptionCountEventIncludesCountInPayload()
+    public function testSubscriptionCountEventIncludesCountInPayload(): void
     {
         Queue::fake();
 
@@ -376,7 +431,7 @@ class HttpWebhookDispatcherTest extends ReverbTestCase
         });
     }
 
-    public function testSubscriptionCountBypassesEventsAllowlist()
+    public function testSubscriptionCountBypassesEventsAllowlist(): void
     {
         Queue::fake();
 

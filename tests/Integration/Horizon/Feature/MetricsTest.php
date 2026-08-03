@@ -295,34 +295,40 @@ class MetricsTest extends IntegrationTestCase
         $this->assertSame(0, $metrics->throughput());
     }
 
-    public function testQueueWithMaximumRuntime()
+    public function testQueueWithMaximumRuntime(): void
     {
         $metrics = resolve(MetricsRepository::class);
 
-        // Set up metrics for two queues with different runtimes
-        $metrics->incrementQueue('fast-queue', 100.0);
-        $metrics->incrementQueue('slow-queue', 500.0);
-
         CarbonImmutable::setTestNow(CarbonImmutable::now());
-        $metrics->snapshot();
+
+        // Multiple snapshots expose the old range; the z-prefix makes its fallback choose incorrectly.
+        for ($snapshot = 0; $snapshot < 3; ++$snapshot) {
+            $metrics->incrementQueue('z-fast-queue', 100.0);
+            $metrics->incrementQueue('slow-queue', 500.0);
+            $metrics->snapshot();
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
+        }
 
         $this->assertSame('slow-queue', $metrics->queueWithMaximumRuntime());
 
         CarbonImmutable::setTestNow();
     }
 
-    public function testQueueWithMaximumThroughput()
+    public function testQueueWithMaximumThroughput(): void
     {
         $metrics = resolve(MetricsRepository::class);
 
-        // Set up metrics — busy queue gets 3 jobs, quiet queue gets 1
-        $metrics->incrementQueue('busy-queue', 100.0);
-        $metrics->incrementQueue('busy-queue', 100.0);
-        $metrics->incrementQueue('busy-queue', 100.0);
-        $metrics->incrementQueue('quiet-queue', 100.0);
-
         CarbonImmutable::setTestNow(CarbonImmutable::now());
-        $metrics->snapshot();
+
+        // Multiple snapshots expose the old range; the z-prefix makes its fallback choose incorrectly.
+        for ($snapshot = 0; $snapshot < 3; ++$snapshot) {
+            $metrics->incrementQueue('busy-queue', 100.0);
+            $metrics->incrementQueue('busy-queue', 100.0);
+            $metrics->incrementQueue('busy-queue', 100.0);
+            $metrics->incrementQueue('z-quiet-queue', 100.0);
+            $metrics->snapshot();
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
+        }
 
         $this->assertSame('busy-queue', $metrics->queueWithMaximumThroughput());
 

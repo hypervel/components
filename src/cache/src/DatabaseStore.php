@@ -69,6 +69,11 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     protected array|bool|null $serializableClasses;
 
     /**
+     * The shared serializable class policy.
+     */
+    protected ?SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new database store.
      */
     public function __construct(
@@ -80,6 +85,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
         array $lockLottery = [2, 100],
         int $defaultLockTimeoutInSeconds = 86400,
         array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
     ) {
         $this->resolver = $resolver;
         $this->connectionName = $connectionName;
@@ -89,6 +95,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
         $this->lockLottery = $lockLottery;
         $this->defaultLockTimeoutInSeconds = $defaultLockTimeoutInSeconds;
         $this->serializableClasses = $serializableClasses;
+        $this->serializableClassPolicy = $serializableClassPolicy;
     }
 
     /**
@@ -511,6 +518,10 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
         if (($connection instanceof PostgresConnection || $connection instanceof SQLiteConnection)
             && ! Str::contains($value, [':', ';'])) {
             $value = base64_decode($value);
+        }
+
+        if ($this->serializableClassPolicy !== null) {
+            return $this->serializableClassPolicy->unserialize($value);
         }
 
         if ($this->serializableClasses !== null) {

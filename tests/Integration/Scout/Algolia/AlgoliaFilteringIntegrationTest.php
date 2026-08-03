@@ -21,8 +21,7 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
     }
 
     /**
-     * Configure attributesForFaceting so Algolia accepts numericFilters
-     * on id/title/body. Required before indexing data.
+     * Configure attributesForFaceting so Algolia accepts filters on id/title/body.
      */
     protected function configureFilterableIndex(): void
     {
@@ -97,6 +96,79 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
         $this->assertFalse($results->contains('id', $second->id));
     }
 
+    public function testComparisonFiltersAndEscapedStringValuesReachAlgolia(): void
+    {
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['id' => 101, 'title' => 'A "quoted" \ guide', 'body' => 'Body']),
+            SearchableModel::create(['id' => 102, 'title' => 'Other', 'body' => 'Body']),
+            SearchableModel::create(['id' => 103, 'title' => 'Third', 'body' => 'Body']),
+        ]));
+
+        $this->engine->update($models);
+        $this->pollSearch($models->first()->searchableAs(), '', 3);
+
+        $results = SearchableModel::search('')
+            ->where('id', '>', 101)
+            ->where('id', '!=', 103)
+            ->get();
+
+        $this->assertSame([102], $results->pluck('id')->all());
+
+        $results = SearchableModel::search('')
+            ->where('title', 'A "quoted" \ guide')
+            ->get();
+
+        $this->assertSame([101], $results->pluck('id')->all());
+    }
+
+    public function testBackedEnumsRetainTheirNativeFilterValues(): void
+    {
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['id' => 201, 'title' => 'Enum target', 'body' => 'Body']),
+            SearchableModel::create(['id' => 202, 'title' => 'Other', 'body' => 'Body']),
+        ]));
+
+        $this->engine->update($models);
+        $this->pollSearch($models->first()->searchableAs(), '', 2);
+
+        $this->assertSame(
+            [201],
+            SearchableModel::search('')->where('id', AlgoliaFilterId::Target)->get()->pluck('id')->all()
+        );
+        $this->assertSame(
+            [201],
+            SearchableModel::search('')->where('title', AlgoliaFilterTitle::Target)->get()->pluck('id')->all()
+        );
+    }
+
+    public function testApplicationFiltersComposeWithBuilderFiltersForSearchAndDeletion(): void
+    {
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['id' => 701, 'title' => 'Target', 'body' => 'Body']),
+            SearchableModel::create(['id' => 702, 'title' => 'Other', 'body' => 'Body']),
+            SearchableModel::create(['id' => 703, 'title' => 'Excluded', 'body' => 'Body']),
+        ]));
+        $index = $models->first()->searchableAs();
+
+        $this->engine->update($models);
+        $this->pollSearch($index, '', 3);
+
+        $results = SearchableModel::search('')
+            ->options(['filters' => "title:'Target' OR title:'Other'"])
+            ->where('id', 701)
+            ->get();
+
+        $this->assertSame([701], $results->pluck('id')->all());
+
+        $this->engine->deleteByFilter(
+            SearchableModel::search('')
+                ->options(['filters' => "title:'Target' OR title:'Other'"])
+                ->where('id', 701)
+        );
+
+        $this->assertCount(2, $this->pollSearch($index, '', 2));
+    }
+
     /**
      * Poll an Algolia index until the search returns the expected hit count.
      *
@@ -124,4 +196,14 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
         return $hits;
     }
+}
+
+enum AlgoliaFilterId: int
+{
+    case Target = 201;
+}
+
+enum AlgoliaFilterTitle: string
+{
+    case Target = 'Enum target';
 }

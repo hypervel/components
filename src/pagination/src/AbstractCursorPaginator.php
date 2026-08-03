@@ -212,32 +212,45 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
                 return $parameter;
             }
             if ($item instanceof ArrayAccess || is_array($item)) {
-                return $this->ensureParameterIsPrimitive(
-                    $item[$parameterName] ?? $item[Str::afterLast($parameterName, '.')]
+                $parameter = $this->ensureParameterIsPrimitive(
+                    $item[$parameterName] ?? $item[Str::afterLast($parameterName, '.')] ?? null
                 );
-            }
-            if (is_object($item)) {
-                return $this->ensureParameterIsPrimitive(
-                    $item->{$parameterName} ?? $item->{Str::afterLast($parameterName, '.')}
+            } elseif (is_object($item)) {
+                $parameter = $this->ensureParameterIsPrimitive(
+                    $item->{$parameterName} ?? $item->{Str::afterLast($parameterName, '.')} ?? null
                 );
+            } else {
+                throw new Exception('Only arrays and objects are supported when cursor paginating items.');
             }
 
-            throw new Exception('Only arrays and objects are supported when cursor paginating items.');
+            if ($parameter === null) {
+                throw new Exception("Unable to locate a value for the cursor pagination parameter [{$parameterName}].");
+            }
+
+            return $parameter;
         })->toArray();
     }
 
     /**
      * Get the cursor parameter value from a pivot model if applicable.
+     *
+     * @throws Exception
      */
-    protected function getPivotParameterForItem(Model $item, string $parameterName): ?string
+    protected function getPivotParameterForItem(Model $item, string $parameterName): mixed
     {
         $table = Str::beforeLast($parameterName, '.');
 
         foreach ($item->getRelations() as $relation) {
             if ($relation instanceof Pivot && $relation->getTable() === $table) {
-                return $this->ensureParameterIsPrimitive(
+                $parameter = $this->ensureParameterIsPrimitive(
                     $relation->getAttribute(Str::afterLast($parameterName, '.'))
                 );
+
+                if ($parameter === null) {
+                    throw new Exception("Unable to locate a value for the cursor pagination parameter [{$parameterName}].");
+                }
+
+                return $parameter;
             }
         }
 

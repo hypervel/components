@@ -6,6 +6,8 @@ namespace Hypervel\Horizon;
 
 use Closure;
 use Exception;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Foundation\DevCommands;
 use Hypervel\Http\Request;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\HtmlString;
@@ -46,6 +48,11 @@ class Horizon
         'Jobs', 'Supervisors', 'CommandQueue', 'Tags',
         'Metrics', 'Locks', 'Processes',
     ];
+
+    /**
+     * The context key for Horizon's CSP nonce attribute.
+     */
+    protected const CSP_NONCE_CONTEXT_KEY = '__horizon.csp_nonce';
 
     /**
      * Determine if the given request can access the Horizon dashboard.
@@ -121,10 +128,12 @@ class Horizon
             throw new RuntimeException('Unable to load the Horizon dashboard CSS.');
         }
 
+        $nonceAttribute = CoroutineContext::get(self::CSP_NONCE_CONTEXT_KEY, '');
+
         return new HtmlString(<<<HTML
-            <style data-scheme="light">{$light}</style>
-            <style data-scheme="dark">{$dark}</style>
-            <style>{$app}</style>
+            <style data-scheme="light"{$nonceAttribute}>{$light}</style>
+            <style data-scheme="dark"{$nonceAttribute}>{$dark}</style>
+            <style{$nonceAttribute}>{$app}</style>
             HTML);
     }
 
@@ -139,13 +148,17 @@ class Horizon
 
         $horizon = Js::from(static::scriptVariables());
 
+        $nonceAttribute = CoroutineContext::get(self::CSP_NONCE_CONTEXT_KEY, '');
+
         return new HtmlString(<<<HTML
-            <script type="module">
+            <script type="module"{$nonceAttribute}>
                 window.Horizon = {$horizon};
                 {$js}
             </script>
             HTML);
     }
+
+    // REMOVED: Deprecated Horizon::night() theme mutator.
 
     /**
      * Get the default JavaScript variables for Horizon.
@@ -153,8 +166,8 @@ class Horizon
     public static function scriptVariables(): array
     {
         return [
-            'path' => config('horizon.path'),
-            'proxy_path' => config('horizon.proxy_path', ''),
+            'path' => config()->string('horizon.path'),
+            'proxy_path' => config()->string('horizon.proxy_path'),
         ];
     }
 
@@ -196,6 +209,34 @@ class Horizon
         static::$smsNumber = $number;
 
         return new static;
+    }
+
+    /**
+     * Set the CSP nonce to use for style and script tags.
+     *
+     * Call this from request middleware so the nonce is isolated to the
+     * current request coroutine.
+     */
+    public static function cspNonce(string $nonce): static
+    {
+        CoroutineContext::set(
+            self::CSP_NONCE_CONTEXT_KEY,
+            ' nonce="' . $nonce . '"',
+        );
+
+        return new static;
+    }
+
+    /**
+     * Register the Horizon development commands.
+     *
+     * Boot-only. The registrations persist for the worker lifetime and affect
+     * every subsequent development command invocation.
+     */
+    public static function registerDevCommands(): void
+    {
+        DevCommands::artisan('horizon', 'horizon');
+        DevCommands::except('queue');
     }
 
     /**

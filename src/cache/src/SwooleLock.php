@@ -61,7 +61,7 @@ class SwooleLock extends Lock implements RefreshableLock
     public function refresh(?int $seconds = null): bool
     {
         if ($seconds === null && $this->seconds <= 0) {
-            return true;
+            return $this->isOwnedByCurrentProcess();
         }
 
         $seconds ??= $this->seconds;

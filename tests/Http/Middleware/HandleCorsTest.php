@@ -27,7 +27,7 @@ class HandleCorsTest extends TestCase
         'max_age' => 0,
     ];
 
-    public function testReturnsAllowOriginHeaderForPreflightWithoutOriginHeader()
+    public function testReturnsAllowOriginHeaderForPreflightWithoutOriginHeader(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Access-Control-Request-Method' => 'POST',
@@ -37,7 +37,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
-    public function testOptionsAllowOriginAllowed()
+    public function testOptionsAllowOriginAllowed(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://localhost',
@@ -48,7 +48,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
-    public function testAllowAllOrigins()
+    public function testAllowAllOrigins(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://hypervel.org',
@@ -59,7 +59,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
-    public function testAllowAllOriginsWildcardPattern()
+    public function testAllowAllOriginsWildcardPattern(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://test.hypervel.org',
@@ -70,7 +70,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
-    public function testOriginsWildcardIncludesNestedSubdomains()
+    public function testOriginsWildcardIncludesNestedSubdomains(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://api.service.test.hypervel.org',
@@ -81,7 +81,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
-    public function testWildcardOriginsNoMatch()
+    public function testWildcardOriginsNoMatch(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://test.symfony.com',
@@ -91,7 +91,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame('', $response->headers->get('Access-Control-Allow-Origin', ''));
     }
 
-    public function testOptionsAllowOriginNotAllowed()
+    public function testOptionsAllowOriginNotAllowed(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://otherhost',
@@ -101,7 +101,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame('http://localhost', $response->headers->get('Access-Control-Allow-Origin'));
     }
 
-    public function testAllowMethodForNonPreflightHasNoAllowMethodsHeader()
+    public function testAllowMethodForNonPreflightHasNoAllowMethodsHeader(): void
     {
         $response = $this->dispatchRequest('POST', 'api/ping', [
             'Origin' => 'http://localhost',
@@ -112,7 +112,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
-    public function testAllowHeaderAllowedOptions()
+    public function testAllowHeaderAllowedOptions(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://localhost',
@@ -124,7 +124,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
-    public function testAllowHeaderAllowedWildcardOptions()
+    public function testAllowHeaderAllowedWildcardOptions(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://localhost',
@@ -136,7 +136,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(204, $response->getStatusCode());
     }
 
-    public function testAllowHeaderNotAllowedOptions()
+    public function testAllowHeaderNotAllowedOptions(): void
     {
         $response = $this->dispatchPreflight('api/ping', [
             'Origin' => 'http://localhost',
@@ -147,7 +147,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame('x-custom-1, x-custom-2', $response->headers->get('Access-Control-Allow-Headers'));
     }
 
-    public function testNonMatchingPathPassesThrough()
+    public function testNonMatchingPathPassesThrough(): void
     {
         // path doesn't match 'api/*' — middleware should not add CORS headers
         $response = $this->dispatchRequest('POST', 'web/ping', [
@@ -158,7 +158,7 @@ class HandleCorsTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
-    public function testErrorResponseStillReceivesCorsHeaders()
+    public function testErrorResponseStillReceivesCorsHeaders(): void
     {
         $response = $this->dispatchRequest('POST', 'api/error', [
             'Origin' => 'http://localhost',
@@ -168,8 +168,15 @@ class HandleCorsTest extends TestCase
         $this->assertSame(500, $response->getStatusCode());
     }
 
-    public function testSkipWhenCallbackBypassesMiddleware()
+    public function testSkipWhenCallbackBypassesMiddleware(): void
     {
+        $resolverCalled = false;
+
+        HandleCors::resolveConfigUsing(function () use (&$resolverCalled) {
+            $resolverCalled = true;
+
+            return $this->defaultConfig;
+        });
         HandleCors::skipWhen(fn () => true);
 
         try {
@@ -179,33 +186,86 @@ class HandleCorsTest extends TestCase
             ]);
 
             $this->assertNull($response->headers->get('Access-Control-Allow-Origin'));
+            $this->assertFalse($resolverCalled);
         } finally {
             HandleCors::flushState();
         }
     }
 
-    public function testResolveConfigUsingOverridesContainerConfig()
+    public function testResolveConfigUsingControlsPathsAndOptionsOncePerRequest(): void
     {
-        HandleCors::resolveConfigUsing(function (Request $request) {
+        $resolverCalls = 0;
+
+        HandleCors::resolveConfigUsing(function (Request $request) use (&$resolverCalls) {
+            ++$resolverCalls;
+
             return array_merge($this->defaultConfig, [
+                'paths' => ['tenant/*'],
                 'allowed_origins' => ['http://custom.example.com'],
             ]);
         });
 
         try {
-            $response = $this->dispatchPreflight('api/ping', [
+            $response = $this->dispatchPreflight('tenant/ping', [
                 'Origin' => 'http://custom.example.com',
                 'Access-Control-Request-Method' => 'POST',
             ]);
 
             $this->assertSame('http://custom.example.com', $response->headers->get('Access-Control-Allow-Origin'));
             $this->assertSame(204, $response->getStatusCode());
+            $this->assertSame(1, $resolverCalls);
         } finally {
             HandleCors::flushState();
         }
     }
 
-    public function testStockMiddlewareDoesNotLeakBetweenConcurrentCoroutines()
+    public function testResolverWithoutPathsFailsClosed(): void
+    {
+        $config = $this->defaultConfig;
+        unset($config['paths']);
+
+        HandleCors::resolveConfigUsing(fn () => $config);
+
+        try {
+            $response = $this->dispatchPreflight('api/ping', [
+                'Origin' => 'http://localhost',
+                'Access-Control-Request-Method' => 'POST',
+            ]);
+
+            $this->assertNull($response->headers->get('Access-Control-Allow-Origin'));
+            $this->assertSame(200, $response->getStatusCode());
+        } finally {
+            HandleCors::flushState();
+        }
+    }
+
+    public function testResolverSupportsHostSpecificPaths(): void
+    {
+        HandleCors::resolveConfigUsing(fn () => array_merge($this->defaultConfig, [
+            'paths' => [
+                'tenant.example.com' => ['tenant/*'],
+                'api/*',
+            ],
+        ]));
+
+        try {
+            $request = Request::create('http://tenant.example.com/tenant/ping', 'OPTIONS');
+            $request->headers->set('Origin', 'http://localhost');
+            $request->headers->set('Access-Control-Request-Method', 'POST');
+
+            $response = $this->makeMiddleware(['paths' => ['static/*']])->handle(
+                $request,
+                fn () => new Response('', 200),
+            );
+
+            $this->assertSame('http://localhost', $response->headers->get('Access-Control-Allow-Origin'));
+            $this->assertSame(204, $response->getStatusCode());
+        } finally {
+            HandleCors::flushState();
+        }
+    }
+
+    public function testStockMiddlewareDoesNotLeakBetweenConcurrentCoroutines(): void
     {
         // Two concurrent requests through the same stock middleware with uniform
         // config — each should resolve independently. Catches any unexpected
@@ -245,54 +305,6 @@ class HandleCorsTest extends TestCase
 
         $this->assertSame('http://localhost', $resultA, 'Coroutine A saw the wrong origin in its preflight response.');
         $this->assertSame('http://other.test', $resultB, 'Coroutine B saw the wrong origin in its preflight response.');
-    }
-
-    public function testResolveConfigUsingDoesNotLeakBetweenConcurrentCoroutines()
-    {
-        // The resolver varies allowed origins by the request's host. Two
-        // concurrent requests should each see their own host's config —
-        // not the other's.
-        HandleCors::resolveConfigUsing(function (Request $request) {
-            return [
-                'paths' => ['*'],
-                'allowed_origins' => ['http://' . $request->getHost()],
-            ];
-        });
-
-        try {
-            $middleware = $this->makeMiddleware(['paths' => ['*']]);
-
-            [$resultA, $resultB] = parallel([
-                function () use ($middleware) {
-                    $request = Request::create('http://a.example.com/api/ping', 'OPTIONS');
-                    $request->headers->set('Origin', 'http://a.example.com');
-                    $request->headers->set('Access-Control-Request-Method', 'GET');
-
-                    usleep(5000);
-                    $response = $middleware->handle($request, fn () => new Response('', 200));
-                    usleep(5000);
-
-                    return $response->headers->get('Access-Control-Allow-Origin');
-                },
-                function () use ($middleware) {
-                    usleep(2500);
-
-                    $request = Request::create('http://b.example.com/api/ping', 'OPTIONS');
-                    $request->headers->set('Origin', 'http://b.example.com');
-                    $request->headers->set('Access-Control-Request-Method', 'GET');
-
-                    $response = $middleware->handle($request, fn () => new Response('', 200));
-                    usleep(5000);
-
-                    return $response->headers->get('Access-Control-Allow-Origin');
-                },
-            ]);
-
-            $this->assertSame('http://a.example.com', $resultA, 'Coroutine A saw the wrong CORS origin — config leaked from coroutine B.');
-            $this->assertSame('http://b.example.com', $resultB, 'Coroutine B saw the wrong CORS origin — config leaked from coroutine A.');
-        } finally {
-            HandleCors::flushState();
-        }
     }
 
     /**

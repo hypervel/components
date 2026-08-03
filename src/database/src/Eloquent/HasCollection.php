@@ -30,13 +30,13 @@ trait HasCollection
         // @phpstan-ignore assign.propertyType (generic type narrowing loss with static property)
         static::$resolvedCollectionClasses[static::class] ??= ($this->resolveCollectionFromAttribute() ?? static::$collectionClass);
 
+        /** @var TCollection $collection */
         $collection = new static::$resolvedCollectionClasses[static::class]($models);
 
         if (Model::isAutomaticallyEagerLoadingRelationships()) {
             $collection->withRelationshipAutoloading();
         }
 
-        // @phpstan-ignore return.type (dynamic class instantiation from static property loses generic type)
         return $collection;
     }
 
@@ -52,8 +52,11 @@ trait HasCollection
         do {
             $attributes = $reflection->getAttributes(CollectedBy::class);
 
-            if (isset($attributes[0], $attributes[0]->getArguments()[0])) {
-                return $attributes[0]->getArguments()[0];
+            if (isset($attributes[0])) {
+                /** @var class-string<TCollection> $collectionClass */
+                $collectionClass = $attributes[0]->newInstance()->collectionClass;
+
+                return $collectionClass;
             }
         } while ($reflection = $reflection->getParentClass());
 

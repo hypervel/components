@@ -34,7 +34,9 @@ namespace Hypervel\Support\Facades;
  * @method static int flushByPattern(string $pattern)
  * @method static array|\Redis pipeline(callable|null $callback = null)
  * @method static array|\Redis|\RedisCluster transaction(callable|null $callback = null)
+ * @method static (bool|\Redis) discard()
  * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
+ * @method static bool hasHashTag(string $key)
  * @method static bool serialized()
  * @method static bool compressed()
  * @method static array<int|string, string> pack(array<int|string, mixed> $values)
@@ -42,34 +44,34 @@ namespace Hypervel\Support\Facades;
  * @method static mixed get(string $key) Get the value of a key
  * @method static bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
  * @method static array mget(array $keys) Get the values of multiple keys
- * @method static int setnx(string $key, string $value) Set key if not exists
- * @method static array hmget(string $key, mixed ...$fields) Get hash field values
- * @method static bool hmset(string $key, mixed ...$dictionary) Set hash field values
- * @method static int hsetnx(string $hash, string $key, string $value) Set hash field if not exists
+ * @method static (bool|int|\Redis) setnx(string $key, mixed $value) Set key if not exists
+ * @method static (array|false|\Redis) hmget(string $key, array $fields) Get hash field values
+ * @method static (bool|\Redis) hmset(string $key, array $fieldValues) Set hash field values
+ * @method static (bool|int|\Redis) hsetnx(string $hash, string $key, mixed $value) Set hash field if not exists
  * @method static mixed hget(string $key, string $member) Get hash field value
- * @method static (false|int) hset(string $key, mixed ...$fields_and_vals) Set hash field values
+ * @method static (false|int|\Redis) hset(string $key, mixed ...$fields_and_vals) Set hash field values
  * @method static (false|int) lrem(string $key, int $count, mixed $value) Remove list elements
- * @method static (false|int) llen(string $key) Get list length
- * @method static (null|array) blpop(mixed ...$arguments) Blocking left pop from list
- * @method static (null|array) brpop(mixed ...$arguments) Blocking right pop from list
- * @method static mixed spop(string $key, int $count = 1) Remove and return random set member
- * @method static (false|int) sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
- * @method static int zadd(string $key, mixed ...$dictionary) Add members to sorted set
- * @method static (false|int) zcard(string $key) Get sorted set cardinality
- * @method static (false|int) zcount(string $key, (int|string) $start, (int|string) $end) Count sorted set members by score range
- * @method static array zrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range
- * @method static array zrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range (reverse)
+ * @method static (false|int|\Redis) llen(string $key) Get list length
+ * @method static (null|array|false|\Redis) blpop((array|string) $key_or_keys, (float|int|string) $timeout_or_key, mixed ...$extra_args) Blocking left pop from list
+ * @method static (null|array|false|\Redis) brpop((array|string) $key_or_keys, (float|int|string) $timeout_or_key, mixed ...$extra_args) Blocking right pop from list
+ * @method static mixed spop(string $key, int $count = 0) Remove and return random set member
+ * @method static (false|int|\Redis) sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
+ * @method static (false|float|int|\Redis) zadd(string $key, (array|float) $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
+ * @method static (false|int|\Redis) zcard(string $key) Get sorted set cardinality
+ * @method static (false|int|\Redis) zcount(string $key, (int|string) $start, (int|string) $end) Count sorted set members by score range
+ * @method static (array|false|\Redis) zrangebyscore(string $key, string $min, string $max, array $options = []) Get sorted set members by score range
+ * @method static (array|false|\Redis) zrevrangebyscore(string $key, string $max, string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method static int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
  * @method static int zunionstore(string $output, array $keys, array $options = []) Union sorted sets
  * @method static mixed eval(string $script, int $numberOfKeys, mixed ...$arguments) Evaluate Lua script
  * @method static mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method static mixed flushdb(mixed ...$arguments) Flush database
  * @method static mixed executeRaw(array $parameters) Execute raw Redis command
- * @method static array smembers(string $key) Get all set members
- * @method static (false|int) hdel(string $key, string ...$fields) Delete hash fields
- * @method static (false|int) zrem(string $key, string ...$members) Remove sorted set members
- * @method static (false|int) hlen(string $key) Get number of hash fields
- * @method static array hkeys(string $key) Get all hash field names
+ * @method static (array|false|\Redis) smembers(string $key) Get all set members
+ * @method static (false|int|\Redis) hdel(string $key, string $field, string ...$other_fields) Delete hash fields
+ * @method static (false|int|\Redis) zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
+ * @method static (false|int|\Redis) hlen(string $key) Get number of hash fields
+ * @method static (array|false|\Redis) hkeys(string $key) Get all hash field names
  * @method static string _serialize(mixed $value) Serialize a value using configured serializer
  * @method static string _digest(mixed $value)
  * @method static string _pack(mixed $value)
@@ -100,7 +102,6 @@ namespace Hypervel\Support\Facades;
  * @method static (false|int|\Redis) delex(string $key, (array|null) $options = null)
  * @method static (false|int|\Redis) delifeq(string $key, mixed $value)
  * @method static (false|\Redis|string) digest(string $key)
- * @method static (bool|\Redis) discard()
  * @method static (false|\Redis|string) dump(string $key)
  * @method static (false|\Redis|string) echo(string $str)
  * @method static mixed eval_ro(string $script_sha, array $args = [], int $num_keys = 0)
@@ -308,7 +309,8 @@ class Redis extends Facade
     /**
      * Get methods that should be excluded from the generated facade docblock.
      *
-     * Keep in sync with RedisProxy's connection-bound methods.
+     * Excludes connection-bound methods, unavailable pooled commands, and
+     * internal trait aliases.
      *
      * @return array<int, string>
      */
@@ -331,6 +333,7 @@ class Redis extends Facade
             'heartbeatCheck',
             'isIdleExpired',
             'isLifetimeExpired',
+            'macroCall',
             'masters',
             'pconnect',
             'reconnect',

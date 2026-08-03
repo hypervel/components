@@ -26,6 +26,8 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->where('id', 1));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhere('name', 'John'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereNot('status', 'active'));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereCan(Ability::Edit, $user));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withCan([Ability::Edit, 'delete'], $user));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with('relation'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => ['foo' => fn ($q) => $q]]));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => function ($query) {
@@ -182,6 +184,7 @@ function test(
     });
 
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query());
+    assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query()->whereCan('edit'));
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::on());
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::onWriteConnection());
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::with([]));
@@ -230,6 +233,11 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->pipe(fn () => null));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->pipe(fn ($query) => $query));
     assertType('5', $query->pipe(fn ($query) => 5));
+}
+
+enum Ability
+{
+    case Edit;
 }
 
 class User extends Model

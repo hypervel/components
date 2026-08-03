@@ -38,9 +38,12 @@ class ArrayStore extends AbstractArrayStore
     /**
      * Create a new Array store.
      */
-    public function __construct(bool $serializesValues = false, array|bool|null $serializableClasses = null)
-    {
-        parent::__construct($serializesValues, $serializableClasses);
+    public function __construct(
+        bool $serializesValues = false,
+        array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
+    ) {
+        parent::__construct($serializesValues, $serializableClasses, $serializableClassPolicy);
 
         $suffix = (string) ++self::$contextKeySequence;
 

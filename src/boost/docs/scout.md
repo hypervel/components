@@ -6,6 +6,8 @@
 - [Driver Prerequisites](#driver-prerequisites)
 - [Configuration](#configuration)
     - [Configuring Searchable Data](#configuring-searchable-data)
+    - [Customizing the Scout Builder](#customizing-the-scout-builder)
+    - [Customizing Scout Lifecycles](#customizing-scout-lifecycles)
 - [Database, Collection, and Null Engines](#database-and-collection-engines)
     - [Database Engine](#database-engine)
     - [Collection Engine](#collection-engine)
@@ -14,6 +16,7 @@
     - [Configuring Model Indexes](#configuring-model-indexes)
     - [Algolia](#algolia-configuration)
     - [Meilisearch](#meilisearch-configuration)
+        - [Tenant Tokens](#meilisearch-tenant-tokens)
     - [Typesense](#typesense-configuration)
 - [Third-Party Engine Indexing](#indexing)
     - [Batch Import](#batch-import)
@@ -24,6 +27,7 @@
     - [Conditionally Searchable Model Instances](#conditionally-searchable-model-instances)
 - [Searching](#searching)
     - [Where Clauses](#where-clauses)
+    - [Combining Raw and Builder Filters](#combining-raw-and-builder-filters)
     - [Pagination](#pagination)
     - [Soft Deleting](#soft-deleting)
     - [Customizing Engine Searches](#customizing-engine-searches)
@@ -91,20 +95,32 @@ Of course, if you customize the connection and queue that Scout jobs utilize, yo
 php artisan queue:work redis --queue=scout
 ```
 
-Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, `SCOUT_QUEUE_NAME`, and `SCOUT_QUEUE_AFTER_COMMIT` environment variables.
+Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, and `SCOUT_QUEUE_NAME` environment variables.
 
 #### Transaction-Safe Dispatch
 
 If your indexing happens inside a database transaction, set `after_commit` so the queued job is only dispatched once the transaction commits:
 
 ```php
-'queue' => [
-    'enabled' => true,
-    'after_commit' => true,
-],
+'after_commit' => true,
 ```
 
-This stops the queue worker from picking up an indexing job for a record that no longer exists because the transaction was rolled back.
+This option may also be set using the `SCOUT_AFTER_COMMIT` environment variable. It stops the queue worker from picking up an indexing job for a record that no longer exists because the transaction was rolled back.
+
+#### Unique Jobs
+
+In write-heavy applications, you may prevent Scout from queueing duplicate jobs for the same model records by registering the unique job classes in a service provider:
+
+```php
+use Hypervel\Scout\Jobs\MakeSearchableUniquely;
+use Hypervel\Scout\Jobs\RemoveFromSearchUniquely;
+use Hypervel\Scout\Scout;
+
+Scout::makeSearchableUsing(MakeSearchableUniquely::class);
+Scout::removeFromSearchUsing(RemoveFromSearchUniquely::class);
+```
+
+These jobs use [unique job locks](/docs/{{version}}/queues#unique-jobs) while a matching indexing operation is waiting to be processed.
 
 #### When to Use Each Mode
 
@@ -258,6 +274,58 @@ class User extends Model implements SearchableInterface
     }
 }
 ```
+
+<a name="customizing-the-scout-builder"></a>
+### Customizing the Scout Builder
+
+To use a custom Scout query builder for a model, define the `$scoutBuilder` property on the model:
+
+```php
+use App\Scout\CustomScoutBuilder;
+
+protected static string $scoutBuilder = CustomScoutBuilder::class;
+```
+
+The custom class should extend `Hypervel\Scout\Builder` and will be resolved through the service container for each search.
+
+<a name="customizing-scout-lifecycles"></a>
+### Customizing Scout Lifecycles
+
+Packages may register callbacks that prepare Scout operations immediately before they reach a search engine. Register these callbacks from a service provider's `boot` method:
+
+```php
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Builder;
+use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Scout;
+use LogicException;
+
+Scout::prepareBuilderUsing(function (Builder $builder, Engine $engine): void {
+    $builder->where('account_id', currentAccountId());
+});
+
+Scout::prepareSearchableDocumentUsing(
+    fn (array $document, Model $model, Engine $engine): array => [
+        ...$document,
+        'account_id' => $model->account_id,
+    ]
+);
+
+Scout::prepareIndexSettingsUsing(
+    fn (array $settings, ?Model $model, Engine $engine, string $index): array => $settings
+);
+
+Scout::guardModelFlushUsing(function (Model $model, Engine $engine, bool $force): void {
+    if (! $force) {
+        throw new LogicException('This index may only be flushed explicitly.');
+    }
+});
+```
+
+Registering a callback replaces the previously registered callback for that lifecycle. Builder preparation runs once before each terminal Scout search and before filtered deletion through `DeletesByFilter`. Document preparation receives the final document, including Scout metadata and its engine key. Settings preparation runs for `scout:index`, `scout:sync-index-settings`, and lazy Typesense collection creation.
+
+> [!WARNING]
+> Lifecycle callbacks persist for the worker lifetime. Register them only during application boot and do not capture request-scoped state. Arbitrary direct engine and search SDK calls remain low-level operations and do not invoke these callbacks automatically; `DeletesByFilter::deleteByFilter` is an explicit prepared Builder terminal.
 
 <a name="database-and-collection-engines"></a>
 ## Database, Collection, and Null Engines
@@ -421,6 +489,9 @@ class User extends Model implements SearchableInterface
 > [!NOTE]
 > The `getScoutKey` and `getScoutKeyName` methods have no effect when using the database engine, which always uses the model's primary key.
 
+> [!WARNING]
+> Meilisearch document identifiers may contain only letters, numbers, hyphens, and underscores, so custom Scout keys must follow that format when using Meilisearch.
+
 <a name="algolia-configuration"></a>
 ### Algolia
 
@@ -560,6 +631,35 @@ public function toSearchableArray()
 }
 ```
 
+<a name="meilisearch-tenant-tokens"></a>
+#### Tenant Tokens
+
+Meilisearch tenant tokens let browser clients search with an enforced filter without exposing a parent API key. Scout signs these tokens locally when you provide the matching parent key UID and secret:
+
+```php
+use DateTimeImmutable;
+use Hypervel\Scout\Engines\MeilisearchEngine;
+use Hypervel\Scout\Scout;
+use LogicException;
+
+$engine = Scout::engine('meilisearch');
+
+if (! $engine instanceof MeilisearchEngine) {
+    throw new LogicException('The Meilisearch engine is not configured.');
+}
+
+$token = $engine->generateTenantToken(
+    searchRules: [
+        'orders' => ['filter' => 'account_id = 42'],
+    ],
+    apiKeyUid: $parentKeyUid,
+    apiKey: $parentKey,
+    expiresAt: new DateTimeImmutable('+1 hour'),
+);
+```
+
+The UID identifies the parent key while the key signs the token, so both values must describe the same Meilisearch key. Scout does not query the keys API while generating a token.
+
 <a name="typesense-configuration"></a>
 ### Typesense
 
@@ -583,7 +683,7 @@ public function toSearchableArray(): array
 }
 ```
 
-You may define your Typesense collection schema in your application's `config/scout.php` file under `typesense.model-settings`, or directly on the model by defining a `typesenseCollectionSchema` method. A collection schema describes the data types of each field that is searchable via Typesense. For more information on all available schema options, please consult the [Typesense documentation](https://typesense.org/docs/latest/api/collections.html#schema-parameters).
+You may define your Typesense collection schema in your application's `config/scout.php` file under `typesense.model-settings`, or directly on the model by defining a `typesenseCollectionSchema` method. A collection schema describes the data types of each field that is searchable via Typesense. Scout derives the collection name from the model's index name, so a `name` key in the schema is ignored. For more information on all available schema options, please consult the [Typesense documentation](https://typesense.org/docs/latest/api/collections.html#schema-parameters).
 
 If you need to change your Typesense collection's schema after it has been defined, you may either run `scout:flush` and `scout:import`, which will delete all existing indexed data and recreate the schema. Or, you may use Typesense's API to modify the collection's schema without removing any indexed data.
 
@@ -648,6 +748,12 @@ You may optionally control the chunk size, the ID range, and the destination que
 
 ```shell
 php artisan scout:queue-import "App\Models\Post" --chunk=500 --min=1000 --max=50000 --queue=imports
+```
+
+Imports run in ascending key order by default. To process the range from the highest key to the lowest, pass `--order=desc`:
+
+```shell
+php artisan scout:queue-import "App\Models\Post" --order=desc
 ```
 
 The `--min` and `--max` options are useful for resuming a partial import, or for running several imports in parallel against different ranges. There is no `--fresh` option — to rebuild the index from scratch, run `scout:flush` first.
@@ -823,6 +929,33 @@ To remove all of the model records from their corresponding index, you may invok
 Order::removeAllFromSearch();
 ```
 
+The optional `force` argument is passed to any registered [model-flush guard](#customizing-scout-lifecycles). Normal model calls and `scout:import --fresh` are unforced; the explicit `scout:flush` command passes `true`:
+
+```php
+Order::removeAllFromSearch(force: true);
+```
+
+Algolia, Meilisearch, and Typesense can also delete only the documents matched by a Scout Builder:
+
+```php
+use App\Models\Order;
+use Hypervel\Scout\Contracts\DeletesByFilter;
+use LogicException;
+
+$builder = Order::search('')->where('account_id', 42);
+$engine = (new Order)->searchableUsing();
+
+if (! $engine instanceof DeletesByFilter) {
+    throw new LogicException('The configured engine cannot delete by filter.');
+}
+
+$engine->deleteByFilter($builder);
+```
+
+Filtered deletion refuses an empty filter. It uses an explicit `within` index when provided and otherwise targets the model's writable `indexableAs` index. A missing target index is a successful no-op. The method returns only after the engine reports completion; SDK timeout and transport exceptions are not hidden.
+
+Since Algolia and Meilisearch perform these deletions asynchronously, Scout waits for them to finish before returning. Large deletions may take several minutes; Meilisearch waits up to 500 seconds and checks every five seconds, so long deletions should run in a queued job or console command instead of a web request. Typesense deletes synchronously.
+
 <a name="pausing-indexing"></a>
 ### Pausing Indexing
 
@@ -892,6 +1025,18 @@ public function boot(): void
 
 Custom job classes should extend the corresponding default job and override only the methods you need to change. These overrides only affect queue-mode indexing — in the default mode, indexing runs inline via `Coroutine::defer` and does not pass through a job class.
 
+You may configure the attempts, retry delay, and maximum unhandled exceptions for the default jobs in `config/scout.php`:
+
+```php
+'jobs' => [
+    'tries' => 3,
+    'backoff' => [1, 5, 10],
+    'max_exceptions' => 2,
+],
+```
+
+Values defined by a custom job class take precedence over these settings.
+
 <a name="searching"></a>
 ## Searching
 
@@ -942,7 +1087,7 @@ use App\Models\Order;
 $orders = Order::search('Star Trek')->where('user_id', 1)->get();
 ```
 
-You may also use the `=`, `!=`, `<`, `>`, `>=`, `<=` comparsion operators to build more advanced queries:
+You may also use the `=`, `!=`, `<`, `>`, `>=`, `<=` comparison operators to build more advanced queries:
 
 ```php
 Order::search('Star Trek')
@@ -973,6 +1118,20 @@ $orders = Order::search('Star Trek')->whereNotIn(
 
 > [!WARNING]
 > If your application is using Meilisearch, you must configure your application's [filterable attributes](#meilisearch-index-settings) before utilizing Scout's "where" clauses.
+
+<a name="combining-raw-and-builder-filters"></a>
+### Combining Raw and Builder Filters
+
+Algolia, Meilisearch, and Typesense preserve a raw application filter supplied through `options` when you also add Scout `where` clauses. Scout groups the application expression with its compiled Builder expression so neither side changes the other's precedence:
+
+```php
+Order::search('Star Trek')
+    ->options(['filters' => 'status:open OR status:paid']) // Algolia
+    ->where('account_id', 42)
+    ->get();
+```
+
+Use `filter` for Meilisearch and `filter_by` for Typesense. Meilisearch array filters retain their documented nested OR and outer AND structure; Scout appends its Builder expression as one additional outer AND term. Engine search callbacks receive the final composed options.
 
 <a name="customizing-the-eloquent-results-query"></a>
 #### Customizing the Eloquent Results Query

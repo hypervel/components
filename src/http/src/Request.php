@@ -139,6 +139,8 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     protected bool $isForwardedValidValue = true;
 
+    // Request::capture() is omitted because the Swoole bridge creates each request.
+
     /**
      * Initialize the request data.
      */
@@ -431,7 +433,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function pjax(): bool
     {
-        return $this->headers->get('X-PJAX') == true;
+        return $this->headers->get('X-PJAX') === 'true';
     }
 
     /**
@@ -514,7 +516,8 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         }
 
         if ($host[0] === '[') {
-            $pos = strpos($host, ':', strrpos($host, ']'));
+            $closingBracketPosition = strrpos($host, ']');
+            $pos = strpos($host, ':', $closingBracketPosition === false ? 0 : $closingBracketPosition);
         } else {
             $pos = strrpos($host, ':');
         }
@@ -674,7 +677,9 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     public function json(?string $key = null, mixed $default = null): mixed
     {
         if (! isset($this->json)) {
-            $this->json = new InputBag((array) json_decode($this->getContent() ?: '[]', true));
+            $content = $this->getContent();
+
+            $this->json = new InputBag((array) json_decode(trim($content) === '' ? '[]' : $content, true));
         }
 
         if (is_null($key)) {

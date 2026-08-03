@@ -37,6 +37,20 @@ class RateLimitedWithRedisTest extends TestCase
         $this->assertJobRanSuccessfully($testJob);
     }
 
+    public function testUnlimitedJobsAreExecutedUsingIntBackedEnum(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $rateLimiter->for(RedisBackedEnumNamedRateLimited::Zero, function ($job) {
+            return Limit::none();
+        });
+
+        $testJob = new RedisRateLimitedTestJobUsingBackedEnum;
+
+        $this->assertJobRanSuccessfully($testJob);
+        $this->assertJobRanSuccessfully($testJob);
+    }
+
     public function testRateLimitedJobsAreNotExecutedOnLimitReached()
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
@@ -49,6 +63,20 @@ class RateLimitedWithRedisTest extends TestCase
 
         $this->assertJobRanSuccessfully($testJob);
         $this->assertJobWasReleased($testJob);
+    }
+
+    public function testExplicitZeroReleaseDelayIsRespected(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $testJob = new RedisRateLimitedZeroReleaseAfterTestJob;
+
+        $rateLimiter->for($testJob->key, function ($job) {
+            return Limit::perMinute(1);
+        });
+
+        $this->assertJobRanSuccessfully($testJob);
+        $this->assertJobWasReleasedAfter($testJob, 0);
     }
 
     public function testRateLimitedJobsCanBeSkippedOnLimitReached()
@@ -152,6 +180,25 @@ class RateLimitedWithRedisTest extends TestCase
         $this->assertFalse($testJob::$handled);
     }
 
+    protected function assertJobWasReleasedAfter(RedisRateLimitedTestJob $testJob, int $delay): void
+    {
+        $testJob::$handled = false;
+        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
+
+        $job = m::mock(Job::class);
+
+        $job->shouldReceive('hasFailed')->once()->andReturn(false);
+        $job->shouldReceive('release')->once()->with($delay);
+        $job->shouldReceive('isReleased')->andReturn(true);
+        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
+
+        $instance->call($job, [
+            'command' => serialize($testJob),
+        ]);
+
+        $this->assertFalse($testJob::$handled);
+    }
+
     protected function assertJobWasSkipped(RedisRateLimitedTestJob $testJob): void
     {
         $testJob::$handled = false;
@@ -218,5 +265,26 @@ class RedisRateLimitedDontReleaseTestJob extends RedisRateLimitedTestJob
     public function middleware(): array
     {
         return [(new RateLimitedWithRedis($this->key))->dontRelease()];
+    }
+}
+
+class RedisRateLimitedZeroReleaseAfterTestJob extends RedisRateLimitedTestJob
+{
+    public function middleware(): array
+    {
+        return [(new RateLimitedWithRedis($this->key))->releaseAfter(0)];
+    }
+}
+
+enum RedisBackedEnumNamedRateLimited: int
+{
+    case Zero = 0;
+}
+
+class RedisRateLimitedTestJobUsingBackedEnum extends RedisRateLimitedTestJob
+{
+    public function middleware(): array
+    {
+        return [new RateLimitedWithRedis(RedisBackedEnumNamedRateLimited::Zero)];
     }
 }

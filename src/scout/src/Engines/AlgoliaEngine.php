@@ -6,17 +6,25 @@ namespace Hypervel\Scout\Engines;
 
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Exceptions\AlgoliaException;
+use Algolia\AlgoliaSearch\Exceptions\NotFoundException;
+use Algolia\AlgoliaSearch\Model\Search\GetTaskResponse;
+use Algolia\AlgoliaSearch\Model\Search\UpdatedAtResponse;
+use BackedEnum;
 use Hypervel\Context\RequestContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
+use InvalidArgumentException;
 
 /**
  * Algolia search engine implementation (v4 client).
@@ -32,7 +40,7 @@ use Hypervel\Support\LazyCollection;
  * cannot work correctly under a persistent-worker model where the engine
  * instance is cached across requests.
  */
-class AlgoliaEngine extends Engine implements UpdatesIndexSettings
+class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSettings
 {
     /**
      * Create a new AlgoliaEngine instance.
@@ -72,11 +80,13 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
                 return null;
             }
 
-            return array_merge(
+            $document = array_merge(
                 $searchableData,
                 $model->scoutMetadata(),
                 ['objectID' => $model->getScoutKey()],
             );
+
+            return Scout::prepareSearchableDocument($document, $model, $this);
         })
             ->filter()
             ->values()
@@ -114,7 +124,6 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function search(Builder $builder): mixed
     {
         return $this->performSearch($builder, array_filter([
-            'numericFilters' => $this->filters($builder),
             'hitsPerPage' => $builder->limit,
         ]));
     }
@@ -125,7 +134,6 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function paginate(Builder $builder, int $perPage, int $page): mixed
     {
         return $this->performSearch($builder, [
-            'numericFilters' => $this->filters($builder),
             'hitsPerPage' => $perPage,
             'page' => $page - 1,
         ]);
@@ -137,6 +145,13 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     protected function performSearch(Builder $builder, array $options = []): mixed
     {
         $options = array_merge($builder->options, $options);
+        $filters = $this->combineFilters($options['filters'] ?? '', $this->filters($builder));
+
+        if ($filters === '') {
+            unset($options['filters']);
+        } else {
+            $options['filters'] = $filters;
+        }
 
         if ($builder->callback !== null) {
             return call_user_func(
@@ -158,7 +173,7 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
         }
 
         return $this->algolia->searchSingleIndex(
-            $builder->index ?: $builder->model->searchableAs(),
+            $builder->index ?? $builder->model->searchableAs(),
             $queryParams,
             $requestOptions,
         );
@@ -202,37 +217,119 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     }
 
     /**
-     * Get the filter array for the query.
-     *
-     * @return array<int, mixed>
+     * Get the filter expression for the query.
      */
-    protected function filters(Builder $builder): array
+    protected function filters(Builder $builder): string
     {
         $wheres = collect($builder->wheres)
-            ->map(fn ($value, $key) => $key . '=' . $value)
+            ->map(function (array $where): string {
+                $field = $where['field'];
+                $operator = $where['operator'];
+                $value = $where['value'];
+
+                if (! in_array($operator, ['=', '!=', '<', '>', '<=', '>='], true)) {
+                    throw new InvalidArgumentException("Unsupported Algolia filter operator [{$operator}].");
+                }
+
+                if ($value instanceof BackedEnum) {
+                    $value = $value->value;
+                }
+
+                if ($value === null) {
+                    throw new InvalidArgumentException('Algolia filters do not support null values.');
+                }
+
+                if (is_float($value) && ! is_finite($value)) {
+                    throw new InvalidArgumentException('Algolia filters require finite numeric values.');
+                }
+
+                if (in_array($operator, ['<', '>', '<=', '>='], true)) {
+                    if (is_bool($value)) {
+                        $value = $value ? '1' : '0';
+                    } elseif (is_int($value) || is_float($value)) {
+                        $value = (string) $value;
+                    } elseif (! is_string($value)
+                        || preg_match('/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/D', $value) !== 1) {
+                        throw new InvalidArgumentException('Algolia ordering filters require a numeric value.');
+                    }
+
+                    return $field . $operator . $value;
+                }
+
+                if (is_string($value) || is_bool($value)) {
+                    $value = $this->formatFilterValue($value);
+
+                    if ($operator === '!=') {
+                        return 'NOT ' . $field . ':' . $value;
+                    }
+
+                    $operator = ':';
+                } elseif ($operator === '=') {
+                    $operator = ':';
+                    $value = "'{$value}'";
+                }
+
+                return $field . $operator . $value;
+            })
             ->values();
 
-        $whereIns = collect($builder->whereIns)->map(function ($values, $key) {
-            if (empty($values)) {
-                return '0=1';
-            }
+        $whereIns = collect($builder->whereIns)
+            ->map(function (array $values, string $key): string {
+                if ($values === []) {
+                    return '0:1';
+                }
 
-            return collect($values)
-                ->map(fn ($value) => $key . '=' . $value)
-                ->all();
-        })->values();
+                return '(' . collect($values)
+                    ->map(fn (mixed $value): string => $key . ':' . $this->formatFilterValue($value))
+                    ->implode(' OR ') . ')';
+            })
+            ->values();
 
-        $whereNotIns = collect($builder->whereNotIns)->flatMap(function ($values, $key) {
-            if (empty($values)) {
-                return [];
-            }
+        $whereNotIns = collect($builder->whereNotIns)
+            ->map(function (array $values, string $key): string {
+                if ($values === []) {
+                    return '';
+                }
 
-            return collect($values)
-                ->map(fn ($value) => $key . '!=' . $value)
-                ->all();
-        });
+                return collect($values)
+                    ->map(fn (mixed $value): string => 'NOT ' . $key . ':' . $this->formatFilterValue($value))
+                    ->implode(' AND ');
+            })
+            ->values();
 
-        return $wheres->merge($whereIns)->merge($whereNotIns)->values()->all();
+        return $wheres->merge($whereIns)->merge($whereNotIns)->filter()->implode(' AND ');
+    }
+
+    /**
+     * Combine application and Builder filters without changing their precedence.
+     */
+    protected function combineFilters(string $applicationFilters, string $builderFilters): string
+    {
+        if (trim($applicationFilters) === '') {
+            return $builderFilters;
+        }
+
+        if ($builderFilters === '') {
+            return $applicationFilters;
+        }
+
+        return "({$applicationFilters}) AND ({$builderFilters})";
+    }
+
+    /**
+     * Format the given value for use in an Algolia filter.
+     */
+    protected function formatFilterValue(mixed $value): string
+    {
+        if ($value instanceof BackedEnum) {
+            $value = $value->value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], (string) $value) . "'";
     }
 
     /**
@@ -335,6 +432,37 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function flush(Model $model): void
     {
         $this->algolia->clearObjects($model->indexableAs());
+    }
+
+    /**
+     * Delete every document matching the prepared Builder filters.
+     */
+    public function deleteByFilter(Builder $builder): void
+    {
+        Scout::prepareBuilder($builder, $this);
+
+        $filters = $this->combineFilters($builder->options['filters'] ?? '', $this->filters($builder));
+
+        if (trim($filters) === '') {
+            throw new InvalidArgumentException('Algolia filter deletion requires a non-empty filter.');
+        }
+
+        $index = $builder->index ?? $builder->model->indexableAs();
+
+        try {
+            /** @var array{taskID: int}|UpdatedAtResponse $response */
+            $response = $this->algolia->deleteBy($index, ['filters' => $filters]);
+        } catch (NotFoundException) {
+            // The index is already absent.
+            return;
+        }
+
+        /** @var null|array<string, mixed>|GetTaskResponse $task */
+        $task = $this->algolia->waitForTask($index, $response['taskID']);
+
+        if (($task['status'] ?? null) !== 'published') {
+            throw new ScoutException('Algolia filter deletion did not complete successfully.');
+        }
     }
 
     /**

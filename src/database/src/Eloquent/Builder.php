@@ -39,6 +39,9 @@ use SortDirection;
  * @property-read $this|HigherOrderBuilderProxy $whereNot
  * @property-read $this|HigherOrderBuilderProxy $orWhereNot
  *
+ * @method $this whereCan(\UnitEnum|string $ability, mixed $user = null)
+ * @method $this withCan(\UnitEnum|string|list<\UnitEnum|string> $abilities, mixed $user = null)
+ *
  * @mixin \Hypervel\Database\Query\Builder
  */
 class Builder implements BuilderContract
@@ -1429,6 +1432,20 @@ class Builder implements BuilderContract
         }
 
         return $builder;
+    }
+
+    /**
+     * Apply a scope callback to the query.
+     *
+     * Keep existing and callback-added WHERE constraints logically separate.
+     * Either slice is grouped when it contains an OR so neither side's branches
+     * can escape the other.
+     */
+    public function applyScopeCallback(callable $scope): static
+    {
+        $this->callScope($scope);
+
+        return $this;
     }
 
     /**

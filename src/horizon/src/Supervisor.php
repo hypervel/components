@@ -49,7 +49,10 @@ class Supervisor implements Pausable, Restartable, Terminable
      */
     public ?Closure $output = null;
 
-    public bool $shouldExitLoop = false;
+    /**
+     * The terminal exit status for this supervisor.
+     */
+    protected ?int $exitStatus = null;
 
     /**
      * Create a new supervisor instance.
@@ -188,7 +191,8 @@ class Supervisor implements Pausable, Restartable, Terminable
             }
         }
 
-        $this->shouldExitLoop = true;
+        $this->pendingSignals = [];
+        $this->exitStatus = $status;
     }
 
     /**
@@ -196,14 +200,14 @@ class Supervisor implements Pausable, Restartable, Terminable
      */
     protected function shouldWait(): bool
     {
-        // @phpstan-ignore-next-line
-        return ! config('horizon.fast_termination') || app(CacheFactory::class)->get('horizon:terminate:wait');
+        return ! config()->boolean('horizon.fast_termination')
+            || app(CacheFactory::class)->store()->get('horizon:terminate:wait');
     }
 
     /**
      * Monitor the worker processes.
      */
-    public function monitor(): void
+    public function monitor(): int
     {
         $this->ensureNoDuplicateSupervisors();
 
@@ -216,8 +220,8 @@ class Supervisor implements Pausable, Restartable, Terminable
 
             $this->loop();
 
-            if ($this->shouldExitLoop) {
-                break;
+            if ($this->exitStatus !== null) {
+                return $this->exitStatus;
             }
         }
     }
@@ -245,6 +249,10 @@ class Supervisor implements Pausable, Restartable, Terminable
             $this->processPendingSignals();
 
             $this->processPendingCommands();
+
+            if ($this->exitStatus !== null) {
+                return;
+            }
 
             // If the supervisor is working, we will perform any needed scaling operations and
             // monitor all of these underlying worker processes to make sure they are still
@@ -280,6 +288,10 @@ class Supervisor implements Pausable, Restartable, Terminable
     protected function processPendingCommands(): void
     {
         foreach (app(HorizonCommandQueue::class)->pending($this->name) as $command) {
+            if ($this->exitStatus !== null) {
+                return;
+            }
+
             app($command->command)->process($this, $command->options);
         }
     }

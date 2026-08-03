@@ -25,6 +25,7 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\Assert as PHPUnit;
+use Psr\Http\Message\StreamInterface;
 
 /**
  * @mixin \Hypervel\Http\Client\PendingRequest
@@ -97,6 +98,9 @@ class Factory
 
     /**
      * Add middleware to apply to every request.
+     *
+     * Boot-only. The middleware persists on the factory for the worker lifetime
+     * and affects every subsequently created pending request.
      */
     public function globalMiddleware(callable $middleware): static
     {
@@ -107,6 +111,9 @@ class Factory
 
     /**
      * Add request middleware to apply to every request.
+     *
+     * Boot-only. The middleware persists on the factory for the worker lifetime
+     * and affects every subsequently created pending request.
      */
     public function globalRequestMiddleware(callable $middleware): static
     {
@@ -117,6 +124,9 @@ class Factory
 
     /**
      * Add response middleware to apply to every request.
+     *
+     * Boot-only. The middleware persists on the factory for the worker lifetime
+     * and affects every subsequently created pending request.
      */
     public function globalResponseMiddleware(callable $middleware): static
     {
@@ -171,8 +181,8 @@ class Factory
             $headers['Content-Type'] = 'application/json';
         }
 
-        if (! is_string($body) && ! is_null($body)) {
-            throw new InvalidArgumentException('HTTP fake response body must be a string, array, or null.');
+        if (! is_string($body) && ! is_null($body) && ! is_resource($body) && ! $body instanceof StreamInterface) {
+            throw new InvalidArgumentException('HTTP fake response body must be a string, array, resource, Psr\Http\Message\StreamInterface, or null.');
         }
 
         return new Psr7Response($status, static::normalizeResponseHeaders($headers), $body);
@@ -262,6 +272,8 @@ class Factory
 
     /**
      * Get an invokable object that returns a sequence of responses in order for use during stubbing.
+     *
+     * Tests only. The sequence is retained by the factory for the worker lifetime.
      */
     public function sequence(array $responses = []): ResponseSequence
     {
@@ -270,6 +282,9 @@ class Factory
 
     /**
      * Register a stub callable that will intercept requests and be able to return stub responses.
+     *
+     * Tests only. Stubs persist on the factory for the worker lifetime
+     * and affect every subsequently created pending request.
      */
     public function fake(array|callable|null $callback = null): static
     {
@@ -299,12 +314,14 @@ class Factory
                 }
 
                 if ($response instanceof PromiseInterface && ($options['on_stats'] ?? null) instanceof Closure) {
-                    $options['on_stats'](
-                        new TransferStats(
+                    return $response->then(function ($psrResponse) use ($options, $request) {
+                        $options['on_stats'](new TransferStats(
                             $request->toPsrRequest(),
-                            $response->wait(),
-                        )
-                    );
+                            $psrResponse,
+                        ));
+
+                        return $psrResponse;
+                    });
                 }
 
                 return $response;
@@ -316,6 +333,8 @@ class Factory
 
     /**
      * Register a response sequence for the given URL pattern.
+     *
+     * Tests only. The sequence and stub persist on the factory for the worker lifetime.
      */
     public function fakeSequence(string $url = '*'): ResponseSequence
     {
@@ -326,6 +345,9 @@ class Factory
 
     /**
      * Stub the given URL using the given callback.
+     *
+     * Tests only. The stub persists on the factory for the worker lifetime
+     * and affects every subsequently created pending request.
      */
     public function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): static
     {
@@ -359,6 +381,9 @@ class Factory
 
     /**
      * Indicate that an exception should be thrown if any request is not faked.
+     *
+     * Boot or tests only. The policy persists on the factory for the worker lifetime
+     * and affects every subsequently created pending request.
      */
     public function preventStrayRequests(bool $prevent = true): static
     {
@@ -377,6 +402,9 @@ class Factory
 
     /**
      * Indicate that an exception should not be thrown if any request is not faked.
+     *
+     * Boot or tests only. The policy persists on the factory for the worker lifetime
+     * and affects every subsequently created pending request.
      */
     public function allowStrayRequests(?array $only = null): static
     {
@@ -392,8 +420,11 @@ class Factory
 
     /**
      * Begin recording request / response pairs.
+     *
+     * Tests only. Recording persists on the factory for the worker lifetime
+     * and retains every subsequently completed request attempt.
      */
-    protected function record(): static
+    public function record(): static
     {
         $this->recording = true;
 

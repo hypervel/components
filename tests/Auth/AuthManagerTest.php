@@ -13,6 +13,7 @@ use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
@@ -26,6 +27,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Auth as AuthFacade;
@@ -664,7 +666,9 @@ class AuthManagerTest extends TestCase
         $cacheManager->shouldReceive('store')->with('web-store')->andReturn($repo);
         $container->instance('cache', $cacheManager);
 
-        EloquentUserProvider::resolveUserCacheKeyUsing(fn (mixed $identifier): string => 'tenant:' . $identifier);
+        EloquentUserProvider::resolveUserCacheKeyUsing(
+            fn (mixed $identifier, string $model, ?Model $user): string => 'tenant:' . $identifier,
+        );
 
         $manager->clearUserCache(42);
     }
@@ -719,6 +723,9 @@ class AuthManagerTest extends TestCase
         $container->instance('config', new Repository([
             'auth' => $authConfig,
         ]));
+        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator->allows('validate');
+        $container->instance(ModelCacheStoreValidator::class, $validator);
 
         return $container;
     }

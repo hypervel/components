@@ -11,7 +11,10 @@ use Hypervel\Container\Container;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
@@ -224,12 +227,246 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $queue->bulk(['foo', 'bar'], ['data'], 'queue');
     }
 
+    public function testBulkHonorsTheDelayAttribute(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502704));
+
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $query->shouldReceive('insert')
+            ->once()
+            ->andReturnUsing(function (array $records): bool {
+                $this->assertSame(1732502713, $records[0]['available_at']);
+
+                return true;
+            });
+
+        $queue->bulk([new DatabaseBulkAttributeDelayJob]);
+    }
+
     public function testBuildDatabaseRecordWithPayloadAtTheEnd()
     {
         $queue = m::mock(DatabaseQueue::class);
         $record = $queue->buildDatabaseRecord('queue', 'any_payload', 0);
         $this->assertArrayHasKey('payload', $record);
         $this->assertArrayHasKey('payload', array_slice($record, -1, 1, true));
+    }
+
+    public function testPendingJobs(): void
+    {
+        [$queue, $query] = $this->createInspectionQueue();
+        $payload = json_encode([
+            'uuid' => 'uuid-11',
+            'displayName' => 'PendingJob',
+            'job' => 'handler',
+            'data' => [],
+            'createdAt' => 1000000,
+        ]);
+
+        $query->shouldReceive('where')->with('queue', 'default')->andReturnSelf();
+        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([
+            (object) [
+                'id' => 11,
+                'queue' => 'default',
+                'payload' => $payload,
+                'attempts' => 0,
+            ],
+        ]));
+
+        $jobs = $queue->pendingJobs();
+
+        $this->assertInspectedJob($jobs->sole(), 'PendingJob', 'default', 0, 11);
+    }
+
+    public function testDelayedJobs(): void
+    {
+        [$queue, $query] = $this->createInspectionQueue();
+        $payload = json_encode([
+            'uuid' => 'uuid-12',
+            'displayName' => 'DelayedJob',
+            'job' => 'handler',
+            'data' => [],
+            'createdAt' => 1000000,
+        ]);
+
+        $query->shouldReceive('where')->with('queue', 'emails')->andReturnSelf();
+        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('where')->with('available_at', '>', 1732502704)->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([
+            (object) [
+                'id' => 12,
+                'queue' => 'emails',
+                'payload' => $payload,
+                'attempts' => 0,
+            ],
+        ]));
+
+        $jobs = $queue->delayedJobs('emails');
+
+        $this->assertInspectedJob($jobs->sole(), 'DelayedJob', 'emails', 0, 12);
+    }
+
+    public function testReservedJobs(): void
+    {
+        [$queue, $query] = $this->createInspectionQueue();
+        $payload = json_encode([
+            'uuid' => 'uuid-13',
+            'displayName' => 'ReservedJob',
+            'job' => 'handler',
+            'data' => [],
+            'createdAt' => 1000000,
+        ]);
+
+        $query->shouldReceive('where')->with('queue', 'default')->andReturnSelf();
+        $query->shouldReceive('whereNotNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([
+            (object) [
+                'id' => 13,
+                'queue' => 'default',
+                'payload' => $payload,
+                'attempts' => 3,
+            ],
+        ]));
+
+        $jobs = $queue->reservedJobs();
+
+        $this->assertInspectedJob($jobs->sole(), 'ReservedJob', 'default', 3, 13);
+    }
+
+    public function testAllPendingJobs(): void
+    {
+        [$queue, $query] = $this->createInspectionQueue();
+        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([
+            $this->inspectionRecord(21, 'default', 'FirstPendingJob', 0),
+            $this->inspectionRecord(22, 'emails', 'SecondPendingJob', 1),
+        ]));
+
+        $jobs = $queue->allPendingJobs();
+
+        $this->assertInspectedJob($jobs->first(), 'FirstPendingJob', 'default', 0, 21);
+        $this->assertInspectedJob($jobs->last(), 'SecondPendingJob', 'emails', 1, 22);
+    }
+
+    public function testAllDelayedJobs(): void
+    {
+        [$queue, $query] = $this->createInspectionQueue();
+        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('where')->with('available_at', '>', 1732502704)->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([
+            $this->inspectionRecord(31, 'default', 'FirstDelayedJob', 0),
+            $this->inspectionRecord(32, 'emails', 'SecondDelayedJob', 0),
+        ]));
+
+        $jobs = $queue->allDelayedJobs();
+
+        $this->assertInspectedJob($jobs->first(), 'FirstDelayedJob', 'default', 0, 31);
+        $this->assertInspectedJob($jobs->last(), 'SecondDelayedJob', 'emails', 0, 32);
+    }
+
+    public function testAllReservedJobs(): void
+    {
+        [$queue, $query] = $this->createInspectionQueue();
+        $query->shouldReceive('whereNotNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([
+            $this->inspectionRecord(41, 'default', 'FirstReservedJob', 1),
+            $this->inspectionRecord(42, 'emails', 'SecondReservedJob', 2),
+        ]));
+
+        $jobs = $queue->allReservedJobs();
+
+        $this->assertInspectedJob($jobs->first(), 'FirstReservedJob', 'default', 1, 41);
+        $this->assertInspectedJob($jobs->last(), 'SecondReservedJob', 'emails', 2, 42);
+    }
+
+    public function testInvalidInspectedPayloadIdentifiesItsQueueAndRecord(): void
+    {
+        [$queue, $query] = $this->createInspectionQueue();
+        $query->shouldReceive('where')->with('queue', 'emails')->andReturnSelf();
+        $query->shouldReceive('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->shouldReceive('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
+        $query->shouldReceive('get')->andReturn(collect([
+            (object) [
+                'id' => 99,
+                'queue' => 'emails',
+                'payload' => 'not-json',
+                'attempts' => 0,
+            ],
+        ]));
+
+        try {
+            $queue->pendingJobs('emails');
+            $this->fail('Expected the invalid payload to be rejected.');
+        } catch (InvalidPayloadException $exception) {
+            $this->assertStringContainsString('on queue [emails] with record ID [99]', $exception->getMessage());
+            $this->assertSame('not-json', $exception->value);
+        }
+    }
+
+    private function createInspectionQueue(): array
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $query = m::mock(Builder::class);
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->shouldReceive('table')->with('table')->andReturn($query);
+
+        return [
+            new TestDatabaseQueue(
+                resolver: $resolver,
+                connection: null,
+                table: 'table',
+                default: 'default',
+                currentTime: 1732502704,
+            ),
+            $query,
+        ];
+    }
+
+    private function inspectionRecord(
+        int $id,
+        string $queue,
+        string $name,
+        int $attempts,
+    ): object {
+        return (object) [
+            'id' => $id,
+            'queue' => $queue,
+            'payload' => json_encode([
+                'uuid' => "uuid-{$id}",
+                'displayName' => $name,
+                'job' => 'handler',
+                'data' => [],
+                'createdAt' => 1000000,
+            ]),
+            'attempts' => $attempts,
+        ];
+    }
+
+    private function assertInspectedJob(
+        InspectedJob $job,
+        string $name,
+        string $queue,
+        int $attempts,
+        int $id,
+    ): void {
+        $this->assertSame($name, $job->name);
+        $this->assertSame("uuid-{$id}", $job->uuid);
+        $this->assertSame($queue, $job->queue);
+        $this->assertSame($attempts, $job->attempts);
+        $this->assertSame($id, $job->id);
+        $this->assertInstanceOf(CarbonImmutable::class, $job->createdAt);
+        $this->assertSame(1000000, $job->createdAt->getTimestamp());
     }
 }
 
@@ -244,6 +481,11 @@ class MyTestJob
 class MyBatchableJob
 {
     use Batchable;
+}
+
+#[Delay(9)]
+class DatabaseBulkAttributeDelayJob
+{
 }
 
 class TestDatabaseQueue extends DatabaseQueue

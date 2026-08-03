@@ -8,51 +8,55 @@ use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use PHPUnit\Framework\Assert;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
- * Assertions for verifying that a policy's query-aware methods (*Scope, *Select)
- * produce the same results as the per-instance PHP method.
+ * Assert that query-aware policy results match per-model Gate checks.
  *
- * Use these in tests to catch drift between a policy's edit() method and its
- * editScope()/editSelect() counterparts.
+ * These assertions use the application's Gate captured when the query-builder
+ * macros were booted. Register policies on that Gate instead of replacing its
+ * container binding after the provider has booted.
  */
 trait AssertsPolicyQueryConsistency
 {
     /**
-     * Assert that a policy's *Scope method filters to the same rows
-     * as calling Gate::allows() on each model individually.
+     * Assert that query filtering matches per-model policy results.
      *
      * @param iterable<Model> $models
      */
-    protected function assertScopeMatchesPolicy(
-        string $ability,
+    protected function assertWhereCanMatchesPolicy(
+        UnitEnum|string $ability,
         Builder $baseQuery,
         iterable $models,
-        mixed $user,
+        mixed $user = null,
     ): void {
-        $gate = $this->app->make(Gate::class)->forUser($user);
+        $gate = $this->app->make(Gate::class);
+        $queryGate = $user === null ? $gate : $gate->forUser($user);
+        $abilityName = (string) enum_value($ability);
 
         $models = collect($models)->values();
 
         Assert::assertNotEmpty(
             $models,
-            'assertScopeMatchesPolicy() requires at least one model.'
+            'assertWhereCanMatchesPolicy() requires at least one model.'
         );
 
         $keyName = $models->first()->getKeyName();
 
         $expectedIds = $models
-            ->filter(fn (Model $model) => $gate->allows($ability, $model))
+            ->filter(fn (Model $model) => $queryGate->allows($ability, $model))
             ->pluck($keyName)
             ->sort()
             ->values()
             ->all();
 
-        $scopedQuery = clone $baseQuery;
+        $query = clone $baseQuery;
 
-        $actualIds = $gate
-            ->scope($ability, $scopedQuery)
-            ->pluck($keyName)
+        $actualIds = $query
+            ->whereCan($ability, $user)
+            ->pluck($query->qualifyColumn($keyName))
             ->sort()
             ->values()
             ->all();
@@ -60,57 +64,55 @@ trait AssertsPolicyQueryConsistency
         Assert::assertSame(
             $expectedIds,
             $actualIds,
-            "Policy [{$ability}] and [{$ability}Scope] returned different row sets."
+            "Policy [{$abilityName}] and whereCan() returned different row sets."
         );
     }
 
     /**
-     * Assert that a policy's *Select method produces the same boolean
-     * per row as calling Gate::allows() on each model individually.
+     * Assert that query annotations match per-model policy results.
      *
      * @param iterable<Model> $models
      */
-    protected function assertSelectMatchesPolicy(
-        string $ability,
+    protected function assertWithCanMatchesPolicy(
+        UnitEnum|string $ability,
         Builder $baseQuery,
         iterable $models,
-        mixed $user,
+        mixed $user = null,
         ?string $columnName = null,
     ): void {
-        $gate = $this->app->make(Gate::class)->forUser($user);
+        $gate = $this->app->make(Gate::class);
+        $queryGate = $user === null ? $gate : $gate->forUser($user);
+        $abilityName = (string) enum_value($ability);
 
         $models = collect($models)->values();
 
         Assert::assertNotEmpty(
             $models,
-            'assertSelectMatchesPolicy() requires at least one model.'
+            'assertWithCanMatchesPolicy() requires at least one model.'
         );
 
-        $keyName = $models->first()->getKeyName();
-        $columnName ??= 'can_' . str_replace('-', '_', $ability);
+        $columnName ??= 'hypervel_policy_result';
 
         $expected = $models
             ->mapWithKeys(fn (Model $model) => [
-                $model->getKey() => $gate->allows($ability, $model),
+                $model->getKey() => $queryGate->allows($ability, $model),
             ])
             ->all();
 
-        $selectQuery = clone $baseQuery;
+        $query = clone $baseQuery;
 
-        $actual = $selectQuery
-            ->addSelect([
-                $columnName => $gate->select($ability, $selectQuery),
-            ])
+        $actual = $query
+            ->withCan($abilityName . ' as ' . $columnName, $user)
             ->get()
             ->mapWithKeys(fn (Model $model) => [
-                $model->getKey() => (bool) $model->getAttribute($columnName),
+                $model->getKey() => $model->getAttribute($columnName),
             ])
             ->all();
 
         Assert::assertSame(
             $expected,
             $actual,
-            "Policy [{$ability}] and [{$ability}Select] returned different per-row results."
+            "Policy [{$abilityName}] and withCan() returned different per-row results."
         );
     }
 }

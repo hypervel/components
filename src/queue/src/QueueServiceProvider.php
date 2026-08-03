@@ -7,6 +7,8 @@ namespace Hypervel\Queue;
 use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\Connectors\BackgroundConnector;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\DatabaseConnector;
@@ -229,9 +231,12 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerDatabaseConnector(QueueManager $manager): void
     {
-        $manager->addConnector('database', fn () => new DatabaseConnector(
-            $this->app['db'],
-        ));
+        $manager->addConnector('database', function (): DatabaseConnector {
+            /** @var ConnectionResolverInterface $connections */
+            $connections = $this->app->make('db');
+
+            return new DatabaseConnector($connections);
+        });
     }
 
     /**
@@ -239,9 +244,12 @@ class QueueServiceProvider extends ServiceProvider
      */
     protected function registerRedisConnector(QueueManager $manager): void
     {
-        $manager->addConnector('redis', fn () => new RedisConnector(
-            $this->app['redis'],
-        ));
+        $manager->addConnector('redis', function (): RedisConnector {
+            /** @var RedisFactory $redis */
+            $redis = $this->app->make('redis');
+
+            return new RedisConnector($redis);
+        });
     }
 
     /**
@@ -297,39 +305,30 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerFailedJobServices(): void
     {
         $this->app->singleton('queue.failer', function ($app) {
-            $config = $app->make('config')->array('queue.failed', []);
+            $config = $app->make('config')->array('queue.failed');
+            $driver = $config['driver'];
 
-            if (array_key_exists('driver', $config)
-                && (is_null($config['driver']) || $config['driver'] === 'null')
-            ) {
-                return new NullFailedJobProvider;
-            }
-
-            if (isset($config['driver']) && $config['driver'] === 'file') {
-                return new FileFailedJobProvider(
-                    $config['path'] ?? $app->basePath('storage/framework/cache/failed-jobs.json'),
+            return match ($driver) {
+                null, 'null' => new NullFailedJobProvider,
+                'file' => new FileFailedJobProvider(
+                    $config['path'] ?? $app->storagePath('framework/cache/failed-jobs.json'),
                     $config['limit'] ?? 100,
-                    fn () => $app['cache']->store('file'),
-                );
-            }
-
-            if (isset($config['driver']) && $config['driver'] === 'database-uuids') {
-                return new DatabaseUuidFailedJobProvider(
-                    $app['db'],
-                    $config['table'],
+                    fn () => $app->make('cache')->store('file'),
+                ),
+                'database-uuids' => new DatabaseUuidFailedJobProvider(
+                    $app->make('db'),
                     $config['database'],
-                );
-            }
-
-            if (isset($config['table'])) {
-                return new DatabaseFailedJobProvider(
-                    $app['db'],
                     $config['table'],
+                ),
+                'database' => new DatabaseFailedJobProvider(
+                    $app->make('db'),
                     $config['database'],
-                );
-            }
-
-            return new NullFailedJobProvider;
+                    $config['table'],
+                ),
+                default => throw new InvalidArgumentException(
+                    'Unsupported failed job provider [' . (is_string($driver) ? $driver : get_debug_type($driver)) . '].'
+                ),
+            };
         });
     }
 }

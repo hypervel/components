@@ -27,14 +27,9 @@ use Throwable;
  */
 class HttpServer implements OnRequestInterface, BootstrapsForServer
 {
-    /**
-     * The default maximum HTTP request body size, in bytes.
-     */
-    protected const DEFAULT_MAX_REQUEST_SIZE = 10_000;
-
     protected ReverbRouter $router;
 
-    protected int $maxRequestSize = self::DEFAULT_MAX_REQUEST_SIZE;
+    protected int $maxRequestSize;
 
     public function __construct(
         protected Container $container,
@@ -49,7 +44,7 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
         $this->router = $this->container->make(ReverbRouter::class);
         $this->router->compileAndWarm();
         $this->maxRequestSize = $this->container->make('config')
-            ->integer('reverb.servers.reverb.max_request_size', self::DEFAULT_MAX_REQUEST_SIZE);
+            ->integer('reverb.servers.reverb.max_request_size');
     }
 
     /**
@@ -64,25 +59,33 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
 
             if ($this->exceedsMaxRequestSize($swooleRequest)) {
                 $response = new Response('Payload Too Large', 413);
+            } else {
+                $request = RequestBridge::createFromSwoole($swooleRequest);
+                RequestContext::set($request);
 
+                $response = $this->router->dispatch($request);
+            }
+        } catch (Throwable $throwable) {
+            // Keep the original in flight while it is handled and emitted, so
+            // any failure at that boundary carries the root cause as previous.
+            // The return suppresses it once the response has been emitted.
+            try {
+                /* @phpstan-ignore finally.exitPoint */
+                throw $throwable;
+            } finally {
+                $handler = $this->container->make(ExceptionHandler::class);
+                $handler->report($throwable);
+                $response = $request !== null
+                    ? $handler->render($request, $throwable)
+                    : new Response('Internal Server Error', 500);
+                ResponseBridge::send($response, $swooleResponse, request: $request);
+
+                /* @phpstan-ignore finally.exitPoint */
                 return;
             }
-
-            $request = RequestBridge::createFromSwoole($swooleRequest);
-            RequestContext::set($request);
-
-            $response = $this->router->dispatch($request);
-        } catch (Throwable $throwable) {
-            $handler = $this->container->make(ExceptionHandler::class);
-            $handler->report($throwable);
-            $response = $request
-                ? $handler->render($request, $throwable)
-                : new Response('Internal Server Error', 500);
-        } finally {
-            if (isset($response)) {
-                ResponseBridge::send($response, $swooleResponse, request: $request);
-            }
         }
+
+        ResponseBridge::send($response, $swooleResponse, request: $request);
     }
 
     /**

@@ -7,13 +7,20 @@ namespace Hypervel\Scout;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Scout\Console\ConcurrentImportRunner;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Events\ModelsFlushed;
+use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Support\Collection as BaseCollection;
+use LogicException;
 
 /**
  * Provides full-text search capabilities to Eloquent models.
@@ -23,7 +30,7 @@ use Hypervel\Support\Collection as BaseCollection;
 trait Searchable
 {
     /**
-     * Coroutine-local context key for the WaitConcurrent runner used during imports.
+     * Coroutine-local context key for the concurrent runner used during imports.
      *
      * Coroutine-local rather than a static property so concurrent coroutines in
      * the same process don't share or overwrite each other's runner instances.
@@ -53,6 +60,8 @@ trait Searchable
 
     /**
      * Register the searchable macros on collections.
+     *
+     * Boot-only. These macros persist for the worker lifetime and affect every subsequent request.
      */
     public function registerSearchableMacros(): void
     {
@@ -83,6 +92,38 @@ trait Searchable
             }
             $this->first()->syncRemoveFromSearch($this);
         });
+
+        HasManyThrough::macro('searchable', function (?int $chunk = null): void {
+            /** @var HasManyThrough $this */
+            $chunkSize = $chunk ?? config('scout.chunk.searchable', 500);
+
+            $this->chunkById($chunkSize, function (Collection $models): void {
+                /** @var Collection<int, Model&SearchableInterface> $models */
+                $models->filter(fn ($model) => $model->shouldBeSearchable())->searchable();
+
+                $events = Container::getInstance()->make(Dispatcher::class);
+                if ($events->hasListeners(ModelsImported::class)) {
+                    $events->dispatch(new ModelsImported($models));
+                }
+
+                Scout::reportImportProgress($models);
+            });
+        });
+
+        HasManyThrough::macro('unsearchable', function (?int $chunk = null): void {
+            /** @var HasManyThrough $this */
+            $chunkSize = $chunk ?? config('scout.chunk.unsearchable', 500);
+
+            $this->chunkById($chunkSize, function (Collection $models): void {
+                /** @var Collection<int, Model&SearchableInterface> $models */
+                $models->unsearchable();
+
+                $events = Container::getInstance()->make(Dispatcher::class);
+                if ($events->hasListeners(ModelsFlushed::class)) {
+                    $events->dispatch(new ModelsFlushed($models));
+                }
+            });
+        });
     }
 
     /**
@@ -100,7 +141,7 @@ trait Searchable
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
 
-            if (static::getScoutConfig('queue.after_commit', false)) {
+            if (static::getScoutConfig('after_commit', false)) {
                 $pendingDispatch->afterCommit();
             }
 
@@ -145,7 +186,7 @@ trait Searchable
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
 
-            if (static::getScoutConfig('queue.after_commit', false)) {
+            if (static::getScoutConfig('after_commit', false)) {
                 $pendingDispatch->afterCommit();
             }
 
@@ -188,16 +229,21 @@ trait Searchable
     /**
      * Perform a search against the model's indexed data.
      *
+     * Models may define a protected static class-string<Builder> $scoutBuilder to select a custom builder.
+     *
      * @return Builder<static>
      */
     public static function search(string $query = '', ?Closure $callback = null): Builder
     {
-        return new Builder(
-            model: new static,
-            query: $query,
-            callback: $callback,
-            softDelete: static::usesSoftDelete() && static::getScoutConfig('soft_delete', false)
-        );
+        // @phpstan-ignore staticProperty.notFound (models may define the documented custom builder property)
+        $builder = static::$scoutBuilder ?? Builder::class;
+
+        return Container::getInstance()->makeWith($builder, [
+            'model' => new static,
+            'query' => $query,
+            'callback' => $callback,
+            'softDelete' => static::usesSoftDelete() && static::getScoutConfig('soft_delete', false),
+        ]);
     }
 
     /**
@@ -260,10 +306,14 @@ trait Searchable
     /**
      * Remove all instances of the model from the search index.
      */
-    public static function removeAllFromSearch(): void
+    public static function removeAllFromSearch(bool $force = false): void
     {
         $self = new static;
-        $self->searchableUsing()->flush($self);
+        $engine = $self->searchableUsing();
+
+        Scout::guardModelFlush($self, $engine, $force);
+
+        $engine->flush($self);
     }
 
     /**
@@ -358,12 +408,14 @@ trait Searchable
      */
     public static function withoutSyncingToSearch(callable $callback): mixed
     {
+        $wasDisabled = ! static::isSearchSyncingEnabled();
+
         static::disableSearchSyncing();
 
         try {
             return $callback();
         } finally {
-            static::enableSearchSyncing();
+            $wasDisabled ? static::disableSearchSyncing() : static::enableSearchSyncing();
         }
     }
 
@@ -450,7 +502,16 @@ trait Searchable
      */
     public function getScoutKey(): mixed
     {
-        return $this->getKey();
+        $key = $this->getKey();
+
+        if ($this->exists && $key === null) {
+            throw new LogicException(sprintf(
+                'Model [%s] has no Scout key.',
+                get_class($this)
+            ));
+        }
+
+        return $key;
     }
 
     /**
@@ -474,12 +535,12 @@ trait Searchable
      */
     protected static function dispatchSearchableJob(callable $job): void
     {
-        // Command path: use WaitConcurrent for parallel execution
+        // Command path: run indexing concurrently and preserve child failures.
         if (Scout::isImporting()) {
             $runner = CoroutineContext::get(self::SCOUT_RUNNER_CONTEXT_KEY);
 
-            if (! $runner instanceof WaitConcurrent) {
-                $runner = new WaitConcurrent(
+            if (! $runner instanceof ConcurrentImportRunner) {
+                $runner = new ConcurrentImportRunner(
                     (int) static::getScoutConfig('command_concurrency', 50)
                 );
                 CoroutineContext::set(self::SCOUT_RUNNER_CONTEXT_KEY, $runner);
@@ -503,9 +564,12 @@ trait Searchable
     {
         $runner = CoroutineContext::get(self::SCOUT_RUNNER_CONTEXT_KEY);
 
-        if ($runner instanceof WaitConcurrent) {
-            $runner->wait();
-            CoroutineContext::forget(self::SCOUT_RUNNER_CONTEXT_KEY);
+        if ($runner instanceof ConcurrentImportRunner) {
+            try {
+                $runner->wait();
+            } finally {
+                CoroutineContext::forget(self::SCOUT_RUNNER_CONTEXT_KEY);
+            }
         }
     }
 

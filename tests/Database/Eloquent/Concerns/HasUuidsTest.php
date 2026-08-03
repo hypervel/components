@@ -76,6 +76,22 @@ class HasUuidsTest extends TestCase
         $this->assertSame($explicitId, $model->id);
         $this->assertSame('Original', $model->name);
     }
+
+    public function testChunkByIdDescTraversesMultiplePagesOfUuidKeys(): void
+    {
+        for ($i = 1; $i <= 5; ++$i) {
+            HasUuidsTestModel::create(['name' => "Model {$i}"]);
+        }
+
+        $expected = HasUuidsTestModel::query()->orderByDesc('id')->pluck('id')->all();
+        $actual = [];
+
+        HasUuidsTestModel::query()->chunkByIdDesc(2, function ($models) use (&$actual): void {
+            array_push($actual, ...$models->pluck('id')->all());
+        });
+
+        $this->assertSame($expected, $actual);
+    }
 }
 
 class HasUuidsTestModel extends Model

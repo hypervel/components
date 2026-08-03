@@ -439,6 +439,35 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('/foo/routable', $url->route('routable', $model, false));
     }
 
+    public function testUrlParameterForwardingAcceptsRoutableInstances(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+
+        $route = new Route(['GET'], 'foo/{bar}', [
+            'as' => 'routable-forwarding',
+            'controller' => 'RoutableActionStub@show',
+        ]);
+        $routes->add($route);
+
+        $model = new RoutableInterfaceStub;
+        $model->key = 'routable';
+
+        $this->assertSame('http://www.foo.com/foo/routable', $url->to('foo', $model));
+        $this->assertSame('http://www.foo.com/foo/routable?filter=active', $url->query('foo', ['filter' => 'active'], $model));
+        $this->assertSame('https://www.foo.com/foo/routable', $url->secure('foo', $model));
+        $this->assertSame('http://www.foo.com/foo/routable', $url->action('RoutableActionStub@show', $model));
+
+        $url->setKeyResolver(fn () => 'secret');
+
+        $request = Request::create($url->temporarySignedRoute('routable-forwarding', 60, $model));
+
+        $this->assertSame('/foo/routable', $request->getPathInfo());
+        $this->assertNotNull($request->query('expires'));
+    }
+
     public function testRoutesMaintainRequestScheme()
     {
         $url = new UrlGenerator(

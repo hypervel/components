@@ -215,6 +215,53 @@ class QueueImportCommandTest extends ScoutTestCase
         Bus::assertDispatched(MakeRangeSearchable::class, 3);
     }
 
+    public function testItRejectsMalformedIntegerBounds(): void
+    {
+        Bus::fake([MakeRangeSearchable::class]);
+
+        foreach (['01', '1.0', '1e3', 'invalid', (string) PHP_INT_MAX . '0'] as $max) {
+            $this->artisan('scout:queue-import', [
+                'model' => SearchableModel::class,
+                '--min' => '0',
+                '--max' => $max,
+            ])
+                ->expectsOutputToContain('must be valid integers')
+                ->assertFailed();
+        }
+
+        Bus::assertNotDispatched(MakeRangeSearchable::class);
+    }
+
+    public function testItAcceptsSignedIntegerBounds(): void
+    {
+        Bus::fake([MakeRangeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => SearchableModel::class,
+            '--min' => '-2',
+            '--max' => '+2',
+            '--chunk' => 5,
+        ])->assertSuccessful();
+
+        Bus::assertDispatched(MakeRangeSearchable::class, function (MakeRangeSearchable $job) {
+            return $job->start === -2 && $job->end === 2;
+        });
+    }
+
+    public function testItRejectsAnInvalidOrder(): void
+    {
+        Bus::fake([MakeRangeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => SearchableModel::class,
+            '--order' => 'sideways',
+        ])
+            ->expectsOutputToContain('must be either "asc" or "desc"')
+            ->assertFailed();
+
+        Bus::assertNotDispatched(MakeRangeSearchable::class);
+    }
+
     public function testItAcceptsCustomMinOption(): void
     {
         for ($i = 1; $i <= 10; ++$i) {
@@ -297,6 +344,75 @@ class QueueImportCommandTest extends ScoutTestCase
         });
     }
 
+    public function testItQueuesIntegerRangesInDescendingOrder(): void
+    {
+        Bus::fake([MakeRangeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => SearchableModel::class,
+            '--min' => 1,
+            '--max' => 7,
+            '--chunk' => 3,
+            '--order' => 'desc',
+        ])
+            ->expectsOutputToContain('models down to ID: 1')
+            ->assertSuccessful();
+
+        $ranges = Bus::dispatched(MakeRangeSearchable::class)
+            ->map(fn (MakeRangeSearchable $job) => [$job->start, $job->end])
+            ->all();
+
+        $this->assertSame([[5, 7], [2, 4], [1, 1]], $ranges);
+    }
+
+    public function testItQueuesPlatformMaximumIntegerRangeWithoutOverflow(): void
+    {
+        Bus::fake([MakeRangeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => SearchableModel::class,
+            '--min' => PHP_INT_MAX - 1,
+            '--max' => PHP_INT_MAX,
+            '--chunk' => 500,
+        ])->assertSuccessful();
+
+        Bus::assertDispatched(MakeRangeSearchable::class, function (MakeRangeSearchable $job) {
+            return $job->start === PHP_INT_MAX - 1 && $job->end === PHP_INT_MAX;
+        });
+    }
+
+    public function testItQueuesPlatformMinimumIntegerRangeWithoutUnderflow(): void
+    {
+        Bus::fake([MakeRangeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => SearchableModel::class,
+            '--min' => PHP_INT_MIN,
+            '--max' => PHP_INT_MIN + 1,
+            '--chunk' => 500,
+            '--order' => 'desc',
+        ])->assertSuccessful();
+
+        Bus::assertDispatched(MakeRangeSearchable::class, function (MakeRangeSearchable $job) {
+            return $job->start === PHP_INT_MIN && $job->end === PHP_INT_MIN + 1;
+        });
+    }
+
+    public function testIntegerKeyTypeAliasUsesIntegerRanges(): void
+    {
+        Bus::fake([MakeRangeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => IntegerAliasSearchableModel::class,
+            '--min' => 0,
+            '--max' => 2,
+        ])->assertSuccessful();
+
+        Bus::assertDispatched(MakeRangeSearchable::class, function (MakeRangeSearchable $job) {
+            return $job->start === 0 && $job->end === 2;
+        });
+    }
+
     public function testItErrorsWhenMinGreaterThanMax(): void
     {
         Bus::fake([MakeRangeSearchable::class]);
@@ -307,7 +423,7 @@ class QueueImportCommandTest extends ScoutTestCase
             '--max' => 2,
         ])
             ->expectsOutputToContain('Invalid range')
-            ->assertSuccessful();
+            ->assertFailed();
 
         Bus::assertNotDispatched(MakeRangeSearchable::class);
     }
@@ -446,6 +562,32 @@ class QueueImportCommandTest extends ScoutTestCase
         Bus::assertDispatched(MakeRangeSearchable::class, 3);
     }
 
+    public function testItQueuesMultipleUuidChunksInDescendingOrder(): void
+    {
+        for ($i = 1; $i <= 7; ++$i) {
+            UuidSearchableModel::create(['title' => "Title {$i}", 'body' => 'Body']);
+        }
+
+        $expected = UuidSearchableModel::query()->orderByDesc('id')->pluck('id')->chunk(3)->values();
+
+        Bus::fake([MakeRangeSearchable::class]);
+
+        $this->artisan('scout:queue-import', [
+            'model' => UuidSearchableModel::class,
+            '--chunk' => 3,
+            '--order' => 'desc',
+        ])->assertSuccessful();
+
+        $jobs = Bus::dispatched(MakeRangeSearchable::class)->values();
+
+        $this->assertCount(3, $jobs);
+
+        foreach ($expected as $index => $keys) {
+            $this->assertSame($keys->last(), $jobs[$index]->start);
+            $this->assertSame($keys->first(), $jobs[$index]->end);
+        }
+    }
+
     public function testItHandlesNoRecordsForUuidModel(): void
     {
         Bus::fake([MakeRangeSearchable::class]);
@@ -481,7 +623,7 @@ class QueueImportCommandTest extends ScoutTestCase
         });
     }
 
-    public function testItErrorsWhenStringMinGreaterThanMax(): void
+    public function testDatabaseCollationHandlesReversedStringBoundsAsAnEmptyRange(): void
     {
         for ($i = 1; $i <= 3; ++$i) {
             UuidSearchableModel::create(['title' => "Title {$i}", 'body' => 'Body']);
@@ -496,7 +638,7 @@ class QueueImportCommandTest extends ScoutTestCase
             '--min' => $rows->last()->id,
             '--max' => $rows->first()->id,
         ])
-            ->expectsOutputToContain('Invalid range')
+            ->expectsOutputToContain('No records found')
             ->assertSuccessful();
 
         Bus::assertNotDispatched(MakeRangeSearchable::class);
@@ -534,5 +676,13 @@ class QueueImportCommandTest extends ScoutTestCase
         Bus::assertDispatched(MakeRangeSearchable::class, function (MakeRangeSearchable $job) {
             return is_string($job->start) && is_string($job->end);
         });
+    }
+}
+
+class IntegerAliasSearchableModel extends SearchableModel
+{
+    public function getScoutKeyType(): string
+    {
+        return 'integer';
     }
 }

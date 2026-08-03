@@ -93,6 +93,21 @@ interface SearchableInterface
     public function shouldBeSearchable(): bool;
 
     /**
+     * Determine if the model's search index should be updated.
+     */
+    public function searchIndexShouldBeUpdated(): bool;
+
+    /**
+     * Determine if the model existed in the search index prior to an update.
+     */
+    public function wasSearchableBeforeUpdate(): bool;
+
+    /**
+     * Determine if the model existed in the search index prior to deletion.
+     */
+    public function wasSearchableBeforeDelete(): bool;
+
+    /**
      * Get the value used to index the model.
      */
     public function getScoutKey(): mixed;

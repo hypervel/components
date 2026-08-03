@@ -20,7 +20,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         Queue::fake([WebhookDeliveryJob::class, FlushWebhookBatchJob::class]);
     }
 
-    public function testClearsDebounceBeforeClaiming()
+    public function testClearsDebounceBeforeClaiming(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock')->with('123456')->once()->ordered();
@@ -31,7 +31,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         $job->handle($buffer);
     }
 
-    public function testClaimsEventsAndDispatchesDeliveryJob()
+    public function testClaimsEventsAndDispatchesDeliveryJob(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock');
@@ -53,7 +53,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         });
     }
 
-    public function testSetsWebhookIdAndTimeMsOnPayload()
+    public function testSetsWebhookIdAndTimeMsOnPayload(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock');
@@ -74,7 +74,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         });
     }
 
-    public function testBailsWhenClaimReturnsEmpty()
+    public function testBailsWhenClaimReturnsEmpty(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock');
@@ -88,7 +88,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         Queue::assertNotPushed(WebhookDeliveryJob::class);
     }
 
-    public function testReschedulesWhenItemsRemain()
+    public function testReschedulesWhenItemsRemain(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock');
@@ -105,7 +105,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         Queue::assertPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testDoesNotRescheduleWhenBufferEmpty()
+    public function testDoesNotRescheduleWhenBufferEmpty(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock');
@@ -122,7 +122,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         Queue::assertNotPushed(FlushWebhookBatchJob::class);
     }
 
-    public function testUsesAppKeyAndSecretForSigning()
+    public function testUsesAppKeyAndSecretForSigning(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock');
@@ -142,7 +142,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         });
     }
 
-    public function testPassesCustomHeadersToDeliveryJob()
+    public function testPassesCustomHeadersToDeliveryJob(): void
     {
         $buffer = m::mock(WebhookBatchBuffer::class);
         $buffer->shouldReceive('clearFlushLock');
@@ -164,7 +164,7 @@ class FlushWebhookBatchJobTest extends ReverbTestCase
         });
     }
 
-    public function testUsesFlushQueueNotDeliveryQueue()
+    public function testUsesFlushQueueNotDeliveryQueue(): void
     {
         $job = new FlushWebhookBatchJob('123456', $this->defaultWebhookConfig());
 

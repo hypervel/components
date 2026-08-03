@@ -24,12 +24,12 @@ interface UrlGenerator
     /**
      * Generate an absolute URL to the given path.
      */
-    public function to(string $path, array|string $extra = [], ?bool $secure = null): string;
+    public function to(string $path, mixed $extra = [], ?bool $secure = null): string;
 
     /**
      * Generate a secure, absolute URL to the given path.
      */
-    public function secure(string $path, array $parameters = []): string;
+    public function secure(string $path, mixed $parameters = []): string;
 
     /**
      * Generate the URL to an application asset.
@@ -53,17 +53,17 @@ interface UrlGenerator
     /**
      * Create a temporary signed route URL for a named route.
      */
-    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, array $parameters = [], bool $absolute = true): string;
+    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, mixed $parameters = [], bool $absolute = true): string;
 
     /**
      * Generate an absolute URL with the given query parameters.
      */
-    public function query(string $path, array $query = [], array|string $extra = [], ?bool $secure = null): string;
+    public function query(string $path, array $query = [], mixed $extra = [], ?bool $secure = null): string;
 
     /**
      * Get the URL to a controller action.
      */
-    public function action(array|string $action, array|string $parameters = [], bool $absolute = true): string;
+    public function action(array|string $action, mixed $parameters = [], bool $absolute = true): string;
 
     /**
      * Get the root controller namespace.

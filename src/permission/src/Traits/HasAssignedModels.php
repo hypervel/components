@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Traits;
 
 use Hypervel\Container\Container;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Query\Builder;
@@ -182,7 +183,7 @@ trait HasAssignedModels
                 }
 
                 $class = $value instanceof Model ? $value::class : $defaultModelClass;
-                $id = $value instanceof Model ? $value->getKey() : $value;
+                $id = $value instanceof Model ? $this->requireAssignedModelKey($value) : $value;
 
                 if (! in_array($id, $grouped[$class] ?? [], strict: true)) {
                     $grouped[$class][] = $id;
@@ -190,6 +191,20 @@ trait HasAssignedModels
 
                 return $grouped;
             }, []);
+    }
+
+    /**
+     * Get a required key for a reverse-assignment model.
+     */
+    private function requireAssignedModelKey(Model $model): mixed
+    {
+        $key = $model->getKey();
+
+        if ($key === null) {
+            throw new MissingAttributeException($model, $model->getKeyName());
+        }
+
+        return $key;
     }
 
     /**
@@ -205,10 +220,12 @@ trait HasAssignedModels
     }
 
     /**
-     * Capture the partition and team for a reverse assignment operation.
+     * Validate the owning role and capture its reverse assignment context.
      */
     private function assignedModelRelationContext(PermissionRegistrar $registrar): PermissionRelationContext
     {
+        $this->requireAssignedModelKey($this);
+
         $partition = $registrar->resolvePartition();
 
         if ($partition) {

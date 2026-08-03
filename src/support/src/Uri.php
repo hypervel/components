@@ -69,7 +69,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
      *
      * @throws InvalidArgumentException
      */
-    public static function route(BackedEnum|string $name, array $parameters = [], bool $absolute = true): static
+    public static function route(BackedEnum|string $name, mixed $parameters = [], bool $absolute = true): static
     {
         return new static(call_user_func(static::$urlGeneratorResolver)->route($name, $parameters, $absolute));
     }
@@ -79,7 +79,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
      *
      * @throws InvalidArgumentException
      */
-    public static function signedRoute(BackedEnum|string $name, array $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): static
+    public static function signedRoute(BackedEnum|string $name, mixed $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): static
     {
         return new static(call_user_func(static::$urlGeneratorResolver)->signedRoute($name, $parameters, $expiration, $absolute));
     }
@@ -87,7 +87,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
     /**
      * Create a temporary signed route URI instance for a named route.
      */
-    public static function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int|null $expiration = null, array $parameters = [], bool $absolute = true): static
+    public static function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, mixed $parameters = [], bool $absolute = true): static
     {
         return static::signedRoute($name, $parameters, $expiration, $absolute);
     }
@@ -97,7 +97,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
      *
      * @throws InvalidArgumentException
      */
-    public static function action(array|string $action, array $parameters = [], bool $absolute = true): static
+    public static function action(array|string $action, mixed $parameters = [], bool $absolute = true): static
     {
         return new static(call_user_func(static::$urlGeneratorResolver)->action($action, $parameters, $absolute));
     }

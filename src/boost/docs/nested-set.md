@@ -36,7 +36,7 @@ Hypervel's nested set package provides tools for storing hierarchical data in a 
 
 Nested sets store each node with left and right boundary columns. This makes ancestor and descendant reads efficient, while inserts and moves update the affected boundary ranges.
 
-The package is based on Lazychaser's `laravel-nestedset` package and adapted for Hypervel's Eloquent implementation.
+The package is based on Aimeos's maintained `laravel-nestedset` package and adapted for Hypervel's Eloquent implementation.
 
 <a name="installation"></a>
 ## Installation
@@ -50,7 +50,7 @@ composer require hypervel/nested-set
 <a name="database-setup"></a>
 ## Database Setup
 
-Add the nested set columns to your table using the `NestedSet::columns` helper:
+Add the nested set columns to your table using the `nestedSet` Blueprint method:
 
 ```php
 <?php
@@ -59,7 +59,6 @@ declare(strict_types=1);
 
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Facades\Schema;
 
 return new class extends Migration
@@ -70,23 +69,46 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('categories', function (Blueprint $table) {
-            $table->increments('id');
+            $table->id();
             $table->string('name');
-            NestedSet::columns($table);
+            $table->nestedSet();
             $table->timestamps();
         });
     }
 };
 ```
 
-The `NestedSet::columns` method adds the `_lft`, `_rgt`, and `parent_id` columns and creates an index over those columns.
+The `nestedSet` method adds `_lft`, `_rgt`, `depth`, and a nullable `parent_id` matching `$table->id()`. It also creates indexes for ancestor, descendant, child, and sibling queries.
 
-If you need to remove the nested set columns from an existing table, you may use the `NestedSet::dropColumns` helper:
+Use the helper that matches your model's primary key:
+
+```php
+$table->increments('id');
+$table->integerNestedSet();
+
+$table->uuid('id')->primary();
+$table->uuidNestedSet();
+
+$table->ulid('id')->primary();
+$table->ulidNestedSet();
+```
+
+If you need to remove the nested set columns from an existing table, you may use the `dropNestedSet` Blueprint method:
 
 ```php
 Schema::table('categories', function (Blueprint $table) {
-    NestedSet::dropColumns($table);
+    $table->dropNestedSet();
 });
+```
+
+Pass the same ordered scope columns to both methods when using scoped trees:
+
+```php
+$table->foreignId('menu_id');
+$table->nestedSet(['menu_id']);
+
+// In the rollback migration:
+$table->dropNestedSet(['menu_id']);
 ```
 
 <a name="model-setup"></a>
@@ -116,6 +138,24 @@ class Category extends Model
 ```
 
 The trait adds the nested set query builder, relationships, node movement operations, and collection helpers used throughout this document.
+
+Custom Eloquent builders must extend the package's nested set builder:
+
+```php
+use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
+use Hypervel\NestedSet\Eloquent\QueryBuilder;
+
+#[UseEloquentBuilder(CategoryQueryBuilder::class)]
+class Category extends Model
+{
+    use HasNode;
+}
+
+class CategoryQueryBuilder extends QueryBuilder
+{
+    // ...
+}
+```
 
 <a name="creating-nodes"></a>
 ## Creating Nodes
@@ -197,6 +237,8 @@ $accessories = Category::create([
 ]);
 ```
 
+Assigning `parent_id` resolves an active parent. To intentionally target a soft-deleted parent, pass a model retrieved with `withTrashed()` to `appendToNode` or `prependToNode`.
+
 <a name="creating-trees-from-arrays"></a>
 ### Creating Trees From Arrays
 
@@ -273,7 +315,7 @@ Hypervel will throw a `LogicException` if you try to move a node into itself or 
 <a name="relationships"></a>
 ### Relationships
 
-The `HasNode` trait adds `parent`, `children`, `ancestors`, and `descendants` relationships:
+The `HasNode` trait adds `parent`, `children`, `ancestors`, `descendants`, `siblings`, and `siblingsAndSelf` relationships:
 
 ```php
 $category = Category::find(1);
@@ -285,12 +327,16 @@ $children = $category->children;
 $ancestors = $category->ancestors;
 
 $descendants = $category->descendants;
+
+$siblings = $category->siblings;
 ```
 
-You may eager load ancestors and descendants like any other Eloquent relationship:
+You may eager load these relationships or use them in existence and count queries like any other Eloquent relationship:
 
 ```php
-$categories = Category::with(['ancestors', 'descendants'])->get();
+$categories = Category::with(['ancestors', 'descendants', 'siblings'])
+    ->withCount('siblings')
+    ->get();
 ```
 
 <a name="ancestors-and-descendants"></a>
@@ -311,6 +357,8 @@ $ancestors = $category->getAncestors();
 
 $descendants = $category->getDescendants();
 ```
+
+When selecting specific columns for eager loading, include `_lft`, `_rgt`, and any scope columns on the models being loaded. Ancestor results also require both bounds and any scope columns. Descendant results require `_lft` and any scope columns. If a required column is missing, the relation is empty; Hypervel does not issue a hidden query to load it.
 
 To include the node itself in the result, use the query builder methods and pass the node's key:
 
@@ -355,6 +403,8 @@ $nextSibling = $category->getNextSibling();
 
 $previousSibling = $category->getPrevSibling();
 ```
+
+When selecting specific columns for an eager-loaded sibling relationship, include the configured parent and scope columns. The `siblings` relationship also requires the model's primary key so it can exclude the node itself.
 
 You may also query neighboring nodes without limiting the result to siblings:
 
@@ -402,6 +452,8 @@ $descendantCount = $category->getDescendantCount();
 
 $moved = $category->hasMoved();
 ```
+
+Node state helpers use the columns already loaded on the model and do not issue hidden queries. Select `parent_id` before calling `isRoot`. Select both `_lft` and `_rgt` before calling `isLeaf`, `getNodeHeight`, or `getDescendantCount`. With an incomplete projection, `isLeaf` returns `false`, while the numeric methods throw a `LogicException` because no correct value can be calculated.
 
 <a name="querying-trees"></a>
 ## Querying Trees
@@ -459,7 +511,7 @@ $nodesWithParent = Category::hasParent()->get();
 <a name="depth"></a>
 ### Depth
 
-You may include each node's depth in the query result using `withDepth`:
+Every node stores its depth, with root nodes at depth `0`. You may select the depth column explicitly using `withDepth`:
 
 ```php
 $categories = Category::withDepth()
@@ -479,14 +531,16 @@ $categories = Category::withDepth('level')->get();
 $categories->first()->level;
 ```
 
-The depth value is selected as a query alias. If you need to filter by depth, retrieve the results and filter the collection:
+You may filter by depth directly:
 
 ```php
-$topTwoLevels = Category::withDepth()
+$topTwoLevels = Category::query()
+    ->where('depth', '<=', 2)
     ->defaultOrder()
-    ->get()
-    ->filter(fn (Category $category): bool => $category->depth <= 2);
+    ->get();
 ```
+
+The standard nested set indexes favor ancestor, descendant, child, and sibling reads. If your application frequently filters large trees by depth, you may add an index on `['depth', '_lft']`, prefixed by any scope columns.
 
 <a name="ordering"></a>
 ### Ordering
@@ -518,6 +572,8 @@ $tree = $categories->toTree();
 $flatTree = $categories->toFlatTree();
 ```
 
+When selecting specific columns for collection tree methods, include the model's primary key and configured parent column. The `toTree` and `toFlatTree` methods also require `_lft` when you do not pass a root; a root model passed to either method must include its primary key.
+
 You may build a tree for a specific root node by passing the root model or key to `toTree`:
 
 ```php
@@ -541,10 +597,13 @@ You may check a tree for structural errors using `countErrors`:
 $errors = Category::countErrors();
 
 // [
-//     'oddness' => 0,
-//     'duplicates' => 0,
-//     'wrong_parent' => 0,
+//     'invalid_intervals' => 0,
+//     'duplicate_endpoints' => 0,
+//     'missing_endpoints' => 0,
+//     'crossing_intervals' => 0,
 //     'missing_parent' => 0,
+//     'wrong_parent' => 0,
+//     'wrong_depth' => 0,
 // ]
 ```
 
@@ -556,10 +615,14 @@ $totalErrors = Category::getTotalErrors();
 $isBroken = Category::isBroken();
 ```
 
+The total is useful as a broken-or-healthy signal. Since one damaged node may violate more than one invariant, it is not a unique count of damaged nodes.
+
+The `countErrors`, `getTotalErrors`, and `isBroken` methods use a SQL window function. When using MySQL, these methods require MySQL 8.0 or newer. Every other database supported by Hypervel meets this requirement at its minimum supported version.
+
 <a name="fixing-existing-trees"></a>
 ### Fixing Existing Trees
 
-The `fixTree` method repairs `_lft` and `_rgt` values using the existing `parent_id` values:
+The `fixTree` method repairs `_lft`, `_rgt`, `depth`, and invalid parentage using the existing `parent_id` values:
 
 ```php
 if (Category::isBroken()) {
@@ -572,6 +635,16 @@ You may also fix a subtree:
 ```php
 $fixed = Category::fixSubtree($rootNode);
 ```
+
+Repair selects only structural and scope columns by default. If a model observer needs other attributes, pass them explicitly:
+
+```php
+$fixed = Category::fixTree(extraColumns: ['name', 'slug']);
+```
+
+Nodes with missing or cyclic parents become roots. During subtree repair, they become direct children of the supplied root so they remain inside that subtree.
+
+Subtree repair requires the root's stored bounds to contain every child linked beneath it. If the damage crosses that boundary, repair the complete tree with `fixTree()` first.
 
 <a name="rebuilding-trees-from-data"></a>
 ### Rebuilding Trees From Data
@@ -623,6 +696,10 @@ Category::rebuildSubtree($rootNode, [
 ]);
 ```
 
+The nested array controls parentage. Primary keys identify existing nodes, while `parent_id`, `_lft`, `_rgt`, `depth`, and scope values in the payload are ignored.
+
+Rebuilding a subtree has the same boundary requirement. If a parentage edge crosses the root's stored bounds, repair the complete tree with `fixTree()` first.
+
 <a name="scoped-trees"></a>
 ## Scoped Trees
 
@@ -655,6 +732,26 @@ class MenuItem extends Model
 }
 ```
 
+The scope attributes define the physical tree partition. Create those columns before calling the matching schema helper so they prefix each nested set index:
+
+```php
+$table->foreignId('menu_id');
+$table->nestedSet(['menu_id']);
+```
+
+Scopes may contain multiple columns. For example, a multi-tenant application that stores multiple menus for each tenant may scope a tree by both values:
+
+```php
+$table->uuid('id')->primary();
+$table->uuid('tenant_id');
+$table->uuid('menu_id');
+$table->uuidNestedSet(['tenant_id', 'menu_id']);
+```
+
+Return `['tenant_id', 'menu_id']` from `getScopeAttributes()` and provide both values when starting a scoped query.
+
+Set every scope value before saving a new node. A stored node cannot be moved to another scope by changing those attributes.
+
 When querying a scoped tree by plain IDs, start from the `scoped` query:
 
 ```php
@@ -666,7 +763,17 @@ $descendants = MenuItem::scoped(['menu_id' => 1])
     ->descendantsOf($nodeId);
 ```
 
-Node operations also respect scope. Moving a node across scopes will throw a `LogicException`:
+Diagnostics, whole-tree repair, and rebuild operations also require a concrete scope:
+
+```php
+$errors = MenuItem::scoped(['menu_id' => 1])->countErrors();
+
+MenuItem::scoped(['menu_id' => 1])->fixTree();
+```
+
+Ordinary Eloquent global scopes only control visibility; they do not create separate nested set trees. Use `getScopeAttributes()` for menu IDs or any other value that partitions the stored boundaries.
+
+Node operations also respect the database connection, table, and scope. Moving a node between trees will throw a `LogicException`:
 
 ```php
 $source = MenuItem::scoped(['menu_id' => 1])->first();
@@ -719,6 +826,22 @@ Force deleting a node removes the node and its descendants from the table and cl
 $electronics->forceDelete();
 ```
 
+By default, descendants are deleted in one set-based query, so descendant model events are not fired. If your application requires those events, enable the evented path on the model:
+
+```php
+protected function shouldFireDescendantEvents(): bool
+{
+    return true;
+}
+
+protected function getDescendantDeleteChunkSize(): int
+{
+    return 1000;
+}
+```
+
+The evented path deletes descendants in bounded, children-first chunks. Wrap the delete in a transaction so an exception or veto from a descendant observer rolls back the whole operation.
+
 <a name="rendering-trees"></a>
 ## Rendering Trees
 
@@ -758,7 +881,7 @@ echo renderTree($tree);
 
 Nested sets are designed for reading branches of a tree. Ancestor, descendant, and subtree reads can be performed efficiently using the `_lft` and `_rgt` boundaries.
 
-Moving, inserting, deleting, and rebuilding nodes update boundary values across affected rows. If you perform several related tree changes, wrap them in a database transaction:
+Moving, inserting, deleting, repairing, and rebuilding nodes use multiple statements and update boundary values across affected rows. Wrap each mutation in a database transaction:
 
 ```php
 DB::transaction(function () use ($electronics, $computers, $phones): void {
@@ -768,4 +891,8 @@ DB::transaction(function () use ($electronics, $computers, $phones): void {
 });
 ```
 
-The `NestedSet::columns` helper creates an index for the nested set columns. If you use scoped trees, add indexes for the scope columns you query by most often.
+If a model observer vetoes a mutation and it returns `false`, throw from the transaction closure so earlier structural writes are rolled back.
+
+Concurrent writers to the same table and nested set scope must also be serialized by your application. The package does not add an implicit distributed lock or network call.
+
+The schema helpers create separate indexes for right-bound scans, left-bound scans, and parent lookups. Scope columns prefix each index, which keeps each scoped tree's reads isolated and substantially reduces ancestor, descendant, child, and sibling query work. These indexes add a bounded cost to structural writes; this favors the read-heavy workloads nested sets are designed for. Add a depth index only when your application frequently filters large trees by depth.

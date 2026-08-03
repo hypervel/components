@@ -7,14 +7,18 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use WeakReference;
 
 class SupportServiceProviderTest extends TestCase
 {
     protected Application $app;
+
+    protected ConfigMutationTracker $configMutationTracker;
 
     protected function setUp(): void
     {
@@ -26,6 +30,13 @@ class SupportServiceProviderTest extends TestCase
             'database' => ['migrations' => ['update_date_on_publish' => true]],
         ]);
         $app->shouldReceive('make')->with('config')->andReturn($config)->byDefault();
+
+        $this->configMutationTracker = new ConfigMutationTracker;
+        $this->configMutationTracker->observe($config);
+        $app->shouldReceive('make')
+            ->with(ConfigMutationTracker::class)
+            ->andReturn($this->configMutationTracker)
+            ->byDefault();
 
         $one = new ServiceProviderForTestingOne($app);
         $one->boot();
@@ -324,6 +335,83 @@ class SupportServiceProviderTest extends TestCase
         $this->assertArrayHasKey('redis', $stores);
     }
 
+    public function testMergeConfigFromReplaysAgainstFreshApplicationConfig(): void
+    {
+        $masterConfig = new ConfigRepository([
+            'flat' => ['default' => 'master'],
+        ]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(false);
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        (new ServiceProviderForTestingFlat($app))->register();
+
+        $workerConfig = new ConfigRepository([
+            'flat' => ['default' => 'worker'],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame('worker', $workerConfig->get('flat.default'));
+        $this->assertSame('package-prefix', $workerConfig->get('flat.prefix'));
+    }
+
+    public function testMergeableOptionsReplayWithoutRetainingTheProvider(): void
+    {
+        $masterConfig = new ConfigRepository;
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(false);
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        $provider = new ServiceProviderForTestingMergeableStores($app);
+        $providerReference = WeakReference::create($provider);
+        $provider->register();
+        unset($provider);
+        gc_collect_cycles();
+
+        $workerConfig = new ConfigRepository([
+            'mergeable_stores' => [
+                'stores' => [
+                    'redis' => ['driver' => 'redis', 'connection' => 'worker'],
+                ],
+            ],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertNull($providerReference->get());
+        $this->assertSame('worker', $workerConfig->get('mergeable_stores.stores.redis.connection'));
+        $this->assertSame('array', $workerConfig->get('mergeable_stores.stores.array.driver'));
+    }
+
+    public function testReplaceConfigRecursivelyFromReplaysAgainstFreshApplicationConfig(): void
+    {
+        $masterConfig = new ConfigRepository([
+            'flat' => ['default' => 'master'],
+        ]);
+        $tracker = new ConfigMutationTracker;
+        $tracker->observe($masterConfig);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('configurationIsCached')->andReturn(false);
+        $app->shouldReceive('make')->with('config')->andReturn($masterConfig);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn($tracker);
+
+        (new ServiceProviderForTestingReplace($app))->register();
+
+        $workerConfig = new ConfigRepository([
+            'flat' => ['default' => 'worker', 'extra' => 'worker-value'],
+        ]);
+        $tracker->replay($workerConfig);
+
+        $this->assertSame('worker', $workerConfig->get('flat.default'));
+        $this->assertSame('worker-value', $workerConfig->get('flat.extra'));
+        $this->assertSame('package-prefix', $workerConfig->get('flat.prefix'));
+    }
+
     public function testMergeableOptionsDefaultsToEmptyArray()
     {
         $provider = new ServiceProviderForTestingFlat($this->app);
@@ -338,6 +426,7 @@ class SupportServiceProviderTest extends TestCase
         $app = m::mock(Application::class)->makePartial();
         $app->shouldReceive('configurationIsCached')->andReturn(true);
         $app->shouldReceive('make')->with('config')->never();
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->never();
 
         $provider = new ServiceProviderForTestingFlat($app);
         $provider->register();
@@ -352,6 +441,7 @@ class SupportServiceProviderTest extends TestCase
         $app = m::mock(Application::class)->makePartial();
         $app->shouldReceive('configurationIsCached')->andReturn(false);
         $app->shouldReceive('make')->with('config')->andReturn($config);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
 
         $provider = new ServiceProviderForTestingFlat($app);
         $provider->register();
@@ -364,6 +454,7 @@ class SupportServiceProviderTest extends TestCase
         $app = m::mock(Application::class)->makePartial();
         $app->shouldReceive('configurationIsCached')->andReturn(true);
         $app->shouldReceive('make')->with('config')->never();
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->never();
 
         $provider = new ServiceProviderForTestingReplace($app);
         $provider->register();
@@ -379,6 +470,7 @@ class SupportServiceProviderTest extends TestCase
         $app = m::mock(Application::class)->makePartial();
         $app->shouldReceive('configurationIsCached')->andReturn(false);
         $app->shouldReceive('make')->with('config')->andReturn($config);
+        $app->shouldReceive('make')->with(ConfigMutationTracker::class)->andReturn(new ConfigMutationTracker);
 
         $provider = new ServiceProviderForTestingReplace($app);
         $provider->register();
@@ -423,6 +515,7 @@ class SupportServiceProviderTest extends TestCase
     public function testCanRemoveProvider()
     {
         $tempDirectory = ParallelTesting::tempDir('SupportServiceProviderTest-remove');
+        (new Filesystem)->deleteDirectory($tempDirectory);
         mkdir($tempDirectory, 0777, true);
 
         $tempFile = $tempDirectory . '/providers.php';
@@ -473,6 +566,7 @@ PHP, trim(file_get_contents($tempFile)));
     public function testCanAddProviderAndPreserveFileMode(): void
     {
         $tempDirectory = ParallelTesting::tempDir('SupportServiceProviderTest-add');
+        (new Filesystem)->deleteDirectory($tempDirectory);
         mkdir($tempDirectory, 0777, true);
 
         $tempFile = $tempDirectory . '/providers.php';

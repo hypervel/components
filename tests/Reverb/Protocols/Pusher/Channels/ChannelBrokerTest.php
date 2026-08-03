@@ -15,32 +15,32 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class ChannelBrokerTest extends ReverbTestCase
 {
-    public function testCanReturnAChannelInstance()
+    public function testCanReturnAChannelInstance(): void
     {
         $this->assertInstanceOf(Channel::class, ChannelBroker::create('foo'));
     }
 
-    public function testCanReturnAPrivateChannelInstance()
+    public function testCanReturnAPrivateChannelInstance(): void
     {
         $this->assertInstanceOf(PrivateChannel::class, ChannelBroker::create('private-foo'));
     }
 
-    public function testCanReturnAPresenceChannelInstance()
+    public function testCanReturnAPresenceChannelInstance(): void
     {
         $this->assertInstanceOf(PresenceChannel::class, ChannelBroker::create('presence-foo'));
     }
 
-    public function testCanReturnACacheChannelInstance()
+    public function testCanReturnACacheChannelInstance(): void
     {
         $this->assertInstanceOf(CacheChannel::class, ChannelBroker::create('cache-foo'));
     }
 
-    public function testCanReturnAPrivateCacheChannelInstance()
+    public function testCanReturnAPrivateCacheChannelInstance(): void
     {
         $this->assertInstanceOf(PrivateCacheChannel::class, ChannelBroker::create('private-cache-foo'));
     }
 
-    public function testCanReturnAPresenceCacheChannelInstance()
+    public function testCanReturnAPresenceCacheChannelInstance(): void
     {
         $this->assertInstanceOf(PresenceCacheChannel::class, ChannelBroker::create('presence-cache-foo'));
     }

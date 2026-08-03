@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `cache`
-- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution`; `Normalize framework enum identifiers at string boundaries`; `Harden filesystem I/O, streaming, and response teardown`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`.
-- **Pending revalidation carried into the active work:** None.
+- **Active package or work unit:** none — HTTP and Scout are complete and the next package is not selected.
+- **Ledger entries required for the active work:** none.
+- **Pending revalidation carried into the active work:** none.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1005,20 +1005,21 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `validation-01` | `validation` | `contracts`; later full `validation` audit | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
 | `view-01` | `view` | `contracts` and `foundation` (revalidation complete); later full `view` audit | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
 | `filesystem-01` | `filesystem` | `contracts` and `filesystem` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
-| `queue-01` | `queue` | `contracts`; later full `queue` audit | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
+| `queue-01` | `queue` | `contracts` and `queue` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
+| `contracts-05` | `contracts` | `http`, `foundation`, `console`, and `database` (revalidation complete); later full `routing` audit | `Harden framework contracts and request-scoped state`; finding `contracts-05` |
 | `testbench-01` | `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
-| `http-01` | `http` | `macroable`, `testing`; later full `http` and `testing` audits | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
+| `http-01` | `http` | `macroable` and `http` (revalidation complete), `testing`; later full `testing` audit | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
 | `console-01` | `console` | `contracts` and `console` (revalidation complete) | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
 | `reflection-01` | `reflection` | `events` and `foundation` (revalidation complete) | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
 | `reflection-02` | `reflection` | `foundation` and `console` (revalidation complete); later full `routing` and `view` audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
-| `reflection-04` | `reflection` | `di` (revalidation complete), `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
+| `reflection-04` | `reflection` | `di` and `queue` (revalidation complete), `support`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 | `config-01` | `config` | `foundation` (revalidation complete) | `Preserve configuration identity across worker reloads`; finding `config-01` |
-| `config-02` | `foundation` | `testing`, `reverb`; later full consumer audits | `Preserve configuration identity across worker reloads`; finding `config-02` |
+| `config-02` | `foundation` | `reverb` (revalidation complete), `testing`; later full `testing` audit | `Preserve configuration identity across worker reloads`; finding `config-02` |
 | `container-05` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
 | `container-06` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
 | `container-08` | `container` | `auth`, `cache`, `log`, `routing`, `support`; later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
-| `container-09` | `auth`, `cache`, `log` | `container` (revalidation complete); later full `auth`, `cache`, and `log` audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
-| `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
+| `container-09` | `auth`, `cache`, `log` | `container`, `cache`, and `log` (revalidation complete); later full `auth` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
+| `container-10` | `log` | `container` and `log` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 | `context-01` | `context` | `container` and `foundation` (revalidation complete) | `Correct explicit coroutine context targeting`; finding `context-01` |
 | `context-04` | `context` | `foundation` and `database` (revalidation complete) | `Correct explicit coroutine context targeting`; finding `context-04` |
 | `coroutine-05` | `coroutine`, `filesystem` | `filesystem` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `coroutine-05` |
@@ -1028,8 +1029,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `concurrency-01` | `concurrency`, `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-01` |
 | `concurrency-02` | `concurrency`, `testbench` | later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-02` |
 | `concurrency-03` | `concurrency`, `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-03` |
-| `pool-01` | `pool` | `coordinator` (revalidation complete); later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-01` |
-| `pool-02` | `pool` | later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-02` |
+| `pool-01` | `pool` | `coordinator` and `pool` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `pool-01` |
+| `pool-02` | `pool` | `pool` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `pool-02` |
 | `pool-04` | `pool`, `database`, `redis` | `database` and `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `pool-04` |
 | `pool-05` | `pool` | `database` and `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `pool-05` |
 | `database-02` | `database` | `pool` and `database` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `database-02` |
@@ -1040,66 +1041,122 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `di-02` | `di` | `foundation` (revalidation complete); later full `sentry` and `telescope` audits | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` and `filesystem` (revalidation complete) | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption`, `support`, and `filesystem` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
-| `filesystem-04` | `filesystem` | `cache`; later full `cache` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-04` |
-| `http-02` | `http` | `filesystem`, `foundation`, and `http-server` (revalidation complete); later full `http` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `http-02` |
-| `filesystem-07` | `filesystem`, `foundation`, `http-server` | `filesystem`, `foundation`, and `http-server` (revalidation complete); later full `http` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-07` |
+| `filesystem-04` | `filesystem` | `cache` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-04` |
+| `http-02` | `http` | `filesystem`, `foundation`, `http-server`, and `http` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `http-02` |
+| `filesystem-07` | `filesystem`, `foundation`, `http-server` | `filesystem`, `foundation`, `http-server`, and `http` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-07` |
 | `foundation-04` | `foundation` | `filesystem`, `foundation`, and `http-server` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `foundation-04` |
 | `events-01` | `foundation` | `events` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-01` |
-| `events-03` | `events`, `queue` | later full `queue` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-03` |
+| `events-03` | `events`, `queue` | `queue` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-03` |
 | `events-04` | `events`, `foundation` | `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-04` |
 | `events-05` | `events`, `broadcasting` | later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-05` |
 | `events-06` | `events`, `foundation` | `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-06` |
-| `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
-| `queue-12` | `bus`, `queue` | `events` and `bus` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
+| `queue-11` | `queue` | `events` and `queue` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
+| `queue-12` | `bus`, `queue` | `events`, `bus`, and `queue` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache`, `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis` (revalidation complete), `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 | `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
 | `server-process-10` | `server-process` | `foundation` (revalidation complete) | `Make custom server processes failure-safe`; finding `server-process-10` |
-| `bus-03` | `bus`, `contracts`, `foundation` | `foundation` (revalidation complete); later full `queue` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-03` |
-| `bus-10` | `bus`, `queue` | later full `queue` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-10` |
-| `bus-17` | `bus`, `foundation`, `queue`, `testing` | `log` and `foundation` (revalidation complete); later full `queue` and `testing` audits | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-17` |
-| `bus-18` | `foundation`, `queue` | `foundation` (revalidation complete); later full `queue` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-18` |
+| `bus-03` | `bus`, `contracts`, `foundation` | `foundation` and `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-03` |
+| `bus-10` | `bus`, `queue` | `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-10` |
+| `bus-17` | `bus`, `foundation`, `queue`, `testing` | `log`, `foundation`, and `queue` (revalidation complete); later full `testing` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-17` |
+| `bus-18` | `foundation`, `queue` | `foundation` and `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-18` |
 | `core-01` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-01` |
 | `core-05` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-05` |
 | `core-06` | `core`, `server` | `server` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
-| `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, and `testing` (revalidation complete); later full `http` and `testing` audits | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
+| `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, `http`, and `testing` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
 | `http-server-05` | `testing` | `http-server` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-05` |
-| `http-server-06` | `http-server` | `grpc`, `reverb`, and `websocket-server` (revalidation complete); later full `grpc` and `reverb` audits | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
+| `http-server-06` | `http-server` | `reverb` and `websocket-server` (revalidation complete), `grpc`; later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
 | `http-server-07` | `http-server` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
 | `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
 | `foundation-06` | `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `foundation-06` |
 | `console-02` | `console` | `foundation` and `console` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `console-02` |
-| `queue-14` | `foundation`, `queue` | `foundation` (revalidation complete); later full `queue` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
-| `http-03` | `http`, `foundation` | `contracts` and `foundation` (revalidation complete); later full `http` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `http-03` |
+| `queue-14` | `foundation`, `queue` | `foundation` and `queue` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
+| `http-03` | `http`, `foundation` | `contracts`, `foundation`, and `http` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `http-03` |
 | `auth-02` | `auth` | `foundation` (revalidation complete); later full `auth` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `auth-02` |
 | `database-03` | `database` | `foundation` and `database` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `database-03` |
+| `foundation-17` | `foundation` | `foundation` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `foundation-17` |
+| `foundation-18` | `foundation` | `foundation` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `foundation-18` |
 | `database-04` | `database` | `console` and `database` (revalidation complete) | `Complete Console command, scheduling, and generator lifecycles`; finding `database-04` |
-| `reverb-04` | `reverb` | later full `reverb` audit | `Complete Console command, scheduling, and generator lifecycles`; finding `reverb-04` |
+| `reverb-04` | `reverb` | `reverb` (revalidation complete) | `Complete Console command, scheduling, and generator lifecycles`; finding `reverb-04` |
 | `watcher-10` | `support` | `watcher`, `foundation`, and `horizon` (revalidation complete) | `Make Watcher drivers and managed processes lifecycle-safe`; finding `watcher-10` |
 | `database-05` | `core`, `database` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-05`; sibling finding `redis-03` |
 | `database-06` | `core`, `server`, `database` | `server` and `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-06`; sibling finding `redis-05` |
 | `database-08` | `database` | `foundation`, `testing`, and `testbench` (revalidation complete); later full `testing` and `testbench` audits | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-08` |
 | `database-10` | `database` | `scout` and `nested-set` (revalidation complete); later full consumer audits | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-10` |
+| `database-14` | `database` | `queue` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-14` |
 | `redis-03` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-03` |
 | `redis-04` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-04` |
 | `redis-05` | `redis`, `core`, `server` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-05` |
 | `redis-06` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-06` |
 | `redis-07` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-07` |
 | `redis-08` | `redis`, `pool` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-08` |
-| `redis-09` | `redis` | `cache`; later full `cache` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-09` |
-| `redis-10` | `redis` | `reverb` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-10` |
-| `redis-11` | `redis` | `reverb` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-11` |
-| `redis-12` | `redis`, `cache` | `redis` (revalidation complete); later full `cache` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-12` |
-| `redis-13` | `redis` | `horizon` (revalidation complete), `cache`, `queue`, `session`, and `broadcasting`; later full consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-13` |
-| `reverb-05` | `reverb` | `redis` (revalidation complete); later full `reverb` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `reverb-05` |
+| `redis-09` | `redis` | `cache` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-09` |
+| `redis-10` | `redis` | `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-10` |
+| `redis-11` | `redis` | `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-11` |
+| `redis-12` | `redis`, `cache` | `redis` and `cache` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-12` |
+| `redis-13` | `redis` | `horizon`, `cache`, `queue`, and `session` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-13` |
+| `redis-21` | `redis` | `queue` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-21` |
+| `redis-22` | `redis` | `queue` and `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-22` |
+| `reverb-05` | `reverb` | `redis` and `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `reverb-05` |
 | `redis-15` | `redis` | `telescope` and `sentry` (revalidation complete); later full consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-15` |
-| `horizon-01` | `horizon` | `redis` (revalidation complete); later full `horizon` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `horizon-01` |
+| `horizon-01` | `horizon` | `redis` and `horizon` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `horizon-01` |
 | `telescope-01` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
 | `telescope-02` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
 | `sentry-01` | `sentry` | `redis` (revalidation complete); later full `sentry` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
+| `cache-04` | `cache` | `auth`, `sanctum`, and `testbench` (revalidation complete); later full consumer audits | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-04` |
+| `filesystem-12` | `filesystem` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `filesystem-12` |
+| `session-23` | `cache` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `session-23` |
+| `contracts-09` | `contracts` | `foundation` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `contracts-09` |
+| `notifications-07` | `contracts` | later full `notifications` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `notifications-07` |
+| `queue-22` | `queue` | `horizon` (revalidation complete); later full `telescope` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-22` |
+| `queue-29` | `queue` | `foundation` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-29` |
+| `queue-36` | `queue`, `support` | `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-36` |
+| `queue-37` | `queue`, `support` | `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-37` |
+| `queue-40` | `queue` | `queue` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `queue-40` |
+| `redis-23` | `redis` | `redis` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `redis-23` |
+| `telescope-03` | `telescope` | `telescope` (targeted correction complete); later full `telescope` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `telescope-03` |
+| `fortify-01` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `fortify-01` |
+| `reverb-06` | `reverb` | `reverb` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `reverb-06` |
+| `cache-11` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-11` |
+| `cache-20` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-20` |
+| `reverb-24` | `reverb` | `foundation` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `reverb-24` |
+| `server-10` | `server` | `server` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `server-10` |
+| `grpc-01` | `grpc` | `reverb` (revalidation complete); later full `grpc` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
+| `websocket-server-13` | `websocket-server` | `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `websocket-server-13` |
+| `testbench-02` | `testbench` | `testbench` (targeted correction complete); later full `testbench` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `testbench-02` |
+| `support-27` | `support` | `support` and `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `support-27` |
+| `nested-set-13` | `nested-set` | `testing` (revalidation complete); later full `testing` audit | `Complete Nested Set invariants, performance, and modern APIs`; finding `nested-set-13` |
+| `database-15` | `database` | `database` and `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `database-15` |
+| `database-16` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-16` |
+| `database-17` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-17` |
+| `database-18` | `database` | `database` and `queue` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-18` |
+| `database-19` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-19` |
+| `database-20` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-20` |
+| `permission-01` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-01` |
+| `permission-02` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-02` |
+| `permission-03` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-03` |
+| `permission-04` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-04` |
+| `permission-05` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-05` |
+| `fortify-02` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Harden Eloquent identity and partial-projection safety`; finding `fortify-02` |
+| `pagination-01` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-01` |
+| `pagination-02` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-02` |
+| `queue-41` | `database`, `queue` | `database`, `queue`, and `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `queue-41` |
+| `scout-01` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-01` |
+| `scout-02` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-02` |
+| `notifications-08` | `notifications` | `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `notifications-08` |
+| `http-04` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-04` |
+| `http-05` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-05` |
+| `http-06` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-06` |
+| `testing-01` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-01` |
+| `testing-02` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-02` |
+| `routing-01` | `contracts`, `foundation`, `routing`, `support` | `contracts`, `foundation`, `support`, and `http` (revalidation complete); later full `routing` audit | `Complete HTTP correctness, JSON:API, and current Laravel parity`; finding `routing-01` |
+| `testbench-03` | `testbench` | `http` (revalidation complete); later full `testbench` audit | `Complete HTTP correctness, JSON:API, and current Laravel parity`; finding `testbench-03` |
+| `database-21` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-21` |
+| `database-22` | `database` | `database` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-22` |
+| `database-23` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-23` |
 
 ## Package checklist
 
@@ -1170,12 +1227,12 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 - [x] `database`
 - [x] `redis`
-- [ ] `cache`
-- [ ] `session`
-- [ ] `queue`
-- [ ] `horizon`
-- [ ] `reverb`
-- [ ] `http`
+- [x] `cache`
+- [x] `session`
+- [x] `queue`
+- [x] `horizon`
+- [x] `reverb`
+- [x] `http`
 - [ ] `api-client`
 - [ ] `grpc`
 - [ ] `broadcasting`
@@ -1196,11 +1253,11 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `passkeys`
 - [ ] `permission`
 - [ ] `jwt`
-- [ ] `scout`
+- [x] `scout`
 - [ ] `telescope`
 - [ ] `sentry`
 - [ ] `inertia`
-- [ ] `nested-set`
+- [x] `nested-set`
 - [ ] `json-schema`
 
 ### Tooling and developer surfaces

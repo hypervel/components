@@ -26,7 +26,9 @@ class PackageManifestPackageTesterTest extends TestCase
         $this->manifestDirectory = ParallelTesting::tempDir('PackageManifestPackageTesterTest');
         $this->fixturePath = __DIR__ . '/Fixtures/PackageManifest';
 
-        (new Filesystem)->ensureDirectoryExists($this->manifestDirectory);
+        $files = new Filesystem;
+        $files->deleteDirectory($this->manifestDirectory);
+        $files->ensureDirectoryExists($this->manifestDirectory);
     }
 
     #[Override]

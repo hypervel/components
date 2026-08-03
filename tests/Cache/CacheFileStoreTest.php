@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Exception;
 use Hypervel\Cache\FileStore;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
@@ -14,7 +16,9 @@ use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use ReflectionProperty;
 use RuntimeException;
+use stdClass;
 
 class CacheFileStoreTest extends TestCase
 {
@@ -96,6 +100,77 @@ class CacheFileStoreTest extends TestCase
         $this->assertSame('Hello World', $store->get('foo'));
     }
 
+    public function testSerializableClassesControlCachedObjects(): void
+    {
+        $denyingFiles = $this->mockFilesystem();
+        $denyingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+        $allowingFiles = $this->mockFilesystem();
+        $allowingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+
+        $denyingStore = new FileStore($denyingFiles, __DIR__, null, false);
+        $allowingStore = new FileStore(
+            $allowingFiles,
+            __DIR__,
+            serializableClasses: [stdClass::class],
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('foo'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('foo'));
+    }
+
+    public function testSerializableClassPolicyControlsCachedObjects(): void
+    {
+        $denyingFiles = $this->mockFilesystem();
+        $denyingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+        $allowingFiles = $this->mockFilesystem();
+        $allowingFiles->expects($this->once())
+            ->method('get')
+            ->willReturn('9999999999' . serialize(new stdClass));
+
+        $denyingStore = new FileStore(
+            $denyingFiles,
+            __DIR__,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+        $allowingStore = new FileStore(
+            $allowingFiles,
+            __DIR__,
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): array => [stdClass::class]),
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('foo'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('foo'));
+    }
+
+    public function testLockStoreRetainsBothSerializationPolicies(): void
+    {
+        $files = m::mock(Filesystem::class)->shouldIgnoreMissing();
+        $files->shouldReceive('exists')->andReturnTrue();
+        $serializableClasses = [stdClass::class];
+        $policy = new SerializableClassPolicy(static fn (): false => false);
+        $store = new FileStore(
+            $files,
+            __DIR__,
+            serializableClasses: $serializableClasses,
+            serializableClassPolicy: $policy,
+        );
+        $lock = $store->lock('foo');
+
+        $storeProperty = new ReflectionProperty($lock, 'store');
+        $lockStore = $storeProperty->getValue($lock);
+        $classesProperty = new ReflectionProperty($lockStore, 'serializableClasses');
+        $policyProperty = new ReflectionProperty($lockStore, 'serializableClassPolicy');
+
+        $this->assertSame($serializableClasses, $classesProperty->getValue($lockStore));
+        $this->assertSame($policy, $policyProperty->getValue($lockStore));
+    }
+
     public function testStoreItemProperlyStoresValues()
     {
         $files = $this->mockFilesystem();
@@ -107,6 +182,29 @@ class CacheFileStoreTest extends TestCase
         $files->expects($this->once())->method('put')->with($this->equalTo(__DIR__ . '/' . $cache_dir . '/' . $hash), $this->equalTo($contents))->willReturn(strlen($contents));
         $result = $store->put('foo', 'Hello World', 10);
         $this->assertTrue($result);
+    }
+
+    public function testPutPadsShortTimestampsToTenDigits(): void
+    {
+        $files = $this->mockFilesystem();
+        $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__])->getMock();
+        $store->expects($this->once())->method('expiration')->with(3)->willReturn(990464403);
+        $contents = '0990464403' . serialize('Hello World');
+        $hash = hash('xxh128', 'foo');
+        $cacheDir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
+        $files->expects($this->once())->method('put')->with(__DIR__ . '/' . $cacheDir . '/' . $hash, $contents)->willReturn(strlen($contents));
+
+        $this->assertTrue($store->put('foo', 'Hello World', 3));
+    }
+
+    public function testGetPayloadReadsZeroPaddedTimestampsCorrectly(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
+
+        $files = $this->mockFilesystem();
+        $files->expects($this->once())->method('get')->willReturn('0990464403' . serialize('Hello World'));
+
+        $this->assertSame('Hello World', (new FileStore($files, __DIR__))->get('foo'));
     }
 
     public function testTouchExtendsTtl()
@@ -189,6 +287,7 @@ class CacheFileStoreTest extends TestCase
     public function testAddReturnsFalseWhenFileLockCannotBeAcquired(): void
     {
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         $store = new FileStore(new Filesystem, $tempDir);
@@ -204,9 +303,28 @@ class CacheFileStoreTest extends TestCase
         }
     }
 
+    public function testAddPadsShortTimestampsToTenDigits(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-add-header');
+        (new Filesystem)->deleteDirectory($tempDir);
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new FileStore(new Filesystem, $tempDir);
+
+            $this->assertTrue($store->add('foo', 'bar', 3));
+            $this->assertStringStartsWith('0990464403', file_get_contents($store->path('foo')));
+            $this->assertSame('bar', $store->get('foo'));
+        } finally {
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
     public function testRefreshReturnsFalseWhenFileLockCannotBeAcquired(): void
     {
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         $store = new FileStore(new Filesystem, $tempDir);
@@ -221,6 +339,25 @@ class CacheFileStoreTest extends TestCase
             $this->assertFalse($store->refreshIfOwned('foo', 'owner', 10));
         } finally {
             $lockableFile->close();
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testRefreshPadsShortTimestampsToTenDigits(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(990464400));
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh-header');
+        (new Filesystem)->deleteDirectory($tempDir);
+        mkdir($tempDir, 0777, true);
+
+        try {
+            $store = new FileStore(new Filesystem, $tempDir);
+
+            $this->assertTrue($store->put('foo', 'owner', 60));
+            $this->assertTrue($store->refreshIfOwned('foo', 'owner', 3));
+            $this->assertStringStartsWith('0990464403', file_get_contents($store->path('foo')));
+            $this->assertSame('owner', $store->get('foo'));
+        } finally {
             (new Filesystem)->deleteDirectory($tempDir);
         }
     }
@@ -486,6 +623,7 @@ class CacheFileStoreTest extends TestCase
     public function testItHandlesForgettingNonFlexibleKeys()
     {
         $tempDir = ParallelTesting::tempDir('CacheFileStoreTest');
+        (new Filesystem)->deleteDirectory($tempDir);
         mkdir($tempDir, 0777, true);
 
         try {

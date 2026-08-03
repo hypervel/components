@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Events\CacheHit;
-use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
@@ -64,8 +63,13 @@ class StackTaggedCache extends AnyModeTaggedCache
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
-            return $this->store->forget($key);
+            return $this->forgetPlainKey($key);
         }
+
+        $this->event(
+            WritingKey::class,
+            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+        );
 
         $result = $this->store->putRecordTagged($this->tags->getNames(), $key, [
             'value' => $value,
@@ -73,7 +77,15 @@ class StackTaggedCache extends AnyModeTaggedCache
         ]);
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
+            $this->event(
+                KeyWritten::class,
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
+        } else {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
         }
 
         return $result;
@@ -86,7 +98,7 @@ class StackTaggedCache extends AnyModeTaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
-        if (! is_null($this->store->get($key))) {
+        if (! is_null($this->getPlainRaw($key))) {
             return false;
         }
 
@@ -100,10 +112,24 @@ class StackTaggedCache extends AnyModeTaggedCache
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
+        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey(
+            $this->getName(),
+            $key,
+            NullSentinel::unwrap($value)
+        ));
+
         $result = $this->store->putRecordTagged($this->tags->getNames(), $key, ['value' => $value]);
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
+            $this->event(
+                KeyWritten::class,
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+        } else {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+            );
         }
 
         return $result;
@@ -125,74 +151,6 @@ class StackTaggedCache extends AnyModeTaggedCache
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
         return $this->increment($key, $value * -1);
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result.
-     *
-     * Reads plain through the stack and writes through the tagged path on a miss.
-     *
-     * @template TCacheValue
-     *
-     * @param Closure(): TCacheValue $callback
-     * @return TCacheValue
-     */
-    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
-    {
-        if ($ttl === null) {
-            return $this->rememberForever($key, $callback);
-        }
-
-        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $seconds = $this->getSeconds($ttl);
-
-        if ($seconds <= 0) {
-            return $callback();
-        }
-
-        $value = $this->store->get($key);
-
-        if (! is_null($value)) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-
-            return NullSentinel::unwrap($value);
-        }
-
-        $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-
-        $value = $callback();
-
-        $this->put($key, $value, $seconds);
-
-        return NullSentinel::unwrap($value);
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result forever.
-     *
-     * @template TCacheValue
-     *
-     * @param Closure(): TCacheValue $callback
-     * @return TCacheValue
-     */
-    public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
-    {
-        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $value = $this->store->get($key);
-
-        if (! is_null($value)) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-
-            return NullSentinel::unwrap($value);
-        }
-
-        $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-
-        $value = $callback();
-
-        $this->forever($key, $value);
-
-        return NullSentinel::unwrap($value);
     }
 
     /**

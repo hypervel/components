@@ -589,6 +589,10 @@ class ResponseBridge
         IterableStreamedResponse&HasTrailers $response,
         SwooleResponse $swooleResponse
     ): bool {
+        // TODO: Remove this lookahead once the minimum Swoole release includes
+        // https://github.com/swoole/swoole-src/pull/6124. Current releases close
+        // HTTP/2 before trailers after write() + bare end(); then write every
+        // chunk immediately, emit trailers, and call bare end().
         $pendingChunk = null;
         $writeFailed = false;
 
@@ -629,6 +633,10 @@ class ResponseBridge
         StreamedResponse&HasTrailers $response,
         SwooleResponse $swooleResponse
     ): void {
+        // TODO: Remove this lookahead once the minimum Swoole release includes
+        // https://github.com/swoole/swoole-src/pull/6124. Current releases close
+        // HTTP/2 before trailers after write() + bare end(); then write every
+        // chunk immediately, emit trailers, and call bare end().
         $pendingChunk = null;
         $writeFailed = false;
         $writeFailure = null;

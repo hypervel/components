@@ -28,7 +28,8 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
 
         $this->provider = new DatabaseUuidFailedJobProvider(
             $this->resolver = $this->app->make('db'),
-            'failed_jobs'
+            null,
+            'failed_jobs',
         );
     }
 
@@ -79,6 +80,17 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertEquals('uuid-1', $this->provider->find('uuid-1')->id);
         $this->assertEquals('queue-1', $this->provider->find('uuid-1')->queue);
         $this->assertEquals('connection-1', $this->provider->find('uuid-1')->connection);
+    }
+
+    public function testGeneratingIdsForPayloadsWithoutANonEmptyStringUuid(): void
+    {
+        foreach (['{invalid', '{}', '{"uuid":""}', '{"uuid":123}', '{"uuid":[]}'] as $payload) {
+            $id = $this->provider->log('connection', 'queue', $payload, new RuntimeException);
+
+            $this->assertIsString($id);
+            $this->assertTrue(Str::isUuid($id));
+            $this->assertSame($payload, $this->provider->find($id)->payload);
+        }
     }
 
     public function testRemovingJobsById()
@@ -184,5 +196,13 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count('connection-2', 'queue-99'));
         $this->assertSame(1, $this->provider->count('connection-1', 'queue-1'));
         $this->assertSame(2, $this->provider->count('connection-2', 'queue-1'));
+    }
+
+    public function testJobsCanBeCountedByExactZeroConnectionAndQueue(): void
+    {
+        $this->provider->log('0', '0', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+        $this->provider->log('other', 'other', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
+
+        $this->assertSame(1, $this->provider->count('0', '0'));
     }
 }

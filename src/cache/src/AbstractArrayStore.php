@@ -28,12 +28,21 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
     protected array|bool|null $serializableClasses;
 
     /**
+     * The shared serializable class policy.
+     */
+    protected ?SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new array-family store.
      */
-    public function __construct(bool $serializesValues = false, array|bool|null $serializableClasses = null)
-    {
+    public function __construct(
+        bool $serializesValues = false,
+        array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
+    ) {
         $this->serializesValues = $serializesValues;
         $this->serializableClasses = $serializableClasses;
+        $this->serializableClassPolicy = $serializableClassPolicy;
     }
 
     /**
@@ -299,6 +308,10 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
      */
     protected function unserialize(string $value): mixed
     {
+        if ($this->serializableClassPolicy !== null) {
+            return $this->serializableClassPolicy->unserialize($value);
+        }
+
         if ($this->serializableClasses !== null) {
             return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
         }

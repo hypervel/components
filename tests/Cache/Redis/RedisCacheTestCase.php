@@ -8,8 +8,6 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
@@ -154,34 +152,12 @@ abstract class RedisCacheTestCase extends TestCase
     }
 
     /**
-     * Create a PoolFactory mock that returns the given connection.
+     * Create a Redis factory mock for the given connection.
      */
-    protected function createPoolFactory(
+    protected function createRedisFactory(
         RedisConnection $connection,
         string $connectionName = 'default'
-    ): m\MockInterface|PoolFactory {
-        $poolFactory = m::mock(PoolFactory::class);
-        $pool = m::mock(RedisPool::class);
-
-        $poolFactory->shouldReceive('getPool')
-            ->with($connectionName)
-            ->andReturn($pool);
-
-        $pool->shouldReceive('get')->andReturn($connection);
-
-        return $poolFactory;
-    }
-
-    /**
-     * Register a RedisFactory mock in the container.
-     *
-     * This sets up the mock that StoreContext::withConnection() uses to get
-     * connections via Container::getInstance().
-     */
-    protected function registerRedisFactoryMock(
-        RedisConnection $connection,
-        string $connectionName = 'default'
-    ): void {
+    ): m\MockInterface|RedisFactory {
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldReceive('withConnection')
             ->andReturnUsing(fn (callable $callback) => $callback($connection));
@@ -194,7 +170,7 @@ abstract class RedisCacheTestCase extends TestCase
             ->with($connectionName)
             ->andReturn($redisProxy);
 
-        $this->instance(RedisFactory::class, $redisFactory);
+        return $redisFactory;
     }
 
     /**
@@ -211,14 +187,10 @@ abstract class RedisCacheTestCase extends TestCase
         string $connectionName = 'default',
         ?string $tagMode = null,
     ): RedisStore {
-        // Register RedisFactory mock for StoreContext::withConnection()
-        $this->registerRedisFactoryMock($connection, $connectionName);
-
         $store = new RedisStore(
-            m::mock(RedisFactory::class),
+            $this->createRedisFactory($connection, $connectionName),
             $prefix,
-            $connectionName,
-            $this->createPoolFactory($connection, $connectionName)
+            $connectionName
         );
 
         if ($tagMode !== null) {
@@ -255,14 +227,10 @@ abstract class RedisCacheTestCase extends TestCase
         $connection = $this->mockClusterConnection();
         $clusterClient = $connection->_mockClient;
 
-        // Register RedisFactory mock for StoreContext::withConnection()
-        $this->registerRedisFactoryMock($connection, $connectionName);
-
         $store = new RedisStore(
-            m::mock(RedisFactory::class),
+            $this->createRedisFactory($connection, $connectionName),
             $prefix,
-            $connectionName,
-            $this->createPoolFactory($connection, $connectionName)
+            $connectionName
         );
 
         if ($tagMode !== null) {
@@ -296,14 +264,10 @@ abstract class RedisCacheTestCase extends TestCase
         $connection = new PhpRedisConnectionStub;
         $connection->setActiveConnection($fakeClient);
 
-        // Register RedisFactory mock for StoreContext::withConnection()
-        $this->registerRedisFactoryMock($connection, $connectionName);
-
         $store = new RedisStore(
-            m::mock(RedisFactory::class),
+            $this->createRedisFactory($connection, $connectionName),
             $prefix,
-            $connectionName,
-            $this->createPoolFactory($connection, $connectionName)
+            $connectionName
         );
 
         if ($tagMode !== null) {

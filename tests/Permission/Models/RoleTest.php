@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission\Models\RoleTest;
 
 use BackedEnum;
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
 use Hypervel\Permission\Exceptions\RoleAlreadyExists;
 use Hypervel\Permission\Exceptions\RoleDoesNotExist;
 use Hypervel\Permission\Models\Permission;
+use Hypervel\Permission\Models\Role as RoleModel;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\RuntimeRole;
@@ -303,6 +306,45 @@ class RoleTest extends TestCase
         );
     }
 
+    public function testGuardNamePreservesDefaultsLoadedValuesAccessorsAndStringZero(): void
+    {
+        $this->assertSame(
+            $this->app->make('config')->get('auth.defaults.guard'),
+            (new RoleModel)->guardName(),
+        );
+        $this->assertSame('admin', (new RoleModel(['guard_name' => 'admin']))->guardName());
+        $this->assertSame('accessed', (new RoleWithGuardNameAccessor(['guard_name' => 'stored']))->guardName());
+        $this->assertSame('0', (new RoleModel(['guard_name' => '0']))->guardName());
+    }
+
+    public function testGuardNameRejectsPersistedRolesMissingTheGuardColumn(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $role = RoleModel::query()
+            ->select($this->testUserRole->getKeyName(), 'name')
+            ->findOrFail($this->testUserRole->getKey());
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('The attribute [guard_name]');
+
+        $role->guardName();
+    }
+
+    public function testUsersRelationRejectsRolesMissingTheGuardColumn(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $role = RoleModel::query()
+            ->select($this->testUserRole->getKeyName(), 'name')
+            ->findOrFail($this->testUserRole->getKey());
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('The attribute [guard_name]');
+
+        $role->users();
+    }
+
     public function testItCanChangeRoleClassAtRuntime(): void
     {
         $role = $this->app->make(Role::class)->create(['name' => 'test-role-old']);
@@ -335,5 +377,13 @@ class RoleTest extends TestCase
         $this->testUser->assignRole('0');
 
         $this->assertTrue($this->testUser->hasRole('0'));
+    }
+}
+
+class RoleWithGuardNameAccessor extends RoleModel
+{
+    public function getGuardNameAttribute(string $value): string
+    {
+        return $value === 'stored' ? 'accessed' : $value;
     }
 }

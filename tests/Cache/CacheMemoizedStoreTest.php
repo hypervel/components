@@ -4,19 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use BadMethodCallException;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\NullSentinel;
+use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
+use Hypervel\Contracts\Cache\CanFlushLocks;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use stdClass;
 
 class CacheMemoizedStoreTest extends TestCase
 {
@@ -86,6 +91,28 @@ class CacheMemoizedStoreTest extends TestCase
 
         $this->assertNull($result);
         $this->assertFalse($invoked);
+    }
+
+    public function testIncompleteClassHandlerRunsOnceAcrossMemoizedRepositories(): void
+    {
+        $innerRepo = new Repository(new ArrayStore);
+        $innerRepo->forever(
+            'key',
+            unserialize(serialize(new stdClass), ['allowed_classes' => false])
+        );
+
+        $handled = [];
+
+        Repository::handleUnserializableClassUsing(function (string $key, ?string $class) use (&$handled): void {
+            $handled[] = [$key, $class];
+        });
+
+        $outerRepo = new Repository(new MemoizedStore('memoized', $innerRepo));
+
+        $outerRepo->get('key');
+        $outerRepo->get('key');
+
+        $this->assertSame([['key', 'stdClass']], $handled);
     }
 
     public function testPutManyWithEmptyInputReturnsDelegatedRepositoryResult(): void
@@ -188,6 +215,51 @@ class CacheMemoizedStoreTest extends TestCase
         // Null, not the sentinel value.
         $this->assertNull($captured[1]->value);
         $this->assertEmpty(array_filter($captured, fn ($e) => $e instanceof CacheMissed));
+    }
+
+    public function testLockFlushCapabilityDelegatesToUnderlyingStore(): void
+    {
+        $flushable = new MemoizedStore('test', new Repository(new ArrayStore));
+        $nonFlushableStore = m::mock(Store::class);
+        $nonFlushable = new MemoizedStore('test', new Repository($nonFlushableStore));
+
+        $this->assertTrue($flushable->supportsFlushingLocks());
+        $this->assertFalse($nonFlushable->supportsFlushingLocks());
+    }
+
+    public function testFlushLocksDelegatesToUnderlyingStore(): void
+    {
+        $store = m::mock(Store::class, CanFlushLocks::class);
+        $store->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
+        $store->shouldReceive('flushLocks')->once()->andReturnTrue();
+
+        $memoized = new MemoizedStore('test', new Repository($store));
+
+        $this->assertTrue($memoized->flushLocks());
+    }
+
+    public function testFlushLocksRejectsUnsupportedUnderlyingStore(): void
+    {
+        $store = m::mock(Store::class, CanFlushLocks::class);
+        $store->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
+        $store->shouldNotReceive('flushLocks');
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The memoized cache store\'s underlying store [%s] does not support flushing locks.',
+            $store::class
+        ));
+
+        (new MemoizedStore('test', new Repository($store)))->flushLocks();
+    }
+
+    public function testSeparateLockStoreReportingDelegatesToUnderlyingStore(): void
+    {
+        $separate = new MemoizedStore('test', new Repository(new ArrayStore));
+        $shared = new MemoizedStore('test', new Repository(new NullStore));
+
+        $this->assertTrue($separate->hasSeparateLockStore());
+        $this->assertFalse($shared->hasSeparateLockStore());
     }
 
     protected function createStackRepository(): Repository

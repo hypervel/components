@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
-use Exception;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
+use Hypervel\Reverb\Protocols\Pusher\Exceptions\InvalidMessageFormat;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Support\Str;
 
@@ -21,7 +21,7 @@ class ClientEvent
             || ! isset($event['channel']) || ! is_string($event['channel'])
             || (isset($event['data']) && ! is_array($event['data']))
         ) {
-            throw new Exception('Invalid client event data');
+            throw new InvalidMessageFormat('Invalid client event data');
         }
 
         if (! Str::startsWith($event['event'], 'client-')) {
@@ -30,7 +30,7 @@ class ClientEvent
 
         $acceptClientEventsFrom = $connection->app()->acceptClientEventsFrom();
 
-        if (! in_array($acceptClientEventsFrom, ['all', 'members'])) {
+        if (! in_array($acceptClientEventsFrom, ['all', 'members'], true)) {
             $connection->send(json_encode([
                 'event' => 'pusher:error',
                 'data' => json_encode([

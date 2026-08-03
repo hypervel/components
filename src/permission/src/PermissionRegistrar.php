@@ -261,6 +261,7 @@ class PermissionRegistrar
 
         $this->clearAllPermissionRuntimeState();
         $this->validateModelClasses();
+        $this->validateCacheColumnExclusions();
     }
 
     /**
@@ -270,6 +271,47 @@ class PermissionRegistrar
     {
         $this->validateRoleClass($this->roleClass);
         $this->validatePermissionClass($this->permissionClass);
+    }
+
+    /**
+     * Validate that cache serialization retains required model columns.
+     */
+    protected function validateCacheColumnExclusions(): void
+    {
+        $except = $this->config->array('permission.cache.column_names_except', ['created_at', 'updated_at', 'deleted_at']);
+        $partitionColumn = static::partitionColumn();
+        $roleColumns = [(new $this->roleClass)->getKeyName(), 'name', 'guard_name'];
+        $permissionColumns = [(new $this->permissionClass)->getKeyName(), 'name', 'guard_name'];
+
+        if ($this->teams) {
+            $roleColumns[] = $this->teamsKey;
+        }
+
+        if ($partitionColumn !== null) {
+            $roleColumns[] = $partitionColumn;
+            $permissionColumns[] = $partitionColumn;
+        }
+
+        $excludedRoleColumns = array_values(array_intersect($roleColumns, $except));
+        $excludedPermissionColumns = array_values(array_intersect($permissionColumns, $except));
+
+        if ($excludedRoleColumns === [] && $excludedPermissionColumns === []) {
+            return;
+        }
+
+        $violations = [];
+
+        if ($excludedRoleColumns !== []) {
+            $violations[] = 'role columns [' . implode(', ', $excludedRoleColumns) . ']';
+        }
+
+        if ($excludedPermissionColumns !== []) {
+            $violations[] = 'permission columns [' . implode(', ', $excludedPermissionColumns) . ']';
+        }
+
+        throw new InvalidArgumentException(
+            'Permission cache column exclusions cannot contain required ' . implode(' or ', $violations) . '.'
+        );
     }
 
     /**
@@ -475,14 +517,14 @@ class PermissionRegistrar
         $this->cacheRepository()->forget($this->modelCacheKeyForIdentity(
             $this->modelRolesCacheKeyPrefix,
             $model->getMorphClass(),
-            $model->getKey(),
+            (string) $model->getKey(),
             $partition,
             $team,
         ));
 
         $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
             $model->getMorphClass(),
-            $model->getKey(),
+            (string) $model->getKey(),
             $partition,
             $team,
         );
@@ -514,14 +556,14 @@ class PermissionRegistrar
         $this->cacheRepository()->forget($this->modelCacheKeyForIdentity(
             $this->modelPermissionsCacheKeyPrefix,
             $model->getMorphClass(),
-            $model->getKey(),
+            (string) $model->getKey(),
             $partition,
             $team,
         ));
 
         $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
             $model->getMorphClass(),
-            $model->getKey(),
+            (string) $model->getKey(),
             $partition,
             $team,
         );

@@ -44,6 +44,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
         protected int $minutes,
         protected ?Container $container = null
     ) {
+        $this->setExists(false);
     }
 
     public function open(string $savePath, string $sessionName): bool
@@ -88,8 +89,11 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     {
         $payload = $this->getDefaultPayload($data);
 
-        if (! $exists = $this->getExists()) {
+        $exists = $this->getExists();
+
+        if (! $exists) {
             $this->read($sessionId);
+            $exists = $this->getExists();
         }
 
         if ($exists) {
@@ -229,17 +233,11 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     }
 
     /**
-     * Set the connection name to be used.
-     */
-    public function setConnection(?string $connection): static
-    {
-        $this->connection = $connection;
-
-        return $this;
-    }
-
-    /**
      * Set the application instance used by the handler.
+     *
+     * Boot or tests only. Mutating the container on a shared handler during
+     * request handling can expose the wrong request or authentication state
+     * to concurrent coroutines.
      */
     public function setContainer(Container $container): static
     {
@@ -264,5 +262,16 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     public function getExists(): bool
     {
         return CoroutineContext::get(self::DATABASE_EXISTS_CONTEXT_KEY_PREFIX . spl_object_id($this), false);
+    }
+
+    /**
+     * Reset this handler's existence state when it is cloned.
+     *
+     * PHP reuses freed object IDs, so a clone can land on a released handler's
+     * ID and must not inherit its existence state.
+     */
+    public function __clone(): void
+    {
+        $this->setExists(false);
     }
 }

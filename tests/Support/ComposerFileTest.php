@@ -22,6 +22,7 @@ class ComposerFileTest extends TestCase
         parent::setUp();
 
         $this->tempDirectory = ParallelTesting::tempDir('SupportComposerFileTest');
+        (new Filesystem)->deleteDirectory($this->tempDirectory);
         mkdir($this->tempDirectory, 0777, true);
 
         $this->composerFile = $this->tempDirectory . '/composer.json';

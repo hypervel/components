@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Making Requests](#making-requests)
     - [Request Data](#request-data)
+        - [QUERY Requests](#query-requests)
     - [Headers](#headers)
     - [Authentication](#authentication)
     - [Request Options](#request-options)
@@ -47,7 +48,7 @@ The `get` method returns an instance of `Hypervel\Http\Client\Response`, which p
 
 ```php
 $response->body() : string;
-$response->json($key = null, $default = null) : mixed;
+$response->json($key = null, $default = null, $flags = null) : mixed;
 $response->object() : array|object|null;
 $response->collect($key = null) : Hypervel\Support\Collection;
 $response->fluent($key = null) : Hypervel\Support\Fluent;
@@ -69,6 +70,12 @@ The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess`
 
 ```php
 return Http::get('http://example.com/users/1')['name'];
+```
+
+The optional third argument accepted by the `json` method is passed to `json_decode` as its decoding flags:
+
+```php
+$value = $response->json('value', flags: JSON_BIGINT_AS_STRING);
 ```
 
 In addition to the response methods listed above, the following methods may be used to determine if the response has a specific status code:
@@ -128,6 +135,17 @@ use Hypervel\Support\Facades\Http;
 $response = Http::post('http://example.com/users', [
     'name' => 'Steve',
     'role' => 'Network Administrator',
+]);
+```
+
+<a name="query-requests"></a>
+#### QUERY Requests
+
+You may use the `query` method to send a `QUERY` request with structured request data. By default, the data will be sent as JSON:
+
+```php
+$response = Http::query('http://example.com/search', [
+    'filters' => ['status' => 'active'],
 ]);
 ```
 
@@ -527,6 +545,8 @@ Http::globalResponseMiddleware(fn ($response) => $response->withHeader(
 ));
 ```
 
+Global middleware remains active for the lifetime of the worker, so it should be registered during application boot rather than request handling.
+
 <a name="request-callbacks"></a>
 ### Request Callbacks
 
@@ -582,6 +602,8 @@ public function boot(): void
     ]);
 }
 ```
+
+Global options remain active for the lifetime of the worker, so they should not be changed during request handling.
 
 <a name="telescope-recording"></a>
 ### Telescope Recording
@@ -950,6 +972,16 @@ Http::fake([
 ]);
 ```
 
+Fake response bodies may also be PHP stream resources or PSR-7 stream instances:
+
+```php
+use GuzzleHttp\Psr7\Utils;
+
+Http::fake([
+    'example.com/*' => Http::response(Utils::streamFor('Hello World')),
+]);
+```
+
 <a name="faking-connection-exceptions"></a>
 #### Faking Exceptions
 
@@ -1021,6 +1053,8 @@ Http::fake(function (Request $request) {
 ### Inspecting Requests
 
 When faking responses, you may occasionally wish to inspect the requests the client receives in order to make sure your application is sending the correct data or headers. You may accomplish this by calling the `Http::assertSent` method after calling `Http::fake`.
+
+If a test makes real requests, call `Http::record()` before sending them to enable the same request assertions without faking their responses.
 
 The `assertSent` method accepts a closure which will receive an `Hypervel\Http\Client\Request` instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:
 

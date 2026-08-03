@@ -49,7 +49,7 @@ class PusherPubSubIncomingMessageHandler implements PubSubIncomingMessageHandler
         $application = $this->resolveApplication($event['app_id']);
 
         $except = isset($event['socket_id'])
-            ? app(ChannelManager::class)->for($application)->connections()[$event['socket_id']] ?? null
+            ? app(ChannelManager::class)->for($application)->findConnection($event['socket_id'])
             : null;
 
         // Redis already delivered this message to every worker on every node.
@@ -96,12 +96,7 @@ class PusherPubSubIncomingMessageHandler implements PubSubIncomingMessageHandler
     {
         $application = $this->resolveApplication($event['app_id']);
 
-        collect(app(ChannelManager::class)->for($application)->connections())
-            ->each(function ($connection) use ($event) {
-                if ((string) ($connection->data()['user_id'] ?? '') === $event['user_id']) {
-                    $connection->disconnect();
-                }
-            });
+        app(UserConnectionTerminator::class)->terminate($application, $event['user_id']);
     }
 
     /**

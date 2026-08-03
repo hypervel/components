@@ -50,6 +50,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     protected array|bool|null $serializableClasses;
 
     /**
+     * The shared serializable class policy.
+     */
+    protected ?SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new file cache store instance.
      */
     public function __construct(
@@ -57,11 +62,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         string $directory,
         ?int $filePermission = null,
         array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
     ) {
         $this->files = $files;
         $this->directory = $directory;
         $this->filePermission = $filePermission;
         $this->serializableClasses = $serializableClasses;
+        $this->serializableClassPolicy = $serializableClassPolicy;
     }
 
     /**
@@ -81,7 +88,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         $result = $this->files->put(
             $path,
-            $this->expiration($seconds) . serialize($value),
+            $this->expirationHeader($seconds) . serialize($value),
             true
         );
 
@@ -115,7 +122,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
         if (empty($expire) || $this->currentTime() >= $expire) {
             $file->truncate()
-                ->write($this->expiration($seconds) . serialize($value))
+                ->write($this->expirationHeader($seconds) . serialize($value))
                 ->close();
 
             $this->ensurePermissionsAreCorrect($path);
@@ -163,7 +170,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         }
 
         $file->truncate()
-            ->write($this->expiration($seconds) . serialize($expectedOwner))
+            ->write($this->expirationHeader($seconds) . serialize($expectedOwner))
             ->close();
 
         $this->ensurePermissionsAreCorrect($path);
@@ -227,7 +234,13 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         $this->ensureCacheDirectoryExists($this->lockDirectory ?? $this->directory);
 
         return new FileLock(
-            new static($this->files, $this->lockDirectory ?? $this->directory, $this->filePermission, $this->serializableClasses),
+            new static(
+                $this->files,
+                $this->lockDirectory ?? $this->directory,
+                $this->filePermission,
+                $this->serializableClasses,
+                $this->serializableClassPolicy,
+            ),
             "file-store-lock:{$name}",
             $seconds,
             $owner
@@ -455,6 +468,10 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      */
     protected function unserialize(string $value): mixed
     {
+        if ($this->serializableClassPolicy !== null) {
+            return $this->serializableClassPolicy->unserialize($value);
+        }
+
         if ($this->serializableClasses !== null) {
             return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
         }
@@ -488,6 +505,14 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         $time = $this->availableAt($seconds);
 
         return $seconds === 0 || $time > self::PERMANENT_TIMESTAMP ? self::PERMANENT_TIMESTAMP : $time;
+    }
+
+    /**
+     * Get the fixed-width expiration header for a cache item.
+     */
+    protected function expirationHeader(int $seconds): string
+    {
+        return sprintf('%010d', $this->expiration($seconds));
     }
 
     /**

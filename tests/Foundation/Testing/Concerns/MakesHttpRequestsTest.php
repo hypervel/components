@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
@@ -329,6 +330,40 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame('test-old-value', old('name'));
     }
 
+    public function testRequestWithoutSessionClearsPriorSessionContext(): void
+    {
+        $router = $this->app->make(Router::class);
+        $router->get('/with-session', function () {
+            session()->put('name', 'Taylor');
+
+            return 'session';
+        })->middleware('web');
+        $router->get('/without-session', fn () => 'no session');
+
+        $this->get('/with-session')->assertOk();
+
+        $session = CoroutineContext::get(Store::CONTEXT_KEY);
+        $this->assertInstanceOf(Store::class, $session);
+
+        $suffix = (string) spl_object_id($session);
+        $sessionKeys = [
+            Store::CONTEXT_KEY,
+            Store::STARTED_CONTEXT_KEY_PREFIX . $suffix,
+            Store::ID_CONTEXT_KEY_PREFIX . $suffix,
+            Store::ATTRIBUTES_CONTEXT_KEY_PREFIX . $suffix,
+        ];
+
+        foreach ($sessionKeys as $sessionKey) {
+            $this->assertTrue(CoroutineContext::has($sessionKey));
+        }
+
+        $this->get('/without-session')->assertOk();
+
+        foreach ($sessionKeys as $sessionKey) {
+            $this->assertFalse(CoroutineContext::has($sessionKey));
+        }
+    }
+
     public function testAssertSessionHasErrors()
     {
         $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
@@ -346,9 +381,10 @@ class MakesHttpRequestsTest extends TestCase
         $response->assertSessionHasErrors(['foo']);
     }
 
-    public function testAssertJsonSerializedSessionHasErrors()
+    public function testAssertJsonSerializedSessionHasErrors(): void
     {
-        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $handler = new ArraySessionHandler(1);
+        $store = new Store('test-session', $handler, serialization: 'json');
 
         $store->put('errors', $errorBag = new ViewErrorBag);
 
@@ -358,7 +394,11 @@ class MakesHttpRequestsTest extends TestCase
             ],
         ]));
 
-        $store->save(); // Required to serialize error bag to JSON
+        $store->save();
+
+        $store = new Store('test-session', $handler, $store->getId(), 'json');
+        $store->start();
+        $this->app->instance('session.store', $store);
 
         $response = TestResponse::fromBaseResponse(new Response);
 

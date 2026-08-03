@@ -8,10 +8,14 @@ use Hypervel\Horizon\Supervisor;
 
 class SupervisorWithFakeMonitor extends Supervisor
 {
-    public $monitoring = false;
+    public bool $monitoring = false;
 
-    public function monitor(): void
+    public int $monitorStatus = 0;
+
+    public function monitor(): int
     {
         $this->monitoring = true;
+
+        return $this->monitorStatus;
     }
 }

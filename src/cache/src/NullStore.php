@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 
-class NullStore extends TaggableStore implements LockProvider
+class NullStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     use RetrievesMultipleKeys;
 
@@ -64,6 +65,30 @@ class NullStore extends TaggableStore implements LockProvider
     public function restoreLock(string $name, string $owner): NoLock
     {
         return $this->lock($name, 0, $owner);
+    }
+
+    /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Flush all locks managed by the store.
+     */
+    public function flushLocks(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
+        return false;
     }
 
     /**

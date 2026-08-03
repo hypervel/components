@@ -38,6 +38,26 @@ Per-provider config in `config/auth.php`:
 ],
 ```
 
+Cache configuration is read during process startup and must not be changed while a worker is serving requests.
+
+Enabled Eloquent provider models and Hypervel's standard Eloquent collection and pivot classes are added to the cache class policy automatically. Declare application-owned relations, custom collections or pivots, and other nested objects from a service provider:
+
+```php
+use App\Models\Organization;
+use App\Models\Team;
+use Hypervel\Support\Facades\Cache;
+
+public function boot(): void
+{
+    Cache::allowSerializableClassesUsing(fn (): array => [
+        Organization::class,
+        Team::class,
+    ]);
+}
+```
+
+Providers constructed directly and not represented in `auth.providers` must also declare their root model. These declarations apply to PHP-policy serialization paths. Accepted native Redis serializers preserve model types but bypass the class policy. See [Serializable Cached Objects](https://hypervel.org/docs/cache#serializable-cached-objects) for denied nested-class behavior and remedies.
+
 Minimum env setup for single Redis node:
 
 ```env
@@ -54,14 +74,11 @@ AUTH_USERS_CACHE_STORE=stack
 
 ### Why microcaching helps at scale
 
-At high request volume, every authenticated request hits the user store. Without this cache, that's one Redis `GET` per request per worker. Even at modest RPS this is thousands of Redis round-trips per second just to hydrate `Auth::user()`.
+At high request volume, every authenticated request otherwise reads and hydrates the user from its provider.
 
-The recommended `stack = [swoole (3–5s) → redis]` topology ("microcaching") keeps hot lookups in each worker's Swoole Table for a few seconds. The same user making multiple requests in that window hits the L1 and skips the Redis round-trip entirely. L1 hit rates of 90%+ are typical for authenticated traffic with even a 3-second TTL, which adds up to:
+The `stack = [swoole → redis]` topology can keep hot lookups in each node's Swoole table for a short period. Repeated requests for the same user can then skip the shared Redis round trip. This reduces shared-cache traffic and latency, with bounded L1 staleness as the trade-off.
 
-- Lower p99 latency — L1 reads are nanoseconds, Redis is hundreds of microseconds
-- Smaller Redis tier — most of the load never reaches it
-- Less network bandwidth — serialized user models stay inside the worker
-- Brief Redis outage tolerance — L1 keeps serving authed requests for a few seconds if Redis goes down
+Choose the L1 TTL from the application's consistency requirements and measure the real workload rather than assuming a fixed hit rate or latency.
 
 ### Invalidation model
 
@@ -77,7 +94,7 @@ Four layers, most-automatic to most-manual:
 
 **Within a node:** `SwooleStore` uses a Swoole Table in shared memory, so one `forget()` from any worker clears it for every worker on that node.
 
-**Across nodes:** only the shared tiers (`redis`, `database`) propagate. If you use `stack = [swoole, redis]`, invalidation clears the origin node's L1 + the shared Redis — but other nodes' Swoole L1s keep serving stale entries until their own L1 TTL expires. That bounded staleness window (a few seconds) is the microcaching trade-off. Cross-node pub/sub invalidation is out of scope for this feature; apps that need strict global consistency should skip the L1 tier.
+**Across nodes:** only shared tiers propagate invalidation. If you use `stack = [swoole, redis]`, invalidation clears the origin node's L1 and shared Redis, while other nodes' Swoole L1s can serve their entry until its TTL expires. Applications that require strict global consistency should skip the node-local L1 tier.
 
 ### Manual invalidation API
 
@@ -103,7 +120,7 @@ The cache key includes the provider's model FQCN, so `Auth::clearUserCache(42, '
 
 **Multi-guard / multi-model apps:**
 
-| Setup | Behaviour |
+| Setup | Behavior |
 |---|---|
 | One provider shared by multiple guards (e.g. `web`, `api`, `sanctum`, `jwt` all point at `users`) | One call with any of those guard names clears the single shared cache keyspace. Calling for each guard is redundant. |
 | Different guards with different models (e.g. `web → User`, `admin → Admin`, `landlord → Landlord`) | You must call once per guard/model you want to invalidate. `Auth::clearUserCache(42)` with no guard name clears *only* the default guard's model — a landlord update that hits `Landlord:42` needs `Auth::clearUserCache(42, 'landlord')`. |
@@ -111,7 +128,7 @@ The cache key includes the provider's model FQCN, so `Auth::clearUserCache(42, '
 
 **Tenant-aware resolver interaction:**
 
-If you've registered `EloquentUserProvider::resolveUserCacheKeyUsing(...)`, `clearUserCache()` uses the same resolver — so it clears the entry for the **current** tenant context, not every tenant's copy. To clear the same user across multiple tenants, call `clearUserCache()` once per tenant context.
+If you've registered `EloquentUserProvider::resolveUserCacheKeyUsing(...)`, `clearUserCache()` passes a null user model to the same resolver — so it clears the entry for the **current** tenant context, not every tenant's copy. When a user is saved or deleted, automatic invalidation passes that model so the resolver can derive its owning tenant without ambient context. To clear the same user across multiple tenants manually, call `clearUserCache()` once per tenant context.
 
 **No-ops:**
 
@@ -187,7 +204,7 @@ Cache::store('auth')->tags(['auth_users'])->flush();
 
 Tags are additive — per-user reads, writes, and the automatic invalidation listener keep working as before.
 
-**Tag mode requirement.** The configured store must implement `TaggableStore` and be in `TagMode::Any` — Redis is the only stock driver that supports configurable tag modes, via its `tag_mode` config key. `enableCache()` throws at boot if these conditions aren't met. All-mode is rejected because its tag-namespaced storage keys would force every read and forget to carry tag context, which doesn't fit the auth-cache access pattern.
+**Tag mode requirement.** The configured store must implement `TaggableStore` and be in `TagMode::Any` — Redis is the only stock driver that supports configurable tag modes, via its `tag_mode` config key. Tag validation runs when the user provider is created. All-mode is rejected because its tag-namespaced storage keys would force every read and forget to carry tag context, which doesn't fit the auth-cache access pattern.
 
 For per-request tag scoping (e.g. tagging each cached user with their tenant), see **Dynamic tag resolvers** below.
 
@@ -196,7 +213,7 @@ For per-request tag scoping (e.g. tagging each cached user with their tenant), s
 | Scenario | Guidance |
 |---|---|
 | Profile updates (name, avatar, preferences) | Default 300s is fine. Model events clear on save. |
-| Password change | Irrelevant — session invalidation logs the user out. The cache miss on their next login is one-off. |
+| Password or other direct model change | Eloquent model writes clear the cached user. Eventless writes require explicit invalidation or acceptance of the TTL bound. |
 | Permission revocation (direct on user model) | Model events clear on save. |
 | Permission revocation (via pivot table / bulk query) | Model events don't fire. Either call `Auth::clearUserCache($id)` explicitly, or accept the TTL staleness window. |
 | High-security providers (financial/admin) | Use a tight L1 TTL (1–2s), skip the L1 tier, or disable caching entirely for that provider. |
@@ -208,17 +225,21 @@ For per-request tag scoping (e.g. tagging each cached user with their tenant), s
 | `redis` | ✓ | Standard choice. Shared invalidation, fast, well-understood. |
 | `database` | ✓ | Shared. Slower than Redis but still a major win over per-request hydration, especially with in-memory/unlogged Postgres tables. |
 | `file` | ✗ | Node-local. Single-instance deployments only. |
+| `storage` | depends | Shared only when the configured filesystem disk is shared by every node. |
 | `swoole` | ✗ | Node-local, shared memory. Fastest single-node option; also the ideal L1 tier inside a `stack`. |
 | `stack` | partial | Eventually consistent if a node-local tier (swoole/file) is layered above a shared tier (redis/database). See "Invalidation model" above. |
 
 Rejected drivers (throw on `enableCache`):
 
 - `session` — scoped to the current user's session; would cache user data inside one user's session.
-- `array` — coroutine-local after the upcoming rewrite; nothing persists across requests.
+- `array` — coroutine-local; nothing persists across requests.
+- `worker-array` — worker-local copies diverge across workers and nodes.
 - `null` — discards writes.
-- `failover` — ambiguous fallback semantics; silently degrades onto an unsafe tier when the primary is down.
+- `failover` — an unavailable primary can retain a stale identity and serve it after recovery.
 
-Stack composition caveat: only the outer store is validated. A stack built with an unsupported inner tier (e.g. `[array, redis]`) won't be caught — pick sensible tiers yourself.
+Stack layers are validated recursively, including nested stacks.
+
+For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown serializer modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
 
 ### Tenant-aware cache keys
 
@@ -227,19 +248,31 @@ Default cache key format is `{prefix}:{fqcn}:{identifier}` — e.g. `auth_users:
 For multi-tenant apps where the same user ID resolves to different rows per tenant (tenant global scopes, shared user tables), register a global resolver in a service provider's `boot()`:
 
 ```php
+use App\Models\User;
 use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Database\Eloquent\Model;
 
 public function boot(): void
 {
     EloquentUserProvider::resolveUserCacheKeyUsing(
-        fn (mixed $identifier) => tenantId() . ':' . $identifier,
+        function (mixed $identifier, string $model, ?Model $user): string {
+            if (! is_a($model, User::class, true)) {
+                return (string) $identifier;
+            }
+
+            $tenantId = $user?->tenant_id ?? tenant()->getKey();
+
+            return $tenantId . ':' . $identifier;
+        },
     );
 }
 ```
 
 Produces keys like `auth_users:App\Models\User:5:42` (prefix, FQCN, tenant 5, user 42).
 
-**Why a static callback, not a config closure?** Config files are evaluated once at boot in Swoole. A closure calling `tenantId()` in the config would capture the boot-time tenant (likely null), not the per-request tenant. The static resolver callback runs fresh on each `retrieveById()`, reading the current coroutine's context.
+This example partitions the tenant-owned `User` model while leaving other provider models unpartitioned. The resolver receives the identifier and provider model class. When a user is saved or deleted, automatic invalidation also provides that user model. Lookups and manual invalidation provide null. This lets tenant-aware providers use ambient context for lookups and the row's owner for event-driven invalidation.
+
+**Why a static callback, not a config closure?** Configuration files should contain serializable values so they can be cached. Registering the callback during provider boot keeps configuration cacheable, while the resolver itself runs fresh on each lookup or invalidation.
 
 ### Dynamic tag resolvers
 
@@ -273,11 +306,12 @@ Cache::store('auth')->tags(['tenant:5'])->flush();    // just tenant 5's users
 
 ### Gotchas
 
-- **`withQuery()` caches the first-seen shape.** If the provider has a `withQuery()` callback that eager-loads relations, the first uncached call caches the result including those relations. Every subsequent hit returns the same loaded relations. This is usually what you want for auth.
+- **`withQuery()` caches the first-seen shape.** If the provider eager-loads relations, the first uncached call stores that graph. Declare every application relation and custom container class in the cache class policy so later hits can restore the full shape.
 - **Bulk updates bypass Eloquent events.** `User::query()->update([...])`, raw `DB::update(...)`, pivot inserts/deletes via `attach/detach` — none of these fire model events. Use `Auth::clearUserCache($id)` after such writes or accept TTL staleness.
-- **The whitelist only checks the outer store.** `stack = [array, redis]` passes the check because the outer class is `StackStore`. Responsibility for sensible tier selection is yours.
 
 ### Threat model
+
+Configured provider models and stock Eloquent graph containers are allowed automatically. Keep manual declarations limited to the application-owned classes the cached graph needs. Broad allowlists expand PHP's unserialization surface. Native Redis serializers bypass this policy.
 
 For auth-sensitive contexts (admin panels, financial actions), consider:
 
@@ -285,4 +319,4 @@ For auth-sensitive contexts (admin panels, financial actions), consider:
 - Skip L1 entirely — use plain `redis` instead of `stack`
 - Disable caching for that provider — set `enabled => false` for the specific guard's provider
 
-Password changes and session revocation are not staleness-sensitive — session invalidation already logs the user out, so the auth cache's state becomes moot on the user's next request.
+Eloquent user model saves and deletes clear the cached entry. Writes that suppress or bypass model events require explicit invalidation or acceptance of the configured TTL bound.

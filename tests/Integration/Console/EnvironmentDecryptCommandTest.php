@@ -437,6 +437,7 @@ class EnvironmentDecryptCommandTest extends TestCase
     {
         $tempDir = ParallelTesting::tempDir('EnvironmentDecryptCommandTest-new');
         $files = new Filesystem;
+        $files->deleteDirectory($tempDir);
         $files->ensureDirectoryExists($tempDir);
         $this->app->useEnvironmentPath($tempDir);
         $key = 'abcdefghijklmnopabcdefghijklmnop';
@@ -462,6 +463,7 @@ class EnvironmentDecryptCommandTest extends TestCase
     {
         $tempDir = ParallelTesting::tempDir('EnvironmentDecryptCommandTest-overwrite');
         $files = new Filesystem;
+        $files->deleteDirectory($tempDir);
         $files->ensureDirectoryExists($tempDir);
         $this->app->useEnvironmentPath($tempDir);
         $key = 'abcdefghijklmnopabcdefghijklmnop';
@@ -489,6 +491,7 @@ class EnvironmentDecryptCommandTest extends TestCase
     {
         $tempDir = ParallelTesting::tempDir('EnvironmentDecryptCommandTest');
         $files = new Filesystem;
+        $files->deleteDirectory($tempDir);
         $files->ensureDirectoryExists($tempDir);
         $this->app->useEnvironmentPath($tempDir);
         $key = 'abcdefghijklmnopabcdefghijklmnop';

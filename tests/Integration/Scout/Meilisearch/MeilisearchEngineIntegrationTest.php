@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
+use Meilisearch\Client;
+use Meilisearch\Exceptions\ApiException;
 
 /**
  * Integration tests for MeilisearchEngine core operations.
@@ -41,6 +45,61 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
         $this->assertCount(3, $results->getHits());
     }
 
+    public function testTenantTokenUsesTheMatchingParentKeyIdentityAndSigner(): void
+    {
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['id' => 701, 'title' => 'Visible', 'body' => 'Body']),
+            SearchableModel::create(['id' => 702, 'title' => 'Hidden', 'body' => 'Body']),
+        ]));
+        $indexName = $models->first()->indexableAs();
+        $this->engine->update($models);
+        $settingsTask = $this->meilisearch->index($indexName)->updateFilterableAttributes(['id']);
+        $this->meilisearch->waitForTask($settingsTask['taskUid']);
+        $this->waitForMeilisearchTasks();
+
+        $key = $this->meilisearch->createKey([
+            'name' => $this->testPrefix . 'tenant-token-parent',
+            'description' => 'Scout tenant-token integration test',
+            'actions' => ['search'],
+            'indexes' => [$indexName],
+            'expiresAt' => null,
+        ]);
+        $uid = $key->getUid();
+        $secret = $key->getKey();
+        $cleanupIdentifier = $uid ?? $secret;
+
+        try {
+            $this->assertNotNull($uid);
+            $this->assertNotNull($secret);
+
+            $rules = [$indexName => ['filter' => 'id = 701']];
+            $token = $this->engine->generateTenantToken($rules, $uid, $secret);
+            $tenantClient = new Client($this->getMeilisearchHost(), $token);
+
+            $this->assertSame(
+                [701],
+                collect($tenantClient->index($indexName)->search('')->getHits())->pluck('id')->all(),
+            );
+
+            $invalidToken = $this->engine->generateTenantToken(
+                $rules,
+                $uid,
+                'deliberately-wrong-signing-key',
+            );
+
+            try {
+                (new Client($this->getMeilisearchHost(), $invalidToken))->index($indexName)->search('');
+                $this->fail('A token signed by a key that does not match its UID was accepted.');
+            } catch (ApiException $exception) {
+                $this->assertSame(403, $exception->httpStatus);
+            }
+        } finally {
+            if ($cleanupIdentifier !== null) {
+                $this->meilisearch->deleteKey($cleanupIdentifier);
+            }
+        }
+    }
+
     public function testDeleteRemovesModelsFromMeilisearch(): void
     {
         $model = SearchableModel::create(['title' => 'To Delete', 'body' => 'Content']);
@@ -58,6 +117,31 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
 
         // Verify it's gone
         $results = $this->meilisearch->index($model->searchableAs())->search('Delete');
+        $this->assertCount(0, $results->getHits());
+    }
+
+    public function testQueuedRemovalDeletesTheExactCustomScoutKey(): void
+    {
+        $model = CustomScoutKeyModel::create(['title' => 'Custom key', 'body' => 'Content']);
+
+        $this->engine->update(new EloquentCollection([$model]));
+        $this->waitForMeilisearchTasks();
+
+        $results = $this->meilisearch->index($model->indexableAs())->search('');
+
+        $this->assertCount(1, $results->getHits());
+        $this->assertSame($model->getScoutKey(), $results->getHits()[0][$model->getScoutKeyName()]);
+
+        $job = new RemoveFromSearch(new EloquentCollection([$model]));
+        CustomScoutKeyModel::query()->whereKey($model->getKey())->delete();
+
+        /** @var RemoveFromSearch $restored */
+        $restored = unserialize(serialize($job));
+        $restored->handle();
+        $this->waitForMeilisearchTasks();
+
+        $results = $this->meilisearch->index($model->indexableAs())->search('');
+
         $this->assertCount(0, $results->getHits());
     }
 

@@ -17,29 +17,25 @@ return [
             | default. Credential and token lookups are never cached
             | (security).
             |
-            | Supported stores: 'redis', 'database', 'file', 'swoole', 'stack'.
-            | Any other driver ('array', 'null', 'session', 'failover') is
-            | rejected.
+            | Supported stores: 'redis', 'database', 'file', 'storage',
+            | 'swoole', and stacks containing only supported stores. Array,
+            | worker-array, null, session, and failover stores are rejected.
+            | Stack layers are validated recursively.
             |
-            | Cross-node behaviour:
+            | Cross-node behavior:
             |   - 'redis' / 'database': fully shared — invalidation is global.
-            |   - 'file' / 'swoole': node-local, no cross-node invalidation
-            |     (single-instance deployments only).
+            |   - 'storage': shared only when its configured disk is shared.
+            |   - 'file' / 'swoole' used as the only store: node-local, with no
+            |     cross-node invalidation (single-instance deployments only).
             |   - 'stack' with a node-local upper tier (e.g. [swoole, redis]):
             |     eventually consistent — the shared lower tier clears
             |     globally, but each node's L1 serves its stale entry until
             |     the L1 TTL expires. This is the microcaching trade-off.
             |
-            | High-scale: the recommended topology is a 'stack' cache with
-            | 'swoole' as L1 (3–5s) and 'redis' as L2 — the microcaching
-            | pattern eliminates the majority of Redis round-trips for
-            | authed requests at high concurrency. See the auth caching
-            | documentation for the full explanation.
-            |
-            | Caveat: without tags, only the outer store is validated. A stack
-            | with an unsupported inner tier (e.g. [array, redis]) won't be caught.
-            | When cache tags are enabled, the stack's tag composition is also
-            | validated.
+            | A short-lived node-local L1 over a shared L2 can reduce shared
+            | cache traffic, with bounded L1 staleness as the trade-off. Cache
+            | configuration is read during process startup and must not change
+            | while a worker is serving requests.
             |
             | Cache tags (optional):
             |   Set 'tags' to an array of tag names (e.g. ['auth_users'])

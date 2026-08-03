@@ -4,23 +4,34 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Engines;
 
+use DateTimeImmutable;
+use GuzzleHttp\Psr7\Response;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
+use Hypervel\Scout\Exceptions\ScoutException;
+use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Meilisearch\Client;
 use Meilisearch\Contracts\IndexesResults;
 use Meilisearch\Endpoints\Indexes;
+use Meilisearch\Exceptions\ApiException;
+use Meilisearch\Exceptions\TimeOutException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class MeilisearchEngineTest extends TestCase
 {
-    public function testUpdateAddsDocumentsToIndex()
+    public function testUpdateAddsDocumentsToIndex(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -48,7 +59,7 @@ class MeilisearchEngineTest extends TestCase
         $engine->update(new EloquentCollection([$model]));
     }
 
-    public function testUpdateEmptyCollectionDoesNothing()
+    public function testUpdateEmptyCollectionDoesNothing(): void
     {
         $client = m::mock(Client::class);
         $client->shouldNotReceive('index');
@@ -59,7 +70,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testUpdateWithSoftDeletesAddsSoftDeleteMetadata()
+    public function testUpdateWithSoftDeletesAddsSoftDeleteMetadata(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -88,7 +99,48 @@ class MeilisearchEngineTest extends TestCase
         $engine->update(new EloquentCollection([$model]));
     }
 
-    public function testDeleteRemovesDocumentsFromIndex()
+    public function testUpdatePreparesTheFinalSearchableDocument(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldReceive('addDocuments')
+            ->once()
+            ->with([[
+                'title' => 'Test',
+                '__soft_deleted' => 0,
+                'id' => 1,
+                'tenant_id' => 42,
+            ]], 'id');
+
+        $engine = new MeilisearchEngine($client);
+        $model = $this->createSearchableModelMock();
+        $model->shouldReceive('indexableAs')->andReturn('test_index');
+        $model->shouldReceive('toSearchableArray')->andReturn(['title' => 'Test']);
+        $model->shouldReceive('scoutMetadata')->andReturn(['__soft_deleted' => 0]);
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $model->shouldReceive('getScoutKey')->andReturn(1);
+
+        Scout::prepareSearchableDocumentUsing(function (
+            array $document,
+            Model $givenModel,
+            Engine $givenEngine
+        ) use ($model, $engine): array {
+            $this->assertSame([
+                'title' => 'Test',
+                '__soft_deleted' => 0,
+                'id' => 1,
+            ], $document);
+            $this->assertSame($model, $givenModel);
+            $this->assertSame($engine, $givenEngine);
+
+            return [...$document, 'tenant_id' => 42];
+        });
+
+        $engine->update(new EloquentCollection([$model]));
+    }
+
+    public function testDeleteRemovesDocumentsFromIndex(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -114,7 +166,29 @@ class MeilisearchEngineTest extends TestCase
         $engine->delete(new EloquentCollection([$model1, $model2]));
     }
 
-    public function testDeleteEmptyCollectionDoesNothing()
+    public function testDeleteWithRemoveableScoutCollectionUsesStoredScoutKey(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+
+        $client->shouldReceive('index')
+            ->with('chirps')
+            ->once()
+            ->andReturn($index);
+
+        $index->shouldReceive('deleteDocuments')
+            ->once()
+            ->with(['stored-scout-key']);
+
+        $engine = new MeilisearchEngine($client);
+
+        $model = new MeilisearchTestChirpModel;
+        $model->setRawAttributes(['scout_id' => 'stored-scout-key']);
+
+        $engine->delete(new RemoveableScoutCollection([$model]));
+    }
+
+    public function testDeleteEmptyCollectionDoesNothing(): void
     {
         $client = m::mock(Client::class);
         $client->shouldNotReceive('index');
@@ -125,7 +199,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testSearchPerformsSearchOnMeilisearch()
+    public function testSearchPerformsSearchOnMeilisearch(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -153,7 +227,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertEquals(['hits' => [], 'totalHits' => 0], $result);
     }
 
-    public function testSearchWithFilters()
+    public function testSearchWithFilters(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -166,7 +240,7 @@ class MeilisearchEngineTest extends TestCase
         $index->shouldReceive('rawSearch')
             ->once()
             ->with('query', m::on(function ($params) {
-                return str_contains($params['filter'], 'status="active"');
+                return $params['filter'] === 'status="active" AND score>=10 AND label!="draft\"review\\\copy" AND archived_at IS NOT NULL AND tags IN ["a\"b\\\c", true] AND hidden NOT IN ["draft", false]';
             }))
             ->andReturn(['hits' => [], 'totalHits' => 0]);
 
@@ -177,12 +251,154 @@ class MeilisearchEngineTest extends TestCase
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
 
         $builder = new Builder($model, 'query');
-        $builder->where('status', 'active');
+        $builder->where('status', 'active')
+            ->where('score', '>=', 10)
+            ->where('label', '!=', 'draft"review\copy')
+            ->where('archived_at', '!=', null)
+            ->whereIn('tags', ['a"b\c', true])
+            ->whereNotIn('hidden', ['draft', false]);
 
         $engine->search($builder);
     }
 
-    public function testPaginatePerformsPaginatedSearch()
+    #[DataProvider('filterCombinations')]
+    public function testSearchComposesApplicationAndBuilderFilters(
+        string|array|null $applicationFilter,
+        bool $hasBuilderFilter,
+        string|array|null $expectedFilter
+    ): void {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $expected = $expectedFilter === null ? [] : ['filter' => $expectedFilter];
+        $index->shouldReceive('rawSearch')->once()->with('query', $expected);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $builder = new Builder($model, 'query');
+
+        if ($applicationFilter !== null) {
+            $builder->options(['filter' => $applicationFilter]);
+        }
+
+        if ($hasBuilderFilter) {
+            $builder->where('tenant_id', 42);
+        }
+
+        $engine->search($builder);
+    }
+
+    /**
+     * Provide application and Builder filter combinations.
+     *
+     * @return array<string, array{null|array<mixed>|string, bool, null|array<mixed>|string}>
+     */
+    public static function filterCombinations(): array
+    {
+        return [
+            'neither side' => [null, false, null],
+            'application string only' => ['status="active" OR status="trial"', false, 'status="active" OR status="trial"'],
+            'whitespace application and builder' => ['   ', true, 'tenant_id=42'],
+            'builder only' => [null, true, 'tenant_id=42'],
+            'both string sides' => [
+                'status="active" OR status="trial"',
+                true,
+                '(status="active" OR status="trial") AND (tenant_id=42)',
+            ],
+            'application array only' => [
+                [['status="active"', 'status="trial"'], 'visible=true'],
+                false,
+                [['status="active"', 'status="trial"'], 'visible=true'],
+            ],
+            'application array and builder' => [
+                [['status="active"', 'status="trial"'], 'visible=true'],
+                true,
+                [['status="active"', 'status="trial"'], 'visible=true', 'tenant_id=42'],
+            ],
+        ];
+    }
+
+    public function testPaginateComposesApplicationAndBuilderFilters(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldReceive('rawSearch')->once()->with('query', [
+            'filter' => '(status="active" OR status="trial") AND (tenant_id=42)',
+            'hitsPerPage' => 15,
+            'page' => 2,
+        ]);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $builder = (new Builder($model, 'query'))
+            ->options(['filter' => 'status="active" OR status="trial"'])
+            ->where('tenant_id', 42);
+
+        $engine->paginate($builder, 15, 2);
+    }
+
+    public function testSearchCallbackReceivesFinalComposedOptions(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldNotReceive('rawSearch');
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $builder = new Builder($model, 'query', function ($givenIndex, $query, $options) use ($index) {
+            $this->assertSame($index, $givenIndex);
+            $this->assertSame('query', $query);
+            $this->assertSame([
+                'filter' => [['status="active"', 'status="trial"'], 'tenant_id=42'],
+            ], $options);
+
+            return ['hits' => [], 'totalHits' => 0];
+        });
+        $builder->options(['filter' => [['status="active"', 'status="trial"']]])->where('tenant_id', 42);
+
+        $engine->search($builder);
+    }
+
+    public function testSearchWithBackedEnumFilters(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+
+        $client->shouldReceive('index')
+            ->with('test_index')
+            ->once()
+            ->andReturn($index);
+
+        $index->shouldReceive('rawSearch')
+            ->once()
+            ->with('query', m::on(function ($params) {
+                return $params['filter'] === 'status="published" AND priority=1 AND statuses IN ["draft", "published"] AND priorities NOT IN [1, 2]';
+            }))
+            ->andReturn(['hits' => [], 'totalHits' => 0]);
+
+        $engine = new MeilisearchEngine($client);
+
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+
+        $builder = new Builder($model, 'query');
+        $builder->where('status', MeilisearchStringStatus::Published)
+            ->where('priority', MeilisearchIntegerPriority::High)
+            ->whereIn('statuses', [MeilisearchStringStatus::Draft, MeilisearchStringStatus::Published])
+            ->whereNotIn('priorities', [MeilisearchIntegerPriority::High, MeilisearchIntegerPriority::Low]);
+
+        $engine->search($builder);
+    }
+
+    public function testPaginatePerformsPaginatedSearch(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -210,7 +426,7 @@ class MeilisearchEngineTest extends TestCase
         $engine->paginate($builder, 15, 2);
     }
 
-    public function testMapIdsReturnsEmptyCollectionIfNoHits()
+    public function testMapIdsReturnsEmptyCollectionIfNoHits(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -223,7 +439,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertCount(0, $results);
     }
 
-    public function testMapIdsReturnsCorrectPrimaryKeys()
+    public function testMapIdsReturnsCorrectPrimaryKeys(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -241,7 +457,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertEquals([1, 2, 3, 4], $results->all());
     }
 
-    public function testMapCorrectlyMapsResultsToModels()
+    public function testMapCorrectlyMapsResultsToModels(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -272,7 +488,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertCount(1, $results);
     }
 
-    public function testMapReturnsEmptyCollectionWhenNoHits()
+    public function testMapReturnsEmptyCollectionWhenNoHits(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -287,7 +503,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertCount(0, $results);
     }
 
-    public function testMapRespectsOrder()
+    public function testMapRespectsOrder(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -326,7 +542,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertEquals([1, 2, 4, 3], $resultIds);
     }
 
-    public function testLazyMapReturnsEmptyCollectionWhenNoHits()
+    public function testLazyMapReturnsEmptyCollectionWhenNoHits(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -342,7 +558,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertCount(0, $results);
     }
 
-    public function testGetTotalCountReturnsTotalHits()
+    public function testGetTotalCountReturnsTotalHits(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -350,7 +566,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertSame(3, $engine->getTotalCount(['totalHits' => 3]));
     }
 
-    public function testGetTotalCountReturnsEstimatedTotalHits()
+    public function testGetTotalCountReturnsEstimatedTotalHits(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -358,7 +574,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertSame(5, $engine->getTotalCount(['estimatedTotalHits' => 5]));
     }
 
-    public function testGetTotalCountReturnsZeroWhenNoCountAvailable()
+    public function testGetTotalCountReturnsZeroWhenNoCountAvailable(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -366,7 +582,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertSame(0, $engine->getTotalCount([]));
     }
 
-    public function testFlushDeletesAllDocuments()
+    public function testFlushDeletesAllDocuments(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -386,17 +602,163 @@ class MeilisearchEngineTest extends TestCase
         $engine->flush($model);
     }
 
-    public function testCreateIndexCreatesNewIndex()
+    public function testDeleteByFilterPreparesTheBuilderAndWaitsForTheDefaultWriteIndex(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users_write')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')
+            ->once()
+            ->with(['filter' => [['visibility=true', 'visibility=false'], 'status="active" AND tenant_id=42']])
+            ->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn(['status' => 'succeeded']);
+
+        $engine = new MeilisearchEngine($client);
+        $this->assertInstanceOf(DeletesByFilter::class, $engine);
+
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->once()->andReturn('users_write');
+        $model->shouldNotReceive('searchableAs');
+        $builder = (new Builder($model, ''))
+            ->options(['filter' => [['visibility=true', 'visibility=false']]])
+            ->where('status', 'active');
+
+        Scout::prepareBuilderUsing(function (Builder $givenBuilder, Engine $givenEngine) use ($builder, $engine): void {
+            $this->assertSame($builder, $givenBuilder);
+            $this->assertSame($engine, $givenEngine);
+            $givenBuilder->where('tenant_id', 42);
+        });
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterUsesAnExplicitIndex(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users_v2')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')
+            ->once()
+            ->with(['filter' => 'tenant_id=42'])
+            ->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn(['status' => 'succeeded']);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+        $builder = (new Builder($model, ''))->within('users_v2')->where('tenant_id', 42);
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterTreatsAMissingIndexAsAlreadyDeleted(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')
+            ->once()
+            ->with(['filter' => 'tenant_id=42'])
+            ->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn([
+                'status' => 'failed',
+                'error' => ['code' => 'index_not_found'],
+            ]);
+
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->once()->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        (new MeilisearchEngine($client))->deleteByFilter($builder);
+
+        $this->assertTrue(true);
+    }
+
+    public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $client->shouldNotReceive('waitForTask');
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+        $builder = new Builder($model, '');
+        $prepared = false;
+        Scout::prepareBuilderUsing(function () use (&$prepared): void {
+            $prepared = true;
+        });
+
+        try {
+            $engine->deleteByFilter($builder);
+            $this->fail('Expected empty filter deletion to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Meilisearch filter deletion requires a non-empty filter.', $exception->getMessage());
+        }
+
+        $this->assertTrue($prepared);
+    }
+
+    public function testDeleteByFilterRejectsAnUnsuccessfulTask(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')->once()->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn(['status' => 'failed']);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('Meilisearch filter deletion did not complete successfully.');
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterPreservesSdkTimeouts(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $timeout = new TimeOutException('Timed out waiting for deletion.');
+        $client->shouldReceive('index')->once()->with('users')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')->once()->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andThrow($timeout);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        $this->expectExceptionObject($timeout);
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testCreateIndexCreatesNewIndex(): void
     {
         $client = m::mock(Client::class);
 
         $client->shouldReceive('getIndex')
             ->with('test_index')
             ->once()
-            ->andThrow(new \Meilisearch\Exceptions\ApiException(
-                new \GuzzleHttp\Psr7\Response(404),
-                ['message' => 'Index not found']
-            ));
+            ->andThrow($this->apiException(404, 'index_not_found'));
 
         $taskInfo = ['taskUid' => 1, 'indexUid' => 'test_index', 'status' => 'enqueued'];
         $client->shouldReceive('createIndex')
@@ -411,7 +773,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertSame($taskInfo, $result);
     }
 
-    public function testCreateIndexReturnsExistingIndex()
+    public function testCreateIndexReturnsExistingIndex(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -432,7 +794,75 @@ class MeilisearchEngineTest extends TestCase
         $this->assertSame($index, $result);
     }
 
-    public function testDeleteIndexDeletesIndex()
+    public function testCreateIndexPropagatesNonNotFoundLookupFailure(): void
+    {
+        $client = m::mock(Client::class);
+        $exception = $this->apiException(401, 'invalid_api_key');
+
+        $client->shouldReceive('getIndex')
+            ->with('test_index')
+            ->once()
+            ->andThrow($exception);
+
+        $client->shouldNotReceive('createIndex');
+
+        $engine = new MeilisearchEngine($client);
+
+        $this->expectExceptionObject($exception);
+
+        $engine->createIndex('test_index');
+    }
+
+    public function testCreateIndexReturnsIndexWhenCreationLosesRace(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+
+        $client->shouldReceive('getIndex')
+            ->with('test_index')
+            ->once()
+            ->andThrow($this->apiException(404, 'index_not_found'));
+
+        $client->shouldReceive('createIndex')
+            ->with('test_index', [])
+            ->once()
+            ->andThrow($this->apiException(409, 'index_already_exists'));
+
+        $client->shouldReceive('index')
+            ->with('test_index')
+            ->once()
+            ->andReturn($index);
+
+        $engine = new MeilisearchEngine($client);
+
+        $this->assertSame($index, $engine->createIndex('test_index'));
+    }
+
+    public function testCreateIndexPropagatesOtherCreateConflict(): void
+    {
+        $client = m::mock(Client::class);
+        $exception = $this->apiException(409, 'invalid_index_uid');
+
+        $client->shouldReceive('getIndex')
+            ->with('test_index')
+            ->once()
+            ->andThrow($this->apiException(404, 'index_not_found'));
+
+        $client->shouldReceive('createIndex')
+            ->with('test_index', [])
+            ->once()
+            ->andThrow($exception);
+
+        $client->shouldNotReceive('index');
+
+        $engine = new MeilisearchEngine($client);
+
+        $this->expectExceptionObject($exception);
+
+        $engine->createIndex('test_index');
+    }
+
+    public function testDeleteIndexDeletesIndex(): void
     {
         $client = m::mock(Client::class);
 
@@ -448,7 +878,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertEquals(['taskUid' => 1], $result);
     }
 
-    public function testDeleteAllIndexesWithPrefixScopesToPrefixedUids()
+    public function testDeleteAllIndexesWithPrefixScopesToPrefixedUids(): void
     {
         $client = m::mock(Client::class);
 
@@ -473,7 +903,7 @@ class MeilisearchEngineTest extends TestCase
         $engine->deleteAllIndexes('test_');
     }
 
-    public function testDeleteAllIndexesWithNullPrefixDeletesEverything()
+    public function testDeleteAllIndexesWithNullPrefixDeletesEverything(): void
     {
         $client = m::mock(Client::class);
 
@@ -498,7 +928,7 @@ class MeilisearchEngineTest extends TestCase
         $engine->deleteAllIndexes(null);
     }
 
-    public function testDeleteAllIndexesWithEmptyStringPrefixDeletesEverything()
+    public function testDeleteAllIndexesWithEmptyStringPrefixDeletesEverything(): void
     {
         $client = m::mock(Client::class);
 
@@ -523,7 +953,7 @@ class MeilisearchEngineTest extends TestCase
         $engine->deleteAllIndexes('');
     }
 
-    public function testDeleteAllIndexesReturnsTasks()
+    public function testDeleteAllIndexesReturnsTasks(): void
     {
         $client = m::mock(Client::class);
 
@@ -546,7 +976,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertEquals([['taskUid' => 1], ['taskUid' => 2]], $tasks);
     }
 
-    public function testUpdateIndexSettingsWithEmbedders()
+    public function testUpdateIndexSettingsWithEmbedders(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -573,7 +1003,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testUpdateIndexSettingsWithoutEmbedders()
+    public function testUpdateIndexSettingsWithoutEmbedders(): void
     {
         $client = m::mock(Client::class);
         $index = m::mock(Indexes::class);
@@ -597,7 +1027,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testConfigureSoftDeleteFilterAddsFilterableAttribute()
+    public function testConfigureSoftDeleteFilterAddsFilterableAttribute(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
@@ -610,7 +1040,7 @@ class MeilisearchEngineTest extends TestCase
         $this->assertContains('status', $settings['filterableAttributes']);
     }
 
-    public function testEngineForwardsCallsToMeilisearchClient()
+    public function testEngineForwardsCallsToMeilisearchClient(): void
     {
         $client = m::mock(Client::class);
         $client->shouldReceive('health')
@@ -624,12 +1054,80 @@ class MeilisearchEngineTest extends TestCase
         $this->assertEquals(['status' => 'available'], $result);
     }
 
-    public function testGetMeilisearchClientReturnsClient()
+    public function testGetMeilisearchClientReturnsClient(): void
     {
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
 
         $this->assertSame($client, $engine->getMeilisearchClient());
+    }
+
+    public function testGenerateTenantTokenUsesTheExplicitParentIdentityAndSigner(): void
+    {
+        $client = new Client('http://localhost:7700', 'different-client-key');
+        $engine = new MeilisearchEngine($client);
+        $expiresAt = new DateTimeImmutable('+1 hour');
+        $apiKey = 'explicit-parent-key';
+
+        $token = $engine->generateTenantToken(
+            ['users' => ['filter' => 'tenant_id = 42']],
+            'parent-key-uid',
+            $apiKey,
+            $expiresAt,
+        );
+        [$encodedHeader, $encodedPayload, $signature] = explode('.', $token);
+        $payload = json_decode(base64_decode(strtr($encodedPayload, '-_', '+/')), true, flags: JSON_THROW_ON_ERROR);
+        $signedContent = $encodedHeader . '.' . $encodedPayload;
+        $expectedSignature = rtrim(strtr(base64_encode(
+            hash_hmac('sha256', $signedContent, $apiKey, true)
+        ), '+/', '-_'), '=');
+        $clientKeySignature = rtrim(strtr(base64_encode(
+            hash_hmac('sha256', $signedContent, 'different-client-key', true)
+        ), '+/', '-_'), '=');
+
+        $this->assertSame('parent-key-uid', $payload['apiKeyUid']);
+        $this->assertSame(['users' => ['filter' => 'tenant_id = 42']], $payload['searchRules']);
+        $this->assertSame($expiresAt->getTimestamp(), $payload['exp']);
+        $this->assertSame($expectedSignature, $signature);
+        $this->assertNotSame($clientKeySignature, $signature);
+    }
+
+    #[DataProvider('emptyTenantTokenCredentials')]
+    public function testGenerateTenantTokenRejectsEmptyCredentials(
+        string $apiKeyUid,
+        string $apiKey,
+        string $message
+    ): void {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('generateTenantToken');
+        $client->shouldNotReceive('getKeys');
+        $engine = new MeilisearchEngine($client);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $engine->generateTenantToken(['users' => ['filter' => 'tenant_id = 42']], $apiKeyUid, $apiKey);
+    }
+
+    /**
+     * Provide empty Meilisearch tenant-token credentials.
+     *
+     * @return array<string, array{string, string, string}>
+     */
+    public static function emptyTenantTokenCredentials(): array
+    {
+        return [
+            'empty UID' => ['', 'explicit-parent-key', 'Meilisearch tenant tokens require a non-empty API key UID.'],
+            'empty key' => ['parent-key-uid', '', 'Meilisearch tenant tokens require a non-empty API key.'],
+        ];
+    }
+
+    protected function apiException(int $status, string $code): ApiException
+    {
+        return new ApiException(new Response($status), [
+            'message' => $code,
+            'code' => $code,
+        ]);
     }
 
     protected function createSearchableModelMock(): m\MockInterface
@@ -667,4 +1165,35 @@ class MeilisearchTestSoftDeleteModel extends Model implements SearchableInterfac
     protected array $guarded = [];
 
     public bool $timestamps = false;
+}
+
+class MeilisearchTestChirpModel extends Model
+{
+    protected ?string $table = 'chirps';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    public function getScoutKeyName(): string
+    {
+        return 'scout_id';
+    }
+
+    public function indexableAs(): string
+    {
+        return $this->getTable();
+    }
+}
+
+enum MeilisearchStringStatus: string
+{
+    case Draft = 'draft';
+    case Published = 'published';
+}
+
+enum MeilisearchIntegerPriority: int
+{
+    case Low = 2;
+    case High = 1;
 }

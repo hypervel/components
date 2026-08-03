@@ -150,9 +150,7 @@ class SanctumGuard implements GuardContract
      */
     protected function supportsTokens(?Authenticatable $tokenable = null): bool
     {
-        return $tokenable && in_array(HasApiTokens::class, class_uses_recursive(
-            get_class($tokenable)
-        ));
+        return Sanctum::supportsTokens($tokenable);
     }
 
     /**
@@ -223,10 +221,11 @@ class SanctumGuard implements GuardContract
             return false;
         }
 
+        $model = Sanctum::$personalAccessTokenModel;
         $isValid
             = (! $this->expiration || $accessToken->getAttribute('created_at')->gt(now()->subMinutes($this->expiration)))
             && (! $accessToken->getAttribute('expires_at') || ! $accessToken->getAttribute('expires_at')->isPast())
-            && $this->hasValidProvider($accessToken->getAttribute('tokenable'));
+            && $this->hasValidProvider($model::findTokenable($accessToken));
 
         if (is_callable(Sanctum::$accessTokenAuthenticationCallback)) {
             $isValid = (bool) (Sanctum::$accessTokenAuthenticationCallback)($accessToken, $isValid);

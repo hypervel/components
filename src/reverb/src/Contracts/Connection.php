@@ -24,12 +24,22 @@ abstract class Connection
     protected bool $usesControlFrames = false;
 
     /**
+     * Whether the Pusher connection handshake completed.
+     */
+    protected bool $established = false;
+
+    /**
      * Whether a connection slot was acquired for this connection.
      *
      * Tracked per-connection (not on the Server singleton) so concurrent
      * open() calls in coroutines don't overwrite each other's state.
      */
     protected bool $connectionSlotAcquired = false;
+
+    /**
+     * Whether message rate-limiter state was initialized.
+     */
+    protected bool $rateLimiterInitialized = false;
 
     /**
      * Whether this connection is being cleaned up after a transport disconnect.
@@ -188,6 +198,22 @@ abstract class Connection
     }
 
     /**
+     * Determine whether the connection handshake completed.
+     */
+    public function isEstablished(): bool
+    {
+        return $this->established;
+    }
+
+    /**
+     * Mark the connection as established.
+     */
+    public function markEstablished(): void
+    {
+        $this->established = true;
+    }
+
+    /**
      * Whether a connection slot was acquired for this connection.
      */
     public function hasAcquiredConnectionSlot(): bool
@@ -209,6 +235,30 @@ abstract class Connection
     public function clearConnectionSlotAcquired(): void
     {
         $this->connectionSlotAcquired = false;
+    }
+
+    /**
+     * Determine whether rate-limiter state was initialized.
+     */
+    public function hasInitializedRateLimiter(): bool
+    {
+        return $this->rateLimiterInitialized;
+    }
+
+    /**
+     * Mark the rate limiter as initialized.
+     */
+    public function markRateLimiterInitialized(): void
+    {
+        $this->rateLimiterInitialized = true;
+    }
+
+    /**
+     * Clear the rate-limiter initialized flag.
+     */
+    public function clearRateLimiterInitialized(): void
+    {
+        $this->rateLimiterInitialized = false;
     }
 
     /**

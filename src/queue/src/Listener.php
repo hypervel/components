@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
-use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
+
+use function Hypervel\Support\artisan_binary;
+use function Hypervel\Support\php_binary;
 
 class Listener
 {
@@ -43,7 +45,7 @@ class Listener
      */
     protected function phpBinary(): string
     {
-        return (new PhpExecutableFinder)->find(false) ?: 'php';
+        return php_binary();
     }
 
     /**
@@ -51,7 +53,7 @@ class Listener
      */
     protected function artisanBinary(): string
     {
-        return defined('ARTISAN_BINARY') ? ARTISAN_BINARY : 'artisan';
+        return artisan_binary();
     }
 
     /**

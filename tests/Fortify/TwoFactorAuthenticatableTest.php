@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Fortify\Events\RecoveryCodeReplaced;
+use Hypervel\Fortify\Features;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
@@ -73,5 +76,67 @@ class TwoFactorAuthenticatableTest extends TestCase
         $this->assertNotContains('abc123', $freshCodes);
         $this->assertContains('def456', $freshCodes);
         Event::assertDispatchedTimes(RecoveryCodeReplaced::class, 1);
+    }
+
+    public function testPersistedUserMissingTwoFactorSecretCannotReportAuthenticationState(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $user = UserWithTwoFactor::forceCreate(['email' => 'taylor@example.test']);
+        $partialUser = UserWithTwoFactor::query()->select('id')->findOrFail($user->getKey());
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('two_factor_secret');
+
+        $partialUser->hasEnabledTwoFactorAuthentication();
+    }
+
+    public function testConfirmedTwoFactorAuthenticationRequiresLoadedConfirmationState(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+        config()->set('fortify.features', [Features::twoFactorAuthentication(['confirm' => true])]);
+
+        $user = UserWithTwoFactor::forceCreate([
+            'email' => 'taylor@example.test',
+            'two_factor_secret' => 'secret',
+        ]);
+        $partialUser = UserWithTwoFactor::query()
+            ->select(['id', 'two_factor_secret'])
+            ->findOrFail($user->getKey());
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage('two_factor_confirmed_at');
+
+        $partialUser->hasEnabledTwoFactorAuthentication();
+    }
+
+    public function testUnconfirmedTwoFactorAuthenticationDoesNotRequireConfirmationState(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+        config()->set('fortify.features', [Features::twoFactorAuthentication()]);
+
+        $user = UserWithTwoFactor::forceCreate([
+            'email' => 'taylor@example.test',
+            'two_factor_secret' => 'secret',
+        ]);
+        $partialUser = UserWithTwoFactor::query()
+            ->select(['id', 'two_factor_secret'])
+            ->findOrFail($user->getKey());
+
+        $this->assertTrue($partialUser->hasEnabledTwoFactorAuthentication());
+    }
+
+    public function testFreshAndJustCreatedUsersRetainNullableTwoFactorDefaults(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+        config()->set('fortify.features', [Features::twoFactorAuthentication(['confirm' => true])]);
+
+        $this->assertFalse((new UserWithTwoFactor)->hasEnabledTwoFactorAuthentication());
+
+        $user = UserWithTwoFactor::forceCreate(['email' => 'taylor@example.test']);
+
+        $this->assertTrue($user->wasRecentlyCreated);
+        $this->assertFalse($user->hasEnabledTwoFactorAuthentication());
+        $this->assertFalse($user->fresh()->hasEnabledTwoFactorAuthentication());
     }
 }

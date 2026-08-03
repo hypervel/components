@@ -170,6 +170,28 @@ class CommanderTest extends TestCase
     }
 
     #[Test]
+    public function itRetainsApplicationThrowableWhenReportingFails(): void
+    {
+        $original = new RuntimeException('Application failure');
+        $reportingFailure = new RuntimeException('Reporting failure');
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->expects('report')->with($original)->andThrow($reportingFailure);
+        $handler->shouldNotReceive('renderForConsole');
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+
+        $commander = new CommanderThrowableHarness([], __DIR__);
+        $commander->useApplication($this->app);
+
+        try {
+            $commander->renderThrowable(new ConsoleOutput, $original);
+            $this->fail('Expected exception reporting to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($reportingFailure, $exception);
+            $this->assertSame($original, $exception->getPrevious());
+        }
+    }
+
+    #[Test]
     public function itRendersBootstrapThrowablesToTheConsoleErrorOutput(): void
     {
         $output = new ConsoleOutput;

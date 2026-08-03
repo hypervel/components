@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
@@ -18,6 +19,7 @@ use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use TypeError;
 
 class HasRolesTest extends TestCase
@@ -336,6 +338,82 @@ class HasRolesTest extends TestCase
         }
     }
 
+    #[DataProvider('roleMutationProvider')]
+    public function testRoleMutationsRejectKeylessModelInputs(string $method, bool $mixed): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->assignRole('testRole2');
+        $keylessRole = app(Role::class)->select(['name', 'guard_name'])->where('name', 'testRole')->firstOrFail();
+        $roles = $mixed ? [$this->testUserRole, $keylessRole] : [$keylessRole];
+
+        try {
+            $this->testUser->{$method}($roles);
+            $this->fail('Expected a missing role key exception was not thrown.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString($keylessRole->getKeyName(), $exception->getMessage());
+        }
+
+        $this->assertTrue($this->testUser->fresh()->hasRole('testRole2'));
+    }
+
+    public static function roleMutationProvider(): array
+    {
+        return [
+            'assign keyless role' => ['assignRole', false],
+            'assign mixed roles' => ['assignRole', true],
+            'remove keyless role' => ['removeRole', false],
+            'remove mixed roles' => ['removeRole', true],
+            'sync keyless role' => ['syncRoles', false],
+            'sync mixed roles' => ['syncRoles', true],
+        ];
+    }
+
+    #[DataProvider('roleOwnerMutationProvider')]
+    public function testRoleMutationsRejectAKeylessPersistedSubjectBeforeMutation(string $method, string $role): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $this->testUser->assignRole('testRole2');
+        $keylessUser = User::query()
+            ->select('email')
+            ->where('email', $this->testUser->email)
+            ->firstOrFail();
+
+        try {
+            $keylessUser->{$method}($role);
+            $this->fail('Expected a missing subject key exception was not thrown.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString($keylessUser->getKeyName(), $exception->getMessage());
+        }
+
+        $this->assertTrue($this->testUser->fresh()->hasRole('testRole2'));
+        $this->assertFalse($this->testUser->fresh()->hasRole('testRole'));
+    }
+
+    public static function roleOwnerMutationProvider(): array
+    {
+        return [
+            'assign role' => ['assignRole', 'testRole'],
+            'remove role' => ['removeRole', 'testRole2'],
+            'sync roles' => ['syncRoles', 'testRole'],
+        ];
+    }
+
+    public function testSavingACleanKeylessPersistedSubjectDoesNotRequireItsKey(): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $keylessUser = User::query()
+            ->select('email')
+            ->where('email', $this->testUser->email)
+            ->firstOrFail();
+
+        $this->assertTrue($keylessUser->save());
+        $this->assertTrue($keylessUser->exists);
+        $this->assertNull($keylessUser->getKey());
+    }
+
     public function testItWillSyncRolesToAModelThatIsNotPersisted(): void
     {
         $user = new User(['email' => 'test@user.com']);
@@ -562,6 +640,30 @@ class HasRolesTest extends TestCase
         $this->assertCount(2, User::withoutRole($this->testUserRole)->get());
         $this->assertCount(2, User::withoutRole([$this->testUserRole])->get());
         $this->assertCount(2, User::withoutRole(collect([$this->testUserRole]))->get());
+    }
+
+    #[DataProvider('roleScopeProvider')]
+    public function testRoleScopesRejectKeylessModelInputs(string $scope, bool $mixed): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $keylessRole = app(Role::class)->select(['name', 'guard_name'])->where('name', 'testRole2')->firstOrFail();
+        $roles = $mixed ? [$this->testUserRole, $keylessRole] : $keylessRole;
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage($keylessRole->getKeyName());
+
+        User::query()->{$scope}($roles)->get();
+    }
+
+    public static function roleScopeProvider(): array
+    {
+        return [
+            'role with keyless model' => ['role', false],
+            'role with mixed models' => ['role', true],
+            'without role with keyless model' => ['withoutRole', false],
+            'without role with mixed models' => ['withoutRole', true],
+        ];
     }
 
     public function testItCanScopeAgainstASpecificGuard(): void

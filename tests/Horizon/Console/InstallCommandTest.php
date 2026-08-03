@@ -11,6 +11,7 @@ use Hypervel\Horizon\Console\InstallCommand;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
@@ -114,6 +115,64 @@ class InstallCommandTest extends TestCase
         $this->artisan('horizon:install')
             ->expectsOutputToContain('Unable to register HorizonServiceProvider in bootstrap/providers.php.')
             ->assertExitCode(HypervelCommand::FAILURE);
+    }
+
+    public function testInstallCommandPreservesProviderFilePermissions(): void
+    {
+        $this->artisan('horizon:install')->assertSuccessful();
+        $providerPath = $this->app->path('Providers/HorizonServiceProvider.php');
+        chmod($providerPath, 0640);
+
+        $this->artisan('horizon:install')->assertSuccessful();
+
+        clearstatcache(true, $providerPath);
+        $this->assertSame(0640, fileperms($providerPath) & 0777);
+    }
+
+    public function testInstallCommandFailsWhenProviderFileCannotBeRead(): void
+    {
+        $this->artisan('horizon:install')->assertSuccessful();
+        $providerPath = $this->app->path('Providers/HorizonServiceProvider.php');
+        (new Filesystem)->replace(
+            $this->app->getBootstrapProvidersPath(),
+            $this->originalProvidersContents,
+        );
+        chmod($providerPath, 0000);
+
+        try {
+            if (@file_get_contents($providerPath) !== false) {
+                $this->markTestSkipped('The current user can read files without read permission.');
+            }
+
+            $this->artisan('horizon:install')
+                ->expectsOutputToContain('Unable to read the HorizonServiceProvider file.')
+                ->assertExitCode(HypervelCommand::FAILURE);
+
+            $providers = require $this->app->getBootstrapProvidersPath();
+            $this->assertNotContains('App\Providers\HorizonServiceProvider', $providers);
+        } finally {
+            chmod($providerPath, 0644);
+        }
+    }
+
+    public function testInstallCommandFailsWhenProviderReplacementFails(): void
+    {
+        $this->artisan('horizon:install')->assertSuccessful();
+        (new Filesystem)->replace(
+            $this->app->getBootstrapProvidersPath(),
+            $this->originalProvidersContents,
+        );
+
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('replace')->once()->andThrow(new RuntimeException('replace failed'));
+        $this->app->instance(Filesystem::class, $files);
+
+        $this->artisan('horizon:install')
+            ->expectsOutputToContain('Unable to update the HorizonServiceProvider namespace.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+
+        $providers = require $this->app->getBootstrapProvidersPath();
+        $this->assertNotContains('App\Providers\HorizonServiceProvider', $providers);
     }
 
     /**

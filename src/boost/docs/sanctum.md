@@ -181,15 +181,41 @@ Token caching is disabled by default. You may enable and configure it in your ap
 ],
 ```
 
+When caching is enabled, Sanctum adds the selected personal access token model, Eloquent models used by configured Sanctum guard providers, and Hypervel's standard Eloquent collection and pivot classes to the cache class policy automatically. Declare custom-provider morph targets, nested `$with` relations, custom collections or pivots, and other application-owned objects from a service provider:
+
+```php
+use App\Models\Organization;
+use App\Models\Team;
+use Hypervel\Support\Facades\Cache;
+
+public function boot(): void
+{
+    Cache::allowSerializableClassesUsing(fn (): array => [
+        Organization::class,
+        Team::class,
+    ]);
+}
+```
+
+These declarations apply to PHP-policy serialization paths. Accepted native Redis serializers preserve model types but bypass the class policy. See [Serializable Cached Objects](/docs/{{version}}/cache#serializable-cached-objects) for denied nested-class behavior and remedies.
+
 The `store` option determines which cache store is used. When this value is `null`, Sanctum uses your application's default cache store. The `ttl` option controls how long token and tokenable entries remain cached, in seconds. The `prefix` option is prepended to Sanctum's cache keys.
 
-Sanctum also caches missing token IDs and missing tokenable models as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked, deleted, or orphaned token data. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints.
+Redis, database, file, storage, Swoole, and stacks containing only supported stores may be used. Stack layers are validated recursively. Array, worker-array, null, session, and failover stores are rejected. Failover is unsuitable because an unavailable primary can retain a stale identity and serve it after recovery.
+
+For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers preserve model types. Msgpack is accepted only with `msgpack.php_only=1`. JSON, non-PHP msgpack, and unknown modes are rejected because they can return arrays instead of models. Native serializers bypass `cache.serializable_classes`; use `SERIALIZER_NONE` when class-policy enforcement is required.
+
+Sanctum cache settings and `sanctum.last_used_at` are read during process startup and must not be changed while a worker is serving requests.
+
+Sanctum also caches missing token IDs as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked or unknown token. Missing tokenable models are not cached because their visibility may depend on the current query context. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints.
 
 The `last_used_at_update_interval` option controls how frequently Sanctum writes a cached token's `last_used_at` timestamp back to the database. The default value is `300`, so the timestamp is updated at most once every five minutes for each token while caching is enabled. The cache TTL should be greater than or equal to this interval so active cached tokens do not expire before the next allowed timestamp write.
 
 Sanctum token caching pairs well with the authentication package's [user lookup cache](/docs/{{version}}/authentication#user-lookup-cache). Token-authenticated routes often need both the personal access token and its user model, so enabling both caches can reduce repeated database reads on hot authenticated endpoints.
 
-When a personal access token model is updated or deleted, Sanctum automatically clears that token's cached token and tokenable entries. You may also clear a token's cache manually using the `clearTokenCache` method on the personal access token model:
+The cached token entry never embeds its `tokenable` relation. During authentication, the live token receives the exact tokenable instance used for provider validation before authentication callbacks and events run.
+
+Deleting a personal access token or making an application-visible update clears both cached entries. Sanctum's internal `last_used_at` write clears only the token entry, so it does not defeat the tokenable cache. You may also clear both entries manually using the `clearTokenCache` method:
 
 ```php
 use Hypervel\Sanctum\PersonalAccessToken;
@@ -197,7 +223,7 @@ use Hypervel\Sanctum\PersonalAccessToken;
 PersonalAccessToken::clearTokenCache($tokenId);
 ```
 
-If you change data on the tokenable model that must be reflected immediately during token authentication, you should either use a short cache TTL or clear the cache for that model's tokens:
+Tokenable model changes do not automatically evict token-ID-keyed entries. The cache TTL is therefore the maximum staleness bound. If a change must be reflected immediately during token authentication, clear the cache for that model's tokens:
 
 ```php
 use Hypervel\Sanctum\PersonalAccessToken;
@@ -468,6 +494,22 @@ public function boot(): void
     });
 }
 ```
+
+When your application needs to make the final stateful decision itself, you may register a request resolver instead:
+
+```php
+use App\Support\StatefulRequestResolver;
+use Hypervel\Http\Request;
+use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+
+EnsureFrontendRequestsAreStateful::resolveStatefulRequestsUsing(
+    fn (Request $request): bool => app(StatefulRequestResolver::class)->isStateful($request)
+);
+```
+
+The request resolver takes precedence over the domain resolver and configured domain list. Register either resolver during application boot because it persists for the worker lifetime; pass `null` to clear it. Framework test cleanup resets both resolver slots automatically.
+
+Domain-list matching is case-sensitive. Normalize any request-derived domains before returning them from `resolveStatefulDomainsUsing()`.
 
 > [!WARNING]
 > If you are accessing your application via a URL that includes a port (`127.0.0.1:8000`), you should ensure that you include the port number with the domain.

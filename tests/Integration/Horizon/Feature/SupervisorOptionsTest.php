@@ -28,4 +28,12 @@ class SupervisorOptionsTest extends IntegrationTestCase
 
         $this->assertSame('0', $options->queue);
     }
+
+    public function testOnlySupportedStringStrategiesEnableBalancing(): void
+    {
+        $this->assertTrue((new SupervisorOptions('name', 'redis', balance: 'simple'))->balancing());
+        $this->assertTrue((new SupervisorOptions('name', 'redis', balance: 'auto'))->balancing());
+        $this->assertFalse((new SupervisorOptions('name', 'redis', balance: true))->balancing());
+        $this->assertFalse((new SupervisorOptions('name', 'redis', balance: false))->balancing());
+    }
 }

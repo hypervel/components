@@ -26,6 +26,7 @@ class LockableFileTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('LockableFileTest');
+        (new Filesystem)->deleteDirectory($this->tempDir);
         mkdir($this->tempDir, 0777, true);
 
         LockableFileTestStreamWrapper::reset();

@@ -7,6 +7,7 @@ namespace Hypervel\Permission\Traits;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
@@ -128,6 +129,10 @@ trait HasPermissions
         $modelKey = $model->getKey();
         $partitionColumn = PermissionRegistrar::partitionColumn();
 
+        if ($modelKey === null) {
+            throw new MissingAttributeException($model, $model->getKeyName());
+        }
+
         if ($partitionColumn === null && ! $registrar->teams) {
             $connection->table($table)
                 ->where($morphKey, $modelKey)
@@ -215,6 +220,12 @@ trait HasPermissions
         string $modelAssignmentsTable,
         string $pivotKey,
     ): void {
+        $modelKey = $model->getKey();
+
+        if ($modelKey === null) {
+            throw new MissingAttributeException($model, $model->getKeyName());
+        }
+
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
         $partition = PermissionRegistrar::partitioningEnabled()
             ? $registrar->partitionFromRecord($model)
@@ -236,16 +247,17 @@ trait HasPermissions
 
         $model->getConnection()->transaction(function () use (
             $model,
+            $modelKey,
             $modelAssignmentsTable,
             $partition,
             $pivotKey,
         ): void {
             $modelAssignments = $model->getConnection()
                 ->table($modelAssignmentsTable)
-                ->where($pivotKey, $model->getKey());
+                ->where($pivotKey, $modelKey);
             $rolePermissions = $model->getConnection()
                 ->table(Config::roleHasPermissionsTable())
-                ->where($pivotKey, $model->getKey());
+                ->where($pivotKey, $modelKey);
 
             if ($partition) {
                 $modelAssignments->where($partition->column, $partition->value);
@@ -411,8 +423,10 @@ trait HasPermissions
     public function scopePermission(Builder $query, $permissions, bool $without = false): Builder
     {
         $permissions = $this->convertToPermissionModels($permissions);
-        $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
-        $permissionIds = array_column($permissions, $permissionKey);
+        $permissionIds = array_map(
+            fn ($permission) => $this->requireModelKey($permission),
+            $permissions,
+        );
         $effectivePermission = fn (Builder $query): Builder => $this->whereEffectivePermission(
             $query,
             $permissionIds,
@@ -783,13 +797,29 @@ trait HasPermissions
                     return $array;
                 }
 
-                if (! in_array($permission->getKey(), $array, true)) {
+                $permissionKey = $this->requireModelKey($permission);
+
+                if (! in_array($permissionKey, $array, true)) {
                     $this->ensureModelSharesGuard($permission);
-                    $array[] = $permission->getKey();
+                    $array[] = $permissionKey;
                 }
 
                 return $array;
             }, []);
+    }
+
+    /**
+     * Get a required model key.
+     */
+    private function requireModelKey(Model $model): mixed
+    {
+        $key = $model->getKey();
+
+        if ($key === null) {
+            throw new MissingAttributeException($model, $model->getKeyName());
+        }
+
+        return $key;
     }
 
     /**
@@ -838,6 +868,8 @@ trait HasPermissions
 
             return $this;
         }
+
+        $this->requireModelKey($model);
 
         $changes = $this->synchronizePermissionAssignments(
             $isDenied ? [] : $permissions,
@@ -1395,6 +1427,8 @@ trait HasPermissions
             return $this;
         }
 
+        $this->requireModelKey($this);
+
         $changes = $this->synchronizePermissionAssignments(
             $permissions,
             [],
@@ -1473,6 +1507,8 @@ trait HasPermissions
             return ['attached' => [], 'detached' => [], 'updated' => []];
         }
 
+        $this->requireModelKey($this);
+
         $changes = $this->synchronizePermissionAssignments(
             $allowedIds,
             $deniedIds,
@@ -1529,6 +1565,8 @@ trait HasPermissions
 
             return $this;
         }
+
+        $this->requireModelKey($this);
 
         $relation = $this->permissionAssignmentRelation($context);
         $detached = $relation->detach($storedPermission);
@@ -1847,7 +1885,7 @@ trait HasPermissions
 
     /**
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
-     * @return Collection|Permission|Permission[]
+     * @return Collection|(Model&Permission)
      */
     protected function getStoredPermission(
         $permissions,

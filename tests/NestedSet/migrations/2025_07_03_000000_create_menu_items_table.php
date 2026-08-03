@@ -14,10 +14,10 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::create('menu_items', function (Blueprint $table) {
-            $table->increments('id');
+            $table->id();
             $table->unsignedInteger('menu_id');
             $table->string('title')->nullable();
-            NestedSet::columns($table);
+            NestedSet::columns($table, ['menu_id']);
         });
     }
 

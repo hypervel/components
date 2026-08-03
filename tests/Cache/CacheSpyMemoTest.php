@@ -20,6 +20,7 @@ class CacheSpyMemoTest extends TestCase
     {
         parent::setUp();
 
+        // CacheManager accepts the generic container contract and must not depend on Application aliases.
         $container = new Container;
 
         $container->instance('config', new ConfigRepository([

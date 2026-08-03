@@ -7,17 +7,6 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-/**
- * Flushes all cache entries associated with all tags.
- *
- * This operation:
- * 1. Gets all cache keys from the tag sorted sets
- * 2. Deletes the cache keys in chunks (1000 at a time) using a single connection
- * 3. Deletes the tag sorted sets themselves
- *
- * Optimized to use a single connection checkout for all chunk deletions,
- * with pipeline batching in standard mode for maximum efficiency.
- */
 class Flush
 {
     private const CHUNK_SIZE = 1000;
@@ -43,10 +32,6 @@ class Flush
     /**
      * Flush the individual cache entries for the tags.
      *
-     * Uses a single connection for all chunk deletions to avoid pool
-     * checkout/release overhead per chunk. In standard mode, uses pipeline
-     * for batching. In cluster mode, uses sequential commands.
-     *
      * @param array<string> $tagIds Array of tag identifiers
      */
     private function flushValues(array $tagIds): void
@@ -54,29 +39,25 @@ class Flush
         $prefix = $this->context->prefix();
         $isCluster = $this->context->isCluster();
 
-        // Collect all entries and prepare chunks
-        // (materialize the LazyCollection to get prefixed keys)
         $entries = $this->getEntries->execute($tagIds)
             ->map(fn (string $key) => $prefix . $key);
 
-        // Use a single connection for all chunk deletions
-        $this->context->withConnection(function (RedisConnection $connection) use ($entries, $isCluster) {
-            foreach ($entries->chunk(self::CHUNK_SIZE) as $chunk) {
-                $keys = $chunk->all();
+        foreach ($entries->chunk(self::CHUNK_SIZE) as $chunk) {
+            $keys = $chunk->all();
 
-                if (empty($keys)) {
-                    continue;
-                }
+            if (empty($keys)) {
+                continue;
+            }
 
+            $this->context->withConnection(function (RedisConnection $connection) use ($keys, $isCluster) {
+                // Cluster keys may occupy different slots and cannot share a pipeline.
                 if ($isCluster) {
-                    // Cluster mode: sequential DEL (keys may be in different slots)
                     $connection->del(...$keys);
                 } else {
-                    // Standard mode: pipeline for batching
                     $this->deleteChunkPipelined($connection, $keys);
                 }
-            }
-        });
+            });
+        }
     }
 
     /**

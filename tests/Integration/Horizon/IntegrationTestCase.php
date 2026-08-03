@@ -6,18 +6,13 @@ namespace Hypervel\Tests\Integration\Horizon;
 
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
-use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Horizon\Http\Middleware\Authenticate;
-use Hypervel\Horizon\SupervisorCommandString;
-use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
-use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Testbench\TestCase;
 
 abstract class IntegrationTestCase extends TestCase
@@ -28,36 +23,12 @@ abstract class IntegrationTestCase extends TestCase
 
     protected array $originalQueueConfig = [];
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->beforeApplicationDestroyed(function () {
-            WorkerCommandString::flushState();
-            SupervisorCommandString::flushState();
-            Horizon::$authUsing = null;
-        });
-    }
-
     protected function tearDown(): void
     {
         $config = $this->app->make('config');
         $config->set('queue', $this->originalQueueConfig);
 
-        $poolFactory = $this->app->make(PoolFactory::class);
-        $poolFactory->flushPool('default');
-
         parent::tearDown();
-    }
-
-    public function setUpInCoroutine(): void
-    {
-        $poolFactory = $this->app->make(PoolFactory::class);
-
-        Coroutine::defer(function () use ($poolFactory) {
-            $poolFactory->flushPool('default');
-            $poolFactory->flushPool('horizon');
-        });
     }
 
     protected function getPackageProviders(ApplicationContract $app): array

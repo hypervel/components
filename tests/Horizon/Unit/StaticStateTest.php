@@ -6,13 +6,15 @@ namespace Hypervel\Tests\Horizon\Unit;
 
 use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Horizon\SupervisorCommandString;
 use Hypervel\Horizon\SystemProcessCounter;
+use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Tests\Horizon\UnitTestCase;
 use ReflectionClass;
 
 class StaticStateTest extends UnitTestCase
 {
-    public function testHorizonFlushStateClearsNotificationAndAuthConfiguration()
+    public function testHorizonFlushStateClearsNotificationAndAuthConfiguration(): void
     {
         Horizon::auth(fn () => true);
         Horizon::routeMailNotificationsTo('test@example.com');
@@ -34,7 +36,7 @@ class StaticStateTest extends UnitTestCase
         $this->assertNull(Horizon::$smsNumber);
     }
 
-    public function testMasterSupervisorFlushStateClearsNameResolverAndToken()
+    public function testMasterSupervisorFlushStateClearsNameResolverAndToken(): void
     {
         $token = (new ReflectionClass(MasterSupervisor::class))->getProperty('token');
 
@@ -50,14 +52,22 @@ class StaticStateTest extends UnitTestCase
         $this->assertNull($token->getValue());
     }
 
-    public function testSystemProcessCounterFlushStateRestoresCommand()
+    public function testCommandFlushStateRestoresDefaults(): void
     {
         SystemProcessCounter::$command = 'worker.php';
+        WorkerCommandString::$command = 'worker.php';
+        SupervisorCommandString::$command = 'supervisor.php';
 
         $this->assertSame('worker.php', SystemProcessCounter::$command);
+        $this->assertSame('worker.php', WorkerCommandString::$command);
+        $this->assertSame('supervisor.php', SupervisorCommandString::$command);
 
         SystemProcessCounter::flushState();
+        WorkerCommandString::flushState();
+        SupervisorCommandString::flushState();
 
         $this->assertSame('horizon:work', SystemProcessCounter::$command);
+        $this->assertSame('exec @php artisan horizon:work', WorkerCommandString::$command);
+        $this->assertSame('exec @php artisan horizon:supervisor', SupervisorCommandString::$command);
     }
 }

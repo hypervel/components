@@ -29,7 +29,7 @@ class StoreTagsForFailedJob
         })->all();
 
         $this->tags->addTemporary(
-            config('horizon.trim.failed', 2880),
+            config('horizon.trim.failed', 10080),
             $event->payload->id(),
             $tags
         );

@@ -39,16 +39,25 @@ class Pipeline extends BasePipeline
             throw $e;
         }
 
-        $handler = $this->container->make(ExceptionHandler::class);
+        // Keep the original in flight while it is handled, so a failure in
+        // reporting or rendering carries it as that failure's previous. The
+        // return suppresses it once a response exists.
+        try {
+            /* @phpstan-ignore finally.exitPoint */
+            throw $e;
+        } finally {
+            $handler = $this->container->make(ExceptionHandler::class);
 
-        $handler->report($e);
+            $handler->report($e);
 
-        $response = $handler->render($passable, $e);
+            $response = $handler->render($passable, $e);
 
-        if (method_exists($response, 'withException')) {
-            $response->withException($e);
+            if (method_exists($response, 'withException')) {
+                $response->withException($e);
+            }
+
+            /* @phpstan-ignore finally.exitPoint */
+            return $this->handleCarry($response);
         }
-
-        return $this->handleCarry($response);
     }
 }

@@ -5,6 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheStoreValidator;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Http\Request;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Session\Middleware\StartSession;
@@ -30,6 +39,69 @@ class SanctumServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $cache = $this->app->make(CacheManager::class);
+        $config = $this->app->make(ConfigRepository::class);
+
+        $cache->allowSerializableClassesUsing(function () use ($config): array {
+            if (! $config->boolean('sanctum.cache.enabled')) {
+                return [];
+            }
+
+            $models = [Sanctum::personalAccessTokenModel()];
+
+            foreach ($config->array('auth.guards') as $guard) {
+                if (! is_array($guard) || ($guard['driver'] ?? null) !== 'sanctum') {
+                    continue;
+                }
+
+                $providerName = $guard['provider'] ?? null;
+
+                if (! is_string($providerName)) {
+                    continue;
+                }
+
+                $provider = $config->get("auth.providers.{$providerName}");
+
+                if (! is_array($provider) || ($provider['driver'] ?? null) !== 'eloquent') {
+                    continue;
+                }
+
+                $model = $provider['model'] ?? null;
+
+                if (! is_string($model)
+                    || ! is_a($model, Model::class, true)
+                    || ! is_a($model, Authenticatable::class, true)) {
+                    throw new InvalidArgumentException(
+                        "Authentication provider [{$providerName}] model must be an Eloquent authenticatable class.",
+                    );
+                }
+
+                $models[] = $model;
+            }
+
+            return [
+                ...$models,
+                EloquentCollection::class,
+                Pivot::class,
+                MorphPivot::class,
+            ];
+        });
+
+        if ($this->app->runningInConsole()) {
+            $this->app->booted(
+                fn () => $this->validateCacheStore($cache, $config),
+            );
+        } else {
+            // Worker configuration is reloaded during BeforeWorkerStart.
+            $events = $this->app->make('events');
+            $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
+                $this->validateCacheStore(
+                    $this->app->make(CacheManager::class),
+                    $this->app->make(ConfigRepository::class),
+                );
+            });
+        }
+
         $this->registerSanctumGuard();
         $this->configureSessionCookies();
 
@@ -39,6 +111,27 @@ class SanctumServiceProvider extends ServiceProvider
         }
 
         $this->registerRoutes();
+    }
+
+    /**
+     * Validate the configured token cache store.
+     */
+    private function validateCacheStore(CacheManager $cache, ConfigRepository $config): void
+    {
+        if (! $config->boolean('sanctum.cache.enabled')) {
+            return;
+        }
+
+        $store = $config->get('sanctum.cache.store');
+
+        if (! is_string($store) && $store !== null) {
+            throw new InvalidArgumentException('Sanctum cache store must be a string or null.');
+        }
+
+        $this->app->make(ModelCacheStoreValidator::class)->validate(
+            $cache->store($store === '' ? null : $store),
+            'Sanctum token cache',
+        );
     }
 
     /**

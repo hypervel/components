@@ -4,19 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
+use __PHP_Incomplete_Class;
 use BadMethodCallException;
 use Generator;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\ForgettingKey;
+use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\RetrievingKey;
+use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
+use Hypervel\Cache\Redis\Operations\AnyTag\Put;
+use Hypervel\Cache\Redis\Operations\AnyTagOperations;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Mockery as m;
 use RuntimeException;
+use stdClass;
 
 /**
  * Tests for AnyTaggedCache behavior.
@@ -259,12 +270,27 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->once()
             ->andReturn(1);
 
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$captured): void {
+                $captured[] = $event;
+            });
+
         $store = $this->createStore($connection);
-        $cache = $store->setTagMode('any')->tags(['users', 'posts']);
+        $store->setTagMode('any');
+        $cache = (new Repository($store, ['store' => 'redis']))->tags(['users', 'posts']);
+        $cache->setEventDispatcher($events);
 
-        $result = $cache->put('mykey', 'myvalue', 0);
+        $this->assertTrue($cache->put('mykey', 'myvalue', 0));
+        $this->assertSame([ForgettingKey::class, KeyForgotten::class], array_map(get_class(...), $captured));
 
-        $this->assertTrue($result);
+        foreach ($captured as $event) {
+            $this->assertSame('redis', $event->storeName);
+            $this->assertSame('mykey', $event->key);
+            $this->assertSame(['users', 'posts'], $event->tags);
+        }
     }
 
     /**
@@ -407,25 +433,29 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->once()
             ->andReturn(true);
 
-        $store = $this->createStore($connection);
-        $result = $store->setTagMode('any')->tags(['users'])->add('mykey', 'myvalue', 60);
+        $events = m::mock(Dispatcher::class);
+        $events->shouldNotReceive('hasListeners');
+        $events->shouldNotReceive('dispatch');
 
-        $this->assertTrue($result);
+        $store = $this->createStore($connection);
+        $store->setTagMode('any');
+        $cache = (new Repository($store, ['store' => 'redis']))->tags(['users']);
+        $cache->setEventDispatcher($events);
+
+        $this->assertTrue($cache->add('mykey', 'myvalue', 60));
     }
 
     /**
      * @test
      */
-    public function testAddWithNullTtlDefaultsToOneYear(): void
+    public function testAddWithNullTtlStoresPermanently(): void
     {
         $connection = $this->mockConnection();
 
-        // Add with null TTL defaults to 1 year (31536000 seconds)
         $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->withArgs(function ($script, $keys, $args) {
-                // Check that TTL argument is ~1 year (args[1] is ttl)
-                $this->assertSame(31536000, $args[1]);
+            ->withArgs(function ($script, $keys, $args): bool {
+                $this->assertSame(0, $args[1]);
 
                 return true;
             })
@@ -598,7 +628,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // The Remember operation calls $client->get() directly
         $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
@@ -610,6 +639,41 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame('cached_value', $result);
     }
 
+    public function testRememberHandlesIncompleteClassBeforeDispatchingHitEvent(): void
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('get')->once()->with('mykey')->andReturn(
+            unserialize(serialize(new stdClass), ['allowed_classes' => false])
+        );
+
+        $sequence = [];
+
+        Repository::handleUnserializableClassUsing(function (string $key, ?string $class) use (&$sequence): void {
+            $sequence[] = ['handler', $key, $class];
+        });
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$sequence): void {
+                $sequence[] = $event::class;
+            });
+
+        $cache = new AnyTaggedCache($store, new AnyTagSet($store, ['users']));
+        $cache->setEventDispatcher($events);
+
+        $result = $cache->remember('mykey', 60, function (): never {
+            $this->fail('The cache callback should not be called.');
+        });
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $result);
+        $this->assertSame([
+            RetrievingKey::class,
+            ['handler', 'mykey', 'stdClass'],
+            CacheHit::class,
+        ], $sequence);
+    }
+
     /**
      * @test
      */
@@ -617,7 +681,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // Client returns null (miss) - Remember operation uses client->get() directly
         $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
@@ -667,20 +730,65 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
                 $captured[] = $event;
             });
 
-        $tagged = $this->createStore($connection)->setTagMode('any')->tags(['users']);
+        $store = $this->createStore($connection);
+        $store->setTagMode('any');
+        $tagged = (new Repository($store, ['store' => 'redis']))->tags(['users']);
         $tagged->setEventDispatcher($events);
 
         $result = $tagged->remember(AnyTaggedCacheTestKey::Profile, 60, fn () => 'computed_value');
 
         $this->assertSame('computed_value', $result);
 
-        $cacheMissed = array_values(array_filter($captured, fn (object $event) => $event instanceof CacheMissed))[0] ?? null;
-        $keyWritten = array_values(array_filter($captured, fn (object $event) => $event instanceof KeyWritten))[0] ?? null;
+        $this->assertSame(
+            [RetrievingKey::class, CacheMissed::class, WritingKey::class, KeyWritten::class],
+            array_map(get_class(...), $captured)
+        );
 
-        $this->assertNotNull($cacheMissed);
-        $this->assertSame('0', $cacheMissed->key);
-        $this->assertNotNull($keyWritten);
-        $this->assertSame('0', $keyWritten->key);
+        foreach ($captured as $event) {
+            $this->assertSame('redis', $event->storeName);
+            $this->assertSame('0', $event->key);
+            $this->assertSame(['users'], $event->tags);
+        }
+    }
+
+    public function testPutDispatchesTheRepositoryFailureEvent(): void
+    {
+        $put = m::mock(Put::class);
+        $put->shouldReceive('execute')
+            ->once()
+            ->with('mykey', 'myvalue', 60, ['users'])
+            ->andReturnFalse();
+
+        $operations = m::mock(AnyTagOperations::class);
+        $operations->shouldReceive('put')->once()->andReturn($put);
+
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('anyTagOps')->once()->andReturn($operations);
+
+        $tags = m::mock(AnyTagSet::class);
+        $tags->shouldReceive('getNames')->andReturn(['users']);
+
+        $cache = new AnyTaggedCache($store, $tags);
+        $store->shouldReceive('tags')->once()->with(['users'])->andReturn($cache);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$captured): void {
+                $captured[] = $event;
+            });
+
+        $tagged = (new Repository($store, ['store' => 'redis']))->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $this->assertFalse($tagged->put('mykey', 'myvalue', 60));
+        $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
+
+        foreach ($captured as $event) {
+            $this->assertSame('redis', $event->storeName);
+            $this->assertSame(['users'], $event->tags);
+        }
     }
 
     public function testRememberNullableStoresAndReturnsNonNullValue(): void
@@ -828,7 +936,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // RememberForever operation uses $client->get() directly
         $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
@@ -877,7 +984,6 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // RememberForever operation uses $client->get() directly - returns null (miss)
         $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')

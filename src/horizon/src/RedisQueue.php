@@ -15,6 +15,7 @@ use Hypervel\Horizon\Events\JobPushed;
 use Hypervel\Horizon\Events\JobReleased;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
+use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue as BaseQueue;
 use Hypervel\Support\Str;
@@ -29,7 +30,7 @@ class RedisQueue extends BaseQueue
      */
     public function readyNow(?string $queue = null): int
     {
-        return $this->getConnection()->lLen($this->getQueue($queue));
+        return $this->getConnection()->lLen($this->getQueueRedisKey($queue));
     }
 
     /**
@@ -43,10 +44,11 @@ class RedisQueue extends BaseQueue
             $this->createPayload($job, $this->getQueue($queue), $data),
             $queue,
             null,
-            function ($payload, $queue) use ($job) {
-                $this->setLastPushed($job);
+            static function (BaseQueue $owner, $payload, $queue) use ($job) {
+                /** @var self $owner */
+                $owner->setLastPushed($job);
 
-                return $this->pushRaw($payload, $queue);
+                return $owner->pushRaw($payload, $queue);
             }
         );
     }
@@ -57,7 +59,10 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
-        $payload = (new JobPayload($payload))->prepare($this->getLastPushed());
+        $job = CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
+        CoroutineContext::forget(static::LAST_PUSHED_CONTEXT_KEY);
+
+        $payload = (new JobPayload($payload))->prepare($job);
 
         $this->event($this->getQueue($queue), new JobPending($payload->value));
 
@@ -87,14 +92,18 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        $payload = (new JobPayload($this->createPayload($job, $queue, $data)))->prepare($job)->value;
+        $payload = (new JobPayload(
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay)
+        ))->prepare($job)->value;
 
         return $this->enqueueUsing(
             $job,
             $payload,
             $queue,
             $delay,
-            function ($payload, $queue, $delay) {
+            function (BaseQueue $owner, $payload, $queue, $delay) {
+                // The base callback supplies the unused owner first. This callback must remain
+                // bound for parent::laterRaw(); Horizon's Redis queue is not pooled.
                 $this->event($this->getQueue($queue), new JobPending($payload));
 
                 return tap(parent::laterRaw($delay, $payload, $queue), function () use ($payload, $queue) {
@@ -113,7 +122,13 @@ class RedisQueue extends BaseQueue
         return tap(parent::pop($queue, $index), function ($result) use ($queue) {
             /** @var null|RedisJob $result */
             if ($result) {
-                $this->event($this->getQueue($queue), new JobReserved($result->getReservedJob()));
+                try {
+                    $event = new JobReserved($result->getReservedJob());
+                } catch (InvalidPayloadException) {
+                    return;
+                }
+
+                $this->event($this->getQueue($queue), $event);
             }
         });
     }
@@ -137,7 +152,13 @@ class RedisQueue extends BaseQueue
     {
         parent::deleteReserved($queue, $job);
 
-        $this->event($this->getQueue($queue), new JobDeleted($job, $job->getReservedJob()));
+        try {
+            $event = new JobDeleted($job, $job->getReservedJob());
+        } catch (InvalidPayloadException) {
+            return;
+        }
+
+        $this->event($this->getQueue($queue), $event);
     }
 
     /**
@@ -148,7 +169,13 @@ class RedisQueue extends BaseQueue
     {
         parent::deleteAndRelease($queue, $job, $delay);
 
-        $this->event($this->getQueue($queue), new JobReleased($job->getReservedJob(), $delay));
+        try {
+            $event = new JobReleased($job->getReservedJob(), $delay);
+        } catch (InvalidPayloadException) {
+            return;
+        }
+
+        $this->event($this->getQueue($queue), $event);
     }
 
     /**
@@ -171,13 +198,5 @@ class RedisQueue extends BaseQueue
     protected function setLastPushed(object|string $job): void
     {
         CoroutineContext::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
-    }
-
-    /**
-     * Get the job that last pushed to queue via the "push" method.
-     */
-    protected function getLastPushed(): object|string|null
-    {
-        return CoroutineContext::get(static::LAST_PUSHED_CONTEXT_KEY);
     }
 }

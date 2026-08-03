@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Contracts\Support\Arrayable;
@@ -69,7 +70,7 @@ class Builder
     /**
      * The "where" constraints added to the query.
      *
-     * @var array<string, mixed>
+     * @var array<int, array{field: string, operator: string, value: mixed}>
      */
     public array $wheres = [];
 
@@ -122,12 +123,16 @@ class Builder
         $this->callback = $callback;
 
         if ($softDelete) {
-            $this->wheres['__soft_deleted'] = 0;
+            $this->wheres[] = [
+                'field' => '__soft_deleted',
+                'operator' => '=',
+                'value' => 0,
+            ];
         }
     }
 
     /**
-     * Specify a custom index to perform this search on.
+     * Specify a custom index for search or filtered deletion.
      *
      * @return $this
      */
@@ -143,9 +148,16 @@ class Builder
      *
      * @return $this
      */
-    public function where(string $field, mixed $value): static
+    public function where(string $field, mixed $operator, mixed $value = null): static
     {
-        $this->wheres[$field] = $value;
+        /** @var string $selectedOperator */
+        $selectedOperator = func_num_args() === 2 ? '=' : $operator;
+
+        $this->wheres[] = [
+            'field' => $field,
+            'operator' => $selectedOperator,
+            'value' => func_num_args() === 2 ? $operator : $value,
+        ];
 
         return $this;
     }
@@ -191,7 +203,10 @@ class Builder
      */
     public function withTrashed(): static
     {
-        unset($this->wheres['__soft_deleted']);
+        $this->wheres = collect($this->wheres)
+            ->where('field', '!==', '__soft_deleted')
+            ->values()
+            ->all();
 
         return $this;
     }
@@ -204,7 +219,11 @@ class Builder
     public function onlyTrashed(): static
     {
         return tap($this->withTrashed(), function () {
-            $this->wheres['__soft_deleted'] = 1;
+            $this->wheres[] = [
+                'field' => '__soft_deleted',
+                'operator' => '=',
+                'value' => 1,
+            ];
         });
     }
 
@@ -299,7 +318,7 @@ class Builder
      */
     public function raw(): mixed
     {
-        return $this->engine()->search($this);
+        return $this->preparedEngine()->search($this);
     }
 
     /**
@@ -320,7 +339,7 @@ class Builder
      */
     public function keys(): Collection
     {
-        return $this->engine()->keys($this);
+        return $this->preparedEngine()->keys($this);
     }
 
     /**
@@ -340,7 +359,7 @@ class Builder
      */
     public function get(): EloquentCollection
     {
-        return $this->engine()->get($this);
+        return $this->preparedEngine()->get($this);
     }
 
     /**
@@ -350,7 +369,7 @@ class Builder
      */
     public function cursor(): LazyCollection
     {
-        return $this->engine()->cursor($this);
+        return $this->preparedEngine()->cursor($this);
     }
 
     /**
@@ -361,10 +380,10 @@ class Builder
         string $pageName = 'page',
         ?int $page = null
     ): PaginatorContract {
-        $engine = $this->engine();
+        $engine = $this->preparedEngine();
 
-        $page = $page ?? Paginator::resolveCurrentPage($pageName);
-        $perPage = $perPage ?? $this->model->getPerPage();
+        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
             return $engine->simplePaginate($this, $perPage, $page)->appends('query', $this->query);
@@ -383,10 +402,15 @@ class Builder
         )->all();
         $results = $this->model->newCollection($mappedModels);
 
-        return (new Paginator($results, $perPage, $page, [/* @phpstan-ignore-line */
-            'path' => Paginator::resolveCurrentPath(),
-            'pageName' => $pageName,
-        ]))->hasMorePagesWhen(
+        return Container::getInstance()->makeWith(Paginator::class, [
+            'items' => $results,
+            'perPage' => $perPage,
+            'currentPage' => $page,
+            'options' => [
+                'path' => Paginator::resolveCurrentPath(),
+                'pageName' => $pageName,
+            ],
+        ])->hasMorePagesWhen(
             ($perPage * $page) < $engine->getTotalCount($rawResults)
         )->appends('query', $this->query);
     }
@@ -399,10 +423,10 @@ class Builder
         string $pageName = 'page',
         ?int $page = null
     ): LengthAwarePaginatorContract {
-        $engine = $this->engine();
+        $engine = $this->preparedEngine();
 
-        $page = $page ?? Paginator::resolveCurrentPage($pageName);
-        $perPage = $perPage ?? $this->model->getPerPage();
+        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
             return $engine->paginate($this, $perPage, $page)->appends('query', $this->query);
@@ -421,16 +445,16 @@ class Builder
         )->all();
         $results = $this->model->newCollection($mappedModels);
 
-        return (new LengthAwarePaginator(
-            $results, /* @phpstan-ignore-line */
-            $this->getTotalCount($rawResults),
-            $perPage,
-            $page,
-            [
+        return Container::getInstance()->makeWith(LengthAwarePaginator::class, [
+            'items' => $results,
+            'total' => $this->getTotalCount($rawResults),
+            'perPage' => $perPage,
+            'currentPage' => $page,
+            'options' => [
                 'path' => Paginator::resolveCurrentPath(),
                 'pageName' => $pageName,
-            ]
-        ))->appends('query', $this->query);
+            ],
+        ])->appends('query', $this->query);
     }
 
     /**
@@ -440,26 +464,34 @@ class Builder
         ?int $perPage = null,
         string $pageName = 'page',
         ?int $page = null
-    ): LengthAwarePaginator {
-        $engine = $this->engine();
+    ): LengthAwarePaginatorContract {
+        $engine = $this->preparedEngine();
 
-        $page = $page ?? Paginator::resolveCurrentPage($pageName);
-        $perPage = $perPage ?? $this->model->getPerPage();
+        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $perPage = $perPage ?: $this->model->getPerPage();
+
+        if ($engine instanceof PaginatesEloquentModels) {
+            return $engine->paginate($this, $perPage, $page)->appends('query', $this->query);
+        }
+
+        if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
+            return $engine->paginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+        }
 
         $results = $this->applyAfterRawSearchCallback(
             $engine->paginate($this, $perPage, $page)
         );
 
-        return (new LengthAwarePaginator(
-            $results,
-            $this->getTotalCount($results),
-            $perPage,
-            $page,
-            [
+        return Container::getInstance()->makeWith(LengthAwarePaginator::class, [
+            'items' => $results,
+            'total' => $this->getTotalCount($results),
+            'perPage' => $perPage,
+            'currentPage' => $page,
+            'options' => [
                 'path' => Paginator::resolveCurrentPath(),
                 'pageName' => $pageName,
-            ]
-        ))->appends('query', $this->query);
+            ],
+        ])->appends('query', $this->query);
     }
 
     /**
@@ -469,20 +501,33 @@ class Builder
         ?int $perPage = null,
         string $pageName = 'page',
         ?int $page = null
-    ): Paginator {
-        $engine = $this->engine();
+    ): PaginatorContract {
+        $engine = $this->preparedEngine();
 
-        $page = $page ?? Paginator::resolveCurrentPage($pageName);
-        $perPage = $perPage ?? $this->model->getPerPage();
+        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $perPage = $perPage ?: $this->model->getPerPage();
+
+        if ($engine instanceof PaginatesEloquentModels) {
+            return $engine->simplePaginate($this, $perPage, $page)->appends('query', $this->query);
+        }
+
+        if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
+            return $engine->simplePaginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+        }
 
         $results = $this->applyAfterRawSearchCallback(
             $engine->paginate($this, $perPage, $page)
         );
 
-        return (new Paginator($results, $perPage, $page, [
-            'path' => Paginator::resolveCurrentPath(),
-            'pageName' => $pageName,
-        ]))->hasMorePagesWhen(
+        return Container::getInstance()->makeWith(Paginator::class, [
+            'items' => $results,
+            'perPage' => $perPage,
+            'currentPage' => $page,
+            'options' => [
+                'path' => Paginator::resolveCurrentPath(),
+                'pageName' => $pageName,
+            ],
+        ])->hasMorePagesWhen(
             ($perPage * $page) < $engine->getTotalCount($results)
         )->appends('query', $this->query);
     }
@@ -527,6 +572,18 @@ class Builder
         }
 
         return $results;
+    }
+
+    /**
+     * Get the prepared engine that should handle the query.
+     */
+    protected function preparedEngine(): Engine
+    {
+        $engine = $this->engine();
+
+        Scout::prepareBuilder($this, $engine);
+
+        return $engine;
     }
 
     /**

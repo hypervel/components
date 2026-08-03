@@ -29,6 +29,7 @@ class FoundationViteFontsTest extends TestCase
 
         $this->filesystem = new Filesystem;
         $this->tempDir = ParallelTesting::tempDir('FoundationViteFontsTest');
+        $this->filesystem->deleteDirectory($this->tempDir);
         mkdir($this->tempDir, 0777, true);
 
         app()->usePublicPath($this->tempDir);

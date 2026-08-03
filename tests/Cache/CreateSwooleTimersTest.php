@@ -13,14 +13,16 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use Swoole\Server as SwooleServer;
+use Throwable;
 
 class CreateSwooleTimersTest extends TestCase
 {
     public function testRegistersEvictionAndIntervalRefreshTimersForEachSwooleStoreOnWorkerZero(): void
     {
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('array')->once()->with('cache.stores', [])->andReturn([
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
             'fast' => [
                 'driver' => 'swoole',
                 'eviction_interval' => 25000,
@@ -67,7 +69,7 @@ class CreateSwooleTimersTest extends TestCase
     public function testTimerCallbacksCallTheConfiguredStore(): void
     {
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('array')->once()->with('cache.stores', [])->andReturn([
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
             'fast' => [
                 'driver' => 'swoole',
             ],
@@ -95,6 +97,140 @@ class CreateSwooleTimersTest extends TestCase
         $timer->ticks[1]['callback']();
     }
 
+    public function testRollsBackEvictionTimerWhenIntervalTimerRegistrationFails(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
+            'fast' => [
+                'driver' => 'swoole',
+            ],
+        ]);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+
+        $timer = new FakeSwooleTimer([41, false]);
+
+        try {
+            (new CreateSwooleTimers($container, $timer))->handle($this->workerEvent(workerId: 0));
+
+            $this->fail('Expected timer registration to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'Unable to register the Swoole cache interval refresh timer for store [fast].',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame([41], $timer->cleared);
+    }
+
+    public function testRollsBackEveryEarlierTimerWhenLaterStoreRegistrationFails(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
+            'first' => [
+                'driver' => 'swoole',
+            ],
+            'second' => [
+                'driver' => 'swoole',
+            ],
+        ]);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+
+        $timer = new FakeSwooleTimer([11, 12, 13, false]);
+
+        try {
+            (new CreateSwooleTimers($container, $timer))->handle($this->workerEvent(workerId: 0));
+
+            $this->fail('Expected timer registration to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'Unable to register the Swoole cache interval refresh timer for store [second].',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame([13, 12, 11], $timer->cleared);
+    }
+
+    public function testPreservesThrownRegistrationFailureWhileAttemptingEveryRollback(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
+            'first' => [
+                'driver' => 'swoole',
+            ],
+            'second' => [
+                'driver' => 'swoole',
+            ],
+        ]);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+
+        $failure = new RuntimeException('Timer registration failed.');
+        $timer = new FakeSwooleTimer([11, 12, $failure], [12]);
+
+        try {
+            (new CreateSwooleTimers($container, $timer))->handle($this->workerEvent(workerId: 0));
+
+            $this->fail('Expected timer registration to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame([12, 11], $timer->cleared);
+    }
+
+    public function testStopsEveryRegisteredTimerInReverseOrderAndIsIdempotent(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
+            'fast' => [
+                'driver' => 'swoole',
+            ],
+        ]);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $timer = new FakeSwooleTimer([41, 42]);
+        $listener = new CreateSwooleTimers($container, $timer);
+
+        $listener->handle($this->workerEvent(workerId: 0));
+        $listener->stop();
+        $listener->stop();
+
+        $this->assertSame([42, 41], $timer->cleared);
+    }
+
+    public function testStopAttemptsEveryTimerAndPreservesTheFirstClearFailure(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('array')->once()->with('cache.stores')->andReturn([
+            'fast' => [
+                'driver' => 'swoole',
+            ],
+        ]);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $timer = new FakeSwooleTimer([11, 12], [11], [12]);
+        $listener = new CreateSwooleTimers($container, $timer);
+        $listener->handle($this->workerEvent(workerId: 0));
+
+        try {
+            $listener->stop();
+            $this->fail('Expected timer cleanup to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to clear Swoole cache timer [12].', $exception->getMessage());
+        }
+
+        $listener->stop();
+
+        $this->assertSame([12, 11], $timer->cleared);
+    }
+
     private function workerEvent(int $workerId, bool $taskworker = false): AfterWorkerStart
     {
         $server = m::mock(SwooleServer::class);
@@ -111,10 +247,52 @@ class FakeSwooleTimer extends SwooleTimer
      */
     public array $ticks = [];
 
+    /**
+     * @var list<int>
+     */
+    public array $cleared = [];
+
+    /**
+     * @param list<false|int|Throwable> $results
+     * @param list<int> $clearFailures
+     * @param list<int> $falseClearResults
+     */
+    public function __construct(
+        protected array $results = [],
+        protected array $clearFailures = [],
+        protected array $falseClearResults = [],
+    ) {
+    }
+
     public function tick(int $milliseconds, Closure $callback): int|false
     {
         $this->ticks[] = compact('milliseconds', 'callback');
 
+        if ($this->results !== []) {
+            $result = array_shift($this->results);
+
+            if ($result instanceof Throwable) {
+                throw $result;
+            }
+
+            return $result;
+        }
+
         return array_key_last($this->ticks);
+    }
+
+    public function clear(int $timerId): bool
+    {
+        $this->cleared[] = $timerId;
+
+        if (in_array($timerId, $this->clearFailures, true)) {
+            throw new RuntimeException("Unable to clear timer [{$timerId}].");
+        }
+
+        if (in_array($timerId, $this->falseClearResults, true)) {
+            return false;
+        }
+
+        return true;
     }
 }

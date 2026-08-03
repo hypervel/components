@@ -34,6 +34,7 @@ class ChannelListCommand extends Command
      */
     public function handle(Broadcaster $broadcaster): void
     {
+        // @phpstan-ignore method.notFound (channel listing is an optional concrete broadcaster capability)
         $channels = $broadcaster->getChannels();
 
         if (! $channels->count()) {

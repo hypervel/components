@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Closure;
 use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\AllTagSet;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
-use Hypervel\Cache\Redis\Exceptions\RedisCacheException;
 use Hypervel\Cache\Redis\Operations\Add;
 use Hypervel\Cache\Redis\Operations\AllTagOperations;
 use Hypervel\Cache\Redis\Operations\AnyTagOperations;
@@ -22,27 +20,18 @@ use Hypervel\Cache\Redis\Operations\Increment;
 use Hypervel\Cache\Redis\Operations\Many;
 use Hypervel\Cache\Redis\Operations\Put;
 use Hypervel\Cache\Redis\Operations\PutMany;
-use Hypervel\Cache\Redis\Operations\Remember;
-use Hypervel\Cache\Redis\Operations\RememberForever;
 use Hypervel\Cache\Redis\Operations\Touch;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Redis\Factory as Redis;
-use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisProxy;
 use RuntimeException;
 
 class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     protected Redis $redis;
-
-    /**
-     * The pool factory instance (lazy-loaded if not provided).
-     */
-    protected ?PoolFactory $poolFactory = null;
 
     /**
      * A string that should be prepended to keys.
@@ -99,10 +88,6 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     private ?Flush $flushOperation = null;
 
-    private ?Remember $rememberOperation = null;
-
-    private ?RememberForever $rememberForeverOperation = null;
-
     /**
      * Cached tag operation containers.
      */
@@ -116,18 +101,23 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     protected array|bool|null $serializableClasses;
 
     /**
+     * The shared serializable class policy.
+     */
+    protected ?SerializableClassPolicy $serializableClassPolicy;
+
+    /**
      * Create a new Redis store.
      */
     public function __construct(
         Redis $redis,
         string $prefix = '',
         string $connection = 'default',
-        ?PoolFactory $poolFactory = null,
         array|bool|null $serializableClasses = null,
+        ?SerializableClassPolicy $serializableClassPolicy = null,
     ) {
         $this->redis = $redis;
-        $this->poolFactory = $poolFactory;
         $this->serializableClasses = $serializableClasses;
+        $this->serializableClassPolicy = $serializableClassPolicy;
         $this->setPrefix($prefix);
         $this->setConnection($connection);
     }
@@ -267,33 +257,6 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
         $this->lockConnection()->flushdb();
 
         return true;
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result.
-     *
-     * Optimized to use a single connection for both GET and SET operations,
-     * avoiding double pool overhead for cache misses.
-     *
-     * @param Closure(): mixed $callback
-     */
-    public function remember(string $key, int $seconds, Closure $callback): mixed
-    {
-        return $this->getRememberOperation()->execute($key, $seconds, $callback);
-    }
-
-    /**
-     * Get an item from the cache, or execute the given Closure and store the result forever.
-     *
-     * Optimized to use a single connection for both GET and SET operations,
-     * avoiding double pool overhead for cache misses.
-     *
-     * @param Closure(): mixed $callback
-     * @return array{0: mixed, 1: bool} Tuple of [value, wasHit]
-     */
-    public function rememberForever(string $key, Closure $callback): array
-    {
-        return $this->getRememberForeverOperation()->execute($key, $callback);
     }
 
     /**
@@ -480,6 +443,7 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     public function getContext(): StoreContext
     {
         return $this->context ??= new StoreContext(
+            $this->redis,
             $this->connection,
             $this->prefix,
             $this->tagMode,
@@ -491,59 +455,10 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function getSerialization(): Serialization
     {
-        return $this->serialization ??= new Serialization($this->serializableClasses);
-    }
-
-    /**
-     * Get the PoolFactory instance, lazily resolving if not provided.
-     */
-    protected function getPoolFactory(): PoolFactory
-    {
-        return $this->poolFactory ??= $this->resolvePoolFactory();
-    }
-
-    /**
-     * Serialize the value.
-     *
-     * This method is intentionally disabled to prevent an N+1 pool checkout bug.
-     * If serialization methods acquire their own connection, batch operations like
-     * putMany(1000) would checkout 1001 connections (1 for the operation + 1000
-     * for serialization) instead of 1, causing massive performance degradation.
-     *
-     * @throws RedisCacheException Always throws - use Serialization::serialize() instead
-     */
-    protected function serialize(mixed $value): never
-    {
-        throw new RedisCacheException(
-            'RedisStore::serialize() is disabled to prevent N+1 pool checkout bugs. '
-            . 'Use Serialization::serialize($conn, $value) inside a withConnection() callback instead.'
+        return $this->serialization ??= new Serialization(
+            serializableClasses: $this->serializableClasses,
+            serializableClassPolicy: $this->serializableClassPolicy,
         );
-    }
-
-    /**
-     * Unserialize the value.
-     *
-     * This method is intentionally disabled to prevent an N+1 pool checkout bug.
-     * If serialization methods acquire their own connection, batch operations like
-     * many(1000) would checkout 1001 connections (1 for the operation + 1000
-     * for unserialization) instead of 1, causing massive performance degradation.
-     *
-     * @throws RedisCacheException Always throws - use Serialization::unserialize() instead
-     */
-    protected function unserialize(mixed $value): never
-    {
-        throw new RedisCacheException(
-            'RedisStore::unserialize() is disabled to prevent N+1 pool checkout bugs. '
-            . 'Use Serialization::unserialize($conn, $value) inside a withConnection() callback instead.'
-        );
-    }
-
-    /**
-     * Resolve the PoolFactory from the container.
-     */
-    private function resolvePoolFactory(): PoolFactory
-    {
-        return Container::getInstance()->make(PoolFactory::class);
     }
 
     /**
@@ -566,8 +481,6 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
         $this->incrementOperation = null;
         $this->decrementOperation = null;
         $this->flushOperation = null;
-        $this->rememberOperation = null;
-        $this->rememberForeverOperation = null;
 
         // Tag operation containers
         $this->anyTagOperations = null;
@@ -645,21 +558,5 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     private function getFlushOperation(): Flush
     {
         return $this->flushOperation ??= new Flush($this->getContext());
-    }
-
-    private function getRememberOperation(): Remember
-    {
-        return $this->rememberOperation ??= new Remember(
-            $this->getContext(),
-            $this->getSerialization()
-        );
-    }
-
-    private function getRememberForeverOperation(): RememberForever
-    {
-        return $this->rememberForeverOperation ??= new RememberForever(
-            $this->getContext(),
-            $this->getSerialization()
-        );
     }
 }

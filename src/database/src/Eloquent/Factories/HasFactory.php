@@ -55,11 +55,7 @@ trait HasFactory
         if ($attributes !== []) {
             $useFactory = $attributes[0]->newInstance();
 
-            $factory = $useFactory->factoryClass::new();
-
-            $factory->guessModelNamesUsing(fn () => static::class);
-
-            return $factory;
+            return $useFactory->factoryClass::new()->useModel(static::class);
         }
 
         return null;

@@ -16,9 +16,4 @@ class Category extends Model
     protected array $fillable = ['name', 'parent_id'];
 
     public bool $timestamps = false;
-
-    // public static function resetActionsPerformed()
-    // {
-    //     static::$actionsPerformed = 0;
-    // }
 }

@@ -8,6 +8,7 @@ use DateTimeInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Str;
 use Throwable;
 
 class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider
@@ -17,8 +18,8 @@ class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, Faile
      */
     public function __construct(
         protected ConnectionResolverInterface $resolver,
+        protected ?string $database,
         protected string $table,
-        protected ?string $database = null,
     ) {
     }
 
@@ -27,8 +28,16 @@ class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, Faile
      */
     public function log(string $connection, string $queue, string $payload, Throwable $exception): int|string|null
     {
+        $decoded = json_decode($payload, true);
+        $uuid = is_array($decoded)
+            && isset($decoded['uuid'])
+            && is_string($decoded['uuid'])
+            && $decoded['uuid'] !== ''
+                ? $decoded['uuid']
+                : (string) Str::uuid();
+
         $this->getTable()->insert([
-            'uuid' => $uuid = json_decode($payload, true)['uuid'],
+            'uuid' => $uuid,
             'connection' => $connection,
             'queue' => $queue,
             'payload' => $payload,
@@ -119,15 +128,15 @@ class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, Faile
     public function count(?string $connection = null, ?string $queue = null): int
     {
         return $this->getTable()
-            ->when($connection, fn ($builder) => $builder->where('connection', $connection))
-            ->when($queue, fn ($builder) => $builder->where('queue', $queue))
+            ->when($connection !== null, fn ($builder) => $builder->where('connection', $connection))
+            ->when($queue !== null, fn ($builder) => $builder->where('queue', $queue))
             ->count();
     }
 
     /**
      * Get a new query builder instance for the table.
      */
-    protected function getTable(): Builder
+    public function getTable(): Builder
     {
         return $this->resolver->connection($this->database)->table($this->table);
     }

@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Unit\Console;
 
 use Hypervel\Config\Repository;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Scout;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
@@ -112,6 +115,59 @@ class SyncIndexSettingsCommandTest extends TestCase
         $result = $command->handle($manager, $config);
 
         $this->assertSame(0, $result);
+    }
+
+    public function testLifecycleCallbackReceivesModelSettingsAfterSoftDeleteContribution(): void
+    {
+        $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
+        $engine->shouldReceive('configureSoftDeleteFilter')
+            ->once()
+            ->with(['searchableAttributes' => ['title']])
+            ->andReturn([
+                'searchableAttributes' => ['title'],
+                'filterableAttributes' => ['__soft_deleted'],
+            ]);
+        $engine->shouldReceive('updateIndexSettings')
+            ->once()
+            ->with('soft_deletable_searchable_models', [
+                'searchableAttributes' => ['title'],
+                'filterableAttributes' => ['__soft_deleted', 'tenant_id'],
+            ]);
+        $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('engine')->with('meilisearch')->once()->andReturn($engine);
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
+        $config->shouldReceive('array')
+            ->with('scout.meilisearch.index-settings', [])
+            ->andReturn([
+                SyncIndexSettingsSoftDeleteModel::class => ['searchableAttributes' => ['title']],
+            ]);
+        $config->shouldReceive('boolean')->with('scout.soft_delete', false)->andReturn(true);
+
+        Scout::prepareIndexSettingsUsing(function (
+            array $settings,
+            ?Model $model,
+            Engine $givenEngine,
+            string $index
+        ) use ($engine): array {
+            $this->assertInstanceOf(SyncIndexSettingsSoftDeleteModel::class, $model);
+            $this->assertSame($engine, $givenEngine);
+            $this->assertSame('soft_deletable_searchable_models', $index);
+            $this->assertSame([
+                'searchableAttributes' => ['title'],
+                'filterableAttributes' => ['__soft_deleted'],
+            ], $settings);
+
+            $settings['filterableAttributes'][] = 'tenant_id';
+
+            return $settings;
+        });
+
+        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
+        $command->shouldReceive('option')->with('driver')->andReturn(null);
+        $command->shouldReceive('info')->once();
+
+        $this->assertSame(0, $command->handle($manager, $config));
     }
 
     public function testUsesDriverOptionWhenProvided(): void
@@ -230,5 +286,15 @@ class SyncIndexSettingsCommandTest extends TestCase
         // Test that prefix is NOT duplicated when already present
         $result = $method->invoke($command, 'prod_posts', $config);
         $this->assertSame('prod_posts', $result);
+    }
+}
+
+class SyncIndexSettingsSoftDeleteModel extends Model
+{
+    use SoftDeletes;
+
+    public function indexableAs(): string
+    {
+        return 'soft_deletable_searchable_models';
     }
 }

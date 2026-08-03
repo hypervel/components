@@ -2604,7 +2604,7 @@ class Builder implements BuilderContract
     /**
      * Constrain the query to the previous "page" of results before a given ID.
      */
-    public function forPageBeforeId(int $perPage = 15, ?int $lastId = 0, string $column = 'id'): static
+    public function forPageBeforeId(int $perPage = 15, string|int|null $lastId = 0, string $column = 'id'): static
     {
         $this->orders = $this->removeExistingOrdersFor($column);
 

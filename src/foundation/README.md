@@ -7,7 +7,10 @@ Ported from: https://github.com/laravel/framework
 
 ## Differences From Laravel
 
-Hypervel's HTTP kernel contract includes `prependMiddleware()` and `getMiddlewareGroups()` because middleware configuration resolves the kernel through that contract. Custom HTTP kernels must implement both methods.
+Hypervel's HTTP kernel contract includes the complete middleware stack, group,
+alias, and priority management surface because framework and package providers
+configure middleware through that contract. Custom HTTP kernels must implement
+the same surface, and its mutators are intended for application boot.
 
 Laravel's deprecated `Middleware::validateCsrfTokens()` alias is intentionally not ported. Configure request-forgery protection with `preventRequestForgery()`.
 

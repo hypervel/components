@@ -11,7 +11,7 @@ class WorkerOptions
      *
      * @param string $name the name of the worker
      * @param int|int[] $backoff
-     * @param float $memory the maximum amount of RAM the worker may consume
+     * @param float $memory the maximum amount of RAM in megabytes the worker may consume
      * @param int $timeout the maximum number of seconds a child worker may run
      * @param int $sleep the number of seconds to wait in between polling the queue
      * @param int $maxTries the maximum number of times a job may be attempted
@@ -20,6 +20,7 @@ class WorkerOptions
      * @param int $maxJobs the maximum number of jobs to run
      * @param int $maxTime the maximum number of seconds a worker may live
      * @param int $rest the number of seconds to rest between jobs
+     * @param int $stopWhenEmptyFor the number of seconds the queue may remain empty
      * @param int $concurrency the number of jobs to process at once
      * @param int $monitorInterval the number of seconds between timeout scans
      * @param array<string, mixed> $coroutineContext context values to seed while each job runs
@@ -36,6 +37,7 @@ class WorkerOptions
         public int $maxJobs = 0,
         public int $maxTime = 0,
         public int $rest = 0,
+        public int $stopWhenEmptyFor = 0,
         public int $concurrency = 1,
         public int $monitorInterval = 1,
         public array $coroutineContext = [],

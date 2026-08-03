@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth\Fixtures;
 
 use Hypervel\Database\Eloquent\Builder;
-use Hypervel\Database\Query\Expression;
-use Hypervel\Support\Facades\DB;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use stdClass;
 
 class ScopablePostPolicy
@@ -32,14 +31,19 @@ class ScopablePostPolicy
     }
 
     /**
-     * Return a SQL expression for per-row edit authorization.
+     * Return a scalar boolean selection for per-row edit authorization.
      */
-    public function editSelect(stdClass $user, Builder $query): Expression
+    public function editSelect(stdClass $user, Builder $query): QueryBuilder
     {
+        $selection = $query->getQuery()->newQuery();
+
         if ($user->is_admin) {
-            return DB::raw('true');
+            return $selection->selectRaw('true');
         }
 
-        return DB::raw($query->qualifyColumn('author_id') . ' = ' . (int) $user->id);
+        return $selection->selectRaw(
+            $query->qualifyColumn('author_id') . ' = ?',
+            [$user->id],
+        );
     }
 }

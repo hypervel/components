@@ -423,6 +423,14 @@ abstract class BaseClient
     }
 
     /**
+     * Return the configured default metadata.
+     */
+    protected function defaultMetadata(): Metadata
+    {
+        return $this->defaultMetadata;
+    }
+
+    /**
      * Start the first transport attempt for a call.
      *
      * @return array{StreamState, Connection}

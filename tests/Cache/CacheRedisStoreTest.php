@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use __PHP_Incomplete_Class;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
+use stdClass;
 
 class CacheRedisStoreTest extends RedisCacheTestCase
 {
@@ -28,6 +31,53 @@ class CacheRedisStoreTest extends RedisCacheTestCase
 
         $store = $this->createStore($connection);
         $this->assertSame('foo', $store->get('foo'));
+    }
+
+    public function testSerializableClassesControlRedisValues(): void
+    {
+        $denyingConnection = $this->mockConnection();
+        $denyingConnection->shouldReceive('get')
+            ->once()
+            ->with('prefix:object')
+            ->andReturn(serialize(new stdClass));
+        $allowingConnection = $this->mockConnection();
+        $allowingConnection->shouldReceive('get')
+            ->once()
+            ->with('prefix:object')
+            ->andReturn(serialize(new stdClass));
+
+        $denyingStore = new RedisStore(
+            $this->createRedisFactory($denyingConnection),
+            'prefix:',
+            'default',
+            false,
+        );
+        $allowingStore = new RedisStore(
+            $this->createRedisFactory($allowingConnection),
+            'prefix:',
+            'default',
+            serializableClasses: [stdClass::class],
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $denyingStore->get('object'));
+        $this->assertInstanceOf(stdClass::class, $allowingStore->get('object'));
+    }
+
+    public function testSerializableClassPolicyControlsRedisValues(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('get')
+            ->once()
+            ->with('prefix:object')
+            ->andReturn(serialize(new stdClass));
+        $store = new RedisStore(
+            $this->createRedisFactory($connection),
+            'prefix:',
+            'default',
+            serializableClassPolicy: new SerializableClassPolicy(static fn (): false => false),
+        );
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('object'));
     }
 
     public function testRedisMultipleValuesAreReturned()
@@ -162,8 +212,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $store = new RedisStore(
             $redis,
             'prefix:',
-            'default',
-            $this->createPoolFactory($this->mockConnection())
+            'default'
         );
         $store->setLockConnection('locks');
 

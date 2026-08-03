@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Inertia;
 
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
-use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\Ssr\Gateway;
@@ -70,10 +69,8 @@ class InertiaServiceProvider extends ServiceProvider
      */
     protected function pushRedirectMiddleware(): void
     {
-        $this->callAfterResolving(HttpKernelContract::class, function ($kernel) {
-            if ($kernel instanceof Kernel) {
-                $kernel->pushMiddleware(Middleware\EnsureGetOnRedirect::class);
-            }
+        $this->callAfterResolving(HttpKernelContract::class, function (HttpKernelContract $kernel) {
+            $kernel->pushMiddleware(Middleware\EnsureGetOnRedirect::class);
         });
     }
 

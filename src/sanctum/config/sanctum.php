@@ -84,7 +84,8 @@ return [
     |
     | When enabled, Sanctum will cache token and tokenable lookups to improve
     | performance. The last_used_at timestamp will be updated at the specified
-    | interval instead of on every request to reduce database writes.
+    | interval instead of on every request to reduce database writes. The TTL
+    | is the maximum time a cached tokenable identity may remain stale.
     |
     */
 

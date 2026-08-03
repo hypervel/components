@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use __PHP_Incomplete_Class;
 use ArrayAccess;
 use BadMethodCallException;
 use Closure;
@@ -55,6 +56,11 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     }
 
     /**
+     * The cache key prefix used to track when a flexible cache value was last refreshed.
+     */
+    public const FLEXIBLE_CREATED_KEY_PREFIX = 'hypervel:cache:flexible:created:';
+
+    /**
      * The cache store implementation.
      */
     protected Store $store;
@@ -73,6 +79,11 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * The cache store configuration.
      */
     protected array $config = [];
+
+    /**
+     * The callback to invoke when an unserializable class is encountered.
+     */
+    protected static ?Closure $unserializableClassHandler = null;
 
     /**
      * Create a new cache repository instance.
@@ -481,28 +492,49 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      *
      * @return TCacheValue
      */
-    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
+    public function remember(
+        UnitEnum|string $key,
+        Closure|DateInterval|DateTimeInterface|int|null $ttl,
+        Closure $callback,
+    ): mixed {
+        return $this->rememberWithWarmth($key, $ttl, $callback)[0];
+    }
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result.
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     *
+     * @return array{TCacheValue, bool} the cached value and whether it was warm
+     */
+    public function rememberWithWarmth(
+        UnitEnum|string $key,
+        Closure|DateInterval|DateTimeInterface|int|null $ttl,
+        Closure $callback,
+    ): array {
+        $value = $this->getRawForRemember($key);
+
+        if (! is_null($value)) {
+            // Cached null sentinels are hits and remain internal to the repository.
+            return [NullSentinel::unwrap($value), true];
+        }
+
+        // rememberNullable wraps null in a sentinel before it reaches this boundary.
+        $value = $callback();
+
+        $this->put($key, $value, value($ttl, $value));
+
+        return [NullSentinel::unwrap($value), false];
+    }
+
+    /**
+     * Retrieve an item for remember operations without unwrapping sentinels.
+     */
+    protected function getRawForRemember(UnitEnum|string $key): mixed
     {
-        $remember = function () use ($key, $ttl, $callback) {
-            $value = $this->getRaw($key);
-
-            // Hit — including cached sentinels. Unwrap before returning.
-            if (! is_null($value)) {
-                return NullSentinel::unwrap($value);
-            }
-
-            // Miss — run callback and store the raw result (may be a sentinel if
-            // the caller is rememberNullable(), which wraps the callback).
-            $value = $callback();
-
-            $this->put($key, $value, value($ttl, $value));
-
-            return NullSentinel::unwrap($value);
-        };
-
-        return method_exists($this->store, 'withPinnedConnection')
-            ? $this->store->withPinnedConnection($remember)
-            : $remember();
+        return $this->getRaw($key);
     }
 
     /**
@@ -565,21 +597,15 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
-        $remember = function () use ($key, $callback) {
-            $value = $this->getRaw($key);
+        $value = $this->getRawForRemember($key);
 
-            if (! is_null($value)) {
-                return NullSentinel::unwrap($value);
-            }
-
-            $this->forever($key, $value = $callback());
-
+        if (! is_null($value)) {
             return NullSentinel::unwrap($value);
-        };
+        }
 
-        return method_exists($this->store, 'withPinnedConnection')
-            ? $this->store->withPinnedConnection($remember)
-            : $remember();
+        $this->forever($key, $value = $callback());
+
+        return NullSentinel::unwrap($value);
     }
 
     /**
@@ -614,7 +640,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     public function flexible(UnitEnum|string $key, array $ttl, mixed $callback, ?array $lock = null, bool $alwaysDefer = false): mixed
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $markerKey = "hypervel:cache:flexible:created:{$key}";
+        $markerKey = self::FLEXIBLE_CREATED_KEY_PREFIX . $key;
 
         [$key => $value, $markerKey => $created] = $this->manyRaw([$key, $markerKey]);
 
@@ -635,7 +661,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $refresh = function () use ($key, $markerKey, $ttl, $callback, $lock, $created) {
             $this->store->lock( // @phpstan-ignore method.notFound (lock() is on LockProvider, not Store contract)
-                "hypervel:cache:flexible:lock:{$key}",
+                "hypervel:cache:flexible:lock:{$this->itemKey($key)}",
                 $lock['seconds'] ?? 0,
                 $lock['owner'] ?? null,
             )->get(function () use ($key, $markerKey, $callback, $created, $ttl) {
@@ -652,7 +678,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             });
         };
 
-        defer($refresh, "hypervel:cache:flexible:{$key}", $alwaysDefer);
+        defer($refresh, "hypervel:cache:flexible:{$this->itemKey($key)}", $alwaysDefer);
 
         return NullSentinel::unwrap($value);
     }
@@ -937,6 +963,19 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     }
 
     /**
+     * Register a callback to be invoked when an unserializable class is encountered.
+     *
+     * Boot or tests only. The callback persists for the worker lifetime and
+     * affects every subsequent cache read.
+     */
+    public static function handleUnserializableClassUsing(?callable $callback): void
+    {
+        static::$unserializableClassHandler = $callback === null
+            ? null
+            : Closure::fromCallable($callback);
+    }
+
+    /**
      * Get the cache store name.
      */
     public function getName(): ?string
@@ -1025,6 +1064,24 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     }
 
     /**
+     * Handle a cache value that contains an incomplete class.
+     */
+    protected function handleIncompleteClass(string $key, mixed $value): mixed
+    {
+        if (! $value instanceof __PHP_Incomplete_Class) {
+            return $value;
+        }
+
+        $class = ((array) $value)['__PHP_Incomplete_Class_Name'] ?? null;
+
+        if (static::$unserializableClassHandler !== null) {
+            (static::$unserializableClassHandler)($key, $class);
+        }
+
+        return $value;
+    }
+
+    /**
      * Calculate the number of seconds for the given TTL.
      */
     protected function getSeconds(DateInterval|DateTimeInterface|int $ttl): int
@@ -1075,9 +1132,15 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
 
-        $value = $this->store instanceof RawReadable
-            ? $this->store->getRaw($this->itemKey($key))
-            : $this->store->get($this->itemKey($key));
+        // Raw-readable wrappers already passed the value through an inner Repository.
+        if ($this->store instanceof RawReadable) {
+            $value = $this->store->getRaw($this->itemKey($key));
+        } else {
+            $value = $this->handleIncompleteClass(
+                $key,
+                $this->store->get($this->itemKey($key))
+            );
+        }
 
         if (is_null($value)) {
             $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
@@ -1129,13 +1192,20 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $itemKeys = array_map(fn (string $key): string => $this->itemKey($key), $keys);
 
-        $storeValues = $this->store instanceof RawReadable
+        $rawReadable = $this->store instanceof RawReadable;
+        $storeValues = $rawReadable
             ? $this->store->manyRaw($itemKeys)
             : $this->store->many($itemKeys);
 
         $result = [];
         foreach ($keys as $i => $key) {
             $value = $storeValues[$itemKeys[$i]] ?? null;
+
+            // Raw-readable wrappers already passed the value through an inner Repository.
+            if (! $rawReadable) {
+                $value = $this->handleIncompleteClass($key, $value);
+            }
+
             $result[$key] = $value;
 
             if (is_null($value)) {
@@ -1154,6 +1224,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     public static function flushState(): void
     {
         static::flushMacros();
+        static::$unserializableClassHandler = null;
     }
 
     /**

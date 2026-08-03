@@ -518,6 +518,7 @@ ENV;
     {
         $tempDir = ParallelTesting::tempDir('EnvironmentEncryptCommandTest');
         $files = new Filesystem;
+        $files->deleteDirectory($tempDir);
         $files->ensureDirectoryExists($tempDir);
         $this->app->useEnvironmentPath($tempDir);
         $environmentFile = $tempDir . '/.env';
@@ -554,6 +555,7 @@ ENV;
     {
         $tempDir = ParallelTesting::tempDir('EnvironmentEncryptCommandTest-new');
         $files = new Filesystem;
+        $files->deleteDirectory($tempDir);
         $files->ensureDirectoryExists($tempDir);
         $this->app->useEnvironmentPath($tempDir);
         $environmentFile = $tempDir . '/.env';
@@ -577,6 +579,7 @@ ENV;
     {
         $tempDir = ParallelTesting::tempDir('EnvironmentEncryptCommandTest-overwrite');
         $files = new Filesystem;
+        $files->deleteDirectory($tempDir);
         $files->ensureDirectoryExists($tempDir);
         $this->app->useEnvironmentPath($tempDir);
         $environmentFile = $tempDir . '/.env';

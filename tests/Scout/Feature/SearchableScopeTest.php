@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
+use Hypervel\Scout\Scout;
+use Hypervel\Scout\Searchable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Scout\Models\ConditionalSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
@@ -101,6 +107,26 @@ class SearchableScopeTest extends ScoutTestCase
         Event::assertDispatched(ModelsFlushed::class, 3);
     }
 
+    public function testSearchableMacrosUseConfiguredChunkSizesByDefault(): void
+    {
+        for ($i = 1; $i <= 5; ++$i) {
+            SearchableModel::create(['title' => "Item {$i}", 'body' => 'Body']);
+        }
+
+        config([
+            'scout.chunk.searchable' => 2,
+            'scout.chunk.unsearchable' => 3,
+        ]);
+
+        Event::fake([ModelsImported::class, ModelsFlushed::class]);
+
+        SearchableModel::query()->searchable();
+        SearchableModel::query()->unsearchable();
+
+        Event::assertDispatched(ModelsImported::class, 3);
+        Event::assertDispatched(ModelsFlushed::class, 2);
+    }
+
     public function testSearchableMacroWorksWithQueryConstraints(): void
     {
         SearchableModel::create(['title' => 'Include This', 'body' => 'Body']);
@@ -118,4 +144,103 @@ class SearchableScopeTest extends ScoutTestCase
                 && $event->models->first()->title === 'Include This';
         });
     }
+
+    public function testSearchableMacroReportsProgressWithoutEventListeners(): void
+    {
+        SearchableModel::create(['title' => 'First', 'body' => 'Body']);
+        SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
+
+        $reported = 0;
+
+        Scout::whileReportingImportProgress(
+            function (Collection $models) use (&$reported): void {
+                $reported += $models->count();
+            },
+            fn () => SearchableModel::query()->searchable(),
+        );
+
+        $this->assertSame(2, $reported);
+    }
+
+    public function testHasManyThroughMacrosUseTheRelationChunkQuery(): void
+    {
+        $owner = ScoutThroughOwner::createQuietly();
+        $intermediate = ScoutThroughIntermediate::createQuietly(['owner_id' => $owner->getKey()]);
+
+        $modelIds = [];
+
+        for ($i = 1; $i <= 3; ++$i) {
+            $modelIds[] = ScoutThroughSearchableModel::createQuietly([
+                'intermediate_id' => $intermediate->getKey(),
+                'title' => "Model {$i}",
+            ])->getKey();
+        }
+
+        config([
+            'scout.chunk.searchable' => 2,
+            'scout.chunk.unsearchable' => 2,
+        ]);
+
+        Event::fake([ModelsImported::class, ModelsFlushed::class]);
+
+        $owner->searchableModels()->searchable();
+
+        Event::assertDispatched(ModelsImported::class, 2);
+        $importedIds = Event::dispatched(ModelsImported::class)
+            ->flatMap(fn (array $arguments) => $arguments[0]->models->modelKeys())
+            ->sort()
+            ->values()
+            ->all();
+
+        $this->assertSame($modelIds, $importedIds);
+
+        $owner->searchableModels()->unsearchable();
+
+        Event::assertDispatched(ModelsFlushed::class, 2);
+        $flushedIds = Event::dispatched(ModelsFlushed::class)
+            ->flatMap(fn (array $arguments) => $arguments[0]->models->modelKeys())
+            ->sort()
+            ->values()
+            ->all();
+
+        $this->assertSame($modelIds, $flushedIds);
+    }
+}
+
+class ScoutThroughOwner extends Model
+{
+    protected ?string $table = 'scout_through_owners';
+
+    protected array $guarded = [];
+
+    /**
+     * Get the searchable models through the intermediate records.
+     *
+     * @return HasManyThrough<ScoutThroughSearchableModel, ScoutThroughIntermediate, $this>
+     */
+    public function searchableModels(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            ScoutThroughSearchableModel::class,
+            ScoutThroughIntermediate::class,
+            'owner_id',
+            'intermediate_id',
+        );
+    }
+}
+
+class ScoutThroughIntermediate extends Model
+{
+    protected ?string $table = 'scout_through_intermediates';
+
+    protected array $guarded = [];
+}
+
+class ScoutThroughSearchableModel extends Model implements SearchableInterface
+{
+    use Searchable;
+
+    protected ?string $table = 'scout_through_models';
+
+    protected array $guarded = [];
 }

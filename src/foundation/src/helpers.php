@@ -115,7 +115,7 @@ if (! function_exists('action')) {
     /**
      * Generate the URL to a controller action.
      */
-    function action(array|string $name, array|string $parameters = [], bool $absolute = true): string
+    function action(array|string $name, mixed $parameters = [], bool $absolute = true): string
     {
         return app('url')->action($name, $parameters, $absolute);
     }
@@ -821,7 +821,7 @@ if (! function_exists('route')) {
      *
      * @throws InvalidArgumentException
      */
-    function route(BackedEnum|string $name, array $parameters = [], bool $absolute = true): string
+    function route(BackedEnum|string $name, mixed $parameters = [], bool $absolute = true): string
     {
         return app('url')->route($name, $parameters, $absolute);
     }
@@ -841,9 +841,9 @@ if (! function_exists('secure_url')) {
     /**
      * Generate a HTTPS URL for the application.
      */
-    function secure_url(string $path, array $extra = []): string
+    function secure_url(string $path, mixed $parameters = []): string
     {
-        return url($path, $extra, true);
+        return url($path, $parameters, true);
     }
 }
 
@@ -901,7 +901,7 @@ if (! function_exists('to_route')) {
     /**
      * Create a new redirect response to a named route.
      */
-    function to_route(string $route, array $parameters = [], int $status = 302, array $headers = []): \Hypervel\Http\RedirectResponse
+    function to_route(string $route, mixed $parameters = [], int $status = 302, array $headers = []): \Hypervel\Http\RedirectResponse
     {
         return redirect()->route($route, $parameters, $status, $headers);
     }
@@ -982,13 +982,13 @@ if (! function_exists('url')) {
      *
      * @return ($path is null ? UrlGeneratorContract : string)
      */
-    function url(?string $path = null, array $extra = [], ?bool $secure = null): string|UrlGeneratorContract
+    function url(?string $path = null, mixed $parameters = [], ?bool $secure = null): string|UrlGeneratorContract
     {
         if (is_null($path)) {
             return app(UrlGeneratorContract::class);
         }
 
-        return app(UrlGeneratorContract::class)->to($path, $extra, $secure);
+        return app(UrlGeneratorContract::class)->to($path, $parameters, $secure);
     }
 }
 

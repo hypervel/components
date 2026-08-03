@@ -5,18 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Support;
 
 use Hypervel\Cache\TagMode;
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\RedisConnection;
 use Redis;
 
 /**
  * Mode-aware context for Redis cache operations.
- *
- * This class encapsulates the dependencies that all cache operations need,
- * providing a clean interface to Redis connection, client, and configuration.
- * It receives TagMode via dependency injection and delegates mode-specific
- * key formatting to an internal TagKeyBuilder.
  */
 class StoreContext
 {
@@ -35,6 +29,7 @@ class StoreContext
     private readonly TagKeyBuilder $tagKeyBuilder;
 
     public function __construct(
+        private readonly RedisFactory $redis,
         private readonly string $connectionName,
         private readonly string $prefix,
         private readonly TagMode $tagMode,
@@ -138,8 +133,7 @@ class StoreContext
      */
     public function withConnection(callable $callback): mixed
     {
-        return Container::getInstance()
-            ->make(RedisFactory::class)
+        return $this->redis
             ->connection($this->connectionName)
             ->withConnection($callback, transform: false);
     }
@@ -149,8 +143,7 @@ class StoreContext
      */
     public function isCluster(): bool
     {
-        return Container::getInstance()
-            ->make(RedisFactory::class)
+        return $this->redis
             ->connection($this->connectionName)
             ->isCluster();
     }

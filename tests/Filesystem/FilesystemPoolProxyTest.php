@@ -39,6 +39,8 @@ class FilesystemPoolProxyTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('FilesystemPoolProxy');
+        $filesystem = new Filesystem(new LocalFilesystemAdapter(dirname($this->tempDir)));
+        $filesystem->deleteDirectory(basename($this->tempDir));
         $this->adapter = new LocalFilesystemAdapter($this->tempDir);
         $this->driver = new Filesystem($this->adapter);
         $this->pools = new PoolManager;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use BackedEnum;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Cookie\CookieValuePrefix;
@@ -581,12 +582,13 @@ trait MakesHttpRequests
 
         /** @var SessionStore $session */
         $session = $request->session();
+        [$startedKey, $idKey, $attributesKey] = $this->sessionStoreContextKeys($session);
 
         return [
             SessionStore::CONTEXT_KEY => $session,
-            SessionStore::STARTED_CONTEXT_KEY => $session->isStarted(),
-            SessionStore::ID_CONTEXT_KEY => $session->getId(),
-            SessionStore::ATTRIBUTES_CONTEXT_KEY => $session->all(),
+            $startedKey => $session->isStarted(),
+            $idKey => $session->getId(),
+            $attributesKey => $session->all(),
         ];
     }
 
@@ -597,11 +599,31 @@ trait MakesHttpRequests
      */
     protected function sessionContextKeys(): array
     {
+        $keys = [SessionStore::CONTEXT_KEY];
+
+        // Read the copied child Context before synchronizing a request without a session.
+        $session = CoroutineContext::get(SessionStore::CONTEXT_KEY);
+
+        if ($session instanceof SessionStore) {
+            array_push($keys, ...$this->sessionStoreContextKeys($session));
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Get the Context keys for the given session store.
+     *
+     * @return array<int, string>
+     */
+    protected function sessionStoreContextKeys(SessionStore $session): array
+    {
+        $suffix = (string) spl_object_id($session);
+
         return [
-            SessionStore::CONTEXT_KEY,
-            SessionStore::STARTED_CONTEXT_KEY,
-            SessionStore::ID_CONTEXT_KEY,
-            SessionStore::ATTRIBUTES_CONTEXT_KEY,
+            SessionStore::STARTED_CONTEXT_KEY_PREFIX . $suffix,
+            SessionStore::ID_CONTEXT_KEY_PREFIX . $suffix,
+            SessionStore::ATTRIBUTES_CONTEXT_KEY_PREFIX . $suffix,
         ];
     }
 

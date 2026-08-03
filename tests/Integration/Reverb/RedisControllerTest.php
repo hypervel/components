@@ -20,7 +20,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── EventsController ───────────────────────────────────────────────
 
-    public function testCanGatherUserCountsWhenRequested()
+    public function testCanGatherUserCountsWhenRequested(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'presence-gather-user-channel', [
@@ -44,7 +44,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanGatherSubscriptionCountsWhenRequested()
+    public function testCanGatherSubscriptionCountsWhenRequested(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-sub-channel');
@@ -64,7 +64,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanIgnoreASubscriberWhenPublishingViaRedis()
+    public function testCanIgnoreASubscriberWhenPublishingViaRedis(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'redis-ignore-channel');
@@ -91,7 +91,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── EventsBatchController ──────────────────────────────────────────
 
-    public function testCanGatherBatchInfoForEachEvent()
+    public function testCanGatherBatchInfoForEachEvent(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-gather-batch-channel', [
@@ -139,7 +139,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientThree);
     }
 
-    public function testCanGatherBatchInfoForSomeEvents()
+    public function testCanGatherBatchInfoForSomeEvents(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'presence-gather-batch-some', [
@@ -172,7 +172,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── ChannelsController ─────────────────────────────────────────────
 
-    public function testCanGatherAllChannelInformation()
+    public function testCanGatherAllChannelInformation(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'test-gather-all-one');
@@ -195,7 +195,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testGathersEmptyResultsIfNoMetricsRequested()
+    public function testGathersEmptyResultsIfNoMetricsRequested(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'test-gather-empty-one');
@@ -215,7 +215,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testOnlyGathersOccupiedChannels()
+    public function testOnlyGathersOccupiedChannels(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-occupied');
@@ -230,7 +230,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanGatherFilteredChannels()
+    public function testCanGatherFilteredChannels(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'test-gather-filter-one');
@@ -255,7 +255,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── ChannelController ──────────────────────────────────────────────
 
-    public function testCanGatherDataForASingleChannel()
+    public function testCanGatherDataForASingleChannel(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'test-gather-single');
@@ -275,7 +275,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testGathersUnoccupiedWhenNoConnections()
+    public function testGathersUnoccupiedWhenNoConnections(): void
     {
         $result = $this->signedServerRequest('channels/test-gather-unoccupied?info=user_count,subscription_count,cache');
 
@@ -285,7 +285,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->assertFalse($body['occupied']);
     }
 
-    public function testCanGatherPresenceChannelAttributes()
+    public function testCanGatherPresenceChannelAttributes(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-gather-attrs', [
@@ -314,7 +314,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testCanGatherCacheChannelAttributes()
+    public function testCanGatherCacheChannelAttributes(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'cache-gather-attrs');
@@ -339,7 +339,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testCanGatherOnlyTheRequestedAttributes()
+    public function testCanGatherOnlyTheRequestedAttributes(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-selective');
@@ -361,7 +361,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testChannelContentLengthWhenGathering()
+    public function testChannelContentLengthWhenGathering(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-cl-single');
@@ -377,7 +377,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── ChannelUsersController ─────────────────────────────────────────
 
-    public function testGathersErrorWhenNonPresenceChannel()
+    public function testGathersErrorWhenNonPresenceChannel(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-users-nonpresence');
@@ -389,14 +389,14 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testGathersErrorWhenUnoccupiedChannel()
+    public function testGathersErrorWhenUnoccupiedChannel(): void
     {
         $result = $this->signedServerRequest('channels/presence-gather-users-empty/users');
 
         $this->assertSame(404, $result['status']);
     }
 
-    public function testGathersTheUserData()
+    public function testGathersTheUserData(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-gather-users-data', [
@@ -424,7 +424,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testGathersUniqueUserData()
+    public function testGathersUniqueUserData(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-gather-users-unique', [
@@ -462,7 +462,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── ConnectionsController ──────────────────────────────────────────
 
-    public function testCanGatherAConnectionCount()
+    public function testCanGatherAConnectionCount(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'test-gather-conn-one');
@@ -484,7 +484,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($clientTwo);
     }
 
-    public function testCanGatherCorrectCountWhenSubscribedToMultipleChannels()
+    public function testCanGatherCorrectCountWhenSubscribedToMultipleChannels(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-multi-one');
@@ -502,7 +502,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── UsersTerminateController ───────────────────────────────────────
 
-    public function testTerminatesUserAcrossServersViaRedis()
+    public function testTerminatesUserAcrossServersViaRedis(): void
     {
         ['client' => $clientOne, 'socketId' => $socketIdOne] = $this->connect();
         $this->subscribe($clientOne, $socketIdOne, 'presence-gather-term-channel', [
@@ -530,7 +530,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
 
     // ── Content-Length headers (scaling path) ───────────────────────────
 
-    public function testEventsContentLengthWhenGathering()
+    public function testEventsContentLengthWhenGathering(): void
     {
         $result = $this->signedServerPostRequest('events', [
             'name' => 'NewEvent',
@@ -542,7 +542,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->assertSame('2', $result['headers']['content-length']);
     }
 
-    public function testBatchEventsContentLengthWhenGathering()
+    public function testBatchEventsContentLengthWhenGathering(): void
     {
         $result = $this->signedServerPostRequest('batch_events', ['batch' => [
             ['name' => 'NewEvent', 'channel' => 'test-channel', 'data' => json_encode(['some' => 'data'])],
@@ -552,7 +552,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->assertSame('12', $result['headers']['content-length']);
     }
 
-    public function testChannelsContentLengthWhenGathering()
+    public function testChannelsContentLengthWhenGathering(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-cl');
@@ -566,7 +566,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testChannelUsersContentLengthWhenGathering()
+    public function testChannelUsersContentLengthWhenGathering(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'presence-gather-cl-users', [
@@ -583,7 +583,7 @@ class RedisControllerTest extends ReverbRedisIntegrationTestCase
         $this->disconnect($client);
     }
 
-    public function testConnectionsContentLengthWhenGathering()
+    public function testConnectionsContentLengthWhenGathering(): void
     {
         ['client' => $client, 'socketId' => $socketId] = $this->connect();
         $this->subscribe($client, $socketId, 'test-gather-cl-conn');

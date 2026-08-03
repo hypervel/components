@@ -13,7 +13,7 @@ use Mockery as m;
 
 class ProcessInspectorTest extends IntegrationTestCase
 {
-    public function testFindsOrphanedProcessIds()
+    public function testFindsOrphanedProcessIds(): void
     {
         $exec = m::mock(Exec::class);
         $exec->shouldReceive('run')->with('pgrep -f [h]orizon')->andReturn([1, 2, 3, 4, 5, 6]);

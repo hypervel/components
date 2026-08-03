@@ -44,6 +44,7 @@ class Kernel implements KernelContract
      */
     protected array $bootstrappers = [
         \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
+        \Hypervel\Foundation\Bootstrap\ConfigureTerminalDimensions::class,
         \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
         \Hypervel\Foundation\Bootstrap\HandleExceptions::class,
         \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
@@ -143,9 +144,18 @@ class Kernel implements KernelContract
 
             return $response;
         } catch (Throwable $e) {
-            $this->reportException($e);
+            // Keep the original in flight while it is handled, so a failure in
+            // reporting or rendering carries it as that failure's previous. The
+            // return suppresses it once a response exists.
+            try {
+                /* @phpstan-ignore finally.exitPoint */
+                throw $e;
+            } finally {
+                $this->reportException($e);
 
-            return $this->renderException($request, $e);
+                /* @phpstan-ignore finally.exitPoint */
+                return $this->renderException($request, $e);
+            }
         }
     }
 
@@ -490,6 +500,10 @@ class Kernel implements KernelContract
     /**
      * Add the given middleware to the middleware priority list before other middleware.
      *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
+     *
      * @param array<int, string>|string $before
      * @return $this
      */
@@ -500,6 +514,10 @@ class Kernel implements KernelContract
 
     /**
      * Add the given middleware to the middleware priority list after other middleware.
+     *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
      *
      * @param array<int, string>|string $after
      * @return $this
@@ -564,6 +582,8 @@ class Kernel implements KernelContract
 
     /**
      * Get the priority-sorted list of middleware.
+     *
+     * @return string[]
      */
     public function getMiddlewarePriority(): array
     {
@@ -585,7 +605,7 @@ class Kernel implements KernelContract
      */
     protected function reportException(Throwable $e): void
     {
-        $this->app[ExceptionHandler::class]->report($e);
+        $this->app->make(ExceptionHandler::class)->report($e);
     }
 
     /**
@@ -593,11 +613,13 @@ class Kernel implements KernelContract
      */
     protected function renderException(Request $request, Throwable $e): Response
     {
-        return $this->app[ExceptionHandler::class]->render($request, $e);
+        return $this->app->make(ExceptionHandler::class)->render($request, $e);
     }
 
     /**
      * Get the application's global middleware.
+     *
+     * @return array<int, class-string|string>
      */
     public function getGlobalMiddleware(): array
     {
@@ -607,6 +629,11 @@ class Kernel implements KernelContract
     /**
      * Set the application's global middleware.
      *
+     * Boot-only. Middleware persists in the singleton Kernel's global stack for
+     * the worker lifetime and runs on every subsequent request across all
+     * coroutines.
+     *
+     * @param array<int, class-string|string> $middleware
      * @return $this
      */
     public function setGlobalMiddleware(array $middleware): static
@@ -620,6 +647,8 @@ class Kernel implements KernelContract
 
     /**
      * Get the application's route middleware groups.
+     *
+     * @return array<string, array<int, class-string|string>>
      */
     public function getMiddlewareGroups(): array
     {
@@ -629,6 +658,10 @@ class Kernel implements KernelContract
     /**
      * Set the application's middleware groups.
      *
+     * Boot-only. Middleware groups persist in the singleton Kernel for the
+     * worker lifetime and affect every subsequent request matching those groups.
+     *
+     * @param array<string, array<int, class-string|string>> $groups
      * @return $this
      */
     public function setMiddlewareGroups(array $groups): static
@@ -642,6 +675,8 @@ class Kernel implements KernelContract
 
     /**
      * Get the application's route middleware aliases.
+     *
+     * @return array<string, class-string|string>
      */
     public function getMiddlewareAliases(): array
     {
@@ -651,6 +686,10 @@ class Kernel implements KernelContract
     /**
      * Set the application's route middleware aliases.
      *
+     * Boot-only. Middleware aliases persist in the singleton Kernel for the
+     * worker lifetime and affect every subsequent request that uses them.
+     *
+     * @param array<string, class-string|string> $aliases
      * @return $this
      */
     public function setMiddlewareAliases(array $aliases): static
@@ -665,6 +704,11 @@ class Kernel implements KernelContract
     /**
      * Set the application's middleware priority.
      *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
+     *
+     * @param string[] $priority
      * @return $this
      */
     public function setMiddlewarePriority(array $priority): static

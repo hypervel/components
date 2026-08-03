@@ -10,7 +10,7 @@ use Hypervel\Tests\Scout\ScoutTestCase;
 
 class CollectionEngineTest extends ScoutTestCase
 {
-    public function testSearchReturnsMatchingModels()
+    public function testSearchReturnsMatchingModels(): void
     {
         SearchableModel::create(['title' => 'Hello World', 'body' => 'This is a test']);
         SearchableModel::create(['title' => 'Foo Bar', 'body' => 'Another test']);
@@ -22,7 +22,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertEquals('Hello World', $results->first()->title);
     }
 
-    public function testSearchReturnsAllModelsWithEmptyQuery()
+    public function testSearchReturnsAllModelsWithEmptyQuery(): void
     {
         SearchableModel::create(['title' => 'First', 'body' => 'Body 1']);
         SearchableModel::create(['title' => 'Second', 'body' => 'Body 2']);
@@ -33,7 +33,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertCount(3, $results);
     }
 
-    public function testSearchWithWhereClause()
+    public function testSearchWithWhereClause(): void
     {
         $model1 = SearchableModel::create(['title' => 'Test A', 'body' => 'Body']);
         $model2 = SearchableModel::create(['title' => 'Test B', 'body' => 'Body']);
@@ -46,7 +46,22 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertEquals($model1->id, $results->first()->id);
     }
 
-    public function testSearchWithWhereInClause()
+    public function testSearchWithMultipleComparisonsOnTheSameField(): void
+    {
+        SearchableModel::create(['title' => 'First', 'body' => 'Body']);
+        $second = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
+        $third = SearchableModel::create(['title' => 'Third', 'body' => 'Body']);
+        SearchableModel::create(['title' => 'Fourth', 'body' => 'Body']);
+
+        $results = SearchableModel::search('')
+            ->where('id', '>=', $second->id)
+            ->where('id', '<=', $third->id)
+            ->get();
+
+        $this->assertSame([$third->id, $second->id], $results->pluck('id')->all());
+    }
+
+    public function testSearchWithWhereInClause(): void
     {
         $model1 = SearchableModel::create(['title' => 'Test A', 'body' => 'Body']);
         $model2 = SearchableModel::create(['title' => 'Test B', 'body' => 'Body']);
@@ -59,7 +74,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertCount(2, $results);
     }
 
-    public function testSearchWithLimit()
+    public function testSearchWithLimit(): void
     {
         SearchableModel::create(['title' => 'First', 'body' => 'Body']);
         SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
@@ -70,7 +85,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertCount(2, $results);
     }
 
-    public function testSearchWithPagination()
+    public function testSearchWithPagination(): void
     {
         for ($i = 1; $i <= 10; ++$i) {
             SearchableModel::create(['title' => "Item {$i}", 'body' => 'Body']);
@@ -84,7 +99,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertEquals(10, $page1->total());
     }
 
-    public function testSearchWithOrderBy()
+    public function testSearchWithOrderBy(): void
     {
         SearchableModel::create(['title' => 'B Item', 'body' => 'Body']);
         SearchableModel::create(['title' => 'A Item', 'body' => 'Body']);
@@ -98,7 +113,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertEquals('C Item', $results->last()->title);
     }
 
-    public function testSearchMatchesInBody()
+    public function testSearchMatchesInBody(): void
     {
         SearchableModel::create(['title' => 'No match', 'body' => 'The quick brown fox']);
         SearchableModel::create(['title' => 'Also no match', 'body' => 'Lazy dog']);
@@ -109,7 +124,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertEquals('No match', $results->first()->title);
     }
 
-    public function testSearchIsCaseInsensitive()
+    public function testSearchIsCaseInsensitive(): void
     {
         SearchableModel::create(['title' => 'UPPERCASE', 'body' => 'Body']);
         SearchableModel::create(['title' => 'lowercase', 'body' => 'Body']);
@@ -121,7 +136,18 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertCount(1, $results);
     }
 
-    public function testUpdateAndDeleteAreNoOps()
+    public function testSearchTreatsStringZeroAsAQuery(): void
+    {
+        SearchableModel::create(['title' => 'Contains 0', 'body' => 'Body']);
+        SearchableModel::create(['title' => 'No match', 'body' => 'Body']);
+
+        $results = SearchableModel::search('0')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Contains 0', $results->first()->title);
+    }
+
+    public function testUpdateAndDeleteAreNoOps(): void
     {
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
         $engine = new CollectionEngine;
@@ -134,7 +160,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertTrue(true);
     }
 
-    public function testCreateAndDeleteIndexAreNoOps()
+    public function testCreateAndDeleteIndexAreNoOps(): void
     {
         $engine = new CollectionEngine;
 
@@ -142,7 +168,7 @@ class CollectionEngineTest extends ScoutTestCase
         $this->assertNull($engine->deleteIndex('test'));
     }
 
-    public function testGetTotalCountReturnsCorrectCount()
+    public function testGetTotalCountReturnsCorrectCount(): void
     {
         SearchableModel::create(['title' => 'First', 'body' => 'Body']);
         SearchableModel::create(['title' => 'Second', 'body' => 'Body']);

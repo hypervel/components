@@ -8,7 +8,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 
 class ChannelControllerTest extends ReverbTestCase
 {
-    public function testCanReturnDataForASingleChannel()
+    public function testCanReturnDataForASingleChannel(): void
     {
         $this->subscribeConnection('test-channel-one');
         $this->subscribeConnection('test-channel-one');
@@ -22,7 +22,7 @@ class ChannelControllerTest extends ReverbTestCase
         $this->assertSame(2, $body['subscription_count']);
     }
 
-    public function testReturnsUnoccupiedWhenNoConnections()
+    public function testReturnsUnoccupiedWhenNoConnections(): void
     {
         $response = $this->signedRequest('channels/test-channel-one?info=user_count,subscription_count,cache');
 
@@ -34,7 +34,7 @@ class ChannelControllerTest extends ReverbTestCase
         $this->assertArrayNotHasKey('user_count', $body);
     }
 
-    public function testCanReturnCacheChannelAttributes()
+    public function testCanReturnCacheChannelAttributes(): void
     {
         $this->subscribeConnection('cache-test-channel-one');
         $this->channels()->find('cache-test-channel-one')->broadcast(['some' => 'data']);
@@ -49,7 +49,7 @@ class ChannelControllerTest extends ReverbTestCase
         $this->assertSame(['some' => 'data'], $body['cache']);
     }
 
-    public function testCanReturnPresenceChannelAttributes()
+    public function testCanReturnPresenceChannelAttributes(): void
     {
         $this->subscribeConnection('presence-test-channel-one', ['user_id' => 123, 'user_info' => ['name' => 'Taylor']]);
         $this->subscribeConnection('presence-test-channel-one', ['user_id' => 123, 'user_info' => ['name' => 'Taylor']]);
@@ -65,7 +65,7 @@ class ChannelControllerTest extends ReverbTestCase
         $this->assertArrayNotHasKey('subscription_count', $body);
     }
 
-    public function testCanReturnOnlyTheRequestedAttributes()
+    public function testCanReturnOnlyTheRequestedAttributes(): void
     {
         $this->subscribeConnection('test-channel-one');
 
@@ -92,14 +92,14 @@ class ChannelControllerTest extends ReverbTestCase
         $this->assertSame(1, $body['subscription_count']);
     }
 
-    public function testFailsWhenUsingAnInvalidSignature()
+    public function testFailsWhenUsingAnInvalidSignature(): void
     {
         $response = $this->reverbGet('/apps/123456/channels/test-channel-one?info=user_count,subscription_count,cache');
 
         $response->assertStatus(401);
     }
 
-    public function testAlwaysIncludesOccupiedStatus()
+    public function testAlwaysIncludesOccupiedStatus(): void
     {
         $this->subscribeConnection('test-channel-one');
 
@@ -112,7 +112,7 @@ class ChannelControllerTest extends ReverbTestCase
         $this->assertTrue($body['occupied']);
     }
 
-    public function testReturnsUserCountForPresenceChannel()
+    public function testReturnsUserCountForPresenceChannel(): void
     {
         $this->subscribeConnection('presence-info-test', ['user_id' => 1, 'user_info' => ['name' => 'A']]);
         $this->subscribeConnection('presence-info-test', ['user_id' => 2, 'user_info' => ['name' => 'B']]);
@@ -125,7 +125,7 @@ class ChannelControllerTest extends ReverbTestCase
         $this->assertSame(2, $body['user_count']);
     }
 
-    public function testReturnsUserCountForPresenceCacheChannel()
+    public function testReturnsUserCountForPresenceCacheChannel(): void
     {
         $this->subscribeConnection('presence-cache-info-test', ['user_id' => 1, 'user_info' => ['name' => 'A']]);
 

@@ -37,7 +37,7 @@ class FlushCommand extends Command
     {
         $class = $this->resolveModelClass((string) $this->argument('model'));
 
-        $class::removeAllFromSearch();
+        $class::removeAllFromSearch(force: true);
 
         $this->info("All [{$class}] records have been flushed.");
     }

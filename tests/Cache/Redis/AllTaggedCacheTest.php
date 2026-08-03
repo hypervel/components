@@ -4,14 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
+use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
+use Hypervel\Cache\Events\WritingKey;
+use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\AllTagSet;
+use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Redis\PhpRedis;
 use Mockery as m;
 use RuntimeException;
 
@@ -315,11 +323,6 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return ['key1' => 0, 'key2' => 0];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:people:entries', 0, '*', 1000)
-            ->andReturnNull();
-
         // Delete cache entries
         $connection->shouldReceive('del')
             ->once()
@@ -353,10 +356,6 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return ['key1' => 0, 'key2' => 0];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:people:entries', 0, '*', 1000)
-            ->andReturnNull();
         $connection->shouldReceive('del')
             ->once()
             ->with('prefix:key1', 'prefix:key2')
@@ -629,7 +628,6 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
-        // Remember operation uses connection->get() directly
         $connection->shouldReceive('get')
             ->once()
             ->with("prefix:{$key}")
@@ -1136,6 +1134,191 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertNull($result);
         $this->assertFalse($invoked);
+    }
+
+    public function testPutDispatchesTheRepositoryWriteEventsWithStoreNameAndTags(): void
+    {
+        $connection = $this->mockConnection();
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+        $score = now()->timestamp + 60;
+
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', $score, $key)
+            ->andReturn($connection);
+        $connection->shouldReceive('setex')
+            ->once()
+            ->with("prefix:{$key}", 60, serialize('John'))
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $captured = [];
+        $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
+        $tagged->setEventDispatcher($this->capturingDispatcher($captured));
+
+        $this->assertTrue($tagged->put('name', 'John', 60));
+        $this->assertSame([WritingKey::class, KeyWritten::class], array_map(get_class(...), $captured));
+
+        foreach ($captured as $event) {
+            $this->assertSame('redis', $event->storeName);
+            $this->assertSame(['users'], $event->tags);
+            $this->assertSame('name', $event->key);
+            $this->assertSame('John', $event->value);
+            $this->assertSame(60, $event->seconds);
+        }
+    }
+
+    public function testAddWithoutTtlDispatchesRepositoryReadAndWriteEvents(): void
+    {
+        $connection = $this->mockConnection();
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+
+        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', -1, $key)
+            ->andReturn($connection);
+        $connection->shouldReceive('set')
+            ->once()
+            ->with("prefix:{$key}", serialize('John'))
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $captured = [];
+        $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
+        $tagged->setEventDispatcher($this->capturingDispatcher($captured));
+
+        $this->assertTrue($tagged->add('name', 'John'));
+        $this->assertSame(
+            [RetrievingKey::class, CacheMissed::class, WritingKey::class, KeyWritten::class],
+            array_map(get_class(...), $captured)
+        );
+
+        foreach ($captured as $event) {
+            $this->assertSame('redis', $event->storeName);
+            $this->assertSame(['users'], $event->tags);
+            $this->assertSame('name', $event->key);
+        }
+    }
+
+    public function testPutDispatchesTheRepositoryFailureEventWithStoreNameAndTags(): void
+    {
+        $connection = $this->mockConnection();
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+        $score = now()->timestamp + 60;
+
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', $score, $key)
+            ->andReturn($connection);
+        $connection->shouldReceive('setex')
+            ->once()
+            ->with("prefix:{$key}", 60, serialize('John'))
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, false]);
+
+        $captured = [];
+        $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
+        $tagged->setEventDispatcher($this->capturingDispatcher($captured));
+
+        $this->assertFalse($tagged->put('name', 'John', 60));
+        $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
+        $this->assertSame('redis', $captured[1]->storeName);
+        $this->assertSame(['users'], $captured[1]->tags);
+    }
+
+    public function testPutManyDispatchesTheRepositoryWriteEventsWithStoreNameAndTags(): void
+    {
+        $connection = $this->mockConnection();
+        $namespace = hash('xxh128', '_all:tag:users:entries') . ':';
+        $score = now()->timestamp + 60;
+
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with(
+                'prefix:_all:tag:users:entries',
+                $score,
+                $namespace . 'name',
+                $score,
+                $namespace . 'age'
+            )
+            ->andReturn($connection);
+        $connection->shouldReceive('setex')
+            ->once()
+            ->with("prefix:{$namespace}name", 60, serialize('John'))
+            ->andReturn($connection);
+        $connection->shouldReceive('setex')
+            ->once()
+            ->with("prefix:{$namespace}age", 60, 30)
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([2, true, true]);
+
+        $captured = [];
+        $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
+        $tagged->setEventDispatcher($this->capturingDispatcher($captured));
+
+        $this->assertTrue($tagged->putMany(['name' => 'John', 'age' => 30], 60));
+        $this->assertSame(
+            [WritingManyKeys::class, KeyWritten::class, KeyWritten::class],
+            array_map(get_class(...), $captured)
+        );
+        $this->assertSame(['name', 'age'], $captured[0]->keys);
+        $this->assertSame(['John', 30], $captured[0]->values);
+
+        foreach ($captured as $event) {
+            $this->assertSame('redis', $event->storeName);
+            $this->assertSame(['users'], $event->tags);
+        }
+    }
+
+    public function testFlushDispatchesTheRepositoryEventsWithStoreNameAndTags(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->andReturnUsing(function ($key, &$cursor) {
+                $cursor = 0;
+
+                return [];
+            });
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:users:entries')
+            ->andReturn(1);
+
+        $captured = [];
+        $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
+        $tagged->setEventDispatcher($this->capturingDispatcher($captured));
+
+        $this->assertTrue($tagged->flush());
+        $this->assertSame([CacheFlushing::class, CacheFlushed::class], array_map(get_class(...), $captured));
+
+        foreach ($captured as $event) {
+            $this->assertSame('redis', $event->storeName);
+            $this->assertSame(['users'], $event->tags);
+        }
+    }
+
+    /**
+     * Create an event dispatcher that records dispatched events.
+     *
+     * @param array<int, object> $captured
+     */
+    private function capturingDispatcher(array &$captured): Dispatcher
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$captured): void {
+                $captured[] = $event;
+            });
+
+        return $dispatcher;
     }
 }
 

@@ -21,6 +21,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\ResponseSequence sequence(array $responses = [])
  * @method static bool preventingStrayRequests()
  * @method static \Hypervel\Http\Client\Factory allowStrayRequests(array|null $only = null)
+ * @method static \Hypervel\Http\Client\Factory record()
  * @method static void recordRequestResponsePair(\Hypervel\Http\Client\Request $request, \Hypervel\Http\Client\Response|null $response)
  * @method static void assertSent(callable $callback)
  * @method static void assertSentInOrder(array $callbacks)
@@ -40,13 +41,14 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static array getConnectionConfig(string $name)
  * @method static array getConnectionOptions(string $name)
  * @method static \Hypervel\Http\Client\Factory setConnectionConfig(string $name, array $config)
+ * @method static void flushState()
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  * @method static void flushMacros()
  * @method static mixed macroCall(string $method, array $parameters)
  * @method static \Hypervel\Http\Client\PendingRequest baseUrl(string $url)
- * @method static \Hypervel\Http\Client\PendingRequest withBody(mixed $content, string $contentType = 'application/json')
+ * @method static \Hypervel\Http\Client\PendingRequest withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Stringable $content, string $contentType = 'application/json')
  * @method static \Hypervel\Http\Client\PendingRequest asJson()
  * @method static \Hypervel\Http\Client\PendingRequest asForm()
  * @method static \Hypervel\Http\Client\PendingRequest attach(array|string $name, resource|string $contents = '', string|null $filename = null, array $headers = [])
@@ -69,7 +71,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\PendingRequest maxRedirects(int $max)
  * @method static \Hypervel\Http\Client\PendingRequest withoutRedirecting()
  * @method static \Hypervel\Http\Client\PendingRequest withoutVerifying()
- * @method static \Hypervel\Http\Client\PendingRequest sink(resource|string $to)
+ * @method static \Hypervel\Http\Client\PendingRequest sink(resource|\Psr\Http\Message\StreamInterface|string $to)
  * @method static \Hypervel\Http\Client\PendingRequest timeout(int|float $seconds)
  * @method static \Hypervel\Http\Client\PendingRequest connectTimeout(int|float $seconds)
  * @method static \Hypervel\Http\Client\PendingRequest retry(array|int $times, \Closure|int $sleepMilliseconds = 0, callable|null $when = null, bool $throw = true)
@@ -79,20 +81,21 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\PendingRequest withResponseMiddleware(callable $middleware)
  * @method static \Hypervel\Http\Client\PendingRequest withAttributes(array $attributes)
  * @method static \Hypervel\Http\Client\PendingRequest withoutTelescope()
- * @method static \Hypervel\Http\Client\PendingRequest withTelescopeTags(array $tags)
+ * @method static \Hypervel\Http\Client\PendingRequest withTelescopeTags(array<int, string|\UnitEnum> $tags)
  * @method static \Hypervel\Http\Client\PendingRequest beforeSending(callable $callback)
  * @method static \Hypervel\Http\Client\PendingRequest afterResponse(callable $callback)
- * @method static \Hypervel\Http\Client\PendingRequest throw(callable|null $callback = null)
- * @method static \Hypervel\Http\Client\PendingRequest throwIf(callable|bool $condition)
- * @method static \Hypervel\Http\Client\PendingRequest throwUnless(callable|bool $condition)
+ * @method static \Hypervel\Http\Client\PendingRequest throw(null|callable $callback = null)
+ * @method static \Hypervel\Http\Client\PendingRequest throwIf(callable|bool $condition, null|callable $callback = null)
+ * @method static \Hypervel\Http\Client\PendingRequest throwUnless(callable|bool $condition, null|callable $callback = null)
  * @method static \Hypervel\Http\Client\PendingRequest dump()
  * @method static \Hypervel\Http\Client\PendingRequest dd()
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response get(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array|string|null $query = null)
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response head(string $url, array|string|null $query = null)
- * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response post(string $url, \JsonSerializable|array $data = [])
- * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response patch(string $url, array $data = [])
- * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response put(string $url, array $data = [])
- * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response delete(string $url, array $data = [])
+ * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response query(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
+ * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response post(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
+ * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response patch(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
+ * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response put(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
+ * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response delete(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response send(string $method, string $url, array $options = [])
  * @method static \GuzzleHttp\ClientInterface buildClient()
  * @method static \GuzzleHttp\HandlerStack buildHandlerStack()
@@ -122,6 +125,8 @@ class Http extends Facade
 {
     /**
      * Register a stub callable that will intercept requests and be able to return stub responses.
+     *
+     * Tests only. Stubs persist on the HTTP factory for the worker lifetime.
      */
     public static function fake(array|callable|null $callback = null): Factory
     {
@@ -132,6 +137,8 @@ class Http extends Facade
 
     /**
      * Register a response sequence for the given URL pattern.
+     *
+     * Tests only. The sequence and stub persist on the HTTP factory for the worker lifetime.
      */
     public static function fakeSequence(string $urlPattern = '*'): ResponseSequence
     {
@@ -144,6 +151,8 @@ class Http extends Facade
 
     /**
      * Indicate that an exception should be thrown if any request is not faked.
+     *
+     * Boot or tests only. The policy persists on the HTTP factory for the worker lifetime.
      */
     public static function preventStrayRequests(bool $prevent = true): Factory
     {
@@ -154,6 +163,8 @@ class Http extends Facade
 
     /**
      * Stub the given URL using the given callback.
+     *
+     * Tests only. The stub persists on the HTTP factory for the worker lifetime.
      */
     public static function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): Factory
     {

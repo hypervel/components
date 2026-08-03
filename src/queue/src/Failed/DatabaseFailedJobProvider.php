@@ -17,8 +17,8 @@ class DatabaseFailedJobProvider implements CountableFailedJobProvider, FailedJob
      */
     public function __construct(
         protected ConnectionResolverInterface $resolver,
+        protected ?string $database,
         protected string $table,
-        protected ?string $database = null,
     ) {
     }
 
@@ -110,15 +110,15 @@ class DatabaseFailedJobProvider implements CountableFailedJobProvider, FailedJob
     public function count(?string $connection = null, ?string $queue = null): int
     {
         return $this->getTable()
-            ->when($connection, fn ($builder) => $builder->where('connection', $connection))
-            ->when($queue, fn ($builder) => $builder->where('queue', $queue))
+            ->when($connection !== null, fn ($builder) => $builder->where('connection', $connection))
+            ->when($queue !== null, fn ($builder) => $builder->where('queue', $queue))
             ->count();
     }
 
     /**
      * Get a new query builder instance for the table.
      */
-    protected function getTable(): Builder
+    public function getTable(): Builder
     {
         return $this->resolver->connection($this->database)->table($this->table);
     }

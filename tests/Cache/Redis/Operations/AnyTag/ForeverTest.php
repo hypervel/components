@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
+use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
@@ -24,7 +25,7 @@ class ForeverTest extends RedisCacheTestCase
                 // Forever uses SET (no TTL), HSET (no expiration), ZADD with max expiry
                 $this->assertStringContainsString("redis.call('SET'", $script);
                 $this->assertStringContainsString('HSET', $script);
-                $this->assertStringContainsString('253402300799', $script); // MAX_EXPIRY
+                $this->assertStringContainsString((string) StoreContext::MAX_EXPIRY, $script);
                 $this->assertCount(2, $keys);
 
                 return true;

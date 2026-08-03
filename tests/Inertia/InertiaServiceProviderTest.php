@@ -6,13 +6,14 @@ namespace Hypervel\Tests\Inertia;
 
 use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
-use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Http\Request;
+use Hypervel\Inertia\InertiaServiceProvider;
 use Hypervel\Inertia\Middleware\EnsureGetOnRedirect;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Inertia\Fixtures\ExampleMiddleware;
+use Mockery as m;
 
 class InertiaServiceProviderTest extends TestCase
 {
@@ -50,10 +51,22 @@ class InertiaServiceProviderTest extends TestCase
 
     public function testEnsureGetOnRedirectMiddlewareIsRegisteredGlobally(): void
     {
-        /** @var Kernel $kernel */
         $kernel = $this->app->make(HttpKernelContract::class);
 
         $this->assertTrue($kernel->hasMiddleware(EnsureGetOnRedirect::class));
+    }
+
+    public function testRedirectMiddlewareRegistersThroughTheKernelContract(): void
+    {
+        $kernel = m::mock(HttpKernelContract::class);
+        $kernel->shouldReceive('pushMiddleware')
+            ->once()
+            ->with(EnsureGetOnRedirect::class)
+            ->andReturnSelf();
+        $this->app->instance(HttpKernelContract::class, $kernel);
+
+        (new InspectableInertiaServiceProvider($this->app))
+            ->pushRedirectMiddlewareForTest();
     }
 
     public function testRedirectResponseFromRateLimiterIsConvertedTo303(): void
@@ -79,5 +92,16 @@ class InertiaServiceProviderTest extends TestCase
             ->delete('/foo', [], ['X-Inertia' => 'true'])
             ->assertRedirect('/bar')
             ->assertStatus(303);
+    }
+}
+
+class InspectableInertiaServiceProvider extends InertiaServiceProvider
+{
+    /**
+     * Register redirect middleware for inspection.
+     */
+    public function pushRedirectMiddlewareForTest(): void
+    {
+        $this->pushRedirectMiddleware();
     }
 }

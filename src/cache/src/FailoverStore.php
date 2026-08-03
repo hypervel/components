@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use BadMethodCallException;
 use Hypervel\Cache\Events\CacheFailedOver;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RawReadable;
@@ -17,7 +19,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class FailoverStore extends TaggableStore implements LockProvider, RawReadable
+class FailoverStore extends TaggableStore implements CanFlushLocks, LockProvider, RawReadable
 {
     /**
      * Context key prefix for the caches which failed on the last action.
@@ -156,7 +158,14 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
      */
     public function forget(string $key): bool
     {
-        return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
+        // First-success invalidation lets stale values reappear from lower-priority stores.
+        [$results, $exception] = $this->attemptOnEveryStore(__FUNCTION__, func_get_args());
+
+        if ($results === []) {
+            throw $exception ?? new RuntimeException('All failover cache stores failed.');
+        }
+
+        return $exception === null;
     }
 
     /**
@@ -164,13 +173,20 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
      */
     public function flush(): bool
     {
-        return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
+        // First-success invalidation lets stale values reappear from lower-priority stores.
+        [$results, $exception] = $this->attemptOnEveryStore(__FUNCTION__, func_get_args());
+
+        if ($results === []) {
+            throw $exception ?? new RuntimeException('All failover cache stores failed.');
+        }
+
+        return $exception === null
+            && ! in_array(false, $results, true);
     }
 
     /**
      * Remove all expired tag set entries.
-     */
-    /**
+     *
      * @return null|array<string, int>
      */
     public function flushStaleTags(): ?array
@@ -187,6 +203,89 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
     }
 
     /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        $stores = $this->lockStores();
+
+        if ($stores === []) {
+            return false;
+        }
+
+        foreach ($stores as $store) {
+            if (! $store instanceof CanFlushLocks || ! $store->supportsFlushingLocks()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Flush all locks managed by the store.
+     *
+     * @throws BadMethodCallException
+     * @throws Throwable
+     */
+    public function flushLocks(): bool
+    {
+        $stores = $this->lockStores();
+
+        if ($stores === []) {
+            throw new BadMethodCallException('This failover cache store has no lock-providing stores to flush.');
+        }
+
+        foreach ($stores as $store) {
+            if (! $store instanceof CanFlushLocks || ! $store->supportsFlushingLocks()) {
+                throw new BadMethodCallException(sprintf(
+                    'The failover cache store [%s] does not support flushing locks.',
+                    $store::class
+                ));
+            }
+        }
+
+        $result = true;
+        $exception = null;
+
+        foreach ($stores as $store) {
+            try {
+                if (! $store->flushLocks()) {
+                    $result = false;
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
+        $stores = $this->lockStores();
+
+        if ($stores === []) {
+            return false;
+        }
+
+        foreach ($stores as $store) {
+            if (! $store instanceof CanFlushLocks || ! $store->hasSeparateLockStore()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Get the cache key prefix.
      */
     public function getPrefix(): string
@@ -195,7 +294,7 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
     }
 
     /**
-     * Attempt the given method on all stores.
+     * Attempt the given method until a store call does not throw.
      *
      * @throws Throwable
      */
@@ -211,14 +310,12 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
             foreach ($this->stores as $store) {
                 try {
                     return $this->store($store)->{$method}(...$arguments);
-                } catch (Throwable $e) {
-                    $lastException = $e;
+                } catch (Throwable $exception) {
+                    $lastException = $exception;
 
                     $failedCaches[] = $store;
 
-                    if (! in_array($store, $failingCaches) && $this->events->hasListeners(CacheFailedOver::class)) {
-                        $this->events->dispatch(new CacheFailedOver($store, $e));
-                    }
+                    $this->recordStoreFailure($store, $exception, $failingCaches);
                 }
             }
         } finally {
@@ -229,10 +326,77 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
     }
 
     /**
+     * Attempt the given method on every store.
+     *
+     * @return array{0: list<mixed>, 1: ?Throwable}
+     */
+    protected function attemptOnEveryStore(string $method, array $arguments): array
+    {
+        $contextKey = self::FAILING_CACHES_CONTEXT_PREFIX . spl_object_id($this);
+        $failingCaches = CoroutineContext::get($contextKey, []);
+        $results = [];
+        $lastException = null;
+        $failedCaches = [];
+
+        try {
+            foreach ($this->stores as $store) {
+                try {
+                    $results[] = $this->store($store)->{$method}(...$arguments);
+                } catch (Throwable $exception) {
+                    $lastException = $exception;
+                    $failedCaches[] = $store;
+
+                    $this->recordStoreFailure($store, $exception, $failingCaches);
+                }
+            }
+        } finally {
+            CoroutineContext::set($contextKey, $failedCaches);
+        }
+
+        return [$results, $lastException];
+    }
+
+    /**
+     * Dispatch a newly observed store failure.
+     *
+     * @param list<string> $failingCaches
+     */
+    protected function recordStoreFailure(
+        string $store,
+        Throwable $exception,
+        array $failingCaches,
+    ): void {
+        if (! in_array($store, $failingCaches, true)
+            && $this->events->hasListeners(CacheFailedOver::class)) {
+            $this->events->dispatch(new CacheFailedOver($store, $exception));
+        }
+    }
+
+    /**
      * Get the cache store for the given store name.
      */
     protected function store(string $store): RepositoryContract
     {
         return $this->cache->store($store);
+    }
+
+    /**
+     * Get every lock-capable backing store.
+     *
+     * @return list<LockProvider>
+     */
+    protected function lockStores(): array
+    {
+        $stores = [];
+
+        foreach ($this->stores as $store) {
+            $underlyingStore = $this->store($store)->getStore();
+
+            if ($underlyingStore instanceof LockProvider) {
+                $stores[] = $underlyingStore;
+            }
+        }
+
+        return $stores;
     }
 }

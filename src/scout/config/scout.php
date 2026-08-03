@@ -45,17 +45,41 @@ return [
     | response is emitted). Set 'enabled' to true to use
     | the queue system instead for durability and retries.
     |
-    | The 'after_commit' option ensures that queued indexing jobs are only
-    | dispatched after all database transactions have committed, preventing
-    | indexing of data that might be rolled back.
-    |
     */
 
     'queue' => [
         'enabled' => env('SCOUT_QUEUE', false),
         'connection' => env('SCOUT_QUEUE_CONNECTION'),
         'queue' => env('SCOUT_QUEUE_NAME'),
-        'after_commit' => env('SCOUT_QUEUE_AFTER_COMMIT', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Transactions
+    |--------------------------------------------------------------------------
+    |
+    | This option determines if your data will only be synced with your search
+    | indexes after every open database transaction has been committed. This
+    | prevents discarded data from being synchronized with your indexes.
+    |
+    */
+
+    'after_commit' => (bool) env('SCOUT_AFTER_COMMIT', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Job Configuration
+    |--------------------------------------------------------------------------
+    |
+    | These options control how queued Scout jobs are retried and failed. Null
+    | values allow the queue worker or a custom Scout job to decide.
+    |
+    */
+
+    'jobs' => [
+        'tries' => null,
+        'backoff' => null,
+        'max_exceptions' => null,
     ],
 
     /*

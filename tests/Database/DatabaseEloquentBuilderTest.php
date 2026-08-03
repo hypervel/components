@@ -23,6 +23,7 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use PDO;
 use stdClass;
@@ -483,20 +484,27 @@ class DatabaseEloquentBuilderTest extends TestCase
         });
     }
 
-    public function testChunkWithCountZero()
+    public function testChunkRejectsNonpositiveCounts()
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
-        $builder->shouldReceive('getOffset')->once()->andReturn(null);
-        $builder->shouldReceive('getLimit')->once()->andReturn(null);
+        $builder->shouldReceive('getOffset')->never();
+        $builder->shouldReceive('getLimit')->never();
         $builder->shouldReceive('offset')->never();
         $builder->shouldReceive('limit')->never();
         $builder->shouldReceive('get')->never();
 
-        $builder->chunk(0, function () {
-            $this->fail('Should not be called.');
-        });
+        foreach ([0, -1] as $count) {
+            try {
+                $builder->chunk($count, function () {
+                    $this->fail('Should not be called.');
+                });
+                $this->fail('The nonpositive chunk size was accepted.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('The chunk size should be at least 1', $exception->getMessage());
+            }
+        }
     }
 
     public function testChunkPaginatesUsingIdWithLastChunkComplete()
@@ -546,22 +554,26 @@ class DatabaseEloquentBuilderTest extends TestCase
         }, 'someIdField');
     }
 
-    public function testChunkPaginatesUsingIdWithCountZero()
+    public function testChunkByIdRejectsNonpositiveCounts()
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
-        $builder->shouldReceive('getOffset')->andReturnNull();
-        $builder->shouldReceive('getLimit')->andReturnNull();
+        $builder->shouldReceive('getOffset')->never();
+        $builder->shouldReceive('getLimit')->never();
         $builder->shouldReceive('forPageAfterId')->never();
         $builder->shouldReceive('get')->never();
 
-        $callbackAssertor = m::mock(stdClass::class);
-        $callbackAssertor->shouldReceive('doSomething')->never();
-
-        $builder->chunkById(0, function () {
-            $this->fail('Should never be called.');
-        }, 'someIdField');
+        foreach ([0, -1] as $count) {
+            try {
+                $builder->chunkById($count, function () {
+                    $this->fail('Should never be called.');
+                }, 'someIdField');
+                $this->fail('The nonpositive chunk size was accepted.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('The chunk size should be at least 1', $exception->getMessage());
+            }
+        }
     }
 
     public function testLazyWithLastChunkComplete()
@@ -1124,6 +1136,59 @@ class DatabaseEloquentBuilderTest extends TestCase
         $result = $builder->dynamic(bar: 'foo');
 
         $this->assertEquals($builder, $result);
+    }
+
+    public function testApplyScopeCallbackReceivesAndReturnsSameBuilder(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery();
+        $differentQuery = $model->newQuery();
+        $receivedQuery = null;
+
+        $result = $query->applyScopeCallback(function (Builder $scopeQuery) use (&$receivedQuery, $differentQuery): Builder {
+            $receivedQuery = $scopeQuery;
+
+            return $differentQuery;
+        });
+
+        $this->assertSame($query, $receivedQuery);
+        $this->assertNotSame($query, $differentQuery);
+        $this->assertSame($query, $result);
+    }
+
+    public function testApplyScopeCallbackGroupsExistingAndCallbackOrConditions(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery()
+            ->where('tenant_id', 1)
+            ->orWhere('is_active', true);
+
+        $query->applyScopeCallback(function (Builder $scopeQuery): void {
+            $scopeQuery->where('status', 'draft')->orWhere('is_public', true);
+        });
+
+        $this->assertSame(
+            'select * from "table" where ("tenant_id" = ? or "is_active" = ?) and ("status" = ? or "is_public" = ?)',
+            $query->toSql(),
+        );
+        $this->assertSame([1, true, 'draft', true], $query->getBindings());
+    }
+
+    public function testApplyScopeCallbackWithoutWheresLeavesQueryUnchanged(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+        $query = $model->newQuery();
+        $sql = $query->toSql();
+        $bindings = $query->getBindings();
+
+        $query->applyScopeCallback(static function (): void {
+        });
+
+        $this->assertSame($sql, $query->toSql());
+        $this->assertSame($bindings, $query->getBindings());
     }
 
     public function testNestedWhere()

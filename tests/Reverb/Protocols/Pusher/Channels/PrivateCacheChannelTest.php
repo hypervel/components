@@ -7,9 +7,9 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher\Channels;
 use Hypervel\Reverb\Protocols\Pusher\Channels\PrivateCacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\ConnectionUnauthorized;
+use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelConnectionManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
-use Mockery as m;
 
 class PrivateCacheChannelTest extends ReverbTestCase
 {
@@ -22,75 +22,67 @@ class PrivateCacheChannelTest extends ReverbTestCase
         parent::setUp();
 
         $this->connection = new FakeConnection;
-        $this->channelConnectionManager = m::spy(ChannelConnectionManager::class);
-        $this->channelConnectionManager->shouldReceive('for')
-            ->andReturn($this->channelConnectionManager);
+        $this->channelConnectionManager = new ArrayChannelConnectionManager;
         $this->app->bind(ChannelConnectionManager::class, fn () => $this->channelConnectionManager);
     }
 
-    public function testCanSubscribeAConnectionToAChannel()
+    public function testCanSubscribeAConnectionToAChannel(): void
     {
         $channel = new PrivateCacheChannel('private-cache-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once()
-            ->with($this->connection, []);
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'private-cache-test-channel'));
+
+        $this->assertTrue($channel->subscribed($this->connection));
     }
 
-    public function testCanUnsubscribeAConnectionFromAChannel()
+    public function testCanUnsubscribeAConnectionFromAChannel(): void
     {
         $channel = new PrivateCacheChannel('private-cache-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('remove')
-            ->once()
-            ->with($this->connection);
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'private-cache-test-channel'));
         $channel->unsubscribe($this->connection);
+
+        $this->assertFalse($channel->subscribed($this->connection));
     }
 
-    public function testCanBroadcastToAllConnectionsOfAChannel()
+    public function testCanBroadcastToAllConnectionsOfAChannel(): void
     {
         $channel = new PrivateCacheChannel('test-channel');
 
-        $this->channelConnectionManager->shouldReceive('add');
+        $connections = static::factory(3);
 
-        $this->channelConnectionManager->shouldReceive('all')
-            ->once()
-            ->andReturn($connections = static::factory(3));
+        foreach ($connections as $connection) {
+            $this->channelConnectionManager->add($connection->connection(), []);
+        }
 
         $channel->broadcast(['foo' => 'bar']);
 
         collect($connections)->each(fn ($connection) => $connection->assertReceived(['foo' => 'bar']));
     }
 
-    public function testFailsToSubscribeIfTheSignatureIsInvalid()
+    public function testFailsToSubscribeIfTheSignatureIsInvalid(): void
     {
         $channel = new PrivateCacheChannel('presence-test-channel');
 
-        $this->channelConnectionManager->shouldNotReceive('subscribe');
-
         $this->expectException(ConnectionUnauthorized::class);
 
-        $channel->subscribe($this->connection, 'invalid-signature');
+        try {
+            $channel->subscribe($this->connection, 'invalid-signature');
+        } finally {
+            $this->assertFalse($channel->subscribed($this->connection));
+        }
     }
 
-    public function testReceivesNoDataWhenNoPreviousEventTriggered()
+    public function testReceivesNoDataWhenNoPreviousEventTriggered(): void
     {
         $channel = new PrivateCacheChannel('private-cache-test-channel');
-
-        $this->channelConnectionManager->shouldReceive('add')
-            ->once()
-            ->with($this->connection, []);
 
         $channel->subscribe($this->connection, static::validAuth($this->connection->id(), 'private-cache-test-channel'));
 
         $this->connection->assertNothingReceived();
     }
 
-    public function testStoresLastTriggeredEvent()
+    public function testStoresLastTriggeredEvent(): void
     {
         $channel = new PrivateCacheChannel('presence-test-channel');
 

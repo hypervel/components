@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentHasOneTest extends TestCase
 {
@@ -252,6 +253,23 @@ class DatabaseEloquentHasOneTest extends TestCase
         $this->assertTrue($relation->is($model));
     }
 
+    #[TestWith([0, '0'])]
+    #[TestWith(['0', 0])]
+    public function testIsModelWithZeroKeys(int|string $parentKey, int|string $relatedKey): void
+    {
+        $relation = $this->getRelation($parentKey);
+
+        $this->related->shouldReceive('getTable')->once()->andReturn('table');
+        $this->related->shouldReceive('getConnectionName')->once()->andReturn('connection');
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getAttribute')->once()->with('foreign_key')->andReturn($relatedKey);
+        $model->shouldReceive('getTable')->once()->andReturn('table');
+        $model->shouldReceive('getConnectionName')->once()->andReturn('connection');
+
+        $this->assertTrue($relation->is($model));
+    }
+
     public function testIsNotModelWithNullRelatedKey()
     {
         $relation = $this->getRelation();
@@ -312,16 +330,16 @@ class DatabaseEloquentHasOneTest extends TestCase
         $this->assertFalse($relation->is($model));
     }
 
-    protected function getRelation()
+    protected function getRelation(mixed $parentKey = 1)
     {
         $this->builder = m::mock(Builder::class);
         $this->builder->shouldReceive('whereNotNull')->with('table.foreign_key');
-        $this->builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
+        $this->builder->shouldReceive('where')->with('table.foreign_key', '=', $parentKey);
         // Use partial mock so real Model methods work (setAttribute, forceFill, etc.)
         $this->related = m::mock(Model::class)->makePartial();
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
         $this->parent = m::mock(Model::class);
-        $this->parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
+        $this->parent->shouldReceive('getAttribute')->with('id')->andReturn($parentKey);
         $this->parent->shouldReceive('getAttribute')->with('username')->andReturn('taylor');
         $this->parent->shouldReceive('getCreatedAtColumn')->andReturn('created_at');
         $this->parent->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');

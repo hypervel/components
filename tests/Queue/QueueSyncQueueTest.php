@@ -9,6 +9,7 @@ use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
@@ -30,6 +31,18 @@ use RuntimeException;
 
 class QueueSyncQueueTest extends TestCase
 {
+    public function testInspectionReturnsEmptyCollections(): void
+    {
+        $queue = new SyncQueue;
+
+        $this->assertTrue($queue->pendingJobs()->isEmpty());
+        $this->assertTrue($queue->delayedJobs()->isEmpty());
+        $this->assertTrue($queue->reservedJobs()->isEmpty());
+        $this->assertTrue($queue->allPendingJobs()->isEmpty());
+        $this->assertTrue($queue->allDelayedJobs()->isEmpty());
+        $this->assertTrue($queue->allReservedJobs()->isEmpty());
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -265,6 +278,7 @@ class QueueSyncQueueTest extends TestCase
     protected function getContainer(): Container
     {
         $container = new Container;
+        $container->instance(Cache::class, m::mock(Cache::class));
         $container->instance(ContainerContract::class, $container);
         Container::setInstance($container);
 

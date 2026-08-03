@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Redis\PhpRedis;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
@@ -22,16 +26,12 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return ['key1' => 1, 'key2' => 2];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());
@@ -50,16 +50,12 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return [];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());
@@ -79,30 +75,22 @@ class GetEntriesTest extends RedisCacheTestCase
         // First tag
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return ['user_key1' => 1, 'user_key2' => 2];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         // Second tag
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:posts:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:posts:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return ['post_key1' => 1];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());
@@ -121,16 +109,12 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return ['key1' => 1, 'key2' => 2];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());
@@ -150,7 +134,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // zScan returns null/false when done or empty
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnNull();
 
         $store = $this->createStore($connection);
@@ -170,7 +154,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // zScan can return false in some cases
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturn(false);
 
         $store = $this->createStore($connection);
@@ -206,16 +190,12 @@ class GetEntriesTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('custom_prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('custom_prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return ['key1' => 1];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('custom_prefix:_all:tag:users:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $operation = new GetEntries($store->getContext());
@@ -235,7 +215,7 @@ class GetEntriesTest extends RedisCacheTestCase
         // First page
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 123; // Non-zero cursor indicates more data
 
@@ -252,18 +232,50 @@ class GetEntriesTest extends RedisCacheTestCase
                 return ['key3' => 3];
             });
 
-        // Final call with cursor 0 returns null (phpredis behavior)
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 0, '*', 1000)
-            ->andReturnNull();
-
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());
 
         $entries = $operation->execute(['_all:tag:users:entries']);
 
         $this->assertSame(['key1', 'key2', 'key3'], $entries->all());
+    }
+
+    public function testGetEntriesContinuesAfterAnEmptyNonterminalPageAndChecksOutPerPage(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->andReturnUsing(function ($key, &$cursor) {
+                $cursor = 123;
+
+                return [];
+            });
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', 123, '*', 1000)
+            ->andReturnUsing(function ($key, &$cursor) {
+                $cursor = 0;
+
+                return ['key1' => 1];
+            });
+
+        $proxy = m::mock(RedisProxy::class);
+        $proxy->shouldReceive('withConnection')
+            ->twice()
+            ->with(m::type('callable'), false)
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
+
+        $redis = m::mock(RedisFactory::class);
+        $redis->shouldReceive('connection')
+            ->twice()
+            ->with('default')
+            ->andReturn($proxy);
+
+        $store = new RedisStore($redis, 'prefix:', 'default');
+        $operation = new GetEntries($store->getContext());
+
+        $this->assertSame(['key1'], $operation->execute(['_all:tag:users:entries'])->all());
     }
 
     /**
@@ -281,30 +293,22 @@ class GetEntriesTest extends RedisCacheTestCase
         // First tag has 'shared_key'
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return ['shared_key' => 1, 'user_only' => 2];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         // Second tag also has 'shared_key'
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:posts:entries', m::any(), '*', 1000)
+            ->with('prefix:_all:tag:posts:entries', PhpRedis::initialScanCursor(), '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 
                 return ['shared_key' => 1, 'post_only' => 2];
             });
-        $connection->shouldReceive('zScan')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', 0, '*', 1000)
-            ->andReturnNull();
 
         $store = $this->createStore($connection);
         $operation = new GetEntries($store->getContext());

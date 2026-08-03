@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
+use InvalidArgumentException;
+use Typesense\Exceptions\ObjectNotFound;
 
 /**
  * Integration tests for Typesense filtering operations.
@@ -113,4 +115,98 @@ class TypesenseFilteringIntegrationTest extends TypesenseScoutIntegrationTestCas
         $this->assertTrue($results->contains('id', $model1->id));
         $this->assertTrue($results->contains('id', $model2->id));
     }
+
+    public function testComparisonFiltersReachTypesense(): void
+    {
+        TypesenseSearchableModel::create(['id' => 501, 'title' => 'First', 'body' => 'Body']);
+        TypesenseSearchableModel::create(['id' => 502, 'title' => 'Second', 'body' => 'Body']);
+        TypesenseSearchableModel::create(['id' => 503, 'title' => 'Third', 'body' => 'Body']);
+
+        $this->engine->update(TypesenseSearchableModel::query()->get());
+
+        $results = TypesenseSearchableModel::search('')
+            ->where('ranking', '>', 501)
+            ->where('ranking', '!=', 503)
+            ->get();
+
+        $this->assertSame([502], $results->pluck('id')->all());
+    }
+
+    public function testBackedEnumsRetainTheirNativeFilterValues(): void
+    {
+        TypesenseSearchableModel::create(['id' => 601, 'title' => 'Enum target', 'body' => 'Body']);
+        TypesenseSearchableModel::create(['id' => 602, 'title' => 'Other', 'body' => 'Body']);
+
+        $this->engine->update(TypesenseSearchableModel::query()->get());
+
+        $this->assertSame(
+            [601],
+            TypesenseSearchableModel::search('')->where('ranking', TypesenseFilterRanking::Target)->get()->pluck('id')->all()
+        );
+        $this->assertSame(
+            [601],
+            TypesenseSearchableModel::search('')->where('title', TypesenseFilterTitle::Target)->get()->pluck('id')->all()
+        );
+    }
+
+    public function testApplicationFiltersComposeWithBuilderFiltersForSearchAndDeletion(): void
+    {
+        TypesenseSearchableModel::withoutSyncingToSearch(function (): void {
+            TypesenseSearchableModel::create(['id' => 701, 'title' => 'Target', 'body' => 'Body']);
+            TypesenseSearchableModel::create(['id' => 702, 'title' => 'Other', 'body' => 'Body']);
+            TypesenseSearchableModel::create(['id' => 703, 'title' => 'Excluded', 'body' => 'Body']);
+        });
+        $this->engine->update(TypesenseSearchableModel::query()->get());
+
+        $results = TypesenseSearchableModel::search('')
+            ->options(['filter_by' => 'title:=Target || title:=Other'])
+            ->where('ranking', 701)
+            ->get();
+
+        $this->assertSame([701], $results->pluck('id')->all());
+
+        $this->engine->deleteByFilter(
+            TypesenseSearchableModel::search('')
+                ->options(['filter_by' => 'title:=Target || title:=Other'])
+                ->where('ranking', 701)
+        );
+
+        $this->assertSame(
+            [702, 703],
+            TypesenseSearchableModel::search('')->get()->pluck('id')->sort()->values()->all(),
+        );
+    }
+
+    public function testFilteredDeletionTreatsAMissingCollectionAsAlreadyDeleted(): void
+    {
+        $collectionName = $this->prefixedCollectionName('missing_filter_delete');
+
+        $this->engine->deleteByFilter(
+            TypesenseSearchableModel::search('')
+                ->within($collectionName)
+                ->where('ranking', 701)
+        );
+
+        $this->expectException(ObjectNotFound::class);
+
+        $this->typesense->getCollections()[$collectionName]->retrieve();
+    }
+
+    public function testUnsupportedComparisonOperatorIsRejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported Typesense filter operator [<>].');
+
+        TypesenseSearchableModel::search('')->where('ranking', '<>', 1)->get();
+    }
+}
+
+enum TypesenseFilterRanking: int
+{
+    case Target = 601;
+}
+
+enum TypesenseFilterTitle: string
+{
+    case Target = 'Enum target';
 }

@@ -30,6 +30,7 @@ class PoolErrorReporterTest extends TestCase
         parent::setUp();
 
         $this->tempDir = ParallelTesting::tempDir('PoolErrorReporterTest');
+        (new Filesystem)->deleteDirectory($this->tempDir);
         mkdir($this->tempDir, 0777, true);
         $this->errorLog = $this->tempDir . '/php-error.log';
     }

@@ -7,6 +7,7 @@ namespace Hypervel\Reverb\Protocols\Pusher\Channels;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Events\ChannelCreated;
 use Hypervel\Reverb\Events\ChannelRemoved;
+use Hypervel\Reverb\FailureReporter;
 use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Protocols\Pusher\Concerns\SerializesChannels;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
@@ -15,6 +16,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SubscriptionResult;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
+use Throwable;
 
 class Channel
 {
@@ -26,9 +28,9 @@ class Channel
     protected ChannelConnectionManager $connections;
 
     /**
-     * The result from the most recent shared state subscribe/unsubscribe call.
+     * The number of membership operations currently publishing shared state.
      */
-    protected SubscriptionResult $lastSubscriptionResult;
+    protected int $membershipOperations = 0;
 
     /**
      * Create a new channel instance.
@@ -79,21 +81,71 @@ class Channel
      */
     public function subscribe(Connection $connection, ?string $auth = null, ?string $data = null, ?string $userId = null): void
     {
-        $sharedState = app(SharedState::class);
-
-        $this->connections->add($connection, $data ? json_decode($data, associative: true, flags: JSON_THROW_ON_ERROR) : []);
-
-        $this->lastSubscriptionResult = $sharedState->subscribe(
-            $connection->app()->id(),
-            $this->name,
+        $result = $this->subscribeToChannel(
+            $connection,
+            $this->decodeSubscriptionData($data),
             $userId,
         );
 
-        if ($this->lastSubscriptionResult->channelOccupied) {
-            $this->handleChannelOccupied($connection, $sharedState);
+        if ($result === null) {
+            return;
         }
 
-        $this->dispatchSubscriptionCountWebhook($connection);
+        $this->afterSubscribed($connection, $result);
+    }
+
+    /**
+     * Publish and commit a channel subscription.
+     */
+    protected function subscribeToChannel(
+        Connection $connection,
+        array $attributes,
+        ?string $userId = null,
+    ): ?SubscriptionResult {
+        ++$this->membershipOperations;
+
+        try {
+            if ($this->subscribed($connection)) {
+                return null;
+            }
+
+            $result = app(SharedState::class)->subscribe(
+                $connection->app()->id(),
+                $this->name,
+                $userId,
+            );
+
+            // Shared membership is already published, so the local manager's
+            // add contract must commit valid decoded data without throwing.
+            $this->connections->add($connection, $attributes);
+
+            return $result;
+        } finally {
+            --$this->membershipOperations;
+            $this->removeIfIdle($connection);
+        }
+    }
+
+    /**
+     * Decode subscription data into connection attributes.
+     */
+    protected function decodeSubscriptionData(?string $data): array
+    {
+        return $data
+            ? json_decode($data, associative: true, flags: JSON_THROW_ON_ERROR)
+            : [];
+    }
+
+    /**
+     * Complete side effects for a committed subscription.
+     */
+    protected function afterSubscribed(Connection $connection, SubscriptionResult $result): void
+    {
+        if ($result->channelOccupied) {
+            $this->handleChannelOccupied($connection, app(SharedState::class));
+        }
+
+        $this->dispatchSubscriptionCountWebhook($connection, $result);
     }
 
     /**
@@ -139,44 +191,65 @@ class Channel
     }
 
     /**
-     * Get the result from the most recent subscribe/unsubscribe shared state call.
-     *
-     * Used by presence channel traits to check memberAdded/memberRemoved.
-     */
-    protected function lastSubscriptionResult(): SubscriptionResult
-    {
-        return $this->lastSubscriptionResult;
-    }
-
-    /**
      * Unsubscribe from the given channel.
      *
      * Presence channels pass the userId for global refcount tracking.
      */
     public function unsubscribe(Connection $connection, ?string $userId = null): void
     {
-        $this->connections->remove($connection);
+        $result = $this->unsubscribeFromChannel($connection, $userId);
 
-        $this->lastSubscriptionResult = app(SharedState::class)->unsubscribe(
-            $connection->app()->id(),
-            $this->name,
-            $userId,
-        );
-
-        if ($this->lastSubscriptionResult->channelVacated) {
-            $this->handleChannelVacated($connection);
+        if ($result === null) {
+            return;
         }
 
-        $this->dispatchSubscriptionCountWebhook($connection);
+        $this->afterUnsubscribed($connection, $result);
     }
 
     /**
-     * Handle channel vacated — remove from manager, dispatch events, clean up locks.
+     * Publish and commit a channel unsubscription.
+     */
+    protected function unsubscribeFromChannel(Connection $connection, ?string $userId = null): ?SubscriptionResult
+    {
+        ++$this->membershipOperations;
+
+        try {
+            if (! $this->subscribed($connection)) {
+                return null;
+            }
+
+            $result = app(SharedState::class)->unsubscribe(
+                $connection->app()->id(),
+                $this->name,
+                $userId,
+            );
+
+            $this->connections->remove($connection);
+
+            return $result;
+        } finally {
+            --$this->membershipOperations;
+            $this->removeIfIdle($connection);
+        }
+    }
+
+    /**
+     * Complete side effects for a committed unsubscription.
+     */
+    protected function afterUnsubscribed(Connection $connection, SubscriptionResult $result): void
+    {
+        if ($result->channelVacated) {
+            $this->handleChannelVacated($connection);
+        }
+
+        $this->dispatchSubscriptionCountWebhook($connection, $result);
+    }
+
+    /**
+     * Handle channel vacated — dispatch events and clean up shared locks.
      */
     protected function handleChannelVacated(Connection $connection): void
     {
-        app(ChannelManager::class)->for($connection->app())->remove($this);
-
         if (app('events')->hasListeners(ChannelRemoved::class)) {
             ChannelRemoved::dispatch($this);
         }
@@ -215,8 +288,10 @@ class Channel
      * Fires on every subscribe/unsubscribe for non-presence channels.
      * Throttled to once per 5 seconds for channels with >100 subscribers.
      */
-    protected function dispatchSubscriptionCountWebhook(Connection $connection): void
-    {
+    protected function dispatchSubscriptionCountWebhook(
+        Connection $connection,
+        SubscriptionResult $result,
+    ): void {
         if ($this instanceof PresenceChannel || $this instanceof PresenceCacheChannel) {
             return;
         }
@@ -228,7 +303,7 @@ class Channel
             return;
         }
 
-        $count = $this->lastSubscriptionResult()->subscriptionCount;
+        $count = $result->subscriptionCount;
 
         if ($count > 100 && ! app(SharedState::class)->trySubscriptionCountLock($app->id(), $this->name)) {
             return;
@@ -249,6 +324,18 @@ class Channel
     }
 
     /**
+     * Remove this exact channel when no local membership work remains.
+     */
+    protected function removeIfIdle(Connection $connection): void
+    {
+        if ($this->membershipOperations !== 0 || ! $this->connections->isEmpty()) {
+            return;
+        }
+
+        app(ChannelManager::class)->for($connection->app())->remove($this);
+    }
+
+    /**
      * Send a message to all connections subscribed to the channel.
      */
     public function broadcast(array $payload, ?Connection $except = null): void
@@ -264,13 +351,7 @@ class Channel
         Log::info('Broadcasting To', $this->name());
         Log::message($message);
 
-        foreach ($this->connections() as $connection) {
-            if ($except->id() === $connection->id()) {
-                continue;
-            }
-
-            $connection->send($message);
-        }
+        $this->sendToConnections($message, $except);
     }
 
     /**
@@ -283,8 +364,31 @@ class Channel
         Log::info('Broadcasting To', $this->name());
         Log::message($message);
 
+        $this->sendToConnections($message);
+    }
+
+    /**
+     * Send a message to every selected local connection.
+     */
+    protected function sendToConnections(string $message, ?Connection $except = null): void
+    {
+        $exceptId = $except?->id();
+        $exception = null;
+
         foreach ($this->connections() as $connection) {
-            $connection->send($message);
+            if ($exceptId !== null && $connection->id() === $exceptId) {
+                continue;
+            }
+
+            try {
+                $connection->send($message);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            FailureReporter::report($exception);
         }
     }
 

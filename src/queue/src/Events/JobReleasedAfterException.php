@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Events;
 
 use Hypervel\Contracts\Queue\Job;
+use Throwable;
 
 class JobReleasedAfterException
 {
@@ -15,6 +16,7 @@ class JobReleasedAfterException
         public string $connectionName,
         public Job $job,
         public ?int $backoff = null,
+        public ?Throwable $exception = null,
     ) {
     }
 }

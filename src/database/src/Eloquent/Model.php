@@ -1495,7 +1495,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
     {
-        $query->where($this->getKeyName(), '=', $this->getKeyForSelectQuery());
+        $key = $this->getKeyForSelectQuery();
+
+        if ($key === null) {
+            throw new MissingAttributeException($this, $this->getKeyName());
+        }
+
+        $query->where($this->getKeyName(), '=', $key);
 
         return $query;
     }
@@ -1516,7 +1522,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
     {
-        $query->where($this->getKeyName(), '=', $this->getKeyForSaveQuery());
+        $key = $this->getKeyForSaveQuery();
+
+        if ($key === null) {
+            throw new MissingAttributeException($this, $this->getKeyName());
+        }
+
+        $query->where($this->getKeyName(), '=', $key);
 
         return $query;
     }
@@ -2092,8 +2104,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function is(?self $model): bool
     {
-        return ! is_null($model)
-            && $this->getKey() === $model->getKey()
+        if ($model === null) {
+            return false;
+        }
+
+        $key = $this->getKey();
+
+        return $key !== null
+            && $key === $model->getKey()
             && $this->getTable() === $model->getTable()
             && $this->getConnectionName() === $model->getConnectionName();
     }

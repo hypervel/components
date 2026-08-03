@@ -13,6 +13,7 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Support\InteractsWithTime;
+use Throwable;
 
 class ConcurrencyLimiterBuilder
 {
@@ -109,19 +110,29 @@ class ConcurrencyLimiterBuilder
     {
         try {
             $lease = $this->acquire();
-        } catch (LimiterTimeoutException $e) {
+        } catch (LimiterTimeoutException $timeoutException) {
             if ($failure !== null) {
-                return $failure($e);
+                return $failure($timeoutException);
             }
 
-            throw $e;
+            throw $timeoutException;
         }
 
         try {
-            return $callback();
-        } finally {
-            $lease->release();
+            $result = $callback();
+        } catch (Throwable $throwable) {
+            try {
+                $lease->release();
+            } catch (Throwable) {
+                // Preserve the callback failure as primary.
+            }
+
+            throw $throwable;
         }
+
+        $lease->release();
+
+        return $result;
     }
 
     /**

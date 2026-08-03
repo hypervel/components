@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class HasAssignedModelsTest extends TestCase
 {
@@ -209,6 +212,40 @@ class HasAssignedModelsTest extends TestCase
         $this->assertFalse($user1->fresh()->hasRole($this->testUserRole));
     }
 
+    #[DataProvider('reverseAssignmentProvider')]
+    public function testReverseAssignmentsRejectKeylessModelInputs(string $method, bool $mixed): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $assignedUser = User::create(['email' => 'assigned@test.com']);
+        $otherUser = User::create(['email' => 'other@test.com']);
+        $assignedUser->assignRole($this->testUserRole);
+        $keylessUser = User::query()->select('email')->where('email', 'other@test.com')->firstOrFail();
+        $models = $mixed ? [$assignedUser, $keylessUser] : $keylessUser;
+
+        try {
+            $this->testUserRole->{$method}($models);
+            $this->fail('Expected a missing assigned-model key exception was not thrown.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString($keylessUser->getKeyName(), $exception->getMessage());
+        }
+
+        $this->assertTrue($assignedUser->fresh()->hasRole($this->testUserRole));
+        $this->assertFalse($otherUser->fresh()->hasRole($this->testUserRole));
+    }
+
+    public static function reverseAssignmentProvider(): array
+    {
+        return [
+            'assign keyless model' => ['assignToModels', false],
+            'assign mixed models' => ['assignToModels', true],
+            'remove keyless model' => ['removeFromModels', false],
+            'remove mixed models' => ['removeFromModels', true],
+            'sync keyless model' => ['syncModels', false],
+            'sync mixed models' => ['syncModels', true],
+        ];
+    }
+
     public function testItDoesNothingWhenRemovingTheRoleFromModelsThatDoNotHaveIt(): void
     {
         $user1 = User::create(['email' => 'user1@test.com']);
@@ -286,5 +323,40 @@ class HasAssignedModelsTest extends TestCase
         $this->assertSame(0, DB::table(Config::modelHasRolesTable())
             ->where($registrar->pivotRole, $role->getKey())
             ->count());
+    }
+
+    #[DataProvider('reverseAssignmentOwnerProvider')]
+    public function testReverseAssignmentsRejectAKeylessPersistedRoleBeforeMutation(string $method): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $assignedUser = User::create(['email' => 'assigned@test.com']);
+        $replacementUser = User::create(['email' => 'replacement@test.com']);
+        $assignedUser->assignRole($this->testUserRole);
+        $keylessRole = $this->testUserRole->newQuery()
+            ->select(['name', 'guard_name'])
+            ->where('name', $this->testUserRole->name)
+            ->firstOrFail();
+
+        $models = $method === 'removeFromModels' ? [$assignedUser] : [$replacementUser];
+
+        try {
+            $keylessRole->{$method}($models);
+            $this->fail('Expected a missing role key exception was not thrown.');
+        } catch (MissingAttributeException $exception) {
+            $this->assertStringContainsString($keylessRole->getKeyName(), $exception->getMessage());
+        }
+
+        $this->assertTrue($assignedUser->fresh()->hasRole($this->testUserRole));
+        $this->assertFalse($replacementUser->fresh()->hasRole($this->testUserRole));
+    }
+
+    public static function reverseAssignmentOwnerProvider(): array
+    {
+        return [
+            'assign models' => ['assignToModels'],
+            'remove models' => ['removeFromModels'],
+            'sync models' => ['syncModels'],
+        ];
     }
 }

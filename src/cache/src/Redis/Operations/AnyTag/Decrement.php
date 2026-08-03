@@ -172,7 +172,7 @@ class Decrement
 
             -- 2. Get TTL
             local ttl = redis.call('TTL', key)
-            local expiry = 253402300799 -- Default forever
+            local expiry = 253402300799 -- Default forever; must match StoreContext::MAX_EXPIRY.
             if ttl > 0 then
                 expiry = now + ttl
             end

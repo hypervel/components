@@ -88,6 +88,13 @@ return [
             'suffix' => env('SQS_SUFFIX'),
             'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
             'after_commit' => false,
+            'overflow' => [
+                'enabled' => env('SQS_OVERFLOW_ENABLED', false),
+                'store' => env('SQS_OVERFLOW_STORE'),
+                'always' => false,
+                'delete_after_processing' => true,
+                'flush_on_clear' => env('SQS_OVERFLOW_FLUSH_ON_CLEAR', false),
+            ],
             'pool' => [
                 'min_retained_objects' => 1,
                 'max_objects' => 10,
@@ -133,7 +140,7 @@ return [
     | can control how and where failed jobs are stored. Hypervel ships with
     | support for storing failed jobs in a simple file or in a database.
     |
-    | Supported drivers: "database-uuids", "file", "null"
+    | Supported drivers: "database", "database-uuids", "file", "null"
     |
     */
 

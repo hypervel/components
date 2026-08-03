@@ -15,7 +15,7 @@ use Mockery as m;
 
 class NullEngineTest extends TestCase
 {
-    public function testUpdateDoesNothing()
+    public function testUpdateDoesNothing(): void
     {
         $engine = new NullEngine;
         $models = new EloquentCollection([m::mock(Model::class)]);
@@ -25,7 +25,7 @@ class NullEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testDeleteDoesNothing()
+    public function testDeleteDoesNothing(): void
     {
         $engine = new NullEngine;
         $models = new EloquentCollection([m::mock(Model::class)]);
@@ -35,7 +35,7 @@ class NullEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testSearchReturnsEmptyArray()
+    public function testSearchReturnsEmptyArray(): void
     {
         $engine = new NullEngine;
         $builder = m::mock(Builder::class);
@@ -46,7 +46,7 @@ class NullEngineTest extends TestCase
         $this->assertEmpty($result);
     }
 
-    public function testPaginateReturnsEmptyArray()
+    public function testPaginateReturnsEmptyArray(): void
     {
         $engine = new NullEngine;
         $builder = m::mock(Builder::class);
@@ -57,7 +57,7 @@ class NullEngineTest extends TestCase
         $this->assertEmpty($result);
     }
 
-    public function testMapIdsReturnsEmptyCollection()
+    public function testMapIdsReturnsEmptyCollection(): void
     {
         $engine = new NullEngine;
 
@@ -67,7 +67,7 @@ class NullEngineTest extends TestCase
         $this->assertTrue($result->isEmpty());
     }
 
-    public function testMapReturnsEmptyEloquentCollection()
+    public function testMapReturnsEmptyEloquentCollection(): void
     {
         $engine = new NullEngine;
         $builder = m::mock(Builder::class);
@@ -79,7 +79,7 @@ class NullEngineTest extends TestCase
         $this->assertTrue($result->isEmpty());
     }
 
-    public function testLazyMapReturnsEmptyLazyCollection()
+    public function testLazyMapReturnsEmptyLazyCollection(): void
     {
         $engine = new NullEngine;
         $builder = m::mock(Builder::class);
@@ -91,21 +91,21 @@ class NullEngineTest extends TestCase
         $this->assertTrue($result->isEmpty());
     }
 
-    public function testGetTotalCountReturnsZeroForEmptyResults()
+    public function testGetTotalCountReturnsZeroForEmptyResults(): void
     {
         $engine = new NullEngine;
 
         $this->assertSame(0, $engine->getTotalCount([]));
     }
 
-    public function testGetTotalCountReturnsCountForCountableResults()
+    public function testGetTotalCountReturnsCountForCountableResults(): void
     {
         $engine = new NullEngine;
 
         $this->assertSame(3, $engine->getTotalCount([1, 2, 3]));
     }
 
-    public function testFlushDoesNothing()
+    public function testFlushDoesNothing(): void
     {
         $engine = new NullEngine;
         $model = m::mock(Model::class);
@@ -115,7 +115,7 @@ class NullEngineTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testCreateIndexReturnsEmptyArray()
+    public function testCreateIndexReturnsEmptyArray(): void
     {
         $engine = new NullEngine;
 
@@ -125,7 +125,7 @@ class NullEngineTest extends TestCase
         $this->assertEmpty($result);
     }
 
-    public function testDeleteIndexReturnsEmptyArray()
+    public function testDeleteIndexReturnsEmptyArray(): void
     {
         $engine = new NullEngine;
 

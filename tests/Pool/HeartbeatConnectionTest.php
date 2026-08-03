@@ -139,6 +139,7 @@ class HeartbeatConnectionTest extends TestCase
     public function testHeartbeatFailureFallsBackToThePhpErrorLogWithoutALogger(): void
     {
         $directory = ParallelTesting::tempDir('HeartbeatConnectionTest');
+        (new Filesystem)->deleteDirectory($directory);
         mkdir($directory, 0777, true);
         $errorLog = $directory . '/php-error.log';
         $previousErrorLog = ini_set('error_log', $errorLog);
@@ -173,7 +174,7 @@ class HeartbeatConnectionTest extends TestCase
         }
     }
 
-    public function testConnectionDestruct(): void
+    public function testConnectionCloseProtocolRunsOnPoolFlush(): void
     {
         $container = $this->getContainer();
         $pool = $container->make(HeartbeatPoolStub::class);

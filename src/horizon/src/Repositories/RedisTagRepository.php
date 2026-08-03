@@ -10,6 +10,8 @@ use Hypervel\Redis\RedisProxy;
 
 class RedisTagRepository implements TagRepository
 {
+    use UsesClusterAwarePipeline;
+
     /**
      * Create a new repository instance.
      *
@@ -57,7 +59,7 @@ class RedisTagRepository implements TagRepository
      */
     public function add(string $id, array $tags): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($id, $tags) {
+        $this->pipeline(function ($pipe) use ($id, $tags) {
             foreach ($tags as $tag) {
                 $pipe->zAdd($tag, str_replace(',', '.', (string) microtime(true)), $id);
             }
@@ -69,7 +71,7 @@ class RedisTagRepository implements TagRepository
      */
     public function addTemporary(int $minutes, string $id, array $tags): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($minutes, $id, $tags) {
+        $this->pipeline(function ($pipe) use ($minutes, $id, $tags) {
             foreach ($tags as $tag) {
                 $pipe->zAdd($tag, str_replace(',', '.', (string) microtime(true)), $id);
 
@@ -115,7 +117,7 @@ class RedisTagRepository implements TagRepository
      */
     public function forgetJobs(array|string $tags, array|string $ids): void
     {
-        $this->connection()->pipeline(function ($pipe) use ($tags, $ids) {
+        $this->pipeline(function ($pipe) use ($tags, $ids) {
             foreach ((array) $tags as $tag) {
                 foreach ((array) $ids as $id) {
                     $pipe->zrem($tag, $id);

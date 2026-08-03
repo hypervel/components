@@ -92,6 +92,7 @@ class Kernel implements KernelContract
      */
     protected array $bootstrappers = [
         \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
+        \Hypervel\Foundation\Bootstrap\ConfigureTerminalDimensions::class,
         \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
         \Hypervel\Foundation\Bootstrap\HandleExceptions::class,
         \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
@@ -165,11 +166,20 @@ class Kernel implements KernelContract
 
             return $this->getArtisan()->run($input, $output);
         } catch (Throwable $e) {
-            $this->reportException($e);
+            // Keep the original in flight while it is handled, so a failure in
+            // reporting or rendering carries it as that failure's previous. The
+            // return suppresses it once the command status is produced.
+            try {
+                /* @phpstan-ignore finally.exitPoint */
+                throw $e;
+            } finally {
+                $this->reportException($e);
 
-            $this->renderException($output, $e);
+                $this->renderException($output, $e);
 
-            return 1;
+                /* @phpstan-ignore finally.exitPoint */
+                return 1;
+            }
         }
     }
 
@@ -558,7 +568,7 @@ class Kernel implements KernelContract
      */
     protected function reportException(Throwable $e): void
     {
-        $this->app[ExceptionHandler::class]->report($e);
+        $this->app->make(ExceptionHandler::class)->report($e);
     }
 
     /**
@@ -570,7 +580,7 @@ class Kernel implements KernelContract
             $output = $output->getErrorOutput();
         }
 
-        $this->app[ExceptionHandler::class]->renderForConsole($output, $e);
+        $this->app->make(ExceptionHandler::class)->renderForConsole($output, $e);
     }
 
     /**

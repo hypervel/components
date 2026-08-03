@@ -17,7 +17,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         parent::setUp();
 
         if ($this->usesSqliteInMemoryDatabaseConnection()) {
-            $this->markTestSkipped('Test cannot be run using :memory: database connection, SQLite test file is here: \Illuminate\Tests\Integration\Database\Sqlite\SchemaBuilderSchemaNameTest');
+            $this->markTestSkipped('Test cannot be run using :memory: database connection, SQLite test file is here: \Hypervel\Tests\Integration\Database\Sqlite\SchemaBuilderSchemaNameTest');
         }
     }
 
@@ -30,8 +30,6 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
             DB::connection('with-prefix')->statement("attach database ':memory:' as my_schema");
         } elseif ($this->driver === 'pgsql') {
             DB::statement('create schema if not exists my_schema');
-        } elseif ($this->driver === 'sqlsrv') {
-            DB::statement("if schema_id('my_schema') is null begin exec('create schema my_schema') end");
         }
     }
 
@@ -44,8 +42,6 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
             DB::connection('with-prefix')->statement('detach database my_schema');
         } elseif ($this->driver === 'pgsql') {
             DB::statement('drop schema if exists my_schema cascade');
-        } elseif ($this->driver === 'sqlsrv') {
-            // DB::statement("if schema_id('my_schema') is not null begin exec('drop schema my_schema') end");
         }
     }
 
@@ -78,7 +74,6 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
             'mysql', 'mariadb' => [$currentSchema, 'my_schema'],
             'pgsql' => ['public', 'my_schema'],
             'sqlite' => ['main', 'my_schema'],
-            'sqlsrv' => ['dbo', 'guest', 'my_schema'],
         };
         foreach ($expectedSchemas as $expectedSchema) {
             $this->assertContains($expectedSchema, $schemaNames);
@@ -287,8 +282,8 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 
         $this->assertStringContainsString('default schema name', collect($schema->getColumns('my_schema.table'))->firstWhere('name', 'name')['default']);
         $this->assertStringContainsString('default title', collect($schema->getColumns('my_table'))->firstWhere('name', 'title')['default']);
-        $this->assertEquals($this->driver === 'sqlsrv' ? 'nvarchar' : 'varchar', $schema->getColumnType('my_schema.table', 'name'));
-        $this->assertEquals($this->driver === 'sqlsrv' ? 'nvarchar' : 'varchar', $schema->getColumnType('my_table', 'title'));
+        $this->assertEquals('varchar', $schema->getColumnType('my_schema.table', 'name'));
+        $this->assertEquals('varchar', $schema->getColumnType('my_table', 'title'));
         $this->assertEquals(match ($this->driver) {
             'pgsql' => 'int8',
             'sqlite' => 'integer',
@@ -393,7 +388,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     }
 
     #[DataProvider('connectionProvider')]
-    #[RequiresDatabase(['mariadb', 'mysql', 'pgsql', 'sqlsrv'])]
+    #[RequiresDatabase(['mariadb', 'mysql', 'pgsql'])]
     public function testForeignKeys($connection)
     {
         $schema = Schema::connection($connection);
@@ -416,7 +411,6 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $tableName = $connection === 'with-prefix' ? 'example_my_tables' : 'my_tables';
         $defaultSchemaName = match ($this->driver) {
             'pgsql' => 'public',
-            'sqlsrv' => 'dbo',
             default => $currentSchema,
         };
 
@@ -567,39 +561,6 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $schema->create('table', function (Blueprint $table) {
             $table->increments('code')->from(15);
         });
-    }
-
-    #[DataProvider('connectionProvider')]
-    #[RequiresDatabase('sqlsrv')]
-    public function testHasTable($connection)
-    {
-        $db = DB::connection($connection);
-        $schema = $db->getSchemaBuilder();
-
-        try {
-            $db->statement("create login my_user with password = 'Passw0rd'");
-            $db->statement('create user my_user for login my_user');
-        } catch (\Illuminate\Database\QueryException) {
-        }
-
-        $db->statement('grant create table to my_user');
-        $db->statement('grant alter on SCHEMA::my_schema to my_user');
-        $db->statement("alter user my_user with default_schema = my_schema execute as user='my_user'");
-
-        config([
-            'database.connections.' . $connection . '.username' => 'my_user',
-            'database.connections.' . $connection . '.password' => 'Passw0rd',
-        ]);
-
-        $this->assertEquals('my_schema', $schema->getCurrentSchemaName());
-
-        $schema->create('table', function (Blueprint $table) {
-            $table->id();
-        });
-
-        $this->assertTrue($schema->hasTable('table'));
-        $this->assertTrue($schema->hasTable('my_schema.table'));
-        $this->assertFalse($schema->hasTable('dbo.table'));
     }
 
     public static function connectionProvider(): array

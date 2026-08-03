@@ -17,7 +17,9 @@ use Throwable;
 class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     /**
-     * @var StackStoreProxy[]
+     * The ordered store layers.
+     *
+     * @var list<StackStoreProxy>
      */
     protected array $stores;
 
@@ -30,7 +32,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
     protected false|string|null $tagCompositionError = false;
 
     /**
-     * @param array<int, StackStoreProxy|Store> $stores
+     * @param array<array-key, StackStoreProxy|Store> $stores
      *
      * @throws InvalidArgumentException when no layers are given
      */
@@ -42,7 +44,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 
         $this->stores = array_map(
             static fn (Store $store) => $store instanceof StackStoreProxy ? $store : new StackStoreProxy($store),
-            $stores
+            array_values($stores)
         );
     }
 
@@ -131,18 +133,12 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     public function forget(string $key): bool
     {
-        return $this->callStores(
-            fn (StackStoreProxy $store) => $store->forget($key),
-            force: true
-        );
+        return $this->callAllStores(fn (StackStoreProxy $store) => $store->forget($key));
     }
 
     public function flush(): bool
     {
-        return $this->callStores(
-            static fn (StackStoreProxy $store) => $store->flush(),
-            force: true
-        );
+        return $this->callAllStores(static fn (StackStoreProxy $store) => $store->flush());
     }
 
     /**
@@ -244,9 +240,21 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
     }
 
     /**
+     * Get the underlying store layers.
+     *
+     * @return list<StackStoreProxy>
+     *
+     * @internal
+     */
+    public function getStores(): array
+    {
+        return $this->stores;
+    }
+
+    /**
      * Get the underlying taggable layer stores, top to bottom.
      *
-     * @return array<int, TaggableStore>
+     * @return list<TaggableStore>
      *
      * @throws NotSupportedException when the layer composition cannot support tags
      */
@@ -491,32 +499,71 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
         }, $bottomLayer)();
     }
 
-    protected function callStores(Closure $handler, ?Closure $rollback = null, bool $force = false): bool
+    protected function callStores(Closure $handler, ?Closure $rollback = null): bool
     {
-        return $this->callStoresStacked(
-            function (StackStoreProxy $store, Closure $next) use ($handler, $rollback, $force): bool {
-                if (! $handler($store) && ! $force) {
-                    return false;
+        $completed = [];
+        $result = true;
+        $exception = null;
+
+        foreach ($this->stores as $store) {
+            try {
+                if (! $handler($store)) {
+                    $result = false;
+
+                    break;
                 }
 
-                // Only a layer whose write completed is eligible for compensation.
+                $completed[] = $store;
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+
+                break;
+            }
+        }
+
+        if ($result && $exception === null) {
+            return true;
+        }
+
+        if ($rollback !== null) {
+            foreach (array_reverse($completed) as $store) {
                 try {
-                    $result = $next();
-                } catch (Throwable $throwable) {
-                    if ($rollback !== null) {
-                        $rollback($store);
-                    }
-
-                    throw $throwable;
-                }
-
-                if (! $result && $rollback !== null) {
                     $rollback($store);
+                } catch (Throwable) {
+                    // Preserve the write failure that made compensation necessary.
                 }
+            }
+        }
 
-                return $result;
-            },
-            static fn (): bool => true
-        );
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return false;
+    }
+
+    /**
+     * Call the handler for every store.
+     */
+    protected function callAllStores(Closure $handler): bool
+    {
+        $result = true;
+        $exception = null;
+
+        foreach ($this->stores as $store) {
+            try {
+                if (! $handler($store)) {
+                    $result = false;
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return $result;
     }
 }

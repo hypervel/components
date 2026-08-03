@@ -12,7 +12,6 @@ use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\View;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Console\AboutCommand;
-use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Routing\Contracts\CallableDispatcher;
@@ -331,10 +330,6 @@ class SentryServiceProvider extends ServiceProvider
         }
 
         $httpKernel = $this->app->make(HttpKernelInterface::class);
-
-        if (! $httpKernel instanceof HttpKernel) {
-            return;
-        }
 
         // Tracing middleware is prepended so it starts the transaction as early as possible
         // in handle() and finishes the app span in terminate(). The transaction itself is

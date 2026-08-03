@@ -53,13 +53,15 @@ class Tags
 
         static::setEvent($event);
 
-        return collect(
-            [static::extractListener($job), $event]
-        )->map(function ($job) {
-            return static::for($job);
-        })->collapse()->unique()->tap(function () {
+        try {
+            return collect([static::extractListener($job), $event])
+                ->map(fn ($job) => static::for($job))
+                ->collapse()
+                ->unique()
+                ->toArray();
+        } finally {
             static::flushEventState();
-        })->toArray();
+        }
     }
 
     /**
@@ -151,6 +153,9 @@ class Tags
         CoroutineContext::set(static::CONTEXT_KEY, $event);
     }
 
+    /**
+     * Get the event currently being handled.
+     */
     protected static function getEvent(): ?object
     {
         return CoroutineContext::get(static::CONTEXT_KEY);
@@ -161,6 +166,6 @@ class Tags
      */
     protected static function flushEventState(): void
     {
-        CoroutineContext::set(static::CONTEXT_KEY, null);
+        CoroutineContext::forget(static::CONTEXT_KEY);
     }
 }

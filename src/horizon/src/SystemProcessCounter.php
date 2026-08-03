@@ -9,9 +9,14 @@ use Symfony\Component\Process\Process;
 class SystemProcessCounter
 {
     /**
+     * The default base command.
+     */
+    protected const DEFAULT_COMMAND = 'horizon:work';
+
+    /**
      * The base command to search for.
      */
-    public static string $command = 'horizon:work';
+    public static string $command = self::DEFAULT_COMMAND;
 
     /**
      * Get the number of Horizon workers for a given supervisor.
@@ -30,6 +35,6 @@ class SystemProcessCounter
      */
     public static function flushState(): void
     {
-        static::$command = 'horizon:work';
+        static::$command = self::DEFAULT_COMMAND;
     }
 }

@@ -7,13 +7,17 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Console\Command;
 use Hypervel\Console\CommandMutex;
 use Hypervel\Console\Events\AfterExecute;
+use Hypervel\Console\Events\AfterHandle;
+use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\NullOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class CommandMutexTest extends TestCase
 {
@@ -106,6 +110,53 @@ class CommandMutexTest extends TestCase
         $this->runCommand();
 
         $this->assertSame(1, $resolutions);
+    }
+
+    public function testExtendedHandlerLifecycleSharesInvocationWidePhases(): void
+    {
+        $command = new class extends Command implements Isolatable {
+            public int $ran = 0;
+
+            public function __invoke(): void
+            {
+                ++$this->ran;
+            }
+
+            protected function executeCommand(InputInterface $input, OutputInterface $output): int
+            {
+                parent::executeCommand($input, $output);
+
+                return parent::executeCommand($input, $output);
+            }
+        };
+        $command->setHypervel($this->app);
+        $events = [
+            BeforeHandle::class => 0,
+            AfterHandle::class => 0,
+            AfterExecute::class => 0,
+        ];
+
+        foreach (array_keys($events) as $event) {
+            $this->app->make(Dispatcher::class)->listen(
+                $event,
+                static function () use (&$events, $event): void {
+                    ++$events[$event];
+                },
+            );
+        }
+
+        $this->commandMutex->shouldReceive('create')->once()->with($command)->andReturnTrue();
+        $this->commandMutex->shouldReceive('forget')->once()->with($command)->andReturnTrue();
+
+        $command->run(
+            new ArrayInput(['--isolated' => true]),
+            new NullOutput,
+        );
+
+        $this->assertSame(2, $command->ran);
+        $this->assertSame(2, $events[BeforeHandle::class]);
+        $this->assertSame(2, $events[AfterHandle::class]);
+        $this->assertSame(1, $events[AfterExecute::class]);
     }
 
     public function testAfterExecuteFailureStillReleasesMutex(): void

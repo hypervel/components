@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Operations;
 
 use Generator;
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\RedisConnection;
@@ -57,13 +58,16 @@ use Hypervel\Redis\RedisConnection;
  * This class is designed to be used within a connection pool callback:
  *
  * ```php
- * $context->withConnection(function (RedisConnection $connection) {
- *     $optPrefix = (string) $connection->getOption(Redis::OPT_PREFIX);
- *     $safeScan = new SafeScan($connection, $optPrefix);
- *     foreach ($safeScan->execute('cache:users:*') as $key) {
- *         // $key is stripped of OPT_PREFIX, safe to use with del(), get(), etc.
- *     }
- * });
+ * $context->withConnection(
+ *     function (RedisConnection $connection) {
+ *         $optPrefix = (string) $connection->getOption(Redis::OPT_PREFIX);
+ *         $safeScan = new SafeScan($connection, $optPrefix);
+ *         foreach ($safeScan->execute('cache:users:*') as $key) {
+ *             // $key is stripped of OPT_PREFIX, safe to use with del(), get(), etc.
+ *         }
+ *     },
+ *     transform: false,
+ * );
  * ```
  */
 final class SafeScan
@@ -78,6 +82,11 @@ final class SafeScan
         private readonly RedisConnection $connection,
         private readonly string $optPrefix,
     ) {
+        if ($connection->getShouldTransform()) {
+            throw new InvalidRedisConnectionException(
+                'SafeScan requires a raw Redis connection. Use withConnection(..., transform: false).'
+            );
+        }
     }
 
     /**

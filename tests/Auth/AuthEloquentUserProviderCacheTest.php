@@ -11,10 +11,12 @@ use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Cache\FailoverStore;
 use Hypervel\Cache\FileStore;
+use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\SessionStore;
 use Hypervel\Cache\StackStore;
+use Hypervel\Cache\StorageStore;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\TagMode;
 use Hypervel\Container\Container;
@@ -39,13 +41,18 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
     protected MockInterface $cacheManager;
 
+    protected MockInterface $storeValidator;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $container = Container::setInstance(new Container);
         $this->cacheManager = m::mock(CacheManager::class);
+        $this->storeValidator = m::mock(ModelCacheStoreValidator::class);
+        $this->storeValidator->shouldReceive('validate')->byDefault();
         $container->instance('cache', $this->cacheManager);
+        $container->instance(ModelCacheStoreValidator::class, $this->storeValidator);
     }
 
     // ------------------------------------------------------------------
@@ -230,13 +237,17 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->retrieveById(42);
     }
 
-    public function testCustomCacheKeyResolverReceivesIdentifier()
+    public function testCustomCacheKeyResolverReceivesLookupContext()
     {
-        $received = null;
-        EloquentUserProvider::resolveUserCacheKeyUsing(function (mixed $id) use (&$received): string {
-            $received = $id;
+        $received = [];
+        EloquentUserProvider::resolveUserCacheKeyUsing(function (
+            mixed $identifier,
+            string $model,
+            ?Model $user,
+        ) use (&$received): string {
+            $received = [$identifier, $model, $user];
 
-            return (string) $id;
+            return (string) $identifier;
         });
 
         $repo = $this->stubCache(RedisStore::class);
@@ -250,7 +261,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $provider->retrieveById(42);
 
-        $this->assertSame(42, $received);
+        $this->assertSame([42, self::MODEL, null], $received);
     }
 
     public function testCacheKeyAlwaysIncludesFqcnEvenWithCustomResolver()
@@ -274,13 +285,16 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // Supported-store whitelist
+    // Model cache store validation
     // ------------------------------------------------------------------
 
     #[DataProvider('supportedStoreProvider')]
     public function testEnableCacheAcceptsSupportedStores(string $storeClass)
     {
-        $this->stubCache($storeClass);
+        $repo = $this->stubCache($storeClass);
+        $this->storeValidator->shouldReceive('validate')
+            ->once()
+            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']');
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -297,6 +311,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         yield 'Redis' => [RedisStore::class];
         yield 'Database' => [DatabaseStore::class];
         yield 'File' => [FileStore::class];
+        yield 'Storage' => [StorageStore::class];
         yield 'Swoole' => [SwooleStore::class];
         yield 'Stack' => [StackStore::class];
     }
@@ -304,7 +319,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     #[DataProvider('unsupportedStoreProvider')]
     public function testEnableCacheRejectsUnsupportedStores(string $storeClass)
     {
-        $this->stubCache($storeClass);
+        $repo = $this->stubCache($storeClass);
+        $this->storeValidator->shouldReceive('validate')
+            ->once()
+            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
+            ->andThrow(new InvalidArgumentException('does not support cache store'));
 
         $provider = $this->providerWithoutDbFetch();
 
@@ -324,7 +343,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
     public function testEnableCacheLeavesProviderInDisabledStateWhenValidationFails()
     {
-        $this->stubCache(ArrayStore::class);
+        $repo = $this->stubCache(ArrayStore::class);
+        $this->storeValidator->shouldReceive('validate')
+            ->once()
+            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
+            ->andThrow(new InvalidArgumentException('does not support cache store'));
 
         $user = m::mock(Authenticatable::class);
         $provider = $this->providerExpectingDbFetch($user, 42);
@@ -348,6 +371,33 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
+    public function testModelStoreValidationRunsBeforeAuthTagValidation(): void
+    {
+        $sequence = [];
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('supportsTags')
+            ->once()
+            ->andReturnUsing(function () use (&$sequence): bool {
+                $sequence[] = 'tags';
+
+                return true;
+            });
+        $store->shouldReceive('getTagMode')->once()->andReturn(TagMode::Any);
+        $repo = m::mock(CacheRepository::class);
+        $repo->shouldReceive('getStore')->andReturn($store);
+        $this->cacheManager->shouldReceive('store')->once()->with(null)->andReturn($repo);
+        $this->storeValidator->shouldReceive('validate')
+            ->once()
+            ->with($repo, 'Auth user cache for model [' . self::MODEL . ']')
+            ->andReturnUsing(function () use (&$sequence): void {
+                $sequence[] = 'model';
+            });
+
+        $this->providerWithoutDbFetch()->enableCache(null, tags: ['auth_users']);
+
+        $this->assertSame(['model', 'tags'], $sequence);
+    }
+
     // ------------------------------------------------------------------
     // Manual invalidation
     // ------------------------------------------------------------------
@@ -365,7 +415,16 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
     public function testClearUserCacheUsesCustomKeyResolver()
     {
-        EloquentUserProvider::resolveUserCacheKeyUsing(fn (mixed $id): string => "tenant:{$id}");
+        $received = [];
+        EloquentUserProvider::resolveUserCacheKeyUsing(function (
+            mixed $identifier,
+            string $model,
+            ?Model $user,
+        ) use (&$received): string {
+            $received = [$identifier, $model, $user];
+
+            return "tenant:{$identifier}";
+        });
 
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':tenant:42';
@@ -375,6 +434,8 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider->enableCache(null);
 
         $provider->clearUserCache(42);
+
+        $this->assertSame([42, self::MODEL, null], $received);
     }
 
     public function testClearUserCacheIsNoOpWhenCacheDisabled()

@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Configuration](#configuration)
     - [Array Cache Stores](#array-cache-stores)
+    - [Serializable Cached Objects](#serializable-cached-objects)
     - [Driver Prerequisites](#driver-prerequisites)
     - [Swoole Table Cache](#swoole-table-cache)
     - [Building Cache Stacks](#building-cache-stacks)
@@ -47,7 +48,7 @@ Thankfully, Hypervel provides an expressive, unified API for various cache backe
 <a name="configuration"></a>
 ## Configuration
 
-Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Hypervel supports Redis, relational databases, file storage, Swoole tables, session storage, cache stacks, failover stores, and the `array`, `worker-array`, and `null` stores that are convenient for automated tests and in-memory cache data.
+Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Hypervel supports Redis, relational databases, local files, filesystem disks, Swoole tables, session storage, cache stacks, failover stores, and the `array`, `worker-array`, and `null` stores that are convenient for automated tests and in-memory cache data.
 
 The cache configuration file also contains a variety of other options that you may review. By default, Hypervel is configured to use the `database` cache driver, which stores serialized cache values in your application's database.
 
@@ -77,6 +78,55 @@ Use `array` for request-local test and scratch data. Use `worker-array` only whe
     ],
 ],
 ```
+
+<a name="serializable-cached-objects"></a>
+### Serializable Cached Objects
+
+Hypervel applies one global class policy to PHP-serialized cache values. By default, `serializable_classes` is `false`, so PHP may instantiate only classes contributed by framework, package, and application providers. Auth and Sanctum contribute their configured root models and Hypervel contributes the standard Eloquent collection and pivot classes they use.
+
+Set this option to an array to add application-owned classes, or to `null` / `true` to allow every class:
+
+```php
+'serializable_classes' => [
+    App\Data\UserProfile::class,
+],
+```
+
+Packages and applications may contribute classes lazily from a service provider's `boot` method. Contributions are combined with the configured array in registration order, and duplicates are removed:
+
+```php
+use App\Models\Organization;
+use App\Models\Team;
+use Hypervel\Support\Facades\Cache;
+
+public function boot(): void
+{
+    Cache::allowSerializableClassesUsing(fn (): array => [
+        Organization::class,
+        Team::class,
+    ]);
+}
+```
+
+The resolver is evaluated after every provider has booted and must be registered during process startup. Declare application relation models, morph targets, custom collections and pivots, and any other nested objects that may be cached. Unknown class names may be declared without loading them immediately.
+
+The policy applies to serializing array and worker-array stores, database, file, storage, Redis using `Redis::SERIALIZER_NONE`, and Swoole. A stack applies the same policy through each serializing layer. Array stores with serialization disabled keep live values, while the session cache follows the separate serializer selected in `config/session.php`.
+
+When a denied root object is read, PHP returns an `__PHP_Incomplete_Class`. Nested denied objects follow normal PHP behavior: using the object directly raises an error containing `The script tried to` and names the denied class. Eloquent's `toArray` and `toJson` omit an incomplete relation instead of returning it as `null`. Add the named class to the configured array or a boot-time resolver. If the class was removed from the application, clear the stale cache entry instead.
+
+You may register an optional boot-time callback for top-level incomplete objects. Without a callback, Hypervel leaves PHP's incomplete object unchanged:
+
+```php
+use Hypervel\Support\Facades\Cache;
+
+Cache::handleUnserializableClassUsing(function (string $key, ?string $class) {
+    // ...
+});
+```
+
+Native PhpRedis serializers restore values before Hypervel can apply the PHP class policy. Use `Redis::SERIALIZER_NONE` when policy enforcement is required. Native PHP and igbinary serializers preserve PHP object types while bypassing the policy. Msgpack also preserves classes and references when `msgpack.php_only=1`; without PHP-only mode, and with the JSON serializer, objects become arrays. Configure `msgpack.php_only` in `php.ini` before workers start rather than changing this process-wide setting while requests are running.
+
+Igbinary maintains a table of repeated strings and class names, which can suit Eloquent graphs with repeated attribute keys. Msgpack provides a compact binary encoding but repeats string and class names. Benchmark your own values and access patterns before choosing a serializer.
 
 <a name="driver-prerequisites"></a>
 ### Driver Prerequisites
@@ -112,6 +162,19 @@ You may run the `cache:redis-doctor` command to verify your Redis cache configur
 
 ```shell
 php artisan cache:redis-doctor
+```
+
+<a name="storage"></a>
+#### Storage
+
+The `storage` cache driver allows you to store cached values on any configured [filesystem disk](/docs/{{version}}/filesystem). This can be useful when you want to use an existing disk, such as an S3 disk, as a key / value cache store:
+
+```php
+'storage' => [
+    'driver' => 'storage',
+    'disk' => env('CACHE_STORAGE_DISK'),
+    'path' => env('CACHE_STORAGE_PATH', 'framework/cache/data'),
+],
 ```
 
 <a name="swoole-table-cache"></a>
@@ -190,6 +253,8 @@ The `session` cache driver stores cache values inside the active session store. 
 ],
 ```
 
+Session cache values use the serialization strategy configured for the session. With the default `json` strategy, cached PHP objects do not retain their type or value across requests, so this store does not provide PSR-16's exact-value guarantee for objects. If your application needs to cache PHP objects in the session, set the `serialization` option in `config/session.php` to `php` and review the [security considerations](/docs/{{version}}/session#configuration).
+
 <a name="cache-failover"></a>
 ### Cache Failover
 
@@ -214,6 +279,8 @@ CACHE_STORE=failover
 ```
 
 When a cache store operation fails and failover is activated, Hypervel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed.
+
+Reads, writes, increments, locks, and other ordinary operations stop after the first store call that does not throw. `forget` and `flush` instead attempt every configured store so a stale lower-priority value cannot reappear later. They return `false` after a partial failure; if every store throws, the last exception is rethrown.
 
 <a name="cache-usage"></a>
 ## Cache Usage
@@ -315,6 +382,14 @@ $value = Cache::remember('users', $seconds, function () {
 ```
 
 If the item does not exist in the cache, the closure passed to the `remember` method will be executed and its result will be placed in the cache.
+
+If you need to know whether the item was retrieved from the cache instead of by executing the given closure, you may use the `rememberWithWarmth` method. This method returns an array containing the cached value and a boolean indicating whether the item was "warm", meaning it was retrieved from the cache and not resolved from the closure:
+
+```php
+[$value, $warm] = Cache::rememberWithWarmth('users', $seconds, function () {
+    return DB::table('users')->get();
+});
+```
 
 You may use the `rememberForever` method to retrieve an item from the cache or store it forever if it does not exist:
 
@@ -432,7 +507,7 @@ Cache::forever('key', 'value');
 ```
 
 > [!NOTE]
-> If you are using the `swoole` driver, items stored using the `forever` method are stored with a long expiration time and may still expire or be evicted when the table reaches its capacity, depending on the configured eviction policy.
+> If you are using the `swoole` driver, items stored using the `forever` method do not expire based on time, but may still be evicted when the table reaches its capacity, depending on the configured eviction policy.
 
 <a name="removing-items-from-the-cache"></a>
 ### Removing Items From the Cache
@@ -538,7 +613,7 @@ cache()->remember('users', $seconds, function () {
 ## Cache Tags
 
 > [!WARNING]
-> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `database`, `swoole`, `session`, or `memo` drivers.
+> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, `session`, or `memo` drivers.
 
 <a name="redis-tag-modes"></a>
 ### Redis Tag Modes
@@ -1046,6 +1121,9 @@ Hypervel includes several Artisan commands for working with cache stores:
 ## Events
 
 To execute code on every cache operation, you may listen for various [events](/docs/{{version}}/events) dispatched by the cache:
+
+> [!NOTE]
+> Cache additions handled by a store's native atomic `add` operation do not dispatch cache events. Redis `any` tag mode performs `add` atomically with or without a time-to-live.
 
 <div class="overflow-auto">
 

@@ -24,7 +24,7 @@ class UniqueJobPayloadContext
         // @phpstan-ignore assign.propertyType (PHPStan falsely rejects an empty WeakMap for this invariant closed-shape value.)
         $metadata = static::$metadata ??= new WeakMap;
 
-        // IMPORTANT: Uses Laravel's keys for cross-framework queue interoperability.
+        // Uses Laravel's keys for cross-framework queue interoperability.
         $metadata[$job] = [
             'laravel_unique_job_cache_store' => static::getCacheStore($job),
             'laravel_unique_job_key' => UniqueLock::getKey($job),

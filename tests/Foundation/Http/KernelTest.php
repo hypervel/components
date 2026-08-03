@@ -282,6 +282,31 @@ class KernelTest extends TestCase
         $this->assertSame($replacement, $kernel->handle($request));
     }
 
+    public function testHandleRetainsTheRouterFailureWhenExceptionReportingFails(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->bootstrapWith([]);
+        $original = new RuntimeException('router failed');
+        $reportingFailure = new RuntimeException('reporting failed');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($original)->andThrow($reportingFailure);
+        $handler->shouldNotReceive('render');
+        $app->instance(ExceptionHandler::class, $handler);
+        $router = m::mock(Router::class);
+        $router->expects('dispatch')->andThrow($original);
+        $kernel = new Kernel($app, $router);
+
+        try {
+            $kernel->handle(Request::create('/'));
+            $this->fail('Expected exception reporting to fail.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($reportingFailure, $caught);
+            $this->assertSame($original, $caught->getPrevious());
+        }
+    }
+
     public function testTerminationIsExhaustiveAndPreservesTheFirstFailure(): void
     {
         $called = [];

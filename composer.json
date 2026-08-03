@@ -336,6 +336,7 @@
                 "Hypervel\\Log\\Context\\ContextServiceProvider",
                 "Hypervel\\Log\\LogServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
+                "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\ObjectPool\\ObjectPoolServiceProvider",
                 "Hypervel\\Passkeys\\PasskeysServiceProvider",

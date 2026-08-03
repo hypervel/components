@@ -20,6 +20,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate Limiter Cache Store
+    |--------------------------------------------------------------------------
+    |
+    | This option controls the cache store used by the rate limiter. When
+    | this option is not configured, the default cache store is used.
+    |
+    */
+
+    'limiter' => env('CACHE_LIMITER'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |
@@ -28,7 +40,7 @@ return [
     | same cache driver to group types of items stored in your caches.
     |
     | Supported drivers: "array", "worker-array", "database", "file",
-    |                    "redis", "swoole", "stack", "session",
+    |                    "storage", "redis", "swoole", "stack", "session",
     |                    "failover", "null"
     |
     */
@@ -63,6 +75,12 @@ return [
             'driver' => 'file',
             'path' => storage_path('framework/cache/data'),
             'lock_path' => storage_path('framework/cache/data'),
+        ],
+
+        'storage' => [
+            'driver' => 'storage',
+            'disk' => env('CACHE_STORAGE_DISK'),
+            'path' => env('CACHE_STORAGE_PATH', 'framework/cache/data'),
         ],
 
         'redis' => [
@@ -100,6 +118,23 @@ return [
             ],
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Serializable Classes
+    |--------------------------------------------------------------------------
+    |
+    | This global value determines the classes that PHP cache stores may
+    | unserialize. False allows only classes contributed by framework, package,
+    | and application providers; an array also allows the classes listed here;
+    | null or true allows every class. False is the secure default because
+    | unserializing arbitrary classes can expose gadget chains when cache
+    | payloads are forged. Native PhpRedis serializers handle deserialization
+    | themselves, so this policy does not apply to those connections.
+    |
+    */
+
+    'serializable_classes' => false,
 
     /*
     |--------------------------------------------------------------------------

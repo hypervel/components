@@ -6,10 +6,12 @@ namespace Hypervel\Contracts\Auth\Access;
 
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use InvalidArgumentException;
+use LogicException;
 use RuntimeException;
 use UnitEnum;
 
@@ -108,18 +110,20 @@ interface Gate
     /**
      * Apply the policy's scope method to filter a query to authorized rows.
      *
+     * @throws LogicException
      * @throws RuntimeException
      */
-    public function scope(string $ability, Builder $query): Builder;
+    public function scope(UnitEnum|string $ability, Builder $query): Builder;
 
     /**
-     * Get a SQL expression from the policy for per-row authorization.
+     * Get a scalar boolean selection from the policy for per-row authorization.
      *
      * @param Builder|class-string<Model>|Model $query
      *
+     * @throws LogicException
      * @throws RuntimeException
      */
-    public function select(string $ability, Builder|Model|string $query): Expression;
+    public function select(UnitEnum|string $ability, Builder|Model|string $query): ExpressionContract|QueryBuilder;
 
     /**
      * Get a policy instance for a given class.

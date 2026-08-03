@@ -46,21 +46,22 @@ class CookieSessionHandler implements SessionHandlerInterface
     public function read(string $sessionId): false|string
     {
         $value = $this->getRequest()->cookies->get($sessionId) ?: '';
+        $decoded = @unserialize($value, ['allowed_classes' => false]);
 
-        if (! is_null($decoded = json_decode($value, true))
-            && is_array($decoded)
-            && isset($decoded['expires'])
-            && $this->currentTime() <= $decoded['expires']
-        ) {
-            return $decoded['data'];
+        if (! is_array($decoded)
+            || ! isset($decoded['data'], $decoded['expires'])
+            || ! is_string($decoded['data'])
+            || ! is_int($decoded['expires'])
+            || $this->currentTime() > $decoded['expires']) {
+            return '';
         }
 
-        return '';
+        return $decoded['data'];
     }
 
     public function write(string $sessionId, string $data): bool
     {
-        $this->cookie->queue($sessionId, json_encode([
+        $this->cookie->queue($sessionId, serialize([
             'data' => $data,
             'expires' => $this->availableAt($this->minutes * 60),
         ]), $this->expireOnClose ? 0 : $this->minutes);

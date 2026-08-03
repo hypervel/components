@@ -286,6 +286,7 @@ PHP;
         $directory = ParallelTesting::tempDir('GeneratorCommandTestPermissions');
         $path = $directory . '/GeneratedClass.php';
         $files = new Filesystem;
+        $files->deleteDirectory($directory);
         $files->ensureDirectoryExists($directory);
         $files->put($path, 'old contents');
         chmod($path, 0640);
@@ -305,6 +306,7 @@ PHP;
         $directory = ParallelTesting::tempDir('GeneratorCommandTestDirectory');
         $blockedPath = $directory . '/blocked';
         $files = new Filesystem;
+        $files->deleteDirectory($directory);
         $files->ensureDirectoryExists($directory);
         $files->put($blockedPath, 'not a directory');
 

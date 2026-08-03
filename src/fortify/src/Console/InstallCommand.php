@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'fortify:install')]
@@ -87,6 +89,8 @@ class InstallCommand extends Command
      */
     protected function updatePublishedNamespaces(string $namespace): bool
     {
+        $filesystem = $this->hypervel->make(Filesystem::class);
+
         $paths = [
             $this->hypervel->path('Actions/Fortify/CreateNewUser.php'),
             $this->hypervel->path('Actions/Fortify/PasswordValidationRules.php'),
@@ -97,15 +101,16 @@ class InstallCommand extends Command
         ];
 
         foreach ($paths as $path) {
-            if (! is_file($path) || ! is_readable($path)) {
-                $this->components->error("Unable to read published Fortify file [{$path}].");
+            if (! is_file($path)) {
+                $this->components->error("Fortify file [{$path}] was not published.");
 
                 return false;
             }
 
-            $contents = file_get_contents($path);
+            $contents = @file_get_contents($path);
+            $permissions = @fileperms($path);
 
-            if ($contents === false) {
+            if ($contents === false || $permissions === false) {
                 $this->components->error("Unable to read published Fortify file [{$path}].");
 
                 return false;
@@ -117,7 +122,9 @@ class InstallCommand extends Command
                 $contents,
             );
 
-            if (file_put_contents($path, $contents) === false) {
+            try {
+                $filesystem->replace($path, $contents, $permissions & 0777);
+            } catch (RuntimeException) {
                 $this->components->error("Unable to update published Fortify file [{$path}].");
 
                 return false;

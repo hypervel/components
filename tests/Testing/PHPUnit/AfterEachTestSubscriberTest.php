@@ -19,6 +19,7 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
+use Hypervel\NestedSet\NestedSet;
 use Hypervel\Process\InvokedProcess;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
@@ -216,6 +217,27 @@ class AfterEachTestSubscriberTest extends TestCase
             $this->assertFalse($prohibited->getValue());
         } finally {
             KeyGenerateCommand::flushState();
+        }
+    }
+
+    public function testFrameworkCleanupFlushesNestedSetMetadata(): void
+    {
+        $classes = new ReflectionProperty(NestedSet::class, 'nodeClasses');
+        $classes->setValue(null, [self::class => false]);
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertSame([], $classes->getValue());
+        } finally {
+            NestedSet::flushState();
         }
     }
 

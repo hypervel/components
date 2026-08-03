@@ -8,7 +8,9 @@ use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use Algolia\AlgoliaSearch\Http\HttpClientInterface;
+use Algolia\AlgoliaSearch\Model\Search\GetTaskResponse;
 use GuzzleHttp\Client as GuzzleClient;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -81,7 +83,11 @@ trait InteractsWithAlgolia
     {
         try {
             if ($this->algolia !== null) {
-                $this->cleanupAlgoliaIndices();
+                try {
+                    $this->cleanupAlgoliaIndices();
+                } catch (Throwable) {
+                    // Ignore cleanup errors
+                }
             }
         } finally {
             $this->algolia = null;
@@ -114,6 +120,8 @@ trait InteractsWithAlgolia
 
     /**
      * Clean up all test indexes matching the test prefix.
+     *
+     * Every scheduled deletion is awaited before the first incomplete task is reported.
      */
     protected function cleanupAlgoliaIndices(): void
     {
@@ -121,18 +129,34 @@ trait InteractsWithAlgolia
             return;
         }
 
-        try {
-            $indices = $this->algolia->listIndices();
+        $tasks = [];
+        $indices = $this->algolia->listIndices();
 
-            foreach ($indices['items'] ?? [] as $index) {
-                $name = $index['name'] ?? null;
+        foreach ($indices['items'] ?? [] as $index) {
+            $name = $index['name'] ?? null;
 
-                if (is_string($name) && str_starts_with($name, $this->algoliaTestPrefix)) {
-                    $this->algolia->deleteIndex($name);
-                }
+            if (is_string($name) && str_starts_with($name, $this->algoliaTestPrefix)) {
+                /** @var array{taskID: int} $task */
+                $task = $this->algolia->deleteIndex($name);
+                $tasks[] = ['indexName' => $name, 'taskID' => $task['taskID']];
             }
-        } catch (Throwable) {
-            // Ignore errors during cleanup
+        }
+
+        $failure = null;
+
+        foreach ($tasks as $task) {
+            /** @var null|array<string, mixed>|GetTaskResponse $result */
+            $result = $this->algolia->waitForTask($task['indexName'], $task['taskID']);
+
+            if (($result['status'] ?? null) !== 'published') {
+                $failure ??= new RuntimeException(
+                    "Algolia index deletion task [{$task['taskID']}] for [{$task['indexName']}] did not complete."
+                );
+            }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 }

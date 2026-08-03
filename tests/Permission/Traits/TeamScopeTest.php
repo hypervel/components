@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Permission\Exceptions\TeamModelNotConfigured;
 use Hypervel\Permission\Exceptions\TeamsNotEnabled;
@@ -12,6 +14,7 @@ use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Tests\Permission\Fixtures\Models\Team;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class TeamScopeTest extends TestCase
 {
@@ -171,6 +174,32 @@ class TeamScopeTest extends TestCase
 
         $this->assertCount(1, User::team($teamOne)->get());
         $this->assertCount(2, User::team([$teamOne, $teamTwo])->get());
+    }
+
+    #[DataProvider('teamScopeProvider')]
+    public function testTeamScopesRejectKeylessModelInputs(string $scope, bool $mixed): void
+    {
+        Model::preventAccessingMissingAttributes(false);
+
+        $teamOne = Team::create(['name' => 'Team One']);
+        Team::create(['name' => 'Team Two']);
+        $keylessTeam = Team::query()->select('name')->where('name', 'Team Two')->firstOrFail();
+        $teams = $mixed ? [$teamOne, $keylessTeam] : $keylessTeam;
+
+        $this->expectException(MissingAttributeException::class);
+        $this->expectExceptionMessage($keylessTeam->getKeyName());
+
+        User::query()->{$scope}($teams)->get();
+    }
+
+    public static function teamScopeProvider(): array
+    {
+        return [
+            'team with keyless model' => ['team', false],
+            'team with mixed models' => ['team', true],
+            'without team with keyless model' => ['withoutTeam', false],
+            'without team with mixed models' => ['withoutTeam', true],
+        ];
     }
 
     public function testItReturnsUniqueUsersWhenUserHasMultipleRolesInTheSameTeam(): void

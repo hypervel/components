@@ -25,6 +25,7 @@ class TypesenseSearchableModel extends Model implements SearchableInterface
     {
         return [
             'id' => (string) $this->id,
+            'ranking' => (int) $this->id,
             'title' => $this->title,
             'body' => $this->body ?? '',
         ];
@@ -41,6 +42,7 @@ class TypesenseSearchableModel extends Model implements SearchableInterface
             'name' => $this->searchableAs(),
             'fields' => [
                 ['name' => 'id', 'type' => 'string', 'facet' => true],
+                ['name' => 'ranking', 'type' => 'int32', 'facet' => true],
                 ['name' => 'title', 'type' => 'string', 'facet' => true, 'sort' => true],
                 ['name' => 'body', 'type' => 'string', 'facet' => true],
             ],
