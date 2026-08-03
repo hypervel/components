@@ -20,6 +20,16 @@ use RuntimeException;
 
 class BroadcastPoolProxyTest extends TestCase
 {
+    /** @var list<PoolManager> */
+    private array $poolManagers = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->poolManagers as $poolManager) {
+            $poolManager->flush();
+        }
+    }
+
     public function testAuthenticatedUserResolverStateIsWrittenOnEveryBorrowIncludingNull(): void
     {
         $broadcaster = new PoolProxyUserAuthenticationBroadcaster(m::mock(ContainerContract::class));
@@ -86,8 +96,10 @@ class BroadcastPoolProxyTest extends TestCase
         $proxy->resolveAuthenticatedUserUsing(fn (): array => ['id' => 'user']);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('resolver callbacks on pooled broadcasters require an instance');
-        $this->expectExceptionMessage(PoolProxyContractOnlyBroadcaster::class);
+        $this->expectExceptionMessage(
+            'Authenticated-user resolver callbacks on pooled broadcasters require an instance of '
+            . Broadcaster::class . '; [' . PoolProxyContractOnlyBroadcaster::class . '] was returned.'
+        );
 
         $proxy->auth(Request::create('/broadcasting/auth', 'POST'));
     }
@@ -112,7 +124,10 @@ class BroadcastPoolProxyTest extends TestCase
         ?PoolManager $pools = null,
         ?PoolDefinition $definition = null,
     ): array {
-        $pools ??= new PoolManager;
+        if ($pools === null) {
+            $this->poolManagers[] = $pools = new PoolManager;
+        }
+
         $definition ??= new PoolDefinition(
             'broadcast-test',
             'broadcast-test',

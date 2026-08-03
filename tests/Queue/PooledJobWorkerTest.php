@@ -27,6 +27,16 @@ use stdClass;
 
 class PooledJobWorkerTest extends TestCase
 {
+    /** @var list<SimpleObjectPool> */
+    private array $pools = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->pools as $pool) {
+            $pool->close();
+        }
+    }
+
     public function testProcessedListenerCanReadPrimedAttemptsAfterTerminalDelete(): void
     {
         $container = new Container;
@@ -54,10 +64,7 @@ class PooledJobWorkerTest extends TestCase
             'connection',
             'queue',
         );
-        $pool = new SimpleObjectPool(
-            fn () => new stdClass,
-            PoolOptions::fromArray([]),
-        );
+        $pool = $this->pool();
         $job->withPoolLease(new Lease($pool, $pool->get()));
 
         $attemptsObservedByListener = null;
@@ -106,7 +113,7 @@ class PooledJobWorkerTest extends TestCase
             'data' => [],
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
-        $pool = new SimpleObjectPool(fn () => new stdClass, PoolOptions::fromArray([]));
+        $pool = $this->pool();
         $job->withPoolLease(new Lease($pool, $pool->get()));
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->andReturn([]);
@@ -142,7 +149,7 @@ class PooledJobWorkerTest extends TestCase
             'data' => [],
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
-        $pool = new SimpleObjectPool(fn () => new stdClass, PoolOptions::fromArray([]));
+        $pool = $this->pool();
         $job->withPoolLease(new Lease($pool, $pool->get()));
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->andReturn([]);
@@ -160,6 +167,17 @@ class PooledJobWorkerTest extends TestCase
         $this->assertTrue($job->isDeleted());
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
         $this->assertSame(1, $pool->getObjectNumberInPool());
+    }
+
+    /**
+     * Create a tracked object pool.
+     */
+    private function pool(): SimpleObjectPool
+    {
+        $pool = new SimpleObjectPool(fn () => new stdClass, PoolOptions::fromArray([]));
+        $this->pools[] = $pool;
+
+        return $pool;
     }
 
     /**

@@ -19,6 +19,16 @@ use stdClass;
 
 class LeasedStreamTest extends TestCase
 {
+    /** @var list<SimpleObjectPool> */
+    private array $pools = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->pools as $pool) {
+            $pool->close();
+        }
+    }
+
     public function testReadEofAndRewindDoNotReleaseUntilClose(): void
     {
         [$pool, $lease, $inner] = $this->leaseWithStream('contents');
@@ -35,7 +45,6 @@ class LeasedStreamTest extends TestCase
         fclose($stream);
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
         $this->assertSame(1, $pool->getObjectNumberInPool());
-        $pool->close();
     }
 
     public function testExplicitCloseAndStreamResourceDestructionReleaseExactlyOnce(): void
@@ -55,7 +64,6 @@ class LeasedStreamTest extends TestCase
 
         $this->assertSame(1, $releaseCount);
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $pool->close();
     }
 
     public function testAbandonedWrapperClosesInnerStreamAndReleasesLease(): void
@@ -69,7 +77,6 @@ class LeasedStreamTest extends TestCase
         $this->assertFalse(is_resource($inner));
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
         $this->assertSame(1, $pool->getObjectNumberInPool());
-        $pool->close();
     }
 
     public function testSeekTellAndStatForwardToTheInnerStream(): void
@@ -84,7 +91,6 @@ class LeasedStreamTest extends TestCase
         $this->assertSame(10, fstat($stream)['size']);
 
         fclose($stream);
-        $pool->close();
     }
 
     public function testStreamCastKeepsStreamSelectWorking(): void
@@ -105,7 +111,6 @@ class LeasedStreamTest extends TestCase
 
         fclose($writer);
         fclose($stream);
-        $pool->close();
     }
 
     public function testSupportedStreamOptionsForwardAndUnsupportedOptionsFail(): void
@@ -142,7 +147,6 @@ class LeasedStreamTest extends TestCase
         );
 
         fclose($stream);
-        $pool->close();
     }
 
     public function testInvalidResourceIsRejectedWithoutTakingLeaseOwnership(): void
@@ -159,7 +163,6 @@ class LeasedStreamTest extends TestCase
 
         $this->assertSame(1, $pool->getBorrowedObjectNumber());
         $lease->release();
-        $pool->close();
     }
 
     public function testReleaseFailureDuringCloseIsReportedAndSwallowed(): void
@@ -170,10 +173,7 @@ class LeasedStreamTest extends TestCase
         $handler = m::mock(ExceptionHandler::class);
         $handler->shouldReceive('report')->once()->with($failure);
         $container->instance(ExceptionHandler::class, $handler);
-        $pool = new SimpleObjectPool(
-            static fn (): object => new stdClass,
-            PoolOptions::fromArray([]),
-        );
+        $pool = $this->pool();
         $lease = new Lease($pool, $pool->get(), function () use ($failure): never {
             throw $failure;
         });
@@ -185,7 +185,6 @@ class LeasedStreamTest extends TestCase
 
         $this->assertSame(0, $pool->getCurrentObjectNumber());
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $pool->close();
     }
 
     public function testProtocolCollisionClosesResourceAndFinalizesLeaseTransactionally(): void
@@ -317,12 +316,17 @@ PHP;
         return [$pool, $lease, $inner];
     }
 
+    /**
+     * Create a tracked object pool.
+     */
     private function pool(): SimpleObjectPool
     {
-        return new SimpleObjectPool(
+        $this->pools[] = $pool = new SimpleObjectPool(
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
         );
+
+        return $pool;
     }
 }
 

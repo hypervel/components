@@ -23,6 +23,16 @@ use stdClass;
 
 class PoolRecyclerTest extends TestCase
 {
+    /** @var list<PoolManager> */
+    private array $poolManagers = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->poolManagers as $poolManager) {
+            $poolManager->flush();
+        }
+    }
+
     public function testIdlePoolIsEvictedByIdentityAndExactInstance(): void
     {
         $pool = m::mock(ObjectPool::class);
@@ -36,7 +46,7 @@ class PoolRecyclerTest extends TestCase
 
     public function testReplacementPoolSurvivesAStaleEvictionSnapshot(): void
     {
-        $manager = new PoolManager;
+        $manager = $this->poolManager();
         $definition = $this->definition('shared');
         $replacement = $manager->getOrCreate($definition, static fn (): object => new stdClass);
         $stale = m::mock(ObjectPool::class);
@@ -52,12 +62,11 @@ class PoolRecyclerTest extends TestCase
 
         $this->assertSame($replacement, $manager->get('shared'));
         $this->assertFalse($replacement->isClosed());
-        $manager->flush();
     }
 
     public function testSuspendedFactoryPreventsIdleEviction(): void
     {
-        $manager = new PoolManager;
+        $manager = $this->poolManager();
         $definition = new PoolDefinition(
             'suspended',
             'service',
@@ -84,12 +93,11 @@ class PoolRecyclerTest extends TestCase
         usleep(10_000);
         $this->assertInstanceOf(stdClass::class, $borrowed);
         $pool->release($borrowed);
-        $manager->flush();
     }
 
     public function testParkedWaiterAndBorrowedObjectPreventIdleEviction(): void
     {
-        $manager = new PoolManager;
+        $manager = $this->poolManager();
         $definition = new PoolDefinition(
             'waiting',
             'service',
@@ -116,7 +124,6 @@ class PoolRecyclerTest extends TestCase
         usleep(3_000);
         $this->assertInstanceOf(stdClass::class, $waiterBorrow);
         $pool->release($waiterBorrow);
-        $manager->flush();
     }
 
     public function testNonIdlePoolsAreSweptAndTrimmed(): void
@@ -245,6 +252,16 @@ class PoolRecyclerTest extends TestCase
         $recycler->setInterval(2.5);
 
         $this->assertSame(2.5, $recycler->getInterval());
+    }
+
+    /**
+     * Create a tracked pool manager.
+     */
+    private function poolManager(): PoolManager
+    {
+        $this->poolManagers[] = $poolManager = new PoolManager;
+
+        return $poolManager;
     }
 
     private function definition(string $identity): PoolDefinition

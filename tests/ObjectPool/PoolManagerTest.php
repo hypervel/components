@@ -6,9 +6,11 @@ namespace Hypervel\Tests\ObjectPool;
 
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\PoolDefinition;
+use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use RuntimeException;
 use stdClass;
 
@@ -23,6 +25,108 @@ class PoolManagerTest extends TestCase
         parent::setUp();
 
         $this->manager = new PoolManager;
+    }
+
+    protected function tearDownInCoroutine(): void
+    {
+        $this->manager->flush();
+    }
+
+    public function testPoolBuildsDefinitionsFromNamesAndOptions(): void
+    {
+        $defaultPool = $this->manager->pool(
+            'app:reports',
+            static fn (): object => new stdClass,
+        );
+        $configuredPool = $this->manager->pool(
+            'app:exports',
+            static fn (): object => new stdClass,
+            ['max_objects' => 20, 'idle_ttl' => null],
+        );
+
+        $defaultDefinition = $this->manager->definition('app:reports');
+        $configuredDefinition = $this->manager->definition('app:exports');
+
+        $this->assertInstanceOf(PoolDefinition::class, $defaultDefinition);
+        $this->assertSame('app:reports', $defaultDefinition->identity);
+        $this->assertSame('app:reports', $defaultDefinition->resourceType);
+        $this->assertSame(PoolFingerprint::fromExplicit('app:reports'), $defaultDefinition->fingerprint);
+        $this->assertSame(PoolOptions::fromArray([])->toArray(), $defaultDefinition->options->toArray());
+        $this->assertSame($defaultDefinition->options->toArray(), $defaultPool->getOptions()->toArray());
+
+        $this->assertInstanceOf(PoolDefinition::class, $configuredDefinition);
+        $this->assertSame('app:exports', $configuredDefinition->identity);
+        $this->assertSame('app:exports', $configuredDefinition->resourceType);
+        $this->assertSame(PoolFingerprint::fromExplicit('app:exports'), $configuredDefinition->fingerprint);
+        $this->assertSame(20, $configuredDefinition->options->maxObjects);
+        $this->assertNull($configuredDefinition->options->idleTtl);
+        $this->assertSame($configuredDefinition->options->toArray(), $configuredPool->getOptions()->toArray());
+    }
+
+    public function testPoolReusesTheNamedPoolAndIgnoresTheNewCallback(): void
+    {
+        $first = $this->manager->pool(
+            'app:reports',
+            static fn (): object => new stdClass,
+        );
+        $second = $this->manager->pool(
+            'app:reports',
+            static fn (): never => throw new RuntimeException('replacement factory must be ignored'),
+        );
+        $object = $second->get();
+        $second->release($object);
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testPoolRejectsDifferentOptionsForTheSameName(): void
+    {
+        $this->manager->pool('app:reports', static fn (): object => new stdClass);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('"max_objects":{"registered":10,"requested":20}');
+
+        $this->manager->pool(
+            'app:reports',
+            static fn (): object => new stdClass,
+            ['max_objects' => 20],
+        );
+    }
+
+    public function testPoolReplacesAClosedPool(): void
+    {
+        $first = $this->manager->pool('app:reports', static fn (): object => new stdClass);
+        $first->close();
+
+        $replacement = $this->manager->pool('app:reports', static fn (): object => new stdClass);
+
+        $this->assertNotSame($first, $replacement);
+        $this->assertSame($replacement, $this->manager->get('app:reports'));
+    }
+
+    public function testPoolRejectsABlankName(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The pool identity must be a non-empty string.');
+
+        $this->manager->pool('', static fn (): object => new stdClass);
+    }
+
+    public function testPoolConflictsWithAnExplicitDefinitionForAnotherResourceType(): void
+    {
+        $this->manager->pool('app:reports', static fn (): object => new stdClass);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('already exists for resource type [app:reports]; requested [s3]');
+
+        $this->manager->getOrCreate(
+            $this->definition(
+                identity: 'app:reports',
+                resourceType: 's3',
+                fingerprint: PoolFingerprint::fromExplicit('app:reports'),
+            ),
+            static fn (): object => new stdClass,
+        );
     }
 
     public function testGetOrCreateRegistersThePoolAndDefinition(): void
@@ -51,8 +155,6 @@ class PoolManagerTest extends TestCase
         $object = $second->get();
         $second->release($object);
 
-        $this->manager->remove($definition->identity);
-
         $this->assertSame($first, $second);
     }
 
@@ -75,8 +177,6 @@ class PoolManagerTest extends TestCase
         $this->assertNotSame($first, $replacement);
         $this->assertSame($replacement, $this->manager->get($replacementDefinition->identity));
         $this->assertSame($replacementDefinition, $this->manager->definition($replacementDefinition->identity));
-
-        $this->manager->flush();
     }
 
     public function testResourceTypeMismatchThrows(): void
@@ -161,8 +261,6 @@ class PoolManagerTest extends TestCase
         $this->assertFalse($this->manager->remove($definition->identity, $other));
         $this->assertSame($pool, $this->manager->get($definition->identity));
         $this->assertFalse($pool->isClosed());
-
-        $this->manager->flush();
     }
 
     public function testFlushClearsDefinitionsAndClosesEveryPool(): void
@@ -199,7 +297,6 @@ class PoolManagerTest extends TestCase
             $this->assertSame($first, $pool);
         }
         $this->assertCount(1, $this->manager->pools());
-        $this->manager->flush();
     }
 
     private function definition(

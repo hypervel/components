@@ -258,8 +258,10 @@ class PermissionRegistrarTest extends TestCase
         );
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('role columns [id, name, guard_name]');
-        $this->expectExceptionMessage('permission columns [id, name, guard_name]');
+        $this->expectExceptionMessage(
+            'Permission cache column exclusions cannot contain required role columns [id, name, guard_name] '
+            . 'or permission columns [id, name, guard_name].'
+        );
 
         $this->app->make(PermissionRegistrar::class)->initializeCache();
     }
@@ -273,8 +275,10 @@ class PermissionRegistrarTest extends TestCase
         ]);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('role columns [role_test_id]');
-        $this->expectExceptionMessage('permission columns [permission_test_id]');
+        $this->expectExceptionMessage(
+            'Permission cache column exclusions cannot contain required role columns [role_test_id] '
+            . 'or permission columns [permission_test_id].'
+        );
 
         $this->app->make(PermissionRegistrar::class)->initializeCache();
     }

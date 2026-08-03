@@ -15,8 +15,14 @@ class SimpleObjectPoolTest extends TestCase
     {
         $object = new stdClass;
         $pool = new SimpleObjectPool(fn () => $object, PoolOptions::fromArray([]));
+        $borrowed = $pool->get();
 
-        $this->assertSame($object, $pool->get());
+        try {
+            $this->assertSame($object, $borrowed);
+        } finally {
+            $pool->release($borrowed);
+            $pool->close();
+        }
     }
 
     public function testDestroyCallbackRunsWhenThePoolCloses(): void

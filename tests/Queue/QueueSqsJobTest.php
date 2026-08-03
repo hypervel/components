@@ -26,6 +26,9 @@ use Throwable;
 
 class QueueSqsJobTest extends TestCase
 {
+    /** @var list<SimpleObjectPool> */
+    private array $pools = [];
+
     protected string $key;
 
     protected string $secret;
@@ -95,6 +98,13 @@ class QueueSqsJobTest extends TestCase
             'MessageId' => $this->mockedMessageId,
             'Attributes' => ['ApproximateReceiveCount' => 1],
         ];
+    }
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->pools as $pool) {
+            $pool->close();
+        }
     }
 
     public function testFireProperlyCallsTheJobHandler(): void
@@ -524,6 +534,7 @@ class QueueSqsJobTest extends TestCase
             PoolOptions::fromArray([]),
             $destroyCallback,
         );
+        $this->pools[] = $pool;
 
         return [$pool, new Lease($pool, $pool->get(), $releaseCallback)];
     }
