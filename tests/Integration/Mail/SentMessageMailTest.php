@@ -19,19 +19,19 @@ class SentMessageMailTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
-        Schema::create('sent_message_users', function (Blueprint $table) {
+        Schema::create('sent_message_users', function (Blueprint $table): void {
             $table->increments('id');
         });
     }
 
-    protected function beforeRefreshingDatabase()
+    protected function beforeRefreshingDatabase(): void
     {
         Schema::dropIfExists('sent_message_users');
     }
 
-    public function testDispatchesNotificationSent()
+    public function testDispatchesNotificationSent(): void
     {
         $notificationWasSent = false;
 
@@ -39,7 +39,7 @@ class SentMessageMailTest extends TestCase
 
         Event::listen(
             NotificationSent::class,
-            function (NotificationSent $notification) use (&$notificationWasSent, $user) {
+            function (NotificationSent $notification) use (&$notificationWasSent, $user): void {
                 $notificationWasSent = true;
                 /**
                  * Confirm that NotificationSent can be serialized/unserialized as

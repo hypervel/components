@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Mail;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Mail\Mailable;
@@ -16,7 +17,7 @@ class MailableWithSecuredEncodingTest extends MailableTestCase
 {
     use LazilyRefreshDatabase;
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
@@ -25,7 +26,7 @@ class MailableWithSecuredEncodingTest extends MailableTestCase
 
     #[WithMigration]
     #[DataProvider('markdownEncodedTemplateDataProvider')]
-    public function testItCanAssertMarkdownEncodedStringUsingTemplate($given, $expected)
+    public function testItCanAssertMarkdownEncodedStringUsingTemplate(string $given, string $expected): void
     {
         $user = UserFactory::new()->create([
             'name' => $given,
@@ -38,7 +39,7 @@ class MailableWithSecuredEncodingTest extends MailableTestCase
             {
             }
 
-            public function build()
+            public function build(): static
             {
                 return $this->markdown('message-with-template');
             }
@@ -49,7 +50,7 @@ class MailableWithSecuredEncodingTest extends MailableTestCase
 
     #[WithMigration]
     #[DataProvider('markdownEncodedTemplateDataProvider')]
-    public function testItCanAssertMarkdownEncodedStringUsingTemplateWithTable($given, $expected)
+    public function testItCanAssertMarkdownEncodedStringUsingTemplateWithTable(string $given, string $expected): void
     {
         $user = UserFactory::new()->create([
             'name' => $given,
@@ -62,7 +63,7 @@ class MailableWithSecuredEncodingTest extends MailableTestCase
             {
             }
 
-            public function build()
+            public function build(): static
             {
                 return $this->markdown('table-with-template');
             }
@@ -95,7 +96,7 @@ class MailableWithSecuredEncodingTest extends MailableTestCase
 TABLE, false);
     }
 
-    public static function markdownEncodedTemplateDataProvider()
+    public static function markdownEncodedTemplateDataProvider(): iterable
     {
         yield ['[Hypervel](https://hypervel.org)', '<em>Hi</em> [Hypervel](https://hypervel.org)'];
 
