@@ -129,6 +129,8 @@ class TestState
 
 Use your Composer package name as the callback name. Registrar classes are discovered during PHPUnit extension bootstrap, so package cleanup runs even in workers that only execute unit tests and never boot a Hypervel application.
 
+Test-state callbacks run after the test application has been destroyed. Use them for process-local state that can be reset directly, not cleanup that resolves container services. Use the appropriate testing trait to clean up external resources.
+
 <a name="inspecting-installed-packages"></a>
 ## Inspecting Installed Packages
 
