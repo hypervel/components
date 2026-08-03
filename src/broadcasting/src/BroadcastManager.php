@@ -23,6 +23,7 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Queue\Factory as Queue;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
@@ -30,6 +31,8 @@ use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Redis\RedisConfig;
+use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\RebindsCallbacksToSelf;
@@ -66,7 +69,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolables = ['ably', 'pusher'];
+    protected array $poolables = [];
 
     /**
      * Create a new manager instance.
@@ -87,7 +90,10 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         $attributes = $attributes ?: ['middleware' => ['web']];
 
-        $this->app['router']->group($attributes, function ($router) {
+        /** @var Router $router */
+        $router = $this->app->make('router');
+
+        $router->group($attributes, function ($router) {
             $router->match(
                 ['get', 'post'],
                 '/broadcasting/auth',
@@ -107,7 +113,10 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         $attributes = $attributes ?: ['middleware' => ['web']];
 
-        $this->app['router']->group($attributes, function ($router) {
+        /** @var Router $router */
+        $router = $this->app->make('router');
+
+        $router->group($attributes, function ($router) {
             $router->match(
                 ['get', 'post'],
                 '/broadcasting/user-auth',
@@ -135,7 +144,8 @@ class BroadcastManager implements BroadcastingFactoryContract
             return null;
         }
 
-        $request = $request ?: $this->app['request'];
+        /** @var Request $request */
+        $request = $request ?: $this->app->make('request');
 
         return $request->header('X-Socket-ID');
     }
@@ -183,7 +193,9 @@ class BroadcastManager implements BroadcastingFactoryContract
         if ($event instanceof ShouldBroadcastNow
             || (is_object($event) && method_exists($event, 'shouldBroadcastNow') && $event->shouldBroadcastNow())
         ) {
-            $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow(new BroadcastEvent(clone $event));
+            $dispatch = fn () => $this->app->make(Dispatcher::class)->dispatchNow(
+                new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
+            );
 
             $event instanceof ShouldRescue
                 ? $this->rescue($dispatch)
@@ -208,14 +220,12 @@ class BroadcastManager implements BroadcastingFactoryContract
                 ?? null;
         }
 
-        $broadcastEvent = new BroadcastEvent(clone $event);
+        $broadcastEvent = $event instanceof ShouldBeUnique
+            ? new UniqueBroadcastEvent($event instanceof UnitEnum ? $event : clone $event)
+            : new BroadcastEvent($event instanceof UnitEnum ? $event : clone $event);
 
-        if ($event instanceof ShouldBeUnique) {
-            $broadcastEvent = new UniqueBroadcastEvent(clone $event);
-
-            if ($this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
-                return;
-            }
+        if ($event instanceof ShouldBeUnique && $this->mustBeUniqueAndCannotAcquireLock($broadcastEvent)) {
+            return;
         }
 
         $push = fn () => $this->app->make(Queue::class)
@@ -355,7 +365,11 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function createPusherDriver(array $config): Broadcaster
     {
-        return new PusherBroadcaster($this->app, $this->pusher($config));
+        return new PusherBroadcaster(
+            $this->app,
+            $this->pusher($config),
+            (bool) ($config['jsonp'] ?? false),
+        );
     }
 
     /**
@@ -410,14 +424,16 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function createRedisDriver(array $config): Broadcaster
     {
-        /** @var \Hypervel\Contracts\Redis\Factory $redis */
+        /** @var RedisFactory $redis */
         $redis = $this->app->make('redis');
+        $connectionName = $config['connection'] ?? 'default';
+        $redisConfig = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
 
         return new RedisBroadcaster(
             $this->app,
             $redis,
-            $config['connection'] ?? 'default',
-            $this->app->make('config')->string('database.redis.options.prefix', ''),
+            $connectionName,
+            (string) ($redisConfig['options']['prefix'] ?? ''),
         );
     }
 
@@ -474,15 +490,15 @@ class BroadcastManager implements BroadcastingFactoryContract
     {
         $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
 
-        $this->app['config']['broadcasting.default'] = $name;
+        $this->app->make('config')->set('broadcasting.default', $name);
     }
 
     /**
-     * Disconnect the given driver and close its shared resource pool.
+     * Disconnect the given driver and remove it from the local cache.
      *
-     * Boot or tests only, plus operational recovery of broken pooled
-     * resources. Other connections sharing the pool transparently acquire a
-     * fresh pool on their next operation.
+     * Boot or tests only, plus operational recovery for explicitly pooled drivers.
+     * Direct drivers are only removed from the manager cache; an explicitly pooled
+     * driver also invalidates its shared pool.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -545,11 +561,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function rescue(Closure $callback): mixed
     {
-        if (function_exists('rescue')) {
-            return rescue($callback);
-        }
-
-        return $callback();
+        return rescue($callback);
     }
 
     /**
