@@ -79,8 +79,9 @@ scheduling.md
 scout.md
 search.md
 seeding.md
-server-process.md
+server-processes.md
 session.md
+signals.md
 socialite.md
 starter-kits.md
 strings.md

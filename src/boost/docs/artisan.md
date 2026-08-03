@@ -996,7 +996,7 @@ $this->trap([SIGTERM, SIGQUIT], function (int $signal) {
 });
 ```
 
-Artisan signal traps apply only to the current command. To handle signals in server workers or custom server processes, see the [Signal documentation](/docs/{{version}}/signal).
+Artisan signal traps apply only to the current command. To handle signals in server workers or custom server processes, see the [Signal documentation](/docs/{{version}}/signals).
 
 <a name="stub-customization"></a>
 ## Stub Customization

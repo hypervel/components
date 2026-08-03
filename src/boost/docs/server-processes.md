@@ -177,7 +177,7 @@ If your application depends on a server process, the process may publish suitabl
 
 If the Signal package is installed, coroutine-enabled server processes use the server-process signal handlers listed in the `signal.handlers` configuration value. You do not need to register these handlers again in your process class.
 
-Graceful shutdown is opt-in. Your application must register the framework's stop handler and ensure the process returns from `handle` when the server is stopping. See the [Signal documentation](/docs/{{version}}/signal#server-process-signals) for the complete setup.
+Graceful shutdown is opt-in. Your application must register the framework's stop handler and ensure the process returns from `handle` when the server is stopping. See the [Signal documentation](/docs/{{version}}/signals#server-process-signals) for the complete setup.
 
 <a name="inter-process-communication"></a>
 ## Inter-Process Communication

@@ -13,7 +13,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Operating systems use signals to notify running processes about events such as termination requests or application-defined commands. Hypervel's Signal package allows your application to handle these signals within server workers and custom [server processes](/docs/{{version}}/server-process).
+Operating systems use signals to notify running processes about events such as termination requests or application-defined commands. Hypervel's Signal package allows your application to handle these signals within server workers and custom [server processes](/docs/{{version}}/server-processes).
 
 If you only need to handle a signal within an Artisan command, you should use the command's [signal handling methods](/docs/{{version}}/artisan#signal-handling) instead.
 
