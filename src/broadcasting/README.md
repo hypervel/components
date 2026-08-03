@@ -7,8 +7,6 @@ Documentation: https://hypervel.org/docs/broadcasting
 
 ## Differences From Laravel
 
-Channel authorization callbacks and options registered through the Broadcast facade are shared for the lifetime of the worker.
-
 The outgoing channel formatter and incoming channel authorizer are also worker-wide and should be configured during worker boot.
 
 Built-in broadcast drivers use their SDK clients directly. Custom drivers may opt into Hypervel's connection pooling through the broadcast manager.
