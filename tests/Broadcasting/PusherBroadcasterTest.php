@@ -300,10 +300,13 @@ class PusherBroadcasterTest extends TestCase
             [$this->container, $this->pusher, true],
         )->makePartial();
 
+        $response = $broadcaster->validAuthenticationResponse($request, true);
+
         $this->assertInstanceOf(
             JsonResponse::class,
-            $broadcaster->validAuthenticationResponse($request, true),
+            $response,
         );
+        $this->assertStringStartsWith('/**/myCallback(', (string) $response->getContent());
     }
 
     public function testExplicitJsonpOptInWithoutCallbackReturnsJson(): void
