@@ -28,7 +28,7 @@ interface Mailer
     /**
      * Send a new message with only a raw text part.
      */
-    public function raw(string $text, mixed $callback): ?SentMessage;
+    public function raw(string $text, Closure|string $callback): ?SentMessage;
 
     /**
      * Send a new message using a view.

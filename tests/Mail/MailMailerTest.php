@@ -29,7 +29,7 @@ class MailMailerTest extends TestCase
         parent::tearDown();
     }
 
-    public function testMailerSendSendsMessageWithProperViewContent()
+    public function testMailerSendSendsMessageWithProperViewContent(): void
     {
         $view = $this->mockView();
 
@@ -42,7 +42,25 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString('rendered.view', $sentMessage->toString());
     }
 
-    public function testMailerSendSendsMessageWithCcAndBccRecipients()
+    public function testMailerCallbackCanInspectAndReplaceRenderedContent(): void
+    {
+        $view = $this->mockView();
+        $mailer = new Mailer('array', $view, new ArrayTransport);
+        $renderedContent = null;
+
+        $sentMessage = $mailer->send('foo', [], function (Message $message) use (&$renderedContent): void {
+            $renderedContent = $message->getSymfonyMessage()->getHtmlBody();
+            $message->html('callback content')
+                ->to('taylor@hypervel.org')
+                ->from('hello@hypervel.org');
+        });
+
+        $this->assertSame('rendered.view', $renderedContent);
+        $this->assertStringContainsString('callback content', $sentMessage->toString());
+        $this->assertStringNotContainsString('rendered.view', $sentMessage->toString());
+    }
+
+    public function testMailerSendSendsMessageWithCcAndBccRecipients(): void
     {
         $view = $this->mockView();
 
@@ -65,7 +83,7 @@ class MailMailerTest extends TestCase
         $this->assertTrue($recipients->contains('james@hypervel.org'));
     }
 
-    public function testMailerSendSendsMessageWithProperViewContentUsingHtmlStrings()
+    public function testMailerSendSendsMessageWithProperViewContentUsingHtmlStrings(): void
     {
         $view = $this->mockView();
 
@@ -84,7 +102,7 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString('Hello World', $sentMessage->toString());
     }
 
-    public function testMailerSendSendsMessageWithProperViewContentUsingStringCallbacks()
+    public function testMailerSendSendsMessageWithProperViewContentUsingStringCallbacks(): void
     {
         $view = $this->mockView();
 
@@ -114,7 +132,7 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString('Hello World', $sentMessage->toString());
     }
 
-    public function testMailerSendSendsMessageWithProperViewContentUsingHtmlMethod()
+    public function testMailerSendSendsMessageWithProperViewContentUsingHtmlMethod(): void
     {
         $view = $this->mockView();
 
@@ -128,7 +146,7 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString('<p>Hello World</p>', $sentMessage->toString());
     }
 
-    public function testMailerSendSendsMessageWithProperPlainViewContent()
+    public function testMailerSendSendsMessageWithProperPlainViewContent(): void
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
@@ -166,7 +184,7 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString($expected, $sentMessage->toString());
     }
 
-    public function testMailerSendSendsMessageWithProperPlainViewContentWhenExplicit()
+    public function testMailerSendSendsMessageWithProperPlainViewContentWhenExplicit(): void
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
@@ -204,7 +222,7 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString($expected, $sentMessage->toString());
     }
 
-    public function testToAllowsEmailAndName()
+    public function testToAllowsEmailAndName(): void
     {
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -217,7 +235,7 @@ class MailMailerTest extends TestCase
         $this->assertSame('Taylor Otwell', $recipients[0]->getName());
     }
 
-    public function testGlobalFromIsRespectedOnAllMessages()
+    public function testGlobalFromIsRespectedOnAllMessages(): void
     {
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -231,7 +249,7 @@ class MailMailerTest extends TestCase
         $this->assertSame('hello@hypervel.org', $sentMessage->getEnvelope()->getSender()->getAddress());
     }
 
-    public function testGlobalReplyToIsRespectedOnAllMessages()
+    public function testGlobalReplyToIsRespectedOnAllMessages(): void
     {
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -245,7 +263,7 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString('Reply-To: Taylor Otwell <taylor@hypervel.org>', $sentMessage->toString());
     }
 
-    public function testGlobalToIsRespectedOnAllMessages()
+    public function testGlobalToIsRespectedOnAllMessages(): void
     {
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -273,7 +291,7 @@ class MailMailerTest extends TestCase
         $this->assertFalse($recipients->contains('james@hypervel.org'));
     }
 
-    public function testGlobalReturnPathIsRespectedOnAllMessages()
+    public function testGlobalReturnPathIsRespectedOnAllMessages(): void
     {
         $view = $this->mockView();
 
@@ -287,7 +305,7 @@ class MailMailerTest extends TestCase
         $this->assertStringContainsString('Return-Path: <taylorotwell@gmail.com>', $sentMessage->toString());
     }
 
-    public function testEventsAreDispatched()
+    public function testEventsAreDispatched(): void
     {
         $view = $this->mockView();
 
@@ -304,7 +322,7 @@ class MailMailerTest extends TestCase
         });
     }
 
-    public function testEventsAreSkippedWhenNoListenersAreRegistered()
+    public function testEventsAreSkippedWhenNoListenersAreRegistered(): void
     {
         $view = $this->mockView();
 
@@ -321,7 +339,7 @@ class MailMailerTest extends TestCase
         });
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         Mailer::macro('foo', function () {
             return 'bar';
@@ -335,7 +353,7 @@ class MailMailerTest extends TestCase
         );
     }
 
-    public function testSendQueuedMailableReturnsNull()
+    public function testSendQueuedMailableReturnsNull(): void
     {
         $view = $this->mockView();
         $queueFake = new QueueFake($this->app);
@@ -357,7 +375,7 @@ class MailMailerTest extends TestCase
         $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
-    protected function mockView()
+    protected function mockView(): ViewFactory
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
@@ -372,7 +390,7 @@ class MailMailerTest extends TestCase
 
 class TestMail extends Mailable
 {
-    public function build()
+    public function build(): static
     {
         return $this->view('view')
             ->from('hello@hypervel.org');
@@ -383,7 +401,7 @@ class TestQueuedMail extends Mailable implements ShouldQueue
 {
     use Queueable;
 
-    public function build()
+    public function build(): static
     {
         return $this->view('view')
             ->from('hello@hypervel.org')

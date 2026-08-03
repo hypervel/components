@@ -30,7 +30,7 @@ class MailableQueuedTest extends TestCase
         $this->app->instance(MailableContract::class, m::mock(MailableContract::class));
     }
 
-    public function testQueuedMailableSent()
+    public function testQueuedMailableSent(): void
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
@@ -40,7 +40,7 @@ class MailableQueuedTest extends TestCase
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
-    public function testQueuedMailableWithAttachmentSent()
+    public function testQueuedMailableWithAttachmentSent(): void
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
@@ -55,19 +55,19 @@ class MailableQueuedTest extends TestCase
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
-    public function testQueuedMailableReceivesMailableInstance()
+    public function testQueuedMailableReceivesMailableInstance(): void
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
         $mailable = new MailableQueueableStub;
         $mailer->send($mailable);
 
-        $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job) use ($mailable) {
+        $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job) use ($mailable): bool {
             return $job->mailable === $mailable;
         });
     }
 
-    public function testQueuedMailableWithAttachmentFromDiskSent()
+    public function testQueuedMailableWithAttachmentFromDiskSent(): void
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
@@ -85,7 +85,7 @@ class MailableQueuedTest extends TestCase
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
-    public function testQueuedMailableForwardsMessageGroupFromMethodToQueueJob()
+    public function testQueuedMailableForwardsMessageGroupFromMethodToQueueJob(): void
     {
         $mockedMessageGroupId = 'group-1';
 
@@ -102,7 +102,7 @@ class MailableQueuedTest extends TestCase
         $this->assertEquals($mockedMessageGroupId, $pushedJob->messageGroup);
     }
 
-    public function testQueuedMailableForwardsMessageGroupFromPropertyOverridingMethodToQueueJob()
+    public function testQueuedMailableForwardsMessageGroupFromPropertyOverridingMethodToQueueJob(): void
     {
         $mockedMessageGroupId = 'group-1';
 
@@ -121,7 +121,7 @@ class MailableQueuedTest extends TestCase
         $this->assertEquals($mockedMessageGroupId, $pushedJob->messageGroup);
     }
 
-    public function testQueuedMailableForwardsDeduplicatorToQueueJob()
+    public function testQueuedMailableForwardsDeduplicatorToQueueJob(): void
     {
         $mockedDeduplicator = fn ($payload, $queue) => 'deduplication-id-1';
 
@@ -233,7 +233,7 @@ class MailableQueuedTest extends TestCase
         );
     }
 
-    public function testQueuedMailableForwardsDeduplicationIdMethodToQueueJob()
+    public function testQueuedMailableForwardsDeduplicationIdMethodToQueueJob(): void
     {
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
@@ -252,7 +252,66 @@ class MailableQueuedTest extends TestCase
         );
     }
 
-    protected function getMocks()
+    public function testLaterSetsQueueOnMailable(): void
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+
+        $mailer->later(60, new MailableQueueableStub, 'emails');
+
+        $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job): bool {
+            return $job->queue === 'emails';
+        });
+    }
+
+    public function testLaterWithoutQueueUsesDefault(): void
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+
+        $mailer->later(60, new MailableQueueableStub);
+
+        $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job): bool {
+            return $job->queue === null;
+        });
+    }
+
+    public function testQueueMethodsPreserveStringAndEnumQueueNames(): void
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+
+        $mailer->queue(new MailableQueueableStub, 'queue-string');
+        $mailer->queue(new MailableQueueableStub, MailableQueueName::Transactional);
+        $mailer->onQueue('on-queue', new MailableQueueableStub);
+        $mailer->onQueue(MailableQueueName::Transactional, new MailableQueueableStub);
+        $mailer->queueOn('queue-on', new MailableQueueableStub);
+        $mailer->queueOn(MailableQueueName::Transactional, new MailableQueueableStub);
+        $mailer->later(60, new MailableQueueableStub, 'later-string');
+        $mailer->later(60, new MailableQueueableStub, MailableQueueName::Transactional);
+        $mailer->laterOn('later-on', 60, new MailableQueueableStub);
+        $mailer->laterOn(MailableQueueName::Transactional, 60, new MailableQueueableStub);
+
+        $this->assertSame(
+            [
+                'queue-string',
+                'transactional-mail',
+                'on-queue',
+                'transactional-mail',
+                'queue-on',
+                'transactional-mail',
+                'later-string',
+                'transactional-mail',
+                'later-on',
+                'transactional-mail',
+            ],
+            $queueFake->pushed(SendQueuedMailable::class)
+                ->map(fn (SendQueuedMailable $job): ?string => $job->queue)
+                ->all()
+        );
+    }
+
+    protected function getMocks(): array
     {
         return ['smtp', m::mock(Factory::class), m::mock(TransportInterface::class)];
     }
@@ -324,7 +383,7 @@ class MailableQueueableStubWithDeduplication extends Mailable implements ShouldQ
         return $this;
     }
 
-    public function deduplicationId($payload, $queue)
+    public function deduplicationId(string $payload, string $queue): string
     {
         return hash('sha256', $payload);
     }
@@ -358,4 +417,9 @@ class MailableQueueFake extends QueueFake
 
         return parent::connection($value);
     }
+}
+
+enum MailableQueueName: string
+{
+    case Transactional = 'transactional-mail';
 }
