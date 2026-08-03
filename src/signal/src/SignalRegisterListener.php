@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Signal;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Signal\SignalHandlerInterface as SignalHandler;
+use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 
@@ -25,12 +25,10 @@ class SignalRegisterListener
     {
         $manager = $this->container->make(SignalManager::class);
 
-        $manager->init();
-
         if ($event instanceof BeforeWorkerStart) {
             $manager->listen(SignalHandler::WORKER);
         } elseif ($event instanceof BeforeProcessHandle) {
-            $manager->listen(SignalHandler::PROCESS);
+            $manager->listen(SignalHandler::SERVER_PROCESS);
         }
     }
 }
