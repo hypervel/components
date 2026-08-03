@@ -121,8 +121,10 @@ php artisan watch
 You may customize the watched paths in your application's `config/watcher.php` file, or pass extra paths using the `--path` option:
 
 ```shell
-php artisan watch --path=routes --path=database/**/*.php
+php artisan watch --path=routes --path="database/**/*.php"
 ```
+
+For more information about configuring watch paths and drivers, consult the [file watching documentation](/docs/{{version}}/watcher).
 
 If your application uses frontend assets, install and build them using your JavaScript package manager:
 

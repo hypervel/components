@@ -5,17 +5,25 @@ declare(strict_types=1);
 namespace Hypervel\Watcher;
 
 use Hypervel\Watcher\Driver\ScanFileDriver;
+use InvalidArgumentException;
 
 class Option
 {
+    protected const string DEFAULT_DRIVER = ScanFileDriver::class;
+
+    protected const int DEFAULT_SCAN_INTERVAL = 2000;
+
     /**
      * @param WatchPath[] $watchPaths
      */
     public function __construct(
-        protected string $driver = ScanFileDriver::class,
+        protected string $driver = self::DEFAULT_DRIVER,
         protected array $watchPaths = [],
-        protected int $scanInterval = 2000,
+        protected int $scanInterval = self::DEFAULT_SCAN_INTERVAL,
     ) {
+        if ($this->scanInterval <= 0) {
+            throw new InvalidArgumentException('The watcher scan interval must be greater than 0.');
+        }
     }
 
     /**
@@ -34,9 +42,9 @@ class Option
         );
 
         return new static(
-            driver: $config['driver'] ?? ScanFileDriver::class,
+            driver: $config['driver'] ?? self::DEFAULT_DRIVER,
             watchPaths: $watchPaths,
-            scanInterval: (int) ($config['scan_interval'] ?? 2000),
+            scanInterval: $config['scan_interval'] ?? self::DEFAULT_SCAN_INTERVAL,
         );
     }
 
@@ -121,7 +129,7 @@ class Option
      */
     public function getScanInterval(): int
     {
-        return $this->scanInterval > 0 ? $this->scanInterval : 2000;
+        return $this->scanInterval;
     }
 
     /**
