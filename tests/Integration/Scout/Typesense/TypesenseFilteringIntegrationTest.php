@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Scout\Typesense;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
 use InvalidArgumentException;
+use Typesense\Exceptions\ObjectNotFound;
 
 /**
  * Integration tests for Typesense filtering operations.
@@ -146,6 +147,49 @@ class TypesenseFilteringIntegrationTest extends TypesenseScoutIntegrationTestCas
             [601],
             TypesenseSearchableModel::search('')->where('title', TypesenseFilterTitle::Target)->get()->pluck('id')->all()
         );
+    }
+
+    public function testApplicationFiltersComposeWithBuilderFiltersForSearchAndDeletion(): void
+    {
+        TypesenseSearchableModel::withoutSyncingToSearch(function (): void {
+            TypesenseSearchableModel::create(['id' => 701, 'title' => 'Target', 'body' => 'Body']);
+            TypesenseSearchableModel::create(['id' => 702, 'title' => 'Other', 'body' => 'Body']);
+            TypesenseSearchableModel::create(['id' => 703, 'title' => 'Excluded', 'body' => 'Body']);
+        });
+        $this->engine->update(TypesenseSearchableModel::query()->get());
+
+        $results = TypesenseSearchableModel::search('')
+            ->options(['filter_by' => 'title:=Target || title:=Other'])
+            ->where('ranking', 701)
+            ->get();
+
+        $this->assertSame([701], $results->pluck('id')->all());
+
+        $this->engine->deleteByFilter(
+            TypesenseSearchableModel::search('')
+                ->options(['filter_by' => 'title:=Target || title:=Other'])
+                ->where('ranking', 701)
+        );
+
+        $this->assertSame(
+            [702, 703],
+            TypesenseSearchableModel::search('')->get()->pluck('id')->sort()->values()->all(),
+        );
+    }
+
+    public function testFilteredDeletionTreatsAMissingCollectionAsAlreadyDeleted(): void
+    {
+        $collectionName = $this->prefixedCollectionName('missing_filter_delete');
+
+        $this->engine->deleteByFilter(
+            TypesenseSearchableModel::search('')
+                ->within($collectionName)
+                ->where('ranking', 701)
+        );
+
+        $this->expectException(ObjectNotFound::class);
+
+        $this->typesense->getCollections()[$collectionName]->retrieve();
     }
 
     public function testUnsupportedComparisonOperatorIsRejected(): void

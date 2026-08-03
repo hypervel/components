@@ -21,6 +21,7 @@ use Meilisearch\Contracts\TasksResults;
 use Meilisearch\Endpoints\Indexes;
 use Meilisearch\Exceptions\TimeOutException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
@@ -164,7 +165,7 @@ class ExternalServiceOptInTest extends TestCase
         $client->shouldReceive('getTasks')
             ->once()
             ->andReturn(new TasksResults([
-                'results' => [['uid' => 17, 'status' => 'enqueued']],
+                'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'enqueued']],
             ]));
         $client->shouldReceive('waitForTask')
             ->once()
@@ -172,6 +173,7 @@ class ExternalServiceOptInTest extends TestCase
             ->andReturn(['uid' => 17, 'status' => 'succeeded']);
 
         $harness = new MeilisearchOptInHarness;
+        $harness->usePrefix('test_');
         $harness->useClient($client);
         $harness->waitForTasks();
     }
@@ -182,7 +184,7 @@ class ExternalServiceOptInTest extends TestCase
         $client->shouldReceive('getTasks')
             ->once()
             ->andReturn(new TasksResults([
-                'results' => [['uid' => 17, 'status' => 'processing']],
+                'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'processing']],
             ]));
         $client->shouldReceive('waitForTask')
             ->once()
@@ -194,6 +196,7 @@ class ExternalServiceOptInTest extends TestCase
             ]);
 
         $harness = new MeilisearchOptInHarness;
+        $harness->usePrefix('test_');
         $harness->useClient($client);
 
         $this->expectException(RuntimeException::class);
@@ -209,7 +212,7 @@ class ExternalServiceOptInTest extends TestCase
         $client->shouldReceive('getTasks')
             ->once()
             ->andReturn(new TasksResults([
-                'results' => [['uid' => 17, 'status' => 'enqueued']],
+                'results' => [['uid' => 17, 'indexUid' => 'test_users', 'status' => 'enqueued']],
             ]));
         $client->shouldReceive('waitForTask')
             ->once()
@@ -217,11 +220,30 @@ class ExternalServiceOptInTest extends TestCase
             ->andThrow($timeout);
 
         $harness = new MeilisearchOptInHarness;
+        $harness->usePrefix('test_');
         $harness->useClient($client);
 
         $this->expectExceptionObject($timeout);
 
         $harness->waitForTasks();
+    }
+
+    public function testMeilisearchWaitIgnoresPendingTasksForOtherPrefixes(): void
+    {
+        $client = m::mock(MeilisearchClient::class);
+        $client->shouldReceive('getTasks')
+            ->once()
+            ->andReturn(new TasksResults([
+                'results' => [['uid' => 17, 'indexUid' => 'other_users', 'status' => 'enqueued']],
+            ]));
+        $client->shouldNotReceive('waitForTask');
+
+        $harness = new MeilisearchOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+        $harness->waitForTasks();
+
+        $this->assertTrue(true);
     }
 
     public function testMeilisearchCleanupWaitsForExactDeletionTasks(): void
@@ -455,9 +477,9 @@ class ExternalServiceOptInTest extends TestCase
         $harness->runCleanup();
     }
 
-    public function testAlgoliaCleanupPropagatesDeletionTaskFailures(): void
+    #[DataProvider('incompleteAlgoliaDeletionTasks')]
+    public function testAlgoliaCleanupRejectsIncompleteDeletionTasks(?array $task): void
     {
-        $failure = new RuntimeException('Index deletion failed.');
         $client = m::mock(AlgoliaSearchClient::class);
         $client->shouldReceive('listIndices')
             ->once()
@@ -469,7 +491,91 @@ class ExternalServiceOptInTest extends TestCase
         $client->shouldReceive('waitForTask')
             ->once()
             ->with('test_users', 31)
+            ->andReturn($task);
+
+        $harness = new AlgoliaOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Algolia index deletion task [31] for [test_users] did not complete.');
+
+        $harness->runCleanup();
+    }
+
+    /**
+     * Provide incomplete Algolia index-deletion tasks.
+     *
+     * @return array<string, array{null|array{status: string}}>
+     */
+    public static function incompleteAlgoliaDeletionTasks(): array
+    {
+        return [
+            'swallowed polling failure' => [null],
+            'non-published task' => [['status' => 'processing']],
+        ];
+    }
+
+    public function testAlgoliaCleanupWaitsForRemainingTasksBeforeRejectingAnIncompleteResult(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('listIndices')
+            ->once()
+            ->andReturn(['items' => [
+                ['name' => 'test_users'],
+                ['name' => 'test_orders'],
+            ]]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_users')
+            ->andReturn(['taskID' => 31]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_orders')
+            ->andReturn(['taskID' => 32]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('test_users', 31)
+            ->andReturn(null);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('test_orders', 32)
+            ->andReturn(['status' => 'published']);
+
+        $harness = new AlgoliaOptInHarness;
+        $harness->usePrefix('test_');
+        $harness->useClient($client);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Algolia index deletion task [31] for [test_users] did not complete.');
+
+        $harness->runCleanup();
+    }
+
+    public function testAlgoliaCleanupPropagatesDeletionTaskFailures(): void
+    {
+        $failure = new RuntimeException('Index deletion failed.');
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('listIndices')
+            ->once()
+            ->andReturn(['items' => [
+                ['name' => 'test_users'],
+                ['name' => 'test_orders'],
+            ]]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_users')
+            ->andReturn(['taskID' => 31]);
+        $client->shouldReceive('deleteIndex')
+            ->once()
+            ->with('test_orders')
+            ->andReturn(['taskID' => 32]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('test_users', 31)
             ->andThrow($failure);
+        $client->shouldNotReceive('waitForTask')
+            ->with('test_orders', 32);
 
         $harness = new AlgoliaOptInHarness;
         $harness->usePrefix('test_');

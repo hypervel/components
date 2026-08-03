@@ -10,9 +10,11 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use InvalidArgumentException;
@@ -28,7 +30,7 @@ use Typesense\Exceptions\TypesenseClientError;
  *
  * Provides full-text search using Typesense as the backend.
  */
-class TypesenseEngine extends Engine
+class TypesenseEngine extends Engine implements DeletesByFilter
 {
     /**
      * The maximum number of results that can be fetched per page.
@@ -71,10 +73,12 @@ class TypesenseEngine extends Engine
                 return null;
             }
 
-            return array_merge(
+            $document = array_merge(
                 $searchableData,
                 $model->scoutMetadata(),
             );
+
+            return Scout::prepareSearchableDocument($document, $model, $this);
         })
             ->filter()
             ->values()
@@ -308,7 +312,7 @@ class TypesenseEngine extends Engine
         $parameters = [
             'q' => $builder->query,
             'query_by' => $modelSettings['query_by'] ?? '',
-            'filter_by' => $this->filters($builder),
+            'filter_by' => '',
             'per_page' => $perPage,
             'page' => $page,
             'highlight_start_tag' => '<mark>',
@@ -331,6 +335,11 @@ class TypesenseEngine extends Engine
             $parameters = array_merge($parameters, $builder->options);
         }
 
+        $parameters['filter_by'] = $this->combineFilters(
+            $parameters['filter_by'] ?? '',
+            $this->filters($builder),
+        );
+
         if (! empty($builder->orders)) {
             if (! empty($parameters['sort_by'])) {
                 $parameters['sort_by'] .= ',';
@@ -342,6 +351,22 @@ class TypesenseEngine extends Engine
         }
 
         return $parameters;
+    }
+
+    /**
+     * Combine application and Builder filters without changing their precedence.
+     */
+    protected function combineFilters(string $applicationFilters, string $builderFilters): string
+    {
+        if (trim($applicationFilters) === '') {
+            return $builderFilters;
+        }
+
+        if ($builderFilters === '') {
+            return $applicationFilters;
+        }
+
+        return "({$applicationFilters}) && ({$builderFilters})";
     }
 
     /**
@@ -566,6 +591,30 @@ class TypesenseEngine extends Engine
     }
 
     /**
+     * Delete every document matching the prepared Builder filters.
+     */
+    public function deleteByFilter(Builder $builder): void
+    {
+        Scout::prepareBuilder($builder, $this);
+
+        // Reuse search parameter assembly so model-level filters cannot be bypassed during deletion.
+        /** @var string $filters */
+        $filters = $this->buildSearchParameters($builder, 1, null)['filter_by'];
+
+        if (trim($filters) === '') {
+            throw new InvalidArgumentException('Typesense filter deletion requires a non-empty filter.');
+        }
+
+        $collection = $this->collection($builder->index ?? $builder->model->indexableAs());
+
+        try {
+            $collection->getDocuments()->delete(['filter_by' => $filters]);
+        } catch (ObjectNotFound) {
+            // The collection is already absent.
+        }
+    }
+
+    /**
      * Create a search index.
      *
      * @throws NotSupportedException
@@ -602,6 +651,9 @@ class TypesenseEngine extends Engine
             $schema = $model->typesenseCollectionSchema();
         }
 
+        // Keep target selection authoritative even when a settings callback supplies a different name.
+        unset($schema['name']);
+        $schema = Scout::prepareIndexSettings($schema, $model, $this, $collectionName);
         $schema['name'] = $collectionName;
 
         try {

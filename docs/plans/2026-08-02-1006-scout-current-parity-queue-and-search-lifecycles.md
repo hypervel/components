@@ -133,7 +133,7 @@ Apart from the approved `database-21` behavior correction, no accepted item adds
 | `database-23` | Descending cursor type defect | Major | `forPageBeforeId()` accepts string keys so descending chunk and lazy traversal work beyond the first page. |
 | `scout-40` | Integer range defect and upstream defect | Major | Descending queue-import ranges use overflow-safe remaining-distance arithmetic; the ascending branch uses the same exact formulation instead of relying on mixed numeric tie-breaking. |
 | `foundation-17` | Integration-test harness defect | Major | Foundation's Meilisearch waiter reports failed awaited tasks and timeouts, while cleanup waits for its exact deletion tasks; Scout uses that single owner, a service-valid custom-key fixture, and documents Meilisearch's identifier alphabet. |
-| `foundation-18` | Integration-test harness defect | Major | Foundation's Algolia cleanup waits for each exact index-deletion task before setup or teardown continues. |
+| `foundation-18` | Integration-test harness defect | Major | Foundation's Algolia cleanup waits for each exact index-deletion task and requires a published terminal result before setup or teardown continues. |
 
 ## Implementation design
 
@@ -321,9 +321,9 @@ The two existing `DatabaseQueryBuilderTest` methods retain their current signatu
 
 ### 9. External search integration task truthfulness (`foundation-17`, `foundation-18`)
 
-Use Foundation's `InteractsWithMeilisearch::waitForMeilisearchTasks()` as the single wait owner. Preserve its current selection of all pending tasks, inspect each terminal result returned by `waitForTask()`, throw its error when the status is not `succeeded`, and let timeout or transport exceptions propagate. Meilisearch cleanup waits for the exact `taskUid` values returned by its deletions; Algolia cleanup waits for each exact index name and `taskID`. Setup failures propagate, while teardown remains exception-safe. Delete the duplicate Support implementation; Scout keeps its longer timeout through parent delegation.
+Use Foundation's `InteractsWithMeilisearch::waitForMeilisearchTasks()` as the single wait owner. Select pending tasks whose index UID begins with the current test worker's prefix, inspect each terminal result returned by `waitForTask()`, throw its error when the status is not `succeeded`, and let timeout or transport exceptions propagate. Meilisearch cleanup waits for the exact `taskUid` values returned by its deletions; Algolia cleanup waits for each exact index name and `taskID` and requires a published terminal result because its SDK can swallow a polling failure and return null. Setup failures propagate, while teardown remains exception-safe. Delete the duplicate Support implementation; Scout keeps its longer timeout through parent delegation.
 
-The shared custom-key fixture uses a Meilisearch-valid hyphenated key while remaining distinct from the database key. Keep the positive remote precondition before queued removal. Add deterministic harness coverage for successful, failed, and timed-out waits rather than racing the real service, and state the Meilisearch identifier alphabet once in the custom-key guide. Do not poll in production, change `Engine::update(): void`, scan already-terminal global failures, filter by test prefix, or add a task watermark.
+The shared custom-key fixture uses a Meilisearch-valid hyphenated key while remaining distinct from the database key. Keep the positive remote precondition before queued removal. Add deterministic harness coverage for successful, failed, and timed-out waits rather than racing the real service, and state the Meilisearch identifier alphabet once in the custom-key guide. Do not poll in production, change `Engine::update(): void`, scan already-terminal global failures, or add a task watermark.
 
 ## Test plan
 

@@ -7,10 +7,13 @@ namespace Hypervel\Tests\Scout\Unit\Engines;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -238,6 +241,38 @@ class TypesenseEngineTest extends TestCase
         $this->createPartialEngineWithConfig($client)->update(new EloquentCollection([$model]));
     }
 
+    public function testUpdatePreparesTheFinalSearchableDocument(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $documents->shouldReceive('import')
+            ->once()
+            ->with([['id' => 1, 'title' => 'Scout', 'tenant_id' => 42]], ['action' => 'upsert'])
+            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+
+        $model = new TypesenseLifecycleModel;
+        $engine = $this->createPartialEngineWithConfig($client);
+        Scout::prepareSearchableDocumentUsing(function (
+            array $document,
+            Model $givenModel,
+            Engine $givenEngine
+        ) use ($model, $engine): array {
+            $this->assertSame(['id' => 1, 'title' => 'Scout'], $document);
+            $this->assertSame($model, $givenModel);
+            $this->assertSame($engine, $givenEngine);
+
+            return [...$document, 'tenant_id' => 42];
+        });
+
+        $engine->update(new EloquentCollection([$model]));
+    }
+
     public function testUpdateCreatesMissingCollectionAndRetriesImportOnce(): void
     {
         $client = m::mock(TypesenseClient::class);
@@ -268,6 +303,56 @@ class TypesenseEngineTest extends TestCase
         $model = new TypesenseLifecycleModel;
 
         $this->createPartialEngineWithConfig($client)->update(new EloquentCollection([$model]));
+    }
+
+    public function testMissingCollectionPreparesSettingsBeforeTheAuthoritativeName(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+        $client->shouldReceive('getCollections')->twice()->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $collections->shouldReceive('create')
+            ->once()
+            ->with([
+                'fields' => [
+                    ['name' => 'title', 'type' => 'string'],
+                    ['name' => 'tenant_id', 'type' => 'int64'],
+                ],
+                'name' => 'write_index',
+            ]);
+        $collection->shouldReceive('getDocuments')->twice()->andReturn($documents);
+        $documents->shouldReceive('import')->once()->ordered()->andThrow(new ObjectNotFound('Collection not found'));
+        $documents->shouldReceive('import')
+            ->once()
+            ->ordered()
+            ->andReturn([['success' => true, 'document' => '{"id":1}']]);
+
+        $model = new TypesenseLifecycleModel;
+        $engine = $this->createPartialEngineWithConfig($client);
+        Scout::prepareIndexSettingsUsing(function (
+            array $settings,
+            ?Model $givenModel,
+            Engine $givenEngine,
+            string $index
+        ) use ($model, $engine): array {
+            $this->assertSame([
+                'fields' => [['name' => 'title', 'type' => 'string']],
+            ], $settings);
+            $this->assertSame($model, $givenModel);
+            $this->assertSame($engine, $givenEngine);
+            $this->assertSame('write_index', $index);
+
+            return [
+                ...$settings,
+                'fields' => [...$settings['fields'], ['name' => 'tenant_id', 'type' => 'int64']],
+                'name' => 'callback_attempted_override',
+            ];
+        });
+
+        $engine->update(new EloquentCollection([$model]));
     }
 
     public function testUpdateAcceptsOnlyCollectionAlreadyExistsCreateRace(): void
@@ -501,6 +586,102 @@ class TypesenseEngineTest extends TestCase
         $this->createEngine($client)->flush($model);
     }
 
+    public function testDeleteByFilterPreparesTheBuilderAndUsesTheDefaultWriteCollection(): void
+    {
+        $documents = m::mock(Documents::class);
+        $documents->shouldReceive('delete')
+            ->once()
+            ->with(['filter_by' => '(status:=active || status:=trial) && (tenant_id:=42)'])
+            ->andReturn(['num_deleted' => 2]);
+        $collection = m::mock(TypesenseCollection::class);
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $collections = m::mock(Collections::class);
+        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $client = m::mock(TypesenseClient::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+
+        $model = new TypesenseLifecycleModel;
+        $model->searchParameters = ['filter_by' => 'from_model:=true'];
+        $builder = (new Builder($model, ''))
+            ->options(['filter_by' => 'status:=active || status:=trial']);
+        $engine = $this->createPartialEngineWithConfig($client);
+        $this->assertInstanceOf(DeletesByFilter::class, $engine);
+        Scout::prepareBuilderUsing(function (Builder $givenBuilder, Engine $givenEngine) use ($builder, $engine): void {
+            $this->assertSame($builder, $givenBuilder);
+            $this->assertSame($engine, $givenEngine);
+            $givenBuilder->where('tenant_id', 42);
+        });
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterUsesAnExplicitCollection(): void
+    {
+        $documents = m::mock(Documents::class);
+        $documents->shouldReceive('delete')
+            ->once()
+            ->with(['filter_by' => 'tenant_id:=42'])
+            ->andReturn(['num_deleted' => 1]);
+        $collection = m::mock(TypesenseCollection::class);
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $collections = m::mock(Collections::class);
+        $collections->shouldReceive('offsetGet')->with('users_v2')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('users_v2')->once();
+        $client = m::mock(TypesenseClient::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+
+        $model = new TypesenseLifecycleModel;
+        $builder = (new Builder($model, ''))->within('users_v2')->where('tenant_id', 42);
+
+        $this->createPartialEngineWithConfig($client)->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterTreatsAMissingCollectionAsAlreadyDeleted(): void
+    {
+        $documents = m::mock(Documents::class);
+        $documents->shouldReceive('delete')
+            ->once()
+            ->with(['filter_by' => 'tenant_id:=42'])
+            ->andThrow(new ObjectNotFound('Collection not found'));
+        $collection = m::mock(TypesenseCollection::class);
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $collections = m::mock(Collections::class);
+        $collections->shouldReceive('offsetGet')->with('write_index')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('write_index')->once();
+        $client = m::mock(TypesenseClient::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+
+        $model = new TypesenseLifecycleModel;
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        $this->createPartialEngineWithConfig($client)->deleteByFilter($builder);
+
+        $this->assertTrue(true);
+    }
+
+    public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $client->shouldNotReceive('getCollections');
+        $model = new TypesenseLifecycleModel;
+        $builder = new Builder($model, '');
+        $engine = $this->createPartialEngineWithConfig($client);
+        $prepared = false;
+        Scout::prepareBuilderUsing(function () use (&$prepared): void {
+            $prepared = true;
+        });
+
+        try {
+            $engine->deleteByFilter($builder);
+            $this->fail('Expected empty filter deletion to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Typesense filter deletion requires a non-empty filter.', $exception->getMessage());
+        }
+
+        $this->assertTrue($prepared);
+    }
+
     public function testDeleteIndexCallsTypesenseDelete(): void
     {
         $collection = m::mock(TypesenseCollection::class);
@@ -711,6 +892,45 @@ class TypesenseEngineTest extends TestCase
         $this->assertStringContainsString('brand:!=[x]', $params['filter_by']);
     }
 
+    public function testBuildSearchParametersComposesTheWinningApplicationFilterWithBuilderFilters(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+        $model = new TypesenseLifecycleModel;
+        $model->searchParameters = ['filter_by' => 'from_model:=true'];
+        $builder = (new Builder($model, 'test'))
+            ->options(['filter_by' => 'status:=active || status:=trial'])
+            ->where('tenant_id', 42);
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('(status:=active || status:=trial) && (tenant_id:=42)', $parameters['filter_by']);
+    }
+
+    public function testSearchCallbackReceivesFinalComposedOptions(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('read_index')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('read_index')->once();
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $documents->shouldNotReceive('search');
+
+        $model = new TypesenseLifecycleModel;
+        $builder = new Builder($model, 'scout', function ($givenDocuments, $query, $options) use ($documents) {
+            $this->assertSame($documents, $givenDocuments);
+            $this->assertSame('scout', $query);
+            $this->assertSame('(status:=active || status:=trial) && (tenant_id:=42)', $options['filter_by']);
+
+            return ['found' => 0, 'hits' => []];
+        });
+        $builder->options(['filter_by' => 'status:=active || status:=trial'])->where('tenant_id', 42);
+
+        $this->createPartialEngineWithConfig($client)->search($builder);
+    }
+
     public function testBuildSearchParametersMergesBuilderOptions(): void
     {
         $engine = $this->createPartialEngineWithConfig();
@@ -855,6 +1075,9 @@ class TypesenseLifecycleModel extends Model
     /** @var array<string, mixed> */
     public array $searchableData = ['id' => 1, 'title' => 'Scout'];
 
+    /** @var array<string, mixed> */
+    public array $searchParameters = [];
+
     public function toSearchableArray(): array
     {
         return $this->searchableData;
@@ -891,6 +1114,11 @@ class TypesenseLifecycleModel extends Model
             'name' => 'stale_index',
             'fields' => [['name' => 'title', 'type' => 'string']],
         ];
+    }
+
+    public function typesenseSearchParameters(): array
+    {
+        return $this->searchParameters;
     }
 }
 

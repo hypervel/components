@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Unit\Engines;
 
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
+use Algolia\AlgoliaSearch\Exceptions\NotFoundException;
 use Hypervel\Context\RequestContext;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -12,10 +13,14 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Http\Request;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\AlgoliaEngine;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
@@ -90,6 +95,44 @@ class AlgoliaEngineTest extends TestCase
         $model->shouldReceive('toSearchableArray')->andReturn(['id' => 1, 'name' => 'Taylor']);
         $model->shouldReceive('scoutMetadata')->andReturn(['foo' => 'bar']);
         $model->shouldReceive('getScoutKey')->andReturn(1);
+
+        $engine->update(new EloquentCollection([$model]));
+    }
+
+    public function testUpdatePreparesTheFinalSearchableDocument(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('saveObjects')
+            ->once()
+            ->with('users', [[
+                'name' => 'Taylor',
+                '__soft_deleted' => 0,
+                'objectID' => 1,
+                'tenant_id' => 42,
+            ]]);
+
+        $engine = new AlgoliaEngine($client);
+        $model = $this->createSearchableModelMock();
+        $model->shouldReceive('indexableAs')->andReturn('users');
+        $model->shouldReceive('toSearchableArray')->andReturn(['name' => 'Taylor']);
+        $model->shouldReceive('scoutMetadata')->andReturn(['__soft_deleted' => 0]);
+        $model->shouldReceive('getScoutKey')->andReturn(1);
+
+        Scout::prepareSearchableDocumentUsing(function (
+            array $document,
+            Model $givenModel,
+            Engine $givenEngine
+        ) use ($model, $engine): array {
+            $this->assertSame([
+                'name' => 'Taylor',
+                '__soft_deleted' => 0,
+                'objectID' => 1,
+            ], $document);
+            $this->assertSame($model, $givenModel);
+            $this->assertSame($engine, $givenEngine);
+
+            return [...$document, 'tenant_id' => 42];
+        });
 
         $engine->update(new EloquentCollection([$model]));
     }
@@ -218,6 +261,139 @@ class AlgoliaEngineTest extends TestCase
         $engine->flush($model);
     }
 
+    public function testDeleteByFilterPreparesTheBuilderAndUsesTheDefaultWriteIndex(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('deleteBy')
+            ->once()
+            ->with('users_write', [
+                'filters' => "(visibility:public) AND (status:'active' AND tenant_id:'42')",
+            ])
+            ->andReturn(['taskID' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('users_write', 123)
+            ->andReturn(['status' => 'published']);
+
+        $engine = new AlgoliaEngine($client);
+        $this->assertInstanceOf(DeletesByFilter::class, $engine);
+
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->once()->andReturn('users_write');
+        $model->shouldNotReceive('searchableAs');
+        $builder = (new Builder($model, ''))
+            ->options(['filters' => 'visibility:public'])
+            ->where('status', 'active');
+
+        Scout::prepareBuilderUsing(function (Builder $givenBuilder, Engine $givenEngine) use ($builder, $engine): void {
+            $this->assertSame($builder, $givenBuilder);
+            $this->assertSame($engine, $givenEngine);
+            $givenBuilder->where('tenant_id', 42);
+        });
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterUsesAnExplicitIndex(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('deleteBy')
+            ->once()
+            ->with('users_v2', ['filters' => "tenant_id:'42'"])
+            ->andReturn(['taskID' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('users_v2', 123)
+            ->andReturn(['status' => 'published']);
+
+        $engine = new AlgoliaEngine($client);
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+        $builder = (new Builder($model, ''))->within('users_v2')->where('tenant_id', 42);
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterTreatsAMissingIndexAsAlreadyDeleted(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('deleteBy')
+            ->once()
+            ->with('users', ['filters' => "tenant_id:'42'"])
+            ->andThrow(new NotFoundException('Index not found', 404));
+        $client->shouldNotReceive('waitForTask');
+
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->once()->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        (new AlgoliaEngine($client))->deleteByFilter($builder);
+
+        $this->assertTrue(true);
+    }
+
+    public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldNotReceive('deleteBy');
+        $client->shouldNotReceive('waitForTask');
+        $engine = new AlgoliaEngine($client);
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+        $builder = new Builder($model, '');
+        $prepared = false;
+
+        Scout::prepareBuilderUsing(function () use (&$prepared): void {
+            $prepared = true;
+        });
+
+        try {
+            $engine->deleteByFilter($builder);
+            $this->fail('Expected empty filter deletion to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Algolia filter deletion requires a non-empty filter.', $exception->getMessage());
+        }
+
+        $this->assertTrue($prepared);
+    }
+
+    #[DataProvider('incompleteFilterDeletionTasks')]
+    public function testDeleteByFilterRejectsAnIncompleteTask(?array $task): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('deleteBy')
+            ->once()
+            ->with('users', ['filters' => "tenant_id:'42'"])
+            ->andReturn(['taskID' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with('users', 123)
+            ->andReturn($task);
+
+        $engine = new AlgoliaEngine($client);
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->once()->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('Algolia filter deletion did not complete successfully.');
+
+        $engine->deleteByFilter($builder);
+    }
+
+    /**
+     * Provide incomplete Algolia filter-deletion tasks.
+     *
+     * @return array<string, array{null|array{status: string}}>
+     */
+    public static function incompleteFilterDeletionTasks(): array
+    {
+        return [
+            'swallowed polling failure' => [null],
+            'non-published task' => [['status' => 'processing']],
+        ];
+    }
+
     public function testUpdateIndexSettings(): void
     {
         $client = m::mock(AlgoliaSearchClient::class);
@@ -255,6 +431,101 @@ class AlgoliaEngineTest extends TestCase
 
         $builder = new Builder($model, 'zonda');
         $builder->where('foo', 1);
+
+        $engine->search($builder);
+    }
+
+    #[DataProvider('filterCombinations')]
+    public function testSearchComposesApplicationAndBuilderFilters(
+        ?string $applicationFilters,
+        bool $hasBuilderFilter,
+        ?string $expectedFilters
+    ): void {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $expected = ['query' => 'zonda'];
+
+        if ($expectedFilters !== null) {
+            $expected['filters'] = $expectedFilters;
+        }
+
+        $client->shouldReceive('searchSingleIndex')
+            ->once()
+            ->with('users', $expected, []);
+
+        $engine = new AlgoliaEngine($client);
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('users');
+        $builder = new Builder($model, 'zonda');
+
+        if ($applicationFilters !== null) {
+            $builder->options(['filters' => $applicationFilters]);
+        }
+
+        if ($hasBuilderFilter) {
+            $builder->where('tenant_id', 42);
+        }
+
+        $engine->search($builder);
+    }
+
+    /**
+     * Provide application and Builder filter combinations.
+     *
+     * @return array<string, array{null|string, bool, null|string}>
+     */
+    public static function filterCombinations(): array
+    {
+        return [
+            'neither side' => [null, false, null],
+            'application only' => ['status:active OR status:trial', false, 'status:active OR status:trial'],
+            'builder only' => [null, true, "tenant_id:'42'"],
+            'both sides' => [
+                'status:active OR status:trial',
+                true,
+                "(status:active OR status:trial) AND (tenant_id:'42')",
+            ],
+        ];
+    }
+
+    public function testPaginateComposesApplicationAndBuilderFilters(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldReceive('searchSingleIndex')
+            ->once()
+            ->with('users', [
+                'query' => 'zonda',
+                'filters' => "(status:active OR status:trial) AND (tenant_id:'42')",
+                'hitsPerPage' => 15,
+                'page' => 1,
+            ], []);
+
+        $engine = new AlgoliaEngine($client);
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('users');
+        $builder = (new Builder($model, 'zonda'))
+            ->options(['filters' => 'status:active OR status:trial'])
+            ->where('tenant_id', 42);
+
+        $engine->paginate($builder, 15, 2);
+    }
+
+    public function testSearchCallbackReceivesFinalComposedOptions(): void
+    {
+        $client = m::mock(AlgoliaSearchClient::class);
+        $client->shouldNotReceive('searchSingleIndex');
+        $engine = new AlgoliaEngine($client);
+        $model = m::mock(AlgoliaTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('users');
+        $builder = new Builder($model, 'zonda', function ($givenClient, $query, $options) use ($client) {
+            $this->assertSame($client, $givenClient);
+            $this->assertSame('zonda', $query);
+            $this->assertSame([
+                'filters' => "(status:active OR status:trial) AND (tenant_id:'42')",
+            ], $options);
+
+            return ['hits' => [], 'nbHits' => 0];
+        });
+        $builder->options(['filters' => 'status:active OR status:trial'])->where('tenant_id', 42);
 
         $engine->search($builder);
     }

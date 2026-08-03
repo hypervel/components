@@ -8,6 +8,8 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
+use Meilisearch\Client;
+use Meilisearch\Exceptions\ApiException;
 
 /**
  * Integration tests for MeilisearchEngine core operations.
@@ -41,6 +43,61 @@ class MeilisearchEngineIntegrationTest extends MeilisearchScoutIntegrationTestCa
         $results = $this->meilisearch->index($models->first()->searchableAs())->search('');
 
         $this->assertCount(3, $results->getHits());
+    }
+
+    public function testTenantTokenUsesTheMatchingParentKeyIdentityAndSigner(): void
+    {
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['id' => 701, 'title' => 'Visible', 'body' => 'Body']),
+            SearchableModel::create(['id' => 702, 'title' => 'Hidden', 'body' => 'Body']),
+        ]));
+        $indexName = $models->first()->indexableAs();
+        $this->engine->update($models);
+        $settingsTask = $this->meilisearch->index($indexName)->updateFilterableAttributes(['id']);
+        $this->meilisearch->waitForTask($settingsTask['taskUid']);
+        $this->waitForMeilisearchTasks();
+
+        $key = $this->meilisearch->createKey([
+            'name' => $this->testPrefix . 'tenant-token-parent',
+            'description' => 'Scout tenant-token integration test',
+            'actions' => ['search'],
+            'indexes' => [$indexName],
+            'expiresAt' => null,
+        ]);
+        $uid = $key->getUid();
+        $secret = $key->getKey();
+        $cleanupIdentifier = $uid ?? $secret;
+
+        try {
+            $this->assertNotNull($uid);
+            $this->assertNotNull($secret);
+
+            $rules = [$indexName => ['filter' => 'id = 701']];
+            $token = $this->engine->generateTenantToken($rules, $uid, $secret);
+            $tenantClient = new Client($this->getMeilisearchHost(), $token);
+
+            $this->assertSame(
+                [701],
+                collect($tenantClient->index($indexName)->search('')->getHits())->pluck('id')->all(),
+            );
+
+            $invalidToken = $this->engine->generateTenantToken(
+                $rules,
+                $uid,
+                'deliberately-wrong-signing-key',
+            );
+
+            try {
+                (new Client($this->getMeilisearchHost(), $invalidToken))->index($indexName)->search('');
+                $this->fail('A token signed by a key that does not match its UID was accepted.');
+            } catch (ApiException $exception) {
+                $this->assertSame(403, $exception->httpStatus);
+            }
+        } finally {
+            if ($cleanupIdentifier !== null) {
+                $this->meilisearch->deleteKey($cleanupIdentifier);
+            }
+        }
     }
 
     public function testDeleteRemovesModelsFromMeilisearch(): void

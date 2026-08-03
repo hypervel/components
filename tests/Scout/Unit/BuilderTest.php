@@ -13,7 +13,9 @@ use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -26,6 +28,20 @@ class BuilderTest extends TestCase
 
         $this->assertSame($model, $builder->model);
         $this->assertSame('test query', $builder->query);
+    }
+
+    public function testBuilderIsNotPreparedUntilTerminalExecution(): void
+    {
+        $model = m::mock(Model::class);
+        $calls = 0;
+
+        Scout::prepareBuilderUsing(function () use (&$calls): void {
+            ++$calls;
+        });
+
+        new Builder($model, 'test query');
+
+        $this->assertSame(0, $calls);
     }
 
     public function testWhereAddsConstraint(): void
@@ -351,6 +367,69 @@ class BuilderTest extends TestCase
         $result = $builder->first();
 
         $this->assertNull($result);
+    }
+
+    public function testResultTerminalsPrepareBuilderExactlyOnce(): void
+    {
+        $model = m::mock(Model::class);
+        $engine = m::mock(Engine::class);
+        $model->shouldReceive('searchableUsing')->times(5)->andReturn($engine);
+        $engine->shouldReceive('search')->once()->andReturn([]);
+        $engine->shouldReceive('keys')->once()->andReturn(new Collection);
+        $engine->shouldReceive('get')->twice()->andReturn(new EloquentCollection);
+        $engine->shouldReceive('cursor')->once()->andReturn(new LazyCollection([]));
+        $builder = new Builder($model, 'query');
+        $prepared = [];
+
+        Scout::prepareBuilderUsing(function (Builder $givenBuilder, Engine $givenEngine) use (
+            $builder,
+            $engine,
+            &$prepared
+        ): void {
+            $this->assertSame($builder, $givenBuilder);
+            $this->assertSame($engine, $givenEngine);
+            $prepared[] = true;
+        });
+
+        $builder->raw();
+        $builder->keys();
+        $builder->get();
+        $builder->first();
+        $builder->cursor();
+
+        $this->assertCount(5, $prepared);
+    }
+
+    public function testPaginationTerminalsPrepareBeforeEngineExecution(): void
+    {
+        Paginator::currentPageResolver(fn () => 1);
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getPerPage')->times(4)->andReturn(15);
+        $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModels::class);
+        $model->shouldReceive('searchableUsing')->times(4)->andReturn($engine);
+        $engine->shouldReceive('paginate')->twice()->andReturn(new LengthAwarePaginator([], 0, 15, 1));
+        $engine->shouldReceive('simplePaginate')->twice()->andReturn(new Paginator([], 15, 1));
+        $builder = new Builder($model, 'query');
+        $prepared = 0;
+
+        Scout::prepareBuilderUsing(function (Builder $givenBuilder, Engine $givenEngine) use (
+            $builder,
+            $engine,
+            &$prepared
+        ): void {
+            $this->assertSame($builder, $givenBuilder);
+            $this->assertSame($engine, $givenEngine);
+            ++$prepared;
+        });
+
+        $builder->simplePaginate();
+        $builder->paginate();
+        $builder->paginateRaw();
+        $builder->simplePaginateRaw();
+
+        $this->assertSame(4, $prepared);
     }
 
     public function testPaginationCorrectlyHandlesPaginatedResults(): void

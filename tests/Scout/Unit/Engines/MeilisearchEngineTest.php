@@ -4,22 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Engines;
 
+use DateTimeImmutable;
 use GuzzleHttp\Psr7\Response;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Meilisearch\Client;
 use Meilisearch\Contracts\IndexesResults;
 use Meilisearch\Endpoints\Indexes;
 use Meilisearch\Exceptions\ApiException;
+use Meilisearch\Exceptions\TimeOutException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class MeilisearchEngineTest extends TestCase
 {
@@ -87,6 +95,47 @@ class MeilisearchEngineTest extends TestCase
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
         $model->shouldReceive('getScoutKey')->andReturn(1);
         $model->shouldReceive('pushSoftDeleteMetadata')->once()->andReturnSelf();
+
+        $engine->update(new EloquentCollection([$model]));
+    }
+
+    public function testUpdatePreparesTheFinalSearchableDocument(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldReceive('addDocuments')
+            ->once()
+            ->with([[
+                'title' => 'Test',
+                '__soft_deleted' => 0,
+                'id' => 1,
+                'tenant_id' => 42,
+            ]], 'id');
+
+        $engine = new MeilisearchEngine($client);
+        $model = $this->createSearchableModelMock();
+        $model->shouldReceive('indexableAs')->andReturn('test_index');
+        $model->shouldReceive('toSearchableArray')->andReturn(['title' => 'Test']);
+        $model->shouldReceive('scoutMetadata')->andReturn(['__soft_deleted' => 0]);
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $model->shouldReceive('getScoutKey')->andReturn(1);
+
+        Scout::prepareSearchableDocumentUsing(function (
+            array $document,
+            Model $givenModel,
+            Engine $givenEngine
+        ) use ($model, $engine): array {
+            $this->assertSame([
+                'title' => 'Test',
+                '__soft_deleted' => 0,
+                'id' => 1,
+            ], $document);
+            $this->assertSame($model, $givenModel);
+            $this->assertSame($engine, $givenEngine);
+
+            return [...$document, 'tenant_id' => 42];
+        });
 
         $engine->update(new EloquentCollection([$model]));
     }
@@ -208,6 +257,111 @@ class MeilisearchEngineTest extends TestCase
             ->where('archived_at', '!=', null)
             ->whereIn('tags', ['a"b\c', true])
             ->whereNotIn('hidden', ['draft', false]);
+
+        $engine->search($builder);
+    }
+
+    #[DataProvider('filterCombinations')]
+    public function testSearchComposesApplicationAndBuilderFilters(
+        string|array|null $applicationFilter,
+        bool $hasBuilderFilter,
+        string|array|null $expectedFilter
+    ): void {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $expected = $expectedFilter === null ? [] : ['filter' => $expectedFilter];
+        $index->shouldReceive('rawSearch')->once()->with('query', $expected);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $builder = new Builder($model, 'query');
+
+        if ($applicationFilter !== null) {
+            $builder->options(['filter' => $applicationFilter]);
+        }
+
+        if ($hasBuilderFilter) {
+            $builder->where('tenant_id', 42);
+        }
+
+        $engine->search($builder);
+    }
+
+    /**
+     * Provide application and Builder filter combinations.
+     *
+     * @return array<string, array{null|array<mixed>|string, bool, null|array<mixed>|string}>
+     */
+    public static function filterCombinations(): array
+    {
+        return [
+            'neither side' => [null, false, null],
+            'application string only' => ['status="active" OR status="trial"', false, 'status="active" OR status="trial"'],
+            'whitespace application and builder' => ['   ', true, 'tenant_id=42'],
+            'builder only' => [null, true, 'tenant_id=42'],
+            'both string sides' => [
+                'status="active" OR status="trial"',
+                true,
+                '(status="active" OR status="trial") AND (tenant_id=42)',
+            ],
+            'application array only' => [
+                [['status="active"', 'status="trial"'], 'visible=true'],
+                false,
+                [['status="active"', 'status="trial"'], 'visible=true'],
+            ],
+            'application array and builder' => [
+                [['status="active"', 'status="trial"'], 'visible=true'],
+                true,
+                [['status="active"', 'status="trial"'], 'visible=true', 'tenant_id=42'],
+            ],
+        ];
+    }
+
+    public function testPaginateComposesApplicationAndBuilderFilters(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldReceive('rawSearch')->once()->with('query', [
+            'filter' => '(status="active" OR status="trial") AND (tenant_id=42)',
+            'hitsPerPage' => 15,
+            'page' => 2,
+        ]);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $builder = (new Builder($model, 'query'))
+            ->options(['filter' => 'status="active" OR status="trial"'])
+            ->where('tenant_id', 42);
+
+        $engine->paginate($builder, 15, 2);
+    }
+
+    public function testSearchCallbackReceivesFinalComposedOptions(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('test_index')->andReturn($index);
+        $index->shouldNotReceive('rawSearch');
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('searchableAs')->andReturn('test_index');
+        $model->shouldReceive('getScoutKeyName')->andReturn('id');
+        $builder = new Builder($model, 'query', function ($givenIndex, $query, $options) use ($index) {
+            $this->assertSame($index, $givenIndex);
+            $this->assertSame('query', $query);
+            $this->assertSame([
+                'filter' => [['status="active"', 'status="trial"'], 'tenant_id=42'],
+            ], $options);
+
+            return ['hits' => [], 'totalHits' => 0];
+        });
+        $builder->options(['filter' => [['status="active"', 'status="trial"']]])->where('tenant_id', 42);
 
         $engine->search($builder);
     }
@@ -446,6 +600,155 @@ class MeilisearchEngineTest extends TestCase
         $model->shouldReceive('indexableAs')->andReturn('test_index');
 
         $engine->flush($model);
+    }
+
+    public function testDeleteByFilterPreparesTheBuilderAndWaitsForTheDefaultWriteIndex(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users_write')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')
+            ->once()
+            ->with(['filter' => [['visibility=true', 'visibility=false'], 'status="active" AND tenant_id=42']])
+            ->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn(['status' => 'succeeded']);
+
+        $engine = new MeilisearchEngine($client);
+        $this->assertInstanceOf(DeletesByFilter::class, $engine);
+
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->once()->andReturn('users_write');
+        $model->shouldNotReceive('searchableAs');
+        $builder = (new Builder($model, ''))
+            ->options(['filter' => [['visibility=true', 'visibility=false']]])
+            ->where('status', 'active');
+
+        Scout::prepareBuilderUsing(function (Builder $givenBuilder, Engine $givenEngine) use ($builder, $engine): void {
+            $this->assertSame($builder, $givenBuilder);
+            $this->assertSame($engine, $givenEngine);
+            $givenBuilder->where('tenant_id', 42);
+        });
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterUsesAnExplicitIndex(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users_v2')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')
+            ->once()
+            ->with(['filter' => 'tenant_id=42'])
+            ->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn(['status' => 'succeeded']);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+        $builder = (new Builder($model, ''))->within('users_v2')->where('tenant_id', 42);
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterTreatsAMissingIndexAsAlreadyDeleted(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')
+            ->once()
+            ->with(['filter' => 'tenant_id=42'])
+            ->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn([
+                'status' => 'failed',
+                'error' => ['code' => 'index_not_found'],
+            ]);
+
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->once()->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        (new MeilisearchEngine($client))->deleteByFilter($builder);
+
+        $this->assertTrue(true);
+    }
+
+    public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $client->shouldNotReceive('waitForTask');
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+        $builder = new Builder($model, '');
+        $prepared = false;
+        Scout::prepareBuilderUsing(function () use (&$prepared): void {
+            $prepared = true;
+        });
+
+        try {
+            $engine->deleteByFilter($builder);
+            $this->fail('Expected empty filter deletion to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Meilisearch filter deletion requires a non-empty filter.', $exception->getMessage());
+        }
+
+        $this->assertTrue($prepared);
+    }
+
+    public function testDeleteByFilterRejectsAnUnsuccessfulTask(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $client->shouldReceive('index')->once()->with('users')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')->once()->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andReturn(['status' => 'failed']);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('Meilisearch filter deletion did not complete successfully.');
+
+        $engine->deleteByFilter($builder);
+    }
+
+    public function testDeleteByFilterPreservesSdkTimeouts(): void
+    {
+        $client = m::mock(Client::class);
+        $index = m::mock(Indexes::class);
+        $timeout = new TimeOutException('Timed out waiting for deletion.');
+        $client->shouldReceive('index')->once()->with('users')->andReturn($index);
+        $index->shouldReceive('deleteDocuments')->once()->andReturn(['taskUid' => 123]);
+        $client->shouldReceive('waitForTask')
+            ->once()
+            ->with(123, 500_000, 5_000)
+            ->andThrow($timeout);
+
+        $engine = new MeilisearchEngine($client);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldReceive('indexableAs')->andReturn('users');
+        $builder = (new Builder($model, ''))->where('tenant_id', 42);
+
+        $this->expectExceptionObject($timeout);
+
+        $engine->deleteByFilter($builder);
     }
 
     public function testCreateIndexCreatesNewIndex(): void
@@ -757,6 +1060,66 @@ class MeilisearchEngineTest extends TestCase
         $engine = new MeilisearchEngine($client);
 
         $this->assertSame($client, $engine->getMeilisearchClient());
+    }
+
+    public function testGenerateTenantTokenUsesTheExplicitParentIdentityAndSigner(): void
+    {
+        $client = new Client('http://localhost:7700', 'different-client-key');
+        $engine = new MeilisearchEngine($client);
+        $expiresAt = new DateTimeImmutable('+1 hour');
+        $apiKey = 'explicit-parent-key';
+
+        $token = $engine->generateTenantToken(
+            ['users' => ['filter' => 'tenant_id = 42']],
+            'parent-key-uid',
+            $apiKey,
+            $expiresAt,
+        );
+        [$encodedHeader, $encodedPayload, $signature] = explode('.', $token);
+        $payload = json_decode(base64_decode(strtr($encodedPayload, '-_', '+/')), true, flags: JSON_THROW_ON_ERROR);
+        $signedContent = $encodedHeader . '.' . $encodedPayload;
+        $expectedSignature = rtrim(strtr(base64_encode(
+            hash_hmac('sha256', $signedContent, $apiKey, true)
+        ), '+/', '-_'), '=');
+        $clientKeySignature = rtrim(strtr(base64_encode(
+            hash_hmac('sha256', $signedContent, 'different-client-key', true)
+        ), '+/', '-_'), '=');
+
+        $this->assertSame('parent-key-uid', $payload['apiKeyUid']);
+        $this->assertSame(['users' => ['filter' => 'tenant_id = 42']], $payload['searchRules']);
+        $this->assertSame($expiresAt->getTimestamp(), $payload['exp']);
+        $this->assertSame($expectedSignature, $signature);
+        $this->assertNotSame($clientKeySignature, $signature);
+    }
+
+    #[DataProvider('emptyTenantTokenCredentials')]
+    public function testGenerateTenantTokenRejectsEmptyCredentials(
+        string $apiKeyUid,
+        string $apiKey,
+        string $message
+    ): void {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('generateTenantToken');
+        $client->shouldNotReceive('getKeys');
+        $engine = new MeilisearchEngine($client);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $engine->generateTenantToken(['users' => ['filter' => 'tenant_id = 42']], $apiKeyUid, $apiKey);
+    }
+
+    /**
+     * Provide empty Meilisearch tenant-token credentials.
+     *
+     * @return array<string, array{string, string, string}>
+     */
+    public static function emptyTenantTokenCredentials(): array
+    {
+        return [
+            'empty UID' => ['', 'explicit-parent-key', 'Meilisearch tenant tokens require a non-empty API key UID.'],
+            'empty key' => ['parent-key-uid', '', 'Meilisearch tenant tokens require a non-empty API key.'],
+        ];
     }
 
     protected function apiException(int $status, string $code): ApiException

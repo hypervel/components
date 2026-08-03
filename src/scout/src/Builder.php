@@ -132,7 +132,7 @@ class Builder
     }
 
     /**
-     * Specify a custom index to perform this search on.
+     * Specify a custom index for search or filtered deletion.
      *
      * @return $this
      */
@@ -318,7 +318,7 @@ class Builder
      */
     public function raw(): mixed
     {
-        return $this->engine()->search($this);
+        return $this->preparedEngine()->search($this);
     }
 
     /**
@@ -339,7 +339,7 @@ class Builder
      */
     public function keys(): Collection
     {
-        return $this->engine()->keys($this);
+        return $this->preparedEngine()->keys($this);
     }
 
     /**
@@ -359,7 +359,7 @@ class Builder
      */
     public function get(): EloquentCollection
     {
-        return $this->engine()->get($this);
+        return $this->preparedEngine()->get($this);
     }
 
     /**
@@ -369,7 +369,7 @@ class Builder
      */
     public function cursor(): LazyCollection
     {
-        return $this->engine()->cursor($this);
+        return $this->preparedEngine()->cursor($this);
     }
 
     /**
@@ -380,7 +380,7 @@ class Builder
         string $pageName = 'page',
         ?int $page = null
     ): PaginatorContract {
-        $engine = $this->engine();
+        $engine = $this->preparedEngine();
 
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
         $perPage = $perPage ?: $this->model->getPerPage();
@@ -423,7 +423,7 @@ class Builder
         string $pageName = 'page',
         ?int $page = null
     ): LengthAwarePaginatorContract {
-        $engine = $this->engine();
+        $engine = $this->preparedEngine();
 
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
         $perPage = $perPage ?: $this->model->getPerPage();
@@ -465,7 +465,7 @@ class Builder
         string $pageName = 'page',
         ?int $page = null
     ): LengthAwarePaginatorContract {
-        $engine = $this->engine();
+        $engine = $this->preparedEngine();
 
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
         $perPage = $perPage ?: $this->model->getPerPage();
@@ -502,7 +502,7 @@ class Builder
         string $pageName = 'page',
         ?int $page = null
     ): PaginatorContract {
-        $engine = $this->engine();
+        $engine = $this->preparedEngine();
 
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
         $perPage = $perPage ?: $this->model->getPerPage();
@@ -572,6 +572,18 @@ class Builder
         }
 
         return $results;
+    }
+
+    /**
+     * Get the prepared engine that should handle the query.
+     */
+    protected function preparedEngine(): Engine
+    {
+        $engine = $this->engine();
+
+        Scout::prepareBuilder($this, $engine);
+
+        return $engine;
     }
 
     /**

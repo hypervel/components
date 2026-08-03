@@ -6,16 +6,22 @@ namespace Hypervel\Scout\Engines;
 
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Exceptions\AlgoliaException;
+use Algolia\AlgoliaSearch\Exceptions\NotFoundException;
+use Algolia\AlgoliaSearch\Model\Search\GetTaskResponse;
+use Algolia\AlgoliaSearch\Model\Search\UpdatedAtResponse;
 use BackedEnum;
 use Hypervel\Context\RequestContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use InvalidArgumentException;
@@ -34,7 +40,7 @@ use InvalidArgumentException;
  * cannot work correctly under a persistent-worker model where the engine
  * instance is cached across requests.
  */
-class AlgoliaEngine extends Engine implements UpdatesIndexSettings
+class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSettings
 {
     /**
      * Create a new AlgoliaEngine instance.
@@ -74,11 +80,13 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
                 return null;
             }
 
-            return array_merge(
+            $document = array_merge(
                 $searchableData,
                 $model->scoutMetadata(),
                 ['objectID' => $model->getScoutKey()],
             );
+
+            return Scout::prepareSearchableDocument($document, $model, $this);
         })
             ->filter()
             ->values()
@@ -116,7 +124,6 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function search(Builder $builder): mixed
     {
         return $this->performSearch($builder, array_filter([
-            'filters' => $this->filters($builder),
             'hitsPerPage' => $builder->limit,
         ]));
     }
@@ -127,7 +134,6 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function paginate(Builder $builder, int $perPage, int $page): mixed
     {
         return $this->performSearch($builder, [
-            'filters' => $this->filters($builder),
             'hitsPerPage' => $perPage,
             'page' => $page - 1,
         ]);
@@ -139,6 +145,13 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     protected function performSearch(Builder $builder, array $options = []): mixed
     {
         $options = array_merge($builder->options, $options);
+        $filters = $this->combineFilters($options['filters'] ?? '', $this->filters($builder));
+
+        if ($filters === '') {
+            unset($options['filters']);
+        } else {
+            $options['filters'] = $filters;
+        }
 
         if ($builder->callback !== null) {
             return call_user_func(
@@ -288,6 +301,22 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     }
 
     /**
+     * Combine application and Builder filters without changing their precedence.
+     */
+    protected function combineFilters(string $applicationFilters, string $builderFilters): string
+    {
+        if (trim($applicationFilters) === '') {
+            return $builderFilters;
+        }
+
+        if ($builderFilters === '') {
+            return $applicationFilters;
+        }
+
+        return "({$applicationFilters}) AND ({$builderFilters})";
+    }
+
+    /**
      * Format the given value for use in an Algolia filter.
      */
     protected function formatFilterValue(mixed $value): string
@@ -403,6 +432,37 @@ class AlgoliaEngine extends Engine implements UpdatesIndexSettings
     public function flush(Model $model): void
     {
         $this->algolia->clearObjects($model->indexableAs());
+    }
+
+    /**
+     * Delete every document matching the prepared Builder filters.
+     */
+    public function deleteByFilter(Builder $builder): void
+    {
+        Scout::prepareBuilder($builder, $this);
+
+        $filters = $this->combineFilters($builder->options['filters'] ?? '', $this->filters($builder));
+
+        if (trim($filters) === '') {
+            throw new InvalidArgumentException('Algolia filter deletion requires a non-empty filter.');
+        }
+
+        $index = $builder->index ?? $builder->model->indexableAs();
+
+        try {
+            /** @var array{taskID: int}|UpdatedAtResponse $response */
+            $response = $this->algolia->deleteBy($index, ['filters' => $filters]);
+        } catch (NotFoundException) {
+            // The index is already absent.
+            return;
+        }
+
+        /** @var null|array<string, mixed>|GetTaskResponse $task */
+        $task = $this->algolia->waitForTask($index, $response['taskID']);
+
+        if (($task['status'] ?? null) !== 'published') {
+            throw new ScoutException('Algolia filter deletion did not complete successfully.');
+        }
     }
 
     /**

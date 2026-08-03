@@ -306,10 +306,14 @@ trait Searchable
     /**
      * Remove all instances of the model from the search index.
      */
-    public static function removeAllFromSearch(): void
+    public static function removeAllFromSearch(bool $force = false): void
     {
         $self = new static;
-        $self->searchableUsing()->flush($self);
+        $engine = $self->searchableUsing();
+
+        Scout::guardModelFlush($self, $engine, $force);
+
+        $engine->flush($self);
     }
 
     /**
