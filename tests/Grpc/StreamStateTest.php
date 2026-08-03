@@ -314,6 +314,37 @@ class StreamStateTest extends TestCase
         $this->assertSame(0, $state->bufferedBytes());
     }
 
+    public function testBufferExhaustionStopsBeforeDecodingLaterFrames(): void
+    {
+        $abandoned = 0;
+        $state = $this->state(maxBufferedBytes: 8);
+        $state->onAbandon(function () use (&$abandoned): void {
+            ++$abandoned;
+        });
+        $encoder = new FrameEncoder(1024);
+        // The third frame is invalid and would fail if decoding continued past exhaustion.
+        $body = $encoder->encode('first')
+            . $encoder->encode('second')
+            . pack('CN', 1, 3) . 'bad';
+
+        $state->handle(new Response(
+            1,
+            200,
+            [
+                'content-type' => 'application/grpc+proto',
+                'grpc-encoding' => 'gzip',
+            ],
+            $body,
+            true,
+        ));
+
+        $this->assertSame(StatusCode::ResourceExhausted, $state->status()->code());
+        $this->assertTrue($state->isAbandoned());
+        $this->assertSame(1, $abandoned);
+        $this->assertSame(0, $state->bufferedMessageCount());
+        $this->assertSame(0, $state->bufferedBytes());
+    }
+
     /**
      * @param array<string, string> $headers
      */

@@ -243,7 +243,6 @@ class HandleCallTest extends TestCase
             [],
             [],
             static fn (): array => [],
-            5,
         );
 
         $result = $handler->handle($request, static fn (): GrpcStreamedResponse => $response);

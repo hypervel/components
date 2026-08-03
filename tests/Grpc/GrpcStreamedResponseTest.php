@@ -51,7 +51,6 @@ class GrpcStreamedResponseTest extends TestCase
         $this->assertSame(['grpc-status'], $response->trailerNames());
         $this->assertSame(['grpc-status' => '0'], $response->trailers());
         $this->assertSame(1, $trailerResolutionCount);
-        $this->assertSame(5, $response->reservedContentLength());
 
         $response->complete();
         $this->assertSame(1, $completionCount);
@@ -159,7 +158,6 @@ class GrpcStreamedResponseTest extends TestCase
             ['content-type' => 'application/grpc+proto'],
             ['grpc-status'],
             $resolveTrailers ?? static fn (): array => ['grpc-status' => '0'],
-            5,
         );
     }
 }

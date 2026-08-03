@@ -1124,7 +1124,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `cache-20` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-20` |
 | `reverb-24` | `reverb` | `foundation` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `reverb-24` |
 | `server-10` | `server` | `server` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `server-10` |
-| `grpc-01` | `grpc` | `reverb` (revalidation complete); later full `grpc` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
+| `grpc-01` | `grpc` | `reverb` and `grpc` (revalidation complete); later full `grpc` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
+| `boost-01` | `boost` | `grpc` (targeted correction complete); later full `boost` audit | `Correct gRPC terminal, buffering, and metadata lifecycles`; finding `boost-01` |
 | `websocket-server-13` | `websocket-server` | `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `websocket-server-13` |
 | `testbench-02` | `testbench` | `testbench` (targeted correction complete); later full `testbench` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `testbench-02` |
 | `support-27` | `support` | `support` and `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `support-27` |

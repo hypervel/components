@@ -42,6 +42,7 @@
     - [Context](/docs/{{version}}/context)
     - [Coroutine Context](/docs/{{version}}/coroutine-context)
     - [Coroutines](/docs/{{version}}/coroutines)
+    - [Object Pools](/docs/{{version}}/object-pools)
     - [Contracts](/docs/{{version}}/contracts)
     - [Events](/docs/{{version}}/events)
     - [File Storage](/docs/{{version}}/filesystem)
@@ -91,6 +92,7 @@
     - [Mocking](/docs/{{version}}/mocking)
 - ## Packages
     - [Fortify](/docs/{{version}}/fortify)
+    - [gRPC](/docs/{{version}}/grpc)
     - [Horizon](/docs/{{version}}/horizon)
     - [Nested Set](/docs/{{version}}/nested-set)
     - [Precognition](/docs/{{version}}/precognition)

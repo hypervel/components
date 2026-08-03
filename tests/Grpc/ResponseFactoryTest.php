@@ -11,6 +11,7 @@ use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\RpcException;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\Deadline;
+use Hypervel\Grpc\Protocol\MetadataCodec;
 use Hypervel\Grpc\Server\CallContextStore;
 use Hypervel\Grpc\Server\ExceptionMapper;
 use Hypervel\Grpc\Server\GrpcHttpResponse;
@@ -278,6 +279,32 @@ class ResponseFactoryTest extends TestCase
         $this->assertSame('8', $finalTrailing->headers->get('grpc-status'));
         $this->assertFalse($finalInitial->headers->has('x-large'));
         $this->assertSame([], $finalTrailing->trailers());
+    }
+
+    public function testStreamMetadataLimitCountsOnlyHeadersEmittedByTheTransport(): void
+    {
+        [$factory] = $this->factory();
+        $response = $factory->make(
+            $this->request(serverStreaming: true),
+            GrpcResponse::stream([new GPBEmpty])
+                ->withInitialMetadata(['x-boundary' => str_repeat('x', 256)]),
+        );
+        $this->assertInstanceOf(GrpcStreamedResponse::class, $response);
+        $headers = [
+            ':status' => '200',
+            ...$response->headers->all(),
+            'trailer' => implode(', ', $response->trailerNames()),
+        ];
+        $wireSize = MetadataCodec::wireSize($headers);
+        [$exactFactory] = $this->factory(maxMetadataSize: $wireSize);
+        [$undersizedFactory] = $this->factory(maxMetadataSize: $wireSize - 1);
+
+        $this->assertSame($response, $exactFactory->finalizeForEmission($response));
+
+        $replacement = $undersizedFactory->finalizeForEmission($response);
+
+        $this->assertNotSame($response, $replacement);
+        $this->assertSame('8', $replacement->headers->get('grpc-status'));
     }
 
     public function testDynamicOversizedTrailersBecomeResourceExhausted(): void
