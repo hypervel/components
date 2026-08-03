@@ -479,7 +479,7 @@ When writing or porting source classes that use static properties for caching (e
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
 2. Check whether the subscriber (`src/testing/src/PHPUnit/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
-Framework-owned classes go in `AfterEachTestSubscriber`. First-party optional framework packages may stay in grouped optional methods at the bottom of that subscriber. Third-party packages, private packages, and applications should register their cleanup through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber.
+Framework-owned classes go in `AfterEachTestSubscriber`. First-party optional framework packages should stay in grouped optional methods at the bottom of that subscriber. Third-party packages, private packages, and applications should register cleanup for process-local state that survives application teardown through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber. These callbacks run after the test application is destroyed, so they must not resolve container services; external resources remain owned by their test traits.
 
 Do not add `Hypervel\Testing\PHPUnit\AfterEachTestCleanup` itself to `AfterEachTestSubscriber`. Its callbacks are suite-level registrations that must persist for the PHPUnit worker lifetime.
 
