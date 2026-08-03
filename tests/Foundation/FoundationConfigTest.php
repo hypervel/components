@@ -36,19 +36,33 @@ class FoundationConfigTest extends TestCase
 
     public function testServerConfigUsesSafeTaskDefaults(): void
     {
-        $originalContainer = Container::getInstance();
-
-        try {
-            new Application(dirname(__DIR__, 2));
-
-            $config = require dirname(__DIR__, 2) . '/src/foundation/config/server.php';
-        } finally {
-            Container::setInstance($originalContainer);
-        }
+        $config = $this->serverConfig();
 
         $this->assertFalse($config['settings'][Constant::OPTION_TASK_ENABLE_COROUTINE]);
         $this->assertSame(0, $config['settings'][Constant::OPTION_TASK_WORKER_NUM]);
         $this->assertFalse($config['settings'][Constant::OPTION_DAEMONIZE]);
+    }
+
+    public function testServerConfigReadsWorkerCountAsAnInteger(): void
+    {
+        $config = $this->withEnvironmentValue(
+            'SERVER_WORKERS',
+            '12',
+            fn (): array => $this->serverConfig(),
+        );
+
+        $this->assertSame(12, $config['settings'][Constant::OPTION_WORKER_NUM]);
+    }
+
+    public function testServerConfigReadsMaxWaitTimeAsAnInteger(): void
+    {
+        $config = $this->withEnvironmentValue(
+            'SERVER_MAX_WAIT_TIME',
+            '15',
+            fn (): array => $this->serverConfig(),
+        );
+
+        $this->assertSame(15, $config['settings'][Constant::OPTION_MAX_WAIT_TIME]);
     }
 
     public function testReverbBroadcastingConfigUsesTheServerPath(): void
@@ -74,48 +88,23 @@ class FoundationConfigTest extends TestCase
     {
         $key = 'VIEW_COMPILED_PATH';
         $originalContainer = Container::getInstance();
-        $originalPutenv = getenv($key);
-        $originalServerExists = array_key_exists($key, $_SERVER);
-        $originalServer = $_SERVER[$key] ?? null;
-        $originalEnvExists = array_key_exists($key, $_ENV);
-        $originalEnv = $_ENV[$key] ?? null;
 
         try {
-            unset($_SERVER[$key], $_ENV[$key]);
-            putenv($key);
-            Env::flushRepository();
+            $this->withEnvironmentValue($key, null, function (): void {
+                $app = new Application(dirname(__DIR__, 2));
+                $app->useStoragePath(sys_get_temp_dir() . '/hypervel-view-config-' . bin2hex(random_bytes(8)));
+                Container::setInstance($app);
 
-            $app = new Application(dirname(__DIR__, 2));
-            $app->useStoragePath(sys_get_temp_dir() . '/hypervel-view-config-' . bin2hex(random_bytes(8)));
-            Container::setInstance($app);
+                $compiledPath = $app->storagePath('framework/views');
 
-            $compiledPath = $app->storagePath('framework/views');
+                $this->assertDirectoryDoesNotExist($compiledPath);
 
-            $this->assertDirectoryDoesNotExist($compiledPath);
+                $config = require dirname(__DIR__, 2) . '/src/foundation/config/view.php';
 
-            $config = require dirname(__DIR__, 2) . '/src/foundation/config/view.php';
-
-            $this->assertSame($compiledPath, $config['compiled']);
+                $this->assertSame($compiledPath, $config['compiled']);
+            });
         } finally {
             Container::setInstance($originalContainer);
-
-            $originalPutenv === false
-                ? putenv($key)
-                : putenv("{$key}={$originalPutenv}");
-
-            if ($originalServerExists) {
-                $_SERVER[$key] = $originalServer;
-            } else {
-                unset($_SERVER[$key]);
-            }
-
-            if ($originalEnvExists) {
-                $_ENV[$key] = $originalEnv;
-            } else {
-                unset($_ENV[$key]);
-            }
-
-            Env::flushRepository();
         }
     }
 
@@ -130,9 +119,25 @@ class FoundationConfigTest extends TestCase
     }
 
     /**
+     * Load the server configuration with an application instance.
+     */
+    protected function serverConfig(): array
+    {
+        $originalContainer = Container::getInstance();
+
+        try {
+            new Application(dirname(__DIR__, 2));
+
+            return require dirname(__DIR__, 2) . '/src/foundation/config/server.php';
+        } finally {
+            Container::setInstance($originalContainer);
+        }
+    }
+
+    /**
      * Run a callback with a temporary environment variable value.
      */
-    protected function withEnvironmentValue(string $key, string $value, Closure $callback): mixed
+    protected function withEnvironmentValue(string $key, ?string $value, Closure $callback): mixed
     {
         $originalPutenv = getenv($key);
         $originalServerExists = array_key_exists($key, $_SERVER);
@@ -141,7 +146,9 @@ class FoundationConfigTest extends TestCase
         $originalEnv = $_ENV[$key] ?? null;
 
         try {
-            $this->setEnvironmentValue($key, $value);
+            $value === null
+                ? $this->unsetEnvironmentValue($key)
+                : $this->setEnvironmentValue($key, $value);
 
             return $callback();
         } finally {
