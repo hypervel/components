@@ -26,6 +26,7 @@
 
 ## Testing
 
+- Port current Laravel's complete `tests/Support/SupportTestingEventFakeTest.php`, preserving Hypervel-specific EventFake coverage and coroutine-safe test behavior.
 - Complete Testing assertion coverage: port the remaining current Laravel `TestResponseTest` cases through the incremental upstream-update workflow, and add focused coverage for `TestView`'s public assertion and string surface where Laravel has no equivalent suite.
 - Add the repository-required `: void` return type to the remaining untyped HTTP test methods: 176 in `tests/Http/HttpClientTest.php`, 30 in `tests/Http/HttpRequestTrustedStateTest.php`, and 4 in `tests/Http/HttpRequestTrustedStateCoroutineTest.php`. Verify each file after the mechanical conversion.
 
