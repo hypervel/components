@@ -38,7 +38,7 @@ class PoolOption implements PoolOptionInterface
         private int $maxConnections = 10,
         private float $connectTimeout = 10.0,
         private float $waitTimeout = 3.0,
-        private float $heartbeat = -1,
+        private float $heartbeat = -1.0,
         private float $heartbeatTimeout = 1.0,
         private float $maxIdleTime = 60.0,
         private float $maxLifetime = -1.0,

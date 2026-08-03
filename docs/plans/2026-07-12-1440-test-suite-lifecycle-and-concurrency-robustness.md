@@ -1053,8 +1053,8 @@ Audit every implementation and test double of both contracts. Do not make `disca
 
 The contract boundary is intentionally narrow and already connection-specific:
 
-- `Hypervel\Contracts\Pool\PoolInterface` is implemented by abstract `Hypervel\Pool\Pool`; `SimplePool\Pool`, `Database\Pool\DbPool`, and `Redis\Pool\RedisPool` inherit the implementation;
-- `Hypervel\Contracts\Pool\ConnectionInterface` is directly implemented by `Pool\Connection`, `Pool\KeepaliveConnection`, and `Database\Pool\PooledConnection`; their SimplePool and Redis descendants inherit delegation;
+- `Hypervel\Contracts\Pool\PoolInterface` is implemented by abstract `Hypervel\Pool\Pool`; `Database\Pool\DbPool` and `Redis\Pool\RedisPool` inherit the implementation;
+- `Hypervel\Contracts\Pool\ConnectionInterface` is directly implemented by `Pool\Connection`, `Pool\KeepaliveConnection`, and `Database\Pool\PooledConnection`; Redis descendants inherit delegation;
 - update `NonCoroutinePoolConnection`, `PoolConnectionStub`, and every anonymous/mock implementer in tests.
 
 Do not touch `Hypervel\ObjectPool\Contracts\ObjectPool`: it is a separate object-pool hierarchy used by Sentry and `SimpleObjectPool`, and it already has correct `discard(object)` semantics.

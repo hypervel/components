@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ClassInvoker;
@@ -46,6 +47,19 @@ class HeartbeatConnectionTest extends TestCase
         $connection = $pool->get();
         $this->assertSame(0, $pool->getConnectionsInChannel());
         $this->assertSame(2, $pool->getCurrentConnections());
+    }
+
+    public function testConnectionAcceptsPoolContract(): void
+    {
+        $pool = m::mock(PoolInterface::class);
+        $connection = new KeepaliveConnectionStub(
+            m::mock(ContainerContract::class),
+            $pool,
+        );
+
+        $pool->shouldReceive('release')->once()->with($connection);
+
+        $connection->release();
     }
 
     public function testConnectionCall(): void

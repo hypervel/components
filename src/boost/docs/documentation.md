@@ -42,7 +42,7 @@
     - [Context](/docs/{{version}}/context)
     - [Coroutine Context](/docs/{{version}}/coroutine-context)
     - [Coroutines](/docs/{{version}}/coroutines)
-    - [Object Pools](/docs/{{version}}/object-pools)
+    - [Pools](/docs/{{version}}/pools)
     - [Contracts](/docs/{{version}}/contracts)
     - [Events](/docs/{{version}}/events)
     - [File Storage](/docs/{{version}}/filesystem)

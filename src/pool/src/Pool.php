@@ -245,7 +245,7 @@ abstract class Pool implements PoolInterface
             maxConnections: $options['max_connections'] ?? 10,
             connectTimeout: $options['connect_timeout'] ?? 10.0,
             waitTimeout: $options['wait_timeout'] ?? 3.0,
-            heartbeat: $options['heartbeat'] ?? -1,
+            heartbeat: $options['heartbeat'] ?? -1.0,
             heartbeatTimeout: $options['heartbeat_timeout'] ?? 1.0,
             maxIdleTime: $options['max_idle_time'] ?? 60.0,
             maxLifetime: $options['max_lifetime'] ?? -1.0,

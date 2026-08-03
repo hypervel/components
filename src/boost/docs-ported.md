@@ -54,11 +54,11 @@ migrations.md
 mocking.md
 nested-set.md
 notifications.md
-object-pools.md
 packages.md
 pagination.md
 passwords.md
 permission.md
+pools.md
 porting-from-laravel.md
 precognition.md
 processes.md
