@@ -60,6 +60,16 @@ class FoundationConfigTest extends TestCase
         $this->assertSame('/socket', $config['connections']['reverb']['options']['path']);
     }
 
+    public function testBroadcastingConfigDisablesJsonpAndDoesNotShipSdkPools(): void
+    {
+        $config = require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
+
+        $this->assertFalse($config['connections']['reverb']['jsonp']);
+        $this->assertFalse($config['connections']['pusher']['jsonp']);
+        $this->assertArrayNotHasKey('pool', $config['connections']['pusher']);
+        $this->assertArrayNotHasKey('pool', $config['connections']['ably']);
+    }
+
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void
     {
         $key = 'VIEW_COMPILED_PATH';

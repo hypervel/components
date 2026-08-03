@@ -6,10 +6,16 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
+use Hypervel\Container\Container as ApplicationContainer;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\BindingRegistrar;
+use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
+use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Routing\Redirector;
+use Hypervel\Routing\ResponseFactory;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Pusher\Pusher;
@@ -33,7 +39,7 @@ class PusherBroadcasterTest extends TestCase
         $this->broadcaster = m::mock(PusherBroadcaster::class, [$this->container, $this->pusher])->makePartial();
     }
 
-    public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
+    public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue(): void
     {
         $this->broadcaster->channel('test', function () {
             return true;
@@ -51,7 +57,7 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenCallbackReturnFalse()
+    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenCallbackReturnFalse(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -64,7 +70,7 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenRequestUserNotFound()
+    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenRequestUserNotFound(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -77,7 +83,7 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthCallValidAuthenticationResponseWithPresenceChannelWhenCallbackReturnAnArray()
+    public function testAuthCallValidAuthenticationResponseWithPresenceChannelWhenCallbackReturnAnArray(): void
     {
         $returnData = [1, 2, 3, 4];
         $this->broadcaster->channel('test', function () use ($returnData) {
@@ -96,7 +102,7 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenCallbackReturnNull()
+    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenCallbackReturnNull(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -108,7 +114,7 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenRequestUserNotFound()
+    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenRequestUserNotFound(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -168,7 +174,7 @@ class PusherBroadcasterTest extends TestCase
         $this->assertSame('5', $boundOrder->boundValue);
     }
 
-    public function testValidAuthenticationResponseCallPusherSocketAuthMethodWithPrivateChannel()
+    public function testValidAuthenticationResponseCallPusherSocketAuthMethodWithPrivateChannel(): void
     {
         $request = $this->getMockRequestWithUserForChannel('private-test');
 
@@ -186,7 +192,7 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
-    public function testValidAuthenticationResponseCallPusherPresenceAuthMethodWithPresenceChannel()
+    public function testValidAuthenticationResponseCallPusherPresenceAuthMethodWithPresenceChannel(): void
     {
         $request = $this->getMockRequestWithUserForChannel('presence-test');
 
@@ -208,7 +214,7 @@ class PusherBroadcasterTest extends TestCase
         );
     }
 
-    public function testUserAuthenticationForPusher()
+    public function testUserAuthenticationForPusher(): void
     {
         $authenticateUser = [
             'auth' => '278d425bdf160c739803:4708d583dada6a56435fb8bc611c77c359a31eebde13337c16ab43aa6de336ba',
@@ -246,15 +252,33 @@ class PusherBroadcasterTest extends TestCase
         $this->broadcaster->broadcast(['orders'], 'OrderCreated', ['id' => 1]);
     }
 
-    public function testDecodePusherResponseWithJsonpCallback()
+    public function testJsonpCallbackReturnsJsonWithoutExplicitOptIn(): void
     {
-        // Register ResponseFactory so the response() helper works
-        $container = \Hypervel\Container\Container::getInstance();
+        $request = m::mock(Request::class);
+        $request->shouldReceive('input')->with('channel_name')->andReturn('private-test');
+        $request->shouldReceive('input')->with('socket_id')->andReturn('abcd.1234');
+        $request->shouldReceive('input')->with('callback', false)->andReturn('myCallback');
+        $request->shouldReceive('user')->andReturn(m::mock('User'));
+
+        $data = ['auth' => 'abcd:efgh'];
+
+        $this->pusher->shouldReceive('authorizeChannel')
+            ->once()
+            ->andReturn(json_encode($data));
+
+        $response = $this->broadcaster->validAuthenticationResponse($request, true);
+
+        $this->assertSame($data, $response);
+    }
+
+    public function testJsonpCallbackReturnsJsonpWhenExplicitlyEnabled(): void
+    {
+        $container = ApplicationContainer::getInstance();
         $container->singleton(
-            \Hypervel\Contracts\Routing\ResponseFactory::class,
-            fn () => new \Hypervel\Routing\ResponseFactory(
-                m::mock(\Hypervel\Contracts\View\Factory::class),
-                m::mock(\Hypervel\Routing\Redirector::class),
+            ResponseFactoryContract::class,
+            fn () => new ResponseFactory(
+                m::mock(ViewFactory::class),
+                m::mock(Redirector::class),
             )
         );
 
@@ -271,9 +295,35 @@ class PusherBroadcasterTest extends TestCase
             ->once()
             ->andReturn(json_encode($data));
 
-        $response = $this->broadcaster->validAuthenticationResponse($request, true);
+        $broadcaster = m::mock(
+            PusherBroadcaster::class,
+            [$this->container, $this->pusher, true],
+        )->makePartial();
 
-        $this->assertInstanceOf(\Hypervel\Http\JsonResponse::class, $response);
+        $this->assertInstanceOf(
+            JsonResponse::class,
+            $broadcaster->validAuthenticationResponse($request, true),
+        );
+    }
+
+    public function testExplicitJsonpOptInWithoutCallbackReturnsJson(): void
+    {
+        $request = $this->getMockRequestWithUserForChannel('private-test');
+        $data = ['auth' => 'abcd:efgh'];
+
+        $this->pusher->shouldReceive('authorizeChannel')
+            ->once()
+            ->andReturn(json_encode($data));
+
+        $broadcaster = m::mock(
+            PusherBroadcaster::class,
+            [$this->container, $this->pusher, true],
+        )->makePartial();
+
+        $this->assertSame(
+            $data,
+            $broadcaster->validAuthenticationResponse($request, true),
+        );
     }
 
     protected function getMockRequestWithUserForChannel(string $channel): Request
