@@ -470,8 +470,10 @@ class TypesenseEngineTest extends TestCase
         $client = m::mock(TypesenseClient::class);
         $client->shouldReceive('getCollections')->once()->andReturn($collections);
 
-        $model = new TypesenseLifecycleModel;
-        $model->setRawAttributes(['scout_id' => 'stored-scout-key']);
+        $model = $this->createSearchableModelMock();
+        $model->shouldReceive('getScoutKeyName')->andReturn('scout_id');
+        $model->shouldReceive('getAttribute')->with('scout_id')->andReturn('stored-scout-key');
+        $model->shouldReceive('indexableAs')->andReturn('write_index');
 
         $this->createEngine($client)->delete(new RemoveableScoutCollection([$model]));
     }

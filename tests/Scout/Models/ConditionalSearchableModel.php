@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
  * Test model that uses shouldBeSearchable() for conditional indexing.
  */
-class ConditionalSearchableModel extends Model implements SearchableInterface
+class ConditionalSearchableModel extends Model
 {
     use Searchable;
 

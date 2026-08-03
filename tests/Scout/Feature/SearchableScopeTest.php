@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Scout\Feature;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Scout;
@@ -236,7 +235,7 @@ class ScoutThroughIntermediate extends Model
     protected array $guarded = [];
 }
 
-class ScoutThroughSearchableModel extends Model implements SearchableInterface
+class ScoutThroughSearchableModel extends Model
 {
     use Searchable;
 

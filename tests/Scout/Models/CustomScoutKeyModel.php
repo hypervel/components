@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
  * Test model with a custom Scout key.
  */
-class CustomScoutKeyModel extends Model implements SearchableInterface
+class CustomScoutKeyModel extends Model
 {
     use Searchable;
 

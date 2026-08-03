@@ -6,13 +6,12 @@ namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
  * Test model that filters models in makeSearchableUsing().
  */
-class FilteringSearchableModel extends Model implements SearchableInterface
+class FilteringSearchableModel extends Model
 {
     use Searchable;
 

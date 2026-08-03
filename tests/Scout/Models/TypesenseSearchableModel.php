@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
@@ -13,7 +12,7 @@ use Hypervel\Scout\Searchable;
  *
  * Includes typesenseCollectionSchema() for proper schema definition.
  */
-class TypesenseSearchableModel extends Model implements SearchableInterface
+class TypesenseSearchableModel extends Model
 {
     use Searchable;
 

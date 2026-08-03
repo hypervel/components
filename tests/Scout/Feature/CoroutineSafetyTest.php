@@ -8,7 +8,6 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Scout\ModelObserver;
@@ -485,7 +484,7 @@ class CoroutineSafetyTest extends ScoutTestCase
     }
 }
 
-class ForceSavingSearchableModel extends Model implements SearchableInterface
+class ForceSavingSearchableModel extends Model
 {
     use Searchable;
 
