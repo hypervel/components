@@ -3,7 +3,7 @@ Http for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/http)
 
-Ported from: https://github.com/laravel/framework
+Documentation: https://hypervel.org/docs/requests
 
 ## Differences From Laravel
 
@@ -16,3 +16,5 @@ Laravel's `Http::pool()` and `Http::batch()` APIs are intentionally not ported. 
 `TrustHosts` fails closed when no trusted host patterns resolve. If the middleware is enabled and no resolver, `at()` list, or valid `app.url` host provides a trusted pattern, Hypervel rejects all hosts using a never-matching sentinel. Laravel and Symfony leave the trusted host list empty in this case, which accepts every host. Configure a valid `app.url`, `TrustHosts::at()`, or `TrustHosts::resolveHostsUsing()` when enabling the middleware.
 
 Configure trusted proxies through `$middleware->trustProxies(...)` in `bootstrap/app.php`. Hypervel does not read the legacy `trustedproxy.proxies` configuration key or include Laravel's Cloud, Forge, and Vapor host-specific proxy behavior.
+
+Ported from: https://github.com/laravel/framework
