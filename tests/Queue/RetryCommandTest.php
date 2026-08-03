@@ -26,6 +26,16 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class RetryCommandTest extends TestCase
 {
+    /** @var list<PoolManager> */
+    private array $poolManagers = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->poolManagers as $poolManager) {
+            $poolManager->flush();
+        }
+    }
+
     public function testRetryPreservesArbitraryPayloadFields(): void
     {
         $payload = [
@@ -241,6 +251,8 @@ class RetryCommandTest extends TestCase
      */
     protected function pooledQueue(string $resourceType, Closure $resolver): QueuePoolProxy
     {
+        $this->poolManagers[] = $poolManager = new PoolManager;
+
         return new QueuePoolProxy(
             new PoolDefinition(
                 "retry-command-{$resourceType}",
@@ -249,7 +261,7 @@ class RetryCommandTest extends TestCase
                 PoolOptions::fromArray(['max_objects' => 1]),
             ),
             $resolver,
-            new PoolManager,
+            $poolManager,
         );
     }
 }

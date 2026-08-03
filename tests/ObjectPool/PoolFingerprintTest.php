@@ -119,11 +119,13 @@ class PoolFingerprintTest extends TestCase
 
     public function testObjectsAreRejectedWithTheirKeyPath(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('at [$.outer.inner] is of type [stdClass]');
-        $this->expectExceptionMessage('pool config\'s "fingerprint" key');
-
-        PoolFingerprint::fromConfig(['outer' => ['inner' => new stdClass]]);
+        try {
+            PoolFingerprint::fromConfig(['outer' => ['inner' => new stdClass]]);
+            $this->fail('Expected the object to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertStringContainsString('at [$.outer.inner] is of type [stdClass]', $exception->getMessage());
+            $this->assertStringContainsString('pool config\'s "fingerprint" key', $exception->getMessage());
+        }
     }
 
     public function testClosuresAreRejectedWithTheirListPath(): void

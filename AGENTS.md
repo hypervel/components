@@ -122,9 +122,24 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
 - **Grep broadly — never assume a subdir** — when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
-- **Match existing documentation style** — User-facing documentation must match the style and language of nearby Hypervel docs. Use simple, human-friendly prose in Laravel's documentation style, and avoid internal jargon, stiff wording, needless verbosity, and details that do not help readers use the feature correctly.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
 - **Use `composer require` for root dependencies** — the root `composer.json` has a lockfile, so dependency entries go through Composer, never hand-edits. Direct edits are fine for metadata sections no command can write (`autoload`, `replace`, `extra`, `scripts`) and for the sub-package `src/{package}/composer.json` files, which have no lockfile.
+
+### Documentation
+
+- **Use one source of truth** — Put all user documentation in `src/boost/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
+- **Match Hypervel's documentation style** — Use simple, human-friendly prose in Laravel's documentation style. Avoid internal jargon, stiff wording, needless detail, and anything that does not help readers understand or use the feature.
+
+#### Package READMEs
+
+Use this order:
+
+1. Package header
+2. Documentation link (`Documentation: https://hypervel.org/docs/{package-slug}`)
+3. Approved `Differences From Laravel`, when needed
+4. Upstream link, when applicable (`Ported from: https://github.com/{vendor}/{package}`)
+
+`Differences From Laravel` should contain only public API or functionality differences that developers or agents must account for when using the package. Internal implementation details and fixes do not belong there.
 
 ### Avoid overengineering
 
@@ -719,11 +734,7 @@ If the Hypervel version of the package doesn't exist yet, create the skeleton us
 - **Porting a Hyperf package:** Use the `pool` package as reference
 - **Porting a Laravel-ecosystem third-party package:** Use the `permission` package as a reference
 
-Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, `replace`, and Hypervel provider / alias discovery metadata as needed, and add root dependencies with `composer require` — see Providers and Listeners for where providers should be registered. Add a clear upstream reference to the new package's README:
-
-```md
-Ported from: https://github.com/vendor/package
-```
+Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, `replace`, and Hypervel provider / alias discovery metadata as needed, and add root dependencies with `composer require` — see Providers and Listeners for where providers should be registered. Create the README using the Package READMEs format under Development Conventions.
 
 #### 2. Port the files one at a time, alphabetically
 
@@ -763,7 +774,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
   Keep everything else: behavioral descriptions, `@see` links, `@throws` annotations, warnings, contract explanations, usage notes.
   Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it.
   Translate non-English comments to English and fix grammar errors.
-- **Record intentional Laravel differences where future ports will look** — When a Laravel feature is intentionally not ported because it does not fit Hypervel's Swoole/coroutine architecture, or because Hypervel has a better native equivalent, record it in three places so a future port cannot miss it: (1) the package README under `Differences From Laravel` only for differences humans or LLMs using the package need to know or act on, with the reason and what to use instead — internal differences and fixes do not belong there; (2) a concise source comment at the natural insertion point where the skipped method/class would otherwise sit; (3) a concise `REMOVED:` comment at the matching upstream test location when tests are skipped. This is a narrow exception to the "don't annotate divergences" rule: it applies only to intentionally omitted methods or features, never to ordinary ported-and-adapted code. Closed decisions only — real gaps still worth doing go in `docs/todo.md`.
+- **Record intentional Laravel differences where future ports will look** — When a Laravel feature is intentionally not ported because it does not fit Hypervel's Swoole/coroutine architecture, or because Hypervel has a better native equivalent, record it in three places so a future port cannot miss it: (1) the package README under `Differences From Laravel`, following the Package READMEs rules above and explaining what to use instead; (2) a concise source comment at the natural insertion point where the skipped method/class would otherwise sit; (3) a concise `REMOVED:` comment at the matching upstream test location when tests are skipped. This is a narrow exception to the "don't annotate divergences" rule: it applies only to intentionally omitted methods or features, never to ordinary ported-and-adapted code. Closed decisions only — real gaps still worth doing go in `docs/todo.md`.
 - **Replace framework names in code** — any occurrence of the word `laravel` or `hyperf` in ported code (string literals, comments, prefixes, identifiers, etc.) must be replaced with `hypervel`, preserving the original casing. For example: `laravel_reserved_` → `hypervel_reserved_`, `LaravelExcelExporter` → `HypervelExcelExporter`, `HYPERF_VERSION` → `HYPERVEL_VERSION`. This does not apply to namespaces (which have their own conversion rules) or to references that describe the upstream source (e.g., docblock `@see` links to Laravel/Hyperf source).
 - **Don't copy Laravel/Hyperf-specific framework details just to stay 1:1** — keep the behavior the same, but if something only exists because of the upstream framework's own packages, providers, bootstrap system, or architecture, translate it to the Hypervel equivalent or STOP and ask if there isn't one.
 

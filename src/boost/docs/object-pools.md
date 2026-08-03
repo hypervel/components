@@ -1,6 +1,7 @@
 # Object Pools
 
 - [Introduction](#introduction)
+- [Named Pools](#named-pools)
 - [Pool Definitions](#pool-definitions)
 - [Pool Options](#pool-options)
 - [Borrowing and Leases](#borrowing-and-leases)
@@ -15,6 +16,29 @@ Hypervel's object-pool component manages mutable or connection-owning objects sa
 Use an object pool only for a resource that cannot safely serve concurrent operations itself. Stateless wrappers and clients designed to multiplex requests should normally be shared directly or constructed per operation instead.
 
 This guide documents the public, general-purpose `Hypervel\ObjectPool` API. The separate `Hypervel\Pool` component is lower-level connection-pool infrastructure used internally by database and Redis integrations; configure those pools through their consumer configuration rather than constructing them through this guide.
+
+<a name="named-pools"></a>
+## Named Pools
+
+For most application pools, resolve `Hypervel\ObjectPool\Contracts\Factory` from the container and call `pool()` with a name, a callback, and any pool options:
+
+```php
+use Hypervel\ObjectPool\Contracts\Factory;
+
+$pool = app(Factory::class)->pool(
+    'app:reports',
+    fn () => new ReportsClient,
+    ['max_objects' => 20],
+);
+```
+
+Use the same name only when every callback creates the same kind of object with the same configuration. If the pool already exists, Hypervel returns it and ignores the new callback. Passing different options for the same name throws an exception.
+
+Named pools share one registry across the application. Prefix names with your application or package name, such as `app:reports`, to avoid collisions.
+
+Call `pool()` immediately before each borrow instead of keeping the returned pool in a long-lived property. An idle managed pool may be removed and closed between operations.
+
+If the callback depends on credentials or other values that may change, use a pool definition and build its fingerprint from those values.
 
 <a name="pool-definitions"></a>
 ## Pool Definitions

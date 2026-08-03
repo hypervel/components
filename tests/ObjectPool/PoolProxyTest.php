@@ -42,6 +42,11 @@ class PoolProxyTest extends TestCase
         );
     }
 
+    protected function tearDownInCoroutine(): void
+    {
+        $this->manager->flush();
+    }
+
     public function testInvokeBorrowsConfiguresAndReleases(): void
     {
         $object = new PoolProxyObject;
@@ -62,7 +67,6 @@ class PoolProxyTest extends TestCase
         $this->assertSame([$object], $released);
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
         $this->assertSame(1, $pool->getObjectNumberInPool());
-        $this->manager->flush();
     }
 
     public function testPoolIsResolvedPerOperationAfterInvalidation(): void
@@ -85,7 +89,6 @@ class PoolProxyTest extends TestCase
 
         $this->assertNotSame($first, $second);
         $this->assertSame(2, $created);
-        $this->manager->flush();
     }
 
     public function testConfigureFailureDiscardsThePartiallyConfiguredObject(): void
@@ -111,7 +114,6 @@ class PoolProxyTest extends TestCase
 
         $this->assertSame(0, $pool->getCurrentObjectNumber());
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->manager->flush();
     }
 
     public function testDiscardFailureDoesNotMaskAConfigureFailure(): void
@@ -169,7 +171,6 @@ class PoolProxyTest extends TestCase
         $pool = $this->manager->get($this->definition->identity);
         $this->assertSame(0, $pool->getCurrentObjectNumber());
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->manager->flush();
     }
 
     public function testFinalizationFailurePropagatesAfterSuccessfulOperation(): void
@@ -190,7 +191,6 @@ class PoolProxyTest extends TestCase
         }
 
         $this->assertSame(0, $this->manager->get($this->definition->identity)->getCurrentObjectNumber());
-        $this->manager->flush();
     }
 
     public function testReleaseCallbackTravelsWithSynchronousAndDeferredLeases(): void
@@ -209,7 +209,6 @@ class PoolProxyTest extends TestCase
         $lease->release();
 
         $this->assertSame(2, $releaseCount);
-        $this->manager->flush();
     }
 
     public function testMetadataAndInvalidationDelegateToTheDefinitionAndFactory(): void
