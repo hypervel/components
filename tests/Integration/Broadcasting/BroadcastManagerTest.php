@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Broadcasting;
 
+use Ably\AblyRest;
 use Exception;
+use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\BroadcastPoolProxy;
@@ -15,17 +18,21 @@ use Hypervel\Broadcasting\UniqueBroadcastEvent;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Broadcasting\ShouldRescue;
+use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
@@ -33,6 +40,8 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Pusher\Pusher;
 use RuntimeException;
 
 class BroadcastManagerTest extends TestCase
@@ -48,6 +57,20 @@ class BroadcastManagerTest extends TestCase
         Queue::assertNotPushed(BroadcastEvent::class);
     }
 
+    public function testEnumEventCanBeBroadcastNowWithoutCloning(): void
+    {
+        Bus::fake();
+        Queue::fake();
+
+        Broadcast::queue(TestEventNowEnum::Created);
+
+        Bus::assertDispatched(
+            BroadcastEvent::class,
+            static fn (BroadcastEvent $job): bool => $job->event === TestEventNowEnum::Created,
+        );
+        Queue::assertNotPushed(BroadcastEvent::class);
+    }
+
     public function testEventsCanBeBroadcast(): void
     {
         Bus::fake();
@@ -57,6 +80,36 @@ class BroadcastManagerTest extends TestCase
 
         Bus::assertNotDispatched(BroadcastEvent::class);
         Queue::assertPushed(BroadcastEvent::class);
+    }
+
+    public function testEnumEventCanBeQueuedWithoutCloning(): void
+    {
+        Bus::fake();
+        Queue::fake();
+
+        Broadcast::queue(TestEventEnum::Created);
+
+        Bus::assertNotDispatched(BroadcastEvent::class);
+        Queue::assertPushed(
+            BroadcastEvent::class,
+            static fn (BroadcastEvent $job): bool => $job->event === TestEventEnum::Created,
+        );
+    }
+
+    public function testQueuedOrdinaryEventIsClonedOnce(): void
+    {
+        Bus::fake();
+        Queue::fake();
+        CloneCountingBroadcastEvent::$clones = 0;
+        $event = new CloneCountingBroadcastEvent;
+
+        Broadcast::queue($event);
+
+        Queue::assertPushed(
+            BroadcastEvent::class,
+            static fn (BroadcastEvent $job): bool => $job->event !== $event,
+        );
+        $this->assertSame(1, CloneCountingBroadcastEvent::$clones);
     }
 
     public function testEventsCanBeBroadcastUsingQueueRoutes(): void
@@ -99,7 +152,7 @@ class BroadcastManagerTest extends TestCase
         Queue::fake();
 
         $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUnique::class) . ':';
-        $lock = m::mock(\Hypervel\Contracts\Cache\Lock::class);
+        $lock = m::mock(Lock::class);
         $lock->shouldReceive('get')->once()->andReturn(true);
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
@@ -109,6 +162,45 @@ class BroadcastManagerTest extends TestCase
 
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
+    }
+
+    public function testUniqueEnumEventCanBeQueuedWithoutCloning(): void
+    {
+        Bus::fake();
+        Queue::fake();
+
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueEnum::class) . ':';
+        $lock = m::mock(Lock::class);
+        $lock->shouldReceive('get')->once()->andReturn(true);
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
+        $this->app->singleton(Cache::class, fn () => $cache);
+
+        Broadcast::queue(TestEventUniqueEnum::Created);
+
+        Queue::assertPushed(
+            UniqueBroadcastEvent::class,
+            static fn (UniqueBroadcastEvent $job): bool => $job->event === TestEventUniqueEnum::Created,
+        );
+    }
+
+    public function testUniqueEventConstructsOnlyTheSelectedWrapper(): void
+    {
+        Bus::fake();
+        Queue::fake();
+        CloneCountingUniqueBroadcastEvent::$clones = 0;
+
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', CloneCountingUniqueBroadcastEvent::class) . ':';
+        $lock = m::mock(Lock::class);
+        $lock->shouldReceive('get')->once()->andReturn(true);
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('lock')->with($lockKey, 0)->andReturn($lock);
+        $this->app->singleton(Cache::class, fn () => $cache);
+
+        Broadcast::queue(new CloneCountingUniqueBroadcastEvent);
+
+        Queue::assertPushed(UniqueBroadcastEvent::class);
+        $this->assertSame(1, CloneCountingUniqueBroadcastEvent::$clones);
     }
 
     public function testUniqueEventsCanBeBroadcastWithUniqueIdFromProperty(): void
@@ -160,6 +252,16 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager->connection('alien_connection');
     }
 
+    public function testProviderResolvesManagerFactoryAndSelectedBroadcasterIdentities(): void
+    {
+        $manager = $this->app->make(BroadcastManager::class);
+        $factory = $this->app->make(BroadcastingFactory::class);
+        $broadcaster = $this->app->make(Broadcaster::class);
+
+        $this->assertSame($manager, $factory);
+        $this->assertSame($manager->connection(), $broadcaster);
+    }
+
     public function testEnumIdentifiersResolveSetDefaultsAndPurge(): void
     {
         $app = new Container;
@@ -199,6 +301,85 @@ class BroadcastManagerTest extends TestCase
         $this->assertNotSame($replacement, $manager->connection('0'));
     }
 
+    #[DataProvider('redisPrefixConfigurations')]
+    public function testRedisDriverUsesCanonicalPrefixPrecedence(
+        array $sharedOptions,
+        array $connectionConfig,
+        string $expectedPrefix,
+    ): void {
+        config()->set('database.redis', [
+            'client' => 'phpredis',
+            'options' => $sharedOptions,
+            'broadcasting' => array_merge([
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'database' => 0,
+            ], $connectionConfig),
+        ]);
+        config()->set('broadcasting.connections.redis-test', [
+            'driver' => 'redis',
+            'connection' => 'broadcasting',
+        ]);
+
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(
+                m::type('string'),
+                0,
+                m::type('string'),
+                $expectedPrefix . 'orders',
+            );
+
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('connection')
+            ->once()
+            ->with('broadcasting')
+            ->andReturn($connection);
+        $this->app->instance('redis', $redis);
+
+        $manager = new BroadcastManager($this->app);
+        $broadcaster = $manager->connection('redis-test');
+
+        $this->assertInstanceOf(RedisBroadcaster::class, $broadcaster);
+        $broadcaster->broadcast(['orders'], 'OrderCreated');
+    }
+
+    public static function redisPrefixConfigurations(): array
+    {
+        return [
+            'shared options' => [
+                ['prefix' => 'shared.'],
+                [],
+                'shared.',
+            ],
+            'connection options override shared options' => [
+                ['prefix' => 'shared.'],
+                ['options' => ['prefix' => 'connection.']],
+                'connection.',
+            ],
+            'top-level connection prefix overrides connection options' => [
+                ['prefix' => 'shared.'],
+                [
+                    'options' => ['prefix' => 'connection.'],
+                    'prefix' => 'top-level.',
+                ],
+                'top-level.',
+            ],
+            'empty top-level connection prefix overrides inherited prefix' => [
+                ['prefix' => 'shared.'],
+                ['prefix' => ''],
+                '',
+            ],
+            'scalar prefix is normalized to string' => [
+                [],
+                ['prefix' => 123],
+                '123',
+            ],
+        ];
+    }
+
     public function testRoutesExcludesCsrfMiddleware(): void
     {
         $route = m::mock(Route::class);
@@ -223,7 +404,7 @@ class BroadcastManagerTest extends TestCase
             ->andReturn($route);
 
         $app = m::mock(Container::class);
-        $app->shouldReceive('offsetGet')->with('router')->andReturn($router);
+        $app->shouldReceive('make')->with('router')->andReturn($router);
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->routes();
@@ -253,7 +434,7 @@ class BroadcastManagerTest extends TestCase
             ->andReturn($route);
 
         $app = m::mock(Container::class);
-        $app->shouldReceive('offsetGet')->with('router')->andReturn($router);
+        $app->shouldReceive('make')->with('router')->andReturn($router);
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->userRoutes();
@@ -263,7 +444,7 @@ class BroadcastManagerTest extends TestCase
     {
         $app = m::mock(Container::class . ',' . CachesRoutes::class);
         $app->shouldReceive('routesAreCached')->once()->andReturnTrue();
-        $app->shouldNotReceive('offsetGet');
+        $app->shouldNotReceive('make')->with('router');
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->routes();
@@ -348,7 +529,7 @@ class BroadcastManagerTest extends TestCase
         ], $received);
     }
 
-    public function testReverbResolvesDirectlyWhileExistingPoolableDriversRemainUnchanged(): void
+    public function testBuiltInSdkDriversResolveDirectlyWithoutDefaultPools(): void
     {
         $app = $this->poolingApplication([
             'reverb' => [
@@ -358,14 +539,38 @@ class BroadcastManagerTest extends TestCase
                 'app_id' => 'app',
                 'options' => ['host' => '127.0.0.1'],
             ],
+            'pusher' => [
+                'driver' => 'pusher',
+                'key' => 'key',
+                'secret' => 'secret',
+                'app_id' => 'app',
+                'options' => ['host' => '127.0.0.1'],
+            ],
+            'ably' => [
+                'driver' => 'ably',
+                'key' => 'abcd:efg',
+            ],
         ]);
         $manager = new BroadcastManager($app);
 
         $this->assertInstanceOf(PusherBroadcaster::class, $manager->connection('reverb'));
+        $pusherBroadcaster = $manager->connection('pusher');
+        $ablyBroadcaster = $manager->connection('ably');
+
+        $this->assertInstanceOf(PusherBroadcaster::class, $pusherBroadcaster);
+        $this->assertInstanceOf(AblyBroadcaster::class, $ablyBroadcaster);
         $this->assertSame([], $app->make(PoolFactory::class)->pools());
-        $this->assertContains('pusher', $manager->getPoolables());
-        $this->assertContains('ably', $manager->getPoolables());
-        $this->assertNotContains('reverb', $manager->getPoolables());
+        $this->assertSame([], $manager->getPoolables());
+
+        $replacementPusher = m::mock(Pusher::class);
+        $manager->setDefaultDriver('pusher');
+        $manager->setPusher($replacementPusher);
+        $this->assertSame($replacementPusher, $manager->getPusher());
+
+        $replacementAbly = new AblyRest('replacement:key');
+        $manager->setDefaultDriver('ably');
+        $manager->setAbly($replacementAbly);
+        $this->assertSame($replacementAbly, $manager->getAbly());
     }
 
     public function testPurgeInvalidatesCachedAndUncachedBroadcasterPoolsWhileForgetIsCacheOnly(): void
@@ -452,6 +657,43 @@ class BroadcastManagerTest extends TestCase
         $this->assertSame($broadcastManager, $boundInstance);
     }
 
+    public function testCustomDriverStaticClosure(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'test' => ['driver' => 'custom'],
+                ],
+            ],
+        ]));
+        $driver = m::mock(Broadcaster::class);
+        $manager = new BroadcastManager($app);
+
+        $manager->extend('custom', static fn () => $driver);
+
+        $this->assertSame($driver, $manager->connection('test'));
+    }
+
+    public function testInvokableObjectDriverClosure(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'test' => ['driver' => 'custom'],
+                ],
+            ],
+        ]));
+        $driver = m::mock(Broadcaster::class);
+        $manager = new BroadcastManager($app);
+        $creator = new ManagerCustomBroadcastCreator($driver);
+
+        $manager->extend('custom', $creator(...));
+
+        $this->assertSame($driver, $manager->connection('test'));
+    }
+
     public function testThrowExceptionWhenDriverCreationFails(): void
     {
         $this->expectException(RuntimeException::class);
@@ -519,6 +761,26 @@ class TestEventNow implements ShouldBroadcastNow
     }
 }
 
+enum TestEventNowEnum implements ShouldBroadcastNow
+{
+    case Created;
+
+    public function broadcastOn(): array
+    {
+        return [];
+    }
+}
+
+enum TestEventEnum implements ShouldBroadcast
+{
+    case Created;
+
+    public function broadcastOn(): array
+    {
+        return [];
+    }
+}
+
 class TestEventUnique implements ShouldBroadcast, ShouldBeUnique
 {
     /**
@@ -530,6 +792,30 @@ class TestEventUnique implements ShouldBroadcast, ShouldBeUnique
     {
         return [];
     }
+}
+
+enum TestEventUniqueEnum implements ShouldBroadcast, ShouldBeUnique
+{
+    case Created;
+
+    public function broadcastOn(): array
+    {
+        return [];
+    }
+}
+
+class CloneCountingBroadcastEvent extends TestEvent
+{
+    public static int $clones = 0;
+
+    public function __clone(): void
+    {
+        ++static::$clones;
+    }
+}
+
+class CloneCountingUniqueBroadcastEvent extends CloneCountingBroadcastEvent implements ShouldBeUnique
+{
 }
 
 class TestEventUniqueWithIdProperty extends TestEventUnique
@@ -580,6 +866,19 @@ class ManagerUserAuthenticationBroadcaster extends BaseBroadcaster
 
     public function broadcast(array $channels, string $event, array $payload = []): void
     {
+    }
+}
+
+class ManagerCustomBroadcastCreator
+{
+    public function __construct(
+        protected Broadcaster $driver,
+    ) {
+    }
+
+    public function __invoke(): Broadcaster
+    {
+        return $this->driver;
     }
 }
 

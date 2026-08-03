@@ -31,7 +31,7 @@ class LogBroadcaster extends Broadcaster
     {
         $channels = implode(', ', $this->formatChannels($channels));
 
-        $payload = json_encode($payload, JSON_PRETTY_PRINT);
+        $payload = json_encode($payload, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
 
         $this->logger->info("Broadcasting [{$event}] on channels [{$channels}] with payload:" . PHP_EOL . $payload);
     }

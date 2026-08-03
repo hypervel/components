@@ -22,7 +22,8 @@ class PusherBroadcaster extends Broadcaster
      */
     public function __construct(
         protected Container $container,
-        protected Pusher $pusher
+        protected Pusher $pusher,
+        protected bool $allowJsonp = false,
     ) {
     }
 
@@ -114,7 +115,7 @@ class PusherBroadcaster extends Broadcaster
      */
     protected function decodePusherResponse(Request $request, mixed $response): mixed
     {
-        if (! $request->input('callback', false)) {
+        if (! $request->input('callback', false) || ! $this->allowJsonp) {
             return json_decode($response, true);
         }
 
@@ -154,6 +155,9 @@ class PusherBroadcaster extends Broadcaster
 
     /**
      * Set the Pusher SDK instance.
+     *
+     * Boot or tests only. Replaces the SDK client on this worker-cached broadcaster;
+     * per-request mutation races across coroutines.
      */
     public function setPusher(Pusher $pusher): void
     {

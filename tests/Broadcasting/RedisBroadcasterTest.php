@@ -12,6 +12,7 @@ use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Http\Request;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -33,7 +34,7 @@ class RedisBroadcasterTest extends TestCase
         $this->broadcaster = m::mock(RedisBroadcaster::class, [$this->container, $this->redis])->makePartial();
     }
 
-    public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
+    public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue(): void
     {
         $this->broadcaster->channel('test', function () {
             return true;
@@ -47,7 +48,17 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenCallbackReturnFalse()
+    public function testAuthRejectsMissingChannelName(): void
+    {
+        $this->expectException(AccessDeniedHttpException::class);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('input')->with('channel_name')->andReturn(null);
+
+        $this->broadcaster->auth($request);
+    }
+
+    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenCallbackReturnFalse(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -60,7 +71,7 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenRequestUserNotFound()
+    public function testAuthThrowAccessDeniedHttpExceptionWithPrivateChannelWhenRequestUserNotFound(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -73,7 +84,7 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthCallValidAuthenticationResponseWithPresenceChannelWhenCallbackReturnAnArray()
+    public function testAuthCallValidAuthenticationResponseWithPresenceChannelWhenCallbackReturnAnArray(): void
     {
         $returnData = [1, 2, 3, 4];
         $this->broadcaster->channel('test', function () use ($returnData) {
@@ -93,7 +104,7 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenCallbackReturnNull()
+    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenCallbackReturnNull(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -105,7 +116,7 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
-    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenRequestUserNotFound()
+    public function testAuthThrowAccessDeniedHttpExceptionWithPresenceChannelWhenRequestUserNotFound(): void
     {
         $this->expectException(AccessDeniedHttpException::class);
 
@@ -120,13 +131,17 @@ class RedisBroadcasterTest extends TestCase
 
     public function testAuthUsesRewrittenChannelForConfiguredGuardAndPresenceUser(): void
     {
+        $broadcaster = m::mock(
+            RedisBroadcaster::class,
+            [$this->container, $this->redis, 'default', 'redis.'],
+        )->makePartial();
         $user = m::mock('User');
         $user->shouldReceive('getAuthIdentifier')->once()->andReturn(42);
 
         $request = m::mock(Request::class);
         $request->shouldReceive('input')
             ->with('channel_name')
-            ->andReturn('presence-application.tenant.orders.5');
+            ->andReturn('redis.presence-application.tenant.orders.5');
         $request->shouldReceive('user')->times(3)->with('members')->andReturn($user);
         $request->shouldNotReceive('user')->withNoArgs();
 
@@ -139,7 +154,7 @@ class RedisBroadcasterTest extends TestCase
                 : null;
         });
 
-        $this->broadcaster->channel(
+        $broadcaster->channel(
             'application.orders.{order}',
             static fn ($authenticatedUser, string $order): array|false => $authenticatedUser === $user && $order === '5'
                 ? ['role' => 'viewer']
@@ -154,12 +169,44 @@ class RedisBroadcasterTest extends TestCase
                     'user_info' => ['role' => 'viewer'],
                 ],
             ]),
-            $this->broadcaster->auth($request),
+            $broadcaster->auth($request),
         );
         $this->assertSame(1, $calls);
     }
 
-    public function testValidAuthenticationResponseWithPrivateChannel()
+    public function testAuthDoesNotRemoveConfiguredPrefixFromTheMiddleOfAChannel(): void
+    {
+        $broadcaster = m::mock(
+            RedisBroadcaster::class,
+            [$this->container, $this->redis, 'default', 'redis.'],
+        )->makePartial();
+        $broadcaster->channel('orders.redis.audit', static fn (): bool => true);
+
+        $this->assertSame(
+            json_encode(true),
+            $broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('private-orders.redis.audit')
+            ),
+        );
+    }
+
+    public function testAuthLeavesAChannelWithoutTheConfiguredPrefixUnchanged(): void
+    {
+        $broadcaster = m::mock(
+            RedisBroadcaster::class,
+            [$this->container, $this->redis, 'default', 'redis.'],
+        )->makePartial();
+        $broadcaster->channel('orders', static fn (): bool => true);
+
+        $this->assertSame(
+            json_encode(true),
+            $broadcaster->auth(
+                $this->getMockRequestWithUserForChannel('private-orders')
+            ),
+        );
+    }
+
+    public function testValidAuthenticationResponseWithPrivateChannel(): void
     {
         $request = $this->getMockRequestWithUserForChannel('private-test');
 
@@ -169,7 +216,7 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
-    public function testValidAuthenticationResponseWithPresenceChannel()
+    public function testValidAuthenticationResponseWithPresenceChannel(): void
     {
         $request = $this->getMockRequestWithUserForChannel('presence-test');
 
@@ -190,7 +237,17 @@ class RedisBroadcasterTest extends TestCase
         );
     }
 
-    public function testBroadcastUsesPublishPerChannelOnCluster()
+    public function testPresenceAuthenticationThrowsWhenUserDataCannotBeEncoded(): void
+    {
+        $this->expectException(JsonException::class);
+
+        $this->broadcaster->validAuthenticationResponse(
+            $this->getMockRequestWithUserForChannel('presence-test'),
+            ['invalid' => NAN],
+        );
+    }
+
+    public function testBroadcastUsesPublishPerChannelOnCluster(): void
     {
         $connection = m::mock(RedisProxy::class);
         $connection->shouldReceive('isCluster')->once()->andReturnTrue();
@@ -204,7 +261,7 @@ class RedisBroadcasterTest extends TestCase
         $broadcaster->broadcast(['test-channel-1', 'test-channel-2'], 'test-event', ['data' => 'value']);
     }
 
-    public function testBroadcastUsesEvalOnNonCluster()
+    public function testBroadcastUsesEvalOnNonCluster(): void
     {
         $connection = m::mock(RedisProxy::class);
         $connection->shouldReceive('isCluster')->once()->andReturnFalse();
@@ -217,7 +274,7 @@ class RedisBroadcasterTest extends TestCase
         $broadcaster->broadcast(['test-channel'], 'test-event', ['data' => 'value']);
     }
 
-    public function testBroadcastFormatsChannelsBeforeAddingRedisPrefix(): void
+    public function testClusterBroadcastLeavesRedisPrefixToNativePublishAfterFormattingChannels(): void
     {
         Broadcaster::formatChannelsUsing(
             static fn (array $channels): array => array_map(
@@ -230,7 +287,7 @@ class RedisBroadcasterTest extends TestCase
         $connection->shouldReceive('isCluster')->once()->andReturnTrue();
         $connection->shouldReceive('publish')
             ->once()
-            ->with('redis.application.orders', m::type('string'));
+            ->with('application.orders', m::type('string'));
 
         $this->redis->shouldReceive('connection')->once()->andReturn($connection);
 
@@ -241,7 +298,51 @@ class RedisBroadcasterTest extends TestCase
         ))->broadcast(['orders'], 'OrderCreated');
     }
 
-    public function testBroadcastPayloadDoesNotDuplicateSocketInData()
+    public function testLuaBroadcastAddsRedisPrefixAfterFormattingChannels(): void
+    {
+        Broadcaster::formatChannelsUsing(
+            static fn (array $channels): array => array_map(
+                static fn (mixed $channel): string => 'application.' . $channel,
+                $channels,
+            ),
+        );
+
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(
+                m::type('string'),
+                0,
+                m::type('string'),
+                'redis.application.orders',
+            );
+
+        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+
+        (new RedisBroadcaster(
+            $this->container,
+            $this->redis,
+            prefix: 'redis.',
+        ))->broadcast(['orders'], 'OrderCreated');
+    }
+
+    public function testBroadcastThrowsWhenPayloadCannotBeEncoded(): void
+    {
+        $this->expectException(JsonException::class);
+
+        $this->redis->shouldReceive('connection')->once()->andReturn(
+            m::mock(RedisProxy::class)
+        );
+
+        $this->broadcaster->broadcast(
+            ['test-channel'],
+            'test-event',
+            ['invalid' => NAN],
+        );
+    }
+
+    public function testBroadcastPayloadDoesNotDuplicateSocketInData(): void
     {
         $connection = m::mock(RedisProxy::class);
         $connection->shouldReceive('isCluster')->andReturnFalse();
