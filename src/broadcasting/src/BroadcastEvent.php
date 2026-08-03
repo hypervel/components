@@ -18,6 +18,9 @@ use Hypervel\Support\Arr;
 use ReflectionClass;
 use ReflectionProperty;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class BroadcastEvent implements ShouldQueue
 {
@@ -74,7 +77,7 @@ class BroadcastEvent implements ShouldQueue
     public function handle(BroadcastingFactory $manager): void
     {
         $name = method_exists($this->event, 'broadcastAs')
-            ? $this->event->broadcastAs()
+            ? (string) enum_value($this->event->broadcastAs())
             : get_class($this->event);
 
         $channels = Arr::wrap($this->event->broadcastOn());
@@ -195,8 +198,10 @@ class BroadcastEvent implements ShouldQueue
     /**
      * Prepare the instance for cloning.
      */
-    public function __clone()
+    public function __clone(): void
     {
-        $this->event = clone $this->event;
+        $this->event = $this->event instanceof UnitEnum
+            ? $this->event
+            : clone $this->event;
     }
 }
