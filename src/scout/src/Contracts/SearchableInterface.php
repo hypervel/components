@@ -18,7 +18,7 @@ use Hypervel\Scout\Engines\Engine;
  * not need to implement this interface directly. Keep this shape compatible
  * with the trait while widening collection boundaries to Model for engines.
  *
- * @phpstan-require-extends \Hypervel\Database\Eloquent\Model
+ * @phpstan-require-extends Model
  */
 interface SearchableInterface
 {
