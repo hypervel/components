@@ -34,25 +34,6 @@ class DatabaseTransactionsManager extends BaseManager
     }
 
     /**
-     * Register a transaction callback.
-     *
-     * If there are no applicable transactions (only the RefreshDatabase wrapper),
-     * the callback executes immediately. Otherwise, it's queued for after commit.
-     */
-    public function addCallback(callable $callback): void
-    {
-        // If there are no transactions, we'll run the callbacks right away. Also, we'll run it
-        // right away when we're in test mode and we only have the wrapping transaction. For
-        // every other case, we'll queue up the callback to run after the commit happens.
-        if ($this->callbackApplicableTransactions()->count() === 0) {
-            $callback();
-            return;
-        }
-
-        $this->callbackApplicableTransactions()->last()->addCallback($callback);
-    }
-
-    /**
      * Get the transactions that are applicable to callbacks.
      *
      * Skips the RefreshDatabase wrapper transaction(s) so callbacks are only
