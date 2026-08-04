@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\ServerProcess\Handlers;
 
-use Hypervel\Contracts\Signal\SignalHandlerInterface;
+use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\ServerProcess\ProcessManager;
 
-class ProcessStopHandler implements SignalHandlerInterface
+class ProcessStopHandler implements SignalHandler
 {
     /**
      * Get the signals this handler listens for.
      */
-    public function listen(): array
+    public function signals(): array
     {
         return [
-            [self::PROCESS, SIGTERM],
+            self::SERVER_PROCESS => [SIGTERM],
         ];
     }
 

@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Signal;
 
+use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Signal\SignalHandlerInterface as SignalHandler;
+use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Signal\SignalManager;
-use Hypervel\Tests\Signal\Fixtures\SignalHandlerStub;
+use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
-use ReflectionClass;
-use ReflectionProperty;
 use Swoole\Coroutine as SwooleCoroutine;
 
 class SignalManagerCreateFailureTest extends TestCase
@@ -34,22 +35,31 @@ class SignalManagerCreateFailureTest extends TestCase
                 $exceptionHandler,
             );
 
-            $manager = (new ReflectionClass(SignalManager::class))
-                ->newInstanceWithoutConstructor();
-            $handler = new SignalHandlerStub;
+            $handler = new class implements SignalHandler {
+                public function signals(): array
+                {
+                    return [self::WORKER => [SIGUSR1, SIGUSR2]];
+                }
 
-            (new ReflectionProperty($manager, 'handlers'))->setValue($manager, [
-                SignalHandler::WORKER => [
-                    SIGUSR1 => [$handler],
-                    SIGUSR2 => [$handler],
-                ],
-            ]);
+                public function handle(int $signal): void
+                {
+                }
+            };
+            $container = m::mock(ContainerContract::class);
+            $container->shouldReceive('make')->with(ConfigContract::class)->andReturn(new Repository([
+                'signal' => ['handlers' => [$handler::class]],
+            ]));
+            $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+            $container->shouldReceive('make')->with($handler::class)->andReturn($handler);
+            $manager = new SignalManager($container);
 
             try {
                 $manager->listen(SignalHandler::WORKER);
                 $this->fail('Expected the second signal watcher creation to fail.');
             } catch (CoroutineCreateException) {
                 $this->assertSame(1, SwooleCoroutine::stats()['coroutine_num']);
+            } finally {
+                $manager->stop();
             }
         });
     }

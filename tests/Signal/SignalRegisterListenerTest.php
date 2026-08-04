@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Signal;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Signal\SignalHandlerInterface;
+use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Signal\SignalManager;
@@ -15,7 +15,7 @@ use Mockery as m;
 
 class SignalRegisterListenerTest extends TestCase
 {
-    public function testHandleBeforeWorkerStartInitializesAndListensForWorker(): void
+    public function testHandleBeforeWorkerStartListensForWorker(): void
     {
         $container = m::mock(ContainerContract::class);
         $manager = m::mock(SignalManager::class);
@@ -26,16 +26,15 @@ class SignalRegisterListenerTest extends TestCase
             ->once()
             ->andReturn($manager);
 
-        $manager->shouldReceive('init')->once();
         $manager->shouldReceive('listen')
-            ->with(SignalHandlerInterface::WORKER)
+            ->with(SignalHandler::WORKER)
             ->once();
 
         $listener = new SignalRegisterListener($container);
         $listener->handle($event);
     }
 
-    public function testHandleBeforeProcessHandleInitializesAndListensForProcess(): void
+    public function testHandleBeforeProcessHandleListensForServerProcess(): void
     {
         $container = m::mock(ContainerContract::class);
         $manager = m::mock(SignalManager::class);
@@ -46,9 +45,8 @@ class SignalRegisterListenerTest extends TestCase
             ->once()
             ->andReturn($manager);
 
-        $manager->shouldReceive('init')->once();
         $manager->shouldReceive('listen')
-            ->with(SignalHandlerInterface::PROCESS)
+            ->with(SignalHandler::SERVER_PROCESS)
             ->once();
 
         $listener = new SignalRegisterListener($container);

@@ -6,6 +6,7 @@
     - [Nginx](#nginx)
     - [Nginx and WebSockets](#nginx-and-websockets)
     - [Running the Hypervel Server](#running-the-hypervel-server)
+    - [Graceful Shutdown](#graceful-shutdown)
     - [Directory Permissions](#directory-permissions)
 - [Optimization](#optimization)
     - [Caching Configuration](#optimizing-configuration-loading)
@@ -126,11 +127,18 @@ In production, your Hypervel server should be kept running by a process monitor,
 php artisan serve
 ```
 
-By default, the HTTP server binds to `0.0.0.0:8000` with HTTP/2 enabled. You may configure the server host, port, worker count, max requests per worker, HTTP/2 support, and other Swoole settings using the `SERVER_HOST`, `SERVER_PORT`, `SERVER_WORKERS`, `SERVER_MAX_REQUESTS`, and `SERVER_HTTP2` environment variables read by `config/server.php`.
+By default, the HTTP server binds to `0.0.0.0:8000` with HTTP/2 enabled. You may configure the server host, port, worker count, max requests per worker, graceful shutdown allowance, HTTP/2 support, and other Swoole settings using the `SERVER_HOST`, `SERVER_PORT`, `SERVER_WORKERS`, `SERVER_MAX_REQUESTS`, `SERVER_MAX_WAIT_TIME`, and `SERVER_HTTP2` environment variables read by `config/server.php`.
 
 Swoole's `event_object` setting is not supported because Hypervel dispatches its own lifecycle event objects from the native server callbacks. Leave this setting disabled and use Hypervel's lifecycle events when integrating with server activity.
 
 The `serve` command also accepts `--host` and `--port` options for overriding the HTTP server address for the current process. In production, prefer durable configuration in `config/server.php` and your environment.
+
+<a name="graceful-shutdown"></a>
+### Graceful Shutdown
+
+The `SERVER_MAX_WAIT_TIME` environment variable controls Swoole's server-wide graceful shutdown allowance in seconds. It defaults to `3`. Increase this value when long-running requests, WebSocket connections, or server-process cleanup need more time to finish. Swoole may forcefully terminate work that exceeds the configured allowance.
+
+A value of `0` does not provide unlimited shutdown time. Workers receive no graceful drain period, while Swoole's final timeout for custom server processes is disabled.
 
 <a name="directory-permissions"></a>
 ### Directory Permissions
@@ -220,6 +228,8 @@ php artisan server:reload
 ```
 
 The command will fail if the configured PID file cannot be read, does not contain a valid process ID, or the reload signal cannot be delivered.
+
+Neither `reload` nor `server:reload` restarts custom server processes. Restart the server when server-process code or configuration changes.
 
 <a name="debug-mode"></a>
 ## Debug Mode

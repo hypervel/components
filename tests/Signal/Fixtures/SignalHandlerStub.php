@@ -4,20 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Signal\Fixtures;
 
-use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Signal\SignalHandlerInterface;
+use Hypervel\Contracts\Signal\SignalHandler;
 
-class SignalHandlerStub implements SignalHandlerInterface
+class SignalHandlerStub implements SignalHandler
 {
-    public function listen(): array
+    public function signals(): array
     {
         return [
-            [self::WORKER, SIGTERM],
+            self::WORKER => [SIGTERM],
         ];
     }
 
     public function handle(int $signal): void
     {
-        CoroutineContext::set('test.signal', $signal);
     }
 }
