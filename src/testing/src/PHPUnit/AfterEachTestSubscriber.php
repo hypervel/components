@@ -475,7 +475,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function callIfExists(string $class, string $method, mixed ...$arguments): void
     {
-        if (class_exists($class) && method_exists($class, $method)) {
+        if (class_exists($class)) {
             $class::$method(...$arguments);
         }
     }
