@@ -46,7 +46,8 @@
         "hypervel/redis": "^0.4",
         "hypervel/server": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/view": "^0.4"
+        "hypervel/view": "^0.4",
+        "symfony/console": "^8.1"
     },
     "autoload": {
         "psr-4": {

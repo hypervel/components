@@ -43,7 +43,8 @@
         "hypervel/core": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/redis": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "symfony/console": "^8.1"
     },
     "provide": {
         "psr/simple-cache-implementation": "3.0"

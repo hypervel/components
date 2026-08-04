@@ -33,7 +33,8 @@
         "monolog/monolog": "^3.1",
         "psr/container": "^2.0.1",
         "psr/log": "^3.0",
-        "psr/simple-cache": "^3.0"
+        "psr/simple-cache": "^3.0",
+        "symfony/console": "^8.1"
     },
     "config": {
         "sort-packages": true

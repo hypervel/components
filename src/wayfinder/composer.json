@@ -43,7 +43,8 @@
         "hypervel/prompts": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/view": "^0.4"
+        "hypervel/view": "^0.4",
+        "symfony/console": "^8.1"
     },
     "config": {
         "sort-packages": true
