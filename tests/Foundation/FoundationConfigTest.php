@@ -126,7 +126,7 @@ class FoundationConfigTest extends TestCase
         $originalContainer = Container::getInstance();
 
         try {
-            new Application(dirname(__DIR__, 2));
+            Container::setInstance(new Application(dirname(__DIR__, 2)));
 
             return require dirname(__DIR__, 2) . '/src/foundation/config/server.php';
         } finally {
