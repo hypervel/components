@@ -267,6 +267,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static array $classAttributes = [];
 
     /**
+     * Cache of whether methods are attributed local scopes.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $scopeMethodAttributes = [];
+
+    /**
      * Cache of soft deletable models.
      *
      * @var array<class-string<self>, bool>
@@ -514,6 +521,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$booted = [];
         static::$bootedCallbacks = [];
         static::$classAttributes = [];
+        static::$scopeMethodAttributes = [];
 
         static::$globalScopes = [];
     }
@@ -1962,14 +1970,22 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected static function isScopeMethodWithAttribute(string $method): bool
     {
-        if (method_exists(static::class, $method)) {
-            $reflection = new ReflectionMethod(static::class, $method);
+        $key = static::class . "\0" . strtolower($method);
 
-            return ! $reflection->isPrivate()
-                && $reflection->getAttributes(LocalScope::class) !== [];
+        if (array_key_exists($key, static::$scopeMethodAttributes)) {
+            return static::$scopeMethodAttributes[$key];
         }
 
-        return false;
+        // Query-derived dynamic scope names can be arbitrary. Do not retain misses
+        // for nonexistent methods in a long-running worker.
+        if (! method_exists(static::class, $method)) {
+            return false;
+        }
+
+        $reflection = new ReflectionMethod(static::class, $method);
+
+        return static::$scopeMethodAttributes[$key] = ! $reflection->isPrivate()
+            && $reflection->getAttributes(LocalScope::class) !== [];
     }
 
     /**
@@ -2585,6 +2601,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$traitInitializers = [];
         static::$globalScopes = [];
         static::$classAttributes = [];
+        static::$scopeMethodAttributes = [];
         static::$modelsShouldPreventLazyLoading = false;
         static::$modelsShouldAutomaticallyEagerLoadRelationships = false;
         static::$lazyLoadingViolationCallback = null;
