@@ -121,85 +121,16 @@ A local indicative Redis 8.8 `redis-benchmark` run (300,000 requests, 50 clients
 
 Remove the comment and the documentation TODO together when the native implementation actually replaces Lua.
 
-## Research findings that shape the design
+## Research findings that constrain implementation
 
-### Current Laravel (local snapshot `examples/laravel/framework`, commit `2c410561c2`, 2026-07-30)
+- Current Laravel and Hypervel expose no strategy parameter. Preserve `RateLimiter::for()`, `Limit::perMinute()`, `by()`, `after()`, `response()`, and routing middleware helpers, but replace the split cache check/hit/read engine.
+- Hypervel's normal middleware is non-atomic; its Redis variant keeps request-local result data on a worker singleton and ignores `after()`. Both recorded defects are acceptance items.
+- Migrate routing, queue middleware, Fortify, Foundation exception throttling, Reverb, the facade/provider/config, tests, documentation, and package metadata. Keep Redis `DurationLimiter`/`ConcurrencyLimiter` as separate blocking primitives.
+- Retain the archived package's one-call decision, weighted consumption, Redis Lua, and typed bucket ideas. Do not retain JSON/whole-second state, the timeout race, invalid fractional admission, or multi-key Cluster scripts.
+- The requested Laravel packages add no safe driver boundary: Oltrematica is configuration-oriented, while milenmk's progressive lockout replays cache hits and is not concurrency-safe. Fibonacci remains deliberately unimplemented; exponential backoff is a separate failure policy.
+- Symfony supports typed policies, weighted consumption, and rich results, but its generic storage/lock path is not the Redis hot-path design. `go-redis/redis_rate` and Cloudflare support the single-TAT GCRA representation.
 
-- `Illuminate\Cache\RateLimiter` accepts only a cache repository and exposes no strategy parameter.
-- `Limit` contains only `key`, `maxAttempts`, `decaySeconds`, `afterCallback`, and `responseCallback`.
-- The generic path is fixed-window and split across several cache calls.
-- Laravel mutates duplicate keyed limits to fallback keys based on attempts/decay.
-- Laravel's Redis throttle middleware is a separate implementation choice rather than a general strategy/store abstraction.
-
-Conclusion: preserve the approachable `RateLimiter::for(...)`, `Limit::perMinute(...)`, `by`, `after`, and `response` vocabulary, but do not copy the storage architecture.
-
-### Current Hypervel
-
-- `src/cache/src/RateLimiter.php` is a Laravel-derived fixed-window cache implementation with a Hypervel scope resolver and xxh128 key hashing.
-- The normal route middleware first checks all limits, then records hits, then reads again for response headers. The operation is not one atomic decision.
-- `ThrottleRequestsWithRedis` uses `DurationLimiter::acquire()` atomically but stores `$decaysAt` and `$remaining` on a worker-lifetime singleton. Same-key concurrent requests can overwrite one another's header state, and unique keys accumulate indefinitely.
-- The Redis middleware ignores `Limit::after()`.
-- `RedisConnection::callEvalsha()` loads before each call, but the public `RedisConnection::evalWithShaCache()` already implements the correct SHA/NOSCRIPT fallback. The new package must use the latter and must not add a duplicate script cache.
-- `DurationLimiter` is also used by `Redis::throttle()` and concurrency/queue APIs. It is not dead when request middleware stops using it and must not be deleted wholesale.
-
-Current consumers that must be migrated:
-
-- `src/routing/src/Middleware/ThrottleRequests.php` and `ThrottleRequestsWithRedis.php`;
-- `src/queue/src/Middleware/RateLimited.php`, `RateLimitedWithRedis.php`, `ThrottlesExceptions.php`, and `ThrottlesExceptionsWithRedis.php`;
-- `src/fortify/src/LoginRateLimiter.php` and the Fortify provider stub;
-- `src/foundation/src/Exceptions/Handler.php`;
-- `src/reverb/src/Protocols/Pusher/Server.php`;
-- `src/support/src/Facades/RateLimiter.php`;
-- `src/cache/src/CacheServiceProvider.php` and `cache.limiter` config;
-- all related tests, Boost documentation, facade metadata, and package dependency metadata.
-
-### Archived Hypervel 0.3 package (`packages/hypervel/_archive/src/rate-limiter`)
-
-Ideas to retain:
-
-- a decision object returned from a single call;
-- native Redis Lua for atomic admission;
-- support for weighted consumption and multiple policies;
-- dedicated typed leaky-bucket configuration/state.
-
-Defects not to port:
-
-- application-supplied whole-second time inside Lua;
-- JSON state encoding;
-- fractional admission that checks the old level but can store a level over capacity;
-- a timeout race that can return a wrong retry time;
-- multi-key scripts that do not account for Redis Cluster slots;
-- incomplete SHA execution support;
-- validation that permits invalid algorithm state.
-
-### `examples/ratelimiter`
-
-Useful ideas are the fluent bucket vocabulary and resolver separation. Do not port its cache read/modify/write algorithm, leak timer calculation, or event-heavy hot path. The implementation is not atomic under concurrency.
-
-### Requested third-party packages
-
-- `Oltrematica/laravel-rate-limiter` is primarily configuration/wrapping and does not supply a strong atomic algorithm or reusable driver boundary.
-- `milenmk/laravel-rate-limiting` implements linear, Fibonacci, and exponential lockout growth, but reconstructs history with multiple cache calls/O(N) replay and is not concurrency-safe. Its useful lesson is to distinguish failure penalties from ordinary admission.
-
-### Other references
-
-- Symfony RateLimiter has useful typed policies, weighted `consume($tokens)`, and rich decision results. Its generic storage-plus-lock model is not suitable for Hypervel's Redis hot path.
-- `go-redis/redis_rate` demonstrates the compact GCRA model and one-call result shape used for leaky-bucket semantics.
-- Cloudflare's GCRA description supports using a theoretical-arrival-time representation for scalable smooth limiting.
-- Generic PHP cache implementations reviewed during research either require external locks or contain read/modify/write races; none provides a better backend boundary than dedicated drivers.
-
-Authoritative references to retain in implementation notes/tests where relevant:
-
-- Laravel rate limiting: <https://laravel.com/docs/13.x/rate-limiting>
-- Symfony RateLimiter: <https://symfony.com/doc/current/rate_limiter.html>
-- Redis scripting: <https://redis.io/docs/latest/develop/programmability/eval-intro/>
-- Redis Functions trade-offs: <https://redis.io/docs/latest/develop/programmability/functions-intro/>
-- Redis `TIME`: <https://redis.io/docs/latest/commands/time/>
-- Redis `INCREX`: <https://redis.io/docs/latest/commands/increx/>
-- Redis Cluster key-slot rules: <https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/>
-- Google retry/backoff guidance: <https://docs.cloud.google.com/storage/docs/retry-strategy>
-- OWASP authentication throttling guidance: <https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html>
-- Cloudflare rate-limiting algorithms: <https://blog.cloudflare.com/counting-things-a-lot-of-different-things/>
+Implementation references: [Laravel rate limiting](https://laravel.com/docs/13.x/rate-limiting), [Symfony RateLimiter](https://symfony.com/doc/current/rate_limiter.html), [Redis scripting](https://redis.io/docs/latest/develop/programmability/eval-intro/), [Redis Functions](https://redis.io/docs/latest/develop/programmability/functions-intro/), [Redis TIME](https://redis.io/docs/latest/commands/time/), [Redis INCREX](https://redis.io/docs/latest/commands/increx/), [Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/), [Google retry guidance](https://docs.cloud.google.com/storage/docs/retry-strategy), [OWASP authentication throttling](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), and [Cloudflare rate-limiting algorithms](https://blog.cloudflare.com/counting-things-a-lot-of-different-things/).
 
 ## Public API
 
@@ -211,7 +142,7 @@ Authoritative references to retain in implementation notes/tests where relevant:
 namespace Hypervel\RateLimiter;
 
 /** @mixin \Hypervel\RateLimiter\Limiter */
-final class RateLimiter extends MultipleInstanceManager
+class RateLimiter extends MultipleInstanceManager
 {
     public function store(UnitEnum|string|null $name = null): Limiter;
 
@@ -221,9 +152,15 @@ final class RateLimiter extends MultipleInstanceManager
 
     public function getInstanceConfig(string $name): array;
 
-    public function for(UnitEnum|string $name, Closure $callback): static;
+    public function for(
+        UnitEnum|string $name,
+        Closure $callback,
+        UnitEnum|string|null $store = null,
+    ): static;
 
     public function limiter(UnitEnum|string $name): ?Closure;
+
+    public function limiterStore(UnitEnum|string $name): ?string;
 
     public function resolveKeyScopeUsing(?Closure $resolver): void;
 
@@ -244,6 +181,8 @@ RateLimiter::store('redis')->consume(
 ```
 
 `store()` accepts `UnitEnum|string|null` and normalizes enums through `enum_value()`. Built-in `create*Driver()` methods and custom `extend()` callbacks return a `Contracts\Store`; the manager's protected `resolve()` wraps that store in one `Limiter`. This keeps key resolution and unlimited handling out of drivers while giving third-party drivers a small native-operation contract. A custom creator therefore has the familiar shape `fn (Application $app, array $config): Store` rather than having to construct a framework wrapper.
+
+The optional third argument to `for()` selects the store for that named limiter, so an application can keep login lockouts in the database while routing API traffic through Redis. `limiterStore()` exposes that normalized registration to framework consumers; `null` means use the current default store. Queue middleware's explicit `store()` modifier overrides the registered store. Keep the callback and store in synchronized manager-owned maps rather than adding a named-limiter descriptor class.
 
 Resolved stores capture immutable configuration. `setDefaultInstance()`, `for()`, `resolveKeyScopeUsing()`, `extend()`, `forgetInstance()`, and `purge()` are explicitly boot/test-only under the repository's coroutine rules. The `Limiter` receives a resolver closure owned by the manager so a named-policy key can include the limiter name without mutating the policy object.
 
@@ -291,10 +230,10 @@ RateLimiter::for('api', function (Request $request) {
     return LeakyBucket::perSecond(100)
         ->burst(200)
         ->by($request->user()?->getAuthIdentifier() ?? $request->ip());
-});
+}, store: 'redis');
 ```
 
-Factories mirror `Limit`: `perSecond`, `perMinute`, `perMinutes`, `perHour`, and `perDay`. Their first argument is the sustained number of tokens emitted over the period. `burst(int $capacity)` is the total immediately available capacity, not “extra” capacity. It defaults to `1`, producing strict smoothing; callers that want a burst must opt in explicitly. `cost()` cannot exceed `burst()`.
+Factories mirror `Limit`'s names and argument order: `perSecond(int $rate, int $decaySeconds = 1)`, `perMinute(int $rate, int $decayMinutes = 1)`, `perMinutes(int $decayMinutes, int $rate)`, `perHour(int $rate, int $decayHours = 1)`, and `perDay(int $rate, int $decayDays = 1)`. The rate is the sustained number of tokens emitted over the period. `burst(int $capacity)` is the total immediately available capacity, not “extra” capacity. It defaults to the factory's rate argument, matching the least-surprising reading of `perSecond(100)` while still replenishing continuously; strict smoothing is the explicit `->burst(1)` case. `cost()` cannot exceed `burst()`.
 
 Document that the backend implementation is GCRA, which provides leaky-bucket behavior with constant state rather than running a leak timer.
 
@@ -389,7 +328,7 @@ The physical identity includes:
 4. caller key from `by()` (an empty key intentionally means a shared/global policy);
 5. policy type and canonical parameters.
 
-Each segment is domain-tagged and length-prefixed before the entire identity is hashed with `xxh128`. Domain tags distinguish, for example, a limiter name from a caller key; length prefixes keep arbitrary normalized strings injective. Keys are normalized to strings first, so equivalent `1`, `'1'`, a stringable `'1'`, and an enum value `'1'` intentionally identify the same bucket. The configured prefix is a pre-hash application namespace, so every driver still receives the same fixed 32-character lowercase hexadecimal key. Redis's connection-level `OPT_PREFIX` and a database connection's table prefix remain outside this digest and are applied exactly once by those components.
+Each segment is domain-tagged and length-prefixed before the entire identity is hashed with seeded `xxh128`. Derive the stable integer seed once when resolving the store as `hexdec(substr(hash('xxh128', 'rate-limiter|' . $prefix), 0, 15))`, using only the validated limiter prefix. Do not use `app.key` or generate a process-local seed: rotating an unrelated encryption key must not clear active limiter state, and every worker/application node with the same limiter prefix must derive identical physical keys. Domain tags distinguish, for example, a limiter name from a caller key; length prefixes keep arbitrary normalized strings injective. Keys are normalized to strings first, so equivalent `1`, `'1'`, a stringable `'1'`, and an enum value `'1'` intentionally identify the same bucket. The configured prefix is a pre-hash application namespace, so every driver still receives the same fixed 32-character lowercase hexadecimal key. Redis's connection-level `OPT_PREFIX` and a database connection's table prefix remain outside this digest and are applied exactly once by those components.
 
 Policy callbacks and request cost are excluded from the policy fingerprint; the global-scope flag is included because it changes policy identity. Including stable policy parameters means two limits with the same `by()` value but different windows/algorithms naturally have different state, and changing policy configuration starts clean state while the old TTL expires. The Laravel fallback-key mutation is unnecessary. Add golden-vector tests for the canonical encoding so an apparently harmless refactor cannot orphan all active state.
 
@@ -403,8 +342,6 @@ Target layout (names may move only if implementation reveals a concrete reposito
 src/rate-limiter/
 ├── README.md
 ├── composer.json
-├── config/
-│   └── rate-limiter.php
 └── src/
     ├── ArrayStore.php
     ├── Backoff.php
@@ -413,6 +350,8 @@ src/rate-limiter/
     │   ├── PruneCommand.php
     │   ├── RateLimiterTableCommand.php
     │   └── stubs/rate-limits.stub
+    ├── Concerns/
+    │   └── CalculatesRateLimits.php
     ├── Contracts/
     │   ├── Decision.php
     │   ├── PrunableStore.php
@@ -434,13 +373,12 @@ src/rate-limiter/
     │   ├── CreateTables.php
     │   ├── PruneTables.php
     │   ├── TableManager.php
-    │   ├── TableState.php
-    │   └── Timer.php
+    │   └── TableState.php
     ├── SwooleStore.php
     └── Unlimited.php
 ```
 
-Avoid an `Algorithms` service hierarchy in the first implementation. The policy classes hold validated immutable configuration; each store uses a small exhaustive `instanceof` dispatch to its private fixed-window, leaky-bucket, or backoff transition. An unsupported policy throws `InvalidRateLimitException` rather than silently changing behavior.
+Avoid an `Algorithms` service hierarchy. Policies hold validated immutable configuration. Array, Swoole, and database stores share typed integer transition math through `CalculatesRateLimits`; Redis implements the same semantics in Lua. Both paths use a small exhaustive `instanceof` dispatch, never descriptor arrays or strategy enums. An unsupported policy throws `InvalidRateLimitException`.
 
 `RateLimiter::resolve()` calls the parent driver resolver, asserts that the built-in/custom creator returned `Contracts\Store`, and constructs the `Limiter` with a physical-key resolver using the then-current validated prefix plus the manager-owned optional scope callback. Built-in `createArrayDriver()`, `createDatabaseDriver()`, `createRedisDriver()`, and `createSwooleDriver()` therefore return stores, not wrappers. Resolve/freeze static key configuration when the lazy store wrapper is created; do not read the config repository on every consume. Keep the manager's instance cache as the sole wrapper/store cache; do not add a second registry.
 
@@ -471,6 +409,8 @@ interface PrunableStore
 `Limiter` intercepts `Unlimited` before dispatch, so a store never reads or writes for it. Keep this contract inside `hypervel/rate-limiter`; external drivers necessarily depend on the package, so moving it to the global contracts package would add indirection without decoupling.
 
 ### Configuration
+
+As an always-installed framework component, the canonical defaults live in `src/foundation/config/rate-limiter.php`, alongside Cache, Queue, and Concurrency configuration. Mirror that file into the application and Testbench skeletons. Add `'rate-limiter' => ['stores']` to `LoadConfiguration::mergeableOptions()` so application stores merge by name; this declares merge policy only and does not duplicate configuration values. `RateLimiterServiceProvider` must not merge or publish a second package-owned config file.
 
 ```php
 return [
@@ -504,13 +444,13 @@ return [
 ];
 ```
 
-`RateLimiterServiceProvider::mergeableOptions('rate-limiter')` returns `['stores']`, so applications can add custom named stores without losing defaults. Use typed config getters and validate every store at resolution. Publish configuration and expose the database migration generator/prune commands using the package's normal provider conventions.
+Use typed config getters and validate every store at resolution. The service provider registers the database migration generator and prune commands.
 
 `prefix` is an application namespace included in the canonical identity before its final hash; it is not concatenated onto the 32-character physical key. This preserves cross-application isolation without variable-length Swoole keys. It is separate from Redis `OPT_PREFIX` and database table prefixes.
 
 Do not add algorithm defaults to global config. Rates belong to typed application policy definitions, not storage configuration.
 
-Policy construction performs store-independent range validation against the strictest shared numeric representation, including Redis Lua's largest exactly representable integer (`9_007_199_254_740_991`) and signed 64-bit Swoole/database columns. Driver operations then validate time-dependent additions (for example `now + emission * burst`) before mutation. Reject an unrepresentable policy with `InvalidRateLimitException`; do not add arbitrary-precision math, saturate silently, or let the same policy work on one first-party store and corrupt on another.
+Policy construction performs store-independent range validation against the strictest shared numeric representation, including Redis Lua's largest exactly representable integer (`9_007_199_254_740_991`) and signed 64-bit Swoole/database columns. Reject a leaky-bucket rate greater than its period's microsecond count because its sub-microsecond emission interval cannot be represented without changing the promised rate. Driver operations then validate time-dependent additions (for example `now + emission * burst`) before mutation. Reject an unrepresentable policy with `InvalidRateLimitException`; do not add arbitrary-precision math, saturate silently, or let the same policy work on one first-party store and corrupt on another.
 
 ## Algorithm specifications
 
@@ -574,7 +514,7 @@ State is failure count, blocked-until time, and expiration/inactivity time. On `
 - Rely on the EVAL key path for configured phpredis prefixing. Do not use raw commands or manually duplicate the Redis connection prefix.
 - Store raw integer/string/hash state directly. Never pass it through cache serialization/compression.
 - Use one Redis string plus TTL for a fixed counter, one Redis string TAT plus TTL for GCRA, and one small hash (`failures`, `available_at`) plus inactivity TTL for backoff. The policy fingerprint fixes the type for a key, so no strategy tag or JSON envelope is needed.
-- Set TTL atomically in the script and return accepted, limit, remaining, retry microseconds, and reset microseconds in the same response.
+- Set TTL atomically in the script. Every algorithm returns the same five-integer tuple—accepted flag, limit, remaining, retry microseconds, reset microseconds—even when the Redis command uses milliseconds. Convert `PTTL` milliseconds to microseconds inside the fixed-window script and validate the converted values; result decoding never guesses a unit from the policy type.
 - Validate every returned tuple's arity, integer types, flags, and non-negative/range invariants before constructing a result; `false`, `nil`, truncation, or malformed data must throw rather than cast into an allowed decision.
 - Keep script bodies as private constants or dedicated internal operation classes only if file length warrants it. Do not build a generic script framework.
 
@@ -583,11 +523,12 @@ Fixed-window Lua shape:
 ```lua
 local cost = tonumber(ARGV[1])
 local limit = tonumber(ARGV[2])
-local duration = tonumber(ARGV[3])
+local durationMilliseconds = tonumber(ARGV[3])
+local durationMicroseconds = durationMilliseconds * 1000
 
 local function start_window()
-    redis.call('SET', KEYS[1], cost, 'PX', duration)
-    return {1, limit - cost, duration}
+    redis.call('SET', KEYS[1], cost, 'PX', durationMilliseconds)
+    return {1, limit, limit - cost, 0, durationMicroseconds}
 end
 
 local raw = redis.call('GET', KEYS[1])
@@ -612,11 +553,11 @@ end
 local next = current + cost
 
 if next > limit then
-    return {0, limit - current, ttl}
+    return {0, limit, limit - current, ttl * 1000, ttl * 1000}
 end
 
 redis.call('SET', KEYS[1], next, 'KEEPTTL')
-return {1, limit - next, ttl}
+return {1, limit, limit - next, 0, ttl * 1000}
 ```
 
 The production script must keep every result numeric, provide an inspect mode without creating a missing key, and include the required `@TODO` immediately beside it. A present fixed-window key with a non-integer value, negative/out-of-range count, or no expiry (`PTTL == -1`) is corrupt: raise a Lua error and propagate it rather than deleting the key and potentially failing open. A zero/expired TTL is a real boundary condition and starts a fresh window atomically. Validate impossible costs in PHP so the script never creates an over-capacity first value.
@@ -628,14 +569,16 @@ Do not alter `RedisConnection::callEvalsha()` for this package; the correct `eva
 - Own a dedicated `Swoole\Table`; do not reuse `SwooleStore` or `SwooleTableManager` from cache.
 - Columns are `value`, `available_at`, and `expires_at`, all `Table::TYPE_INT` with an explicit 8-byte width.
 - Use a fixed 32-character hashed key.
-- Bind one package-local `Swoole\TableManager` singleton. `CreateTables` asks it to resolve every configured Swoole limiter store during `BeforeServerStart`; later `createSwooleDriver()` retrieves that same named `TableState`. This is the necessary registry between pre-fork allocation and lazy store resolution, not a second rate-limiter/store cache.
+- Resolve the package-local `Swoole\TableManager` as an unbound concrete, using Hypervel's auto-singleton behavior rather than an explicit container binding. `CreateTables` asks it to resolve every configured Swoole limiter store during `BeforeServerStart`; later `createSwooleDriver()` retrieves that same named `TableState`. This is the necessary registry between pre-fork allocation and lazy store resolution, not a second rate-limiter/store cache.
 - Create every configured Swoole limiter table and its striped `Swoole\Atomic` locks before server fork, so all workers share them. Structural options (`rows`, columns, conflict proportion, store names) are restart-only. If a running worker requests a Swoole store whose table was not created before fork, throw a lifecycle/configuration exception rather than silently allocate a worker-private table. Console/tests may explicitly initialize a table before concurrent use.
-- Use 64 striped locks and a short spin/backoff timeout pattern equivalent to the proven cache `SwooleTableState`, but keep the limiter table independent and numeric.
+- Extract the proven 64-stripe Atomic lock coordinator from cache's `SwooleTableState` into a small `Hypervel\Core\Swoole\StripedLock` primitive used by both Cache and RateLimiter. It owns key-to-stripe selection, short spin/backoff acquisition, all-lock acquisition required by Cache, and release; it does not own a table, cache columns, limiter state, or arbitrary multi-key transactions. Keep both packages' table managers and state formats independent.
+- Move Cache's existing injectable `SwooleTimer` wrapper to `Hypervel\Core\Swoole\Timer` and use that same two-method `tick()`/`clear()` test seam from Cache and RateLimiter lifecycle listeners. Do not create a package-local duplicate or expand it into a scheduler abstraction.
 - Perform read/check/write within one row lock. No serialization, closures, cache repository, or generic eviction policy appears in the hot path.
 - Use `intdiv(hrtime(true), 1000)` for a host-monotonic microsecond clock shared by workers.
 - Expired rows are reclaimed on access. Worker 0 owns a periodic expiry scan timer; stop it on worker exit. Timer/full-table pruning must lock and re-read each candidate before deletion so a concurrent renewal cannot be removed from under another worker.
-- If insertion fails, perform one synchronous expired-row prune and retry once. If the table remains full of live rows, throw `SwooleTableFullException`. Never evict a live limiter entry, because eviction would fail open. A full scan is permitted only on this exceptional capacity path or the background timer, never on ordinary admission.
+- If insertion fails, log one warning for the synchronous full-table prune attempt, perform one expired-row prune, and retry once. Inject `Psr\Log\LoggerInterface`; no logging lookup belongs in the hot path. If the table remains full of live rows, throw `SwooleTableFullException`. Never evict a live limiter entry, because eviction would fail open. A full scan is permitted only on this exceptional capacity path or the background timer, never on ordinary admission.
 - Document that Swoole is host-local and is not a distributed rate limiter across servers.
+- Document sizing as `rows >= peak concurrently live physical keys × headroom`, where a key remains live for its window/refill/inactivity TTL. Include examples for per-IP cardinality and explain that the warning indicates exhausted headroom before a live-only table begins failing closed.
 
 ### Database store
 
@@ -715,9 +658,10 @@ This refactor must close, and then remove, both existing Redis entries in `docs/
 - implement `after()` for Redis-backed policies with non-mutating inspection followed by a conditional atomic consume.
 
 - Inline `throttle:60,1` creates a fixed `Limit` and consumes it once.
+- Preserve the public `ThrottleRequests::using()` and `ThrottleRequests::with()` helpers, middleware pipe syntax, named-limiter lookup and `MissingRateLimiterException` behavior. These are ergonomic Laravel routing APIs, not cache-counter compatibility methods.
 - Named callbacks retain `Response`, `Unlimited`, one policy, or an ordered array of policies.
-- For a normal named policy, call `consume($policy, $limiterName)` once and retain the local result for exception/header generation. Inline policies omit the name.
-- For a named `after()` policy, call `inspect($policy, $limiterName)` before the downstream handler; after the response, call `consume($policy, $limiterName)` only when the predicate returns true. A concurrent post-response consume may be denied after the response has already been admitted; return headers from that result but do not retroactively throw. Document/test this inherent response-dependent semantic.
+- Resolve the named limiter's registered store once for the request, or use the default store when none was registered. For a normal named policy, call that store's `consume($policy, $limiterName)` once and retain the local result for exception/header generation. Inline policies use the default store and omit the name.
+- For a named `after()` policy, call the selected store's `inspect($policy, $limiterName)` before the downstream handler; after the response, call `consume($policy, $limiterName)` only when the predicate returns true. A concurrent post-response consume may be denied after the response has already been admitted; return headers from that result but do not retroactively throw. Document/test this inherent response-dependent semantic.
 - Use `retryAfter()` and `remaining()` from the local result. Remove second reads and all request state from singleton middleware properties.
 - Preserve Laravel-compatible headers: successful responses use `X-RateLimit-Limit`/`X-RateLimit-Remaining`; denied responses additionally use `Retry-After` and an absolute `X-RateLimit-Reset` derived from `retryAfter()`. Do not substitute leaky-bucket full-refill `resetAfter()` for the earliest retry time. For leaky policies, document that the limit/remaining header pair describes burst capacity while the policy definition describes the sustained rate.
 - With multiple policies, retain the header pair for the most restrictive (lowest remaining) local result and do not overwrite an application-provided lower `X-RateLimit-Remaining` value.
@@ -729,8 +673,8 @@ This refactor must close, and then remove, both existing Redis entries in `docs/
 
 ### Queue `RateLimited`
 
-- Resolve the named policy through the manager, then use the configured default store and pass the limiter name into each `consume()` so named identities remain isolated.
-- Add a Laravel-style `store(UnitEnum|string $store): static` modifier for jobs that need a non-default limiter store. Serialize only limiter name, selected store, release delay, and release behavior.
+- Resolve the named policy through the manager and use its registered store, falling back to the configured default; pass the limiter name into each `consume()` so named identities remain isolated.
+- Add a Laravel-style `store(UnitEnum|string $store): static` modifier that overrides the named limiter's registered store for this queued job. Serialize only limiter name, explicit store override, release delay, and release behavior; resolve a non-overridden registered/default store after wakeup.
 - Consume each policy once and release denied jobs using `result->retryAfter() + 3` unless explicitly overridden.
 - Preserve ordered partial-consumption semantics for multiple policies, matching routing; do not add a queue-only preflight or rollback protocol.
 - Remove `RateLimitedWithRedis`; a named Redis-backed rate-limiter store replaces both the class and connection-specific implementation.
@@ -739,7 +683,7 @@ This refactor must close, and then remove, both existing Redis entries in `docs/
 
 - Represent its existing “N failures in decay window” behavior with a fixed `Limit` keyed to the job.
 - `inspect()` before running the job; `consume()` only when a qualifying exception occurs; `clear()` after success.
-- Add the same store selector and remove `ThrottlesExceptionsWithRedis`.
+- Add the same `store()` selector and remove `ThrottlesExceptionsWithRedis`; this middleware constructs its policy directly, so it uses the default store unless explicitly overridden.
 - Persist only the selected store name with the middleware/job; resolve the manager/wrapper inside `handle()` and never serialize a resolved backend store or Redis proxy.
 - Keep its existing `backoff()` method for the ordinary queue retry delay; do not conflate that delay with the package's server-enforced `ExponentialBackoff` policy.
 - Preserve the Laravel-style optional second callback argument, but always pass the selected package `Limiter` wrapper to `when()` and `report()` callbacks. Redis and non-Redis paths must no longer expose different concrete/cache limiter objects.
@@ -770,10 +714,10 @@ Keep Lottery and Unlimited handling. Remove primitive key/max/decay calls and th
 
 Inject/resolve the new manager and use `store('array')` for per-connection message limiting. Build the same fixed policy for consume and close-time clear. Remove direct construction of a cache `RateLimiter` and the dependency on `cache.worker-array` for this feature.
 
-### Facade and container
+### Facade and provider
 
-- `RateLimiterServiceProvider` binds `Hypervel\RateLimiter\RateLimiter` as a singleton manager and merges/publishes config.
-- Add it unconditionally to `Hypervel\Support\DefaultProviders` immediately after `RedisServiceProvider` (database is already registered earlier); store creation remains lazy. The framework must not rely on package discovery to obtain its limiter.
+- `Hypervel\RateLimiter\RateLimiter` is a concrete manager and therefore uses Hypervel's normal unbound-concrete auto-singleton behavior; do not add a redundant container binding or alias. `RateLimiterServiceProvider` registers only its commands and lifecycle listeners. Foundation owns the default config.
+- Add it unconditionally to `Hypervel\Support\DefaultProviders` between `QueueServiceProvider` and `RedisServiceProvider`, preserving the list's package ordering. Store creation remains lazy, so provider order does not force a backend connection. The framework must not rely on package discovery to obtain its limiter.
 - Update the support facade accessor and generated method annotations to the new manager/policies/results.
 - Remove only the limiter binding from `CacheServiceProvider`; its cache commands/listeners remain cache-owned. Register the new table/prune commands exclusively from `RateLimiterServiceProvider`.
 
@@ -784,12 +728,13 @@ Add/update all of the following:
 - root `composer.json` PSR-4 mapping for `Hypervel\RateLimiter\`;
 - root `replace` entry for `hypervel/rate-limiter`;
 - `src/rate-limiter/composer.json`, auto-discovered provider, authors/support/branch alias, sorted requirements;
-- exact direct requirements for `ext-hash`, `ext-swoole`, `hypervel/collections` (including `enum_value()`), config, console, container, contracts, core events, database, Redis, support, and `symfony/console`, pruning anything implementation does not actually import;
+- exact direct requirements for `ext-swoole`, `hypervel/collections` (including `enum_value()`), config, console, container, contracts, core events/primitives, database, Redis, support, `psr/log`, and `symfony/console`, pruning anything implementation does not actually import; PHP's mandatory Hash extension needs no Composer requirement;
 - `hypervel/rate-limiter` dependencies in routing, queue, Fortify, foundation, and Reverb package manifests;
 - remove `hypervel/cache` from packages where the limiter was its only cache use; retain unrelated cache/Redis dependencies after checking all imports;
-- root/package metadata regression tests;
 - facade API documentation metadata;
 - `Hypervel\RateLimiter` package entry in any package inventories/documentation lists.
+
+Move only the generic striped-lock and timer behavior described above into Core and update Cache imports/tests in the same change. Do not move Cache's table manager, string-value validation, eviction state, or exceptions that the numeric limiter table does not use.
 
 Do not add a reverse `hypervel/rate-limiter` dependency to `hypervel/support`. Support is the lower-level package used by the new manager and service provider; its facade and default-provider references follow the repository's existing optional facade/provider bridge convention. The always-installed framework metapackage provides both packages, while an independently installed rate-limiter package already requires Support in the correct direction.
 
@@ -800,13 +745,13 @@ After consumer imports are rewritten, remove `hypervel/cache` from routing, Fort
 Coordinate the two adjacent official repositories in the same release:
 
 - add `hypervel/rate-limiter` to `contrib/hypervel/framework/composer.json`, sorted with the other split components;
-- add the published `config/rate-limiter.php` to the `contrib/hypervel/hypervel` application skeleton;
+- add `config/rate-limiter.php` to the `contrib/hypervel/hypervel` application skeleton;
 - because the skeleton selects the database limiter store by default, add `database/migrations/0001_01_01_000008_create_rate_limits_table.php` after its current `000007` failed-jobs migration so a fresh application works immediately, while retaining the generator for existing applications;
-- update the skeleton lock/config/environment documentation and run each repository's own metadata/config/migration tests. Do not modify the private `packages/hypervel` repositories unless a concrete import audit finds an actual consumer.
+- add `RATE_LIMITER_STORE=database` and commented connection/prefix overrides to the skeleton environment example, update lock/config documentation, and run each repository's own metadata/config/migration tests. Do not modify the private `packages/hypervel` repositories unless a concrete import audit finds an actual consumer.
 
-Keep provider auto-discovery metadata in the split package so it works when independently required, matching other core components, but also assert `RateLimiterServiceProvider`'s exact presence/order in `DefaultProviders`. Discovery is not the framework's availability mechanism.
+Keep provider auto-discovery metadata in the split package so it works when independently required, matching other core components, but also assert `RateLimiterServiceProvider`'s presence in `DefaultProviders`. Discovery is not the framework's availability mechanism; its alphabetical placement is a code-style requirement, not runtime behavior that needs a brittle order test.
 
-Within components, add `src/testbench/hypervel/migrations/0001_01_01_000008_testbench_create_rate_limits_table.php` after the current `000007` failed-jobs migration, alongside its cache/cache-lock/session/queue defaults. Update `CommanderTest`'s expected migration inventory, every `WithMigration`/default-database assertion that enumerates framework tables, rollback/refresh coverage, and the Testbench default config to include `rate-limiter`. Testbench must model a fresh skeleton accurately; it must not pass only because individual limiter tests create the table ad hoc.
+Within components, add `src/testbench/hypervel/config/rate-limiter.php` and `src/testbench/hypervel/migrations/0001_01_01_000008_testbench_create_rate_limits_table.php` after the current `000007` failed-jobs migration. Update `CommanderTest`'s expected migration inventory, every `WithMigration`/default-database assertion that enumerates framework tables, and rollback/refresh coverage. Testbench must model a fresh skeleton accurately; limiter tests must not create the default table ad hoc.
 
 ## Removal and cleanup inventory
 
@@ -822,6 +767,7 @@ Delete after consumers compile against the new package:
 - `src/queue/src/Middleware/RateLimitedWithRedis.php`;
 - `src/queue/src/Middleware/ThrottlesExceptionsWithRedis.php`;
 - Foundation middleware Redis-throttle switch/state/API;
+- the `ThrottleRequests::flushState()` call in `src/testing/src/PHPUnit/AfterEachTestSubscriber.php`, because removing the hash opt-out leaves the middleware with no static state and no empty cleanup method should remain;
 - all old cache-rate-limiter unit/integration tests once their behavior is covered under `tests/RateLimiter`;
 - the rate-limiter case from `RedisCacheIntegrationTest` (retain its actual Redis cache tests) after equivalent native Redis coverage exists under `tests/RateLimiter`;
 - Inertia's old namespace/config override, Reverb's worker-array state assertions, Testbench's `cache.limiter` default assertions, and every other cross-package test fixture discovered by the stale-symbol search; rewrite them against the new package rather than merely deleting behavioral coverage;
@@ -831,7 +777,11 @@ Delete after consumers compile against the new package:
 
 Do not delete `Hypervel\Redis\Limiters\DurationLimiter` or its builder merely because request/queue middleware no longer imports it. `Redis::throttle()` and other Redis limiter APIs still use it. Audit its remaining references and leave it as a separate Redis concurrency/throttle primitive.
 
+As a bounded adjacent Redis optimization, change `DurationLimiter` and `ConcurrencyLimiter` from sending their full Lua body through `eval()` on every operation to the existing NOSCRIPT-aware `evalWithShaCache()` path, preserving their public APIs and cluster key handling. Add focused unit and real-Redis coverage; do not otherwise fold those blocking concurrency/throttle primitives into the new package.
+
 At the end, repository-wide searches (excluding archived code, third-party examples, vendor, and historical `docs/plans`/`.tmp/plans` artifacts) must return no old namespace, no removed middleware class, no `throttleWithRedis`, and no `cache.limiter` in executable code, tests, configuration, stubs, or maintained user/agent documentation. Historical plans are records, not supported documentation, and must not be rewritten as part of this change.
+
+Add `tests/Integration/RateLimiter` explicitly to both the Redis 8 and Valkey 9 command lists in `.github/workflows/redis.yml`; that workflow enumerates integration directories and will not discover the new suite automatically. The database workflow already discovers driver directories and needs no equivalent path edit.
 
 ## Documentation work
 
@@ -844,11 +794,15 @@ Update every applicable Boost document, not just the main rate-limiting page:
 - `facades.md`: canonical accessor/class;
 - `middleware.md`: one throttle middleware class;
 - database docs: `make:rate-limiter-table`, schema purpose, pruning schedule;
-- package README: driver guarantees, distribution boundaries, performance guidance, and failure behavior.
+- package README: only the package heading, the canonical Boost documentation link, and concise public `Differences From Laravel`; omit an upstream link because this independently maintained package does not track a source package.
 
 `src/boost/docs-ported.md` already registers `rate-limiting.md`; retain that single inventory entry and do not add `rate-limiter.md` there or anywhere else.
 
 Add a concise explicit divergence to root `AGENTS.md`: Laravel locates its cache-bound limiter under `Illuminate\Cache`; Hypervel's canonical implementation is `hypervel/rate-limiter` / `Hypervel\RateLimiter`, uses typed policies and dedicated stores, and has no Cache namespace alias. This is the instruction LLMs should see when porting.
+
+For intentionally omitted or deliberately changed Laravel behavior, follow the repository's three-place rule: concise package README differences, concise comments at the natural source insertion points, and `REMOVED:` markers at matching upstream test locations. Cover the `Hypervel\Cache` location, primitive counter methods, Redis-specific middleware classes/switch, `GlobalLimit`, hash opt-out, atomic `attempt()` consuming before the callback and retaining the charge on callback failure, sequential stacked-policy consumption that retains earlier charges when a later policy denies, and truthful non-zero remaining capacity on a weighted denial. Explain the replacement behavior and cover these semantics in Boost docs/tests. Do not add entries to `docs/ai/differences-vs-laravel.md`, which is queued for deletion.
+
+While updating root `AGENTS.md` with the rate-limiter divergence, remove its stale instructions to maintain `docs/ai/differences-vs-laravel.md`; that document's own header already marks it for deletion. Do not leave contradictory agent guidance in the touched file.
 
 Do not copy internal research criticism into user documentation. Public docs should state the supported design clearly.
 
@@ -858,21 +812,22 @@ Create `tests/RateLimiter` and use the repository-required base test/coroutine c
 
 ### Policy/value tests
 
-- Every fixed-window and leaky-bucket factory converts periods correctly.
+- Every fixed-window and leaky-bucket factory converts periods correctly; leaky factories default burst to the sustained token count and `burst(1)` opts into strict smoothing.
 - Invalid zero/negative capacity, rate, duration, burst, cost, and backoff settings throw named exceptions.
 - Numeric boundary tests cover the shared Lua-exact/signed-64 limits and every overflow-prone multiplication/addition before a store mutation.
 - Fluent methods return new copies and do not mutate the original policy.
 - `globally`, scope, callbacks, cost, and response callbacks are retained correctly.
-- Policy fingerprints are stable, parameter-sensitive, strategy-sensitive, and exclude cost/callbacks.
+- Policy fingerprints are stable for a limiter prefix, change when the prefix or policy parameters change, distinguish policy types, and exclude cost/callbacks.
 - Arbitrary key segments cannot create ambiguous preimages before hashing.
 - Unlimited performs no store operation.
 - `LimitResult` and `BackoffResult` round timing up correctly and never expose negative remaining/retry values.
-- Manager default/named/`UnitEnum` store resolution, one-instance caching, purge/forget behavior, typed configuration failures, and a custom `extend()` callback returning `Contracts\Store` all produce the expected wrapped `Limiter` without a second cache.
+- Manager default/named/`UnitEnum` store resolution, named-limiter registered stores, explicit queue overrides, one-instance caching, purge/forget behavior, typed configuration failures, and a custom `extend()` callback returning `Contracts\Store` all produce the expected wrapped `Limiter` without a second cache.
 - Named limiter identity differs by limiter name, scope, global flag, normalized key value, policy type, and stable parameters exactly as specified; equivalent scalar/stringable/enum key values normalize identically, and direct policies do not accidentally invoke the named scope resolver.
+- The shared typed PHP calculator produces the same transitions used by array, Swoole, and database stores without descriptor arrays or floating-point state.
 
 ### Shared store contract suite
 
-Run one behavioral contract against array, Swoole, SQLite, MySQL, MariaDB, PostgreSQL, Redis 8.6, Redis 8.8, and Valkey 9. Add isolated Docker-backed integration jobs where the existing service matrix does not already provide a target; do not claim a supported first-party store/server combination from mocks alone.
+Run one behavioral contract against array, Swoole, SQLite, MySQL, MariaDB, PostgreSQL, and the existing CI services for Redis 8 and Valkey 9. Do not add redundant Redis point-release jobs for a portable Lua path with no version branch, and do not claim a supported first-party store/server combination from mocks alone.
 
 - first consume, exact-capacity consume, weighted consume, over-capacity denial;
 - denied consume does not mutate count or extend TTL;
@@ -901,15 +856,17 @@ Run one behavioral contract against array, Swoole, SQLite, MySQL, MariaDB, Postg
 - Redis connection `OPT_PREFIX` is applied once.
 - `TIME`-based leaky/backoff calculations ignore application-clock skew.
 - TTL is applied atomically and is unchanged on denial.
-- Redis 8.6 and Valkey 9 run the exact same Lua implementation as Redis 8.8.
+- Redis 8 and Valkey 9 run the exact same Lua implementation.
 - Add a focused assertion/test fixture guarding the required `@TODO`/portable path only if repository conventions permit source-shape tests; otherwise the docs TODO and code comment are sufficient.
 
 ### Swoole-specific tests
 
+- Core `StripedLock` preserves Cache's row/all-lock behavior and timeout coverage after extraction; RateLimiter creates the same lock primitive before fork.
+- Core `Timer` preserves Cache's injectable timer lifecycle coverage and is reused by RateLimiter without a package-local wrapper.
 - Table columns are 8-byte integers and table creation occurs before fork.
 - Same-key locks isolate transitions; different stripes can proceed independently.
 - Expired rows are pruned by timer and on access.
-- Full table retries after pruning once and then throws without evicting live state.
+- Full table logs the pressure warning, retries after pruning once, and then throws without evicting live state.
 - Timer is registered only by worker 0 and cleaned on exit/recycle.
 - Repeated worker lifecycle hooks do not register duplicate prune timers or retain stale timer IDs.
 - Store state never serializes a PHP value.
@@ -930,18 +887,23 @@ Run one behavioral contract against array, Swoole, SQLite, MySQL, MariaDB, Postg
 
 ### Framework integration tests
 
+- Foundation loads the rate-limiter defaults, application stores merge by name while a same-named store replaces its whole definition, and the provider does not perform a second merge.
+- Application/Testbench config and environment defaults select the database store without requiring Redis.
 - Routing inline and named fixed limits.
-- Named leaky-bucket routing, weighted costs, custom response, global/scope behavior, multiple policy ordering.
+- `ThrottleRequests::using()`, `ThrottleRequests::with()`, middleware pipe syntax, missing named limiters, and custom responses retain their Laravel-facing behavior.
+- Named leaky-bucket routing, registered/default store selection, weighted costs, custom response, global/scope behavior, and multiple policy ordering.
 - Response-based `after()` with matching/non-matching response and a concurrent post-response consume.
-- Header values come from the local decision and remain isolated across same-key concurrent requests.
+- Header values come from the local decision and remain isolated across same-key concurrent requests; weighted denials retain truthful non-zero remaining capacity when the rejected cost exceeds it.
+- Atomic `attempt()` charges before invoking the callback and retains the charge on an exception; stacked policies retain earlier successful charges if a later policy denies.
 - Queue release timing, `dontRelease`, explicit store, and job serialization/wakeup.
 - `ThrottlesExceptions` consumes only qualifying failures and clears on success.
 - Fortify fixed lockout and clearing.
 - Foundation exception report throttling.
 - Reverb per-connection isolation and close cleanup with array store.
 - Facade resolves the canonical manager.
-- `DefaultProviders` always contains `RateLimiterServiceProvider` after `RedisServiceProvider`, independently of package discovery.
+- An existing provider/application integration test asserts that `DefaultProviders` contains `RateLimiterServiceProvider`, independently of package discovery; do not create composer-manifest tests or assert alphabetical order as runtime behavior.
 - Middleware configuration contains only `ThrottleRequests` and has no Redis switch.
+- Existing Redis Duration/Concurrency limiter tests prove the SHA-cache migration preserves results, connection selection, prefixes, and cluster slot handling; real Redis verifies NOSCRIPT fallback.
 
 ### Static/quality checks
 
@@ -959,25 +921,22 @@ Do not weaken PHPStan types, suppress errors, or widen return types to accommoda
 
 ## Performance validation
 
-Add a reproducible developer-only CLI harness under `tests/Benchmarks/RateLimiter/`, including documented Docker image/version inputs; do not register a production Artisan command or treat PHPUnit timing as a benchmark. The harness must exercise the framework manager, pool, driver, result decoding, and middleware-relevant operation—not only a raw Redis command—so its numbers represent the code being shipped.
+Add a reproducible developer-only CLI harness under `tests/Benchmarks/RateLimiter/`, including documented backend inputs; do not register a production Artisan command or treat PHPUnit timing as a benchmark. The harness must exercise the framework manager, pool, driver, result decoding, and middleware-relevant operation—not only a raw backend command—so its numbers represent the code being shipped.
 
 Measure at minimum:
 
-- Redis fixed-window and leaky-bucket consume with 1, 50, and 200 concurrent clients;
-- allowed-heavy, denied-heavy, and high-cardinality key distributions;
-- Redis 8.6, Redis 8.8, and Valkey 9;
-- Swoole same-key contention and high-cardinality keys across workers;
-- database SQLite/MySQL/MariaDB/PostgreSQL separately, clearly labeled as correctness fallback;
+- fixed-window and leaky-bucket consume through Redis, Swoole, and one explicitly labeled configured database backend;
+- representative single-client and contended concurrency on allowed-heavy and denied-heavy paths, with the exact workload recorded in the output rather than a mandatory combinatorial matrix;
 - a one-time old cache-backed fixed-limiter baseline versus the new drivers before old code is removed; retain the recorded comparison, not a compatibility adapter or old implementation in the final harness;
-- p50/p95/p99 latency, operations/second, pool wait, backend CPU, and Redis memory/key footprint.
+- p50/p95/p99 latency and operations/second. Measure pool wait, backend CPU, memory, or extra server versions ad hoc only when the core results expose a concrete question.
 
 Acceptance invariants:
 
 - Redis steady-state admission is one network round trip, one pool checkout, and one script invocation.
 - No Redis cache serialization/compression path is entered.
-- Swoole performs no serialization and no I/O.
+- Swoole's ordinary admission path performs no serialization and no I/O; only the exceptional full-table path logs capacity pressure.
 - Middleware performs no post-consume state lookup for ordinary limits.
-- Throughput/latency regressions between the portable Lua variants are explained before merge; optimize script internals rather than adding a premature version branch.
+- Material throughput/latency regressions against the old baseline or between supported Redis and Valkey services are explained before merge; optimize the portable script rather than adding a premature version branch.
 
 The future `INCREX` TODO must be revisited with the same end-to-end result contract and benchmarks, not a raw-command microbenchmark alone.
 
@@ -985,45 +944,33 @@ The future `INCREX` TODO must be revisited with the same end-to-end result contr
 
 This order keeps the tree buildable while still delivering one final cut with no compatibility residue:
 
-1. Add package metadata/config/provider skeleton, root autoload/replace entry, and default provider registration.
-2. Add immutable policies, fingerprints/key resolver, decisions, contracts, manager, and per-store `Limiter` wrapper with unit tests.
-3. Implement array store and run the full shared contract against it.
-4. Implement Redis Lua transitions using `evalWithShaCache()`, including the required focused `@TODO`; run Redis 8.6/8.8/Valkey integration and concurrency tests.
-5. Implement Swoole table/state/timer/pruning and multi-worker concurrency tests.
-6. Implement database store, migration/prune commands, server clocks, the Testbench default migration/config updates, and database integration/concurrency tests.
+1. Add package metadata/provider skeleton, Foundation/application/Testbench config, root autoload/replace entry, and default provider registration.
+2. Add immutable policies, fingerprints/key resolver, decisions, contracts, manager, shared typed PHP calculator, and per-store `Limiter` wrapper with unit tests.
+3. Implement array store with the shared calculator and run the full store contract against it.
+4. Implement Redis Lua transitions using `evalWithShaCache()`, including the required focused `@TODO`; run the existing Redis 8/Valkey 9 integration jobs and concurrency tests after adding their explicit RateLimiter path.
+5. Extract the generic striped lock and existing cache timer seam into Core, update Cache, then implement the independent numeric Swoole table/state/timer/pruning and multi-worker tests.
+6. Implement database store with the shared calculator, migration/prune commands, server clocks, default migrations, and database integration/concurrency tests.
 7. Rewrite routing and Foundation middleware configuration; delete the Redis-specific request middleware/switch once tests pass.
 8. Rewrite queue middleware and remove the two Redis-specific queue classes.
 9. Rewrite Fortify, foundation exception throttling, Reverb, and facade access.
 10. Move/replace rate-limiter tests into `tests/RateLimiter`; remove cache rate-limiter classes/config/binding/tests.
-11. Update every composer dependency, Boost document, README, facade annotation, AGENTS divergence, and package inventory.
+11. Update every composer dependency, Boost document, minimal README/divergence record, facade annotation, AGENTS divergence/stale references, package inventory, and explicit Redis workflow path.
 12. Update the official framework metapackage and application skeleton dependency/config/base migration, verifying those repositories under their own instructions.
-13. Remove the completed package TODO and obsolete Redis middleware-defect TODO bullets while retaining the native-increment and framework capability TODOs.
-14. Run stale-code searches, per-package suites, cross-package integration suites, static analysis, benchmarks, and `git diff --check`.
+13. Move the surviving Redis Duration/Concurrency limiter scripts onto `evalWithShaCache()` with focused tests.
+14. Remove the completed package TODO and obsolete Redis middleware-defect TODO bullets while retaining the native-increment and framework capability TODOs.
+15. Run stale-code searches, per-package suites, cross-package integration suites, static analysis, benchmarks, and `git diff --check`.
 
 No step should add a temporary alias or dual API. If intermediate local compilation requires ordering, make the consumer and provider changes in the same working change before handoff.
 
 ## Final verification checklist
 
-- [ ] `Hypervel\RateLimiter` is the only limiter namespace.
-- [ ] The support facade resolves `Hypervel\RateLimiter\RateLimiter`.
-- [ ] `RateLimiterServiceProvider` is unconditional framework infrastructure in `DefaultProviders`, not dependent on package discovery.
-- [ ] Fixed, leaky-bucket/GCRA, and exponential backoff policies are typed separately.
-- [ ] No strategy/driver enum or nullable strategy parameter bag exists.
-- [ ] Redis/Swoole/database/array stores pass one shared semantic suite.
-- [ ] The package has no cache-repository dependency, generic cache driver, or file driver.
-- [ ] Database uses only the dedicated `rate_limits` table.
-- [ ] The framework metapackage requires the split package and a fresh application skeleton includes its config and `rate_limits` migration.
-- [ ] Testbench's default configuration/migrations provision and roll back the same database limiter table as the application skeleton.
-- [ ] `src/boost/docs/rate-limiting.md` is the one canonical rate-limiting page and is updated comprehensively; no duplicate `rate-limiter.md` exists.
-- [ ] Redis's normal path is one cached Lua invocation and works on Redis 8.6/8.8 and Valkey 9.
-- [ ] The `INCREX` docs TODO and focused code `@TODO` both exist with accurate prerequisites.
-- [ ] Routing has one throttle middleware and no `throttleWithRedis` API.
-- [ ] Queue has no Redis-specific rate-limit middleware subclasses.
-- [ ] Reverb does not construct a cache rate limiter.
-- [ ] No ordinary admission path checks then separately hits or re-reads for headers.
-- [ ] No singleton stores request-local remaining/reset state.
-- [ ] Swoole never evicts a live limiter row.
-- [ ] Store failures never fail open.
-- [ ] All old classes, docs, imports, tests, config keys, aliases, and obsolete TODOs are removed.
-- [ ] AGENTS.md tells porting agents about the deliberate Laravel namespace/API divergence.
-- [ ] Benchmarks and concurrency tests demonstrate the performance/correctness claims.
+- [ ] `Hypervel\RateLimiter` is the sole namespace; its facade and unconditional default provider resolve the new manager with no Cache shim or dual API.
+- [ ] Fixed, GCRA/leaky-bucket, unlimited, and exponential-backoff policies are typed; no strategy/driver enum, descriptor bag, or speculative algorithm exists.
+- [ ] Redis/Swoole/database/array pass the shared semantic and concurrency suites; failures never fail open and no driver routes through generic cache serialization.
+- [ ] Redis admission is one cached Lua call on the existing Redis 8 and Valkey 9 services; Swoole uses shared numeric state without live eviction and documents/logs capacity pressure; database uses only `rate_limits`.
+- [ ] Foundation, the application skeleton, and Testbench carry matching config/default migrations; named stores merge without a duplicate package config.
+- [ ] Routing retains its Laravel-facing helpers, syntax, callbacks, exceptions, headers, and registered-store selection with one middleware; queue and Reverb have no Redis/cache limiter branches.
+- [ ] The framework metapackage, package dependencies, facade metadata, Boost's single `rate-limiting.md`, minimal README, AGENTS guidance, and required source/test difference markers agree.
+- [ ] Old namespaces, classes, config, tests, docs, switches, stale state, and obsolete TODOs are absent; the INCREX and capability TODOs remain accurate.
+- [ ] Existing Redis Duration/Concurrency limiters use the tested SHA-cache path without API changes.
+- [ ] Static analysis, all affected suites, end-to-end benchmarks, stale-symbol searches, and `git diff --check` pass.
