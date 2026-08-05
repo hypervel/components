@@ -24,7 +24,10 @@
 - [Fallback Routes](#fallback-routes)
 - [Rate Limiting](#rate-limiting)
     - [Defining Rate Limiters](#defining-rate-limiters)
+        - [Segmenting Rate Limits](#segmenting-rate-limits)
         - [Scoping Named Rate Limits](#scoping-named-rate-limits)
+        - [Multiple Rate Limits](#multiple-rate-limits)
+        - [Response-Based Rate Limiting](#response-base-rate-limiting)
     - [Attaching Rate Limiters to Routes](#attaching-rate-limiters-to-routes)
 - [Form Method Spoofing](#form-method-spoofing)
 - [Accessing the Current Route](#accessing-the-current-route)
@@ -856,8 +859,8 @@ Hypervel includes powerful and customizable rate limiting services that you may 
 Rate limiters may be defined within the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 
 ```php
-use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\RateLimiter;
 
 /**
@@ -871,11 +874,11 @@ public function boot(): void
 }
 ```
 
-Rate limiters are defined using the `RateLimiter` facade's `for` method. The `for` method accepts a rate limiter name and a closure that returns the limit configuration that should apply to routes that are assigned to the rate limiter. Limit configuration are instances of the `Hypervel\Cache\RateLimiting\Limit` class. This class contains helpful "builder" methods so that you can quickly define your limit. The rate limiter name may be any string you wish:
+Rate limiters are defined using the `RateLimiter` facade's `for` method. The `for` method accepts a rate limiter name and a closure that returns the limit configuration that should apply to routes assigned to the limiter. The rate limiter name may be any string you wish:
 
 ```php
-use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\RateLimiter;
 
 /**
@@ -888,6 +891,8 @@ public function boot(): void
     });
 }
 ```
+
+The `Limit` class defines a fixed-window limit and provides convenient `perSecond`, `perMinute`, `perMinutes`, `perHour`, and `perDay` methods. Rate limit policies are immutable, so modifier methods such as `by`, `cost`, and `response` return a new policy instead of changing the original.
 
 If the incoming request exceeds the specified rate limit, a response with a 429 HTTP status code will automatically be returned by Hypervel. If you would like to define your own response that should be returned by a rate limit, you may use the `response` method:
 
@@ -948,14 +953,22 @@ RateLimiter::resolveKeyScopeUsing(function (string $limiter): ?string {
 
 Register the resolver only during application boot. It receives the named limiter and runs when Hypervel builds a key for route or queue rate limiting. Returning `null` keeps the normal key.
 
-The resolver applies only to named rate limiters. If a named limit should remain shared across every scope, return a `GlobalLimit`:
+The resolver applies only to named rate limiters. If a named limit should remain shared across every scope, use the `globally` method:
 
 ```php
-use Hypervel\Cache\RateLimiting\GlobalLimit;
-
 RateLimiter::for('shared-api', function () {
-    return new GlobalLimit(maxAttempts: 1000, decaySeconds: 60);
+    return Limit::perMinute(1000)->globally();
 });
+```
+
+Named route limiters may use any policy supported by Hypervel, including fixed-window and leaky-bucket limits with weighted costs. To learn more about the available policies, please consult the [rate limiting documentation](/docs/{{version}}/rate-limiting#defining-policies).
+
+The optional third argument to `RateLimiter::for` selects a configured store for the named limiter. When omitted, Hypervel uses the default rate limiter store:
+
+```php
+RateLimiter::for('api', function (Request $request) {
+    return Limit::perMinute(60)->by($request->user()?->id ?? $request->ip());
+}, store: 'redis');
 ```
 
 <a name="multiple-rate-limits"></a>
@@ -972,16 +985,18 @@ RateLimiter::for('login', function (Request $request) {
 });
 ```
 
-If you're assigning multiple rate limits segmented by identical `by` values, you should ensure that each `by` value is unique. The easiest way to achieve this is to prefix the values given to the `by` method:
+Policy type and stable parameters are part of the stored identity, so different windows or algorithms may safely use the same `by` value:
 
 ```php
 RateLimiter::for('uploads', function (Request $request) {
     return [
-        Limit::perMinute(10)->by('minute:'.$request->user()->id),
-        Limit::perDay(1000)->by('day:'.$request->user()->id),
+        Limit::perMinute(10)->by($request->user()->id),
+        Limit::perDay(1000)->by($request->user()->id),
     ];
 });
 ```
+
+Policies are consumed in the order they are returned. If a later policy denies the request, capacity already consumed by earlier policies is not restored.
 
 <a name="response-base-rate-limiting"></a>
 #### Response-Based Rate Limiting
@@ -991,8 +1006,8 @@ In addition to rate limiting incoming requests, Hypervel allows you to rate limi
 The `after` method accepts a closure that receives the response and should return `true` if the response should be counted toward the rate limit, or `false` if it should be ignored. This is particularly useful for preventing enumeration attacks by limiting consecutive 404 responses, or allowing users to retry requests that fail validation without exhausting their rate limit on an endpoint that should only throttle successful operations:
 
 ```php
-use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -1005,6 +1020,8 @@ RateLimiter::for('resource-not-found', function (Request $request) {
         });
 });
 ```
+
+Hypervel inspects a response-based policy before invoking the route, then consumes it only when the callback returns `true`. Another request may consume the final capacity while the response is being produced. In that case, Hypervel does not reject the completed response, but its rate limit headers reflect the final decision.
 
 <a name="attaching-rate-limiters-to-routes"></a>
 ### Attaching Rate Limiters to Routes
@@ -1023,19 +1040,17 @@ Route::middleware(['throttle:uploads'])->group(function () {
 });
 ```
 
-<a name="throttling-with-redis"></a>
-#### Throttling With Redis
-
-By default, the `throttle` middleware is mapped to the `Hypervel\Routing\Middleware\ThrottleRequests` class. However, if you are using Redis as your application's cache driver, you may wish to instruct Hypervel to use Redis to manage rate limiting. To do so, you should use the `throttleWithRedis` method in your application's `bootstrap/app.php` file. This method maps the `throttle` middleware to the `Hypervel\Routing\Middleware\ThrottleRequestsWithRedis` middleware class:
+You may also define an inline fixed-window limit by providing the maximum attempts and decay minutes directly to the middleware:
 
 ```php
-use Hypervel\Foundation\Configuration\Middleware;
-
-->withMiddleware(function (Middleware $middleware): void {
-    $middleware->throttleWithRedis();
+Route::middleware(['throttle:60,1'])->group(function () {
     // ...
-})
+});
 ```
+
+Hypervel uses one `Hypervel\Routing\Middleware\ThrottleRequests` implementation for every rate limiter store. To use Redis, configure the named limiter's store as shown above or select Redis as `rate-limiter.default`; no separate Redis middleware is required.
+
+Successful responses include `X-RateLimit-Limit` and `X-RateLimit-Remaining`. A denied request receives a 429 response with `Retry-After` and `X-RateLimit-Reset` headers in addition to the limit and remaining headers.
 
 <a name="form-method-spoofing"></a>
 ## Form Method Spoofing
