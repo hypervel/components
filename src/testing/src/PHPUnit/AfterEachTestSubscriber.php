@@ -224,8 +224,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Http\Resources\JsonApi\JsonApiResource::flushState();
         \Hypervel\Http\Response::flushState();
         \Hypervel\Http\UploadedFile::flushState();
-        \Hypervel\Jwt\ClaimFactory::flushState();
-        \Hypervel\Jwt\JwtGuard::flushState();
         \Hypervel\Log\Context\Repository::flushState();
         \Hypervel\Mail\Attachment::flushState();
         \Hypervel\Mail\Mailable::flushState();
@@ -260,7 +258,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Routing\Router::flushState();
         \Hypervel\Routing\SortedMiddleware::flushCache();
         \Hypervel\Routing\UrlGenerator::flushState();
-        \Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::flushState();
         \Hypervel\Server\ServerManager::flushState();
         \Hypervel\ServerProcess\ProcessCollector::flushState();
         \Hypervel\ServerProcess\ProcessManager::flushState();
@@ -324,6 +321,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushFortifyState();
         $this->flushHorizonState();
         $this->flushInertiaState();
+        $this->flushJwtState();
         $this->flushNestedSetState();
         $this->flushPasskeysState();
         $this->flushPermissionState();
@@ -369,6 +367,15 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     }
 
     /**
+     * Flush JWT state.
+     */
+    protected function flushJwtState(): void
+    {
+        $this->callIfExists(\Hypervel\Jwt\ClaimFactory::class, 'flushState');
+        $this->callIfExists(\Hypervel\Jwt\JwtGuard::class, 'flushState');
+    }
+
+    /**
      * Flush Nested Set state.
      */
     protected function flushNestedSetState(): void
@@ -410,6 +417,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushSanctumState(): void
     {
+        $this->callIfExists(\Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class, 'flushState');
         $this->callIfExists(\Hypervel\Sanctum\Sanctum::class, 'flushState');
         $this->callIfExists(\Hypervel\Sanctum\SanctumGuard::class, 'flushState');
     }
@@ -467,7 +475,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function callIfExists(string $class, string $method, mixed ...$arguments): void
     {
-        if (class_exists($class) && method_exists($class, $method)) {
+        if (class_exists($class)) {
             $class::$method(...$arguments);
         }
     }

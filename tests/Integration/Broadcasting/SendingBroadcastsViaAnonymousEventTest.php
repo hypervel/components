@@ -17,7 +17,7 @@ use ReflectionClass;
 
 class SendingBroadcastsViaAnonymousEventTest extends TestCase
 {
-    public function testBroadcastIsSent()
+    public function testBroadcastIsSent(): void
     {
         Event::fake();
 
@@ -34,7 +34,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
-    public function testBroadcastIsSentNow()
+    public function testBroadcastIsSentNow(): void
     {
         Event::fake();
 
@@ -49,7 +49,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
-    public function testDefaultNameIsSet()
+    public function testDefaultNameIsSet(): void
     {
         Event::fake();
 
@@ -84,7 +84,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
-    public function testDefaultPayloadIsSet()
+    public function testDefaultPayloadIsSet(): void
     {
         Event::fake();
 
@@ -95,7 +95,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
-    public function testSendToMultipleChannels()
+    public function testSendToMultipleChannels(): void
     {
         Event::fake();
 
@@ -115,7 +115,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
-    public function testSendViaANonDefaultConnection()
+    public function testSendViaANonDefaultConnection(): void
     {
         Event::fake();
 
@@ -128,7 +128,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
-    public function testSendToOthersOnly()
+    public function testSendToOthersOnly(): void
     {
         Event::fake();
 
@@ -148,11 +148,11 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
             ->send();
 
         Event::assertDispatched(AnonymousEvent::class, function ($event) {
-            return $event->socket = '12345';
+            return $event->socket === '12345';
         });
     }
 
-    public function testSendToPrivateChannel()
+    public function testSendToPrivateChannel(): void
     {
         Event::fake();
 
@@ -165,7 +165,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
         });
     }
 
-    public function testSendToPresenceChannel()
+    public function testSendToPresenceChannel(): void
     {
         Event::fake();
 

@@ -156,7 +156,7 @@ The search techniques described above are all query builder methods that you cal
 <a name="database-engine"></a>
 ### Database Engine
 
-Scout's built-in database engine performs full-text and `LIKE` searches against your existing database — no external service or extra infrastructure required. Simply add the `Searchable` trait to your model, implement the `SearchableInterface` contract, and define a `toSearchableArray` method that returns the columns you want to be searchable.
+Scout's built-in database engine performs full-text and `LIKE` searches against your existing database — no external service or extra infrastructure required. Simply add the `Searchable` trait to your model and define a `toSearchableArray` method that returns the columns you want to be searchable.
 
 You may use PHP attributes to control the search strategy for each column. `SearchUsingFullText` will use your database's full-text index, `SearchUsingPrefix` will only match from the beginning of the string (`example%`), and any columns without an attribute use a default `LIKE` strategy with wildcards on both sides (`%example%`):
 
@@ -168,10 +168,9 @@ namespace App\Models;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class Article extends Model implements SearchableInterface
+class Article extends Model
 {
     use Searchable;
 

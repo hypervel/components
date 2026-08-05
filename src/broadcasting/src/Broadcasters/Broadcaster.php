@@ -331,11 +331,8 @@ abstract class Broadcaster implements BroadcasterContract
 
     /**
      * Normalize the given callback into a callable.
-     *
-     * @param mixed $callback
-     * @return callable
      */
-    protected function normalizeChannelHandlerToCallable($callback)
+    protected function normalizeChannelHandlerToCallable(callable|string $callback): callable
     {
         return is_callable($callback) ? $callback : function (...$args) use ($callback) {
             return $this->container->make($callback)->join(...$args);

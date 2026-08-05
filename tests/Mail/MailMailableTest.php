@@ -4,24 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
+use Closure;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailables\Envelope;
 use Hypervel\Mail\Mailables\Headers;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
+use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
+use Symfony\Component\Mime\Email;
 
 class MailMailableTest extends TestCase
 {
-    public function testMailableSetsRecipientsCorrectly()
+    public function testMailableSetsRecipientsCorrectly(): void
     {
         $this->mockContainer();
 
@@ -105,7 +111,7 @@ class MailMailableTest extends TestCase
         }
     }
 
-    public function testMailableSetsCcRecipientsCorrectly()
+    public function testMailableSetsCcRecipientsCorrectly(): void
     {
         $this->mockContainer();
 
@@ -196,7 +202,7 @@ class MailMailableTest extends TestCase
         }
     }
 
-    public function testMailableSetsBccRecipientsCorrectly()
+    public function testMailableSetsBccRecipientsCorrectly(): void
     {
         $this->mockContainer();
 
@@ -287,7 +293,7 @@ class MailMailableTest extends TestCase
         }
     }
 
-    public function testMailableSetsReplyToCorrectly()
+    public function testMailableSetsReplyToCorrectly(): void
     {
         $this->mockContainer();
 
@@ -367,7 +373,7 @@ class MailMailableTest extends TestCase
         }
     }
 
-    public function testMailableSetsFromCorrectly()
+    public function testMailableSetsFromCorrectly(): void
     {
         $this->mockContainer();
 
@@ -447,14 +453,14 @@ class MailMailableTest extends TestCase
         }
     }
 
-    public function testMailableSetsSubjectCorrectly()
+    public function testMailableSetsSubjectCorrectly(): void
     {
         $mailable = new WelcomeMailableStub;
         $mailable->subject('foo');
         $this->assertTrue($mailable->hasSubject('foo'));
     }
 
-    public function testItIgnoresDuplicatedRawAttachments()
+    public function testItIgnoresDuplicatedRawAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
 
@@ -496,7 +502,7 @@ class MailMailableTest extends TestCase
         ], $mailable->rawAttachments);
     }
 
-    public function testItIgnoresDuplicateStorageAttachments()
+    public function testItIgnoresDuplicateStorageAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
 
@@ -551,7 +557,7 @@ class MailMailableTest extends TestCase
         ], $mailable->diskAttachments);
     }
 
-    public function testMailableBuildsViewData()
+    public function testMailableBuildsViewData(): void
     {
         $mailable = new WelcomeMailableStub;
 
@@ -567,7 +573,7 @@ class MailMailableTest extends TestCase
         $this->assertSame($expected, $mailable->buildViewData());
     }
 
-    public function testMailerMayBeSet()
+    public function testMailerMayBeSet(): void
     {
         $mailable = new WelcomeMailableStub;
 
@@ -578,7 +584,7 @@ class MailMailableTest extends TestCase
         $this->assertSame('array', $mailable->mailer);
     }
 
-    public function testMailablePriorityGetsSent()
+    public function testMailablePriorityGetsSent(): void
     {
         $view = $this->mockView();
 
@@ -597,7 +603,45 @@ class MailMailableTest extends TestCase
         $this->assertStringContainsString('X-Priority: 1 (Highest)', $sentMessage->toString());
     }
 
-    public function testMailableMergeMetadata()
+    public function testEnvelopeCallbackCanInspectAndReplaceRenderedContent(): void
+    {
+        $view = $this->mockView();
+        $mailer = new Mailer('array', $view, new ArrayTransport);
+        $renderedContent = null;
+
+        $callback = function (Email $message) use (&$renderedContent): void {
+            $renderedContent = $message->getHtmlBody();
+            $message->html('callback content');
+        };
+
+        $mailable = new class($callback) extends Mailable {
+            public function __construct(protected Closure $callback)
+            {
+            }
+
+            public function envelope(): Envelope
+            {
+                return new Envelope(
+                    from: 'taylor@laravel.com',
+                    to: ['hello@laravel.com'],
+                    using: [$this->callback],
+                );
+            }
+
+            public function build(): void
+            {
+                $this->html('rendered by mailable');
+            }
+        };
+
+        $sentMessage = $mailer->send($mailable);
+
+        $this->assertSame('rendered by mailable', $renderedContent);
+        $this->assertStringContainsString('callback content', $sentMessage->toString());
+        $this->assertStringNotContainsString('rendered by mailable', $sentMessage->toString());
+    }
+
+    public function testMailableMergeMetadata(): void
     {
         $mailable = new WelcomeMailableStub;
         $mailable->to('hello@hypervel.org');
@@ -636,7 +680,7 @@ class MailMailableTest extends TestCase
         $this->assertStringContainsString('X-Metadata-total: 1670', $sentMessage->toString());
     }
 
-    public function testMailableMetadataGetsSent()
+    public function testMailableMetadataGetsSent(): void
     {
         $this->mockContainer();
 
@@ -671,7 +715,7 @@ class MailMailableTest extends TestCase
         }
     }
 
-    public function testMailableTagGetsSent()
+    public function testMailableTagGetsSent(): void
     {
         $this->mockContainer();
 
@@ -706,7 +750,7 @@ class MailMailableTest extends TestCase
         }
     }
 
-    public function testItCanAttachMultipleFiles()
+    public function testItCanAttachMultipleFiles(): void
     {
         $mailable = new WelcomeMailableStub;
 
@@ -742,7 +786,7 @@ class MailMailableTest extends TestCase
         ], $mailable->attachments[2]);
     }
 
-    public function testItAttachesFilesViaAttachableContractFromPath()
+    public function testItAttachesFilesViaAttachableContractFromPath(): void
     {
         $mailable = new WelcomeMailableStub;
 
@@ -762,7 +806,7 @@ class MailMailableTest extends TestCase
         ], $mailable->attachments[0]);
     }
 
-    public function testItAttachesFilesViaAttachableContractFromData()
+    public function testItAttachesFilesViaAttachableContractFromData(): void
     {
         $mailable = new WelcomeMailableStub;
 
@@ -782,7 +826,7 @@ class MailMailableTest extends TestCase
         ], $mailable->rawAttachments[0]);
     }
 
-    public function testItCanJitNameAttachments()
+    public function testItCanJitNameAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
         $unnamedAttachable = new class implements Attachable {
@@ -803,7 +847,7 @@ class MailMailableTest extends TestCase
         ], $mailable->rawAttachments[0]);
     }
 
-    public function testHasAttachmentWithJitNamedAttachment()
+    public function testHasAttachmentWithJitNamedAttachment(): void
     {
         $mailable = new WelcomeMailableStub;
         $unnamedAttachable = new class implements Attachable {
@@ -818,16 +862,16 @@ class MailMailableTest extends TestCase
         $this->assertTrue($mailable->hasAttachment($unnamedAttachable, ['as' => 'foo.jpg']));
     }
 
-    public function testHasAttachmentWithEnvelopeAttachments()
+    public function testHasAttachmentWithEnvelopeAttachments(): void
     {
         $this->mockContainer();
         $mailable = new class extends Mailable {
-            public function envelope()
+            public function envelope(): Envelope
             {
                 return new Envelope;
             }
 
-            public function attachments()
+            public function attachments(): array
             {
                 return [
                     Attachment::fromData(fn () => 'bar')
@@ -851,7 +895,7 @@ class MailMailableTest extends TestCase
         $this->assertTrue($mailable->hasAttachment($unnamedAttachable, ['as' => 'foo.jpg', 'mime' => 'image/png']));
     }
 
-    public function testItCanCheckForPathBasedAttachments()
+    public function testItCanCheckForPathBasedAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
         $mailable->attach('foo.jpg');
@@ -884,7 +928,7 @@ class MailMailableTest extends TestCase
         $this->assertFalse($mailable->hasAttachment(new MailTestAttachable(Attachment::fromPath('bar.jpg')->withMime('text/html'))));
     }
 
-    public function testItCanCheckForAttachmentBasedAttachments()
+    public function testItCanCheckForAttachmentBasedAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
         $mailable->attach(Attachment::fromPath('foo.jpg'));
@@ -917,7 +961,7 @@ class MailMailableTest extends TestCase
         $this->assertFalse($mailable->hasAttachment(new MailTestAttachable(Attachment::fromPath('bar.jpg')->withMime('text/html'))));
     }
 
-    public function testItCanCheckForAttachableBasedAttachments()
+    public function testItCanCheckForAttachableBasedAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
         $mailable->attach(new MailTestAttachable(Attachment::fromPath('foo.jpg')));
@@ -950,7 +994,7 @@ class MailMailableTest extends TestCase
         $this->assertFalse($mailable->hasAttachment(new MailTestAttachable(Attachment::fromPath('bar.jpg')->withMime('text/html'))));
     }
 
-    public function testItCanCheckForDataBasedAttachments()
+    public function testItCanCheckForDataBasedAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
         $mailable->attachData('data', 'foo.jpg');
@@ -985,7 +1029,7 @@ class MailMailableTest extends TestCase
         $this->assertFalse($mailable->hasAttachedData('data', 'bar.jpg', ['mime' => 'text/html']));
     }
 
-    public function testItCanCheckForStorageBasedAttachments()
+    public function testItCanCheckForStorageBasedAttachments(): void
     {
         $mailable = new WelcomeMailableStub;
         $mailable->attachFromStorageDisk('disk', '/path/to/foo.jpg');
@@ -1015,12 +1059,81 @@ class MailMailableTest extends TestCase
         $this->assertFalse($mailable->hasAttachmentFromStorageDisk('disk', '/path/to/foo.jpg', 'bar.jpg', ['mime' => 'text/html']));
     }
 
-    public function testAssertHasAttachment()
+    public function testStorageAttachmentOmitsFailedMimeDetection(): void
+    {
+        $storage = m::mock(FilesystemAdapter::class);
+        $storage->shouldReceive('mimeType')->once()->with('report.txt')->andReturnFalse();
+        $storage->shouldReceive('get')->once()->with('report.txt')->andReturn('file content');
+
+        $factory = m::mock(FilesystemFactory::class);
+        $factory->shouldReceive('disk')->once()->with('documents')->andReturn($storage);
+        $this->app->instance(FilesystemFactory::class, $factory);
+
+        $mailable = new Mailable;
+        $mailable->attachFromStorageDisk('documents', 'report.txt');
+
+        $message = new Message(new Email);
+        (new ClassInvoker($mailable))->buildDiskAttachments($message);
+
+        $attachments = $message->getSymfonyMessage()->getAttachments();
+        $this->assertCount(1, $attachments);
+        $this->assertSame('application/octet-stream', $attachments[0]->getMediaType() . '/' . $attachments[0]->getMediaSubtype());
+    }
+
+    public function testExplicitStorageAttachmentMimeSkipsDetection(): void
+    {
+        $storage = m::mock(FilesystemAdapter::class);
+        $storage->shouldNotReceive('mimeType');
+        $storage->shouldReceive('get')->once()->with('report.txt')->andReturn('file content');
+
+        $factory = m::mock(FilesystemFactory::class);
+        $factory->shouldReceive('disk')->once()->with('documents')->andReturn($storage);
+        $this->app->instance(FilesystemFactory::class, $factory);
+
+        $mailable = new Mailable;
+        $mailable->attachFromStorageDisk('documents', 'report.txt', options: ['mime' => 'text/plain']);
+
+        $message = new Message(new Email);
+        (new ClassInvoker($mailable))->buildDiskAttachments($message);
+
+        $attachments = $message->getSymfonyMessage()->getAttachments();
+        $this->assertCount(1, $attachments);
+        $this->assertSame('text/plain', $attachments[0]->getMediaType() . '/' . $attachments[0]->getMediaSubtype());
+    }
+
+    public function testAssertHasNoAttachments(): void
     {
         $this->mockContainer();
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
+            {
+            }
+        };
+
+        $mailable->assertHasNoAttachments();
+
+        $mailableWithAttachment = new class extends Mailable {
+            public function build(): void
+            {
+                $this->attach('/path/to/foo.jpg');
+            }
+        };
+
+        try {
+            $mailableWithAttachment->assertHasNoAttachments();
+            $this->fail();
+        } catch (AssertionFailedError $e) {
+            $this->assertStringContainsString('Expected no attachments', $e->getMessage());
+        }
+    }
+
+    public function testAssertHasAttachment(): void
+    {
+        $this->mockContainer();
+
+        $mailable = new class extends Mailable {
+            public function build(): void
             {
             }
         };
@@ -1033,7 +1146,7 @@ class MailMailableTest extends TestCase
         }
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
                 $this->attach('/path/to/foo.jpg');
             }
@@ -1042,12 +1155,12 @@ class MailMailableTest extends TestCase
         $mailable->assertHasAttachment('/path/to/foo.jpg');
     }
 
-    public function testAssertHasAttachedData()
+    public function testAssertHasAttachedData(): void
     {
         $this->mockContainer();
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
             }
         };
@@ -1060,7 +1173,7 @@ class MailMailableTest extends TestCase
         }
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
                 $this->attachData('data', 'foo.jpg');
             }
@@ -1069,12 +1182,12 @@ class MailMailableTest extends TestCase
         $mailable->assertHasAttachedData('data', 'foo.jpg');
     }
 
-    public function testAssertHasAttachmentFromStorage()
+    public function testAssertHasAttachmentFromStorage(): void
     {
         $this->mockContainer();
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
             }
         };
@@ -1087,7 +1200,7 @@ class MailMailableTest extends TestCase
         }
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
                 $this->attachFromStorage('/path/to/foo.jpg');
             }
@@ -1096,12 +1209,12 @@ class MailMailableTest extends TestCase
         $mailable->assertHasAttachmentFromStorage('/path/to/foo.jpg');
     }
 
-    public function testAssertHasSubject()
+    public function testAssertHasSubject(): void
     {
         $this->mockContainer();
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
             }
         };
@@ -1114,7 +1227,7 @@ class MailMailableTest extends TestCase
         }
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
                 $this->subject('Foo Subject');
             }
@@ -1123,7 +1236,7 @@ class MailMailableTest extends TestCase
         $mailable->assertHasSubject('Foo Subject');
     }
 
-    public function testMailableHeadersGetSent()
+    public function testMailableHeadersGetSent(): void
     {
         $view = $this->mockView();
 
@@ -1147,12 +1260,12 @@ class MailMailableTest extends TestCase
         $this->assertEquals('Custom Value', $sentMessage->getOriginalMessage()->getHeaders()->get('x-custom-header')->getValue());
     }
 
-    public function testMailableAttributesInBuild()
+    public function testMailableAttributesInBuild(): void
     {
         $this->mockContainer();
 
         $mailable = new class extends Mailable {
-            public function build()
+            public function build(): void
             {
                 $this
                     ->to('hello@laravel.com')
@@ -1176,7 +1289,7 @@ class MailMailableTest extends TestCase
         $mailable->assertHasSubject('test subject');
     }
 
-    public function testMailablesCanBeTapped()
+    public function testMailablesCanBeTapped(): void
     {
         $this->mockContainer();
 
@@ -1202,7 +1315,7 @@ class MailMailableTest extends TestCase
         $this->app->instance('mailer', $mailer);
     }
 
-    protected function mockView()
+    protected function mockView(): ViewFactory
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
@@ -1218,7 +1331,7 @@ class MailMailableTest extends TestCase
 
 class MailableHeadersStub extends Mailable
 {
-    public function headers()
+    public function headers(): Headers
     {
         return new Headers('custom-message-id@example.com', [
             'previous-message@example.com',
@@ -1230,16 +1343,14 @@ class MailableHeadersStub extends Mailable
 
 class WelcomeMailableStub extends Mailable
 {
-    public $framework = 'Hypervel';
+    public string $framework = 'Hypervel';
 
-    protected $version = '1.0';
+    protected string $version = '1.0';
 
     /**
      * Build the message.
-     *
-     * @return $this
      */
-    public function build()
+    public function build(): void
     {
         $this->with('first_name', 'Taylor')
             ->withLastName('Otwell');
@@ -1248,21 +1359,21 @@ class WelcomeMailableStub extends Mailable
 
 class MailableTestUserStub
 {
-    public $name = 'Taylor Otwell';
+    public string $name = 'Taylor Otwell';
 
-    public $email = 'taylor@laravel.com';
+    public string $email = 'taylor@laravel.com';
 }
 
 class MailableTestUserStub2
 {
-    public $name = 'Laravel Framework';
+    public string $name = 'Laravel Framework';
 
-    public $email = 'contact@laravel.com';
+    public string $email = 'contact@laravel.com';
 }
 
 class MailTestAttachable implements Attachable
 {
-    public function __construct(protected $attachment)
+    public function __construct(protected Attachment $attachment)
     {
     }
 

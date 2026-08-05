@@ -1300,7 +1300,7 @@ class AlgoliaEngineTest extends TestCase
 /**
  * Test model for AlgoliaEngine tests.
  */
-class AlgoliaTestSearchableModel extends Model implements SearchableInterface
+class AlgoliaTestSearchableModel extends Model
 {
     use Searchable;
 
@@ -1312,7 +1312,7 @@ class AlgoliaTestSearchableModel extends Model implements SearchableInterface
 /**
  * Test model with soft deletes for AlgoliaEngine tests.
  */
-class AlgoliaTestSoftDeleteModel extends Model implements SearchableInterface
+class AlgoliaTestSoftDeleteModel extends Model
 {
     use Searchable;
     use SoftDeletes;

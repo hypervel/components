@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
+use Closure;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Mail\Markdown;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\EngineResolver;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class MailMarkdownTest extends TestCase
 {
-    public function testRenderFunctionReturnsHtml()
+    public function testRenderFunctionReturnsHtml(): void
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
@@ -26,7 +27,7 @@ class MailMarkdownTest extends TestCase
         $engineResolver->shouldReceive('resolve->getCompiler')->andReturn($bladeCompiler);
         $bladeCompiler->shouldReceive('usingEchoFormat')
             ->with('new \Hypervel\Support\EncodedHtmlString(%s)', m::type('Closure'))
-            ->andReturnUsing(fn ($echoFormat, $callback) => $callback());
+            ->andReturnUsing(fn (string $echoFormat, Closure $callback): mixed => $callback());
 
         $markdown = new Markdown($viewFactory);
         $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->htmlComponentPaths())->andReturnSelf();
@@ -39,7 +40,7 @@ class MailMarkdownTest extends TestCase
         $this->assertStringContainsString('<html></html>', $result);
     }
 
-    public function testRenderFunctionReturnsHtmlWithCustomTheme()
+    public function testRenderFunctionReturnsHtmlWithCustomTheme(): void
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
@@ -51,7 +52,7 @@ class MailMarkdownTest extends TestCase
         $engineResolver->shouldReceive('resolve->getCompiler')->andReturn($bladeCompiler);
         $bladeCompiler->shouldReceive('usingEchoFormat')
             ->with('new \Hypervel\Support\EncodedHtmlString(%s)', m::type('Closure'))
-            ->andReturnUsing(fn ($echoFormat, $callback) => $callback());
+            ->andReturnUsing(fn (string $echoFormat, Closure $callback): mixed => $callback());
 
         $markdown = new Markdown($viewFactory);
         $markdown->theme('yaz');
@@ -65,7 +66,7 @@ class MailMarkdownTest extends TestCase
         $this->assertStringContainsString('<html></html>', $result);
     }
 
-    public function testRenderFunctionReturnsHtmlWithCustomThemeWithMailPrefix()
+    public function testRenderFunctionReturnsHtmlWithCustomThemeWithMailPrefix(): void
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->twice()->andReturn('<html></html>', 'body {}');
@@ -77,7 +78,7 @@ class MailMarkdownTest extends TestCase
         $engineResolver->shouldReceive('resolve->getCompiler')->andReturn($bladeCompiler);
         $bladeCompiler->shouldReceive('usingEchoFormat')
             ->with('new \Hypervel\Support\EncodedHtmlString(%s)', m::type('Closure'))
-            ->andReturnUsing(fn ($echoFormat, $callback) => $callback());
+            ->andReturnUsing(fn (string $echoFormat, Closure $callback): mixed => $callback());
 
         $markdown = new Markdown($viewFactory);
         $markdown->theme('mail.yaz');
@@ -91,7 +92,7 @@ class MailMarkdownTest extends TestCase
         $this->assertStringContainsString('<html></html>', $result);
     }
 
-    public function testRenderTextReturnsText()
+    public function testRenderTextReturnsText(): void
     {
         $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')->andReturn('text');
@@ -106,7 +107,7 @@ class MailMarkdownTest extends TestCase
         $this->assertSame('text', $result);
     }
 
-    public function testParseReturnsParsedMarkdown()
+    public function testParseReturnsParsedMarkdown(): void
     {
         $viewFactory = m::mock(ViewFactory::class);
         $markdown = new Markdown($viewFactory);

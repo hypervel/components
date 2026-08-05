@@ -93,7 +93,7 @@ class AblyBroadcaster extends Broadcaster
 
         return [
             'auth' => $this->getPublicToken() . ':' . $signature,
-            'channel_data' => json_encode($userData),
+            'channel_data' => json_encode($userData, JSON_THROW_ON_ERROR),
         ];
     }
 
@@ -104,7 +104,12 @@ class AblyBroadcaster extends Broadcaster
     {
         return hash_hmac(
             'sha256',
-            sprintf('%s:%s%s', $socketId, $channelName, $userData ? ':' . json_encode($userData) : ''),
+            sprintf(
+                '%s:%s%s',
+                $socketId,
+                $channelName,
+                $userData ? ':' . json_encode($userData, JSON_THROW_ON_ERROR) : '',
+            ),
             $this->getPrivateToken(),
         );
     }
@@ -117,10 +122,17 @@ class AblyBroadcaster extends Broadcaster
     public function broadcast(array $channels, string $event, array $payload = []): void
     {
         try {
-            foreach ($this->formatChannels($channels) as $channel) {
-                $this->ably->channels->get($channel)->publish(  // @phpstan-ignore-line
-                    $this->buildAblyMessage($event, $payload)   // @phpstan-ignore-line
-                );                                              // @phpstan-ignore-line
+            foreach ($this->formatChannels($channels) as $name) {
+                $channel = $this->ably->channels->get($name);
+
+                try {
+                    /* @phpstan-ignore arguments.count, argument.type (Ably declares two @method publish() overloads and PHPStan keeps only the last; publish(...$args) accepts a Message as its sole argument.) */
+                    $channel->publish($this->buildAblyMessage($event, $payload));
+                } finally {
+                    if ($channel->getCipherParams() === null) {
+                        $this->ably->channels->release($name);
+                    }
+                }
             }
         } catch (AblyException $e) {
             throw new BroadcastException(
@@ -205,6 +217,9 @@ class AblyBroadcaster extends Broadcaster
 
     /**
      * Set the underlying Ably SDK instance.
+     *
+     * Boot or tests only. Replaces the SDK client on this worker-cached broadcaster;
+     * per-request mutation races across coroutines.
      */
     public function setAbly(AblyRest $ably): void
     {

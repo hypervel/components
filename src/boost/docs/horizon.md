@@ -600,6 +600,8 @@ You may configure the directories and files that should be watched using the `wa
 ],
 ```
 
+For more information about configuring watch paths, consult the [file watching documentation](/docs/{{version}}/watcher#watch-paths).
+
 <a name="deploying-horizon"></a>
 ### Deploying Horizon
 

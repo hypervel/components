@@ -19,6 +19,8 @@ use Symfony\Component\Mime\Email;
 
 class MailSesV2TransportTest extends TestCase
 {
+    // REMOVED: Laravel's SES v1 transport tests. Hypervel supports SES v2 only.
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -64,12 +66,107 @@ class MailSesV2TransportTest extends TestCase
             ->once()
             ->andReturn('ses-message-id');
         $client->shouldReceive('sendEmail')->once()
-            ->with(m::on(function ($arg) {
+            ->with(m::on(function (array $arg): bool {
                 return $arg['Source'] === 'myself@example.com'
                     && $arg['Destination']['ToAddresses'] === ['me@example.com', 'you@example.com']
                     && $arg['ListManagementOptions'] === ['ContactListName' => 'TestList', 'TopicName' => 'TestTopic']
                     && $arg['EmailTags'] === [['Name' => 'FooTag', 'Value' => 'TagValue']]
                     && str_contains($arg['Content']['Raw']['Data'], 'Reply-To: Taylor Otwell <taylor@example.com>');
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSendWithTenantName(): void
+    {
+        $message = new Email;
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+        $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', 'my-tenant');
+
+        $client = m::mock(SesV2Client::class);
+        $sesResult = m::mock();
+        $sesResult->shouldReceive('get')
+            ->with('MessageId')
+            ->once()
+            ->andReturn('ses-message-id');
+        $client->shouldReceive('sendEmail')->once()
+            ->with(m::on(function (array $arg): bool {
+                return $arg['TenantName'] === 'my-tenant';
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSendWithZeroTenantName(): void
+    {
+        $message = new Email;
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+        $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', '0');
+
+        $client = m::mock(SesV2Client::class);
+        $sesResult = m::mock();
+        $sesResult->shouldReceive('get')
+            ->with('MessageId')
+            ->once()
+            ->andReturn('ses-message-id');
+        $client->shouldReceive('sendEmail')->once()
+            ->with(m::on(function (array $arg): bool {
+                return $arg['TenantName'] === '0';
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSendWithoutTenantNameDoesNotSetTheOption(): void
+    {
+        $message = new Email;
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+
+        $client = m::mock(SesV2Client::class);
+        $sesResult = m::mock();
+        $sesResult->shouldReceive('get')
+            ->with('MessageId')
+            ->once()
+            ->andReturn('ses-message-id');
+        $client->shouldReceive('sendEmail')->once()
+            ->with(m::on(function (array $arg): bool {
+                return ! array_key_exists('TenantName', $arg);
+            }))
+            ->andReturn($sesResult);
+
+        (new SesV2Transport($client))->send($message);
+    }
+
+    public function testSendWithEmptyTenantNameDoesNotSetTheOption(): void
+    {
+        $message = new Email;
+        $message->subject('Foo subject');
+        $message->text('Bar body');
+        $message->sender('myself@example.com');
+        $message->to('me@example.com');
+        $message->getHeaders()->addTextHeader('X-SES-TENANT-NAME', '');
+
+        $client = m::mock(SesV2Client::class);
+        $sesResult = m::mock();
+        $sesResult->shouldReceive('get')
+            ->with('MessageId')
+            ->once()
+            ->andReturn('ses-message-id');
+        $client->shouldReceive('sendEmail')->once()
+            ->with(m::on(function (array $arg): bool {
+                return ! array_key_exists('TenantName', $arg);
             }))
             ->andReturn($sesResult);
 

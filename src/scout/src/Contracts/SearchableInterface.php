@@ -7,36 +7,49 @@ namespace Hypervel\Scout\Contracts;
 use Closure;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Engines\Engine;
 
 /**
- * Contract for models that can be indexed and searched.
+ * Internal shape for models that can be indexed and searched.
  *
- * This interface defines the public API that searchable models must implement.
- * The Searchable trait provides a default implementation of these methods.
+ * Application models gain this capability through the Searchable trait and do
+ * not need to implement this interface directly. Keep this shape compatible
+ * with the trait while widening collection boundaries to Model for engines.
  *
- * @phpstan-require-extends \Hypervel\Database\Eloquent\Model
+ * @phpstan-require-extends Model
  */
 interface SearchableInterface
 {
     /**
      * Perform a search against the model's indexed data.
+     *
+     * @return Builder<Model&static>
      */
     public static function search(string $query = '', ?Closure $callback = null): Builder;
 
     /**
      * Get the requested models from an array of object IDs.
+     *
+     * @param array<int|string> $ids
+     * @return Collection<int, Model&static>
      */
     public function getScoutModelsByIds(Builder $builder, array $ids): Collection;
 
     /**
      * Get a query builder for retrieving the requested models from an array of object IDs.
+     *
+     * @param array<int|string> $ids
+     * @return EloquentBuilder<Model&static>
      */
     public function queryScoutModelsByIds(Builder $builder, array $ids): EloquentBuilder;
 
     /**
      * Modify the collection of models being made searchable.
+     *
+     * @param Collection<int, Model> $models
+     * @return Collection<int, Model>
      */
     public function makeSearchableUsing(Collection $models): Collection;
 

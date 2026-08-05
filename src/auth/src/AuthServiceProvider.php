@@ -207,7 +207,8 @@ class AuthServiceProvider extends ServiceProvider
      * @return list<array{
      *     name: string,
      *     model: class-string<AuthenticatableContract&Model>,
-     *     store: ?string
+     *     store: ?string,
+     *     usesTags: bool
      * }>
      */
     private function cachedEloquentProviders(ConfigRepository $config): array
@@ -243,10 +244,29 @@ class AuthServiceProvider extends ServiceProvider
                 );
             }
 
+            // Keep this fallback aligned with CreatesUserProviders::createEloquentProvider().
+            $ttl = $cache['ttl'] ?? 300;
+
+            if (! is_int($ttl) || $ttl <= 0) {
+                throw new InvalidArgumentException(
+                    sprintf('Authentication provider [%s] cache TTL must be a positive integer.', $name),
+                );
+            }
+
+            $tags = $cache['tags'] ?? null;
+
+            if ($tags !== null && (! is_array($tags)
+                || ! array_all($tags, static fn (mixed $tag): bool => is_string($tag)))) {
+                throw new InvalidArgumentException(
+                    sprintf('Authentication provider [%s] cache tags must be an array of strings or null.', $name),
+                );
+            }
+
             $providers[] = [
                 'name' => (string) $name,
                 'model' => $model,
                 'store' => $store,
+                'usesTags' => $tags !== null && $tags !== [],
             ];
         }
 
@@ -269,10 +289,16 @@ class AuthServiceProvider extends ServiceProvider
         $validator = $this->app->make(ModelCacheStoreValidator::class);
 
         foreach ($providers as $settings) {
+            $repository = $cache->store($settings['store']);
+            $feature = "Auth user provider [{$settings['name']}]";
             $validator->validate(
-                $cache->store($settings['store']),
-                "Auth user provider [{$settings['name']}]",
+                $repository,
+                $feature,
             );
+
+            if ($settings['usesTags']) {
+                $validator->validateAnyModeTags($repository, $feature);
+            }
         }
     }
 

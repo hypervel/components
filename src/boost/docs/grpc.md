@@ -334,6 +334,8 @@ return GrpcResponse::stream($this->replies($request))
 
 Streamed responses are consumed lazily. Initial metadata is sent with the first response message. If a stream completes or fails before producing a message, its initial metadata is returned to the client as trailing metadata.
 
+Hypervel keeps one streamed response message until the iterator advances or finishes so Swoole can send the final trailers correctly. If the stream pauses before producing its next message, delivery of the previous message is delayed until the stream resumes or ends.
+
 If a stream fails after producing one or more messages, the client receives those messages before receiving the final error status.
 
 <a name="errors"></a>

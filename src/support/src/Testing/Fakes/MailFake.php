@@ -12,6 +12,7 @@ use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailer;
 use Hypervel\Contracts\Mail\MailQueue;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Mail\Mailables\Address;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\PendingMail;
 use Hypervel\Mail\SentMessage;
@@ -20,6 +21,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\ReflectsClosures;
+use InvalidArgumentException;
 use PHPUnit\Framework\Assert as PHPUnit;
 use UnitEnum;
 
@@ -51,7 +53,6 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     public function __construct(
         public MailManager $manager
     ) {
-        $this->currentMailer = $manager->getDefaultDriver();
     }
 
     /**
@@ -61,7 +62,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     {
         [$mailable, $callback] = $this->prepareMailableAndCallback($mailable, $callback);
 
-        if (is_numeric($callback)) {
+        if (is_int($callback)) {
             $this->assertSentTimes($mailable, $callback);
             return;
         }
@@ -170,7 +171,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     {
         [$mailable, $callback] = $this->prepareMailableAndCallback($mailable, $callback);
 
-        if (is_numeric($callback)) {
+        if (is_int($callback)) {
             $this->assertQueuedTimes($mailable, $callback);
             return;
         }
@@ -369,7 +370,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
             $name = (string) enum_value($name);
         }
 
-        $this->currentMailer = $name;
+        $this->currentMailer = $name === '' ? null : $name;
 
         return $this;
     }
@@ -385,32 +386,66 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Begin the process of mailing a mailable class instance.
      */
-    public function to(mixed $users): PendingMail
+    public function to(mixed $users, ?string $name = null): PendingMail
     {
+        if (! is_null($name) && is_string($users)) {
+            $users = new Address($users, $name);
+        }
+
         return (new PendingMailFake($this))->to($users);
     }
 
     /**
      * Begin the process of mailing a mailable class instance.
      */
-    public function cc(mixed $users): PendingMail
+    public function cc(mixed $users, ?string $name = null): PendingMail
     {
+        if (! is_null($name) && is_string($users)) {
+            $users = new Address($users, $name);
+        }
+
         return (new PendingMailFake($this))->cc($users);
     }
 
     /**
      * Begin the process of mailing a mailable class instance.
      */
-    public function bcc(mixed $users): PendingMail
+    public function bcc(mixed $users, ?string $name = null): PendingMail
     {
+        if (! is_null($name) && is_string($users)) {
+            $users = new Address($users, $name);
+        }
+
         return (new PendingMailFake($this))->bcc($users);
+    }
+
+    /**
+     * Send a new message with only an HTML part.
+     */
+    public function html(string $html, Closure|string $callback): ?SentMessage
+    {
+        $this->pullCurrentMailer();
+
+        return null;
     }
 
     /**
      * Send a new message with only a raw text part.
      */
-    public function raw(string $text, mixed $callback): ?SentMessage
+    public function raw(string $text, Closure|string $callback): ?SentMessage
     {
+        $this->pullCurrentMailer();
+
+        return null;
+    }
+
+    /**
+     * Send a new message with only a plain part.
+     */
+    public function plain(string $view, array $data, Closure|string $callback): ?SentMessage
+    {
+        $this->pullCurrentMailer();
+
         return null;
     }
 
@@ -439,17 +474,17 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
      */
     protected function sendMail(array|Mailable|string $view, bool $shouldQueue = false): mixed
     {
-        if (! $view instanceof Mailable) {
-            return null;
-        }
-
-        $view->mailer($this->currentMailer);
-
         if ($shouldQueue) {
             return $this->queue($view);
         }
 
-        $this->currentMailer = null;
+        $mailer = $this->pullCurrentMailer();
+
+        if (! $view instanceof Mailable) {
+            return null;
+        }
+
+        $view->mailer($mailer);
 
         $this->mailables[] = $view;
 
@@ -458,16 +493,23 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
 
     /**
      * Queue a new message for sending.
+     *
+     * @throws InvalidArgumentException
      */
-    public function queue(array|Mailable|string $view, ?string $queue = null): mixed
+    public function queue(array|Mailable|string $view, UnitEnum|string|null $queue = null): mixed
     {
+        $mailer = $this->pullCurrentMailer();
+
         if (! $view instanceof Mailable) {
-            return null;
+            throw new InvalidArgumentException('Only mailables may be queued.');
         }
 
-        $view->mailer($this->currentMailer);
+        $view->mailer($mailer);
 
-        $this->currentMailer = null;
+        if ($queue !== null) {
+            // Queueable owns identifier normalization, so it is intentionally absent from the Mailable contract.
+            $view->onQueue($queue); // @phpstan-ignore method.notFound
+        }
 
         $this->queuedMailables[] = $view;
 
@@ -476,22 +518,59 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
 
     /**
      * Queue a new e-mail message for sending after (n) seconds.
+     *
+     * @throws InvalidArgumentException
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, array|Mailable|string $view, ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, array|Mailable|string $view, UnitEnum|string|null $queue = null): mixed
     {
         return $this->queue($view, $queue);
     }
 
     /**
+     * Queue a new mail message for sending on the given queue.
+     */
+    public function onQueue(UnitEnum|string|null $queue, Mailable $view): mixed
+    {
+        return $this->queue($view, $queue);
+    }
+
+    /**
+     * Queue a new mail message for sending on the given queue.
+     */
+    public function queueOn(UnitEnum|string $queue, Mailable $view): mixed
+    {
+        return $this->onQueue($queue, $view);
+    }
+
+    /**
+     * Queue a new mail message for sending after (n) seconds on the given queue.
+     */
+    public function laterOn(UnitEnum|string $queue, DateInterval|DateTimeInterface|int $delay, Mailable $view): mixed
+    {
+        return $this->later($delay, $view, $queue);
+    }
+
+    /**
      * Infer mailable class using reflection if a typehinted closure is passed to assertion.
      */
-    protected function prepareMailableAndCallback(Closure|string $mailable, callable|string|null $callback): array
+    protected function prepareMailableAndCallback(Closure|string $mailable, array|callable|int|string|null $callback): array
     {
         if ($mailable instanceof Closure) {
             return [$this->firstClosureParameterType($mailable), $mailable];
         }
 
         return [$mailable, $callback];
+    }
+
+    /**
+     * Get and clear the mailer for the current operation.
+     */
+    protected function pullCurrentMailer(): string
+    {
+        $mailer = $this->currentMailer ?? $this->manager->getDefaultDriver();
+        $this->currentMailer = null;
+
+        return $mailer;
     }
 
     /**
@@ -507,7 +586,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Handle dynamic method calls to the mailer.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->forwardCallTo($this->manager, $method, $parameters);
     }

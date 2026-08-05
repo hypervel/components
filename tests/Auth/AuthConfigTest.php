@@ -9,9 +9,27 @@ use Hypervel\Tests\TestCase;
 
 class AuthConfigTest extends TestCase
 {
+    public function testUserCacheTtlIsLoadedAsIntegerFromEnvironment(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_USERS_CACHE_TTL', '600');
+
+        $this->assertSame(600, $config['providers']['users']['cache']['ttl']);
+    }
+
     public function testPasswordTimeoutIsLoadedAsIntegerFromEnvironment(): void
     {
-        $key = 'AUTH_PASSWORD_TIMEOUT';
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_PASSWORD_TIMEOUT', '300');
+
+        $this->assertSame(300, $config['password_timeout']);
+    }
+
+    /**
+     * Load the Auth configuration with a temporary environment value.
+     *
+     * @return array<string, mixed>
+     */
+    private function loadConfigWithEnvironmentValue(string $key, string $value): array
+    {
         $originalPutenv = getenv($key);
         $originalServerExists = array_key_exists($key, $_SERVER);
         $originalServer = $_SERVER[$key] ?? null;
@@ -20,12 +38,10 @@ class AuthConfigTest extends TestCase
 
         try {
             unset($_SERVER[$key], $_ENV[$key]);
-            putenv("{$key}=300");
+            putenv("{$key}={$value}");
             Env::flushRepository();
 
-            $config = require dirname(__DIR__, 2) . '/src/foundation/config/auth.php';
-
-            $this->assertSame(300, $config['password_timeout']);
+            return require dirname(__DIR__, 2) . '/src/foundation/config/auth.php';
         } finally {
             $originalPutenv === false
                 ? putenv($key)

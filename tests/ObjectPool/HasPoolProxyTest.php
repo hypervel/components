@@ -27,6 +27,11 @@ class HasPoolProxyTest extends TestCase
         $this->manager = new PoolTraitManager(new PoolManager);
     }
 
+    protected function tearDownInCoroutine(): void
+    {
+        $this->manager->factory->flush();
+    }
+
     public function testAutomaticDefinitionIsNamespacedAndFingerprintsConstructionInput(): void
     {
         $definition = $this->manager->definition(
@@ -107,7 +112,6 @@ class HasPoolProxyTest extends TestCase
         $this->assertSame('initial:value', $proxy->handle('value'));
         $this->assertCount(1, $released);
         $this->assertSame($definition, $proxy->getDefinition());
-        $this->manager->factory->flush();
     }
 
     public function testPoolableDriverMutatorsKeepAListShape(): void

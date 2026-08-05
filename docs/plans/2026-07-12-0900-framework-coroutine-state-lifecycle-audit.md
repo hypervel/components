@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** none — HTTP and Scout are complete and the next package is not selected.
-- **Ledger entries required for the active work:** none.
-- **Pending revalidation carried into the active work:** none.
+- **Active package or work unit:** None.
+- **Ledger entries required for the active work:** None.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1048,17 +1048,19 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `events-01` | `foundation` | `events` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-01` |
 | `events-03` | `events`, `queue` | `queue` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-03` |
 | `events-04` | `events`, `foundation` | `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-04` |
-| `events-05` | `events`, `broadcasting` | later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-05` |
+| `events-05` | `events`, `broadcasting` | `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-05` |
 | `events-06` | `events`, `foundation` | `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-06` |
-| `queue-11` | `queue` | `events` and `queue` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
-| `queue-12` | `bus`, `queue` | `events`, `bus`, and `queue` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
+| `queue-11` | `queue` | `events`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
+| `queue-12` | `bus`, `queue` | `events`, `bus`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 | `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
 | `server-process-10` | `server-process` | `foundation` (revalidation complete) | `Make custom server processes failure-safe`; finding `server-process-10` |
+| `signal-05` | `contracts`, `signal` | `server-process` (revalidation complete) | `Complete Signal handler reliability, public APIs, and deployment guidance`; finding `signal-05` |
+| `server-11` | `foundation`, `server` | `server-process` and `reverb` (revalidation complete) | `Complete Signal handler reliability, public APIs, and deployment guidance`; finding `server-11` |
 | `bus-03` | `bus`, `contracts`, `foundation` | `foundation` and `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-03` |
 | `bus-10` | `bus`, `queue` | `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-10` |
 | `bus-17` | `bus`, `foundation`, `queue`, `testing` | `log`, `foundation`, and `queue` (revalidation complete); later full `testing` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-17` |
@@ -1068,9 +1070,9 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `core-06` | `core`, `server` | `server` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
 | `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, `http`, and `testing` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
 | `http-server-05` | `testing` | `http-server` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-05` |
-| `http-server-06` | `http-server` | `reverb` and `websocket-server` (revalidation complete), `grpc`; later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
-| `http-server-07` | `http-server` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
-| `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
+| `http-server-06` | `http-server` | `reverb`, `websocket-server`, and `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
+| `http-server-07` | `http-server` | `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
+| `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
 | `foundation-06` | `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `foundation-06` |
 | `console-02` | `console` | `foundation` and `console` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `console-02` |
 | `queue-14` | `foundation`, `queue` | `foundation` and `queue` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
@@ -1097,7 +1099,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `redis-10` | `redis` | `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-10` |
 | `redis-11` | `redis` | `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-11` |
 | `redis-12` | `redis`, `cache` | `redis` and `cache` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-12` |
-| `redis-13` | `redis` | `horizon`, `cache`, `queue`, and `session` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-13` |
+| `redis-13` | `redis` | `horizon`, `cache`, `queue`, `session`, and `broadcasting` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-13` |
 | `redis-21` | `redis` | `queue` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-21` |
 | `redis-22` | `redis` | `queue` and `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-22` |
 | `reverb-05` | `reverb` | `redis` and `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `reverb-05` |
@@ -1109,7 +1111,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `cache-04` | `cache` | `auth`, `sanctum`, and `testbench` (revalidation complete); later full consumer audits | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-04` |
 | `filesystem-12` | `filesystem` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `filesystem-12` |
 | `session-23` | `cache` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `session-23` |
-| `contracts-09` | `contracts` | `foundation` (revalidation complete), `broadcasting`; later full `broadcasting` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `contracts-09` |
+| `contracts-09` | `contracts` | `foundation` and `broadcasting` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `contracts-09` |
 | `notifications-07` | `contracts` | later full `notifications` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `notifications-07` |
 | `queue-22` | `queue` | `horizon` (revalidation complete); later full `telescope` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-22` |
 | `queue-29` | `queue` | `foundation` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-29` |
@@ -1124,7 +1126,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `cache-20` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-20` |
 | `reverb-24` | `reverb` | `foundation` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `reverb-24` |
 | `server-10` | `server` | `server` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `server-10` |
-| `grpc-01` | `grpc` | `reverb` (revalidation complete); later full `grpc` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
+| `grpc-01` | `grpc` | `reverb` and `grpc` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `grpc-01` |
+| `boost-01` | `boost` | `grpc` (revalidation complete); later full `boost` audit | `Fix gRPC terminal and response boundaries`; finding `boost-01` |
 | `websocket-server-13` | `websocket-server` | `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `websocket-server-13` |
 | `testbench-02` | `testbench` | `testbench` (targeted correction complete); later full `testbench` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `testbench-02` |
 | `support-27` | `support` | `support` and `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `support-27` |
@@ -1157,6 +1160,12 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `database-21` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-21` |
 | `database-22` | `database` | `database` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-22` |
 | `database-23` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-23` |
+| `mail-17` | `mail` | `mail` and `support` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `mail-17` |
+| `support-28` | `support` | `support` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-28` |
+| `support-29` | `support` | `support`, `mail`, and `validation` (targeted revalidation complete); later full `validation` audit | `Complete Mail correctness, current parity, and package boundaries`; finding `support-29` |
+| `contracts-10` | `contracts` | `contracts` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-10` |
+| `contracts-11` | `contracts` | `contracts`, `mail`, and `console` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-11` |
+| `filesystem-14` | `filesystem` | `filesystem` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `filesystem-14` |
 
 ## Package checklist
 
@@ -1234,9 +1243,9 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `reverb`
 - [x] `http`
 - [ ] `api-client`
-- [ ] `grpc`
-- [ ] `broadcasting`
-- [ ] `mail`
+- [x] `grpc`
+- [x] `broadcasting`
+- [x] `mail`
 - [ ] `notifications`
 
 ### Application and domain packages

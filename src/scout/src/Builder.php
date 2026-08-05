@@ -27,7 +27,7 @@ use Hypervel\Support\Traits\Tappable;
 /**
  * Fluent search query builder for searchable models.
  *
- * @template TModel of Model&SearchableInterface
+ * @template TModel of Model
  */
 class Builder
 {
@@ -38,7 +38,7 @@ class Builder
     /**
      * The model instance.
      *
-     * @var TModel
+     * @var SearchableInterface&TModel
      */
     public Model $model;
 
@@ -118,6 +118,7 @@ class Builder
         ?Closure $callback = null,
         bool $softDelete = false
     ) {
+        /** @var SearchableInterface&TModel $model */
         $this->model = $model;
         $this->query = $query;
         $this->callback = $callback;

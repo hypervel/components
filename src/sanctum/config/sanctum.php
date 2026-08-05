@@ -92,8 +92,13 @@ return [
     'cache' => [
         'enabled' => env('SANCTUM_CACHE_ENABLED', false),
         'store' => env('SANCTUM_CACHE_STORE'), // Uses default store if not set
-        'ttl' => env('SANCTUM_CACHE_TTL', 300), // 5 minutes
+        'ttl' => (int) env('SANCTUM_CACHE_TTL', 300), // 5 minutes
         'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
-        'last_used_at_update_interval' => env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300), // 5 minutes
+        // Zero is valid, so preserve malformed values for startup validation.
+        'last_used_at_update_interval' => filter_var(
+            env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300),
+            FILTER_VALIDATE_INT,
+            FILTER_NULL_ON_FAILURE,
+        ),
     ],
 ];

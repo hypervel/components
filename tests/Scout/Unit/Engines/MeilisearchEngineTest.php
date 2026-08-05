@@ -1145,7 +1145,7 @@ class MeilisearchEngineTest extends TestCase
 /**
  * Test model for MeilisearchEngine tests.
  */
-class MeilisearchTestSearchableModel extends Model implements SearchableInterface
+class MeilisearchTestSearchableModel extends Model
 {
     use Searchable;
 
@@ -1157,7 +1157,7 @@ class MeilisearchTestSearchableModel extends Model implements SearchableInterfac
 /**
  * Test model with soft deletes for MeilisearchEngine tests.
  */
-class MeilisearchTestSoftDeleteModel extends Model implements SearchableInterface
+class MeilisearchTestSoftDeleteModel extends Model
 {
     use Searchable;
     use SoftDeletes;

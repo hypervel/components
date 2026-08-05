@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Mail;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Mail\Mailable;
 use Hypervel\Testbench\TestCase;
 
 class RenderingMailWithLocaleTest extends TestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('app.locale', 'en');
 
-        $app['view']->addLocation(__DIR__ . '/Fixtures');
+        $app->make('view')->addLocation(__DIR__ . '/Fixtures');
 
-        $app['translator']->setLoaded([
+        $app->make('translator')->setLoaded([
             '*' => [
                 '*' => [
                     'en' => ['nom' => 'name'],
@@ -25,21 +26,21 @@ class RenderingMailWithLocaleTest extends TestCase
         ]);
     }
 
-    public function testMailableRendersInDefaultLocale()
+    public function testMailableRendersInDefaultLocale(): void
     {
         $mail = new RenderedTestMail;
 
         $this->assertStringContainsString('name', $mail->render());
     }
 
-    public function testMailableRendersInSelectedLocale()
+    public function testMailableRendersInSelectedLocale(): void
     {
         $mail = (new RenderedTestMail)->locale('es');
 
         $this->assertStringContainsString('nombre', $mail->render());
     }
 
-    public function testMailableRendersInAppSelectedLocale()
+    public function testMailableRendersInAppSelectedLocale(): void
     {
         $this->app->setLocale('es');
 

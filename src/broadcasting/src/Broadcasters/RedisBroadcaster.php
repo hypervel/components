@@ -41,11 +41,11 @@ class RedisBroadcaster extends Broadcaster
             throw new AccessDeniedHttpException;
         }
 
+        $channelName = $this->removeLeadingPrefix($channelName);
+
         return parent::verifyUserCanAccessChannel(
             $request,
-            $this->normalizeChannelName(
-                str_replace($this->prefix, '', $channelName)
-            ),
+            $this->normalizeChannelName($channelName),
             $this->isGuardedChannel($channelName),
         );
     }
@@ -58,7 +58,9 @@ class RedisBroadcaster extends Broadcaster
         return $this->validAuthenticationResponseForChannel(
             $request,
             $result,
-            $this->normalizeChannelName($request->input('channel_name')),
+            $this->normalizeChannelName(
+                $this->removeLeadingPrefix($request->input('channel_name'))
+            ),
         );
     }
 
@@ -80,10 +82,13 @@ class RedisBroadcaster extends Broadcaster
             ? $user->getAuthIdentifierForBroadcasting()
             : $user->getAuthIdentifier();
 
-        return json_encode(['channel_data' => [
-            'user_id' => $broadcastIdentifier,
-            'user_info' => $result,
-        ]]);
+        return json_encode(
+            ['channel_data' => [
+                'user_id' => $broadcastIdentifier,
+                'user_info' => $result,
+            ]],
+            JSON_THROW_ON_ERROR,
+        );
     }
 
     /**
@@ -101,18 +106,24 @@ class RedisBroadcaster extends Broadcaster
 
         $socket = Arr::pull($payload, 'socket');
 
-        $payload = json_encode([
-            'event' => $event,
-            'data' => $payload,
-            'socket' => $socket,
-        ]);
+        $payload = json_encode(
+            [
+                'event' => $event,
+                'data' => $payload,
+                'socket' => $socket,
+            ],
+            JSON_THROW_ON_ERROR,
+        );
 
         try {
             if ($connection->isCluster()) {
-                foreach ($this->formatChannels($channels) as $channel) {
+                // Native phpredis publish applies the connection prefix, so parent::
+                // deliberately skips this class's prefix-adding formatChannels() override.
+                foreach (parent::formatChannels($channels) as $channel) {
                     $connection->publish($channel, $payload);
                 }
             } else {
+                // Lua receives channels as ARGV, which phpredis does not prefix.
                 $connection->eval(
                     $this->broadcastMultipleChannelsScript(),
                     0,
@@ -150,5 +161,15 @@ class RedisBroadcaster extends Broadcaster
         return array_map(function ($channel) {
             return $this->prefix . $channel;
         }, parent::formatChannels($channels));
+    }
+
+    /**
+     * Remove the configured Redis prefix from the start of the channel name.
+     */
+    private function removeLeadingPrefix(string $channel): string
+    {
+        return $this->prefix !== '' && str_starts_with($channel, $this->prefix)
+            ? substr($channel, strlen($this->prefix))
+            : $channel;
     }
 }

@@ -133,16 +133,21 @@ class EloquentWhereHasTest extends DatabaseTestCase
                 $builder->selectRaw('id')->where('public', $value);
             };
 
+            // Mirror the separate predicate groups Eloquent creates for the relation and its scope.
             $callbackQuery = function (QueryBuilder $builder) use ($value) {
                 $hasMany = app()->make(User::class)->posts();
 
-                $builder->from('posts')->addSelect(['*'])->whereColumn(
-                    $hasMany->getQualifiedParentKeyName(),
-                    '=',
-                    $hasMany->getQualifiedForeignKeyName()
+                $builder->from('posts')->addSelect(['*'])->where(
+                    fn (QueryBuilder $query) => $query->whereColumn(
+                        $hasMany->getQualifiedParentKeyName(),
+                        '=',
+                        $hasMany->getQualifiedForeignKeyName(),
+                    ),
                 );
 
-                $builder->selectRaw('id')->where('public', $value);
+                $builder->selectRaw('id')->where(
+                    fn (QueryBuilder $query) => $query->where('public', $value),
+                );
             };
 
             return [$callbackEloquent, $callbackQuery];

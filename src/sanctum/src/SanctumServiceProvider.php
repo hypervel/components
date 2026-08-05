@@ -89,13 +89,13 @@ class SanctumServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->app->booted(
-                fn () => $this->validateCacheStore($cache, $config),
+                fn () => $this->validateCacheConfiguration($cache, $config),
             );
         } else {
             // Worker configuration is reloaded during BeforeWorkerStart.
             $events = $this->app->make('events');
             $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
-                $this->validateCacheStore(
+                $this->validateCacheConfiguration(
                     $this->app->make(CacheManager::class),
                     $this->app->make(ConfigRepository::class),
                 );
@@ -114,9 +114,9 @@ class SanctumServiceProvider extends ServiceProvider
     }
 
     /**
-     * Validate the configured token cache store.
+     * Validate the configured token cache.
      */
-    private function validateCacheStore(CacheManager $cache, ConfigRepository $config): void
+    private function validateCacheConfiguration(CacheManager $cache, ConfigRepository $config): void
     {
         if (! $config->boolean('sanctum.cache.enabled')) {
             return;
@@ -126,6 +126,20 @@ class SanctumServiceProvider extends ServiceProvider
 
         if (! is_string($store) && $store !== null) {
             throw new InvalidArgumentException('Sanctum cache store must be a string or null.');
+        }
+
+        $ttl = $config->get('sanctum.cache.ttl');
+
+        if (! is_int($ttl) || $ttl <= 0) {
+            throw new InvalidArgumentException('Sanctum cache TTL must be a positive integer.');
+        }
+
+        $interval = $config->get('sanctum.cache.last_used_at_update_interval');
+
+        if (! is_int($interval) || $interval < 0) {
+            throw new InvalidArgumentException(
+                'Sanctum cache last_used_at_update_interval must be a non-negative integer.'
+            );
         }
 
         $this->app->make(ModelCacheStoreValidator::class)->validate(

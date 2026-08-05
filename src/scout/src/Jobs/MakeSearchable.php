@@ -22,7 +22,7 @@ class MakeSearchable implements ShouldQueue
     /**
      * Create a new job instance.
      *
-     * @param Collection<int, Model&SearchableInterface> $models
+     * @param Collection<int, Model> $models
      */
     public function __construct(
         public Collection $models

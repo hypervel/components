@@ -9,10 +9,11 @@ use Hypervel\Mail\Mailable;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\TestCase;
+use League\Flysystem\Local\FallbackMimeTypeDetector;
 
 class AttachingFromStorageTest extends TestCase
 {
-    public function testItCanAttachFromStorage()
+    public function testItCanAttachFromStorage(): void
     {
         Storage::disk('local')->put('/dir/foo.png', 'expected body contents');
         $mail = new MailMessage;
@@ -33,7 +34,7 @@ class AttachingFromStorageTest extends TestCase
         Storage::disk('local')->delete('/dir/foo.png');
     }
 
-    public function testItCanAttachFromStorageAndFallbackToStorageNameAndMime()
+    public function testItCanAttachFromStorageAndFallbackToStorageNameAndMime(): void
     {
         Storage::disk()->put('/dir/foo.png', 'expected body contents');
         $mail = new MailMessage;
@@ -48,7 +49,7 @@ class AttachingFromStorageTest extends TestCase
                 // when using "prefer-lowest" the local filesystem driver will
                 // not detect the mime type based on the extension and will
                 // instead fallback to "text/plain".
-                'mime' => class_exists(\League\Flysystem\Local\FallbackMimeTypeDetector::class)
+                'mime' => class_exists(FallbackMimeTypeDetector::class)
                     ? 'image/png'
                     : 'text/plain',
             ],
@@ -57,7 +58,7 @@ class AttachingFromStorageTest extends TestCase
         Storage::disk('local')->delete('/dir/foo.png');
     }
 
-    public function testItCanChainAttachWithMailMessage()
+    public function testItCanChainAttachWithMailMessage(): void
     {
         Storage::disk('local')->put('/dir/foo.png', 'expected body contents');
         $message = new MailMessage;
@@ -72,7 +73,7 @@ class AttachingFromStorageTest extends TestCase
     // REMOVED: testItCanAttachFromCloudStorage - Hypervel omits Laravel's legacy
     // default-cloud filesystem shortcut. Use Attachment::fromStorageDisk() with a named disk.
 
-    public function testItCanCheckForStorageBasedAttachments()
+    public function testItCanCheckForStorageBasedAttachments(): void
     {
         Storage::disk()->put('/dir/foo.png', 'expected body contents');
         $mailable = new Mailable;

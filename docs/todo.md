@@ -15,10 +15,6 @@
 
 - Implement Hypervel Boost's installation flow and revisit the Boost section of `installation.md` once the implementation is complete. The current docs describe the intended `composer require hypervel/boost --dev` and `php artisan boost:install` workflow, but `src/boost` currently contains the documentation package only. Correct fix: add the interactive installer command and supporting tools, then update the installation docs for any differences from Laravel Boost.
 
-## Broadcasting
-
-- Review whether Pusher and Ably broadcaster pooling manages state that cannot safely be shared like the unpooled Reverb broadcaster. Their current pooling behavior remains unchanged; see `docs/plans/2026-07-10-1040-object-pool-lifecycle-and-client-pooled-filesystems.md` for the state-ownership evidence and Reverb decision.
-
 ## Framework-wide
 
 - Convert the remaining tests that extend `PHPUnit\Framework\TestCase` to `Hypervel\Tests\TestCase` as required by `AGENTS.md`, verifying each file individually under coroutine execution and opting out only when the test explicitly exercises coroutine transitions.
@@ -30,6 +26,7 @@
 
 ## Testing
 
+- Port current Laravel's complete `tests/Support/SupportTestingEventFakeTest.php`, preserving Hypervel-specific EventFake coverage and coroutine-safe test behavior.
 - Complete Testing assertion coverage: port the remaining current Laravel `TestResponseTest` cases through the incremental upstream-update workflow, and add focused coverage for `TestView`'s public assertion and string surface where Laravel has no equivalent suite.
 - Add the repository-required `: void` return type to the remaining untyped HTTP test methods: 176 in `tests/Http/HttpClientTest.php`, 30 in `tests/Http/HttpRequestTrustedStateTest.php`, and 4 in `tests/Http/HttpRequestTrustedStateCoroutineTest.php`. Verify each file after the mechanical conversion.
 

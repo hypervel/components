@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Mail;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Events\LocaleUpdated;
@@ -16,7 +17,7 @@ use Hypervel\Testing\Assert;
 
 class SendingMailWithLocaleTest extends TestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('mail', [
             'default' => 'array',
@@ -28,9 +29,9 @@ class SendingMailWithLocaleTest extends TestCase
 
         $app->make('config')->set('app.locale', 'en');
 
-        $app['view']->addLocation(__DIR__ . '/Fixtures');
+        $app->make('view')->addLocation(__DIR__ . '/Fixtures');
 
-        $app['translator']->setLoaded([
+        $app->make('translator')->setLoaded([
             '*' => [
                 '*' => [
                     'en' => ['nom' => 'name'],
@@ -78,7 +79,7 @@ class SendingMailWithLocaleTest extends TestCase
     {
         CarbonImmutable::setTestNow('2018-04-01');
 
-        Event::listen(LocaleUpdated::class, function ($event) {
+        Event::listen(LocaleUpdated::class, function (LocaleUpdated $event): void {
             CarbonImmutable::setLocale($event->locale);
         });
 

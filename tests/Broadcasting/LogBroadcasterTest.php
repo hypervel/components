@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Broadcasting;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 
@@ -35,6 +36,20 @@ class LogBroadcasterTest extends TestCase
             ['orders', 'users'],
             'OrderCreated',
             ['id' => 1],
+        );
+    }
+
+    public function testBroadcastThrowsWhenPayloadCannotBeEncoded(): void
+    {
+        $this->expectException(JsonException::class);
+
+        $logger = m::mock(LoggerInterface::class);
+        $logger->shouldNotReceive('info');
+
+        (new LogBroadcaster($logger))->broadcast(
+            ['orders'],
+            'OrderCreated',
+            ['invalid' => NAN],
         );
     }
 }

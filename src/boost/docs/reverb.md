@@ -231,7 +231,7 @@ If you would like to scale Reverb independently from the rest of your applicatio
 
 Swoole counts incoming WebSocket messages toward the same `SERVER_MAX_REQUESTS` limit as HTTP requests. When a worker reaches this limit, its connected WebSocket clients are disconnected while the worker restarts. Swoole adds a random grace of up to half the configured limit so workers do not all restart together.
 
-For a dedicated Reverb deployment, you should set `SERVER_MAX_REQUESTS=0` to keep long-lived connections open. A mixed HTTP and Reverb deployment may retain a nonzero limit when periodic recycling is intentional, but its shutdown timeout should allow enough time to drain its configured Redis, connection-limit, and webhook workload.
+For a dedicated Reverb deployment, you should set `SERVER_MAX_REQUESTS=0` to keep long-lived connections open. A mixed HTTP and Reverb deployment may retain a nonzero limit when periodic recycling is intentional, but its [`SERVER_MAX_WAIT_TIME` setting](/docs/{{version}}/deployment#graceful-shutdown) should allow enough time to drain its configured Redis, connection-limit, and webhook workload.
 
 <a name="logging"></a>
 ### Logging

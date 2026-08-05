@@ -469,15 +469,26 @@ class Mailable implements MailableContract, Renderable
     protected function buildDiskAttachments(Message $message): void
     {
         foreach ($this->diskAttachments as $attachment) {
-            /** @var \Hypervel\Filesystem\FilesystemAdapter $storage */
             $storage = Container::getInstance()->make(
                 FilesystemFactory::class
             )->disk($attachment['disk']);
 
+            $options = $attachment['options'];
+
+            if (! isset($options['mime'])) {
+                // The contract omits adapter metadata methods, which every shipped disk provides.
+                // @phpstan-ignore method.notFound
+                $mime = $storage->mimeType($attachment['path']);
+
+                if ($mime !== false) {
+                    $options['mime'] = $mime;
+                }
+            }
+
             $message->attachData(
                 $storage->get($attachment['path']),
                 $attachment['name'] ?? basename($attachment['path']),
-                array_merge(['mime' => $storage->mimeType($attachment['path'])], $attachment['options'])
+                $options
             );
         }
     }
@@ -1272,6 +1283,31 @@ class Mailable implements MailableContract, Renderable
         [$html, $text] = $this->renderForAssertions();
 
         PHPUnit::assertThat($strings, new SeeInOrder($text));
+
+        return $this;
+    }
+
+    /**
+     * Assert the mailable has no attachments.
+     */
+    public function assertHasNoAttachments(): static
+    {
+        $this->renderForAssertions();
+
+        PHPUnit::assertEmpty(
+            $this->attachments,
+            'Expected no attachments, but found [' . count($this->attachments) . '] file attachment(s).'
+        );
+
+        PHPUnit::assertEmpty(
+            $this->rawAttachments,
+            'Expected no attachments, but found [' . count($this->rawAttachments) . '] raw data attachment(s).'
+        );
+
+        PHPUnit::assertEmpty(
+            $this->diskAttachments,
+            'Expected no attachments, but found [' . count($this->diskAttachments) . '] storage attachment(s).'
+        );
 
         return $this;
     }

@@ -1,4 +1,4 @@
-<!-- Keep entries in alphabetical order. -->
+<!-- Include documentation.md and every page it links to, in LC_ALL=C sort order. -->
 aop.md
 artisan.md
 authentication.md
@@ -45,6 +45,7 @@ http-client.md
 http-tests.md
 installation.md
 introduction.md
+jwt.md
 lifecycle.md
 localization.md
 logging.md
@@ -54,11 +55,11 @@ migrations.md
 mocking.md
 nested-set.md
 notifications.md
-object-pools.md
 packages.md
 pagination.md
 passwords.md
 permission.md
+pools.md
 porting-from-laravel.md
 precognition.md
 processes.md
@@ -68,9 +69,9 @@ queries.md
 queues.md
 rate-limiting.md
 redis.md
+releases.md
 requests.md
 responses.md
-releases.md
 reverb.md
 routing.md
 sanctum.md
@@ -78,17 +79,21 @@ scheduling.md
 scout.md
 search.md
 seeding.md
+server-processes.md
 session.md
+signals.md
 socialite.md
-strings.md
 starter-kits.md
+strings.md
 structure.md
-testing.md
 telescope.md
 testbench.md
+testing.md
 upgrade.md
 urls.md
 validation.md
 verification.md
 views.md
 vite.md
+watcher.md
+websockets.md

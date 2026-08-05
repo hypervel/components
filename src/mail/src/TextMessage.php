@@ -32,6 +32,8 @@ class TextMessage
 
     /**
      * Embed in-memory data in the message and get the CID.
+     *
+     * @param resource|string $data
      */
     public function embedData(mixed $data, string $name, ?string $contentType = null): string
     {

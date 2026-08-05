@@ -12,6 +12,7 @@ use Hypervel\Watcher\Driver\ScanFileDriver;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
+use InvalidArgumentException;
 
 class OptionTest extends TestCase
 {
@@ -197,6 +198,22 @@ class OptionTest extends TestCase
         $option = Option::fromConfig(['scan_interval' => 1500], $this->tempDir);
 
         $this->assertSame(1500, $option->getScanInterval());
+    }
+
+    public function testConstructorRejectsNonPositiveScanInterval(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The watcher scan interval must be greater than 0.');
+
+        new Option(scanInterval: 0);
+    }
+
+    public function testFromConfigRejectsNonPositiveScanInterval(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The watcher scan interval must be greater than 0.');
+
+        Option::fromConfig(['scan_interval' => -1], $this->tempDir);
     }
 
     public function testScanIntervalSecondsConversion(): void

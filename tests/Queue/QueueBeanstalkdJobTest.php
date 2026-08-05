@@ -28,6 +28,16 @@ use stdClass;
 
 class QueueBeanstalkdJobTest extends TestCase
 {
+    /** @var list<SimpleObjectPool> */
+    private array $pools = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->pools as $pool) {
+            $pool->close();
+        }
+    }
+
     public function testFireProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
@@ -204,6 +214,7 @@ class QueueBeanstalkdJobTest extends TestCase
             PoolOptions::fromArray([]),
             $destroyCallback,
         );
+        $this->pools[] = $pool;
 
         return [$pool, new Lease($pool, $pool->get())];
     }

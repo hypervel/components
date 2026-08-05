@@ -97,7 +97,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 1. Read the related Hypervel APIs and tests. Check Laravel or the package upstream for an established public API and behavior.
 2. Decide which state is local, coroutine-scoped, or worker-scoped before writing code — see Coroutine and Worker-Lifetime State.
-3. Preserve Laravel API parity unless it conflicts with a concrete Hypervel architectural constraint, preserves a verified defect, or forces a workaround for an approved enhancement. Any difference requires user approval before planning or editing.
+3. Preserve Laravel API parity by default. If parity conflicts with Hypervel's architecture, preserves a verified defect or deprecated upstream API, or would require worse code or a workaround, STOP, recommend the cleanest design, and obtain user approval before planning or editing. Never make Hypervel code worse merely to preserve parity.
 4. Test the public behavior, failure paths, coroutine isolation, and cleanup the feature needs.
 5. Complete the verification order below.
 
@@ -122,9 +122,29 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
 - **Grep broadly — never assume a subdir** — when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
-- **Match existing documentation style** — User-facing documentation must match the style and language of nearby Hypervel docs. Use simple, human-friendly prose in Laravel's documentation style, and avoid internal jargon, stiff wording, needless verbosity, and details that do not help readers use the feature correctly.
+- **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
 - **Use `composer require` for root dependencies** — the root `composer.json` has a lockfile, so dependency entries go through Composer, never hand-edits. Direct edits are fine for metadata sections no command can write (`autoload`, `replace`, `extra`, `scripts`) and for the sub-package `src/{package}/composer.json` files, which have no lockfile.
+
+### Documentation
+
+- **Use one source of truth** — Put all user documentation in `src/boost/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
+- **Match Hypervel's documentation style** — Use simple, human-friendly prose in Laravel's documentation style. Avoid internal jargon, stiff wording, needless detail, and anything that does not help readers understand or use the feature.
+
+#### Package READMEs
+
+Use this order, omitting items that do not apply:
+
+1. Package header
+2. Documentation link, when the package has a meaningful user-facing documentation page (`Documentation: https://hypervel.org/docs/{documentation-slug}`)
+3. Approved `Differences From Laravel`, when needed
+4. Upstream link, when the package is a port or deliberately tracks an upstream package (`Ported from: https://github.com/{vendor}/{package}`)
+
+Do not add a documentation link merely for completeness. Omit it when there is no meaningful user-facing documentation page for the package.
+
+Do not add upstream links for inspiration or historical lineage. Omit them when the Hypervel package is maintained independently and is not expected to track upstream changes.
+
+`Differences From Laravel` should contain only public API or functionality differences that developers or agents must account for when using the package. Internal implementation details and fixes do not belong there.
 
 ### Avoid overengineering
 
@@ -459,7 +479,7 @@ When writing or porting source classes that use static properties for caching (e
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
 2. Check whether the subscriber (`src/testing/src/PHPUnit/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
-Framework-owned classes go in `AfterEachTestSubscriber`. First-party optional framework packages may stay in grouped optional methods at the bottom of that subscriber. Third-party packages, private packages, and applications should register their cleanup through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber.
+Framework-owned classes go in `AfterEachTestSubscriber`. First-party optional framework packages must stay in grouped optional methods at the bottom of that subscriber and must be invoked through `callIfExists()`. Third-party packages, private packages, and applications should register cleanup for process-local state that survives application teardown through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber. These callbacks run after the test application is destroyed, so they must not resolve container services; external resources remain owned by their test traits.
 
 Do not add `Hypervel\Testing\PHPUnit\AfterEachTestCleanup` itself to `AfterEachTestSubscriber`. Its callbacks are suite-level registrations that must persist for the PHPUnit worker lifetime.
 
@@ -697,10 +717,10 @@ When porting Laravel packages, whether first-party or third-party, keep them as 
 - For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
 - Not porting upstream mechanisms that do not make sense in Hypervel's stateful Swoole architecture (for example Laravel's deferred service provider machinery, where the upstream optimization only matters in a per-request bootstrap model)
-- Not porting deprecated upstream code or backwards-compatibility shims for versions/features Hypervel does not support — Hypervel is a new framework with no backwards-compatibility burden, so deprecated APIs and compatibility code that exist only to support older versions should be omitted rather than ported. Here, "upstream" means the framework or package being ported, not one of its dependencies — a Symfony deprecation does not make a Laravel API deprecated while Laravel still retains it. If a deprecated upstream surface still contains behavior that Hypervel actively needs, keep the behavior but move it onto the correct non-deprecated Hypervel-owned surface instead of porting the deprecated alias/wrapper as-is
+- Not porting deprecated upstream code or backwards-compatibility shims for versions/features Hypervel does not support — Hypervel is a new framework without Laravel's backwards-compatibility burden, so deprecated APIs and compatibility code that exist only to support older versions should be omitted rather than ported. However, before changing or removing a deprecated public Laravel API, STOP, explain the proposed difference, and obtain user approval. Here, "upstream" means the framework or package being ported, not one of its dependencies — a Symfony deprecation does not make a Laravel API deprecated while Laravel still retains it. If a deprecated upstream surface still contains behavior that Hypervel actively needs, keep the behavior but move it onto the correct non-deprecated Hypervel-owned surface instead of porting the deprecated alias/wrapper as-is.
 - General performance improvements — but STOP and explain the opportunity to the user first for approval
 
-Hypervel has no obligation to preserve Hypervel-specific behavior from earlier versions, but supported Laravel APIs—including named arguments and protected extension points—must remain compatible unless the user approves a difference under the API-parity rule above. If a Laravel API appears unsuitable for Hypervel, STOP, explain why, and obtain approval before planning or editing. Hypervel's lack of backwards compatibility constraints is not a reason to rename, remove, or change Laravel APIs.
+Hypervel has no obligation to preserve Hypervel-specific behavior from earlier versions, but supported Laravel APIs—including named arguments and protected extension points—must remain compatible unless the user approves a difference. If a Laravel API is unsuitable for Hypervel or preserving it would make the code worse, STOP, explain why, recommend the cleanest design, and obtain user approval before changing it.
 
 Approved adaptations take precedence over upstream fidelity. Preserve Laravel upstream naming, structure, and style everywhere else.
 
@@ -719,11 +739,7 @@ If the Hypervel version of the package doesn't exist yet, create the skeleton us
 - **Porting a Hyperf package:** Use the `pool` package as reference
 - **Porting a Laravel-ecosystem third-party package:** Use the `permission` package as a reference
 
-Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, `replace`, and Hypervel provider / alias discovery metadata as needed, and add root dependencies with `composer require` — see Providers and Listeners for where providers should be registered. Add a clear upstream reference to the new package's README:
-
-```md
-Ported from: https://github.com/vendor/package
-```
+Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, `replace`, and Hypervel provider / alias discovery metadata as needed, and add root dependencies with `composer require` — see Providers and Listeners for where providers should be registered. Create the README using the Package READMEs format under Development Conventions.
 
 #### 2. Port the files one at a time, alphabetically
 
@@ -763,7 +779,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
   Keep everything else: behavioral descriptions, `@see` links, `@throws` annotations, warnings, contract explanations, usage notes.
   Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it.
   Translate non-English comments to English and fix grammar errors.
-- **Record intentional Laravel differences where future ports will look** — When a Laravel feature is intentionally not ported because it does not fit Hypervel's Swoole/coroutine architecture, or because Hypervel has a better native equivalent, record it in three places so a future port cannot miss it: (1) the package README under `Differences From Laravel` only for differences humans or LLMs using the package need to know or act on, with the reason and what to use instead — internal differences and fixes do not belong there; (2) a concise source comment at the natural insertion point where the skipped method/class would otherwise sit; (3) a concise `REMOVED:` comment at the matching upstream test location when tests are skipped. This is a narrow exception to the "don't annotate divergences" rule: it applies only to intentionally omitted methods or features, never to ordinary ported-and-adapted code. Closed decisions only — real gaps still worth doing go in `docs/todo.md`.
+- **Record intentional Laravel differences where future ports will look** — When a Laravel feature is intentionally not ported because it does not fit Hypervel's Swoole/coroutine architecture, or because Hypervel has a better native equivalent, record it in three places so a future port cannot miss it: (1) the package README under `Differences From Laravel`, following the Package READMEs rules above and explaining what to use instead; (2) a concise source comment at the natural insertion point where the skipped method/class would otherwise sit; (3) a concise `REMOVED:` comment at the matching upstream test location when tests are skipped. This is a narrow exception to the "don't annotate divergences" rule: it applies only to intentionally omitted methods or features, never to ordinary ported-and-adapted code. Closed decisions only — real gaps still worth doing go in `docs/todo.md`.
 - **Replace framework names in code** — any occurrence of the word `laravel` or `hyperf` in ported code (string literals, comments, prefixes, identifiers, etc.) must be replaced with `hypervel`, preserving the original casing. For example: `laravel_reserved_` → `hypervel_reserved_`, `LaravelExcelExporter` → `HypervelExcelExporter`, `HYPERF_VERSION` → `HYPERVEL_VERSION`. This does not apply to namespaces (which have their own conversion rules) or to references that describe the upstream source (e.g., docblock `@see` links to Laravel/Hyperf source).
 - **Don't copy Laravel/Hyperf-specific framework details just to stay 1:1** — keep the behavior the same, but if something only exists because of the upstream framework's own packages, providers, bootstrap system, or architecture, translate it to the Hypervel equivalent or STOP and ask if there isn't one.
 

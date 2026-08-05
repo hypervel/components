@@ -18,6 +18,16 @@ use stdClass;
 
 class LeaseTest extends TestCase
 {
+    /** @var list<SimpleObjectPool> */
+    private array $pools = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->pools as $pool) {
+            $pool->close();
+        }
+    }
+
     public function testGetAndReleaseFinalizeExactlyOnce(): void
     {
         $pool = $this->pool();
@@ -150,7 +160,9 @@ class LeaseTest extends TestCase
 
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
         $this->assertSame(1, $pool->getObjectNumberInPool());
-        $this->assertSame($object, $pool->get());
+        $borrowed = $pool->get();
+        $this->assertSame($object, $borrowed);
+        $pool->release($borrowed);
     }
 
     public function testDestructorReportsAndSwallowsFinalizationFailures(): void
@@ -161,10 +173,7 @@ class LeaseTest extends TestCase
         $handler->shouldReceive('report')->once()->with($expected);
         $container->instance(ExceptionHandler::class, $handler);
 
-        $pool = new SimpleObjectPool(
-            static fn (): object => new stdClass,
-            PoolOptions::fromArray([]),
-        );
+        $pool = $this->pool();
         $lease = new Lease($pool, $pool->get(), function () use ($expected): never {
             throw $expected;
         });
@@ -188,13 +197,20 @@ class LeaseTest extends TestCase
         $this->assertSame([$discarded], $pool->discarded);
     }
 
+    /**
+     * Create a tracked object pool.
+     */
     private function pool(?Closure $destroyCallback = null): SimpleObjectPool
     {
-        return new SimpleObjectPool(
+        $pool = new SimpleObjectPool(
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
             $destroyCallback,
         );
+
+        $this->pools[] = $pool;
+
+        return $pool;
     }
 
     private function container(): Container

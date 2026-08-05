@@ -218,8 +218,7 @@ class PartitionRegistrationTest extends TestCase
         PermissionRegistrar::resolvePartitionUsing('workspace_id', fn (): string => 'workspace-a');
 
         $this->expectException(PermissionPartitionModelNotSupported::class);
-        $this->expectExceptionMessage($model);
-        $this->expectExceptionMessage($requiredBase);
+        $this->expectExceptionMessage("Partitioned permission model `{$model}` must extend `{$requiredBase}`.");
 
         $this->app->make(PermissionRegistrar::class);
     }

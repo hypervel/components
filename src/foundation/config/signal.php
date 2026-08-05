@@ -8,20 +8,20 @@ return [
     | Signal Handlers
     |--------------------------------------------------------------------------
     |
-    | Register signal handler classes that will be resolved when the server
-    | starts. Each handler implements SignalHandlerInterface and defines
-    | which signals it listens for and how to handle them.
+    | Register signal handler classes that are resolved when a worker or
+    | server process starts. Each handler implements SignalHandler and
+    | declares the signals it handles in workers, in server processes, or
+    | in both.
     |
-    | Handlers can be registered with a priority (numeric value). Higher
-    | priority handlers are initialized first. Use class name as the key
-    | and priority as the value, or just list the class name for default
-    | priority (0).
+    | You may register handlers with a numeric priority. Higher-priority
+    | handlers run first for the same signal. Use the class name as the key
+    | and the priority as the value, or list the class name to use the
+    | default priority of zero.
     |
-    | By default, no worker signal handlers are registered. Swoole's native
-    | shutdown path handles worker exit via the onWorkerExit callback, which
-    | resumes the WORKER_EXIT coordinator to unwind long-running coroutines.
-    | Custom handlers should only be added when application-specific shutdown
-    | logic is needed beyond the framework's built-in lifecycle.
+    | No handlers are registered by default. Swoole manages normal worker
+    | shutdown automatically, so add worker handlers only when your
+    | application needs custom signal behavior. Graceful server-process
+    | shutdown must be configured explicitly.
     |
     */
 

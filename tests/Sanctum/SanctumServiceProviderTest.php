@@ -23,6 +23,7 @@ use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Server as SwooleServer;
 
 class SanctumServiceProviderTest extends TestCase
@@ -86,6 +87,8 @@ class SanctumServiceProviderTest extends TestCase
                 'cache' => [
                     'enabled' => true,
                     'store' => '',
+                    'ttl' => 300,
+                    'last_used_at_update_interval' => 0,
                 ],
             ],
             'auth' => [
@@ -175,6 +178,8 @@ class SanctumServiceProviderTest extends TestCase
                 'cache' => [
                     'enabled' => true,
                     'store' => 'worker',
+                    'ttl' => 300,
+                    'last_used_at_update_interval' => 300,
                 ],
             ],
             'auth' => [
@@ -298,6 +303,78 @@ class SanctumServiceProviderTest extends TestCase
         $bootedCallback();
     }
 
+    #[DataProvider('invalidCacheTtlProvider')]
+    public function testCachingRequiresPositiveIntegerTtl(array $cache): void
+    {
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'cache' => [
+                    'enabled' => true,
+                    ...$cache,
+                ],
+            ],
+            'auth' => [
+                'guards' => [],
+            ],
+        ]);
+        $manager = m::mock(CacheManager::class);
+        $manager->shouldNotReceive('store');
+        $startup = $this->bootAndCaptureStartupValidation($manager, $config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Sanctum cache TTL must be a positive integer.');
+
+        $startup();
+    }
+
+    public static function invalidCacheTtlProvider(): iterable
+    {
+        yield 'missing' => [[]];
+        yield 'null' => [['ttl' => null]];
+        yield 'zero' => [['ttl' => 0]];
+        yield 'negative' => [['ttl' => -1]];
+        yield 'numeric string' => [['ttl' => '300']];
+        yield 'float' => [['ttl' => 1.5]];
+        yield 'boolean' => [['ttl' => true]];
+    }
+
+    #[DataProvider('invalidLastUsedUpdateIntervalProvider')]
+    public function testCachingRequiresNonNegativeIntegerLastUsedUpdateInterval(array $cache): void
+    {
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'cache' => [
+                    'enabled' => true,
+                    'ttl' => 300,
+                    ...$cache,
+                ],
+            ],
+            'auth' => [
+                'guards' => [],
+            ],
+        ]);
+        $manager = m::mock(CacheManager::class);
+        $manager->shouldNotReceive('store');
+        $startup = $this->bootAndCaptureStartupValidation($manager, $config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Sanctum cache last_used_at_update_interval must be a non-negative integer.'
+        );
+
+        $startup();
+    }
+
+    public static function invalidLastUsedUpdateIntervalProvider(): iterable
+    {
+        yield 'missing' => [[]];
+        yield 'null' => [['last_used_at_update_interval' => null]];
+        yield 'negative' => [['last_used_at_update_interval' => -1]];
+        yield 'numeric string' => [['last_used_at_update_interval' => '300']];
+        yield 'float' => [['last_used_at_update_interval' => 1.5]];
+        yield 'boolean' => [['last_used_at_update_interval' => true]];
+    }
+
     /**
      * Create a console application double for provider boot.
      */
@@ -317,6 +394,33 @@ class SanctumServiceProviderTest extends TestCase
         $application->shouldReceive('runningInConsole')->twice()->andReturnTrue();
 
         return $application;
+    }
+
+    /**
+     * Boot the provider and capture its console startup validation callback.
+     */
+    private function bootAndCaptureStartupValidation(
+        CacheManager|m\MockInterface $manager,
+        ConfigRepositoryContract $config,
+    ): Closure {
+        $manager->shouldReceive('allowSerializableClassesUsing')
+            ->once()
+            ->andReturnSelf();
+        $startup = null;
+        $application = $this->consoleApplication($manager, $config);
+        $application->shouldReceive('booted')
+            ->once()
+            ->with(m::on(function (mixed $callback) use (&$startup): bool {
+                $startup = $callback;
+
+                return $callback instanceof Closure;
+            }));
+
+        (new SanctumServiceProviderFixture($application))->boot();
+
+        $this->assertInstanceOf(Closure::class, $startup);
+
+        return $startup;
     }
 
     /**

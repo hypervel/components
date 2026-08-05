@@ -391,16 +391,25 @@ abstract class Call
             $this->writesDone = true;
 
             try {
-                $this->throwCompletedWrite();
+                if ($this->throwFailedCompletion()) {
+                    return;
+                }
+
                 ($this->writeConnection ?? throw new LogicException(
                     'The gRPC request connection is unavailable.',
                 ))->write($this->state, '', true, $this->deadline);
             } catch (RpcException) {
-                $this->throwCompletedWrite();
-            } catch (Throwable $throwable) {
-                if (! $throwable instanceof LogicException) {
-                    $this->storeFailure($throwable);
+                $this->throwFailedCompletion();
+            } catch (LogicException $exception) {
+                // The receiver can complete and release this stream while the
+                // half-close waits for the connection send boundary.
+                if ($this->throwFailedCompletion()) {
+                    return;
                 }
+
+                throw $exception;
+            } catch (Throwable $throwable) {
+                $this->storeFailure($throwable);
 
                 throw $throwable;
             } finally {
@@ -594,10 +603,20 @@ abstract class Call
      */
     private function throwCompletedWrite(): void
     {
+        if ($this->throwFailedCompletion()) {
+            throw new LogicException('The gRPC call has already completed.');
+        }
+    }
+
+    /**
+     * Throw any terminal failure and return whether the call completed successfully.
+     */
+    private function throwFailedCompletion(): bool
+    {
         $this->throwStoredFailure();
 
         if (! $this->state->isComplete()) {
-            return;
+            return false;
         }
 
         try {
@@ -614,7 +633,7 @@ abstract class Call
             throw $this->rpcException($this->state, $status);
         }
 
-        throw new LogicException('The gRPC call has already completed.');
+        return true;
     }
 
     /**

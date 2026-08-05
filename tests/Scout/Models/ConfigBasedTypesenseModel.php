@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
@@ -14,7 +13,7 @@ use Hypervel\Scout\Searchable;
  * This model does NOT define typesenseCollectionSchema() or typesenseSearchParameters(),
  * so the engine must read settings from config.
  */
-class ConfigBasedTypesenseModel extends Model implements SearchableInterface
+class ConfigBasedTypesenseModel extends Model
 {
     use Searchable;
 

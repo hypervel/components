@@ -18,6 +18,29 @@ class PoolManager implements FactoryContract
     protected array $definitions = [];
 
     /**
+     * Get or create a named pool.
+     *
+     * The name declares construction equivalence: every callback used with it
+     * must construct an equivalent object. Resolve the pool each time you
+     * borrow, because idle managed pools may be removed and closed.
+     */
+    public function pool(
+        string $name,
+        callable $callback,
+        array $options = [],
+    ): ObjectPool {
+        return $this->getOrCreate(
+            new PoolDefinition(
+                identity: $name,
+                resourceType: $name,
+                fingerprint: PoolFingerprint::fromExplicit($name),
+                options: PoolOptions::fromArray($options),
+            ),
+            $callback,
+        );
+    }
+
+    /**
      * Get or create the pool registered for an immutable definition.
      */
     public function getOrCreate(
@@ -67,7 +90,7 @@ class PoolManager implements FactoryContract
     }
 
     /**
-     * Get a managed pool by identity.
+     * Get a currently registered managed pool by identity.
      */
     public function get(string $identity): ObjectPool
     {
@@ -79,7 +102,7 @@ class PoolManager implements FactoryContract
     }
 
     /**
-     * Determine if a pool exists for an identity.
+     * Determine if a pool is currently registered for an identity.
      */
     public function has(string $identity): bool
     {
@@ -97,7 +120,7 @@ class PoolManager implements FactoryContract
     }
 
     /**
-     * Get the definition registered for an identity.
+     * Get the definition currently registered for an identity.
      */
     public function definition(string $identity): ?PoolDefinition
     {

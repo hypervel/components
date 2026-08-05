@@ -34,7 +34,7 @@ class BroadcasterTest extends TestCase
         $this->broadcaster = new FakeBroadcaster($this->container);
     }
 
-    public function testExtractingParametersWhileCheckingForUserAccess()
+    public function testExtractingParametersWhileCheckingForUserAccess(): void
     {
         $callback = function ($user, BroadcasterTestEloquentModelStub $model, $nonModel) {
         };
@@ -77,7 +77,7 @@ class BroadcasterTest extends TestCase
         $this->assertEquals(['bound'], $parameters);
     }
 
-    public function testCanUseChannelClasses()
+    public function testCanUseChannelClasses(): void
     {
         $parameters = $this->broadcaster->extractAuthParameters('asd.{model}.{nonModel}', 'asd.1.something', DummyBroadcastingChannel::class);
         $this->assertCount(2, $parameters);
@@ -86,7 +86,7 @@ class BroadcasterTest extends TestCase
         $this->assertSame('something', $parameters[1]);
     }
 
-    public function testModelRouteBinding()
+    public function testModelRouteBinding(): void
     {
         $binder = m::mock(BindingRegistrar::class);
         $routeModelCallback = RouteBinding::forModel($this->container, BroadcasterTestEloquentModelStub::class);
@@ -103,14 +103,14 @@ class BroadcasterTest extends TestCase
         $this->assertSame('1', $parameters[0]->boundValue);
     }
 
-    public function testUnknownChannelAuthHandlerTypeThrowsException()
+    public function testUnknownChannelAuthHandlerTypeThrowsException(): void
     {
         $this->expectException(Exception::class);
 
         $this->broadcaster->extractAuthParameters('asd.{model}.{nonModel}', 'asd.1.something', 'notClassString');
     }
 
-    public function testCanRegisterChannelsAsClasses()
+    public function testCanRegisterChannelsAsClasses(): void
     {
         $this->broadcaster->channel('something', function () {
         });
@@ -118,7 +118,7 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->channel('somethingelse', DummyBroadcastingChannel::class);
     }
 
-    public function testNotFoundThrowsHttpException()
+    public function testNotFoundThrowsHttpException(): void
     {
         $this->expectException(HttpException::class);
 
@@ -127,20 +127,20 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->extractAuthParameters('asd.{model}', 'asd.1', $callback);
     }
 
-    public function testCanRegisterChannelsWithoutOptions()
+    public function testCanRegisterChannelsWithoutOptions(): void
     {
         $this->broadcaster->channel('somechannel', function () {
         });
     }
 
-    public function testCanRegisterChannelsWithOptions()
+    public function testCanRegisterChannelsWithOptions(): void
     {
         $options = ['a' => ['b', 'c']];
         $this->broadcaster->channel('somechannel', function () {
         }, $options);
     }
 
-    public function testCanRetrieveChannelsOptions()
+    public function testCanRetrieveChannelsOptions(): void
     {
         $options = ['a' => ['b', 'c']];
         $this->broadcaster->channel('somechannel', function () {
@@ -152,7 +152,7 @@ class BroadcasterTest extends TestCase
         );
     }
 
-    public function testCanRetrieveChannelsOptionsUsingAChannelNameContainingArgs()
+    public function testCanRetrieveChannelsOptionsUsingAChannelNameContainingArgs(): void
     {
         $options = ['a' => ['b', 'c']];
         $this->broadcaster->channel('somechannel.{id}.test.{text}', function () {
@@ -164,7 +164,7 @@ class BroadcasterTest extends TestCase
         );
     }
 
-    public function testCanRetrieveChannelsOptionsWhenMultipleChannelsAreRegistered()
+    public function testCanRetrieveChannelsOptionsWhenMultipleChannelsAreRegistered(): void
     {
         $options = ['a' => ['b', 'c']];
         $this->broadcaster->channel('somechannel', function () {
@@ -178,7 +178,7 @@ class BroadcasterTest extends TestCase
         );
     }
 
-    public function testDontRetrieveChannelsOptionsWhenChannelDoesntExists()
+    public function testDontRetrieveChannelsOptionsWhenChannelDoesntExists(): void
     {
         $options = ['a' => ['b', 'c']];
         $this->broadcaster->channel('somechannel', function () {
@@ -190,7 +190,7 @@ class BroadcasterTest extends TestCase
         );
     }
 
-    public function testRetrieveUserWithoutGuard()
+    public function testRetrieveUserWithoutGuard(): void
     {
         $this->broadcaster->channel('somechannel', function () {
         });
@@ -207,7 +207,7 @@ class BroadcasterTest extends TestCase
         );
     }
 
-    public function testRetrieveUserWithOneGuardUsingAStringForSpecifyingGuard()
+    public function testRetrieveUserWithOneGuardUsingAStringForSpecifyingGuard(): void
     {
         $this->broadcaster->channel('somechannel', function () {
         }, ['guards' => 'myguard']);
@@ -224,7 +224,7 @@ class BroadcasterTest extends TestCase
         );
     }
 
-    public function testRetrieveUserWithMultipleGuardsAndRespectGuardsOrder()
+    public function testRetrieveUserWithMultipleGuardsAndRespectGuardsOrder(): void
     {
         $this->broadcaster->channel('somechannel', function () {
         }, ['guards' => ['myguard1', 'myguard2']]);
@@ -253,7 +253,7 @@ class BroadcasterTest extends TestCase
         );
     }
 
-    public function testRetrieveUserDontUseDefaultGuardWhenOneGuardSpecified()
+    public function testRetrieveUserDontUseDefaultGuardWhenOneGuardSpecified(): void
     {
         $this->broadcaster->channel('somechannel', function () {
         }, ['guards' => 'myguard']);
@@ -269,7 +269,7 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->retrieveUser($request, 'somechannel');
     }
 
-    public function testRetrieveUserDontUseDefaultGuardWhenMultipleGuardsSpecified()
+    public function testRetrieveUserDontUseDefaultGuardWhenMultipleGuardsSpecified(): void
     {
         $this->broadcaster->channel('somechannel', function () {
         }, ['guards' => ['myguard1', 'myguard2']]);
@@ -289,7 +289,7 @@ class BroadcasterTest extends TestCase
         $this->broadcaster->retrieveUser($request, 'somechannel');
     }
 
-    public function testUserAuthenticationWithValidUser()
+    public function testUserAuthenticationWithValidUser(): void
     {
         $this->broadcaster->resolveAuthenticatedUserUsing(function ($request) {
             return ['id' => '12345', 'socket' => $request->input('socket_id')];
@@ -305,7 +305,7 @@ class BroadcasterTest extends TestCase
         ], $user);
     }
 
-    public function testUserAuthenticationWithInvalidUser()
+    public function testUserAuthenticationWithInvalidUser(): void
     {
         $this->broadcaster->resolveAuthenticatedUserUsing(function ($request) {
             return null;
@@ -318,7 +318,7 @@ class BroadcasterTest extends TestCase
         $this->assertNull($user);
     }
 
-    public function testUserAuthenticationWithoutResolve()
+    public function testUserAuthenticationWithoutResolve(): void
     {
         $this->assertNull($this->broadcaster->resolveAuthenticatedUser(
             Request::create('http://exa.com/foo?socket_id=1234.1234#boom')
@@ -529,12 +529,12 @@ class BroadcasterTest extends TestCase
     }
 
     #[DataProvider('channelNameMatchPatternProvider')]
-    public function testChannelNameMatchPattern($channel, $pattern, $shouldMatch)
+    public function testChannelNameMatchPattern(string $channel, string $pattern, bool $shouldMatch): void
     {
-        $this->assertEquals($shouldMatch, $this->broadcaster->channelNameMatchesPattern($channel, $pattern));
+        $this->assertSame($shouldMatch, $this->broadcaster->channelNameMatchesPattern($channel, $pattern));
     }
 
-    public static function channelNameMatchPatternProvider()
+    public static function channelNameMatchPatternProvider(): array
     {
         return [
             ['something', 'something', true],
@@ -553,7 +553,7 @@ class BroadcasterTest extends TestCase
         ];
     }
 
-    public function testChannelsAreSharedAcrossBroadcasterInstances()
+    public function testChannelsAreSharedAcrossBroadcasterInstances(): void
     {
         // Simulate boot time: register channel on first broadcaster instance
         $broadcasterA = new FakeBroadcaster(m::mock(Container::class));

@@ -5,6 +5,7 @@
 - ## Getting Started
     - [Introduction](/docs/{{version}}/introduction)
     - [Installation](/docs/{{version}}/installation)
+    - [File Watching](/docs/{{version}}/watcher)
     - [Porting from Laravel](/docs/{{version}}/porting-from-laravel)
     - [Configuration](/docs/{{version}}/configuration)
     - [Directory Structure](/docs/{{version}}/structure)
@@ -42,6 +43,7 @@
     - [Context](/docs/{{version}}/context)
     - [Coroutine Context](/docs/{{version}}/coroutine-context)
     - [Coroutines](/docs/{{version}}/coroutines)
+    - [Pools](/docs/{{version}}/pools)
     - [Contracts](/docs/{{version}}/contracts)
     - [Events](/docs/{{version}}/events)
     - [File Storage](/docs/{{version}}/filesystem)
@@ -52,7 +54,8 @@
     - [Notifications](/docs/{{version}}/notifications)
     - [Package Development](/docs/{{version}}/packages)
     - [Processes](/docs/{{version}}/processes)
-    - [Server Processes](/docs/{{version}}/server-process)
+    - [Server Processes](/docs/{{version}}/server-processes)
+    - [Signals](/docs/{{version}}/signals)
     - [WebSockets](/docs/{{version}}/websockets)
     - [Queues](/docs/{{version}}/queues)
     - [Rate Limiting](/docs/{{version}}/rate-limiting)
@@ -91,6 +94,7 @@
     - [Mocking](/docs/{{version}}/mocking)
 - ## Packages
     - [Fortify](/docs/{{version}}/fortify)
+    - [gRPC](/docs/{{version}}/grpc)
     - [Horizon](/docs/{{version}}/horizon)
     - [Nested Set](/docs/{{version}}/nested-set)
     - [Precognition](/docs/{{version}}/precognition)

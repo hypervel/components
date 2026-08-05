@@ -9,6 +9,8 @@
     - [Registering Process Instances](#registering-process-instances)
 - [Process Lifecycle](#process-lifecycle)
     - [Lifecycle Events](#lifecycle-events)
+    - [Reloading Server Processes](#reloading-server-processes)
+    - [Process Health](#process-health)
     - [Signals](#signals)
 - [Inter-Process Communication](#inter-process-communication)
     - [Sending Messages](#sending-messages)
@@ -158,10 +160,24 @@ Hypervel dispatches a `Hypervel\ServerProcess\Events\BeforeProcessHandle` event 
 
 You may register listeners for these events in the same way as other Hypervel [event listeners](/docs/{{version}}/events#registering-events-and-listeners).
 
+<a name="reloading-server-processes"></a>
+### Reloading Server Processes
+
+The `server:reload` command reloads the server's event and task workers, but it does not reload custom server processes. Restart the server when server-process code or configuration changes.
+
+<a name="process-health"></a>
+### Process Health
+
+Server processes do not have a built-in startup timeout, readiness check, heartbeat, or health status. The application's normal `/up` route does not inspect them automatically.
+
+If your application depends on a server process, the process may publish suitable shared state for its workload. You may then check that state from a listener for the `Hypervel\Foundation\Events\DiagnosingHealth` event. For more information, see the [health route documentation](/docs/{{version}}/deployment#the-health-route).
+
 <a name="signals"></a>
 ### Signals
 
-If the Signal package is installed, server processes automatically use the process signal handlers listed in the `signal.handlers` configuration value. You do not need to register these handlers again in your process class.
+If the Signal package is installed, coroutine-enabled server processes use the server-process signal handlers listed in the `signal.handlers` configuration value. You do not need to register these handlers again in your process class.
+
+Graceful shutdown is opt-in. Your application must register the framework's stop handler and ensure the process returns from `handle` when the server is stopping. See the [Signal documentation](/docs/{{version}}/signals#server-process-signals) for the complete setup.
 
 <a name="inter-process-communication"></a>
 ## Inter-Process Communication

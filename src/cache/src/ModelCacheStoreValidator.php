@@ -31,6 +31,40 @@ class ModelCacheStoreValidator
     }
 
     /**
+     * Validate that the store supports plain-key reads with any-mode tags.
+     *
+     * Any-mode tags index plain cache keys without changing their storage
+     * keys. Model caches can therefore keep direct reads and per-key
+     * invalidation on the plain repository, including when a cache stack
+     * has a local untagged layer above a shared tagged layer.
+     *
+     * @throws UnsupportedModelCacheStoreException
+     */
+    public function validateAnyModeTags(CacheRepository $repository, string $feature): void
+    {
+        $store = $repository->getStore();
+
+        if (! $store instanceof TaggableStore || ! $store->supportsTags()) {
+            throw new UnsupportedModelCacheStoreException(sprintf(
+                '%s cannot use tags with cache store [%s] because the store does not support tags.',
+                $feature,
+                $store::class,
+            ));
+        }
+
+        $mode = $store->getTagMode();
+
+        if ($mode !== TagMode::Any) {
+            throw new UnsupportedModelCacheStoreException(sprintf(
+                '%s cannot use tags with cache store [%s] in mode [%s] because TagMode::Any is required.',
+                $feature,
+                $store::class,
+                $mode->value,
+            ));
+        }
+    }
+
+    /**
      * Validate a store and every nested stack layer.
      *
      * @param list<int> $layerPath

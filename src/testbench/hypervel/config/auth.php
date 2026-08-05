@@ -48,7 +48,7 @@ return [
             'cache' => [
                 'enabled' => env('AUTH_USERS_CACHE_ENABLED', false),
                 'store' => env('AUTH_USERS_CACHE_STORE'),
-                'ttl' => env('AUTH_USERS_CACHE_TTL', 300),
+                'ttl' => (int) env('AUTH_USERS_CACHE_TTL', 300),
                 'prefix' => env('AUTH_USERS_CACHE_PREFIX', 'auth_users'),
                 'tags' => null,
             ],

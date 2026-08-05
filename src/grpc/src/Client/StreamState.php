@@ -466,10 +466,6 @@ final class StreamState
 
         try {
             foreach ($decoder->push($body) as $message) {
-                if ($this->abandoned) {
-                    continue;
-                }
-
                 if (
                     $this->messages->count() >= $this->maxBufferedMessages
                     || strlen($message) > $this->maxBufferedBytes - $this->bufferedBytes
@@ -479,7 +475,7 @@ final class StreamState
                         'The buffered gRPC response exceeds the configured limit.',
                     ));
 
-                    continue;
+                    break;
                 }
 
                 $this->messages->enqueue($message);

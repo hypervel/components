@@ -210,7 +210,7 @@ class TestState
 }
 ```
 
-Callbacks registered by your application run after package cleanup callbacks and before Hypervel flushes framework state. This means framework services are still available while your callback runs, then Hypervel tears them down immediately after.
+Callbacks registered by your application run after package cleanup callbacks and before Hypervel flushes framework static state. The test application has already been destroyed at this point, so these callbacks must clean process-local state directly and must not resolve container services. Use the appropriate testing trait to clean up external resources.
 
 Do not call `AfterEachTestCleanup::forgetCallbacks()` from ordinary application tests. That method clears all registered callbacks for the current PHPUnit worker, including callbacks discovered from application and package metadata.
 

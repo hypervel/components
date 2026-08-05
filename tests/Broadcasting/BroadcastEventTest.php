@@ -9,6 +9,7 @@ use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -16,7 +17,7 @@ use Throwable;
 
 class BroadcastEventTest extends TestCase
 {
-    public function testBasicEventBroadcastParameterFormatting()
+    public function testBasicEventBroadcastParameterFormatting(): void
     {
         $broadcaster = m::mock(Broadcaster::class);
 
@@ -35,7 +36,7 @@ class BroadcastEventTest extends TestCase
         (new BroadcastEvent($event))->handle($manager);
     }
 
-    public function testManualParameterSpecification()
+    public function testManualParameterSpecification(): void
     {
         $broadcaster = m::mock(Broadcaster::class);
 
@@ -54,7 +55,7 @@ class BroadcastEventTest extends TestCase
         (new BroadcastEvent($event))->handle($manager);
     }
 
-    public function testSpecificBroadcasterGiven()
+    public function testSpecificBroadcasterGiven(): void
     {
         $broadcaster = m::mock(Broadcaster::class);
 
@@ -69,7 +70,7 @@ class BroadcastEventTest extends TestCase
         (new BroadcastEvent($event))->handle($manager);
     }
 
-    public function testSpecificChannelsPerConnection()
+    public function testSpecificChannelsPerConnection(): void
     {
         $broadcaster = m::mock(Broadcaster::class);
 
@@ -95,7 +96,70 @@ class BroadcastEventTest extends TestCase
         (new BroadcastEvent($event))->handle($manager);
     }
 
-    public function testMiddlewareProxiesMiddlewareFromUnderlyingEvent()
+    public function testBroadcastAsStringIsUsedAsEventName(): void
+    {
+        $this->assertEventBroadcastsAs(
+            new TestBroadcastEventWithStringName,
+            'custom-name',
+        );
+    }
+
+    public function testBroadcastAsBackedEnumResolvesToValue(): void
+    {
+        $this->assertEventBroadcastsAs(
+            new TestBroadcastEventWithEnumName,
+            'custom-enum-name',
+        );
+    }
+
+    public function testBroadcastAsIntegerBackedEnumZeroResolvesToStringValue(): void
+    {
+        $this->assertEventBroadcastsAs(
+            new TestBroadcastEventWithIntegerEnumName,
+            '0',
+        );
+    }
+
+    public function testBroadcastAsUnitEnumResolvesToName(): void
+    {
+        $this->assertEventBroadcastsAs(
+            new TestBroadcastEventWithUnitEnumName,
+            'Custom',
+        );
+    }
+
+    public function testSingleStringChannelIsBroadcast(): void
+    {
+        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster->shouldReceive('broadcast')
+            ->once()
+            ->with(['test-channel'], TestBroadcastEventWithStringChannel::class, m::type('array'));
+
+        $manager = m::mock(BroadcastingFactory::class);
+        $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
+
+        (new BroadcastEvent(new TestBroadcastEventWithStringChannel))->handle($manager);
+    }
+
+    public function testCloningPreservesEnumEventIdentity(): void
+    {
+        $job = new BroadcastEvent(TestBroadcastEventName::Custom);
+
+        $clone = clone $job;
+
+        $this->assertSame($job->event, $clone->event);
+    }
+
+    public function testCloningIsolatesOrdinaryEventObjects(): void
+    {
+        $job = new BroadcastEvent(new TestBroadcastEvent);
+
+        $clone = clone $job;
+
+        $this->assertNotSame($job->event, $clone->event);
+    }
+
+    public function testMiddlewareProxiesMiddlewareFromUnderlyingEvent(): void
     {
         $event = new class {
             public function middleware(): array
@@ -109,7 +173,7 @@ class BroadcastEventTest extends TestCase
         $this->assertSame(['foo', 'bar'], $job->middleware());
     }
 
-    public function testMiddlewareProxiesFailedHandlerFromUnderlyingEvent()
+    public function testMiddlewareProxiesFailedHandlerFromUnderlyingEvent(): void
     {
         $event = new class {
             public function failed(?Throwable $e = null): void
@@ -126,7 +190,7 @@ class BroadcastEventTest extends TestCase
         $job->failed($exception);
     }
 
-    public function testDeleteWhenMissingModelsDefaultsToTrue()
+    public function testDeleteWhenMissingModelsDefaultsToTrue(): void
     {
         $event = new TestBroadcastEvent;
 
@@ -147,6 +211,22 @@ class BroadcastEventTest extends TestCase
         $job = new BroadcastEvent(new TestBroadcastEventWithVariadicBackoff);
 
         $this->assertSame([1, 5, 10], $job->backoff);
+    }
+
+    /**
+     * Assert an event uses the expected broadcast name.
+     */
+    protected function assertEventBroadcastsAs(object $event, string $name): void
+    {
+        $broadcaster = m::mock(Broadcaster::class);
+        $broadcaster->shouldReceive('broadcast')
+            ->once()
+            ->with(['test-channel'], $name, m::type('array'));
+
+        $manager = m::mock(BroadcastingFactory::class);
+        $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
+
+        (new BroadcastEvent($event))->handle($manager);
     }
 }
 
@@ -169,6 +249,61 @@ class TestBroadcastEvent
     {
         return ['test-channel'];
     }
+}
+
+class TestBroadcastEventWithStringName extends TestBroadcastEvent
+{
+    public function broadcastAs(): string
+    {
+        return 'custom-name';
+    }
+}
+
+class TestBroadcastEventWithEnumName extends TestBroadcastEvent
+{
+    public function broadcastAs(): TestBroadcastEventName
+    {
+        return TestBroadcastEventName::Custom;
+    }
+}
+
+class TestBroadcastEventWithIntegerEnumName extends TestBroadcastEvent
+{
+    public function broadcastAs(): TestBroadcastIntegerEventName
+    {
+        return TestBroadcastIntegerEventName::Zero;
+    }
+}
+
+class TestBroadcastEventWithUnitEnumName extends TestBroadcastEvent
+{
+    public function broadcastAs(): TestBroadcastUnitEventName
+    {
+        return TestBroadcastUnitEventName::Custom;
+    }
+}
+
+class TestBroadcastEventWithStringChannel extends TestBroadcastEvent implements ShouldBroadcast
+{
+    public function broadcastOn(): string
+    {
+        return 'test-channel';
+    }
+}
+
+enum TestBroadcastEventName: string
+{
+    case Custom = 'custom-enum-name';
+}
+
+enum TestBroadcastIntegerEventName: int
+{
+    case Zero = 0;
+}
+
+enum TestBroadcastUnitEventName
+{
+    case Custom;
 }
 
 class TestBroadcastEventWithManualData extends TestBroadcastEvent

@@ -249,6 +249,8 @@ class Message
 
     /**
      * Attach in-memory data as an attachment.
+     *
+     * @param resource|string $data
      */
     public function attachData(mixed $data, string $name, array $options = []): static
     {
@@ -296,6 +298,8 @@ class Message
 
     /**
      * Embed in-memory data in the message and get the CID.
+     *
+     * @param resource|string $data
      */
     public function embedData(mixed $data, string $name, ?string $contentType = null): string
     {

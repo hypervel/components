@@ -35,6 +35,16 @@ use Throwable;
 
 class QueuePoolProxyTest extends TestCase
 {
+    /** @var list<PoolManager> */
+    private array $poolManagers = [];
+
+    protected function tearDownInCoroutine(): void
+    {
+        foreach ($this->poolManagers as $poolManager) {
+            $poolManager->flush();
+        }
+    }
+
     public function testEnumeratedSynchronousSurfaceUsesBorrowScopedInvocation(): void
     {
         $queue = m::mock(QueuePoolProxyTestQueue::class)->makePartial();
@@ -362,7 +372,7 @@ class QueuePoolProxyTest extends TestCase
         }
 
         Container::setInstance($container);
-        $pools = new PoolManager;
+        $this->poolManagers[] = $pools = new PoolManager;
         $definition = new PoolDefinition(
             'queue-test',
             $resourceType,

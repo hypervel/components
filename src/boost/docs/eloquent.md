@@ -1725,7 +1725,7 @@ $projects = Project::query()
     ->get();
 ```
 
-The callback receives the same builder, and `applyScopeCallback` returns that builder so you may continue chaining the query. Eloquent keeps the existing and callback-added `where` conditions separate, grouping either set when it contains an `or`. This prevents either set's `or` conditions from escaping the other. In the example above, a project must be active and must either belong to the user's team or be public.
+The callback receives the same builder, and `applyScopeCallback` returns that builder so you may continue chaining the query. Eloquent keeps the existing and callback-added `where` conditions in separate groups. This prevents conditions in either group from changing the meaning of the other, including when a raw condition or query expression contains its own `or`, and when you continue adding constraints after the callback. In the example above, a project must be active and must either belong to the user's team or be public.
 
 The `tap` method also returns the same builder after invoking a callback, but it does not provide this scope-style grouping of added `where` conditions.
 
