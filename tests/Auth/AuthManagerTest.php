@@ -12,6 +12,7 @@ use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\RequestGuard;
+use Hypervel\Auth\TokenGuard;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\RedisStore;
@@ -672,6 +673,22 @@ class AuthManagerTest extends TestCase
         $manager->clearUserCache(42, 'admin');
     }
 
+    public function testClearUserCacheAcceptsAnEnumGuardIdentifier(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer([
+            'guards' => [
+                'admin' => ['driver' => 'custom'],
+            ],
+        ]));
+        $provider = m::mock(EloquentUserProvider::class);
+        $provider->shouldReceive('clearUserCache')->once()->with(42);
+        $guard = m::mock(TokenGuard::class);
+        $guard->shouldReceive('getProvider')->once()->andReturn($provider);
+        $manager->extend('custom', fn () => $guard);
+
+        $manager->clearUserCache(42, AuthManagerGuardEnum::Admin);
+    }
+
     public function testClearUserCacheUsesDefaultGuardAndRespectsResolver()
     {
         $manager = new AuthManager($container = $this->getContainer([
@@ -774,4 +791,9 @@ class AuthManagerCacheUserStub extends FoundationUser
 
 class AuthManagerCacheAdminStub extends FoundationUser
 {
+}
+
+enum AuthManagerGuardEnum: string
+{
+    case Admin = 'admin';
 }
