@@ -12,6 +12,7 @@
 - [Security Vulnerabilities](#security-vulnerabilities)
 - [Coding Style](#coding-style)
     - [PHPDoc](#phpdoc)
+        - [Generating Facade Docblocks](#generating-facade-docblocks)
 - [Code of Conduct](#code-of-conduct)
 
 <a name="bug-reports"></a>
@@ -174,6 +175,23 @@ public function attachments(): array
     ];
 }
 ```
+
+<a name="generating-facade-docblocks"></a>
+#### Generating Facade Docblocks
+
+When a change affects a service exposed through a facade, regenerate that facade's docblock from the repository root:
+
+```shell
+composer facade -- Hypervel\\Support\\Facades\\Cache
+```
+
+You may use the `--lint` option to check the generated docblock without changing the file:
+
+```shell
+composer facade -- --lint Hypervel\\Support\\Facades\\Cache
+```
+
+For details about configuring and using the generator in a package, see the [package development documentation](/docs/{{version}}/packages#generating-facade-docblocks).
 
 <a name="code-of-conduct"></a>
 ## Code of Conduct
