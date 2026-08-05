@@ -7,12 +7,14 @@ namespace Hypervel\Notifications\Slack\BlockKit\Elements;
 use Closure;
 use Hypervel\Notifications\Slack\BlockKit\Composites\ConfirmObject;
 use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
+use Hypervel\Notifications\Slack\BlockKit\Elements\Traits\GeneratesDefaultIds;
 use Hypervel\Notifications\Slack\Contracts\ElementContract;
-use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 class ButtonElement implements ElementContract
 {
+    use GeneratesDefaultIds;
+
     /**
      * A text object that defines the button's text.
      *
@@ -31,7 +33,7 @@ class ButtonElement implements ElementContract
      *
      * Maximum length for this field is 255 characters.
      */
-    protected ?string $actionId = null;
+    protected string $actionId;
 
     /**
      * A URL to load in the user's browser when the button is clicked.
@@ -85,7 +87,7 @@ class ButtonElement implements ElementContract
     {
         $this->text = new PlainTextOnlyTextObject($text, 75);
 
-        $this->id('button_' . Str::lower(Str::slug(substr($text, 0, 248))));
+        $this->id($this->resolveDefaultId('button_', $text));
 
         if ($callback) {
             $callback($this->text);
