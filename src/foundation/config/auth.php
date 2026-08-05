@@ -131,6 +131,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | This value defines how many minutes an email verification link remains
+    | valid before the user must request another verification email.
+    |
+    */
+
+    'verification' => [
+        'expire' => (int) env('AUTH_VERIFICATION_EXPIRE', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Resetting Passwords
     |--------------------------------------------------------------------------
     |
@@ -172,4 +186,16 @@ return [
     */
 
     'password_timeout' => (int) env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication Timebox Duration
+    |--------------------------------------------------------------------------
+    |
+    | This value defines how many microseconds timeboxed authentication
+    | operations should take before returning their result.
+    |
+    */
+
+    'timebox_duration' => (int) env('AUTH_TIMEBOX_DURATION', 200000),
 ];

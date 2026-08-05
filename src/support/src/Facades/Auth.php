@@ -16,7 +16,7 @@ use Hypervel\Contracts\Auth\StatefulGuard;
  * @method static \Hypervel\Auth\AuthManager viaRequest(string $driver, callable $callback)
  * @method static \Closure userResolver()
  * @method static \Hypervel\Auth\AuthManager resolveUsersUsing(\Closure $userResolver)
- * @method static void clearUserCache(mixed $identifier, string|null $guard = null)
+ * @method static void clearUserCache(mixed $identifier, \UnitEnum|string|null $guard = null)
  * @method static \Hypervel\Auth\AuthManager redirectGuestsTo(callable|string|null $redirect)
  * @method static \Hypervel\Auth\AuthManager redirectUsersTo(callable|string $redirect)
  * @method static \Hypervel\Auth\AuthManager redirectTo(callable|string|null $guests = null, callable|string|null $users = null)

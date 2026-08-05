@@ -121,6 +121,52 @@ class AuthTokenGuardTest extends TestCase
         $this->assertFalse($guard->validate(['api_token' => 'foo']));
     }
 
+    public function testValidateHashesTokenWhenConfigured(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $user = new AuthTokenGuardTestUser;
+        $provider->shouldReceive('retrieveByCredentials')
+            ->once()
+            ->with(['stored_token' => hash('sha256', 'plain-token')])
+            ->andReturn($user);
+
+        $guard = $this->createGuard(
+            $provider,
+            Request::create('/'),
+            inputKey: 'provided_token',
+            storageKey: 'stored_token',
+            hash: true,
+        );
+
+        $this->assertTrue($guard->validate(['provided_token' => 'plain-token']));
+    }
+
+    public function testValidateRejectsMissingEmptyAndNonStringTokens(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveByCredentials');
+
+        $guard = $this->createGuard($provider, Request::create('/'));
+
+        $this->assertFalse($guard->validate());
+        $this->assertFalse($guard->validate(['api_token' => '']));
+        $this->assertFalse($guard->validate(['api_token' => 123]));
+        $this->assertFalse($guard->validate(['api_token' => ['token']]));
+    }
+
+    public function testValidatePreservesStringZero(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')
+            ->once()
+            ->with(['api_token' => '0'])
+            ->andReturn(new AuthTokenGuardTestUser);
+
+        $guard = $this->createGuard($provider, Request::create('/'));
+
+        $this->assertTrue($guard->validate(['api_token' => '0']));
+    }
+
     public function testValidateIfApiTokenIsEmpty()
     {
         $provider = m::mock(UserProvider::class);
@@ -231,6 +277,44 @@ class AuthTokenGuardTest extends TestCase
         $guard = $this->createGuard($provider, $request, 'custom_token_field', 'custom_token_field');
 
         $this->assertFalse($guard->validate(['custom_token_field' => '']));
+    }
+
+    public function testTokenLookupStopsAfterTheFirstNonEmptyString(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $request = m::mock(Request::class)->makePartial();
+        $request->shouldReceive('query')->once()->with('api_token')->andReturn('query-token');
+        $request->shouldNotReceive('input', 'bearerToken', 'getPassword');
+
+        $guard = $this->createGuard($provider, $request);
+
+        $this->assertSame('query-token', $guard->getTokenForRequest());
+    }
+
+    public function testTokenLookupFallsThroughInvalidAndEmptyValues(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $request = m::mock(Request::class)->makePartial();
+        $request->shouldReceive('query')->once()->with('api_token')->andReturn(['invalid']);
+        $request->shouldReceive('input')->once()->with('api_token')->andReturn('');
+        $request->shouldReceive('bearerToken')->once()->andReturn('bearer-token');
+        $request->shouldNotReceive('getPassword');
+
+        $guard = $this->createGuard($provider, $request);
+
+        $this->assertSame('bearer-token', $guard->getTokenForRequest());
+    }
+
+    public function testTokenLookupPreservesStringZero(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $request = m::mock(Request::class)->makePartial();
+        $request->shouldReceive('query')->once()->with('api_token')->andReturn('0');
+        $request->shouldNotReceive('input', 'bearerToken', 'getPassword');
+
+        $guard = $this->createGuard($provider, $request);
+
+        $this->assertSame('0', $guard->getTokenForRequest());
     }
 
     // =========================================================================

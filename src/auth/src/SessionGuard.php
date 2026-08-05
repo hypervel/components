@@ -94,6 +94,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         ?Timebox $timebox = null,
         protected bool $rehashOnLogin = true,
         protected int $timeboxDuration = 200000,
+        #[SensitiveParameter]
         protected ?string $hashKey = null,
     ) {
         $this->provider = $provider;
@@ -227,7 +228,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Log a user into the application without sessions or cookies.
      */
-    public function once(array $credentials = []): bool
+    public function once(#[SensitiveParameter] array $credentials = []): bool
     {
         $this->fireAttemptEvent($credentials);
 
@@ -261,7 +262,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Validate a user's credentials.
      */
-    public function validate(array $credentials = []): bool
+    public function validate(#[SensitiveParameter] array $credentials = []): bool
     {
         return (clone $this->timebox)->call(function ($timebox) use ($credentials) {
             $this->setContextState(
@@ -352,7 +353,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Attempt to authenticate a user using the given credentials.
      */
-    public function attempt(array $credentials = [], bool $remember = false): bool
+    public function attempt(#[SensitiveParameter] array $credentials = [], bool $remember = false): bool
     {
         return (clone $this->timebox)->call(function ($timebox) use ($credentials, $remember) {
             $this->fireAttemptEvent($credentials, $remember);
@@ -387,7 +388,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Attempt to authenticate a user with credentials and additional callbacks.
      */
-    public function attemptWhen(array $credentials = [], array|callable|null $callbacks = null, bool $remember = false): bool
+    public function attemptWhen(#[SensitiveParameter] array $credentials = [], array|callable|null $callbacks = null, bool $remember = false): bool
     {
         return (clone $this->timebox)->call(function ($timebox) use ($credentials, $callbacks, $remember) {
             $this->fireAttemptEvent($credentials, $remember);
@@ -419,7 +420,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Determine if the user matches the credentials.
      */
-    protected function hasValidCredentials(?AuthenticatableContract $user, array $credentials): bool
+    protected function hasValidCredentials(?AuthenticatableContract $user, #[SensitiveParameter] array $credentials): bool
     {
         $validated = ! is_null($user) && $this->provider->validateCredentials($user, $credentials);
 
@@ -681,7 +682,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Fire the attempt event with the arguments.
      */
-    protected function fireAttemptEvent(array $credentials, bool $remember = false): void
+    protected function fireAttemptEvent(#[SensitiveParameter] array $credentials, bool $remember = false): void
     {
         $this->dispatchIfListening(Attempting::class, fn () => new Attempting($this->name, $credentials, $remember));
     }
@@ -721,7 +722,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Fire the failed authentication attempt event with the given arguments.
      */
-    protected function fireFailedEvent(?AuthenticatableContract $user, array $credentials): void
+    protected function fireFailedEvent(?AuthenticatableContract $user, #[SensitiveParameter] array $credentials): void
     {
         $this->dispatchIfListening(Failed::class, fn () => new Failed($this->name, $user, $credentials));
     }

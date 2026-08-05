@@ -284,6 +284,42 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertStringContainsString(self::MODEL, $capturedKey);
     }
 
+    public function testChangingTheModelUsesTheNewModelCacheKeyspace(): void
+    {
+        $repo = $this->stubCache(RedisStore::class);
+        $repo->shouldReceive('rememberNullable')
+            ->once()
+            ->with(
+                self::DEFAULT_KEY_PREFIX . ':' . EloquentCacheProviderAlternateUserStub::class . ':42',
+                300,
+                m::type(Closure::class),
+            )
+            ->andReturn(m::mock(Authenticatable::class));
+
+        $provider = $this->providerWithoutDbFetch();
+        $provider->enableCache(null);
+        $provider->setModel(EloquentCacheProviderAlternateUserStub::class);
+
+        $provider->retrieveById(42);
+    }
+
+    public function testChangingTheModelRegistersDeduplicatedDescriptorsForBothKeyspaces(): void
+    {
+        $this->stubCache(RedisStore::class);
+        $provider = $this->providerWithoutDbFetch();
+        $provider->enableCache(null);
+
+        $provider->setModel(EloquentCacheProviderAlternateUserStub::class);
+        $provider->setModel(EloquentCacheProviderAlternateUserStub::class);
+        $provider->setModel(self::MODEL);
+
+        $descriptors = (new ReflectionClass(EloquentUserProvider::class))
+            ->getStaticPropertyValue('cachedProviders');
+
+        $this->assertCount(1, $descriptors[self::MODEL]);
+        $this->assertCount(1, $descriptors[EloquentCacheProviderAlternateUserStub::class]);
+    }
+
     // ------------------------------------------------------------------
     // Cache TTL validation
     // ------------------------------------------------------------------
@@ -878,5 +914,9 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 }
 
 class EloquentCacheProviderUserStub extends Model
+{
+}
+
+class EloquentCacheProviderAlternateUserStub extends Model
 {
 }
