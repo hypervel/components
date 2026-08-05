@@ -134,7 +134,7 @@ class PackageMetadataTest extends TestCase
             $this->assertStringContainsString(" {$method}(", $docblock);
         }
 
-        $this->assertStringContainsString(' (bool|\Redis) discard()', $docblock);
+        $this->assertStringContainsString(' bool|\Redis discard()', $docblock);
         $this->assertStringNotContainsString(' macroCall(', $docblock);
     }
 

@@ -54,6 +54,7 @@ use SensitiveParameter;
  * @method static bool deleteDirectories(string $directory)
  * @method static bool cleanDirectory(string $directory)
  * @method static void clearStatCache(string $path)
+ * @method static void flushState()
  * @method static \Hypervel\Filesystem\Filesystem|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static \Hypervel\Filesystem\Filesystem|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static void macro(string $name, callable|object $macro)

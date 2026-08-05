@@ -27,6 +27,7 @@ use Hypervel\Support\Testing\Fakes\EventFake;
  * @method static \Hypervel\Events\Dispatcher setTransactionManagerResolver(callable $resolver)
  * @method static mixed defer(callable $callback, null|string[] $events = null)
  * @method static array getRawListeners()
+ * @method static void flushState()
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)

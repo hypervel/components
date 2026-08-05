@@ -40,6 +40,7 @@ namespace Hypervel\Support\Facades;
  * @method static void setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static mixed shared(string $key, mixed $default = null)
  * @method static array getShared()
+ * @method static array mergeSharedData(array $data)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
