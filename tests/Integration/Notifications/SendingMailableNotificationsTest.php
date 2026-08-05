@@ -44,7 +44,7 @@ class SendingMailableNotificationsTest extends TestCase
         Schema::dropIfExists('users');
     }
 
-    public function testMarkdownNotification()
+    public function testMarkdownNotification(): void
     {
         $user = MailableNotificationUser::forceCreate([
             'email' => 'nuno@laravel.com',
@@ -73,7 +73,7 @@ class SendingMailableNotificationsTest extends TestCase
         EOT, $email);
     }
 
-    public function testCanSetTheme()
+    public function testCanSetTheme(): void
     {
         $user = MailableNotificationUser::forceCreate([
             'email' => 'nuno@laravel.com',

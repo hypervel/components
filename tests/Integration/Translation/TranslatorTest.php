@@ -12,6 +12,26 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class TranslatorTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        unset(
+            $_SERVER['__missing_translation_key'],
+            $_SERVER['__missing_translation_key_locale'],
+        );
+    }
+
+    protected function tearDown(): void
+    {
+        unset(
+            $_SERVER['__missing_translation_key'],
+            $_SERVER['__missing_translation_key_locale'],
+        );
+
+        parent::tearDown();
+    }
+
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app['translator']->addNamespace('tests', __DIR__ . '/Fixtures/lang');

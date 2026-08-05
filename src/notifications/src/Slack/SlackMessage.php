@@ -323,14 +323,29 @@ class SlackMessage implements Arrayable
     }
 
     /**
-     * Dump the payload as a URL to the Slack Block Kit Builder.
+     * Get the payload as a URL to the Slack Block Kit Builder.
+     *
+     * @throws JsonException
      */
-    public function dd(bool $raw = false)
+    public function toBlockKitBuilderUrl(): string
+    {
+        return 'https://app.slack.com/block-kit-builder#' . rawurlencode(
+            json_encode(
+                Arr::except($this->toArray(), ['username', 'text', 'channel']),
+                JSON_THROW_ON_ERROR
+            )
+        );
+    }
+
+    /**
+     * Dump the payload or its Slack Block Kit Builder URL.
+     */
+    public function dd(bool $raw = false): never
     {
         if ($raw) {
             dd($this->toArray());
         }
 
-        dd('https://app.slack.com/block-kit-builder#' . rawurlencode(json_encode(Arr::except($this->toArray(), ['username', 'text', 'channel']))));
+        dd($this->toBlockKitBuilderUrl());
     }
 }

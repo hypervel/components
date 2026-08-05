@@ -10,12 +10,12 @@ use Hypervel\Notifications\Channels\BroadcastChannel;
 use Hypervel\Notifications\Events\BroadcastNotificationCreated;
 use Hypervel\Notifications\Messages\BroadcastMessage;
 use Hypervel\Notifications\Notification;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class NotificationBroadcastChannelTest extends TestCase
 {
-    public function testDatabaseChannelCreatesDatabaseRecordWithProperData()
+    public function testDatabaseChannelCreatesDatabaseRecordWithProperData(): void
     {
         $notification = new NotificationBroadcastChannelTestNotification;
         $notification->id = '1';
@@ -27,7 +27,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $channel->send($notifiable, $notification);
     }
 
-    public function testNotificationIsBroadcastedOnCustomChannels()
+    public function testNotificationIsBroadcastedOnCustomChannels(): void
     {
         $notification = new CustomChannelsTestNotification;
         $notification->id = '1';
@@ -44,7 +44,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $this->assertEquals(new PrivateChannel('custom-channel'), $channels[0]);
     }
 
-    public function testNotificationIsBroadcastedWithCustomEventName()
+    public function testNotificationIsBroadcastedWithCustomEventName(): void
     {
         $notification = new CustomEventNameTestNotification;
         $notification->id = '1';
@@ -61,7 +61,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $this->assertSame('custom.type', $eventName);
     }
 
-    public function testNotificationIsBroadcastedWithCustomDataType()
+    public function testNotificationIsBroadcastedWithCustomDataType(): void
     {
         $notification = new CustomEventNameTestNotification;
         $notification->id = '1';
@@ -78,7 +78,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $this->assertSame('custom.type', $data['type']);
     }
 
-    public function testNotificationIsBroadcastedNow()
+    public function testNotificationIsBroadcastedNow(): void
     {
         $notification = new TestNotificationBroadCastedNow;
         $notification->id = '1';
@@ -92,7 +92,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $channel->send($notifiable, $notification);
     }
 
-    public function testNotificationIsBroadcastedWithCustomAdditionalPayload()
+    public function testNotificationIsBroadcastedWithCustomAdditionalPayload(): void
     {
         $notification = new CustomBroadcastWithTestNotification;
         $notification->id = '1';
@@ -112,7 +112,7 @@ class NotificationBroadcastChannelTest extends TestCase
 
 class NotificationBroadcastChannelTestNotification extends Notification
 {
-    public function toArray($notifiable)
+    public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
@@ -120,7 +120,7 @@ class NotificationBroadcastChannelTestNotification extends Notification
 
 class CustomChannelsTestNotification extends Notification
 {
-    public function toArray($notifiable)
+    public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
@@ -133,12 +133,12 @@ class CustomChannelsTestNotification extends Notification
 
 class CustomEventNameTestNotification extends Notification
 {
-    public function toArray($notifiable)
+    public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
 
-    public function broadcastType()
+    public function broadcastType(): string
     {
         return 'custom.type';
     }
@@ -146,12 +146,12 @@ class CustomEventNameTestNotification extends Notification
 
 class TestNotificationBroadCastedNow extends Notification
 {
-    public function toArray($notifiable)
+    public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
 
-    public function toBroadcast()
+    public function toBroadcast(): BroadcastMessage
     {
         return (new BroadcastMessage([]))->onConnection('sync');
     }
@@ -159,12 +159,12 @@ class TestNotificationBroadCastedNow extends Notification
 
 class CustomBroadcastWithTestNotification extends Notification
 {
-    public function toArray($notifiable)
+    public function toArray(mixed $notifiable): array
     {
         return ['invoice_id' => 1];
     }
 
-    public function broadcastWith()
+    public function broadcastWith(): array
     {
         return ['id' => 1, 'type' => 'custom', 'additional' => 'custom'];
     }

@@ -29,6 +29,7 @@
         }
     },
     "require": {
+        "ext-mbstring": "*",
         "php": "^8.4",
         "guzzlehttp/guzzle": "^7.15.1",
         "psr/http-message": "^2.0",
@@ -44,10 +45,8 @@
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/database": "^0.4",
-        "hypervel/filesystem": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/mail": "^0.4",
-        "hypervel/object-pool": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/support": "^0.4"
     },

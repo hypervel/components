@@ -1053,7 +1053,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events`, `bus`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `macroable-03` | `macroable` | `cookie`, `log`, and `notifications` (revalidation complete); later full `jwt` audit | `Complete Macroable callable and test-state handling`; finding `macroable-03` |
 | `auth-01` | `support`, `auth` | `auth` (revalidation complete) | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
@@ -1113,7 +1114,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `filesystem-12` | `filesystem` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `filesystem-12` |
 | `session-23` | `cache` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `session-23` |
 | `contracts-09` | `contracts` | `foundation` and `broadcasting` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `contracts-09` |
-| `notifications-07` | `contracts` | later full `notifications` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `notifications-07` |
+| `notifications-07` | `contracts` | `notifications` (revalidation complete) | `Harden framework contracts and request-scoped state`; finding `notifications-07` |
+| `notifications-12` | `notifications` | `horizon` and `notifications` (revalidation complete) | `Complete Notifications correctness, Slack parity, and reentrant failure ownership`; finding `notifications-12` |
 | `queue-22` | `queue` | `horizon` (revalidation complete); later full `telescope` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-22` |
 | `queue-29` | `queue` | `foundation` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-29` |
 | `queue-36` | `queue`, `support` | `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-36` |
@@ -1147,10 +1149,10 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `fortify-02` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Harden Eloquent identity and partial-projection safety`; finding `fortify-02` |
 | `pagination-01` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-01` |
 | `pagination-02` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-02` |
-| `queue-41` | `database`, `queue` | `database`, `queue`, and `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `queue-41` |
+| `queue-41` | `database`, `queue` | `database`, `queue`, and `notifications` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `queue-41` |
 | `scout-01` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-01` |
 | `scout-02` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-02` |
-| `notifications-08` | `notifications` | `notifications` (targeted correction complete); later full `notifications` audit | `Harden Eloquent identity and partial-projection safety`; finding `notifications-08` |
+| `notifications-08` | `notifications` | `notifications` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `notifications-08` |
 | `http-04` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-04` |
 | `http-05` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-05` |
 | `http-06` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-06` |
@@ -1247,7 +1249,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `grpc`
 - [x] `broadcasting`
 - [x] `mail`
-- [ ] `notifications`
+- [x] `notifications`
 
 ### Application and domain packages
 
