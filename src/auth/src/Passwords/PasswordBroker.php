@@ -85,7 +85,9 @@ class PasswordBroker implements PasswordBrokerContract
                     : CoroutineContext::forget(self::SENDING_BROKER_CONTEXT_KEY);
             }
 
-            $this->events?->dispatch(new PasswordResetLinkSent($user));
+            if ($this->events?->hasListeners(PasswordResetLinkSent::class)) {
+                $this->events->dispatch(new PasswordResetLinkSent($user));
+            }
 
             return static::RESET_LINK_SENT;
         }, $this->timeboxDuration);
@@ -193,5 +195,16 @@ class PasswordBroker implements PasswordBrokerContract
     public function getTimebox(): Timebox
     {
         return $this->timebox;
+    }
+
+    /**
+     * Set the event dispatcher instance.
+     *
+     * Boot or tests only. The dispatcher is stored on the worker-lifetime broker
+     * and affects every subsequent password reset-link event.
+     */
+    public function setDispatcher(Dispatcher $events): void
+    {
+        $this->events = $events;
     }
 }

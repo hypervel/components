@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\Events\PasswordResetLinkSent;
 use Hypervel\Auth\Passwords\PasswordBroker;
 use Hypervel\Auth\Passwords\TokenRepositoryInterface;
 use Hypervel\Context\CoroutineContext;
@@ -11,6 +12,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\CanResetPassword;
 use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Arr;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -65,6 +67,59 @@ class AuthPasswordBrokerTest extends TestCase
         $mocks['tokens']->shouldReceive('recentlyCreatedToken')->once()->with($user)->andReturn(false);
         $mocks['tokens']->shouldReceive('create')->once()->with($user)->andReturn('token');
         $user->shouldReceive('sendPasswordResetNotification')->with('token');
+
+        $this->assertSame(PasswordBrokerContract::RESET_LINK_SENT, $broker->sendResetLink(['foo']));
+    }
+
+    public function testResetLinkEventIsSkippedWhenThereAreNoListeners(): void
+    {
+        $mocks = $this->getMocks();
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(PasswordResetLinkSent::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $mocks['users']->shouldReceive('retrieveByCredentials')->once()->with(['foo'])->andReturn($user = m::mock(Authenticatable::class . ',' . CanResetPassword::class));
+        $mocks['tokens']->shouldReceive('recentlyCreatedToken')->once()->with($user)->andReturnFalse();
+        $mocks['tokens']->shouldReceive('create')->once()->with($user)->andReturn('token');
+        $user->shouldReceive('sendPasswordResetNotification')->once()->with('token');
+        $broker = new PasswordBroker($mocks['tokens'], $mocks['users'], $mocks['name'], $events);
+
+        $this->assertSame(PasswordBrokerContract::RESET_LINK_SENT, $broker->sendResetLink(['foo']));
+    }
+
+    public function testResetLinkEventIsDispatchedWhenThereIsAListener(): void
+    {
+        $mocks = $this->getMocks();
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(PasswordResetLinkSent::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')
+            ->once()
+            ->with(m::type(PasswordResetLinkSent::class));
+        $mocks['users']->shouldReceive('retrieveByCredentials')->once()->with(['foo'])->andReturn($user = m::mock(Authenticatable::class . ',' . CanResetPassword::class));
+        $mocks['tokens']->shouldReceive('recentlyCreatedToken')->once()->with($user)->andReturnFalse();
+        $mocks['tokens']->shouldReceive('create')->once()->with($user)->andReturn('token');
+        $user->shouldReceive('sendPasswordResetNotification')->once()->with('token');
+        $broker = new PasswordBroker($mocks['tokens'], $mocks['users'], $mocks['name'], $events);
+
+        $this->assertSame(PasswordBrokerContract::RESET_LINK_SENT, $broker->sendResetLink(['foo']));
+    }
+
+    public function testEventDispatcherCanBeReplacedOnAnExistingBroker(): void
+    {
+        $mocks = $this->getMocks();
+        $originalEvents = m::mock(Dispatcher::class);
+        $originalEvents->shouldNotReceive('hasListeners', 'dispatch');
+        $replacementEvents = m::mock(Dispatcher::class);
+        $replacementEvents->shouldReceive('hasListeners')->once()->with(PasswordResetLinkSent::class)->andReturnTrue();
+        $replacementEvents->shouldReceive('dispatch')
+            ->once()
+            ->with(m::type(PasswordResetLinkSent::class));
+        $mocks['users']->shouldReceive('retrieveByCredentials')->once()->with(['foo'])->andReturn($user = m::mock(Authenticatable::class . ',' . CanResetPassword::class));
+        $mocks['tokens']->shouldReceive('recentlyCreatedToken')->once()->with($user)->andReturnFalse();
+        $mocks['tokens']->shouldReceive('create')->once()->with($user)->andReturn('token');
+        $user->shouldReceive('sendPasswordResetNotification')->once()->with('token');
+        $broker = new PasswordBroker($mocks['tokens'], $mocks['users'], $mocks['name'], $originalEvents);
+
+        $broker->setDispatcher($replacementEvents);
 
         $this->assertSame(PasswordBrokerContract::RESET_LINK_SENT, $broker->sendResetLink(['foo']));
     }

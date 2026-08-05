@@ -227,6 +227,31 @@ class EloquentUserProviderCacheTest extends TestCase
         $user->save();
     }
 
+    public function testChangingProviderModelKeepsBothModelKeyspacesInvalidatable(): void
+    {
+        $user = User::query()->firstOrFail();
+        $alternateUser = AuthCacheAlternateUser::query()->firstOrFail();
+        $repo = $this->stubCache();
+        $repo->shouldReceive('forget')
+            ->once()
+            ->with($this->buildKey($user->getAuthIdentifier()))
+            ->andReturnTrue();
+        $repo->shouldReceive('forget')
+            ->once()
+            ->with(self::DEFAULT_KEY_PREFIX . ':' . AuthCacheAlternateUser::class . ':' . $alternateUser->getAuthIdentifier())
+            ->andReturnTrue();
+
+        $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
+        $provider->enableCache(null);
+        $provider->setModel(AuthCacheAlternateUser::class);
+
+        $user->name = 'Updated through the original model';
+        $user->save();
+
+        $alternateUser->name = 'Updated through the replacement model';
+        $alternateUser->save();
+    }
+
     public function testModelEventListenersRegisteredOnlyOnce(): void
     {
         // Two distinct providers with different configs. If the save/deleted
@@ -581,6 +606,11 @@ class AuthCacheUser extends User
     {
         return $this->hasMany(AuthCachePost::class, 'user_id');
     }
+}
+
+class AuthCacheAlternateUser extends User
+{
+    protected ?string $table = 'users';
 }
 
 class AuthCacheProfile extends Model
