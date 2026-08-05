@@ -17,7 +17,6 @@ require_once $autoloadPath;
 
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprArrayNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprFalseNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprFloatNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprIntegerNode;
@@ -47,6 +46,7 @@ use PHPStan\PhpDocParser\ParserConfig;
 
 $linting = in_array('--lint', $argv);
 $verbose = in_array('--verbose', $argv);
+$lintFailed = false;
 
 set_exception_handler('exceptionHandler');
 
@@ -54,7 +54,7 @@ collect($argv)
     ->skip(1)
     ->filter(fn ($arg) => ! str_starts_with($arg, '-'))
     ->map(fn ($class) => new ReflectionClass($class))
-    ->each(function ($facade) use ($linting) {
+    ->each(function ($facade) use ($linting, &$lintFailed) {
         debug("Processing [{$facade->getName()}]...");
 
         $proxies = resolveProxies($facade);
@@ -149,8 +149,10 @@ collect($argv)
         }
 
         if ($linting) {
-            echo "Did not find expected docblock for [{$facade->getName()}]." . PHP_EOL . PHP_EOL . $docblock;
-            exit(1);
+            echo "Did not find expected docblock for [{$facade->getName()}]." . PHP_EOL . PHP_EOL . $docblock . PHP_EOL . PHP_EOL;
+            $lintFailed = true;
+
+            return;
         }
 
         // Update the facade docblock...
@@ -160,6 +162,10 @@ collect($argv)
         $contents = str_replace($facade->getDocComment(), $docblock, $contents);
         file_put_contents($facade->getFileName(), $contents);
     });
+
+if ($lintFailed) {
+    exit(1);
+}
 
 echo 'Done.';
 exit(0);
@@ -252,13 +258,15 @@ function resolveDocMethods($class)
             $method = $tag->value;
 
             $method->parameters = collect($method->parameters)->map(function ($parameter) use ($context) {
-                $parameter->type = new IdentifierTypeNode($parameter->type ? resolveDocblockTypes($context, $parameter->type) : 'mixed');
+                $parameter->type = new IdentifierTypeNode(
+                    $parameter->type ? (resolveTopLevelDocType($context, $parameter->type) ?? 'mixed') : 'mixed'
+                );
 
                 return $parameter;
             })->toArray();
 
             $method->returnType = $method->returnType
-                ? new IdentifierTypeNode(resolveDocblockTypes($context, $method->returnType))
+                ? new IdentifierTypeNode(resolveTopLevelDocType($context, $method->returnType) ?? 'mixed')
                 : new IdentifierTypeNode('void');
 
             return (string) $method;
@@ -274,7 +282,12 @@ function resolveDocMethods($class)
  */
 function resolveDocParamType($method, $parameter)
 {
-    $paramTypeNode = collect(parseDocblock($method->getDocComment())->getParamTagValues())
+    $docblock = parseDocblock($method->getDocComment());
+
+    $paramTypeNode = collect([
+        ...$docblock->getParamTagValues('@phpstan-param'),
+        ...$docblock->getParamTagValues(),
+    ])
         ->firstWhere('parameterName', '$' . $parameter->getName());
 
     // As we didn't find a param type, we will now recursively check if the prototype has a value specified...
@@ -289,9 +302,7 @@ function resolveDocParamType($method, $parameter)
         }
     }
 
-    $type = resolveDocblockTypes($method, $paramTypeNode->type);
-
-    return is_string($type) ? trim($type, '()') : null;
+    return resolveTopLevelDocType($method, $paramTypeNode->type);
 }
 
 /**
@@ -302,15 +313,37 @@ function resolveDocParamType($method, $parameter)
  */
 function resolveReturnDocType($method)
 {
-    $returnTypeNode = array_values(parseDocblock($method->getDocComment())->getReturnTagValues())[0] ?? null;
+    $docblock = parseDocblock($method->getDocComment());
+
+    $returnTypeNode = array_values($docblock->getReturnTagValues('@phpstan-return'))[0]
+        ?? array_values($docblock->getReturnTagValues())[0]
+        ?? null;
 
     if ($returnTypeNode === null) {
         return null;
     }
 
-    $type = resolveDocblockTypes($method, $returnTypeNode->type);
+    return resolveTopLevelDocType($method, $returnTypeNode->type);
+}
 
-    return is_string($type) ? trim($type, '()') : null;
+/**
+ * Resolve a top-level docblock type for a generated method signature.
+ *
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
+ * @param \PHPStan\PhpDocParser\Ast\Type\TypeNode $typeNode
+ * @return null|string
+ */
+function resolveTopLevelDocType($method, $typeNode)
+{
+    $type = resolveDocblockTypes($method, $typeNode);
+
+    if (! is_string($type)) {
+        return null;
+    }
+
+    return $typeNode instanceof ConditionalTypeForParameterNode
+        ? $type
+        : trim($type, '()');
 }
 
 /**
@@ -455,13 +488,10 @@ function resolveDocblockTypes($method, $typeNode, $depth = 1)
         }
 
         if ($typeNode instanceof ConditionalTypeNode) {
-            $if = resolveDocblockTypes($method, $typeNode->if);
-            $else = resolveDocblockTypes($method, $typeNode->else);
+            $if = resolveDocblockTypes($method, $typeNode->if, $depth + 1);
+            $else = resolveDocblockTypes($method, $typeNode->else, $depth + 1);
 
-            return collect([
-                ...splitTopLevelUnionTypes((string) $if),
-                ...splitTopLevelUnionTypes((string) $else),
-            ])->unique()->implode('|');
+            return flattenConditionalBranches($if, $else);
         }
 
         if ($typeNode instanceof NullableTypeNode) {
@@ -501,10 +531,6 @@ function resolveDocblockTypes($method, $typeNode, $depth = 1)
                 return 'true';
             }
 
-            if ($typeNode->constExpr instanceof ConstExprArrayNode) {
-                return 'false';
-            }
-
             $class = $typeNode->constExpr::class;
             throw new UnresolvableType('resolveDocblockTypes', <<<MESSAGE
                 Unknown constant type [{$class}] encountered when evaluating [{$method->sourceClass()->getName()}::{$method->getName()}].
@@ -519,10 +545,20 @@ function resolveDocblockTypes($method, $typeNode, $depth = 1)
             $if = resolveDocblockTypes($method, $typeNode->if, $depth + 1);
             $else = resolveDocblockTypes($method, $typeNode->else, $depth + 1);
 
-            return collect([
-                ...splitTopLevelUnionTypes((string) $if),
-                ...splitTopLevelUnionTypes((string) $else),
-            ])->unique()->implode('|');
+            if (! canPreserveConditionalTarget($method, $typeNode->targetType)) {
+                return flattenConditionalBranches($if, $else);
+            }
+
+            $target = resolveDocblockTypes($method, $typeNode->targetType);
+
+            return sprintf(
+                '(%s %s %s ? %s : %s)',
+                $typeNode->parameterName,
+                $typeNode->negated ? 'is not' : 'is',
+                $target,
+                $if,
+                $else,
+            );
         }
 
         $class = $typeNode::class;
@@ -537,7 +573,7 @@ function resolveDocblockTypes($method, $typeNode, $depth = 1)
 
         echo $e->getMessage();
         echo PHP_EOL;
-        echo 'You can safely ignore this message if there is a native type declartion in place, which will be used as a fallback.';
+        echo 'You can safely ignore this message if there is a native type declaration in place, which will be used as a fallback.';
         echo PHP_EOL;
         echo "You may tweak the {$e->method} function of the facade-documenter if a fix is required.";
         echo PHP_EOL;
@@ -714,6 +750,82 @@ function inferValueType($value)
 }
 
 /**
+ * Determine whether a conditional target can be preserved without broadening.
+ *
+ * Unknown node types must return false so new PHPDoc syntax falls back to a
+ * conservative union instead of producing a misleading conditional.
+ *
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
+ * @param \PHPStan\PhpDocParser\Ast\Type\TypeNode $typeNode
+ * @return bool
+ */
+function canPreserveConditionalTarget($method, $typeNode)
+{
+    if ($typeNode instanceof ThisTypeNode) {
+        return true;
+    }
+
+    if ($typeNode instanceof UnionTypeNode || $typeNode instanceof IntersectionTypeNode) {
+        return collect($typeNode->types)
+            ->every(fn ($nestedType) => canPreserveConditionalTarget($method, $nestedType));
+    }
+
+    if ($typeNode instanceof NullableTypeNode || $typeNode instanceof ArrayTypeNode) {
+        return canPreserveConditionalTarget($method, $typeNode->type);
+    }
+
+    if ($typeNode instanceof GenericTypeNode) {
+        if (in_array($typeNode->type->name, ['class-string', 'int', 'int-mask-of', 'key-of', 'list', 'value-of'], true)) {
+            return false;
+        }
+
+        return canPreserveConditionalTarget($method, $typeNode->type)
+            && collect($typeNode->genericTypes)
+                ->every(fn ($nestedType) => canPreserveConditionalTarget($method, $nestedType));
+    }
+
+    if ($typeNode instanceof IdentifierTypeNode) {
+        if (in_array($typeNode->name, ['class-string', 'int-mask-of', 'list', 'non-negative-int', 'parent', 'uppercase-string'], true)) {
+            return false;
+        }
+
+        if (isBuiltIn($typeNode->name)) {
+            return true;
+        }
+
+        $determinedFqcn = determineFqcn($typeNode->name, resolveImportSource($method));
+
+        foreach ([$typeNode->name, $determinedFqcn] as $name) {
+            if (class_exists($name) || interface_exists($name) || enum_exists($name) || isKnownOptionalDependency($name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    return $typeNode instanceof ConstTypeNode
+        && ($typeNode->constExpr instanceof ConstExprNullNode
+            || $typeNode->constExpr instanceof ConstExprFalseNode
+            || $typeNode->constExpr instanceof ConstExprTrueNode);
+}
+
+/**
+ * Flatten and deduplicate resolved conditional branches.
+ *
+ * @param string $if
+ * @param string $else
+ * @return string
+ */
+function flattenConditionalBranches($if, $else)
+{
+    return collect([
+        ...splitTopLevelUnionTypes($if),
+        ...splitTopLevelUnionTypes($else),
+    ])->unique()->implode('|');
+}
+
+/**
  * Split a type string on top-level "|" separators, preserving nested "|" that
  * appear inside angle brackets (generics) or parentheses. Used to safely merge
  * and dedupe union members produced from conditional type branches without
@@ -757,7 +869,7 @@ function splitTopLevelUnionTypes($type)
 
 /**
  * Merge the docblock-resolved type string with the native reflection type,
- * preserving the docblock's precision while honouring native nullability.
+ * preserving the docblock's precision while honoring native nullability.
  *
  * Prefers the docblock type (richer — may include generics, class-string, etc.)
  * but unions it with "null" when the native signature is nullable and the
@@ -787,8 +899,12 @@ function mergeDocblockTypeWithNativeNullability($docblockType, $nativeType)
     $nativeIsNullable = in_array('null', $nativeMembers, true);
     $resolvedHasNull = in_array('null', $resolvedMembers, true);
     $resolvedHasMixed = in_array('mixed', $resolvedMembers, true);
+    $resolvedIsConditional = count($resolvedMembers) === 1
+        && str_starts_with($resolved, '(')
+        && str_ends_with($resolved, ')');
 
-    if ($nativeIsNullable && ! $resolvedHasNull && ! $resolvedHasMixed) {
+    // Preserved parameter conditionals own nullability within their branches.
+    if ($nativeIsNullable && ! $resolvedHasNull && ! $resolvedHasMixed && ! $resolvedIsConditional) {
         $resolvedMembers[] = 'null';
     }
 
@@ -1169,6 +1285,14 @@ function resolveDefaultValue($parameter)
 
     if ($parameter['default'] instanceof DateTimeInterface) {
         return 'new \\' . get_class($parameter['default']);
+    }
+
+    if (is_string($parameter['default'])) {
+        $quoteType = preg_match('/[\x00-\x1F\x7F]/', $parameter['default']) === 1
+            ? ConstExprStringNode::DOUBLE_QUOTED
+            : ConstExprStringNode::SINGLE_QUOTED;
+
+        return (string) new ConstExprStringNode($parameter['default'], $quoteType);
     }
 
     $default = json_encode($parameter['default']);

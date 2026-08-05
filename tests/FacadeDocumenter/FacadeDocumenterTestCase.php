@@ -42,7 +42,7 @@ abstract class FacadeDocumenterTestCase extends TestCase
         $wrapper = realpath(__DIR__ . '/bin/run-with-testbench-autoload.php');
 
         $process = new Process(
-            command: ['php', '-f', $wrapper, '--', ...$arguments],
+            command: [PHP_BINARY, '-f', $wrapper, '--', ...$arguments],
             env: array_merge($_ENV, ['TESTBENCH_BASE_PATH' => BASE_PATH]),
             timeout: 30,
         );
