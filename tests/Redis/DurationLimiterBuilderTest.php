@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -76,9 +77,7 @@ class DurationLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() Lua script returns success
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn([1, time() + 60, 4]);
+        $this->expectEvaluation($redis, [1, time() + 60, 4]);
 
         $builder = new DurationLimiterBuilder($redis, 'test-key');
         $builder->allow(5)->every(60)->block(0);
@@ -94,8 +93,7 @@ class DurationLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() always fails
-        $redis->shouldReceive('eval')
-            ->andReturn([0, time() + 60, 0]);
+        $this->expectEvaluation($redis, [0, time() + 60, 0]);
 
         $builder = new DurationLimiterBuilder($redis, 'test-key');
         $builder->allow(5)->every(60)->block(0)->sleep(1);
@@ -119,8 +117,7 @@ class DurationLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() always fails
-        $redis->shouldReceive('eval')
-            ->andReturn([0, time() + 60, 0]);
+        $this->expectEvaluation($redis, [0, time() + 60, 0]);
 
         $builder = new DurationLimiterBuilder($redis, 'test-key');
         $builder->allow(5)->every(60)->block(0)->sleep(1);
@@ -159,5 +156,21 @@ class DurationLimiterBuilderTest extends TestCase
     private function mockRedis(): m\MockInterface|RedisProxy
     {
         return m::mock(RedisProxy::class);
+    }
+
+    /**
+     * Expect a script evaluation on one held Redis connection.
+     */
+    private function expectEvaluation(m\MockInterface|RedisProxy $redis, mixed $result): void
+    {
+        $connection = m::mock(RedisConnection::class);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->andReturn($result);
     }
 }

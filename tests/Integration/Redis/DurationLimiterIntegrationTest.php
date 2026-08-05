@@ -158,6 +158,28 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertSame(0, $limiter->remaining);
     }
 
+    public function testAcquireUsesTheSelectedConnectionPrefix(): void
+    {
+        $prefixed = Redis::connection($this->createRedisConnectionWithOptions(
+            'duration_limiter_prefixed',
+            ['prefix' => 'duration-limiter:'],
+        ));
+        $plain = Redis::connection($this->createRedisConnectionWithOptions(
+            'duration_limiter_plain',
+            ['prefix' => ''],
+        ));
+
+        $plain->del('duration-limiter:selected-connection', 'selected-connection');
+
+        try {
+            $this->assertTrue((new DurationLimiter($prefixed, 'selected-connection', 1, 60))->acquire());
+            $this->assertSame(1, $plain->exists('duration-limiter:selected-connection'));
+            $this->assertSame(0, $plain->exists('selected-connection'));
+        } finally {
+            $plain->del('duration-limiter:selected-connection', 'selected-connection');
+        }
+    }
+
     /**
      * Get the Redis connection for testing.
      */
