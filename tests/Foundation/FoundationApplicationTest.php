@@ -734,6 +734,12 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame(['merge' => true], $config->get('queue.connections.new'));
         $this->assertSame(['table' => 'custom_batches'], $config->get('queue.batching'));
         $this->assertSame(['driver' => 'file'], $config->get('queue.failed'));
+
+        $this->assertSame('overwrite', $config->get('rate-limiter.default'));
+        $this->assertSame('rate-limiter', $config->get('rate-limiter.custom_option'));
+        $this->assertIsArray($config->get('rate-limiter.stores.redis'));
+        $this->assertSame(['overwrite' => true], $config->get('rate-limiter.stores.database'));
+        $this->assertSame(['merge' => true], $config->get('rate-limiter.stores.new'));
     }
 
     protected function assertExpectationCount(int $times): void

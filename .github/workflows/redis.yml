@@ -65,6 +65,7 @@ jobs:
           vendor/bin/phpunit tests/Integration/Auth
           vendor/bin/phpunit tests/Integration/Cache/Redis
           vendor/bin/phpunit tests/Integration/Horizon
+          vendor/bin/phpunit tests/Integration/RateLimiter
           vendor/bin/phpunit tests/Integration/Redis
 
   valkey_9:
@@ -124,4 +125,5 @@ jobs:
           vendor/bin/phpunit tests/Integration/Auth
           vendor/bin/phpunit tests/Integration/Cache/Redis
           vendor/bin/phpunit tests/Integration/Horizon
+          vendor/bin/phpunit tests/Integration/RateLimiter
           vendor/bin/phpunit tests/Integration/Redis
