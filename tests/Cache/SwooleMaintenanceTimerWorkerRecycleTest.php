@@ -12,7 +12,7 @@ use Swoole\Coroutine\Http\Client;
 use Symfony\Component\Process\Process;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
-class SwooleTimerWorkerRecycleTest extends TestCase
+class SwooleMaintenanceTimerWorkerRecycleTest extends TestCase
 {
     protected string $tempDir;
 
@@ -20,7 +20,7 @@ class SwooleTimerWorkerRecycleTest extends TestCase
     {
         parent::setUp();
 
-        $this->tempDir = ParallelTesting::tempDir('SwooleTimerWorkerRecycleTest');
+        $this->tempDir = ParallelTesting::tempDir('SwooleMaintenanceTimerWorkerRecycleTest');
         mkdir($this->tempDir, 0777, true);
     }
 
@@ -38,7 +38,7 @@ class SwooleTimerWorkerRecycleTest extends TestCase
         $logPath = $this->tempDir . '/swoole.log';
         $process = new Process([
             PHP_BINARY,
-            __DIR__ . '/Fixtures/SwooleTimerRecycleServer.php',
+            __DIR__ . '/Fixtures/SwooleMaintenanceTimerRecycleServer.php',
             dirname(__DIR__, 2) . '/vendor/autoload.php',
             (string) $port,
             $statePath,
