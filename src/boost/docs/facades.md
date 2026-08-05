@@ -240,7 +240,7 @@ Below you will find many of Hypervel's facades and their underlying classes. Thi
 | Queue (Base Class) | [Hypervel\Queue\Queue](https://api.hypervel.org/docs/{{version}}/Hypervel/Queue/Queue.html) | &nbsp; |
 | Queue (Instance) | [Hypervel\Contracts\Queue\Queue](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Queue/Queue.html) | `queue.connection` |
 | Queue | [Hypervel\Queue\QueueManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Queue/QueueManager.html) | `queue` |
-| RateLimiter | [Hypervel\Cache\RateLimiter](https://api.hypervel.org/docs/{{version}}/Hypervel/Cache/RateLimiter.html) | &nbsp; |
+| RateLimiter | [Hypervel\RateLimiter\RateLimiter](https://api.hypervel.org/docs/{{version}}/Hypervel/RateLimiter/RateLimiter.html) | &nbsp; |
 | Redirect | [Hypervel\Routing\Redirector](https://api.hypervel.org/docs/{{version}}/Hypervel/Routing/Redirector.html) | `redirect` |
 | Redis (Instance) | [Hypervel\Redis\RedisProxy](https://api.hypervel.org/docs/{{version}}/Hypervel/Redis/RedisProxy.html) | `redis.connection` |
 | Redis | [Hypervel\Redis\RedisManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Redis/RedisManager.html) | `redis` |
