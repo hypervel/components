@@ -205,7 +205,11 @@ If `burst` is omitted, it defaults to the rate supplied to the factory. To keep 
 $limit = LeakyBucket::perSecond(100)->burst(1);
 ```
 
-The same `perMinute`, `perMinutes`, `perHour`, and `perDay` factories available on `Limit` are also available on `LeakyBucket`.
+The same `perMinute`, `perMinutes`, `perHour`, and `perDay` factories available on `Limit` are also available on `LeakyBucket`. Each factory accepts a period multiplier. For example, the following rate limit sustains 120 operations every two minutes:
+
+```php
+$limit = LeakyBucket::perMinute(120, periodMinutes: 2);
+```
 
 <a name="weighted-operations"></a>
 ### Weighted Operations

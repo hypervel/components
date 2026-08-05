@@ -47,11 +47,11 @@ readonly class LeakyBucket extends AdmissionPolicy
     /**
      * Create a new per-second leaky-bucket limit.
      */
-    public static function perSecond(int $rate, int $decaySeconds = 1): static
+    public static function perSecond(int $rate, int $periodSeconds = 1): static
     {
         return new static(
             $rate,
-            static::multiply($decaySeconds, 1_000_000, 'decay seconds'),
+            static::multiply($periodSeconds, 1_000_000, 'period seconds'),
             $rate,
         );
     }
@@ -59,33 +59,45 @@ readonly class LeakyBucket extends AdmissionPolicy
     /**
      * Create a new per-minute leaky-bucket limit.
      */
-    public static function perMinute(int $rate, int $decayMinutes = 1): static
+    public static function perMinute(int $rate, int $periodMinutes = 1): static
     {
-        return static::perSecond($rate, static::multiply($decayMinutes, 60, 'decay minutes'));
+        return new static(
+            $rate,
+            static::multiply($periodMinutes, 60_000_000, 'period minutes'),
+            $rate,
+        );
     }
 
     /**
      * Create a new leaky-bucket limit using minutes as the period.
      */
-    public static function perMinutes(int $decayMinutes, int $rate): static
+    public static function perMinutes(int $periodMinutes, int $rate): static
     {
-        return static::perMinute($rate, $decayMinutes);
+        return static::perMinute($rate, $periodMinutes);
     }
 
     /**
      * Create a new per-hour leaky-bucket limit.
      */
-    public static function perHour(int $rate, int $decayHours = 1): static
+    public static function perHour(int $rate, int $periodHours = 1): static
     {
-        return static::perSecond($rate, static::multiply($decayHours, 3600, 'decay hours'));
+        return new static(
+            $rate,
+            static::multiply($periodHours, 3_600_000_000, 'period hours'),
+            $rate,
+        );
     }
 
     /**
      * Create a new per-day leaky-bucket limit.
      */
-    public static function perDay(int $rate, int $decayDays = 1): static
+    public static function perDay(int $rate, int $periodDays = 1): static
     {
-        return static::perSecond($rate, static::multiply($decayDays, 86400, 'decay days'));
+        return new static(
+            $rate,
+            static::multiply($periodDays, 86_400_000_000, 'period days'),
+            $rate,
+        );
     }
 
     /**
