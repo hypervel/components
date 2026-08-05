@@ -201,6 +201,10 @@ class RedisStoreTest extends TestCase
 
     public function testSerializerAndCompressionOptionsDoNotAffectLimiterState(): void
     {
+        if (! defined('Redis::COMPRESSION_LZF')) {
+            $this->markTestSkipped('Redis extension is not configured to support the lzf compression.');
+        }
+
         $connection = $this->createRedisConnectionWithOptions('rate_limiter_encoded', [
             'prefix' => 'rate-limiter-encoded:',
             'serializer' => PhpRedis::SERIALIZER_PHP,
