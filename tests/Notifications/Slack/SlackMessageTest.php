@@ -2,48 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Notifications;
+namespace Hypervel\Tests\Notifications\Slack;
 
-use Closure;
-use GuzzleHttp\Client as HttpClient;
-use GuzzleHttp\Psr7\Response;
-use Hypervel\Config\Repository;
-use Hypervel\Notifications\Channels\SlackWebApiChannel;
-use Hypervel\Notifications\Notifiable;
-use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use Hypervel\Notifications\Slack\SlackMessage;
-use Hypervel\Notifications\Slack\SlackRoute;
 use LogicException;
-use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
-
-use function tap;
 
 class SlackMessageTest extends TestCase
 {
-    protected ?SlackWebApiChannel $slackChannel;
-
-    protected ?HttpClient $client = null;
-
-    protected ?Repository $config = null;
-
-    public function setUp(): void
-    {
-        $this->slackChannel = $this->getSlackChannel();
-    }
-
-    public function tearDown(): void
-    {
-        $this->slackChannel = null;
-        $this->client = null;
-        $this->config = null;
-    }
-
     public function testExceptionWhenNoTextOrBlock(): void
     {
         $this->expectException(LogicException::class);
@@ -193,7 +163,7 @@ class SlackMessageTest extends TestCase
         });
     }
 
-    public function it_can_reply_as_thread(): void
+    public function testCanReplyAsThread(): void
     {
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
@@ -466,7 +436,7 @@ class SlackMessageTest extends TestCase
         });
     }
 
-    public function testCopiedBlockKitTemplate()
+    public function testCopiedBlockKitTemplate(): void
     {
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
@@ -538,7 +508,7 @@ class SlackMessageTest extends TestCase
         });
     }
 
-    public function testCombinedBlockKitTemplateAndBlockContractInOrder()
+    public function testCombinedBlockKitTemplateAndBlockContractInOrder(): void
     {
         $this->assertNotificationSent([
             'channel' => '#ghost-talk',
@@ -594,188 +564,21 @@ class SlackMessageTest extends TestCase
         });
     }
 
-    public function testRouteNotificationForStringChannel(): void
+    public function testCanReturnABlockKitBuilderUrl(): void
     {
-        $this->config->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
+        $message = (new SlackMessage)
+            ->username('hyperbot')
+            ->to('#ghost-talk')
+            ->headerBlock('Budget Performance')
+            ->sectionBlock(function (SectionBlock $sectionBlock) {
+                $sectionBlock->text('A message *with some bold text* and _some italicized text_.')->markdown();
+            });
 
-        $this->assertNotificationSent([
-            'channel' => 'example-channel',
-            'text' => 'Content',
-        ], [], 'config-set-token');
-
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable('example-channel'),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
-                $message->text('Content')->to('ignored-channel');
-            })
-        );
-    }
-
-    public function testRouteNotificationForSlackRoute(): void
-    {
-        $this->config->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
-
-        $this->assertNotificationSent([
-            'channel' => 'route-set-channel',
-            'text' => 'Content',
-        ], [], 'config-set-token');
-
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable(SlackRoute::make('route-set-channel')),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
-                $message->text('Content');
-            })
-        );
-    }
-
-    public function testRouteNotificationForSlackRouteWithToken(): void
-    {
-        $this->config->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
-
-        $this->assertNotificationSent([
-            'channel' => 'route-set-channel',
-            'text' => 'Content',
-        ], [], 'route-set-token');
-
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable(SlackRoute::make('route-set-channel', 'route-set-token')),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
-                $message->text('Content');
-            })
-        );
-    }
-
-    public function testRouteNotificationForEmptySlackRoute(): void
-    {
-        $this->config->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
-        $this->config->set('services.slack.notifications.channel', 'config-set-channel');
-
-        $this->assertNotificationSent([
-            'channel' => 'config-set-channel',
-            'text' => 'Content',
-        ], [], 'config-set-token');
-
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable,
-            new SlackChannelTestNotification(function (SlackMessage $message) {
-                $message->text('Content');
-            })
-        );
-    }
-
-    public function testPrefersNotificationChannel(): void
-    {
-        $this->config->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
-        $this->config->set('services.slack.notifications.channel', 'config-set-channel');
-
-        $this->assertNotificationSent([
-            'channel' => 'notification-channel',
-            'text' => 'Content',
-        ], [], 'config-set-token');
-
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable,
-            new SlackChannelTestNotification(function (SlackMessage $message) {
-                $message->text('Content')->to('notification-channel');
-            })
-        );
-    }
-
-    public function testExceptionWithoutChannel(): void
-    {
-        $this->config->set('services.slack.notifications.bot_user_oauth_token', 'config-set-token');
-
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Slack notification channel is not set.');
-
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable,
-            new SlackChannelTestNotification(function (SlackMessage $message) {
-                $message->text('Content');
-            })
-        );
-    }
-
-    public function testExceptionWithoutToken(): void
-    {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Slack API authentication token is not set.');
-
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable(SlackRoute::make('laravel-channel')),
-            new SlackChannelTestNotification(function (SlackMessage $message) {
-                $message->text('Content');
-            })
-        );
-    }
-
-    protected function getSlackChannel(): SlackWebApiChannel
-    {
-        return new SlackWebApiChannel(
-            $this->client = m::mock(HttpClient::class),
-            $this->config = new Repository([])
-        );
-    }
-
-    protected function sendNotification(Closure $callback, ?string $routeChannel = '#ghost-talk'): self
-    {
-        $this->slackChannel->send(
-            new SlackChannelTestNotifiable(new SlackRoute($routeChannel, 'fake-token')),
-            new SlackChannelTestNotification($callback)
+        $expectedUrl = 'https://app.slack.com/block-kit-builder#' . rawurlencode(
+            '{"blocks":[{"type":"header","text":{"type":"plain_text","text":"Budget Performance"}},'
+            . '{"type":"section","text":{"type":"mrkdwn","text":"A message *with some bold text* and _some italicized text_."}}]}'
         );
 
-        return $this;
-    }
-
-    protected function assertNotificationSent(array $payload, array $response = [], string $token = 'fake-token'): void
-    {
-        $this->client->shouldReceive('post')
-            ->once()
-            ->with(
-                'https://slack.com/api/chat.postMessage',
-                [
-                    'json' => $payload,
-                    'headers' => [
-                        'Authorization' => "Bearer {$token}",
-                    ],
-                ]
-            )->andReturn(new Response(
-                200,
-                [],
-                json_encode($response ?: ['ok' => true])
-            ));
-    }
-}
-
-class SlackChannelTestNotifiable
-{
-    use Notifiable;
-
-    protected $route;
-
-    public function __construct($route = null)
-    {
-        $this->route = $route;
-    }
-
-    public function routeNotificationForSlack()
-    {
-        return $this->route;
-    }
-}
-
-class SlackChannelTestNotification extends Notification
-{
-    private Closure $callback;
-
-    public function __construct(?Closure $callback = null)
-    {
-        $this->callback = $callback ?? function () {
-        };
-    }
-
-    public function toSlack($notifiable)
-    {
-        return tap(new SlackMessage, $this->callback);
+        $this->assertSame($expectedUrl, $message->toBlockKitBuilderUrl());
     }
 }
