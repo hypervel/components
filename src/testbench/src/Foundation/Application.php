@@ -27,7 +27,6 @@ use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Mail\Markdown;
 use Hypervel\Queue\Console\WorkCommand;
 use Hypervel\Queue\Queue;
-use Hypervel\Routing\Middleware\ThrottleRequests;
 use Hypervel\Support\Arr;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\Sleep;
@@ -398,7 +397,6 @@ class Application
         SchemaBuilder::flushState();
         Sleep::flushState();
         Str::flushState();
-        ThrottleRequests::flushState();
         TrimStrings::flushState();
         TrustProxies::flushState();
         TrustHosts::flushState();

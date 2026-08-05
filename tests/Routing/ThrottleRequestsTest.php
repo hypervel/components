@@ -5,16 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Routing\ThrottleRequestsTest;
 
 use Hypervel\Auth\GenericUser;
-use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\RateLimiting\GlobalLimit;
-use Hypervel\Cache\RateLimiting\Limit;
-use Hypervel\Cache\Repository;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Exceptions\InvalidRateLimitException;
 use Hypervel\Routing\Middleware\ThrottleRequests;
+use Hypervel\Routing\Route;
 use Hypervel\Tests\Routing\RoutingTestCase;
 use RuntimeException;
-use Symfony\Component\HttpFoundation\Response;
+
+enum NamedLimiter: string
+{
+    case Uploads = 'uploads';
+}
 
 class ThrottleRequestsTest extends RoutingTestCase
 {
@@ -28,119 +29,62 @@ class ThrottleRequestsTest extends RoutingTestCase
         ]));
 
         $this->assertSame(
-            hash('xxh128', '123'),
-            (new ExposesThrottleRequestSignature)->resolveRequestSignatureForTest($request)
-        );
-
-        ThrottleRequests::shouldHashKeys(false);
-
-        $this->assertSame(
             '123',
-            (new ExposesThrottleRequestSignature)->resolveRequestSignatureForTest($request)
+            (new ExposesThrottleRequests)->resolveRequestSignatureForTest($request)
         );
     }
 
-    public function testNamedLimiterUsesCentralizedScopedHash(): void
+    public function testRouteSignatureIsReturnedWithoutPreHashing(): void
     {
-        $limiter = new RateLimiter(new Repository(new ArrayStore));
-        $limiter->for('uploads', fn () => Limit::perMinute(10)->by('user-1'));
-        $limiter->resolveKeyScopeUsing(fn () => 'account-1');
-
-        (new ThrottleRequests($limiter))->handle(
-            Request::create('/upload'),
-            fn () => new Response('ok'),
-            'uploads',
-        );
+        $request = Request::create('/ping', server: ['REMOTE_ADDR' => '192.0.2.1']);
+        $request->setRouteResolver(fn (): Route => (new Route('GET', '/ping', fn () => null))->domain('api.example.com'));
 
         $this->assertSame(
-            1,
-            $limiter->attempts(hash('xxh128', '9:account-17:uploads6:user-1')),
+            'api.example.com|192.0.2.1',
+            (new ExposesThrottleRequests)->resolveRequestSignatureForTest($request)
         );
     }
 
-    public function testNamedLimiterUsesCentralizedRawScopedKeyWhenHashingIsDisabled(): void
+    public function testMissingRouteCannotProduceARequestSignature(): void
     {
-        $limiter = new RateLimiter(new Repository(new ArrayStore));
-        $limiter->for('uploads', fn () => Limit::perMinute(10)->by('user-1'));
-        $limiter->resolveKeyScopeUsing(fn () => 'account-1');
-        ThrottleRequests::shouldHashKeys(false);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to generate the request signature. Route unavailable.');
 
-        (new ThrottleRequests($limiter))->handle(
-            Request::create('/upload'),
-            fn () => new Response('ok'),
-            'uploads',
-        );
-
-        $this->assertSame(1, $limiter->attempts('9:account-17:uploads6:user-1'));
+        (new ExposesThrottleRequests)->resolveRequestSignatureForTest(Request::create('/ping'));
     }
 
-    public function testGlobalNamedLimiterDoesNotResolveScope(): void
+    public function testItCanGenerateMiddlewareDefinitions(): void
     {
-        $limiter = new RateLimiter(new Repository(new ArrayStore));
-        $limiter->for('uploads', fn () => new GlobalLimit(10));
-        $limiter->resolveKeyScopeUsing(function (): never {
-            throw new RuntimeException('Scope resolver should not run.');
-        });
-
-        (new ThrottleRequests($limiter))->handle(
-            Request::create('/upload'),
-            fn () => new Response('ok'),
-            'uploads',
+        $this->assertSame(ThrottleRequests::class . ':uploads', ThrottleRequests::using(NamedLimiter::Uploads));
+        $this->assertSame(ThrottleRequests::class . ':25', ThrottleRequests::with(25));
+        $this->assertSame(ThrottleRequests::class . ':25,2', ThrottleRequests::with(25, 2));
+        $this->assertSame(ThrottleRequests::class . ':25,2,foo', ThrottleRequests::with(25, 2, 'foo'));
+        $this->assertSame(
+            ThrottleRequests::class . ':25,2,foo',
+            ThrottleRequests::with(maxAttempts: 25, decayMinutes: 2, prefix: 'foo')
         );
-
-        $this->assertSame(1, $limiter->attempts(hash('xxh128', '7:uploads0:')));
+        $this->assertSame(ThrottleRequests::class . ':60,1,foo', ThrottleRequests::with(prefix: 'foo'));
     }
 
-    public function testUnlimitedNamedLimiterBypassesStorage(): void
+    public function testFractionalMiddlewareDurationsRoundUpToAWholeSecond(): void
     {
-        $limiter = new RateLimiter(new Repository(new ArrayStore));
-        $limiter->for('uploads', fn () => Limit::none());
-        $nextCalls = 0;
+        $middleware = new ExposesThrottleRequests;
 
-        (new ThrottleRequests($limiter))->handle(
-            Request::create('/upload'),
-            function () use (&$nextCalls): Response {
-                ++$nextCalls;
-
-                return new Response('ok');
-            },
-            'uploads',
-        );
-
-        $this->assertSame(1, $nextCalls);
-        $this->assertSame(0, $limiter->attempts(hash('xxh128', '7:uploads0:')));
+        $this->assertSame(60, $middleware->resolveDecaySecondsForTest(1));
+        $this->assertSame(30, $middleware->resolveDecaySecondsForTest('0.5'));
+        $this->assertSame(1, $middleware->resolveDecaySecondsForTest(0.001));
     }
 
-    public function testDefaultSignatureThrottleDoesNotResolveNamedLimiterScope(): void
+    public function testNonNumericMiddlewareDurationIsRejected(): void
     {
-        $limiter = new RateLimiter(new Repository(new ArrayStore));
-        $scopeCalls = 0;
-        $limiter->resolveKeyScopeUsing(function () use (&$scopeCalls): string {
-            ++$scopeCalls;
+        $this->expectException(InvalidRateLimitException::class);
+        $this->expectExceptionMessage('The rate limit decay minutes must be numeric.');
 
-            return 'account-1';
-        });
-
-        $request = Request::create('/upload');
-        $request->setUserResolver(fn (): GenericUser => new GenericUser([
-            'id' => 123,
-            'password' => 'secret',
-            'remember_token' => null,
-        ]));
-
-        (new ThrottleRequests($limiter))->handle(
-            $request,
-            fn () => new Response('ok'),
-            10,
-            1,
-        );
-
-        $this->assertSame(0, $scopeCalls);
-        $this->assertSame(1, $limiter->attempts(hash('xxh128', '123')));
+        (new ExposesThrottleRequests)->resolveDecaySecondsForTest('invalid');
     }
 }
 
-class ExposesThrottleRequestSignature extends ThrottleRequests
+class ExposesThrottleRequests extends ThrottleRequests
 {
     public function __construct()
     {
@@ -149,5 +93,10 @@ class ExposesThrottleRequestSignature extends ThrottleRequests
     public function resolveRequestSignatureForTest(Request $request): string
     {
         return $this->resolveRequestSignature($request);
+    }
+
+    public function resolveDecaySecondsForTest(float|int|string $decayMinutes): int
+    {
+        return $this->resolveDecaySeconds($decayMinutes);
     }
 }

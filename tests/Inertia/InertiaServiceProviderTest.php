@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
-use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaServiceProvider;
 use Hypervel\Inertia\Middleware\EnsureGetOnRedirect;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Support\Facades\Route;
@@ -71,9 +71,6 @@ class InertiaServiceProviderTest extends TestCase
 
     public function testRedirectResponseFromRateLimiterIsConvertedTo303(): void
     {
-        // Use worker-array because the throttle counter must survive both requests.
-        config(['cache.limiter' => 'worker-array']);
-
         RateLimiter::for('api', fn () => Limit::perMinute(1)->response(fn () => back()));
 
         // Needed for the web middleware
