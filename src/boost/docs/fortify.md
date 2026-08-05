@@ -298,8 +298,8 @@ The published configuration sets those limiters to `login` and `passkeys`, and t
 The two-factor challenge submit route is throttled by default with `throttle:5,1`. You may set `fortify.limiters.two-factor` to a different throttle string or to a named limiter if your application needs custom keying.
 
 ```php
-use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\RateLimiter;
 
 RateLimiter::for('login', function (Request $request): Limit {
