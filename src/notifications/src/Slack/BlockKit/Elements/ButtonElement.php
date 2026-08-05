@@ -99,7 +99,7 @@ class ButtonElement implements ElementContract
      */
     public function url(string $url): static
     {
-        if (strlen($url) > 3000) {
+        if (mb_strlen($url, 'UTF-8') > 3000) {
             throw new InvalidArgumentException('Maximum length for the url field is 3000 characters.');
         }
 
@@ -113,7 +113,7 @@ class ButtonElement implements ElementContract
      */
     public function id(string $id): static
     {
-        if (strlen($id) > 255) {
+        if (mb_strlen($id, 'UTF-8') > 255) {
             throw new InvalidArgumentException('Maximum length for the action_id field is 255 characters.');
         }
 
@@ -127,7 +127,7 @@ class ButtonElement implements ElementContract
      */
     public function value(string $value): static
     {
-        if (strlen($value) > 2000) {
+        if (mb_strlen($value, 'UTF-8') > 2000) {
             throw new InvalidArgumentException('Maximum length for the value field is 2000 characters.');
         }
 
@@ -175,7 +175,7 @@ class ButtonElement implements ElementContract
      */
     public function accessibilityLabel(string $label): static
     {
-        if (strlen($label) > 75) {
+        if (mb_strlen($label, 'UTF-8') > 75) {
             throw new InvalidArgumentException('Maximum length for the accessibility label is 75 characters.');
         }
 

@@ -86,6 +86,16 @@ class ActionsBlockTest extends TestCase
         $block->toArray();
     }
 
+    public function testBlockIdUsesTheSlackCharacterLimit(): void
+    {
+        $id = str_repeat('你', 255);
+        $block = new ActionsBlock;
+        $block->button('Button');
+        $block->id($id);
+
+        $this->assertSame($id, $block->toArray()['block_id']);
+    }
+
     public function testCanAddButtons(): void
     {
         $block = new ActionsBlock;
@@ -119,7 +129,9 @@ class ActionsBlockTest extends TestCase
     public function testCanAddSelects(): void
     {
         $block = new ActionsBlock;
-        $block->staticSelect('Example Select')->id('static_select_id');
+        $block->staticSelect('Example Select')
+            ->addOption('Option A', 'option_a')
+            ->id('static_select_id');
         $block->usersSelect('Example User')->id('users_select_id');
 
         $this->assertSame([
@@ -127,7 +139,13 @@ class ActionsBlockTest extends TestCase
             'elements' => [
                 [
                     'type' => 'static_select',
-                    'options' => [],
+                    'options' => [[
+                        'text' => [
+                            'type' => 'plain_text',
+                            'text' => 'Option A',
+                        ],
+                        'value' => 'option_a',
+                    ]],
                     'action_id' => 'static_select_id',
                 ],
                 [

@@ -50,6 +50,14 @@ class ImageBlockTest extends TestCase
         $block->toArray();
     }
 
+    public function testConstructorAltTextCantExceedTwoThousandCharacters(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Maximum length for the alt text field is 2000 characters.');
+
+        new ImageBlock('http://placekitten.com/500/500', str_repeat('a', 2001));
+    }
+
     public function testCanHaveTitle(): void
     {
         $block = new ImageBlock('http://placekitten.com/500/500', 'An incredibly cute kitten.');
@@ -105,5 +113,21 @@ class ImageBlockTest extends TestCase
         $block->id(str_repeat('a', 256));
 
         $block->toArray();
+    }
+
+    public function testCharacterLimitedFieldsAcceptMultibyteValuesAtTheirLimits(): void
+    {
+        $url = str_repeat('你', 3000);
+        $altText = str_repeat('你', 2000);
+        $id = str_repeat('你', 255);
+        $block = new ImageBlock($url, $altText);
+        $block->id($id);
+
+        $this->assertSame([
+            'type' => 'image',
+            'image_url' => $url,
+            'alt_text' => $altText,
+            'block_id' => $id,
+        ], $block->toArray());
     }
 }

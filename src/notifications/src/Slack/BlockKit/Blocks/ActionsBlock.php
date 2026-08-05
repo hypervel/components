@@ -78,7 +78,7 @@ class ActionsBlock implements BlockContract
      */
     public function toArray(): array
     {
-        if ($this->blockId && strlen($this->blockId) > 255) {
+        if ($this->blockId && mb_strlen($this->blockId, 'UTF-8') > 255) {
             throw new InvalidArgumentException('Maximum length for the block_id field is 255 characters.');
         }
 

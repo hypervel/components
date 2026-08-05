@@ -144,6 +144,27 @@ class ButtonElementTest extends TestCase
         ], $element->toArray());
     }
 
+    public function testCharacterLimitedFieldsAcceptMultibyteValuesAtTheirLimits(): void
+    {
+        $url = str_repeat('你', 3000);
+        $id = str_repeat('你', 255);
+        $value = str_repeat('你', 2000);
+        $label = str_repeat('你', 75);
+
+        $element = (new ButtonElement('Click Me'))
+            ->url($url)
+            ->id($id)
+            ->value($value)
+            ->accessibilityLabel($label);
+
+        $payload = $element->toArray();
+
+        $this->assertSame($url, $payload['url']);
+        $this->assertSame($id, $payload['action_id']);
+        $this->assertSame($value, $payload['value']);
+        $this->assertSame($label, $payload['accessibility_label']);
+    }
+
     public function testValueCantExceedTwoThousandCharacters(): void
     {
         $this->expectException(InvalidArgumentException::class);

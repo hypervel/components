@@ -9,6 +9,7 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use Hypervel\Notifications\Slack\SlackMessage;
+use JsonException;
 use LogicException;
 use RuntimeException;
 
@@ -580,5 +581,17 @@ class SlackMessageTest extends TestCase
         );
 
         $this->assertSame($expectedUrl, $message->toBlockKitBuilderUrl());
+    }
+
+    public function testBlockKitBuilderUrlReportsJsonEncodingFailures(): void
+    {
+        $message = (new SlackMessage)
+            ->text('Invoice paid')
+            ->metadata('invoice.paid', ['reference' => "\xFF"]);
+
+        $this->expectException(JsonException::class);
+        $this->expectExceptionMessage('Malformed UTF-8 characters');
+
+        $message->toBlockKitBuilderUrl();
     }
 }

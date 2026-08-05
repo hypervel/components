@@ -40,4 +40,13 @@ class DividerBlockTest extends TestCase
 
         $block->toArray();
     }
+
+    public function testBlockIdUsesTheSlackCharacterLimit(): void
+    {
+        $id = str_repeat('你', 255);
+        $block = new DividerBlock;
+        $block->id($id);
+
+        $this->assertSame($id, $block->toArray()['block_id']);
+    }
 }

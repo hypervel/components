@@ -38,18 +38,31 @@ class PlainTextOnlyTextObjectTest extends TestCase
         ], $object->toArray());
     }
 
+    public function testMultibyteTextUsesTheCharacterLimit(): void
+    {
+        $text = str_repeat('🪓', 3000);
+
+        $this->assertSame($text, (new PlainTextOnlyTextObject($text))->toArray()['text']);
+    }
+
     public function testTruncatingDoesNotSplitMultibyteCharacters(): void
     {
-        // 🪓 is 4 bytes in UTF-8, so the byte-based truncation point lands
-        // mid-character; truncating there must not produce invalid UTF-8.
-        $object = new PlainTextOnlyTextObject(str_repeat('🪓', 751));
+        $object = new PlainTextOnlyTextObject(str_repeat('🪓', 3001));
 
         $text = $object->toArray()['text'];
 
         $this->assertTrue(mb_check_encoding($text, 'UTF-8'));
-        $this->assertLessThanOrEqual(3000, strlen($text));
-        $this->assertStringEndsWith('...', $text);
+        $this->assertSame(3000, mb_strlen($text, 'UTF-8'));
+        $this->assertSame(str_repeat('🪓', 2997) . '...', $text);
         $this->assertNotFalse(json_encode($object->toArray()));
+    }
+
+    public function testMalformedOverLimitTextIsRejectedBeforeTruncation(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Text must be valid UTF-8.');
+
+        new PlainTextOnlyTextObject(str_repeat('a', 3001) . "\xFF");
     }
 
     public function testEscapeEmojiColonFormat(): void

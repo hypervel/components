@@ -78,6 +78,16 @@ class ContextBlockTest extends TestCase
         $block->toArray();
     }
 
+    public function testBlockIdUsesTheSlackCharacterLimit(): void
+    {
+        $id = str_repeat('你', 255);
+        $block = new ContextBlock;
+        $block->text('Location');
+        $block->id($id);
+
+        $this->assertSame($id, $block->toArray()['block_id']);
+    }
+
     public function testCanAddImageBlocks(): void
     {
         $block = new ContextBlock;

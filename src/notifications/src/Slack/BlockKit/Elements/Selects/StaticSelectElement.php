@@ -6,6 +6,7 @@ namespace Hypervel\Notifications\Slack\BlockKit\Elements\Selects;
 
 use Hypervel\Notifications\Slack\BlockKit\Elements\Traits\GeneratesDefaultIds;
 use InvalidArgumentException;
+use LogicException;
 
 class StaticSelectElement extends SelectElement
 {
@@ -14,7 +15,7 @@ class StaticSelectElement extends SelectElement
     /**
      * The select element options.
      *
-     * @var array<string, SelectOption>
+     * @var array<array-key, SelectOption>
      */
     private array $options = [];
 
@@ -62,6 +63,14 @@ class StaticSelectElement extends SelectElement
      */
     public function toArray(): array
     {
+        if (empty($this->options)) {
+            throw new LogicException('There must be at least one option in each static select element.');
+        }
+
+        if (count($this->options) > 100) {
+            throw new LogicException('There is a maximum of 100 options in each static select element.');
+        }
+
         $options = array_values($this->options);
 
         $options = array_map(fn (SelectOption $option) => $option->toArray(), $options);

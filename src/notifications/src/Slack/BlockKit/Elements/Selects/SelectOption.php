@@ -6,7 +6,6 @@ namespace Hypervel\Notifications\Slack\BlockKit\Elements\Selects;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Notifications\Slack\BlockKit\Composites\TextObject;
-use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Stringable;
 
@@ -44,14 +43,17 @@ class SelectOption implements Arrayable
      */
     protected function value(Stringable|string|int|float|bool $value): void
     {
-        /** @var string $normalizedValue */
-        $normalizedValue = preg_replace('/[^a-z0-9_\-.]/', '', Str::lower((string) $value));
+        $value = (string) $value;
 
-        if ($normalizedValue === '') {
-            throw new InvalidArgumentException('The option value must contain at least one supported character.');
+        if ($value === '') {
+            throw new InvalidArgumentException('The option value must not be empty.');
         }
 
-        $this->value = $normalizedValue;
+        if (mb_strlen($value, 'UTF-8') > 150) {
+            throw new InvalidArgumentException('Maximum length for the option value field is 150 characters.');
+        }
+
+        $this->value = $value;
     }
 
     /**

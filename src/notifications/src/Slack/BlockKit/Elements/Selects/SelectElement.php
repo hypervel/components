@@ -22,11 +22,9 @@ abstract class SelectElement implements AccessoryContract
     protected string $actionId;
 
     /**
-     * A text object that defines the select's text.
+     * A plain_text only text object that defines the placeholder text shown on the menu.
      *
-     * Can only be of type: plain_text. Text may truncate with ~30 characters.
-     *
-     * Maximum length for the text in this field is 75 characters.
+     * Maximum length for the text in this field is 150 characters.
      */
     protected ?PlainTextOnlyTextObject $placeholder = null;
 
@@ -43,7 +41,7 @@ abstract class SelectElement implements AccessoryContract
      */
     public function id(string $id): static
     {
-        if (strlen($id) > 255) {
+        if (mb_strlen($id, 'UTF-8') > 255) {
             throw new InvalidArgumentException('Maximum length for the action_id field is 255 characters.');
         }
 
@@ -57,7 +55,7 @@ abstract class SelectElement implements AccessoryContract
      */
     public function placeholder(string $text): static
     {
-        $this->placeholder = new PlainTextOnlyTextObject($text);
+        $this->placeholder = new PlainTextOnlyTextObject($text, 150);
 
         return $this;
     }

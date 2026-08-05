@@ -22,10 +22,10 @@ The implementation must retain supported Laravel APIs, named arguments, protecte
 | Framework [#59468](https://github.com/laravel/framework/pull/59468) | `ReadsClassAttributes.php`, `NotificationSenderTest.php` | Shared source is already correct; port Notifications consumer regressions only. |
 | Framework [#57718](https://github.com/laravel/framework/pull/57718) | `HasDatabaseNotifications.php`, Eloquent type fixture | Port relationship generics; preserve Hypervel native return types. |
 | Slack [#100](https://github.com/laravel/slack-notification-channel/pull/100) | modern `SlackMessage.php`, feature test | Port the public builder URL accessor. |
-| Slack [#103](https://github.com/laravel/slack-notification-channel/pull/103) | actions, button, select classes/trait/contract and tests | Port selects; correct discarded seeds, invalid generated IDs, and empty option values. |
+| Slack [#103](https://github.com/laravel/slack-notification-channel/pull/103) | actions, button, select classes/trait/contract and tests | Port selects; correct discarded seeds, invalid generated IDs, lossy option identities, and missing protocol bounds. |
 | Slack [#106](https://github.com/laravel/slack-notification-channel/pull/106) | webhook channel, legacy message | Accept modern and legacy messages; add missing direct coverage. |
 | Slack [#108](https://github.com/laravel/slack-notification-channel/pull/108) | actions block, users select | Port users-select behavior and tests. |
-| Slack [#112](https://github.com/laravel/slack-notification-channel/pull/112) | plain-text object and test | Port UTF-8-safe byte truncation. |
+| Slack [#112](https://github.com/laravel/slack-notification-channel/pull/112) | plain-text object and test | Port UTF-8-safe truncation, then enforce the protocol's character-counted limits. |
 
 ## Anti-overengineering rules
 
@@ -72,8 +72,8 @@ Existing `notifications-07` (Factory accepts single notifiables) and `notificati
 | ID | Category | Severity | Confidence | Final decision |
 |---|---|---:|---:|---|
 | `notifications-09` | Laravel API parity defect | Minor | High | Add `MailMessage` storage attachment methods and documentation. |
-| `notifications-10` | Slack parity and default-ID/value defects | Major | High | Port selects; preserve direct construction; fix discarded seeds, overlong/empty automatic IDs, and empty normalized option values in their shared owners. |
-| `notifications-11` | Encoding defect | Major | High | Use `mb_strcut()` only at the over-limit boundary. |
+| `notifications-10` | Slack parity and default-ID/value defects | Major | High | Port selects; preserve direct construction; fix discarded seeds, overlong/empty automatic IDs, exact option identities, and select protocol bounds in their shared owners. |
+| `notifications-11` | Encoding and protocol-length defect | Major | High | Enforce Slack's documented character limits throughout Block Kit and reject malformed text before truncation can silently substitute bytes. |
 | `notifications-12` | Slack transport defect | Major | High | Accept modern and legacy Slack messages through webhooks; retain and directly test both Horizon representations. |
 | `notifications-13` | Slack API parity | Minor | High | Add the Block Kit Builder URL accessor and make `dd()` delegate to it. |
 | `notifications-14` | Coroutine event-ownership defect | Major | High | Save and restore one nullable coroutine-local boolean across nested channel attempts. |
@@ -152,7 +152,9 @@ private function resolveDefaultId(string $prefix = '', ?string $text = null): st
 
 The inner cap preserves current valid IDs and bounds slug work; only the outer cap enforces Slack's 255-byte output limit. `uniqid()` is the existing null-seed fallback and is also used when valid display text cannot form a usable ASCII slug. Do not add a registry, collision tracker, hash policy, entropy flag, or test of PHP's generator.
 
-`SelectOption` accepts the proven `Stringable|string|int|float|bool` values and normalizes once before `Str::lower()`. Narrow literal-regex output locally if PHPStan requires it. Reject an empty normalized value at construction with `InvalidArgumentException`; distinct options must not emit the same empty Slack value. Do not change the regex or add per-type rules.
+`SelectOption` accepts the proven `Stringable|string|int|float|bool` values, casts once, and preserves the exact resulting string because Slack treats the value as an opaque interaction identity. Reject the empty string and values over Slack's 150-character maximum with `InvalidArgumentException`. Keep `StaticSelectElement::addOption()` and `initialOption()` string-typed; widening them would add array-key coercion for no supported call shape. Type its keyed option storage as `array<array-key, SelectOption>` because PHP converts canonical numeric-string keys to integers.
+
+Pass the select placeholder's 150-character maximum to `PlainTextOnlyTextObject` and correct its copied 75-character docblock. Validate static-select cardinality in `toArray()` using the existing bounded-container pattern: one through 100 options are valid, an empty or 101-option select throws `LogicException`, and replacing an existing value at 100 remains valid.
 
 Counterfactual coverage must prove:
 
@@ -161,20 +163,26 @@ Counterfactual coverage must prove:
 - two non-transliterable labels receive distinct nonempty IDs;
 - ordinary Button/select IDs remain byte-identical;
 - explicit overlong `id()` still throws;
-- valid scalar option values normalize, while non-Latin/punctuation-only/empty values that normalize to empty fail clearly;
+- scalar and stringable option values preserve their exact string identity, including case, spaces, punctuation, and non-Latin text; empty values fail clearly and multibyte values use the 150-character boundary;
+- static selects reject zero and more than 100 options while replacement at the limit remains valid;
+- placeholders preserve 150 characters and truncate 151 to 150 with an ellipsis;
 - static/users select placeholders, focus, initial values/options, explicit IDs, deterministic seeded IDs, and unknown-option rejection work.
 
-### 3. UTF-8-safe Slack text
+### 3. Slack character limits and UTF-8-safe text
 
-Keep the existing byte-based protocol checks, but replace only unsafe over-limit slicing:
+Slack documents its Block Kit limits in characters. Use `mb_strlen(..., 'UTF-8')` for every existing user-supplied text, URL, value, action-ID, and block-ID check in `src/notifications/src/Slack/`. Add the missing 3000-character image-element URL check. Do not invent an image-element alternative-text limit: unlike image blocks, Slack publishes none for that field. Route non-null `ImageBlock` constructor alternative text through its existing validated `alt()` mutator so direct construction and fluent configuration enforce the same documented 2000-character limit. Convert the minimum check in `PlainTextOnlyTextObject` for consistency; every current caller retains the default minimum of one. For valid over-limit text, truncate by characters:
 
 ```php
-if (strlen($text) > $maxLength) {
-    $text = mb_strcut($text, 0, $maxLength - 3, 'UTF-8') . '...';
+if (mb_strlen($text, 'UTF-8') > $maxLength) {
+    if (! mb_check_encoding($text, 'UTF-8')) {
+        throw new InvalidArgumentException('Text must be valid UTF-8.');
+    }
+
+    $text = mb_substr($text, 0, $maxLength - 3, 'UTF-8') . '...';
 }
 ```
 
-Test valid UTF-8 at the boundary, ellipsis/max length, and unchanged ASCII. Do not convert all Slack limits to character counts: upstream's `strlen()` may under-fill multibyte fields but cannot exceed Slack's limit, so there is no delivery failure to justify a public behavioral divergence.
+The validity guard runs only on the already-over-limit truncation branch and prevents `mb_substr()` from silently replacing malformed bytes. Under-limit malformed input keeps failing at JSON serialization. Keep `GeneratesDefaultIds` byte-based: its final output is always an ASCII slug or `uniqid()` fallback, so `substr()` enforces its byte limit exactly. Test valid multibyte input at and over representative limits, unchanged ASCII behavior, and malformed over-limit text rejection. Multibyte payloads may contain more bytes than before while remaining within Slack's documented character limits.
 
 ### 4. Webhook transport and Horizon representations
 
@@ -205,15 +213,18 @@ Place these at `tests/Horizon/Notifications/LongWaitDetectedTest.php`, mirroring
 
 ### 5. Block Kit Builder URL
 
-Add `Slack\SlackMessage::toBlockKitBuilderUrl(): string` in current upstream order, extracting Hypervel's existing no-flag encoding:
+Add `Slack\SlackMessage::toBlockKitBuilderUrl(): string` in current upstream order and make encoding failures explicit:
 
 ```php
 return 'https://app.slack.com/block-kit-builder#' . rawurlencode(
-    json_encode(Arr::except($this->toArray(), ['username', 'text', 'channel']))
+    json_encode(
+        Arr::except($this->toArray(), ['username', 'text', 'channel']),
+        JSON_THROW_ON_ERROR
+    )
 );
 ```
 
-Do not copy upstream's stray `true` JSON flag, which would add `JSON_HEX_TAG` and change the established URL payload. Make `dd(bool $raw = false): never` dump either the raw payload or the accessor result. Add direct exact-URL coverage and one concise guide sentence explaining that applications may retrieve the URL without terminating.
+Do not copy upstream's stray `true` JSON flag, which would add `JSON_HEX_TAG` and change the established URL payload. Declare `@throws JsonException`, make `dd(bool $raw = false): never` dump either the raw payload or the accessor result, and add an invalid-UTF-8 metadata regression that fails before this correction. Add direct exact-URL coverage and one concise guide sentence explaining that applications may retrieve the URL without terminating.
 
 ### 6. Reentrant failure-event ownership
 
@@ -312,8 +323,8 @@ Update `src/boost/docs/notifications.md` only for storage attachments, select in
 - Do not add a Laravel `driver()` override; Hypervel's shared Manager already owns the enum-capable contract.
 - Do not change optional event guards.
 - Do not narrow `SectionBlock::accessory()` beyond current upstream.
-- Do not change Slack's normalization regex, add an ID registry, or treat upstream parity as proof that invalid generated IDs are acceptable.
-- Retain byte-based Slack length checks: their possible under-fill is not a delivery defect.
+- Do not add option-value normalization, an ID registry, or per-type identity rules; Slack option values are opaque strings and must be emitted verbatim.
+- Enforce Slack's documented character limits directly; do not retain byte-counting compatibility with the upstream implementation.
 - `ReadsQueueAttributes` is an intentional Queue-owned domain alias over `ReadsClassAttributes`, not dead indirection.
 
 ## Verification
@@ -332,6 +343,8 @@ Before review, trace every changed caller/callee and verify:
 
 - no Slack/API method or named argument was lost;
 - automatic IDs are nonempty and at most 255 bytes without changing ordinary IDs;
+- option values retain exact identity, select cardinality is one through 100, and all documented Block Kit limits count characters;
+- malformed over-limit text is rejected rather than silently substituted, while malformed builder metadata throws `JsonException`;
 - nested attempts restore the exact prior boolean and leave no context key after the outer attempt;
 - unrelated external failure events do not create state;
 - coroutine manager state cannot cross siblings;

@@ -324,11 +324,16 @@ class SlackMessage implements Arrayable
 
     /**
      * Get the payload as a URL to the Slack Block Kit Builder.
+     *
+     * @throws JsonException
      */
     public function toBlockKitBuilderUrl(): string
     {
         return 'https://app.slack.com/block-kit-builder#' . rawurlencode(
-            json_encode(Arr::except($this->toArray(), ['username', 'text', 'channel']))
+            json_encode(
+                Arr::except($this->toArray(), ['username', 'text', 'channel']),
+                JSON_THROW_ON_ERROR
+            )
         );
     }
 

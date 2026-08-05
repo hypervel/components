@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Notifications\Slack\Elements;
 
 use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use LogicException;
 
 class ImageElementTest extends TestCase
@@ -41,5 +42,30 @@ class ImageElementTest extends TestCase
             'image_url' => 'http://placekitten.com/700/500',
             'alt_text' => 'Some alt text',
         ], $element->toArray());
+    }
+
+    public function testAltTextIsNotSubjectToTheImageBlockLimit(): void
+    {
+        $altText = str_repeat('a', 5000);
+
+        $this->assertSame(
+            $altText,
+            (new ImageElement('http://placekitten.com/700/500', $altText))->toArray()['alt_text'],
+        );
+    }
+
+    public function testImageUrlCannotExceedThreeThousandCharacters(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Maximum length for the url field is 3000 characters.');
+
+        new ImageElement(str_repeat('a', 3001), 'Alternative text');
+    }
+
+    public function testImageUrlUsesTheSlackCharacterLimit(): void
+    {
+        $url = str_repeat('你', 3000);
+
+        $this->assertSame($url, (new ImageElement($url, 'Alternative text'))->toArray()['image_url']);
     }
 }
