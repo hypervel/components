@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications\Slack\Composites;
 
 use Hypervel\Notifications\Slack\BlockKit\Composites\TextObject;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class TextObjectTest extends TestCase
 {

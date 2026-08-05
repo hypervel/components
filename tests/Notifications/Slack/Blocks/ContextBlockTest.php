@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class ContextBlockTest extends TestCase
 {

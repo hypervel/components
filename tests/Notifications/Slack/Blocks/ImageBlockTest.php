@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class ImageBlockTest extends TestCase
 {

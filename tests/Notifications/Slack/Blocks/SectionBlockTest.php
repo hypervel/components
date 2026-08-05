@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class SectionBlockTest extends TestCase
 {
