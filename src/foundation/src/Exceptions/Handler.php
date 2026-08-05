@@ -8,9 +8,6 @@ use Closure;
 use Exception;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\RateLimiting\Limit;
-use Hypervel\Cache\RateLimiting\Unlimited;
 use Hypervel\Console\View\Components\BulletList;
 use Hypervel\Console\View\Components\Error;
 use Hypervel\Context\CoroutineContext;
@@ -31,6 +28,10 @@ use Hypervel\Http\JsonResponse;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Routing\Router;
 use Hypervel\Session\Store;
@@ -131,11 +132,6 @@ class Handler implements ExceptionHandlerContract
      * @var Closure[]
      */
     protected array $throttleCallbacks = [];
-
-    /**
-     * Indicate that throttle keys should be hashed.
-     */
-    protected bool $hashThrottleKeys = true;
 
     /**
      * The callbacks that should be used during rendering.
@@ -586,11 +582,13 @@ class Handler implements ExceptionHandlerContract
                 return ! $throttle($e);
             }
 
+            // The package hashes the complete policy identity, so Laravel's
+            // protected hashThrottleKeys opt-out is intentionally omitted.
+            $key = $throttle->key ?: 'hypervel:foundation:exceptions:' . $e::class;
+
             return ! $this->container->make(RateLimiter::class)->attempt(
-                with($throttle->key ?: 'hypervel:foundation:exceptions:' . $e::class, fn ($key) => $this->hashThrottleKeys ? hash('xxh128', $key) : $key),
-                $throttle->maxAttempts,
-                fn () => true,
-                $throttle->decaySeconds
+                $throttle->by($key),
+                fn (): bool => true,
             );
         }), rescue: false, report: false);
     }
@@ -598,7 +596,7 @@ class Handler implements ExceptionHandlerContract
     /**
      * Throttle the given exception.
      */
-    protected function throttle(Throwable $e): Lottery|Limit|null
+    protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
     {
         foreach ($this->throttleCallbacks as $throttleCallback) {
             foreach ($this->firstClosureParameterTypes($throttleCallback) as $type) {
