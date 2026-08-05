@@ -195,7 +195,7 @@ return $this->provider->retrieveByCredentials([
 ]) !== null;
 ```
 
-Add `#[SensitiveParameter]` to `validate()`'s credentials under section 8. Normal request authentication is unchanged; the SHA-256 cost occurs only for an explicit validation call on a guard configured to hash.
+Mark `validate()`'s credentials with `#[SensitiveParameter]`. Explicit validation now uses the same configured hashing path as normal request authentication, which is unchanged; the added SHA-256 work occurs only on the `validate()` call path.
 
 ### 2. Normalize and cache Gate callables, guard optional events, and repair cleanup (`auth-05`, `auth-07`, `auth-17`)
 
@@ -573,11 +573,10 @@ Implementation cadence:
 1. Change one file at a time with `apply_patch` and run each changed/new test file immediately.
 2. Run all Auth unit tests and the focused Auth integration group; run affected Fortify, Contracts, Support-facade, Foundation-config, and documentation checks.
 3. Regenerate and lint Auth and Password facade metadata with the two exact `composer facade` commands in section 5, and verify no unrelated facade drift.
-4. Run `./vendor/bin/phpstan` and `./vendor/bin/php-cs-fixer fix` through the required final `composer fix` gate.
-5. Run `composer fix` from the worktree root; do not weaken, skip, or rewrite tests to obtain green output.
-6. Run `git diff --check` and searches for stale `modelSegment` property references, `guestClosureCache`, redundant changed-key defaults, old facade types, undeclared dependencies, and missing sensitive attributes.
-7. Freshly trace every changed caller/callee, event-rebind transition, worker/static lifetime, cache key/invalidation path, config-merge case, named argument, event-fake restoration path, and test cleanup boundary.
-8. Recheck hot paths: no added I/O, serialization, lock, retry, context slot, or container lookup; listener guards avoid unused event work; cache lookup retains one model-string property access; enum checks are bounded in-memory branches.
-9. Remove stale/dead code, imports, comments, tests, and rejected design residue, then request independent code review and continue until sign-off.
+4. Run `composer fix` from the worktree root as the authoritative aggregate gate; do not weaken, skip, or rewrite tests to obtain green output.
+5. Run `git diff --check` and searches for stale `modelSegment` property references, `guestClosureCache`, redundant changed-key defaults, old facade types, undeclared dependencies, and missing sensitive attributes.
+6. Freshly trace every changed caller/callee, event-rebind transition, worker/static lifetime, cache key/invalidation path, config-merge case, named argument, event-fake restoration path, and test cleanup boundary.
+7. Recheck hot paths: no added I/O, serialization, lock, retry, context slot, or container lookup; listener guards avoid unused event work; cache lookup retains one model-string property access; enum checks are bounded in-memory branches.
+8. Remove stale/dead code, imports, comments, tests, and rejected design residue, then request independent code review and continue until sign-off.
 
 The final result is complete only when focused and full gates are green, the fresh self-review finds no omission or unnecessary mechanism, audit records match the implemented code, and independent code review is signed off.

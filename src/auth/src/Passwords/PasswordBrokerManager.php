@@ -184,8 +184,10 @@ class PasswordBrokerManager implements FactoryContract
     /**
      * Refresh the event dispatcher on resolved brokers.
      *
-     * Boot or tests only. Reached by Event::fake() / Event::fakeFor() so cached
-     * brokers follow the active dispatcher and its later restoration.
+     * Boot or tests only. Replaces the dispatcher on every resolved concrete
+     * broker for the worker lifetime; per-request use races across coroutines.
+     * Reached by Event::fake() / Event::fakeFor() so cached brokers follow the
+     * active dispatcher and its later restoration.
      */
     public function refreshEventDispatcher(Dispatcher $events): void
     {
