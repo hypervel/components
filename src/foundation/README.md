@@ -12,6 +12,8 @@ alias, and priority management surface because framework and package providers
 configure middleware through that contract. Custom HTTP kernels must implement
 the same surface, and its mutators are intended for application boot.
 
+Laravel's real-time facades are intentionally not supported. Define explicit facade classes or inject services from the container instead.
+
 Laravel's deprecated `Middleware::validateCsrfTokens()` alias is intentionally not ported. Configure request-forgery protection with `preventRequestForgery()`.
 
 The default `dev` server process runs `php artisan watch` so the Watcher package can own and restart the long-running Swoole server. Official Hypervel skeletons and starter kits include `hypervel/watcher` as a development dependency.

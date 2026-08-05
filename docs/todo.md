@@ -47,6 +47,7 @@
 
 - Audit transformed Redis command wrapper return types against serializer-configured phpredis connections. For example, `RedisConnection::callGet(): ?string` can receive unserialized non-string values from phpredis when a serializer is enabled under `strict_types`; check the other `call*` wrappers for the same mismatch and update signatures/tests to match real client behavior.
 - Revisit the rate limiter's portable fixed-window Lua script once native bounded increment-with-expiry support is mature across the supported Redis-compatible ecosystem. Redis 8.8's `INCREX` can atomically reject increments above an upper bound and set expiry only for a new window, but Redis 8.6 and Valkey 9 do not provide it, [Valkey #3253](https://github.com/valkey-io/valkey/pull/3253) is still an open related proposal rather than equivalent `INCREX` support, and phpredis 6.3 exposes no typed `INCREX` method (while `rawCommand()` bypasses key prefixing and has different Redis Cluster routing semantics). Re-benchmark and switch only when Redis and Valkey expose equivalent semantics and phpredis has prefix-aware, cluster-aware client support; keep the corresponding focused `@TODO` beside the Lua script until then.
+
 ## Collections
 
 ## Horizon

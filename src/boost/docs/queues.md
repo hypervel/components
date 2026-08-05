@@ -698,7 +698,7 @@ return Limit::perMinute(50)->by($job->user->id);
 
 Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
 
-Queue rate limiters may use fixed-window or leaky-bucket policies, weighted costs, and multiple ordered policies. When multiple policies are returned, they are consumed sequentially; capacity accepted by an earlier policy remains consumed if a later policy denies the job.
+Queue rate limiters may use fixed-window or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several rate limits, Hypervel consumes them in the listed order. When a later rate limit denies the job, capacity already consumed by earlier rate limits is not restored.
 
 Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 
@@ -755,7 +755,7 @@ public function middleware(): array
 }
 ```
 
-The same `RateLimited` middleware supports every configured rate limiter store; no Redis-specific middleware class is required.
+The `RateLimited` middleware supports every configured rate limiter store.
 
 <a name="preventing-job-overlaps"></a>
 ### Preventing Job Overlaps
@@ -934,7 +934,9 @@ return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
 )];
 ```
 
-Internally, this middleware uses Hypervel's rate limiter, and the job's class name is used as the policy key. You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and would like them to share a common throttling bucket:
+The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
+
+Internally, this middleware uses Hypervel's rate limiter, and the job's display name is used as the rate limit key. You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and would like them to share a common throttling bucket:
 
 ```php
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
@@ -1033,8 +1035,6 @@ public function middleware(): array
     return [(new ThrottlesExceptions(10, 10 * 60))->store('redis')];
 }
 ```
-
-The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
 
 <a name="releasing-jobs"></a>
 ### Releasing Jobs

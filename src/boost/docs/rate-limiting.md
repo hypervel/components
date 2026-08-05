@@ -5,11 +5,11 @@
     - [Available Stores](#available-stores)
     - [Database Store](#database-store)
     - [Swoole Store](#swoole-store)
-- [Defining Policies](#defining-policies)
+- [Defining Rate Limits](#defining-rate-limits)
     - [Fixed Windows](#fixed-windows)
     - [Leaky Buckets](#leaky-buckets)
     - [Weighted Operations](#weighted-operations)
-    - [Unlimited Policies](#unlimited-policies)
+    - [Unlimited](#unlimited)
 - [Using the Rate Limiter](#using-the-rate-limiter)
     - [Consuming Capacity](#consuming-capacity)
     - [Inspecting State](#inspecting-state)
@@ -33,9 +33,9 @@ The rate limiter supports:
 - weighted operations;
 - capped exponential failure backoff;
 - Redis, Swoole, database, and worker-local array stores; and
-- custom stores registered through Hypervel's familiar manager extension API.
+- custom rate limiter stores.
 
-Every rate limit operation returns a result containing whether the operation was allowed, its remaining capacity, and any retry or reset delay. Your application does not need to perform another store lookup after consuming capacity.
+After consuming capacity, Hypervel returns the decision, remaining capacity, and retry or reset delay. Your application does not need to query the store again.
 
 > [!NOTE]
 > If you are limiting incoming HTTP requests, consult the [routing rate limiter documentation](/docs/{{version}}/routing#rate-limiting). For queued jobs, consult the [queue middleware documentation](/docs/{{version}}/queues#rate-limiting).
@@ -78,7 +78,7 @@ return [
 ];
 ```
 
-The `prefix` keeps limiter state separate when multiple applications use the same backend. Hypervel includes this value when generating its hashed limiter keys.
+The `prefix` keeps rate limit state separate when multiple applications use the same backend. Hypervel includes this value when generating its hashed keys.
 
 <a name="available-stores"></a>
 ### Available Stores
@@ -92,9 +92,9 @@ Hypervel includes four rate limiter stores:
 | `swoole` | Workers belonging to one Swoole server instance | Very high-throughput local limiting |
 | `worker-array` | One worker process | Tests and deliberately worker-local workloads |
 
-The Redis store performs each rate limit operation using one pooled connection checkout and one cached Lua script. The database store uses transactions and row locks, making it a portable choice when Redis is not available, though it does not offer the same throughput as Redis.
+The Redis store evaluates each fixed-window, leaky-bucket, and backoff decision atomically in a single cached Lua script, using one pooled connection checkout per operation. The database store uses transactions and row locks. It is a portable shared option when Redis is not available, but does not offer the same throughput.
 
-The Swoole store keeps native integer state in shared memory. It is shared by workers forked from the same server master, but it is not shared by independent Hypervel server instances or different machines. The `worker-array` store is not shared between workers at all. It does not prune entries in the background, so an expired entry remains until the same key is updated or cleared, or the worker restarts. Reverb clears its per-connection message limit when the connection closes.
+The Swoole store keeps native integer state in shared memory. It is shared by workers forked from the same server master, but not by independent Hypervel server instances or different machines. The `worker-array` store is limited to one worker. It does not prune entries in the background, so an expired entry remains until its key is updated or cleared, or the worker restarts.
 
 <a name="database-store"></a>
 ### Database Store
@@ -109,13 +109,15 @@ php artisan migrate
 
 The `rate-limiter:table` command is also available as an alias.
 
-Do not change database rate limit state while the store's selected connection is already inside a transaction. This restriction applies to consuming capacity, recording failures, clearing state, and pruning expired rows. Hypervel will throw a `LogicException` when one of these operations is called inside an active transaction.
+> [!WARNING]
+> You may not consume capacity, record failures, clear state, or prune expired rows while the selected database connection is already inside a transaction. Hypervel will throw a `LogicException` if you attempt to do so.
 
-If your application must rate limit from inside a transaction, configure the rate limiter store to use a separate named database connection through its `connection` option. The connection may use the same database server or a dedicated rate limiter database. Run the `rate_limits` migration on every connection used by a database rate limiter store.
+If your application needs to rate limit while another connection is inside a transaction, configure a separate named connection using the store's `connection` option. The connection may use the same database server or a dedicated rate limiter database. Run the `rate_limits` migration on every connection used by a database rate limiter store.
 
 PostgreSQL limiter connections must use the default `READ COMMITTED` transaction isolation level. MySQL and MariaDB's default `REPEATABLE READ` isolation level is supported.
 
-The `inspect` method remains available inside a transaction because it does not change rate limit state. However, when using `REPEATABLE READ` with MySQL or MariaDB, it reads the outer transaction's snapshot and may not include changes committed after that transaction began.
+> [!NOTE]
+> The `inspect` method remains available inside a transaction because it does not change rate limit state. Under MySQL or MariaDB's `REPEATABLE READ` isolation, it reads the outer transaction's snapshot and may not include changes committed after the transaction began.
 
 Expired database rows should be pruned periodically. You may schedule the prune command to run hourly:
 
@@ -136,26 +138,28 @@ php artisan rate-limiter:prune database --chunk=2000
 
 The Swoole store allocates its table before server workers are forked. Changes to its table settings therefore require a server restart.
 
-Size the table for the peak number of concurrently active physical limiter keys, plus headroom. A key remains active for its fixed window, leaky-bucket refill period, or backoff inactivity period. For example, if up to 40,000 client IP addresses may have active one-minute limits at once, configure substantially more than 40,000 rows.
+Set `rows` higher than the greatest number of rate limit keys that may be active at once. A key remains active for its fixed window, leaky-bucket refill time, or backoff inactivity time. For example, if up to 40,000 client IP addresses may have active one-minute limits at once, configure substantially more than 40,000 rows.
 
-Swoole rounds `rows` up to a power of two with a minimum of 64 and allocates an additional collision area based on `conflict_proportion`. Hash collisions may exhaust that collision area before the table's total row count reaches its configured size. Hypervel logs a warning when table or collision pressure enters the configured `memory_limit_buffer`, and fails closed if a live entry cannot be allocated. It never evicts active limiter state because doing so could admit excess traffic.
+Swoole rounds `rows` up to a power of two with a minimum of 64 and allocates an additional collision area based on `conflict_proportion`. Hash collisions may exhaust that collision area before the table's total row count reaches its configured size. Hypervel logs a warning when table or collision pressure enters the configured `memory_limit_buffer`, and throws `Hypervel\RateLimiter\Exceptions\SwooleTableFullException` if a live entry cannot be allocated. It never evicts active limiter state because doing so could admit excess traffic.
 
-Expired rows are pruned by worker zero at the configured `prune_interval`, in seconds. A mutating operation also replaces expired state for its key. Inspection treats expired state as empty without changing the table.
+Worker zero prunes expired rows at the configured `prune_interval`, in seconds. Consuming capacity, recording a failure, or clearing a key also replaces or removes expired state for that key. Inspection treats expired state as empty without changing the table.
 
-<a name="defining-policies"></a>
-## Defining Policies
+<a name="defining-rate-limits"></a>
+## Defining Rate Limits
 
-Rate limit policies are immutable. Methods such as `by`, `cost`, and `burst` return a new policy without changing the original, so policies may be safely reused by long-running workers.
+Rate limits are immutable. Methods such as `by`, `cost`, and `burst` return a new rate limit without changing the original, so you may safely reuse them in long-running workers.
 
-Use the `by` method to scope a policy to a user, tenant, IP address, or any other stable identifier:
+Use the `by` method to scope a rate limit to a user, tenant, IP address, or any other stable identifier:
 
 ```php
 use Hypervel\RateLimiter\Limit;
 
-$policy = Limit::perMinute(60)->by('user:'.$user->id);
+$limit = Limit::perMinute(60)->by('user:'.$user->id);
 ```
 
-String-backed and integer-backed enums, strings, integers, stringable objects, and `null` are accepted as keys. A `null` key represents the same shared policy as an empty string.
+Enums, strings, integers, stringable objects, and `null` are accepted as keys. Backed enums use their values, while unit enums use their case names. A `null` key represents the same shared rate limit as an empty string.
+
+Invalid rate limit settings throw `Hypervel\RateLimiter\Exceptions\InvalidRateLimitException` before the store is changed.
 
 <a name="fixed-windows"></a>
 ### Fixed Windows
@@ -172,10 +176,10 @@ $perHour = Limit::perHour(1000);
 $perDay = Limit::perDay(10_000);
 ```
 
-Each factory also accepts a duration multiplier. For example, the following policy allows 120 operations during a two-minute window:
+Each factory also accepts a duration multiplier. For example, the following rate limit allows 120 operations during a two-minute window:
 
 ```php
-$policy = Limit::perMinute(120, decayMinutes: 2);
+$limit = Limit::perMinute(120, decayMinutes: 2);
 ```
 
 A denied operation does not consume capacity or extend the active window.
@@ -183,22 +187,22 @@ A denied operation does not consume capacity or extend the active window.
 <a name="leaky-buckets"></a>
 ### Leaky Buckets
 
-The `LeakyBucket` policy replenishes capacity continuously instead of resetting all capacity at one window boundary. Hypervel implements this behavior using the Generic Cell Rate Algorithm, which requires only one timestamp per limiter key.
+The `LeakyBucket` class replenishes capacity continuously instead of resetting all capacity at one window boundary. Hypervel implements this leaky-bucket behavior using the Generic Cell Rate Algorithm (GCRA).
 
 ```php
 use Hypervel\RateLimiter\LeakyBucket;
 
-$policy = LeakyBucket::perSecond(100)
+$limit = LeakyBucket::perSecond(100)
     ->burst(200)
     ->by('api-token:'.$token->id);
 ```
 
-This policy sustains 100 operations per second while allowing an initial burst of up to 200 operations. The burst value is the total immediately available capacity, not additional capacity beyond the configured rate.
+This rate limit sustains 100 operations per second while allowing an initial burst of up to 200 operations. The burst value is the total immediately available capacity, not additional capacity beyond the configured rate.
 
-If `burst` is omitted, it defaults to the rate supplied to the factory. To strictly smooth a policy to one immediately available operation, explicitly use `burst(1)`:
+If `burst` is omitted, it defaults to the rate supplied to the factory. To keep only one operation immediately available at a time, use `burst(1)`:
 
 ```php
-$policy = LeakyBucket::perSecond(100)->burst(1);
+$limit = LeakyBucket::perSecond(100)->burst(1);
 ```
 
 The same `perMinute`, `perMinutes`, `perHour`, and `perDay` factories available on `Limit` are also available on `LeakyBucket`.
@@ -209,15 +213,15 @@ The same `perMinute`, `perMinutes`, `perHour`, and `perDay` factories available 
 By default, an operation consumes one unit of capacity. Use `cost` when some operations should consume more:
 
 ```php
-$policy = Limit::perMinute(100)
+$limit = Limit::perMinute(100)
     ->cost(5)
     ->by('uploads:'.$user->id);
 ```
 
 The cost may not exceed the fixed-window capacity or leaky-bucket burst capacity. A denied weighted operation leaves the current capacity unchanged.
 
-<a name="unlimited-policies"></a>
-### Unlimited Policies
+<a name="unlimited"></a>
+### Unlimited
 
 Use `Limit::none()` when a named limiter should deliberately allow all operations:
 
@@ -227,7 +231,7 @@ return $user->isAdministrator()
     : Limit::perMinute(60)->by($user->id);
 ```
 
-Unlimited policies do not access the configured store.
+Unlimited rate limits do not access the configured store.
 
 <a name="using-the-rate-limiter"></a>
 ## Using the Rate Limiter
@@ -257,7 +261,7 @@ A `LimitResult` provides:
 - `allowed()` and `denied()`;
 - `limit()`, the fixed-window capacity or leaky-bucket burst capacity;
 - `remaining()`, the whole capacity immediately available after the decision;
-- `retryAfter()`, the minimum whole seconds until this policy's cost may be accepted; and
+- `retryAfter()`, the minimum whole seconds until the same cost may be accepted; and
 - `resetAfter()`, the whole seconds until the fixed window expires or the leaky bucket becomes full.
 
 Durations are rounded up, ensuring a caller is never instructed to retry before capacity is actually available.
@@ -268,10 +272,15 @@ Durations are rounded up, ensuring a caller is never instructed to retry before 
 The `inspect` method returns a decision without consuming capacity or creating state:
 
 ```php
-$result = RateLimiter::inspect($policy);
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Support\Facades\RateLimiter;
+
+$limit = Limit::perMinute(5)->by('send-message:'.$user->id);
+
+$result = RateLimiter::inspect($limit);
 
 if ($result->allowed()) {
-    // The policy's configured cost is currently available...
+    // The requested capacity is currently available...
 }
 ```
 
@@ -280,10 +289,15 @@ Inspection is useful when your application must decide whether to begin expensiv
 <a name="attempting-operations"></a>
 ### Attempting Operations
 
-The `attempt` method consumes capacity before executing a callback. It returns `false` when the policy is denied; otherwise, it returns the callback result. A `null` callback result is converted to `true`:
+The `attempt` method consumes capacity before executing a callback. It returns `false` when the rate limit is denied; otherwise, it returns the callback result. A `null` callback result is converted to `true`:
 
 ```php
-$executed = RateLimiter::attempt($policy, function () use ($message): void {
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Support\Facades\RateLimiter;
+
+$limit = Limit::perMinute(5)->by('send-message:'.$user->id);
+
+$executed = RateLimiter::attempt($limit, function () use ($message): void {
     $message->send();
 });
 
@@ -297,17 +311,20 @@ The accepted capacity remains consumed if the callback throws an exception. This
 <a name="clearing-state"></a>
 ### Clearing State
 
-The `clear` method removes the state addressed by a policy:
+The `clear` method removes the state for a rate limit:
 
 ```php
-RateLimiter::clear(
-    Limit::perMinute(5)->by('send-message:'.$user->id),
-);
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Support\Facades\RateLimiter;
+
+$limit = Limit::perMinute(5)->by('send-message:'.$user->id);
+
+RateLimiter::clear($limit);
 ```
 
-Policy type and stable parameters are part of the stored identity. Therefore, `clear` must receive the same policy type, capacity, window or refill settings, key, and global scope that created the state. Changing policy parameters intentionally starts fresh state while the old entry expires naturally.
+To clear existing state, use the same rate limit type, capacity, window or refill settings, key, and global scope that created it. Changing any of these settings starts fresh state while the old entry expires naturally.
 
-Callbacks and operation cost are not part of the stable policy identity. This allows the same bucket to charge operations with different costs.
+Callbacks and operation cost do not change the stored identity. This allows the same rate limit to charge operations with different costs.
 
 <a name="selecting-a-store"></a>
 ### Selecting a Store
@@ -315,7 +332,12 @@ Callbacks and operation cost are not part of the stable policy identity. This al
 Use `store` to perform an operation against a configured store other than the default:
 
 ```php
-$result = RateLimiter::store('redis')->consume($policy);
+use Hypervel\RateLimiter\Limit;
+use Hypervel\Support\Facades\RateLimiter;
+
+$limit = Limit::perMinute(5)->by('send-message:'.$user->id);
+
+$result = RateLimiter::store('redis')->consume($limit);
 ```
 
 The store name may also be an enum. You should configure the default store during application boot instead of changing it during a request, since the configured default is shared by the entire worker.
@@ -323,9 +345,10 @@ The store name may also be an enum. You should configure the default store durin
 <a name="exponential-backoff"></a>
 ## Exponential Backoff
 
-An exponential backoff policy tracks failures rather than admitted requests. This makes it suitable for authentication failures or unstable external services:
+Exponential backoff tracks failures rather than admitted requests. This makes it suitable for authentication failures or unstable external services:
 
 ```php
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\Support\Facades\RateLimiter;
 
@@ -372,12 +395,39 @@ RateLimiter::for('api', function ($request) {
 }, store: 'redis');
 ```
 
-You should register named limiters during application boot because their definitions are shared for the lifetime of the worker. Named limiters may be used by routing and queue middleware. The routing documentation covers [attaching named limiters to routes](/docs/{{version}}/routing#attaching-rate-limiters-to-routes), response callbacks, global policies, and stacked policies.
+You should register named limiters during application boot because their definitions are shared for the lifetime of the worker. Named limiters may be used by routing and queue middleware. The routing documentation covers [attaching named limiters to routes](/docs/{{version}}/routing#attaching-rate-limiters-to-routes), response callbacks, global rate limits, and stacked rate limits.
 
 <a name="custom-stores"></a>
 ## Custom Stores
 
-Custom drivers implement `Hypervel\RateLimiter\Contracts\Store`. Register the driver from a service provider's `boot` method using the manager's `extend` method:
+Custom drivers implement `Hypervel\RateLimiter\Contracts\Store`. The contract contains the following methods:
+
+```php
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\LimitResult;
+
+interface Store
+{
+    public function consume(string $key, AdmissionPolicy $policy): LimitResult;
+
+    public function inspect(
+        string $key,
+        AdmissionPolicy|Backoff $policy,
+    ): LimitResult|BackoffResult;
+
+    public function recordFailure(string $key, Backoff $backoff): BackoffResult;
+
+    public function clear(string $key): bool;
+}
+```
+
+A custom store receives validated `Limit` and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
+
+If your custom store retains expired state, it may also implement `Hypervel\RateLimiter\Contracts\PrunableStore` so it can be targeted by the `rate-limiter:prune` command.
+
+You may register a custom driver from a service provider's `boot` method using the manager's `extend` method:
 
 ```php
 use Hypervel\Contracts\Foundation\Application;
@@ -400,13 +450,11 @@ Then add the driver to `rate-limiter.stores`:
 ],
 ```
 
-The manager also passes the requested store name to the driver callback as `$config['name']`. This value is set by the manager and replaces any `name` entry in the store configuration.
-
-A store receives a validated policy and a fixed-length key. It must implement `consume` atomically, provide a non-mutating `inspect` operation, record backoff failures, and clear keyed state. Custom stores should follow the same decision and timing semantics as Hypervel's built-in stores.
+The manager also passes the requested store name to the driver callback as `$config['name']`. This value replaces any `name` entry in the store configuration.
 
 <a name="failure-behavior"></a>
 ## Failure Behavior
 
-Rate limiting fails closed. Backend, connection pool, script, table allocation, and database errors are thrown instead of silently allowing the operation or falling back to a worker-local store.
+If the configured store fails, Hypervel throws an exception. It never silently allows the operation or switches to another store.
 
-Choose and operate the store according to the availability requirements of the protected operation. Hypervel never changes to a weaker store automatically because doing so would produce different limits on different workers or application servers.
+Choose a store that provides the availability and sharing your application requires. Switching stores automatically would produce different limits on different workers or application servers.

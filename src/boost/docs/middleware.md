@@ -404,7 +404,7 @@ For convenience, some of Hypervel's built-in middleware are aliased by default. 
 | `password.confirm` | `Hypervel\Auth\Middleware\RequirePassword`                                                                  |
 | `precognitive`     | `Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests`                                            |
 | `signed`           | `Hypervel\Routing\Middleware\ValidateSignature`                                                             |
-| `throttle`         | `Hypervel\Routing\Middleware\ThrottleRequests`                                                            |
+| `throttle`         | `Hypervel\Routing\Middleware\ThrottleRequests`                                                              |
 | `verified`         | `Hypervel\Auth\Middleware\EnsureEmailIsVerified`                                                            |
 
 </div>
