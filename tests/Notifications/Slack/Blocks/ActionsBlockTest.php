@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class ActionsBlockTest extends TestCase
 {
@@ -111,6 +111,28 @@ class ActionsBlockTest extends TestCase
                     ],
                     'action_id' => 'button_scary-button',
                     'style' => 'danger',
+                ],
+            ],
+        ], $block->toArray());
+    }
+
+    public function testCanAddSelects(): void
+    {
+        $block = new ActionsBlock;
+        $block->staticSelect('Example Select')->id('static_select_id');
+        $block->usersSelect('Example User')->id('users_select_id');
+
+        $this->assertSame([
+            'type' => 'actions',
+            'elements' => [
+                [
+                    'type' => 'static_select',
+                    'options' => [],
+                    'action_id' => 'static_select_id',
+                ],
+                [
+                    'type' => 'users_select',
+                    'action_id' => 'users_select_id',
                 ],
             ],
         ], $block->toArray());
