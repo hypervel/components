@@ -43,7 +43,7 @@ use Hypervel\Support\Testing\Fakes\BusFake;
  * @method static void assertNothingChained()
  * @method static void assertDispatchedWithoutChain(\Closure|string $command, callable|null $callback = null)
  * @method static \Hypervel\Support\Testing\Fakes\ChainedBatchTruthTest chainedBatch(\Closure $callback)
- * @method static void assertBatched(array|callable $callback)
+ * @method static void assertBatched(callable|array $callback)
  * @method static void assertBatchCount(int $count)
  * @method static void assertNothingBatched()
  * @method static void assertNothingPlaced()
