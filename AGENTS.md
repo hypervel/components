@@ -20,6 +20,7 @@ When working on Hypervel, start from this frame:
 - Per-request state must live in coroutine-scoped storage (CoroutineContext), not process-global state.
 - Laravel source is the default parity reference, but Laravel internals often assume per-request bootstrap and are not optimized to take advantage of static caching of immutable state.
 - Hyperf source can be useful for Swoole/coroutine behavior, but Hyperf container/config/listener patterns are not the target architecture.
+- Laravel's rate limiter lives under `Illuminate\Cache`; Hypervel's canonical implementation is the dedicated `hypervel/rate-limiter` package under `Hypervel\RateLimiter`. It uses typed policies and dedicated atomic stores and has no `Hypervel\Cache` alias or primitive counter API. Use this package directly when porting rate-limited Laravel code.
 
 ## Repository Layout and Commands
 
@@ -33,7 +34,7 @@ Key paths:
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
 | `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
 | `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
-| `docs/ai/` | Supplementary agent guides, including `porting-hyperf.md` (Hyperf conversion mechanics) and `differences-vs-laravel.md` (user-facing Laravel differences). |
+| `docs/ai/` | Supplementary agent guides, including `porting-hyperf.md` (Hyperf conversion mechanics). |
 | `docs/todo.md` | Tracked gaps and improvements worth doing. |
 
 ### Running tests
@@ -195,8 +196,6 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 ## Container
 
 Hypervel's container keeps Laravel's API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. `make()` and `get()` resolve identically; `get()` is just the PSR-compliant exception wrapper. Use `make()`, and use it instead of array access too: `offsetGet()` always returns `mixed`, while `make()` carries class-string generics phpstan can follow, `make()` can take parameters, and `$app[$key] = $value` is a hidden `bind()`. Converting `$app['...']` in ported code to `make()` is an approved modernization (see Policy under Porting Packages). `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
-
-A user-facing summary of these differences lives in `docs/ai/differences-vs-laravel.md` — keep it consistent with this section when container behavior changes.
 
 ### Resolution semantics vs Laravel
 
@@ -673,7 +672,7 @@ Each integration group has its own workflow file in `.github/workflows/`:
 |----------|------|-----------|
 | `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
 | `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database` |
-| `redis.yml` | Redis, Valkey | `tests/Integration/Cache/Redis`, `tests/Redis/Integration` |
+| `redis.yml` | Redis, Valkey | `tests/Integration/Auth`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/RateLimiter`, `tests/Integration/Redis` |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must spin up the service container and set the appropriate env vars.
