@@ -427,6 +427,15 @@ A custom store receives validated `Limit` and `LeakyBucket` objects through the 
 
 If your custom store retains expired state, it may also implement `Hypervel\RateLimiter\Contracts\PrunableStore` so it can be targeted by the `rate-limiter:prune` command.
 
+The `PrunableStore` contract contains one method:
+
+```php
+interface PrunableStore
+{
+    public function pruneExpired(int $chunkSize = 1000): int;
+}
+```
+
 You may register a custom driver from a service provider's `boot` method using the manager's `extend` method:
 
 ```php
