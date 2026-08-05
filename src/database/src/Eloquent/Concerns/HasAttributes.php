@@ -208,6 +208,10 @@ trait HasAttributes
     #[Initialize]
     protected function initializeHasAttributes(): void
     {
+        if ($this->modelClassAttributesInitialized) {
+            return;
+        }
+
         $this->casts = $this->ensureCastsAreStringValues(
             array_merge($this->casts, $this->casts()),
         );

@@ -30,6 +30,10 @@ trait HasTimestamps
     #[Initialize]
     public function initializeHasTimestamps(): void
     {
+        if ($this->modelClassAttributesInitialized) {
+            return;
+        }
+
         if ($this->timestamps === true) {
             if (static::resolveClassAttribute(WithoutTimestamps::class) !== null) {
                 $this->timestamps = false;

@@ -70,6 +70,10 @@ trait HasRelationships
     #[Initialize]
     public function initializeHasRelationships(): void
     {
+        if ($this->modelClassAttributesInitialized) {
+            return;
+        }
+
         if (empty($this->touches)) {
             $this->touches = static::resolveClassAttribute(Touches::class, 'relations') ?? [];
         }

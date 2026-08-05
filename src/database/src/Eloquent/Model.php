@@ -153,6 +153,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected bool $escapeWhenCastingToString = false;
 
     /**
+     * Indicates whether class attribute metadata has initialized this model.
+     *
+     * Class metadata initializes a fresh instance once. Unserialization restores
+     * already-initialized instance state and must not overlay runtime changes.
+     */
+    protected bool $modelClassAttributesInitialized = false;
+
+    /**
      * The connection resolver instance.
      */
     protected static ?Resolver $resolver = null;
@@ -267,6 +275,22 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static array $classAttributes = [];
 
     /**
+     * Cache of whether each class directly declares each class attribute.
+     *
+     * Both positive and negative results are retained for the worker lifetime.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $classDeclaredAttributes = [];
+
+    /**
+     * Cache of the nearest class declaring each property.
+     *
+     * @var array<string, null|class-string>
+     */
+    protected static array $classPropertyDeclarers = [];
+
+    /**
      * Cache of whether methods are attributed local scopes.
      *
      * @var array<string, bool>
@@ -320,6 +344,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->initializeTraits();
 
         $this->initializeModelAttributes();
+
+        $this->modelClassAttributesInitialized = true;
 
         $this->syncOriginal();
 
@@ -460,15 +486,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function initializeModelAttributes(): void
     {
+        if ($this->modelClassAttributesInitialized) {
+            return;
+        }
+
         /** @var null|Table $table */
         $table = static::resolveClassAttribute(Table::class);
 
-        $reflection = new ReflectionClass(static::class);
+        $declaresTable = static::classPropertyDeclarer('table') === static::class;
 
-        $declaresTable = $reflection->hasProperty('table')
-            && $reflection->getProperty('table')->getDeclaringClass()->getName() === static::class;
-
-        if (! $declaresTable && $reflection->getAttributes(Table::class) !== []) {
+        if (! $declaresTable && static::classDeclaresAttribute(Table::class)) {
             $this->table = $table->name ?? null;
         } else {
             $this->table ??= $table->name ?? null;
@@ -521,6 +548,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$booted = [];
         static::$bootedCallbacks = [];
         static::$classAttributes = [];
+        static::$classDeclaredAttributes = [];
+        static::$classPropertyDeclarers = [];
+        static::$guardConfigurations = [];
         static::$scopeMethodAttributes = [];
 
         static::$globalScopes = [];
@@ -2252,6 +2282,42 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Determine whether a class directly declares an attribute.
+     *
+     * @param class-string $attributeClass
+     */
+    protected static function classDeclaresAttribute(string $attributeClass): bool
+    {
+        $class = static::class;
+        $cacheKey = $class . '@' . $attributeClass;
+
+        return static::$classDeclaredAttributes[$cacheKey] ??= (
+            new ReflectionClass($class)
+        )->getAttributes($attributeClass) !== [];
+    }
+
+    /**
+     * Resolve the nearest class that declares a property.
+     *
+     * @return null|class-string
+     */
+    protected static function classPropertyDeclarer(string $property): ?string
+    {
+        $class = static::class;
+        $cacheKey = $class . '@' . $property;
+
+        if (! array_key_exists($cacheKey, static::$classPropertyDeclarers)) {
+            $reflection = new ReflectionClass($class);
+
+            static::$classPropertyDeclarers[$cacheKey] = $reflection->hasProperty($property)
+                ? $reflection->getProperty($property)->getDeclaringClass()->getName()
+                : null;
+        }
+
+        return static::$classPropertyDeclarers[$cacheKey];
+    }
+
+    /**
      * Get the table associated with the model.
      */
     public function getTable(): string
@@ -2601,6 +2667,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$traitInitializers = [];
         static::$globalScopes = [];
         static::$classAttributes = [];
+        static::$classDeclaredAttributes = [];
+        static::$classPropertyDeclarers = [];
+        static::$guardConfigurations = [];
         static::$scopeMethodAttributes = [];
         static::$modelsShouldPreventLazyLoading = false;
         static::$modelsShouldAutomaticallyEagerLoadRelationships = false;
@@ -2810,6 +2879,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->initializeTraits();
 
         $this->initializeModelAttributes();
+
+        $this->modelClassAttributesInitialized = true;
 
         if (static::isAutomaticallyEagerLoadingRelationships()) {
             $this->withRelationshipAutoloading();
