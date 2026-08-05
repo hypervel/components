@@ -90,11 +90,14 @@ Hypervel includes four rate limiter stores:
 | `redis` | Shared across application servers | High-throughput distributed rate limiting |
 | `database` | Shared across application servers | Distributed rate limiting without requiring Redis |
 | `swoole` | Workers belonging to one Swoole server instance | Very high-throughput local limiting |
-| `worker-array` | One worker process | Tests and deliberately worker-local workloads |
+| `worker-array` | One worker process | Automated tests only |
 
 The Redis store evaluates each fixed-window, leaky-bucket, and backoff decision atomically in a single cached Lua script, using one pooled connection checkout per operation. The database store uses transactions and row locks. It is a portable shared option when Redis is not available, but does not offer the same throughput.
 
-The Swoole store keeps native integer state in shared memory. It is shared by workers forked from the same server master, but not by independent Hypervel server instances or different machines. The `worker-array` store is limited to one worker. It does not prune entries in the background, so an expired entry remains until its key is updated or cleared, or the worker restarts.
+The Swoole store keeps native integer state in shared memory. It is shared by workers forked from the same server master, but not by independent Hypervel server instances or different machines.
+
+> [!WARNING]
+> Do not use the `worker-array` store for application rate limiting. It maintains independent state in every worker, so limits are not shared across workers or servers. Expired unused keys remain in memory until the worker exits, causing memory usage to keep growing as new keys are encountered. Applications should select this store only for automated tests.
 
 <a name="database-store"></a>
 ### Database Store
@@ -119,7 +122,10 @@ PostgreSQL limiter connections must use the default `READ COMMITTED` transaction
 > [!NOTE]
 > The `inspect` method remains available inside a transaction because it does not change rate limit state. Under MySQL or MariaDB's `REPEATABLE READ` isolation, it reads the outer transaction's snapshot and may not include changes committed after the transaction began.
 
-Expired database rows should be pruned periodically. You may schedule the prune command to run hourly:
+> [!WARNING]
+> The database store does not delete expired rows during rate limit checks. Schedule the `rate-limiter:prune` command regularly or the `rate_limits` table will continue growing as new limiter keys are encountered.
+
+You may schedule the command to run hourly:
 
 ```php
 use Hypervel\Support\Facades\Schedule;
