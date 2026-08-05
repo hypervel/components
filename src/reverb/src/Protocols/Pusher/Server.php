@@ -6,7 +6,6 @@ namespace Hypervel\Reverb\Protocols\Pusher;
 
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
-use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Events\ConnectionClosed;
 use Hypervel\Reverb\Events\ConnectionEstablished;
@@ -27,19 +26,13 @@ use Throwable;
 class Server
 {
     /**
-     * The per-connection message limiter.
-     */
-    protected Limiter $messageRateLimiter;
-
-    /**
      * Create a new server instance.
      */
     public function __construct(
         protected ChannelManager $channels,
         protected EventHandler $handler,
-        RateLimiter $rateLimiter,
+        protected Limiter $messageRateLimiter,
     ) {
-        $this->messageRateLimiter = $rateLimiter->store('worker-array');
     }
 
     /**
@@ -144,7 +137,19 @@ class Server
                 MessageReceived::dispatch($from, $message);
             }
         } catch (Throwable $e) {
-            $this->error($from, $e);
+            $terminateOnLimit = $e instanceof RateLimitExceeded
+                && ($from->app()->rateLimiting()['terminate_on_limit'] ?? false);
+
+            try {
+                $this->error($from, $e);
+            } finally {
+                // Attempt the 4301 frame before closing: a push to a disconnected fd fails
+                // Sender::check() and is dropped. The finally keeps termination guaranteed
+                // when a MessageSent listener or the logger throws.
+                if ($terminateOnLimit) {
+                    $from->terminate();
+                }
+            }
         }
     }
 
@@ -274,12 +279,6 @@ class Server
         }
 
         if ($this->messageRateLimiter->consume($this->messageLimit($connection))->denied()) {
-            $config = $connection->app()->rateLimiting();
-
-            if ($config['terminate_on_limit'] ?? false) {
-                $connection->terminate();
-            }
-
             throw new RateLimitExceeded;
         }
 
@@ -293,7 +292,7 @@ class Server
     {
         $config = $connection->app()->rateLimiting();
 
-        return Limit::perSecond($config['max_attempts'], $config['decay_seconds'] ?? 1)
+        return Limit::perSecond((int) $config['max_attempts'], (int) $config['decay_seconds'])
             ->by('reverb:message:' . $connection->id());
     }
 

@@ -70,6 +70,16 @@ class KeyResolverTest extends TestCase
         $this->assertSame($key, $resolver->resolve($policy->response(static fn (): string => 'limited')));
     }
 
+    public function testMissingScopeResolverMatchesAResolverReturningNull(): void
+    {
+        $policy = Limit::perMinute(60)->by('user:1');
+
+        $this->assertSame(
+            (new KeyResolver('app', static fn (): ?string => null))->resolve($policy, 'api'),
+            (new KeyResolver('app'))->resolve($policy, 'api'),
+        );
+    }
+
     public function testEquivalentCallerKeysNormalizeToTheSameIdentity(): void
     {
         $resolver = new KeyResolver('app', static fn (): ?string => null);

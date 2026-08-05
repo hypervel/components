@@ -14,11 +14,11 @@ class KeyResolver
     /**
      * Create a new physical key resolver.
      *
-     * @param Closure(string): ?string $scopeResolver
+     * @param null|Closure(string): ?string $scopeResolver
      */
     public function __construct(
         protected string $prefix,
-        protected Closure $scopeResolver,
+        protected ?Closure $scopeResolver = null,
     ) {
         if ($prefix === '') {
             throw new InvalidRateLimitException('The rate limiter prefix may not be empty.');
@@ -43,7 +43,7 @@ class KeyResolver
             $identity .= $this->segment('limiter', $limiterName);
 
             if (! ($policy instanceof AdmissionPolicy && $policy->global)) {
-                $scope = ($this->scopeResolver)($limiterName);
+                $scope = $this->scopeResolver?->__invoke($limiterName);
 
                 if ($scope !== null) {
                     $identity .= $this->segment('scope', $scope);

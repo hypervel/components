@@ -368,6 +368,7 @@ src/rate-limiter/
     ├── Exceptions/
     │   ├── InvalidRateLimitException.php
     │   └── SwooleTableFullException.php
+    ├── KeyResolver.php
     ├── LeakyBucket.php
     ├── Limit.php
     ├── Limiter.php
@@ -388,7 +389,7 @@ src/rate-limiter/
 
 Avoid an `Algorithms` service hierarchy. Policies hold validated immutable configuration. Worker-array, Swoole, and database stores share typed integer transition math through `CalculatesRateLimits`; Redis implements the same semantics in Lua. Both paths use a small exhaustive `instanceof` dispatch, never descriptor arrays or strategy enums. An unsupported policy throws `InvalidRateLimitException`.
 
-`RateLimiter::resolve()` calls the parent driver resolver, asserts that the built-in/custom creator returned `Contracts\Store`, and constructs the `Limiter` with a physical-key resolver. Built-in `createWorkerArrayDriver()`, `createDatabaseDriver()`, `createRedisDriver()`, and `createSwooleDriver()` therefore return stores, not wrappers. Resolve/freeze static key configuration such as the validated prefix when the lazy store wrapper is created, but have the resolver read the manager's current optional scope callback on every named operation. That single property read keeps `resolveKeyScopeUsing()` effective even if a store was resolved first. Keep the manager's instance cache as the sole wrapper/store cache; do not add a second registry.
+`RateLimiter::resolve()` calls the parent driver resolver, asserts that the built-in/custom creator returned `Contracts\Store`, and constructs the `Limiter` with a physical-key resolver. Built-in `createWorkerArrayDriver()`, `createDatabaseDriver()`, `createRedisDriver()`, and `createSwooleDriver()` therefore return stores, not wrappers. `KeyResolver` accepts only the prefix when no named scope is needed; its optional scope callback is invoked only for a scoped named limiter. Resolve/freeze static key configuration such as the validated prefix when the lazy store wrapper is created, but have the manager supply a live closure that reads its current optional scope callback on every named operation. That single property read keeps `resolveKeyScopeUsing()` effective even if a store was resolved first. Keep the manager's instance cache as the sole wrapper/store cache; do not add a second registry, factory, or on-demand manager construction API.
 
 ### Store contract
 
@@ -455,6 +456,8 @@ return [
 ```
 
 Use typed config getters and validate every store at resolution. Swoole's `conflict_proportion` must be a float in the inclusive range `[0.2, 1.0]`, which is the range `Swoole\Table` honors without silently clamping. The service provider registers the database migration generator and prune commands.
+
+The configured `worker-array` store is for automated tests only. Its state is isolated to one worker and expired untouched entries remain in memory until the worker exits, so production framework consumers that have a proven worker-local ownership model must compose `Limiter`, `WorkerArrayStore`, and `KeyResolver` directly rather than depend on a user-configurable store name.
 
 `prefix` is an application namespace included in the canonical identity before its final hash; it is not concatenated onto the 32-character physical key. This preserves cross-application isolation without variable-length Swoole keys. It is separate from Redis `OPT_PREFIX` and database table prefixes.
 
@@ -658,9 +661,10 @@ The database driver is correctness-first and will require several SQL statements
 
 - Use an in-process numeric state array and the same epoch-microsecond clock/test seam as Swoole.
 - Use the `worker-array` name established by Hypervel Cache for worker-lifetime state. It is not coroutine-local and not shared across workers; do not call it `array`, which Hypervel documentation reserves for request-local scratch state.
-- It is suitable for tests and deliberately local workloads such as Reverb per-connection message limits, because a connection remains owned by one worker and Reverb clears its key on close.
+- The configured store is suitable only for automated tests. General application limiting would split state between workers and expired untouched keys would continue consuming worker memory.
+- The store class remains a reusable package primitive for first-party code with a proven worker-local ownership boundary. Reverb composes it directly for per-connection message limits because each connection remains owned by one worker and its key is cleared on close; this internal use must not depend on the public store configuration.
 - Operations contain no suspension point, so a transition is atomic within one cooperative worker; it does not coordinate processes or hosts.
-- Mutating operations replace expired state, while `inspect()` treats it as empty without changing storage. An expired entry whose key is never touched again remains for the worker lifetime; rely on explicit `clear()`, Reverb close cleanup, another mutating operation on that key, and worker recycling for this deliberately local/test store. Do not add an abandoned-key scheduler, expiry index, or unbounded whole-array sweep in a request hot path.
+- Mutating operations replace expired state, while `inspect()` treats it as empty without changing storage. An expired entry whose key is never touched again remains for the worker lifetime; rely on explicit `clear()`, another mutating operation on that key, and worker recycling for this deliberately local/test store. Do not add an abandoned-key scheduler, expiry index, or unbounded whole-array sweep in a request hot path.
 
 ## Framework consumer refactor
 
@@ -730,7 +734,13 @@ Change `Handler::throttle()` from `Lottery|Limit|null` to `Lottery|AdmissionPoli
 
 ### Reverb
 
-Inject/resolve the new manager and use `store('worker-array')` for per-connection message limiting. Build the same fixed policy for consume and close-time clear. Remove direct construction of a cache `RateLimiter` and the dependency on `cache.worker-array` for this feature.
+Inject `Limiter` directly into the Pusher protocol server and register a contextual binding that constructs it from `WorkerArrayStore` and `KeyResolver('reverb-message-rate-limiter')`. Do not resolve the `RateLimiter` manager or a configured store name. Hypervel auto-singletons the unbound Pusher server, so this object graph is built once per worker and retained on the server rather than constructed or resolved per message.
+
+Keep a concise comment at the binding explaining why worker-local state is correct: `WebSocketHandler` retains connections in a per-worker static registry keyed by file descriptor, and a connection remains owned by that worker for its lifetime. A shared backend would add I/O to every client message without extending the state to any worker that can use it. The contextual binding preserves normal constructor injection and deliberate test/application rebinding while keeping internal correctness independent of `rate-limiter.default`, the presence of `stores.worker-array`, and custom creators registered for the public `worker-array` driver name.
+
+Build the same fixed policy for consume and close-time clear. Promote the injected limiter as the server's protected constructor property instead of retaining a separate assignment.
+
+Treat an enabled Reverb application's `max_attempts` and `decay_seconds` values as required configuration; do not silently substitute a different rate-limit period for custom application providers. Cast both values to integers when building the policy because environment-backed and custom application configuration may contain numeric strings. When `terminate_on_limit` is enabled, attempt the Pusher 4301 error frame before disconnecting the socket. Keep termination in a `finally` block so a throwing `MessageSent` listener or logger cannot leave a connection open after it exceeded the limit. The connection test fake must ignore sends after termination like the real transport, and focused tests must distinguish the original terminate-before-send ordering from a naive send-then-terminate reorder without `finally`.
 
 Also replace Reverb's duplicated 64-stripe Atomic implementation with an explicitly injected Core `StripedLock`, created in the existing eager pre-fork provider block. Single-key operations use `withLock()` and presence operations use `withLocks([$channelKey, $userKey], ...)`; do not substitute `withAllLocks()`. Remove Reverb's local lock constants, arrays, acquisition helpers, and primitive-only tests while retaining call-site coverage for post-release reporting, shared-stripe deduplication, and opposite input ordering.
 
@@ -830,6 +840,7 @@ Update every applicable Boost document, not just the main rate-limiting page:
 - `fortify.md`, `errors.md`, `starter-kits.md`: imports and new typed calls;
 - `facades.md`: canonical accessor/class;
 - `middleware.md`: one throttle middleware class;
+- `reverb.md`: explain that message limits are per connection, define `max_attempts` and `decay_seconds`, and state that `terminate_on_limit` closes the connection after the rate-limit error;
 - database docs: `make:rate-limiter-table`, schema purpose, pruning schedule;
 - package README: only the package heading, the canonical Boost documentation link, and concise public `Differences From Laravel`; omit an upstream link because this independently maintained package does not track a source package.
 - Cache README: add a concise `Differences From Laravel` entry directing developers to the dedicated `hypervel/rate-limiter` package and canonical documentation.
@@ -867,6 +878,7 @@ Create `tests/RateLimiter` and use the repository-required base test/coroutine c
 - Concrete copy hooks preserve readonly shared/algorithm fields without reflection or post-clone writes, and cross-field validation makes `cost()`/`burst()` fluent order irrelevant.
 - `globally`, scope, callbacks, cost, and response callbacks are retained correctly.
 - Policy fingerprints are stable for a limiter prefix, change when the prefix or policy parameters change, distinguish policy types, and exclude cost/callbacks.
+- A `KeyResolver` without a scope callback produces the same physical key as one whose callback returns `null`; keep the manager's separate live-callback test for late `resolveKeyScopeUsing()` changes.
 - Arbitrary key segments cannot create ambiguous preimages before hashing.
 - Unlimited performs no store operation.
 - `LimitResult` and `BackoffResult` round timing up correctly and never expose negative remaining/retry values.
@@ -959,7 +971,8 @@ Tagged Swoole releases currently stall the two coroutine-hooked SQLite concurren
 - Fortify fixed lockout and clearing.
 - Foundation exception report throttling.
 - Foundation's default `Limit::none()` throttle path satisfies the widened `Lottery|AdmissionPolicy|null` return type.
-- Reverb per-connection isolation and close cleanup with worker-array store.
+- Reverb per-connection isolation and close cleanup use the contextually injected limiter. A per-test `DefineEnvironment` callback removes the configured `worker-array` store and selects a missing default before provider boot, so the current manager-backed constructor fails during test setup rather than being masked by cached manager state. The cleanup test resets captured output after close and proves a fresh direct message is accepted with cleared state.
+- Reverb sends the 4301 rate-limit error before terminating a connection, still terminates if error delivery or reporting throws, requires the complete enabled rate-limit configuration without a hidden one-second fallback, and enforces limits configured with environment-shaped numeric strings.
 - Facade resolves the canonical manager.
 - An existing provider/application integration test asserts that `DefaultProviders` contains `RateLimiterServiceProvider`, independently of package discovery; do not create composer-manifest tests or assert alphabetical order as runtime behavior.
 - Middleware configuration contains only `ThrottleRequests` and has no Redis switch.
@@ -1014,7 +1027,7 @@ This order keeps the tree buildable while still delivering one final cut with no
 6. Implement database store with the shared calculator, migration/prune commands, server clocks, default migrations, and database integration/concurrency tests.
 7. Rewrite routing and Foundation middleware configuration; delete the Redis-specific request middleware/switch once tests pass.
 8. Rewrite queue middleware and remove the two Redis-specific queue classes.
-9. Rewrite Fortify, foundation exception throttling, Reverb, and facade access.
+9. Rewrite Fortify, foundation exception throttling, Reverb, and facade access. Reverb receives a contextually bound direct `Limiter` so its internal per-connection limiter does not depend on application rate-limiter configuration.
 10. Move/replace rate-limiter tests into `tests/RateLimiter`; remove cache rate-limiter classes/config/binding/tests.
 11. Update every composer dependency, Boost document, minimal README/divergence record, facade annotation, AGENTS divergence/stale references, package inventory, and explicit Redis workflow path.
 12. Update the official framework metapackage and application skeleton dependency/config/base migration, verifying those repositories under their own instructions.
@@ -1031,7 +1044,7 @@ No step should add a temporary alias or dual API. If intermediate local compilat
 - [ ] Redis/Swoole/database/worker-array pass the shared semantic suite, and Redis/Swoole/database pass their applicable real-contention concurrency suites; failures never fail open and no driver routes through generic cache serialization.
 - [ ] Redis admission is one cached Lua call on the existing Redis 8 and Valkey 9 services; Swoole uses shared numeric state without live eviction and documents/logs capacity pressure; database uses only `rate_limits`.
 - [ ] Foundation, the application skeleton, and Testbench carry the same stores/migration, with database as the application default and worker-array as the deliberate Testbench default; named stores merge without duplicate package config.
-- [ ] Routing retains its Laravel-facing helpers, syntax, callbacks, exceptions, headers, and registered-store selection with one middleware; queue and Reverb have no Redis/cache limiter branches.
+- [ ] Routing retains its Laravel-facing helpers, syntax, callbacks, exceptions, headers, and registered-store selection with one middleware; queue has no Redis/cache limiter branches, and Reverb's direct worker-local limiter is independent of application rate-limiter configuration.
 - [ ] The framework metapackage, package dependencies, facade metadata, Boost's single `rate-limiting.md`, minimal README, AGENTS guidance, and required source/test difference markers agree.
 - [ ] Old namespaces, classes, config, tests, docs, switches, stale state, and obsolete TODOs are absent; the INCREX and capability TODOs remain accurate.
 - [ ] Existing Redis Duration/Concurrency limiters use the tested SHA-cache path without API changes.

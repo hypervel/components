@@ -10,6 +10,9 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnPipeMessage;
 use Hypervel\Core\Events\OnWorkerExit;
+use Hypervel\RateLimiter\KeyResolver;
+use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Reverb\Console\Commands\InstallCommand;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
@@ -32,6 +35,7 @@ use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\MetricsHandler;
 use Hypervel\Reverb\Protocols\Pusher\MetricType;
 use Hypervel\Reverb\Protocols\Pusher\PendingMetric;
+use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\Protocols\Pusher\UserConnectionTerminator;
 use Hypervel\Reverb\Servers\Hypervel\ChannelBroadcastPipeMessage;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
@@ -96,6 +100,16 @@ class ReverbServiceProvider extends ServiceProvider
         if (! $this->app->bound(ChannelConnectionManager::class)) {
             $this->app->bind(ChannelConnectionManager::class, ArrayChannelConnectionManager::class);
         }
+
+        // WebSocketHandler keeps each connection in its owning worker for its lifetime,
+        // so worker-local state reaches every message without shared I/O. Construct the
+        // limiter directly so application rate-limiter config cannot replace the store.
+        $this->app->when(PusherServer::class)
+            ->needs(Limiter::class)
+            ->give(static fn (): Limiter => new Limiter(
+                new WorkerArrayStore,
+                new KeyResolver('reverb-message-rate-limiter'),
+            ));
 
         $this->app->singleton(WebhookDispatcher::class, HttpWebhookDispatcher::class);
         $this->app->singleton(DeferredWebhookManager::class);
