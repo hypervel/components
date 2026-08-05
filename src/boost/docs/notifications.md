@@ -700,19 +700,20 @@ public function toMail(object $notifiable): MailMessage
 }
 ```
 
-Unlike attaching files in mailable objects, you may not attach a file directly from a storage disk using `attachFromStorage`. You should rather use the `attach` method with an absolute path to the file on the storage disk. Alternatively, you could return a [mailable](/docs/{{version}}/mail#generating-mailables) from the `toMail` method:
+Files stored on a [filesystem disk](/docs/{{version}}/filesystem) may be attached using `attachFromStorage`. To select a specific disk, use `attachFromStorageDisk`:
 
 ```php
-use App\Mail\InvoicePaid as InvoicePaidMailable;
-
 /**
  * Get the mail representation of the notification.
  */
-public function toMail(object $notifiable): Mailable
+public function toMail(object $notifiable): MailMessage
 {
-    return (new InvoicePaidMailable($this->invoice))
-        ->to($notifiable->email)
-        ->attachFromStorage('/path/to/file');
+    return (new MailMessage)
+        ->greeting('Hello!')
+        ->attachFromStorage('/path/to/invoice.pdf')
+        ->attachFromStorageDisk('s3', '/path/to/report.pdf', 'report.pdf', [
+            'mime' => 'application/pdf',
+        ]);
 }
 ```
 
@@ -1467,6 +1468,14 @@ public function toSlack(object $notifiable): SlackMessage
 
             // Manually configure the ID...
             $block->button('Deny')->danger()->id('deny_invoice');
+
+            $block->staticSelect('Choose Status')
+                ->addOption('Paid', 'paid')
+                ->addOption('Overdue', 'overdue')
+                ->placeholder('Choose a status');
+
+            $block->usersSelect('Assign Owner')
+                ->placeholder('Assign an owner');
         });
 }
 ```
@@ -1514,7 +1523,7 @@ public function toSlack(object $notifiable): SlackMessage
 <a name="inspecting-slack-blocks"></a>
 #### Inspecting Slack Blocks
 
-If you would like to quickly inspect the blocks you've been building, you can invoke the `dd` method on the `SlackMessage` instance. The `dd` method will generate and dump a URL to Slack's [Block Kit Builder](https://app.slack.com/block-kit-builder/), which displays a preview of the payload and notification in your browser. You may pass `true` to the `dd` method to dump the raw payload:
+If you would like to quickly inspect the blocks you've been building, you can invoke the `dd` method on the `SlackMessage` instance. The `dd` method will generate and dump a URL to Slack's [Block Kit Builder](https://app.slack.com/block-kit-builder/), which displays a preview of the payload and notification in your browser. You may pass `true` to the `dd` method to dump the raw payload. To retrieve the URL without terminating execution, call `toBlockKitBuilderUrl`.
 
 ```php
 return (new SlackMessage)

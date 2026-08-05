@@ -1,4 +1,9 @@
 Notifications for Hypervel
 ===
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/notifications)
+Documentation: https://hypervel.org/docs/notifications
+
+Ported from:
+
+- https://github.com/laravel/framework/tree/13.x/src/Illuminate/Notifications
+- https://github.com/laravel/slack-notification-channel
