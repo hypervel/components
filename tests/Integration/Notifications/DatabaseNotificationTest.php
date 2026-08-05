@@ -26,7 +26,7 @@ class DatabaseNotificationTest extends TestCase
     use RefreshDatabase;
 
     #[DefineDatabase('defineDatabaseAndConvertUserIdToUuid')]
-    public function testAssertSentToWhenNotifiableHasStringableKey()
+    public function testAssertSentToWhenNotifiableHasStringableKey(): void
     {
         Notification::fake();
 
@@ -103,6 +103,34 @@ class DatabaseNotificationTest extends TestCase
         $this->assertTrue($justCreated->unread());
     }
 
+    public function testReadAndUnreadScopesSelectMatchingNotifications(): void
+    {
+        $attributes = [
+            'type' => NotificationStub::class,
+            'notifiable_type' => UuidUserStub::class,
+            'notifiable_id' => 1,
+            'data' => [],
+        ];
+
+        DatabaseNotification::query()->create($attributes + [
+            'id' => '00000000-0000-0000-0000-000000000001',
+            'read_at' => now(),
+        ]);
+        DatabaseNotification::query()->create($attributes + [
+            'id' => '00000000-0000-0000-0000-000000000002',
+            'read_at' => null,
+        ]);
+
+        $this->assertSame(
+            ['00000000-0000-0000-0000-000000000001'],
+            DatabaseNotification::query()->read()->pluck('id')->all(),
+        );
+        $this->assertSame(
+            ['00000000-0000-0000-0000-000000000002'],
+            DatabaseNotification::query()->unread()->pluck('id')->all(),
+        );
+    }
+
     /**
      * Define database and convert User's ID to UUID.
      */
@@ -147,7 +175,7 @@ class UuidUserStub extends \Hypervel\Foundation\Auth\User
 
 class NotificationStub extends \Hypervel\Notifications\Notification
 {
-    public function via($notifiable)
+    public function via(mixed $notifiable): array
     {
         return ['mail'];
     }

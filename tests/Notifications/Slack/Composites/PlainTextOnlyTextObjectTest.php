@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications\Slack\Composites;
 
 use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class PlainTextOnlyTextObjectTest extends TestCase
 {
@@ -36,6 +36,33 @@ class PlainTextOnlyTextObjectTest extends TestCase
             'type' => 'plain_text',
             'text' => str_repeat('a', 2997) . '...',
         ], $object->toArray());
+    }
+
+    public function testMultibyteTextUsesTheCharacterLimit(): void
+    {
+        $text = str_repeat('🪓', 3000);
+
+        $this->assertSame($text, (new PlainTextOnlyTextObject($text))->toArray()['text']);
+    }
+
+    public function testTruncatingDoesNotSplitMultibyteCharacters(): void
+    {
+        $object = new PlainTextOnlyTextObject(str_repeat('🪓', 3001));
+
+        $text = $object->toArray()['text'];
+
+        $this->assertTrue(mb_check_encoding($text, 'UTF-8'));
+        $this->assertSame(3000, mb_strlen($text, 'UTF-8'));
+        $this->assertSame(str_repeat('🪓', 2997) . '...', $text);
+        $this->assertNotFalse(json_encode($object->toArray()));
+    }
+
+    public function testMalformedOverLimitTextIsRejectedBeforeTruncation(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Text must be valid UTF-8.');
+
+        new PlainTextOnlyTextObject(str_repeat('a', 3001) . "\xFF");
     }
 
     public function testEscapeEmojiColonFormat(): void

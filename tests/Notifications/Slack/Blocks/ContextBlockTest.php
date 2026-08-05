@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class ContextBlockTest extends TestCase
 {
@@ -76,6 +76,16 @@ class ContextBlockTest extends TestCase
         $block->id(str_repeat('a', 256));
 
         $block->toArray();
+    }
+
+    public function testBlockIdUsesTheSlackCharacterLimit(): void
+    {
+        $id = str_repeat('你', 255);
+        $block = new ContextBlock;
+        $block->text('Location');
+        $block->id($id);
+
+        $this->assertSame($id, $block->toArray()['block_id']);
     }
 
     public function testCanAddImageBlocks(): void

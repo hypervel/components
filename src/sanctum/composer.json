@@ -37,7 +37,8 @@
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/routing": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "symfony/console": "^8.1"
     },
     "autoload": {
         "psr-4": {

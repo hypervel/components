@@ -8,11 +8,12 @@ use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\HasCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Notifications\DatabaseNotification;
 use User;
 
 use function PHPStan\Testing\assertType;
 
-function test(User $user, Post $post, Comment $comment, Article $article): void
+function test(User $user, Post $post, Comment $comment, Article $article, DatabaseNotification $notification): void
 {
     assertType('UserFactory', User::factory(function ($attributes, $model) {
         assertType('array<string, mixed>', $attributes);
@@ -39,8 +40,10 @@ function test(User $user, Post $post, Comment $comment, Article $article): void
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->onlyTrashed());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->withoutTrashed());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->prunable());
-    assertType('Hypervel\Database\Eloquent\Relations\MorphMany', $user->notifications());
-    assertType('Hypervel\Database\Eloquent\Relations\MorphMany', $user->unreadNotifications());
+    assertType('Hypervel\Database\Eloquent\Relations\MorphMany<Hypervel\Notifications\DatabaseNotification, User>', $user->notifications());
+    assertType('Hypervel\Database\Eloquent\Relations\MorphMany<Hypervel\Notifications\DatabaseNotification, User>', $user->readNotifications());
+    assertType('Hypervel\Database\Eloquent\Relations\MorphMany<Hypervel\Notifications\DatabaseNotification, User>', $user->unreadNotifications());
+    assertType('Hypervel\Database\Eloquent\Relations\MorphTo<Hypervel\Database\Eloquent\Model, Hypervel\Notifications\DatabaseNotification>', $notification->notifiable());
 
     assertType('Hypervel\Database\Eloquent\Collection<(int|string), User>', $user->newCollection([new User]));
     assertType('Hypervel\Types\Model\Posts<(int|string), Hypervel\Types\Model\Post>', $post->newCollection(['foo' => new Post]));

@@ -67,6 +67,32 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(1, $testObject->runs);
     }
 
+    public function testItAssociatesCallbacksWithNamedConnectionsInsideMultipleWrapperTransactions(): void
+    {
+        $callbacks = [];
+        $manager = new DatabaseTransactionsManager(['default', 'admin']);
+
+        $manager->begin('default', 1);
+        $manager->begin('admin', 1);
+        $manager->begin('default', 2);
+        $manager->begin('admin', 2);
+
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'default';
+        }, 'default');
+
+        $this->assertCount(0, $manager->getPendingTransactions()[0]->getCallbacks());
+        $this->assertCount(0, $manager->getPendingTransactions()[1]->getCallbacks());
+        $this->assertCount(1, $manager->getPendingTransactions()[2]->getCallbacks());
+        $this->assertCount(0, $manager->getPendingTransactions()[3]->getCallbacks());
+
+        $manager->commit('admin', 2, 1);
+        $this->assertSame([], $callbacks);
+
+        $manager->commit('default', 2, 1);
+        $this->assertSame(['default'], $callbacks);
+    }
+
     public function testItExecutesTransactionCallbacksAtLevelOne()
     {
         $manager = new DatabaseTransactionsManager([null]);

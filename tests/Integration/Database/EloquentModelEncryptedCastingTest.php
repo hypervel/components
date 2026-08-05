@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Encryption\Encrypter as RealEncrypter;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Schema;
@@ -338,6 +339,41 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
 
         $this->assertNull($subject->fresh()->secret_array);
+    }
+
+    public function testChangedEncryptedArrayObjectMatchesStoredValueAtUpdatedEvent(): void
+    {
+        $encrypter = new RealEncrypter(str_repeat('a', 16));
+        Crypt::swap($encrypter);
+        Model::encryptUsing($encrypter);
+
+        $subject = new EncryptedCast;
+        $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
+        $subject->secret_array = ['key1' => 'value1'];
+        $subject->save();
+
+        $subject = $subject->fresh();
+        $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
+        $subject->secret_array['key2'] = 'value2';
+        $updatedState = null;
+
+        EncryptedCast::updated(function (EncryptedCast $updated) use (&$updatedState): void {
+            $updatedState = [
+                'changed' => $updated->getChanges()['secret_array'],
+                'stored' => $updated->newQuery()
+                    ->whereKey($updated->getKey())
+                    ->toBase()
+                    ->value('secret_array'),
+            ];
+        });
+
+        $subject->save();
+
+        $this->assertSame($updatedState['stored'], $updatedState['changed']);
+        $this->assertSame(
+            '{"key1":"value1","key2":"value2"}',
+            $encrypter->decryptString($updatedState['stored'])
+        );
     }
 
     public function testCustomEncrypterCanBeSpecified()
