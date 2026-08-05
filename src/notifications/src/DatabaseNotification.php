@@ -54,6 +54,8 @@ class DatabaseNotification extends Model
 
     /**
      * Get the notifiable entity that the notification belongs to.
+     *
+     * @return MorphTo<Model, $this>
      */
     public function notifiable(): MorphTo
     {
@@ -112,17 +114,27 @@ class DatabaseNotification extends Model
 
     /**
      * Scope a query to only include read notifications.
+     *
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
-    public function scopeRead(Builder $query)
+    public function scopeRead(Builder $query): Builder
     {
-        return $query->whereNotNull('read_at');
+        $query->whereNotNull('read_at');
+
+        return $query;
     }
 
     /**
      * Scope a query to only include unread notifications.
+     *
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
-    public function scopeUnread(Builder $query)
+    public function scopeUnread(Builder $query): Builder
     {
-        return $query->whereNull('read_at');
+        $query->whereNull('read_at');
+
+        return $query;
     }
 }

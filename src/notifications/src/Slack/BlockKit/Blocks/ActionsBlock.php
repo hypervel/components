@@ -6,6 +6,8 @@ namespace Hypervel\Notifications\Slack\BlockKit\Blocks;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Notifications\Slack\BlockKit\Elements\ButtonElement;
+use Hypervel\Notifications\Slack\BlockKit\Elements\Selects\StaticSelectElement;
+use Hypervel\Notifications\Slack\BlockKit\Elements\Selects\UsersSelectElement;
 use Hypervel\Notifications\Slack\Contracts\BlockContract;
 use Hypervel\Notifications\Slack\Contracts\ElementContract;
 use InvalidArgumentException;
@@ -52,11 +54,31 @@ class ActionsBlock implements BlockContract
     }
 
     /**
+     * Add a static select menu to the block.
+     */
+    public function staticSelect(string $text): StaticSelectElement
+    {
+        return tap(new StaticSelectElement($text), function (StaticSelectElement $select) {
+            $this->elements[] = $select;
+        });
+    }
+
+    /**
+     * Add a users select menu to the block.
+     */
+    public function usersSelect(string $text): UsersSelectElement
+    {
+        return tap(new UsersSelectElement($text), function (UsersSelectElement $select) {
+            $this->elements[] = $select;
+        });
+    }
+
+    /**
      * Get the instance as an array.
      */
     public function toArray(): array
     {
-        if ($this->blockId && strlen($this->blockId) > 255) {
+        if ($this->blockId && mb_strlen($this->blockId, 'UTF-8') > 255) {
             throw new InvalidArgumentException('Maximum length for the block_id field is 255 characters.');
         }
 

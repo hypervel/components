@@ -12,7 +12,21 @@ use Hypervel\Testbench\TestCase;
 
 class SendingNotificationsViaAnonymousNotifiableTest extends TestCase
 {
-    public function testMailIsSent()
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $_SERVER['__notifiable.route'] = [];
+    }
+
+    protected function tearDown(): void
+    {
+        unset($_SERVER['__notifiable.route']);
+
+        parent::tearDown();
+    }
+
+    public function testMailIsSent(): void
     {
         $notifiable = (new AnonymousNotifiable)
             ->route('testchannel', 'enzo')
@@ -28,10 +42,8 @@ class SendingNotificationsViaAnonymousNotifiableTest extends TestCase
         ], $_SERVER['__notifiable.route']);
     }
 
-    public function testAnonymousNotifiableWithMultipleRoutes()
+    public function testAnonymousNotifiableWithMultipleRoutes(): void
     {
-        $_SERVER['__notifiable.route'] = [];
-
         NotificationFacade::routes([
             'testchannel' => 'enzo',
             'anothertestchannel' => 'enzo@deepblue.com',
@@ -42,7 +54,7 @@ class SendingNotificationsViaAnonymousNotifiableTest extends TestCase
         ], $_SERVER['__notifiable.route']);
     }
 
-    public function testFaking()
+    public function testFaking(): void
     {
         $fake = NotificationFacade::fake();
 
@@ -71,7 +83,7 @@ class SendingNotificationsViaAnonymousNotifiableTest extends TestCase
 
 class TestMailNotificationForAnonymousNotifiable extends Notification
 {
-    public function via($notifiable)
+    public function via(mixed $notifiable): array
     {
         return [TestCustomChannel::class, AnotherTestCustomChannel::class];
     }
@@ -79,7 +91,7 @@ class TestMailNotificationForAnonymousNotifiable extends Notification
 
 class TestCustomChannel
 {
-    public function send($notifiable, $notification)
+    public function send(mixed $notifiable, Notification $notification): void
     {
         $_SERVER['__notifiable.route'][] = $notifiable->routeNotificationFor('testchannel');
     }
@@ -87,7 +99,7 @@ class TestCustomChannel
 
 class AnotherTestCustomChannel
 {
-    public function send($notifiable, $notification)
+    public function send(mixed $notifiable, Notification $notification): void
     {
         $_SERVER['__notifiable.route'][] = $notifiable->routeNotificationFor('anothertestchannel');
     }

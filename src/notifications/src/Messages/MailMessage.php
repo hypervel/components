@@ -243,6 +243,39 @@ class MailMessage extends SimpleMessage implements Renderable
     }
 
     /**
+     * Attach a file to the message from storage.
+     */
+    public function attachFromStorage(
+        string $path,
+        ?string $name = null,
+        array $options = []
+    ): static {
+        return $this->attachFromStorageDisk(null, $path, $name, $options);
+    }
+
+    /**
+     * Attach a file to the message from storage.
+     */
+    public function attachFromStorageDisk(
+        ?string $disk,
+        string $path,
+        ?string $name = null,
+        array $options = []
+    ): static {
+        $attachment = Attachment::fromStorageDisk($disk, $path);
+
+        if ($name !== null) {
+            $attachment->as($name);
+        }
+
+        if (isset($options['mime'])) {
+            $attachment->withMime($options['mime']);
+        }
+
+        return $this->attach($attachment);
+    }
+
+    /**
      * Add a tag header to the message when supported by the underlying transport.
      */
     public function tag(string $value): static
