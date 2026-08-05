@@ -92,12 +92,12 @@ interface Filesystem
     /**
      * Prepend to a file.
      */
-    public function prepend(string $path, string $data): bool;
+    public function prepend(string $path, string $data, string $separator = PHP_EOL): bool;
 
     /**
      * Append to a file.
      */
-    public function append(string $path, string $data): bool;
+    public function append(string $path, string $data, string $separator = PHP_EOL): bool;
 
     /**
      * Delete the file at a given path.
