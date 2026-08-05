@@ -2,28 +2,29 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Queue\RateLimitedWithRedisTest;
+namespace Hypervel\Tests\Integration\Queue\RateLimitedRedisStoreTest;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
-use Hypervel\Queue\Middleware\RateLimitedWithRedis;
+use Hypervel\Queue\Middleware\RateLimited;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[RequiresPhpExtension('redis')]
-class RateLimitedWithRedisTest extends TestCase
+// REMOVED: RateLimitedWithRedis is replaced by RateLimited::store('redis').
+class RateLimitedRedisStoreTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testUnlimitedJobsAreExecuted()
+    public function testUnlimitedJobsAreExecuted(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -51,7 +52,7 @@ class RateLimitedWithRedisTest extends TestCase
         $this->assertJobRanSuccessfully($testJob);
     }
 
-    public function testRateLimitedJobsAreNotExecutedOnLimitReached()
+    public function testRateLimitedJobsAreNotExecutedOnLimitReached(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -79,7 +80,7 @@ class RateLimitedWithRedisTest extends TestCase
         $this->assertJobWasReleasedAfter($testJob, 0);
     }
 
-    public function testRateLimitedJobsCanBeSkippedOnLimitReached()
+    public function testRateLimitedJobsCanBeSkippedOnLimitReached(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -93,7 +94,7 @@ class RateLimitedWithRedisTest extends TestCase
         $this->assertJobWasSkipped($testJob);
     }
 
-    public function testJobsCanHaveConditionalRateLimits()
+    public function testJobsCanHaveConditionalRateLimits(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -124,22 +125,21 @@ class RateLimitedWithRedisTest extends TestCase
         $this->assertJobWasReleased($nonAdminJob);
     }
 
-    public function testMiddlewareSerialization()
+    public function testMiddlewareSerialization(): void
     {
-        $rateLimited = new RateLimitedWithRedis('limiterName', 'default');
+        $rateLimited = (new RateLimited('limiterName'))->store('redis');
         $rateLimited->shouldRelease = false;
 
         $restoredRateLimited = unserialize(serialize($rateLimited));
 
         $fetch = (function (string $name) {
             return $this->{$name};
-        })->bindTo($restoredRateLimited, RateLimitedWithRedis::class);
+        })->bindTo($restoredRateLimited, RateLimited::class);
 
         $this->assertFalse($restoredRateLimited->shouldRelease);
         $this->assertSame('limiterName', $fetch('limiterName'));
-        $this->assertSame('default', $fetch('connectionName'));
+        $this->assertSame('redis', $fetch('storeName'));
         $this->assertInstanceOf(RateLimiter::class, $fetch('limiter'));
-        // $this->assertInstanceOf(Connection::class, $fetch('redis'));
     }
 
     protected function assertJobRanSuccessfully(RedisRateLimitedTestJob $testJob): void
@@ -240,7 +240,7 @@ class RedisRateLimitedTestJob
 
     public function middleware(): array
     {
-        return [new RateLimitedWithRedis($this->key)];
+        return [(new RateLimited($this->key))->store('redis')];
     }
 }
 
@@ -264,7 +264,7 @@ class RedisRateLimitedDontReleaseTestJob extends RedisRateLimitedTestJob
 {
     public function middleware(): array
     {
-        return [(new RateLimitedWithRedis($this->key))->dontRelease()];
+        return [(new RateLimited($this->key))->store('redis')->dontRelease()];
     }
 }
 
@@ -272,7 +272,7 @@ class RedisRateLimitedZeroReleaseAfterTestJob extends RedisRateLimitedTestJob
 {
     public function middleware(): array
     {
-        return [(new RateLimitedWithRedis($this->key))->releaseAfter(0)];
+        return [(new RateLimited($this->key))->store('redis')->releaseAfter(0)];
     }
 }
 
@@ -285,6 +285,6 @@ class RedisRateLimitedTestJobUsingBackedEnum extends RedisRateLimitedTestJob
 {
     public function middleware(): array
     {
-        return [new RateLimitedWithRedis(RedisBackedEnumNamedRateLimited::Zero)];
+        return [(new RateLimited(RedisBackedEnumNamedRateLimited::Zero))->store('redis')];
     }
 }

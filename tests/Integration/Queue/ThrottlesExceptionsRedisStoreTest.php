@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Queue\ThrottlesExceptionsWithRedisTest;
+namespace Hypervel\Tests\Integration\Queue\ThrottlesExceptionsRedisStoreTest;
 
 use Exception;
 use Hypervel\Bus\Dispatcher;
@@ -12,8 +12,7 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
-use Hypervel\Queue\Middleware\ThrottlesExceptionsWithRedis;
-use Hypervel\Support\CarbonImmutable;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -21,38 +20,32 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
 
 #[RequiresPhpExtension('redis')]
-class ThrottlesExceptionsWithRedisTest extends TestCase
+// REMOVED: ThrottlesExceptionsWithRedis is replaced by ThrottlesExceptions::store('redis').
+class ThrottlesExceptionsRedisStoreTest extends TestCase
 {
     use InteractsWithRedis;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        CarbonImmutable::setTestNow(now());
-    }
-
     public function testCircuitIsOpenedForJobErrors(): void
     {
-        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key = Str::random());
-        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key);
-        $this->assertJobWasReleasedWithDelay(CircuitBreakerWithRedisTestJob::class, $key);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerRedisStoreTestJob::class, $key = Str::random());
+        $this->assertJobWasReleasedImmediately(CircuitBreakerRedisStoreTestJob::class, $key);
+        $this->assertJobWasReleasedWithDelay(CircuitBreakerRedisStoreTestJob::class, $key);
     }
 
     public function testCircuitStaysClosedForSuccessfulJobs(): void
     {
-        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key = Str::random());
-        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
-        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
+        $this->assertJobRanSuccessfully(CircuitBreakerRedisStoreSuccessfulJob::class, $key = Str::random());
+        $this->assertJobRanSuccessfully(CircuitBreakerRedisStoreSuccessfulJob::class, $key);
+        $this->assertJobRanSuccessfully(CircuitBreakerRedisStoreSuccessfulJob::class, $key);
     }
 
     public function testCircuitResetsAfterSuccess(): void
     {
-        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key = Str::random());
-        $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
-        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key);
-        $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key);
-        $this->assertJobWasReleasedWithDelay(CircuitBreakerWithRedisTestJob::class, $key);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerRedisStoreTestJob::class, $key = Str::random());
+        $this->assertJobRanSuccessfully(CircuitBreakerRedisStoreSuccessfulJob::class, $key);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerRedisStoreTestJob::class, $key);
+        $this->assertJobWasReleasedImmediately(CircuitBreakerRedisStoreTestJob::class, $key);
+        $this->assertJobWasReleasedWithDelay(CircuitBreakerRedisStoreTestJob::class, $key);
     }
 
     protected function assertJobWasReleasedImmediately($class, string $key): void
@@ -132,7 +125,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
             throw $expectedException;
         };
 
-        $middleware = (new ThrottlesExceptionsWithRedis)->backoff(
+        $middleware = (new ThrottlesExceptions)->store('redis')->backoff(
             function (RuntimeException $throwable) use (&$receivedException): int {
                 $receivedException = $throwable;
 
@@ -164,7 +157,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
             throw new RuntimeException('Whoops!');
         };
 
-        $middleware = new ThrottlesExceptionsWithRedis;
+        $middleware = (new ThrottlesExceptions)->store('redis');
 
         $middleware->report();
         $middleware->handle($job, $next);
@@ -177,7 +170,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
     }
 }
 
-class CircuitBreakerWithRedisTestJob
+class CircuitBreakerRedisStoreTestJob
 {
     use InteractsWithQueue;
     use Queueable;
@@ -200,11 +193,11 @@ class CircuitBreakerWithRedisTestJob
 
     public function middleware(): array
     {
-        return [(new ThrottlesExceptionsWithRedis(2, 10 * 60))->by($this->key)];
+        return [(new ThrottlesExceptions(2, 10 * 60))->store('redis')->by($this->key)];
     }
 }
 
-class CircuitBreakerWithRedisSuccessfulJob
+class CircuitBreakerRedisStoreSuccessfulJob
 {
     use InteractsWithQueue;
     use Queueable;
@@ -225,6 +218,6 @@ class CircuitBreakerWithRedisSuccessfulJob
 
     public function middleware(): array
     {
-        return [(new ThrottlesExceptionsWithRedis(2, 10 * 60))->by($this->key)];
+        return [(new ThrottlesExceptions(2, 10 * 60))->store('redis')->by($this->key)];
     }
 }
