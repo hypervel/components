@@ -1517,7 +1517,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         if (count($dirty) > 0) {
             $this->setKeysForSaveQuery($query)->update($dirty);
 
-            $this->syncChanges();
+            // Cached setters were merged while building the statement values. Read
+            // the raw array here so nondeterministic setters are not run again.
+            $this->syncChangesFrom(
+                $this->getDirtyFromAttributes($this->attributes)
+            );
 
             $this->fireModelEvent('updated', false);
         }

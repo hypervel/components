@@ -2011,8 +2011,18 @@ trait HasAttributes
      */
     public function syncChanges(): static
     {
-        $this->changes = $this->getDirty();
-        $this->previous = array_intersect_key($this->getRawOriginal(), $this->changes);
+        return $this->syncChangesFrom($this->getDirty());
+    }
+
+    /**
+     * Sync the supplied changed attributes.
+     *
+     * @param array<string, mixed> $changes
+     */
+    private function syncChangesFrom(array $changes): static
+    {
+        $this->changes = $changes;
+        $this->previous = array_intersect_key($this->getRawOriginal(), $changes);
 
         return $this;
     }
@@ -2100,9 +2110,23 @@ trait HasAttributes
      */
     public function getDirty(): array
     {
+        return $this->getDirtyFromAttributes($this->getAttributes());
+    }
+
+    /**
+     * Get the changed values from the supplied attribute set.
+     *
+     * The supplied array determines the output keys and values, while attribute
+     * equivalence remains based on the model's current state.
+     *
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    private function getDirtyFromAttributes(array $attributes): array
+    {
         $dirty = [];
 
-        foreach ($this->getAttributes() as $key => $value) {
+        foreach ($attributes as $key => $value) {
             if (! $this->originalIsEquivalent($key)) {
                 $dirty[$key] = $value;
             }
