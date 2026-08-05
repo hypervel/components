@@ -117,6 +117,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 
 ### Working rules
 
+- **Never use subagents without explicit user consent** — Do not spawn or delegate work to subagents unless the user explicitly requests or approves their use.
 - **Avoid bulk modification tools** — tools like `sed` and `replace_all` often have unwanted side effects. Never use bulk modification tools without explicit user approval; prefer manual edits. When approved, run them in multiple passes that each target long, exact, case-sensitive strings to avoid accidental changes.
 - **One file at a time** — never work on multiple files simultaneously. This governs manual editing; package-manager and formatter runs may touch multiple files.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
