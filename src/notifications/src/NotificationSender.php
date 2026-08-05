@@ -35,12 +35,11 @@ class NotificationSender
     /**
      * The context key for tracking whether a NotificationFailed event was already dispatched.
      *
-     * Used to prevent double-dispatching when a channel's send() method internally
-     * dispatches NotificationFailed and then throws. Stored in coroutine-local Context
-     * rather than an instance property because the event dispatcher is process-global
-     * in Swoole — a per-instance listener would leak into the persistent $listeners array.
-     * The boot-time listener (registered in NotificationServiceProvider) sets this flag;
-     * sendToNotifiable() resets it before each attempt.
+     * Holds a boolean while a notification-channel attempt is active and is absent
+     * otherwise. Stored in coroutine-local Context rather than an instance property
+     * because the event dispatcher is process-global in Swoole — a per-instance
+     * listener would leak into the persistent $listeners array. The boot-time listener
+     * marks an active attempt when its channel dispatches NotificationFailed before throwing.
      */
     public const FAILED_EVENT_DISPATCHED_CONTEXT_KEY = '__notifications.failed_dispatched';
 
@@ -121,13 +120,13 @@ class NotificationSender
             return;
         }
 
-        // Reset per-attempt — must not carry over from a previous channel/notifiable
+        $previousFailureState = CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY);
         CoroutineContext::set(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false);
 
         try {
             $response = $this->manager->driver($channel)->send($notifiable, $notification);
         } catch (Throwable $exception) {
-            if (! CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false)) {
+            if (CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY) !== true) {
                 if ($exception instanceof HttpTransportException) {
                     $exception = new TransportException($exception->getMessage(), $exception->getCode());
                 }
@@ -139,10 +138,16 @@ class NotificationSender
                 }
             }
 
-            // Reset so next attempt starts clean
-            CoroutineContext::set(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false);
-
             throw $exception;
+        } finally {
+            if ($previousFailureState === null) {
+                CoroutineContext::forget(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY);
+            } else {
+                CoroutineContext::set(
+                    self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY,
+                    $previousFailureState,
+                );
+            }
         }
 
         if (method_exists($notification, 'afterSending')) {
