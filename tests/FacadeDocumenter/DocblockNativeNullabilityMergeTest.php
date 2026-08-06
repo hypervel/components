@@ -12,7 +12,7 @@ class DocblockNativeNullabilityMergeTest extends FacadeDocumenterTestCase
      * <docblock>|null form. Without this merge the output is self-
      * contradictory: non-nullable type with a = null default.
      */
-    public function testNonNullableDocblockTypeMergesWithNullableNativeSignature()
+    public function testNonNullableDocblockTypeMergesWithNullableNativeSignature(): void
     {
         $this->writeAppFile(
             'NullabilityMerge/Param/Proxy.php',
@@ -72,7 +72,7 @@ class DocblockNativeNullabilityMergeTest extends FacadeDocumenterTestCase
      * When the docblock type already includes null (as a union member),
      * the merger must not add a duplicate null.
      */
-    public function testAlreadyNullableDocblockTypeIsNotDoubled()
+    public function testAlreadyNullableDocblockTypeIsNotDoubled(): void
     {
         $this->writeAppFile(
             'NullabilityMerge/AlreadyNull/Proxy.php',

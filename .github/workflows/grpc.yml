@@ -55,7 +55,7 @@ jobs:
       - name: Execute PHP integration tests
         env:
           TEST_SERVER_HOST: 127.0.0.1
-        run: vendor/bin/phpunit tests/Integration/Grpc
+        run: vendor/bin/paratest tests/Integration/Grpc
 
       - name: Execute grpc-go client against Hypervel
         run: .tmp/grpc-interop/client

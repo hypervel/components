@@ -6,7 +6,7 @@ namespace Hypervel\Tests\FacadeDocumenter;
 
 class ConditionalDedupeTest extends FacadeDocumenterTestCase
 {
-    public function testDuplicateNullAcrossBranchesIsDeduped()
+    public function testDuplicateNullAcrossBranchesIsDeduped(): void
     {
         $this->writeAppFile(
             'Conditional/DuplicateNull/Target.php',
@@ -35,7 +35,9 @@ class ConditionalDedupeTest extends FacadeDocumenterTestCase
                 class Proxy
                 {
                     /**
-                     * @return ($param is null ? null|\App\Conditional\DuplicateNull\Target : null|object|string)
+                     * @template TValue
+                     *
+                     * @return (TValue is null ? null|\App\Conditional\DuplicateNull\Target : null|object|string)
                      */
                     public function route(?string $param = null): mixed
                     {
@@ -84,12 +86,12 @@ class ConditionalDedupeTest extends FacadeDocumenterTestCase
 
         // Must still include null, the target class, and the alternate-branch members.
         $this->assertContains('null', $members);
-        $this->assertContains('\App\Conditional\DuplicateNull\Target', $members);
+        $this->assertContains('\App\Conditional\DuplicateNull\Target', $members, $contents);
         $this->assertContains('string', $members);
         $this->assertContains('object', $members);
     }
 
-    public function testNestedGenericUnionIsNotShreddedByDedupe()
+    public function testNestedGenericUnionIsNotShreddedByDedupe(): void
     {
         $this->writeAppFile(
             'Conditional/NestedGeneric/Proxy.php',
@@ -103,7 +105,9 @@ class ConditionalDedupeTest extends FacadeDocumenterTestCase
                 class Proxy
                 {
                     /**
-                     * @return ($flag is true ? array<int, int|string>|null : string)
+                     * @template TFlag
+                     *
+                     * @return (TFlag is true ? array<int, int|string>|null : string)
                      */
                     public function resolve(bool $flag): mixed
                     {

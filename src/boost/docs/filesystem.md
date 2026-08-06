@@ -669,6 +669,12 @@ Storage::prepend('file.log', 'Prepended Text');
 Storage::append('file.log', 'Appended Text');
 ```
 
+By default, the new and existing contents are separated by a newline. You may pass a different separator as the third argument:
+
+```php
+Storage::append('file.log', 'Appended Text', ' | ');
+```
+
 <a name="copying-moving-files"></a>
 ### Copying and Moving Files
 

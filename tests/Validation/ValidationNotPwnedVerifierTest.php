@@ -27,6 +27,28 @@ class ValidationNotPwnedVerifierTest extends TestCase
         }
     }
 
+    public function testDifferentMagicHashIsNotAcceptedAsACompromisedPassword(): void
+    {
+        $httpFactory = m::mock(HttpFactory::class);
+        $response = m::mock(Response::class);
+
+        $httpFactory->shouldReceive('withHeaders')
+            ->once()
+            ->with(['Add-Padding' => true])
+            ->andReturnSelf();
+        $httpFactory->shouldReceive('timeout')->once()->with(30)->andReturnSelf();
+        $httpFactory->shouldReceive('get')->once()->andReturn($response);
+        $response->shouldReceive('successful')->once()->andReturnTrue();
+        $response->shouldReceive('body')->once()->andReturn(str_repeat('1', 35) . ':1');
+
+        $verifier = new NotPwnedVerifier($httpFactory);
+
+        $this->assertTrue($verifier->verify([
+            'value' => 'aaroZmOk',
+            'threshold' => 0,
+        ]));
+    }
+
     public function testApiResponseGoesWrong()
     {
         $httpFactory = m::mock(HttpFactory::class);

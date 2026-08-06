@@ -12,7 +12,7 @@ class MixedNativeNullableTest extends FacadeDocumenterTestCase
      * The merger must skip the null append in this case to avoid emitting
      * redundant "mixed|null" output.
      */
-    public function testMixedDocblockWithNullableNativeDoesNotAppendNull()
+    public function testMixedDocblockWithNullableNativeDoesNotAppendNull(): void
     {
         $this->writeAppFile(
             'MixedNullable/Proxy.php',

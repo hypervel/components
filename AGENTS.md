@@ -91,7 +91,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 5. Fix the underlying defect — never add a workaround for incorrect framework code.
 6. Add a regression test for the bug and run that test file immediately.
 7. Check types, API parity, coroutine isolation, and worker-lifetime state around the changed code.
-8. Complete the verification order below.
+8. Complete the verification workflow below.
 
 ### Framework enhancements
 
@@ -99,16 +99,17 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 2. Decide which state is local, coroutine-scoped, or worker-scoped before writing code — see Coroutine and Worker-Lifetime State.
 3. Preserve Laravel API parity by default. If parity conflicts with Hypervel's architecture, preserves a verified defect or deprecated upstream API, or would require worse code or a workaround, STOP, recommend the cleanest design, and obtain user approval before planning or editing. Never make Hypervel code worse merely to preserve parity.
 4. Test the public behavior, failure paths, coroutine isolation, and cleanup the feature needs.
-5. Complete the verification order below.
+5. Complete the verification workflow below.
 
-### Verification order
+### Verification
 
-1. Run each changed or new test file immediately after working on it — never defer.
-2. Run the package or focused tests the change affects.
-3. Run phpstan on source changes (see Static Analysis).
-4. Run php-cs-fixer.
-5. Run `composer test:parallel` for the full suite.
-6. Run `composer test:testbench` after Testbench changes.
+During implementation, run new or changed test files immediately. After completing a coherent implementation slice, run the affected package or focused test suite.
+
+At a meaningful checkpoint—such as before code review or after completing a substantial slice—run `composer fix` once. It runs the full formatter, PHPStan, parallel test suite, and Testbench tests, so do not run those full checks separately at the same checkpoint.
+
+After review fixes, run the relevant targeted tests. Repeat `composer fix` only when the changes warrant another full-repository check.
+
+If `composer fix` fails, use targeted checks while correcting the issue. Afterwards, inspect the `fix` script in `composer.json` and run the failed check plus each remaining entry. Rerun an earlier check only if the correction could affect it.
 
 ## Development Conventions
 
@@ -692,7 +693,7 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
-Run `./vendor/bin/phpstan` and `./vendor/bin/php-cs-fixer fix` without flags — the repository config files control levels and rules.
+Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
 **When fixing phpstan errors:**
 
@@ -762,9 +763,9 @@ Search **both `src/` and `tests/`** for any `use` statements or references to th
 
 After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through. See the Static Analysis section.
 
-#### 5. Run the full test suite
+#### 5. Complete verification
 
-Run `composer test:parallel` (and `composer test:testbench` after Testbench changes), completing the verification order under Change Workflow. For failures, follow When to Stop and Report: straightforward fixes (e.g. a missed namespace update) go ahead; anything more complex gets stopped and explained.
+Complete the verification workflow under Change Workflow. For failures, follow When to Stop and Report: straightforward fixes (e.g. a missed namespace update) go ahead; anything more complex gets stopped and explained.
 
 ### Provider and listener reminder
 
@@ -832,9 +833,9 @@ Use this exact cadence for each test class:
 4. If any failure exposes a source code bug, missing functionality, or unclear behavioral difference, STOP and report the root cause with your recommended fix.
 5. Once the test class is green, move to the next test class. Work serially on one test class at a time.
 
-#### 6. Run the full test suite
+#### 6. Complete verification
 
-After all test files are ported, run the full test suite with `composer test:parallel`. Same rules as the source workflow — straightforward fixes go ahead, anything complex gets stopped and explained.
+After all test files are ported, complete the verification workflow under Change Workflow. Same rules as the source workflow — straightforward fixes go ahead, anything complex gets stopped and explained.
 
 ## Porting Laravel Tests
 

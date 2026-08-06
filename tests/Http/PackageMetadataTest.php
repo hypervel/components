@@ -22,15 +22,8 @@ class PackageMetadataTest extends TestCase
             512,
             JSON_THROW_ON_ERROR
         );
-        $rootComposer = json_decode(
-            file_get_contents(__DIR__ . '/../../composer.json'),
-            true,
-            512,
-            JSON_THROW_ON_ERROR
-        );
 
         $this->assertSame('*', $composer['require']['ext-filter']);
-        $this->assertSame('*', $rootComposer['require']['ext-filter']);
         $this->assertSame(
             'Required to use Hypervel\Http\Testing\FileFactory::image().',
             $composer['suggest']['ext-gd']

@@ -18,7 +18,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Socialite\SocialiteManager forgetDrivers()
  * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static string getDefaultDriver()
- * @method static \Hypervel\Socialite\SocialiteManager extend(string $driver, \Closure $callback)
+ * @method static \Hypervel\Socialite\SocialiteManager extend(string $driver, Closure $callback)
  * @method static array getDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static \Hypervel\Http\RedirectResponse redirect()

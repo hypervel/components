@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None.
-- **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None.
+- **Active package or work unit:** None. `validation` is complete; detail plan `2026-08-05-2221-validation-correctness-parity-and-compiled-lifecycles.md`.
+- **Ledger entries required for the active work:** None. The completed Validation work is recorded under `Complete Validation correctness, parity, and compiled lifecycles`, with `validation-18` cross-referenced from `Correct Support utility boundaries and authentication timing isolation`.
+- **Pending revalidation carried into the active work:** None. `validation-01`, `support-29`, and the Support-owned side of `validation-18` are revalidated.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1002,7 +1002,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 
 | Finding | Owning package | Affected or revalidation packages | Ledger entry |
 |---|---|---|---|
-| `validation-01` | `validation` | `contracts`; later full `validation` audit | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
+| `validation-01` | `validation` | `contracts` and `validation` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
 | `view-01` | `view` | `contracts` and `foundation` (revalidation complete); later full `view` audit | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
 | `filesystem-01` | `filesystem` | `contracts` and `filesystem` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
 | `queue-01` | `queue` | `contracts` and `queue` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
@@ -1165,7 +1165,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `database-23` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-23` |
 | `mail-17` | `mail` | `mail` and `support` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `mail-17` |
 | `support-28` | `support` | `support` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-28` |
-| `support-29` | `support` | `support`, `mail`, and `validation` (targeted revalidation complete); later full `validation` audit | `Complete Mail correctness, current parity, and package boundaries`; finding `support-29` |
+| `support-29` | `support` | `support`, `mail`, and `validation` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-29` |
 | `contracts-10` | `contracts` | `contracts` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-10` |
 | `contracts-11` | `contracts` | `contracts`, `mail`, and `console` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-11` |
 | `filesystem-14` | `filesystem` | `filesystem` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `filesystem-14` |
@@ -1174,6 +1174,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `routing-12` | `routing` | `encryption` (targeted correction complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `routing-12` |
 | `routing-18` | `routing` | `auth` (revalidation complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `routing-18` |
 | `collections-14` | `collections` | `collections` and `routing` (revalidation complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `collections-14` |
+| `validation-18` | `validation` | `validation` and `support` (revalidation complete) | `Complete Validation correctness, parity, and compiled lifecycles`; finding `validation-18` |
 
 ## Package checklist
 
@@ -1259,7 +1260,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 ### Application and domain packages
 
 - [x] `auth`
-- [ ] `validation`
+- [x] `validation`
 - [x] `routing`
 - [ ] `view`
 - [ ] `translation`

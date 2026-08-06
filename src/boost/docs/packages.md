@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [A Note on Facades](#a-note-on-facades)
+    - [Generating Facade Docblocks](#generating-facade-docblocks)
 - [Package Discovery](#package-discovery)
     - [Test State Cleanup](#test-state-cleanup)
 - [Inspecting Installed Packages](#inspecting-installed-packages)
@@ -39,6 +40,45 @@ On the other hand, other packages are specifically intended for use with Hyperve
 ### A Note on Facades
 
 When writing a Hypervel application, it generally does not matter if you use contracts or facades since both provide essentially equal levels of testability. However, when writing packages, your package will not typically have access to all of Hypervel's testing helpers. If you would like to be able to write your package tests as if the package were installed inside a typical Hypervel application, you may use the [Hypervel Testbench](/docs/{{version}}/testbench) package.
+
+<a name="generating-facade-docblocks"></a>
+### Generating Facade Docblocks
+
+If your package provides a facade, you may use Hypervel's Facade Documenter to generate its `@method` definitions from the underlying class. This keeps the facade's IDE metadata in sync without maintaining each method by hand.
+
+First, add the Facade Documenter to your package's development dependencies:
+
+```shell
+composer require --dev hypervel/facade-documenter
+```
+
+The facade's class docblock should contain an `@see` tag for the class it represents:
+
+```php
+/**
+ * @see \Courier\CourierManager
+ */
+class Courier extends Facade
+{
+    // ...
+}
+```
+
+You may then generate the facade's docblock by passing its fully qualified class name to the `facade.php` script:
+
+```shell
+php -f vendor/bin/facade.php -- Courier\\Facades\\Courier
+```
+
+You may pass several facade class names to the same command. The generator replaces the facade's class docblock with the generated `@method` and `@see` definitions. Any `@mixin` tags declared directly on the facade are preserved.
+
+To check the docblock without changing the file, add the `--lint` option. The command exits with a non-zero status when the generated docblock is not current, making it suitable for continuous integration:
+
+```shell
+php -f vendor/bin/facade.php -- --lint Courier\\Facades\\Courier
+```
+
+You may add the `--verbose` option to display the classes used to generate each facade.
 
 <a name="package-discovery"></a>
 ## Package Discovery

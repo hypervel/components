@@ -36,7 +36,7 @@
         "ext-posix": "*",
         "ext-swoole": "^6.2",
         "guzzlehttp/guzzle": "^7.15.1",
-        "nesbot/carbon": "^3.8.4",
+        "nesbot/carbon": "^3.13.1",
         "nunomaduro/termwind": "^2.0",
         "psr/http-client": "^1.0",
         "symfony/console": "^8.1",

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\FacadeDocumenter;
 
 class WrapperCollapseTest extends FacadeDocumenterTestCase
 {
-    public function testClassStringCollapsesToString()
+    public function testClassStringCollapsesToString(): void
     {
         $this->writeAppFile(
             'WrapperCollapse/ClassString/Proxy.php',
@@ -58,7 +58,7 @@ class WrapperCollapseTest extends FacadeDocumenterTestCase
         $this->assertStringNotContainsString('string<', $contents);
     }
 
-    public function testIntMaskOfCollapsesToInt()
+    public function testIntMaskOfCollapsesToInt(): void
     {
         $this->writeAppFile(
             'WrapperCollapse/IntMaskOf/Proxy.php',
@@ -113,7 +113,7 @@ class WrapperCollapseTest extends FacadeDocumenterTestCase
         $this->assertStringNotContainsString('int<', $contents);
     }
 
-    public function testBoundedIntCollapsesToInt()
+    public function testBoundedIntCollapsesToInt(): void
     {
         $this->writeAppFile(
             'WrapperCollapse/BoundedInt/Proxy.php',
@@ -164,7 +164,7 @@ class WrapperCollapseTest extends FacadeDocumenterTestCase
         $this->assertStringNotContainsString('int<', $contents);
     }
 
-    public function testListCollapsesToArray()
+    public function testListCollapsesToArray(): void
     {
         $this->writeAppFile(
             'WrapperCollapse/ListType/Proxy.php',
