@@ -7,11 +7,9 @@ namespace Hypervel\Tests\Testbench;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Contracts\TestCase as TestCaseContract;
-use Hypervel\Testbench\Foundation\Application as Testbench;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Pest\WithPest;
 use Hypervel\Testbench\PHPUnit\TestCase;
-use Override;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Throwable;
@@ -20,14 +18,6 @@ use function Hypervel\Testbench\container;
 
 class TestCaseTest extends TestCase
 {
-    #[Override]
-    protected function tearDown(): void
-    {
-        Testbench::flushState($this);
-
-        parent::tearDown();
-    }
-
     #[Test]
     public function itCanCreateTheTestcase(): void
     {

@@ -5805,6 +5805,32 @@ SQL;
         ]), $result);
     }
 
+    public function testPaginateWithExplicitZeroPageDoesNotConsultResolver(): void
+    {
+        $builder = $this->getMockQueryBuilder();
+        $results = collect([['test' => 'foo']]);
+
+        Paginator::currentPageResolver(fn () => 9);
+
+        $builder->shouldReceive('getCountForPagination')->once()->andReturn(1);
+        $builder->shouldReceive('forPage')->once()->with(0, 15)->andReturnSelf();
+        $builder->shouldReceive('get')->once()->andReturn($results);
+
+        $this->assertSame(1, $builder->paginate(page: 0)->currentPage());
+    }
+
+    public function testSimplePaginateWithExplicitZeroPageDoesNotConsultResolver(): void
+    {
+        $builder = $this->getMockQueryBuilder();
+
+        Paginator::currentPageResolver(fn () => 9);
+
+        $builder->shouldReceive('get')->once()->andReturn(collect([['test' => 'foo']]));
+
+        $this->assertSame(1, $builder->simplePaginate(page: 0)->currentPage());
+        $this->assertSame(0, $builder->offset);
+    }
+
     public function testPaginateWhenNoResults()
     {
         $perPage = 15;
@@ -5884,6 +5910,14 @@ SQL;
         $result = $builder->paginate($perPage, $columns, $pageName, $page, 10);
 
         $this->assertEquals(10, $result->total());
+    }
+
+    public function testCursorPaginateTruthfullyDeclaresItsIntegerPerPageBoundary(): void
+    {
+        // The shared cursor paginator requires an integer, so nullable metadata would promise an input that fails internally.
+        $parameter = (new ReflectionMethod(Builder::class, 'cursorPaginate'))->getParameters()[0];
+
+        $this->assertSame('int', (string) $parameter->getType());
     }
 
     public function testCursorPaginate()

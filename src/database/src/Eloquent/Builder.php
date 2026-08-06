@@ -9,7 +9,6 @@ use Closure;
 use Exception;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Hypervel\Contracts\Database\Query\Expression;
-use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
@@ -19,6 +18,7 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
@@ -996,11 +996,13 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query.
      *
+     * @return \Hypervel\Pagination\LengthAwarePaginator<int, TModel>
+     *
      * @throws InvalidArgumentException
      */
     public function paginate(Closure|int|null $perPage = null, array|string $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): LengthAwarePaginator
     {
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = $page ?? Paginator::resolveCurrentPage($pageName);
 
         $total = value($total) ?? $this->toBase()->getCountForPagination();
 
@@ -1018,10 +1020,12 @@ class Builder implements BuilderContract
 
     /**
      * Paginate the given query into a simple paginator.
+     *
+     * @return \Hypervel\Pagination\Paginator<int, TModel>
      */
     public function simplePaginate(?int $perPage = null, array|string $columns = ['*'], string $pageName = 'page', ?int $page = null): Paginator
     {
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = $page ?? Paginator::resolveCurrentPage($pageName);
 
         $perPage = $perPage ?: $this->model->getPerPage();
 
@@ -1038,8 +1042,10 @@ class Builder implements BuilderContract
 
     /**
      * Paginate the given query into a cursor paginator.
+     *
+     * @return \Hypervel\Pagination\CursorPaginator<int, TModel>
      */
-    public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginatorContract
+    public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginator
     {
         $perPage = $perPage ?: $this->model->getPerPage();
 

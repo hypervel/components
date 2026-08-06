@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Console;
 
 use Closure;
+use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -17,9 +18,8 @@ use Hypervel\Testbench\Foundation\Console\Concerns\CopyTestbenchFiles;
 use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\TestbenchServiceProvider;
 use Hypervel\Testbench\Workbench\Workbench;
-use Symfony\Component\Console\Application as ConsoleApplication;
+use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Input\ArgvInput;
-use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -252,7 +252,7 @@ class Commander
             }
         }
 
-        (new ConsoleApplication)->renderThrowable($error, $output);
+        (new SymfonyApplication)->renderThrowable($error, $output);
 
         return 1;
     }
@@ -260,9 +260,9 @@ class Commander
     /**
      * Prepare environment variables required by the incoming command.
      */
-    protected function prepareCommandEnvironment(InputInterface $input): void
+    protected function prepareCommandEnvironment(ArgvInput $input): void
     {
-        if ($input->getFirstArgument() !== 'serve') {
+        if (ConsoleApplication::resolveCommandName($input) !== 'serve') {
             return;
         }
 

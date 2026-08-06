@@ -74,6 +74,8 @@ function test(
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->lazy());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->lazyById());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->lazyByIdDesc());
+    assertType('Hypervel\Pagination\CursorPaginator<int, Hypervel\Types\Builder\User>', $query->cursorPaginate());
+    assertType('string', $query->cursorPaginate()->toJson());
     assertType('Hypervel\Support\Collection<(int|string), mixed>', $query->pluck('foo'));
     assertType('Hypervel\Database\Eloquent\Relations\Relation<Hypervel\Database\Eloquent\Model, Hypervel\Types\Builder\User, *>', $query->getRelation('foo'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query->setModel(new Post));

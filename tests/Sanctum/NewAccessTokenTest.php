@@ -7,13 +7,14 @@ namespace Hypervel\Tests\Sanctum;
 use Hypervel\Sanctum\NewAccessToken;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Tests\TestCase;
+use JsonException;
 
 class NewAccessTokenTest extends TestCase
 {
     /**
      * Test to array method.
      */
-    public function testToArrayMethod()
+    public function testToArrayMethod(): void
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
@@ -34,7 +35,7 @@ class NewAccessTokenTest extends TestCase
     /**
      * Test to json method.
      */
-    public function testToJsonMethod()
+    public function testToJsonMethod(): void
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
@@ -57,7 +58,7 @@ class NewAccessTokenTest extends TestCase
     /**
      * Test toString method.
      */
-    public function testToStringMethod()
+    public function testToStringMethod(): void
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
@@ -71,5 +72,24 @@ class NewAccessTokenTest extends TestCase
 
         $this->assertJson($string);
         $this->assertSame($newToken->toJson(), $string);
+    }
+
+    public function testToJsonThrowsForInvalidUtf8(): void
+    {
+        $newToken = new NewAccessToken(new PersonalAccessToken, "\xB1\x31");
+
+        $this->expectException(JsonException::class);
+
+        $newToken->toJson();
+    }
+
+    public function testToJsonHonorsInvalidUtf8Substitution(): void
+    {
+        $newToken = new NewAccessToken(new PersonalAccessToken, "\xB1\x31");
+
+        $this->assertStringContainsString(
+            '"plainTextToken":"\ufffd1"',
+            $newToken->toJson(JSON_INVALID_UTF8_SUBSTITUTE),
+        );
     }
 }

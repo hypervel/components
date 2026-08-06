@@ -34,9 +34,7 @@
                 <p class="mt-2 text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
                     HTTP request received.
 
-                    @if (defined('HYPERVEL_START'))
-                        Response rendered in {{ round((microtime(true) - HYPERVEL_START) * 1000) }}ms.
-                    @endif
+                    Response rendered in {{ round($request->startedAt()->diffInMilliseconds()) }}ms.
                 </p>
             </div>
         </div>

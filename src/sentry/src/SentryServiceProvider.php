@@ -59,7 +59,6 @@ class SentryServiceProvider extends ServiceProvider
         'breadcrumbs',
         'features',
         'pool',
-        'ignore_commands',
         // We resolve the integrations through the container later, so we initially do not pass it to the SDK yet
         'integrations',
         // We have this setting to allow us to capture the .env LOG_LEVEL for the sentry_logs channel

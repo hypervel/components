@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Commands;
 
 use Carbon\CarbonInterface;
+use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskFailed;
@@ -207,7 +208,7 @@ class ScheduleRunCommand extends Command
             if ($events->contains->isRepeatable()) {
                 $this->repeatEvents($events->filter->isRepeatable());
             }
-        });
+        }, copyContext: [ContextRepository::CONTEXT_KEY]);
 
         if (! $this->eventsRan && ! $this->option('whisper')) {
             $this->info('No scheduled commands are ready to run.');
@@ -245,24 +246,23 @@ class ScheduleRunCommand extends Command
                 }
 
                 if ($paused && ! $event->runsWhenPaused()) {
+                    $event->lastChecked = Date::now();
                     $this->dispatchTaskSkipped($event);
 
                     continue;
                 }
 
-                if (! $event->filtersPass($this->hypervel)) {
-                    $this->dispatchTaskSkipped($event);
+                $this->runTaskInCoroutine(function () use ($event): void {
+                    if (! $event->filtersPass($this->hypervel)) {
+                        $this->dispatchTaskSkipped($event);
 
-                    continue;
-                }
+                        return;
+                    }
 
-                if ($event->onOneServer) {
-                    $this->runSingleServerEvent($event, $this->startedAt);
-                } else {
-                    $this->runEvent($event);
-                }
+                    $this->runScheduledEvent($event, $this->startedAt);
 
-                $this->eventsRan = true;
+                    $this->eventsRan = true;
+                });
             }
 
             Sleep::usleep(100_000);
@@ -283,34 +283,59 @@ class ScheduleRunCommand extends Command
             }
 
             if ($paused && ! $event->runsWhenPaused()) {
+                $event->lastChecked = Date::now();
                 $this->dispatchTaskSkipped($event);
 
                 continue;
             }
 
-            if (! $event->filtersPass($this->hypervel)) {
-                $this->dispatchTaskSkipped($event);
+            $this->runTaskInCoroutine(function () use ($event, $startedAt): void {
+                if (! $event->filtersPass($this->hypervel)) {
+                    $this->dispatchTaskSkipped($event);
 
-                continue;
-            }
+                    return;
+                }
 
-            $runEvent = fn () => $event->onOneServer
-                ? $this->runSingleServerEvent($event, $startedAt)
-                : $this->runEvent($event);
+                $this->runScheduledEvent($event, $startedAt);
 
-            if ($event->runInBackground) {
-                $this->concurrent->fork(function () use ($runEvent, $event) {
-                    $runEvent();
-
-                    if ($this->dispatcher->hasListeners(ScheduledBackgroundTaskFinished::class)) {
-                        $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
-                    }
-                }, [ContextRepository::CONTEXT_KEY]);
-                continue;
-            }
-
-            $runEvent();
+                $this->eventsRan = true;
+            });
         }
+    }
+
+    /**
+     * Run user task evaluation in a finite coroutine.
+     */
+    protected function runTaskInCoroutine(Closure $callback): void
+    {
+        (new Waiter(-1))->wait(
+            $callback,
+            copyContext: [ContextRepository::CONTEXT_KEY],
+        );
+    }
+
+    /**
+     * Dispatch a scheduled event in the foreground or background.
+     */
+    protected function runScheduledEvent(Event $event, CarbonInterface $startedAt): void
+    {
+        $runEvent = fn () => $event->onOneServer
+            ? $this->runSingleServerEvent($event, $startedAt)
+            : $this->runEvent($event);
+
+        if ($event->runInBackground) {
+            $this->concurrent->fork(function () use ($runEvent, $event): void {
+                $runEvent();
+
+                if ($this->dispatcher->hasListeners(ScheduledBackgroundTaskFinished::class)) {
+                    $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
+                }
+            }, [ContextRepository::CONTEXT_KEY]);
+
+            return;
+        }
+
+        $runEvent();
     }
 
     /**

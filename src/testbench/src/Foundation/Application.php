@@ -5,39 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation;
 
 use Closure;
-use Hypervel\Console\Application as Artisan;
-use Hypervel\Console\Commands\ScheduleListCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Database\Eloquent\Factories\Factory;
-use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Migrations\Migrator;
-use Hypervel\Database\Schema\Builder as SchemaBuilder;
-use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
-use Hypervel\Foundation\Console\AboutCommand;
-use Hypervel\Foundation\Console\RouteListCommand;
-use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
-use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
-use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
-use Hypervel\Foundation\Http\Middleware\TrimStrings;
-use Hypervel\Http\Middleware\TrustHosts;
-use Hypervel\Http\Middleware\TrustProxies;
-use Hypervel\Http\Resources\Json\JsonResource;
-use Hypervel\Http\Resources\JsonApi\JsonApiResource;
-use Hypervel\Mail\Markdown;
-use Hypervel\Queue\Console\WorkCommand;
-use Hypervel\Queue\Queue;
 use Hypervel\Support\Arr;
-use Hypervel\Support\EncodedHtmlString;
-use Hypervel\Support\Sleep;
-use Hypervel\Support\Str;
-use Hypervel\Testbench\Bootstrap\RegisterProviders;
 use Hypervel\Testbench\Concerns\CreatesApplication;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Bootstrap\EnsuresDefaultConfiguration;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadEnvironmentVariablesFromArray;
-use Hypervel\Validation\Validator;
-use Hypervel\View\Component;
 
 class Application
 {
@@ -360,47 +334,5 @@ class Application
     {
         $this->resolveApplicationConfigurationFromTrait($app);
         (new EnsuresDefaultConfiguration)->bootstrap($app);
-    }
-
-    /**
-     * Flush static state touched by Testbench application bootstrap tests.
-     *
-     * IMPORTANT: This is NOT the global framework static-state cleanup list.
-     * Do not add general framework static-state resets here. Add them to
-     * src/testing/src/PHPUnit/AfterEachTestSubscriber.php instead.
-     *
-     * @param object $instance active test instance, used to thread the running TestCase through to HandleExceptions::flushState()
-     */
-    public static function flushState(object $instance): void
-    {
-        AboutCommand::flushState();
-        Artisan::forgetBootstrappers();
-        Component::flushCache();
-        Component::forgetComponentsResolver();
-        Component::forgetFactory();
-        ConvertEmptyStringsToNull::flushState();
-        EncodedHtmlString::flushState();
-        Factory::flushState();
-        HandleExceptions::flushState($instance instanceof \PHPUnit\Framework\TestCase ? $instance : null);
-        Env::flushState();
-        JsonResource::flushState();
-        JsonApiResource::flushState();
-        Markdown::flushState();
-        Migrator::flushState();
-        Model::flushState();
-        PreventRequestForgery::flushState();
-        PreventRequestsDuringMaintenance::flushState();
-        Queue::flushState();
-        RegisterProviders::flushState();
-        RouteListCommand::flushState();
-        ScheduleListCommand::flushState();
-        SchemaBuilder::flushState();
-        Sleep::flushState();
-        Str::flushState();
-        TrimStrings::flushState();
-        TrustProxies::flushState();
-        TrustHosts::flushState();
-        Validator::flushState();
-        WorkCommand::flushState();
     }
 }

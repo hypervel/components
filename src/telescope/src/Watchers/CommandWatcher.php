@@ -49,8 +49,9 @@ class CommandWatcher extends Watcher
             $command->getName(),
             array_merge($this->options['ignore'] ?? [], [
                 'schedule:run',
-                'crontab:run',
-            ])
+                'package:discover',
+            ]),
+            true
         );
     }
 }

@@ -14,6 +14,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\HigherOrderCollectionProxy;
+use JsonException;
 use JsonSerializable;
 use Stringable;
 use UnexpectedValueException;
@@ -942,14 +943,18 @@ trait EnumeratesValues
 
     /**
      * Get the collection of items as JSON.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options);
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
      * Get the collection of items as pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string
     {

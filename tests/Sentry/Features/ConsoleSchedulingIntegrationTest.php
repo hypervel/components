@@ -12,6 +12,9 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;
+use Sentry\Event as SentryEvent;
+use Sentry\EventType;
+use Sentry\Tracing\SpanStatus;
 
 class ConsoleSchedulingIntegrationTest extends SentryTestCase
 {
@@ -170,6 +173,41 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $transaction = $this->getLastSentryEvent();
 
         $this->assertEquals('Closure', $transaction->getTransaction());
+        $this->assertSame((string) SpanStatus::ok(), $transaction->getContexts()['trace']['status']);
+    }
+
+    public function testScheduledClosureWithNonZeroExitCreatesOneFailedTransaction(): void
+    {
+        $this->getScheduler()->call(static fn (): false => false)->everyMinute();
+
+        $this->artisan('schedule:run --once');
+
+        $this->assertSentryTransactionCount(1);
+
+        $transaction = $this->getCapturedTransactions()[0];
+
+        $this->assertSame(
+            (string) SpanStatus::internalError(),
+            $transaction->getContexts()['trace']['status'],
+        );
+    }
+
+    public function testScheduledClosureThatThrowsBeforeFinishedCreatesOneFailedTransaction(): void
+    {
+        $this->getScheduler()->call(static function (): never {
+            throw new RuntimeException('Scheduled closure failed.');
+        })->everyMinute();
+
+        $this->artisan('schedule:run --once');
+
+        $this->assertSentryTransactionCount(1);
+
+        $transaction = $this->getCapturedTransactions()[0];
+
+        $this->assertSame(
+            (string) SpanStatus::internalError(),
+            $transaction->getContexts()['trace']['status'],
+        );
     }
 
     /** @define-env envSamplingAllTransactions */
@@ -271,6 +309,22 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $scheduledEvent->run($this->app);
 
         $this->assertSentryCheckInCount(4);
+    }
+
+    /**
+     * Get the captured Sentry transactions.
+     *
+     * @return list<SentryEvent>
+     */
+    protected function getCapturedTransactions(): array
+    {
+        return array_values(array_map(
+            static fn (array $captured): SentryEvent => $captured[0],
+            array_filter(
+                $this->getCapturedSentryEvents(),
+                static fn (array $captured): bool => $captured[0]->getType() === EventType::transaction(),
+            ),
+        ));
     }
 
     protected function getScheduler(): Schedule

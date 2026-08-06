@@ -710,7 +710,7 @@ class CourierQueueTest extends TestCase
 }
 ```
 
-Literal migration types may also be provided when a matching Testbench migration path exists:
+Additional named migration sets may be provided when a matching Testbench migration path exists:
 
 ```php
 #[WithMigration('notifications')]
@@ -719,6 +719,8 @@ class CourierNotificationTest extends TestCase
     //
 }
 ```
+
+`WithMigration` only resolves named migration sets bundled with Testbench. For package or arbitrary migration directories, use `loadMigrationsFrom()` from `defineDatabaseMigrations()` as described above.
 
 <a name="database-attributes"></a>
 ### Database Attributes

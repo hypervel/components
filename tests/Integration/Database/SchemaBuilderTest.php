@@ -682,6 +682,58 @@ class SchemaBuilderTest extends DatabaseTestCase
         ));
     }
 
+    public function testDropExplicitlyNamedForeignKeyByColumnsAndName(): void
+    {
+        Schema::create('named_fk_parents', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unique(['tenant_id', 'id']);
+        });
+
+        Schema::create('named_fk_children', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('parent_id');
+            $table->foreign(
+                ['tenant_id', 'parent_id'],
+                'named_fk_children_parent_fk',
+            )->references(['tenant_id', 'id'])->on('named_fk_parents');
+        });
+
+        $matchesConstraint = static fn (array $foreignKey): bool => $foreignKey['columns'] === ['tenant_id', 'parent_id']
+            && $foreignKey['foreign_table'] === 'named_fk_parents'
+            && $foreignKey['foreign_columns'] === ['tenant_id', 'id'];
+
+        $this->assertTrue(
+            collect(Schema::getForeignKeys('named_fk_children'))
+                ->contains($matchesConstraint),
+        );
+
+        Schema::table('named_fk_children', function (Blueprint $table): void {
+            $table->dropForeign(
+                ['tenant_id', 'parent_id'],
+                'named_fk_children_parent_fk',
+            );
+        });
+
+        $this->assertFalse(
+            collect(Schema::getForeignKeys('named_fk_children'))
+                ->contains($matchesConstraint),
+        );
+
+        Schema::table('named_fk_children', function (Blueprint $table): void {
+            $table->foreign(
+                ['tenant_id', 'parent_id'],
+                'named_fk_children_parent_fk',
+            )->references(['tenant_id', 'id'])->on('named_fk_parents');
+        });
+
+        $this->assertTrue(
+            collect(Schema::getForeignKeys('named_fk_children'))
+                ->contains($matchesConstraint),
+        );
+    }
+
     #[RequiresDatabase('sqlite')]
     public function testAddForeignKeysOnSqlite()
     {

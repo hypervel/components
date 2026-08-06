@@ -10,6 +10,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Session\SymfonySessionDecorator;
 use Hypervel\Support\Arr;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -65,6 +66,11 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         self::HEADER_X_FORWARDED_PORT => 'X_FORWARDED_PORT',
         self::HEADER_X_FORWARDED_PREFIX => 'X_FORWARDED_PREFIX',
     ];
+
+    /**
+     * The timestamp when the server started processing the request.
+     */
+    protected float $startedAtTimestamp;
 
     /**
      * The decoded JSON content for the request.
@@ -147,6 +153,11 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     #[Override]
     public function initialize(array $query = [], array $request = [], array $attributes = [], array $cookies = [], array $files = [], array $server = [], $content = null): void
     {
+        $this->startedAtTimestamp = (float) ($server['REQUEST_TIME_FLOAT'] ?? microtime(true));
+
+        $server['REQUEST_TIME_FLOAT'] ??= $this->startedAtTimestamp;
+        $server['REQUEST_TIME'] ??= (int) $this->startedAtTimestamp;
+
         parent::initialize($query, $request, $attributes, $cookies, $files, $server, $content);
 
         $this->trustedProxiesValue = [];
@@ -260,6 +271,14 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     public function instance(): static
     {
         return $this;
+    }
+
+    /**
+     * Get when the server started processing the request.
+     */
+    public function startedAt(): CarbonImmutable
+    {
+        return CarbonImmutable::createFromTimestamp($this->startedAtTimestamp);
     }
 
     /**

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Facades\DB;
@@ -17,6 +19,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         Schema::create('test_posts', function (Blueprint $table) {
             $table->increments('id');
             $table->string('title')->nullable();
+            $table->float('score')->nullable();
             $table->unsignedInteger('user_id')->nullable();
             $table->timestamps();
         });
@@ -24,7 +27,18 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         Schema::create('test_users', function ($table) {
             $table->increments('id');
             $table->string('name')->nullable();
+            $table->unsignedInteger('owner_id')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('test_owners', function ($table) {
+            $table->increments('id');
+            $table->timestamps();
+        });
+
+        Schema::create('test_post_user', function ($table) {
+            $table->unsignedInteger('post_id');
+            $table->unsignedInteger('user_id');
         });
     }
 
@@ -294,6 +308,53 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertEquals(5, $query->count());
         $this->assertCount(5, $query->cursorPaginate()->items());
     }
+
+    public function testCursorPaginationPreservesFloatOrderValues(): void
+    {
+        TestPost::fillAndInsert([
+            ['score' => 1.25],
+            ['score' => 2.5],
+            ['score' => 3.75],
+        ]);
+
+        $result = TestPost::query()
+            ->orderBy('score')
+            ->orderBy('id')
+            ->cursorPaginate(1, ['*'], 'cursor', new Cursor(['score' => 1.25, 'id' => 1]));
+
+        $this->assertSame(2, $result->items()[0]->id);
+        $this->assertSame(2.5, $result->items()[0]->score);
+    }
+
+    public function testRelationsAcceptCursorObjects(): void
+    {
+        TestOwner::fillAndInsert([[]]);
+        TestUser::fillAndInsert([
+            ['owner_id' => 1],
+            ['owner_id' => 1],
+        ]);
+        TestPost::fillAndInsert([
+            ['user_id' => 1],
+            ['user_id' => 2],
+        ]);
+        DB::table('test_post_user')->insert([
+            ['post_id' => 1, 'user_id' => 1],
+            ['post_id' => 2, 'user_id' => 1],
+        ]);
+
+        $belongsToMany = TestUser::findOrFail(1)
+            ->favoritePosts()
+            ->orderBy('id')
+            ->cursorPaginate(1, ['*'], 'cursor', new Cursor(['id' => 1]));
+
+        $hasManyThrough = TestOwner::findOrFail(1)
+            ->posts()
+            ->orderBy('test_posts.id')
+            ->cursorPaginate(1, ['test_posts.*'], 'cursor', new Cursor(['test_posts.id' => 1]));
+
+        $this->assertSame(2, $belongsToMany->items()[0]->id);
+        $this->assertSame(2, $hasManyThrough->items()[0]->id);
+    }
 }
 
 class TestPost extends Model
@@ -308,5 +369,22 @@ class TestUser extends Model
     public function posts()
     {
         return $this->hasMany(TestPost::class, 'user_id');
+    }
+
+    /** @return BelongsToMany<TestPost, $this> */
+    public function favoritePosts(): BelongsToMany
+    {
+        return $this->belongsToMany(TestPost::class, 'test_post_user', 'user_id', 'post_id');
+    }
+}
+
+class TestOwner extends Model
+{
+    protected array $guarded = [];
+
+    /** @return HasManyThrough<TestPost, TestUser, $this> */
+    public function posts(): HasManyThrough
+    {
+        return $this->hasManyThrough(TestPost::class, TestUser::class, 'owner_id', 'user_id');
     }
 }

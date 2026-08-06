@@ -3,6 +3,13 @@
 
 declare(strict_types=1);
 
+use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Output\ConsoleOutput;
+
 ini_set('display_errors', 'on');
 ini_set('display_startup_errors', 'on');
 ini_set('memory_limit', '1G');
@@ -27,7 +34,7 @@ foreach ($autoloadPaths as $autoloadPath) {
     }
 }
 
-if (! class_exists(Hypervel\Foundation\Application::class)) {
+if (! class_exists(Application::class)) {
     fwrite(STDERR, "Unable to locate Composer autoloader for the Hypervel testbench workbench.\n");
     exit(1);
 }
@@ -49,21 +56,21 @@ if (
 ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
 
 $httpBootstrapCommands = ['serve', 'watch'];
+$input = new ArgvInput;
 
-if (in_array($_SERVER['argv'][1] ?? null, $httpBootstrapCommands, true)) {
+if (in_array(ConsoleApplication::resolveCommandName($input), $httpBootstrapCommands, true)) {
     putenv('APP_RUNNING_IN_CONSOLE=false');
     $_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
     $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 }
 
-(function () {
-    /** @var Hypervel\Contracts\Foundation\Application $app */
+(function () use ($input) {
+    /** @var ApplicationContract $app */
     $app = require BASE_PATH . '/bootstrap/app.php';
 
-    $kernel = $app->make(Hypervel\Contracts\Console\Kernel::class);
+    $kernel = $app->make(ConsoleKernelContract::class);
 
-    $input = new Symfony\Component\Console\Input\ArgvInput();
-    $output = new Symfony\Component\Console\Output\ConsoleOutput();
+    $output = new ConsoleOutput;
 
     $status = $kernel->handle($input, $output);
 

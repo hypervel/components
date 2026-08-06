@@ -29,7 +29,7 @@ trait CompilesStacks
      */
     protected function compilePushOnce(string $expression): string
     {
-        $parts = explode(',', $this->stripParentheses($expression), 2);
+        $parts = $this->splitTopLevel($expression, 2);
 
         [$stack, $id] = [$parts[0], $parts[1] ?? ''];
 
@@ -68,7 +68,7 @@ $__env->startPush(' . $stack . '); ?>';
      */
     protected function compilePrependOnce(string $expression): string
     {
-        $parts = explode(',', $this->stripParentheses($expression), 2);
+        $parts = $this->splitTopLevel($expression, 2);
 
         [$stack, $id] = [$parts[0], $parts[1] ?? ''];
 

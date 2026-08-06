@@ -16,6 +16,7 @@ use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Pagination\Cursor;
 
 use function PHPStan\Testing\assertType;
 
@@ -80,6 +81,9 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->lazy());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->lazyById());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->cursor());
+    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->paginate());
+    assertType('Hypervel\Contracts\Pagination\Paginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->simplePaginate());
+    assertType('Hypervel\Contracts\Pagination\CursorPaginator<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->cursorPaginate(cursor: new Cursor(['id' => 1])));
 
     assertType('Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Types\Relations\Car, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->car());
     assertType('Hypervel\Types\Relations\Car|null', $user->car()->getResults());
@@ -98,6 +102,9 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
 
     assertType('Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->parts());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Part>', $user->parts()->getResults());
+    assertType('Hypervel\Pagination\LengthAwarePaginator<int, Hypervel\Types\Relations\Part>', $user->parts()->paginate());
+    assertType('Hypervel\Contracts\Pagination\Paginator<int, Hypervel\Types\Relations\Part>', $user->parts()->simplePaginate());
+    assertType('Hypervel\Contracts\Pagination\CursorPaginator<int, Hypervel\Types\Relations\Part>', $user->parts()->cursorPaginate(cursor: new Cursor(['id' => 1])));
     assertType('Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->firstPart());
 
     assertType('Hypervel\Database\Eloquent\Relations\BelongsTo<Hypervel\Types\Relations\User, Hypervel\Types\Relations\Post>', $post->user());

@@ -12,6 +12,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use InvalidArgumentException;
 use IteratorAggregate;
+use JsonException;
 use JsonSerializable;
 use SortDirection;
 use Traversable;
@@ -1123,11 +1124,15 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Get the collection of items as JSON.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string;
 
     /**
      * Get the collection of items as pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string;
 

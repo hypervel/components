@@ -141,13 +141,6 @@ class Middleware
             return;
         }
 
-        $requestStartTime = $request->server(
-            'REQUEST_TIME_FLOAT',
-            defined('HYPERVEL_START')
-                ? HYPERVEL_START
-                : microtime(true)
-        );
-
         $context = continueTrace(
             $request->header('sentry-trace', ''),
             $request->header('baggage', '')
@@ -159,7 +152,9 @@ class Middleware
         $context->setName($requestPath);
         $context->setOrigin('auto.http.server');
         $context->setSource(TransactionSource::url());
-        $context->setStartTimestamp($requestStartTime);
+        $context->setStartTimestamp(
+            $request->startedAt()->getPreciseTimestamp(6) / 1_000_000
+        );
 
         $context->setData([
             'url' => $requestPath,
