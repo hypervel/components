@@ -13,10 +13,10 @@ use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\load_migration_paths;
 
 /**
- * Loads migration paths for the test.
+ * Load named Testbench migration sets for the test.
  *
- * Accepts migration type aliases ('cache', 'queue', 'session', 'hypervel') or literal paths.
- * When no arguments are provided, defaults to 'hypervel' which loads the standard test migrations.
+ * The cache, queue, and session aliases resolve to the default Hypervel set.
+ * Use TestCase::loadMigrationsFrom() for package or arbitrary migration paths.
  */
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class WithMigration implements Invokable
@@ -27,7 +27,7 @@ final class WithMigration implements Invokable
     public readonly array $types;
 
     /**
-     * @param string ...$types Migration types or paths to load
+     * @param string ...$types Named Testbench migration sets to load
      */
     public function __construct(string ...$types)
     {

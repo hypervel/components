@@ -1636,6 +1636,12 @@ Alternatively, you may pass an array containing the column name that holds the f
 $table->dropForeign(['user_id']);
 ```
 
+When dropping an explicitly named foreign key, you may pass the constraint's columns as the first argument and its name as the second:
+
+```php
+$table->dropForeign(['tenant_id', 'user_id'], 'posts_user_fk');
+```
+
 <a name="toggling-foreign-key-constraints"></a>
 #### Toggling Foreign Key Constraints
 
