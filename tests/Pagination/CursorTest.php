@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Pagination;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use UnexpectedValueException;
 
 class CursorTest extends TestCase
@@ -29,6 +30,16 @@ class CursorTest extends TestCase
         ], true);
 
         $this->assertEquals([$now, 422], $cursor->parameters(['created_at', 'id']));
+    }
+
+    public function testCanGetMixedParams(): void
+    {
+        $cursor = new Cursor([
+            'active' => true,
+            'score' => 4.25,
+        ]);
+
+        $this->assertSame([true, 4.25], $cursor->parameters(['active', 'score']));
     }
 
     public function testCanGetParam(): void
@@ -75,14 +86,53 @@ class CursorTest extends TestCase
         ], $cursor->toArray());
     }
 
-    public function testFromEncodedReturnsNullForNull(): void
+    public function testFromEncodedReturnsNullForNonStringInput(): void
     {
         $this->assertNull(Cursor::fromEncoded(null));
+        $this->assertNull(Cursor::fromEncoded(123));
+        $this->assertNull(Cursor::fromEncoded(['cursor']));
+    }
+
+    public function testFromEncodedReturnsNullForInvalidJson(): void
+    {
+        $this->assertNull(Cursor::fromEncoded(base64_encode('not-json')));
     }
 
     public function testFromEncodedReturnsNullForInvalidString(): void
     {
         $this->assertNull(Cursor::fromEncoded('not-valid-json!@#'));
+    }
+
+    public function testFromEncodedReturnsNullWhenDecodedPayloadIsNotAnArray(): void
+    {
+        $this->assertNull(Cursor::fromEncoded(base64_encode(json_encode('scalar', JSON_THROW_ON_ERROR))));
+        $this->assertNull(Cursor::fromEncoded(base64_encode(json_encode(null, JSON_THROW_ON_ERROR))));
+    }
+
+    public function testFromEncodedReturnsNullWhenPointsToNextItemsKeyIsMissing(): void
+    {
+        $payload = base64_encode(json_encode(['id' => 422], JSON_THROW_ON_ERROR));
+
+        $this->assertNull(Cursor::fromEncoded($payload));
+    }
+
+    public function testFromEncodedReturnsNullWhenPointsToNextItemsIsNotBoolean(): void
+    {
+        foreach ([null, 0, 1, '0', '1', []] as $direction) {
+            $payload = base64_encode(json_encode([
+                'id' => 422,
+                '_pointsToNextItems' => $direction,
+            ], JSON_THROW_ON_ERROR));
+
+            $this->assertNull(Cursor::fromEncoded($payload));
+        }
+    }
+
+    public function testEncodeThrowsForInvalidUtf8(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new Cursor(['value' => "\xB1\x31"]))->encode();
     }
 
     public function testParameterThrowsForMissingKey(): void

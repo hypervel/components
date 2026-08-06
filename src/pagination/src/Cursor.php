@@ -6,6 +6,7 @@ namespace Hypervel\Pagination;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Collection;
+use JsonException;
 use UnexpectedValueException;
 
 /** @implements Arrayable<array-key, mixed> */
@@ -14,7 +15,7 @@ class Cursor implements Arrayable
     /**
      * Create a new cursor instance.
      *
-     * @param array<string, mixed> $parameters the parameters associated with the cursor
+     * @param array<array-key, mixed> $parameters the parameters associated with the cursor
      * @param bool $pointsToNextItems determine whether the cursor points to the next or previous set of items
      */
     public function __construct(
@@ -28,7 +29,7 @@ class Cursor implements Arrayable
      *
      * @throws UnexpectedValueException
      */
-    public function parameter(string $parameterName): string|int|null
+    public function parameter(string $parameterName): mixed
     {
         if (! array_key_exists($parameterName, $this->parameters)) {
             throw new UnexpectedValueException("Unable to find parameter [{$parameterName}] in pagination item.");
@@ -41,7 +42,7 @@ class Cursor implements Arrayable
      * Get the given parameters from the cursor.
      *
      * @param array<int, string> $parameterNames
-     * @return array<int, null|int|string>
+     * @return array<int, mixed>
      */
     public function parameters(array $parameterNames): array
     {
@@ -80,24 +81,33 @@ class Cursor implements Arrayable
 
     /**
      * Get the encoded string representation of the cursor to construct a URL.
+     *
+     * @throws JsonException
      */
     public function encode(): string
     {
-        return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($this->toArray())));
+        return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($this->toArray(), JSON_THROW_ON_ERROR)));
     }
 
     /**
      * Get a cursor instance from the encoded string representation.
      */
-    public static function fromEncoded(?string $encodedString): ?static
+    public static function fromEncoded(mixed $encodedString): ?static
     {
-        if ($encodedString === null) {
+        if (! is_string($encodedString)) {
             return null;
         }
 
         $parameters = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $encodedString)), true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
+            return null;
+        }
+
+        // Validate the complete envelope here so strict construction cannot raise a TypeError for its direction.
+        if (! is_array($parameters)
+            || ! array_key_exists('_pointsToNextItems', $parameters)
+            || ! is_bool($parameters['_pointsToNextItems'])) {
             return null;
         }
 
