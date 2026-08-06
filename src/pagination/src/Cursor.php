@@ -6,6 +6,7 @@ namespace Hypervel\Pagination;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
 use JsonException;
 use UnexpectedValueException;
 
@@ -17,11 +18,19 @@ class Cursor implements Arrayable
      *
      * @param array<array-key, mixed> $parameters the parameters associated with the cursor
      * @param bool $pointsToNextItems determine whether the cursor points to the next or previous set of items
+     *
+     * @throws InvalidArgumentException
      */
     public function __construct(
         protected array $parameters,
         protected bool $pointsToNextItems = true,
     ) {
+        // Query Builder's flattenValue() silently binds only the first nested scalar from an array.
+        foreach ($parameters as $parameterName => $parameter) {
+            if (is_array($parameter)) {
+                throw new InvalidArgumentException("Cursor parameter [{$parameterName}] must not be an array.");
+            }
+        }
     }
 
     /**
@@ -115,6 +124,10 @@ class Cursor implements Arrayable
 
         unset($parameters['_pointsToNextItems']);
 
-        return new static($parameters, $pointsToNextItems);
+        try {
+            return new static($parameters, $pointsToNextItems);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
     }
 }

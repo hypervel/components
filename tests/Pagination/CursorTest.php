@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Pagination;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use JsonException;
 use UnexpectedValueException;
 
@@ -40,6 +41,18 @@ class CursorTest extends TestCase
         ]);
 
         $this->assertSame([true, 4.25], $cursor->parameters(['active', 'score']));
+
+        $decodedCursor = Cursor::fromEncoded($cursor->encode());
+
+        $this->assertNotNull($decodedCursor);
+        $this->assertSame([true, 4.25], $decodedCursor->parameters(['active', 'score']));
+    }
+
+    public function testCanGetBackedEnumParam(): void
+    {
+        $cursor = new Cursor(['status' => CursorTestStatus::Active]);
+
+        $this->assertSame(CursorTestStatus::Active, $cursor->parameter('status'));
     }
 
     public function testCanGetParam(): void
@@ -128,6 +141,26 @@ class CursorTest extends TestCase
         }
     }
 
+    public function testFromEncodedReturnsNullForStructuredParameters(): void
+    {
+        foreach ([[5, 9], [['value' => 3]], []] as $parameter) {
+            $payload = base64_encode(json_encode([
+                'id' => $parameter,
+                '_pointsToNextItems' => true,
+            ], JSON_THROW_ON_ERROR));
+
+            $this->assertNull(Cursor::fromEncoded($payload));
+        }
+    }
+
+    public function testConstructorRejectsArrayParameters(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cursor parameter [id] must not be an array.');
+
+        new Cursor(['id' => [5, 9]]);
+    }
+
     public function testEncodeThrowsForInvalidUtf8(): void
     {
         $this->expectException(JsonException::class);
@@ -144,4 +177,9 @@ class CursorTest extends TestCase
 
         $cursor->parameter('missing');
     }
+}
+
+enum CursorTestStatus: string
+{
+    case Active = 'active';
 }

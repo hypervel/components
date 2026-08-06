@@ -2,11 +2,11 @@
 
 ## Objective
 
-Correct malformed cursor handling, truthful cursor/query value types, explicit page resolution,
-JSON failures, paginator reset coverage, and current Laravel paginator parity. Keep paginator
-instances operation-local, the seven configuration slots worker-static, and request values owned
-by `RequestContext`. Preserve Laravel APIs unless a verified defect or Hypervel's coroutine model
-requires the approved correction.
+Correct malformed cursor handling, structured cursor parameters, truthful cursor/query value
+types, explicit page resolution, JSON failures, paginator reset coverage, and current Laravel
+paginator parity. Keep paginator instances operation-local, the seven configuration slots
+worker-static, and request values owned by `RequestContext`. Preserve Laravel APIs unless a
+verified defect or Hypervel's coroutine model requires the approved correction.
 
 Hypervel 0.4 is greenfield: churn and compatibility with prior Hypervel behavior do not justify
 retaining flawed code. Current Laravel APIs, named arguments, extension points, and documented
@@ -28,10 +28,10 @@ longer consults ambient state, and Scout no longer forwards zero or negative pag
 - Hypervel's two Tailwind views are byte-identical to current Laravel.
 - Existing ledger findings `pagination-01` and `pagination-02` own missing cursor-order values and
   mixed pivot values. Revalidate them; new Pagination findings begin at `pagination-03`.
-- Probes reproduced non-string/malformed cursors, float cursor failures, numeric query-key
-  renumbering, explicit page-zero resolver fallback, invalid UTF-8 `TypeError`s, a zero-per-page
-  length-aware result, keyed cursor items, relation cursor type rejection, and the `UrlWindow`
-  contract/mockability boundary.
+- Probes reproduced non-string/malformed cursors, silently flattened structured cursor values,
+  float cursor failures, numeric query-key renumbering, explicit page-zero resolver fallback,
+  invalid UTF-8 `TypeError`s, a zero-per-page length-aware result, keyed cursor items, relation
+  cursor type rejection, and the `UrlWindow` contract/mockability boundary.
 
 ## Anti-overengineering rules
 
@@ -124,6 +124,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `pagination-13` | Intentional/public differences | Minor | High | Record Tailwind-only views and `current_page_url`; keep both approved behaviors. |
 | `pagination-14` | Current Laravel runtime parity | Major | High | Port zero-per-page last-page safety and unconditional cursor item reindexing. |
 | `pagination-15` | Package metadata/hygiene | Minor | High | Complete root provider discovery, option docs, strict comparison, guide grammar, and test typing. |
+| `pagination-16` | Structured cursor parameter defect | Major | High | Reject array-valued parameters when constructing a Cursor while classifying decoded arrays as malformed input. |
 | `collections-15` | JSON failure semantics | Minor | High | Make `EnumeratesValues::toJson()` throw `JsonException`. |
 | `support-32` | JSON failure semantics | Minor | High | Make `Fluent` and `MessageBag` JSON boundaries throw `JsonException`. |
 | `support-33` | Current Laravel type parity | Minor | High | Port `Lottery::choose()` conditional PHPDoc. |
@@ -140,9 +141,31 @@ review and durable route in the ledger/dependency index.
 
 ## Implementation
 
-### 1. Classify malformed cursors at the boundary
+### 1. Classify malformed cursors and structured parameters at the boundary
 
-Widen only the decoder input and validate the decoded envelope before construction:
+Reject arrays once at the constructor so decoded, direct, generated, and userland cursors share
+the same invariant:
+
+```php
+public function __construct(
+    protected array $parameters,
+    protected bool $pointsToNextItems = true,
+) {
+    foreach ($parameters as $parameterName => $parameter) {
+        if (is_array($parameter)) {
+            throw new InvalidArgumentException("Cursor parameter [{$parameterName}] must not be an array.");
+        }
+    }
+}
+```
+
+Arrays uniquely became silent query corruption after `parameter()` widened to `mixed`:
+`Query\Builder::flattenValue()` binds their first nested scalar. Query-bindable enums and dates
+must remain valid, while other unsupported objects still fail loudly downstream. Do not replace
+the exact array check with a speculative bindability validator.
+
+Widen only the decoder input, validate its envelope, and translate the constructor's exact
+invalid-parameter failure into the existing null-on-malformed result:
 
 ```php
 public static function fromEncoded(mixed $encodedString): ?static
@@ -170,18 +193,24 @@ public static function fromEncoded(mixed $encodedString): ?static
     $pointsToNextItems = $parameters['_pointsToNextItems'];
     unset($parameters['_pointsToNextItems']);
 
-    return new static($parameters, $pointsToNextItems);
+    try {
+        return new static($parameters, $pointsToNextItems);
+    } catch (InvalidArgumentException) {
+        return null;
+    }
 }
 ```
 
 Keep lenient base64 decoding. Do not add signing, encryption, recursive schema validation, or
-exception swallowing. Update constructor/map docs to `array<array-key, mixed>`. Test all current
-upstream malformed shapes, Hypervel's additional non-boolean direction, and `/?cursor[]=x` through
-the request resolver.
+downstream exception swallowing. Keep constructor/map docs at `array<array-key, mixed>`. Test all
+current upstream malformed shapes, Hypervel's additional non-boolean direction, flat/nested/empty
+array parameters, direct construction, generation from an array-valued ordered attribute, a
+backed-enum round trip, and `/?cursor[]=x` through the request resolver.
 
 ### 2. Preserve truthful cursor and query values
 
-`Cursor::parameter()` returns `mixed`; `parameters()` documents `array<int, mixed>`. Keep
+`Cursor::parameter()` returns `mixed`; `parameters()` documents `array<int, mixed>`. The constructor
+rejects only arrays, preserving bool, float, enum, date, and other query-bindable values. Keep
 `getPivotParameterForItem(): mixed` from `pagination-02` and pin both bool/float unit values and a
 real SQLite second-page float-order query.
 
@@ -522,8 +551,9 @@ Do not type constructors or change already-correct helpers.
 
 ### Pagination unit/package tests
 
-- `CursorTest`: malformed encoding plus scalar/array/direction payloads, bool/float parameter
-  values, throwing JSON, and escape-hatch JSON flags where applicable.
+- `CursorTest`: malformed encoding plus scalar/array/direction payloads, direct and generated
+  structured-parameter rejection, bool/float/backed-enum values, throwing JSON, and escape-hatch
+  JSON flags where applicable.
 - `PaginationResolverTest`: request array cursor, no-context defaults, exact one-context ownership,
   container request rebinding, view rebinding, and existing concurrent isolation.
 - Abstract/concrete paginator tests: append value families, integer-key preservation, explicit
@@ -560,9 +590,11 @@ and review corrections, rerun focused tests and repeat `composer fix` only if wa
   resolution remains lazy; its resolver adds one negligible return-type verification before the
   existing `viewFactory(): Factory` verification; no locks, yields, retries, registries, scoped
   services, or retained request objects are added.
-- Added recurring work: one tiny `Collection::values()` normalization per cursor page, measured in
-  sub-microsecond range at representative sizes, plus one integer `max()` per Scout pagination
-  call. Both enforce public invariants at their lowest shared boundary.
+- Added recurring work: one early-exit shallow scan of the typically one-to-three cursor parameters
+  per Cursor construction, one tiny `Collection::values()` normalization per cursor page measured
+  in the sub-microsecond range at representative sizes, and one integer `max()` per Scout
+  pagination call. All enforce public invariants at their lowest shared boundary; the scan allocates
+  nothing and performs no recursion or I/O.
 - Cold/error-only checks: malformed cursor envelope validation, JSON exception construction, and
   static reset tests do not affect valid hot paths materially.
 - Public API changes are widenings or truthful types, except invalid page handling. That approved
@@ -576,6 +608,9 @@ and review corrections, rerun focused tests and repeat `composer fix` only if wa
 - No scoped paginator service, resolver registry, per-request registration, lock, cleanup hook,
   cursor signing/encryption, strict base64 mode, recursive payload validation, global JSON helper,
   JSON domain exception, or generic static-reset framework.
+- Do not add a generic query-bindability validator. Arrays are the only parameter shape that
+  silently changes value; unsupported objects already fail loudly, while enums and dates are
+  valid bindings.
 - Do not restore Bootstrap, narrow nullable path contracts, validate speculative per-page or
   `onEachSide` inputs, add `getCursorName()` to contracts, eagerly capture the view factory, or
   rewrite small Collection pipelines as loops.
@@ -601,6 +636,8 @@ After implementation and review:
 
 - add the accepted findings and important rejected alternatives to the core ledger using the IDs
   above, including the complete #59699/#60586/#60968 file inventories and current-source pin;
+- record `pagination-16`, including direct/generated/decoded constructor ownership, why only arrays
+  are rejected, and the earlier generation-path failure;
 - record the `onEachSide` rejected alternative with all three evidence points, not merely the
   residual structural fact;
 - revalidate `pagination-01`/`pagination-02` and update their dependency-index rows from “later

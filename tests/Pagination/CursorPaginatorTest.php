@@ -12,6 +12,7 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -252,6 +253,19 @@ class CursorPaginatorTest extends TestCase
 
         $cursor = $p->getCursorForItem(['id' => 42], false);
         $this->assertTrue($cursor->pointsToPreviousItems());
+    }
+
+    public function testArrayCursorParametersAreRejectedWhenGeneratingCursor(): void
+    {
+        $paginator = new CursorPaginator([
+            ['id' => [5, 9]],
+            ['id' => [7, 11]],
+        ], 1, null, ['parameters' => ['id']]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cursor parameter [id] must not be an array.');
+
+        $paginator->nextCursor();
     }
 
     public function testGetParametersForItem(): void
