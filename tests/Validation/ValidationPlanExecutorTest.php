@@ -169,7 +169,7 @@ class ValidationPlanExecutorTest extends TestCase
         $this->assertFalse($validator->publicExecuteInline($check, 'foobaz', 'field'));
     }
 
-    public function testInAndNotIn()
+    public function testInAndNotIn(): void
     {
         $validator = $this->makeValidator();
 
@@ -181,14 +181,83 @@ class ValidationPlanExecutorTest extends TestCase
         $check = new InlineCheck(CheckType::NotIn, ['a', 'b']);
         $this->assertTrue($validator->publicExecuteInline($check, 'c', 'field'));
         $this->assertFalse($validator->publicExecuteInline($check, 'a', 'field'));
+        $this->assertTrue($validator->publicExecuteInline($check, ['a'], 'field'));
+
+        $this->assertFalse($validator->publicExecuteInline(
+            new InlineCheck(CheckType::In, ['0e123']),
+            '0e456',
+            'field'
+        ));
+        $this->assertTrue($validator->publicExecuteInline(
+            new InlineCheck(CheckType::NotIn, ['0e123']),
+            '0e456',
+            'field'
+        ));
+        $this->assertTrue($validator->publicExecuteInline(
+            new InlineCheck(CheckType::In, ['1']),
+            1,
+            'field'
+        ));
     }
 
-    public function testDateChecks()
+    #[DataProvider('guardedCheckCases')]
+    public function testGuardedChecks(CheckType $type, mixed $parameters, mixed $value, bool $expected): void
+    {
+        $validator = $this->makeValidator();
+
+        $this->assertSame(
+            $expected,
+            $validator->publicExecuteInline(new InlineCheck($type, $parameters), $value, 'field')
+        );
+    }
+
+    public static function guardedCheckCases(): iterable
+    {
+        yield 'hex color rejects integer' => [CheckType::HexColor, null, 123, false];
+        yield 'lowercase rejects integer' => [CheckType::Lowercase, null, 123, false];
+        yield 'uppercase rejects boolean' => [CheckType::Uppercase, null, true, false];
+        yield 'digits accepts integer' => [CheckType::Digits, 3, 123, true];
+        yield 'digits rejects array' => [CheckType::Digits, 3, ['123'], false];
+        yield 'digits between rejects object' => [CheckType::DigitsBetween, [1, 3], new \stdClass, false];
+        yield 'minimum digits rejects null' => [CheckType::MinDigits, 2, null, false];
+        yield 'maximum digits rejects boolean' => [CheckType::MaxDigits, 2, true, false];
+        yield 'starts with accepts integer' => [CheckType::StartsWith, ['12'], 123, true];
+        yield 'starts with rejects array' => [CheckType::StartsWith, ['12'], [123], false];
+        yield 'ends with rejects boolean' => [CheckType::EndsWith, ['1'], true, false];
+        yield 'does not start with rejects array' => [CheckType::DoesntStartWith, ['12'], [123], false];
+        yield 'does not end with rejects object' => [CheckType::DoesntEndWith, ['3'], new \stdClass, false];
+    }
+
+    public function testDateChecks(): void
     {
         $validator = $this->makeValidator();
 
         $this->assertTrue($validator->publicExecuteInline(new InlineCheck(CheckType::IsDate), '2025-01-01', 'field'));
         $this->assertFalse($validator->publicExecuteInline(new InlineCheck(CheckType::IsDate), 'not-a-date', 'field'));
+    }
+
+    public function testDateComparisonsRejectInvalidOperands(): void
+    {
+        $validator = $this->makeValidator();
+        $check = new InlineCheck(CheckType::DateBefore, ['target' => '2025-01-02', 'format' => null]);
+
+        $this->assertTrue($validator->publicExecuteInline($check, '2025-01-01', 'field'));
+        $this->assertFalse($validator->publicExecuteInline($check, [], 'field'));
+        $this->assertFalse($validator->publicExecuteInline(
+            new InlineCheck(CheckType::DateBefore, ['target' => [], 'format' => null]),
+            '2025-01-01',
+            'field'
+        ));
+        $this->assertFalse($validator->publicExecuteInline(
+            new InlineCheck(CheckType::DateEquals, ['target' => null, 'format' => null]),
+            null,
+            'field'
+        ));
+        $this->assertTrue($validator->publicExecuteInline(
+            new InlineCheck(CheckType::DateBefore, ['target' => 20250102, 'format' => 'Ymd']),
+            20250101,
+            'field'
+        ));
     }
 
     public function testDateFormatWithMultipleFormats()

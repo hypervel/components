@@ -234,6 +234,7 @@ class Validator implements ValidatorContract
         'AfterOrEqual',
         'Before',
         'BeforeOrEqual',
+        'DateEquals',
         'Confirmed',
         'Different',
         'ExcludeIf',
@@ -304,6 +305,11 @@ class Validator implements ValidatorContract
      * The current random hash for the validator.
      */
     protected static ?string $placeholderHash = null;
+
+    /**
+     * Indicates if DNS lookups performed by validation rules should be faked to always succeed.
+     */
+    protected static bool $fakeDnsLookups = false;
 
     /**
      * The exception to throw upon failure.
@@ -438,11 +444,11 @@ class Validator implements ValidatorContract
         // Exclude pre-evaluation reads $this->data before execution. Only safe
         // when no code path can mutate data during execution (no custom
         // extensions, no ValidatorAwareRule objects, no validator subclasses).
-        $canPreEvaluateExcludes = static::class === self::class
+        $canOptimize = static::class === self::class
             && $this->extensions === []
             && ! $this->compiledPlansContainValidatorAwareRules();
 
-        if ($canPreEvaluateExcludes) {
+        if ($canOptimize) {
             $this->preEvaluateExclusions();
 
             if ($this->preExcludedAttributes !== []) {
@@ -454,17 +460,12 @@ class Validator implements ValidatorContract
             }
         }
 
-        // Batching is safe when: base validator class, no custom extensions,
-        // and the active verifier is exactly the standard DatabasePresenceVerifier
-        // (not a subclass that may override getCount/getMultiCount).
-        // Exists/Unique objects are the rules BEING batched, not a mutation threat.
         $activeVerifier = $this->presenceVerifier;
-        if (static::class === self::class
-            && $this->extensions === []
+        if ($canOptimize
             && $activeVerifier !== null
             && $activeVerifier::class === DatabasePresenceVerifier::class
         ) {
-            $this->maybeBatchDatabaseChecks();
+            $this->maybeBatchDatabaseChecks($activeVerifier);
         }
 
         try {
@@ -557,9 +558,9 @@ class Validator implements ValidatorContract
     /**
      * Pre-evaluate exclude_unless / exclude_if conditions before the main loop.
      *
-     * Only called when $canPreOptimize is true (base Validator, no extensions,
-     * no rule objects). Handles both string form ('exclude_unless:field,value')
-     * and array-tuple form. Safety-skips rules requiring parseDependentRuleParameters
+     * Only called for the base Validator with no extensions or validator-aware
+     * rules. Handles both string form ('exclude_unless:field,value') and
+     * array-tuple form. Safety-skips rules requiring parseDependentRuleParameters
      * type conversions so they flow through the normal delegated path.
      */
     protected function preEvaluateExclusions(): void
@@ -685,7 +686,7 @@ class Validator implements ValidatorContract
      * (string, array, object) and table specifications (plain, model class,
      * connection-prefixed) are handled correctly with zero duplication.
      */
-    protected function maybeBatchDatabaseChecks(): void
+    protected function maybeBatchDatabaseChecks(DatabasePresenceVerifier $presenceVerifier): void
     {
         if ($this->implicitAttributes === []) {
             return;
@@ -743,13 +744,13 @@ class Validator implements ValidatorContract
         // that table:column would give them wrong results.
         $unsafeTableColumns = $this->collectUnsafeTableColumns($wildcardAttributeSet, $batchedTableColumns);
 
-        $verifier = BatchDatabaseChecker::buildVerifier($groups, $this->presenceVerifier, $unsafeTableColumns);
+        $verifier = BatchDatabaseChecker::buildVerifier($groups, $presenceVerifier, $unsafeTableColumns);
 
         if ($verifier === null) {
             return;
         }
 
-        $this->originalPresenceVerifier = $this->presenceVerifier;
+        $this->originalPresenceVerifier = $presenceVerifier;
         $this->setPresenceVerifier($verifier);
     }
 
@@ -1106,6 +1107,11 @@ class Validator implements ValidatorContract
 
     /**
      * Get a validated input container for the validated input.
+     *
+     * @param null|array<int, string> $keys
+     * @return ($keys is array ? array<string, mixed> : ValidatedInput)
+     *
+     * @throws ValidationException
      */
     public function safe(?array $keys = null): array|ValidatedInput
     {
@@ -2079,11 +2085,23 @@ class Validator implements ValidatorContract
     }
 
     /**
+     * Fake the DNS lookups performed by validation rules so they always succeed.
+     *
+     * Tests only. The setting persists for the worker lifetime and affects
+     * every subsequent validator until global test state is flushed.
+     */
+    public static function fakeDnsLookups(bool $value = true): void
+    {
+        static::$fakeDnsLookups = $value;
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
     {
         static::$placeholderHash = null;
+        static::$fakeDnsLookups = false;
     }
 
     /**

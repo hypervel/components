@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Http\UploadedFile;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\Dimensions;
 use Hypervel\Validation\Validator;
-use PHPUnit\Framework\TestCase;
 
 class ValidationDimensionsRuleTest extends TestCase
 {
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
         $rule = new Dimensions(['min_width' => 100, 'min_height' => 100]);
 
@@ -46,13 +46,13 @@ class ValidationDimensionsRuleTest extends TestCase
         $this->assertSame('dimensions:height=100', (string) $rule);
 
         $rule = Rule::dimensions()
-            ->minRatio(1 / 2)
-            ->maxRatio(1 / 3);
-        $this->assertSame('dimensions:min_ratio=0.5,max_ratio=0.33333333333333', (string) $rule);
+            ->minRatio(1 / 3)
+            ->maxRatio(1 / 2);
+        $this->assertSame('dimensions:min_ratio=0.33333333333333,max_ratio=0.5', (string) $rule);
 
         $rule = Rule::dimensions()
-            ->ratioBetween(min: 1 / 2, max: 1 / 3);
-        $this->assertSame('dimensions:min_ratio=0.5,max_ratio=0.33333333333333', (string) $rule);
+            ->ratioBetween(min: 1 / 3, max: 1 / 2);
+        $this->assertSame('dimensions:min_ratio=0.33333333333333,max_ratio=0.5', (string) $rule);
     }
 
     public function testItCorrectlyFormatsWithSpecialValues()
@@ -91,11 +91,11 @@ class ValidationDimensionsRuleTest extends TestCase
         $this->assertSame('dimensions:min_ratio=1,max_ratio=1.5', (string) $rule);
     }
 
-    public function testGeneratesTheCorrectValidationMessages()
+    public function testGeneratesTheCorrectValidationMessages(): void
     {
         $rule = Rule::dimensions()
             ->width(100)->height(100)
-            ->ratioBetween(min: 1 / 2, max: 2 / 5);
+            ->ratioBetween(min: 2 / 5, max: 1 / 2);
 
         $trans = new Translator(new ArrayLoader, 'en');
 
@@ -108,7 +108,7 @@ class ValidationDimensionsRuleTest extends TestCase
         );
 
         $this->assertSame(
-            $trans->get('validation.dimensions', ['width' => 100, 'height' => 100, 'min_ratio' => 0.5, 'max_ratio' => 0.4]),
+            $trans->get('validation.dimensions', ['width' => 100, 'height' => 100, 'min_ratio' => 0.4, 'max_ratio' => 0.5]),
             $validator->errors()->first('image')
         );
 
@@ -119,7 +119,7 @@ class ValidationDimensionsRuleTest extends TestCase
         );
 
         $this->assertSame(
-            $trans->get('validation.dimensions', ['width' => 100, 'height' => 100, 'min_ratio' => 0.5, 'max_ratio' => 0.4]),
+            $trans->get('validation.dimensions', ['width' => 100, 'height' => 100, 'min_ratio' => 0.4, 'max_ratio' => 0.5]),
             $validator->errors()->first('image')
         );
     }

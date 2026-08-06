@@ -26,11 +26,14 @@ use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\SizeMode;
+use Hypervel\Validation\FakeDnsGetRecordWrapper;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
+use Hypervel\Validation\ValidationRuleParser;
 use InvalidArgumentException;
 use SplFileInfo;
+use Stringable;
 use Symfony\Component\HttpFoundation\File\File;
 use ValueError;
 
@@ -127,6 +130,17 @@ trait ValidatesAttributes
      */
     protected function getDnsRecords(string $hostname, int $type): array|false
     {
+        if (static::$fakeDnsLookups) {
+            $hostname = rtrim($hostname, '.');
+
+            if (filter_var($hostname, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false
+                || filter_var($hostname, FILTER_VALIDATE_IP) !== false) {
+                return false;
+            }
+
+            return [['host' => $hostname, 'class' => 'IN', 'ttl' => 60, 'type' => 'A', 'ip' => '127.0.0.1']];
+        }
+
         return dns_get_record($hostname, $type);
     }
 
@@ -135,7 +149,21 @@ trait ValidatesAttributes
      */
     public function validateAscii(string $attribute, mixed $value): bool
     {
-        return Str::isAscii((string) $value);
+        return is_string($value) && Str::isAscii($value);
+    }
+
+    /**
+     * Validate that an attribute is a valid Base64 string.
+     */
+    public function validateBase64(string $attribute, mixed $value): bool
+    {
+        if (! is_string($value) || $value === '') {
+            return false;
+        }
+
+        $decoded = base64_decode($value, true);
+
+        return $decoded !== false && base64_encode($decoded) === $value;
     }
 
     /**
@@ -203,19 +231,29 @@ trait ValidatesAttributes
      */
     protected function compareDates(string $attribute, mixed $value, array $parameters, string $operator): bool
     {
-        if (! is_string($value) && ! is_numeric($value) && ! $value instanceof DateTimeInterface) {
-            return false;
-        }
-
         if ($format = $this->getDateFormat($attribute)) {
             return $this->checkDateTimeOrder($format, $value, $parameters[0], $operator);
         }
 
-        if (is_null($date = $this->getDateTimestamp($parameters[0]))) {
-            $date = $this->getDateTimestamp($this->getValue($parameters[0]));
+        $current = $this->getDateTimestamp($value);
+
+        if ($current === null) {
+            return false;
         }
 
-        return $this->compare($this->getDateTimestamp($value), $date, $operator);
+        $target = $this->getDateTimestamp($parameters[0]);
+
+        if ($target === null && ValidationRuleParser::looksLikeDateFieldReference($parameters[0])) {
+            $fieldValue = $this->getValue($parameters[0]);
+
+            if ($fieldValue === null) {
+                return true;
+            }
+
+            $target = $this->getDateTimestamp($fieldValue);
+        }
+
+        return $target !== null && $this->compare($current, $target, $operator);
     }
 
     /**
@@ -224,7 +262,11 @@ trait ValidatesAttributes
     protected function getDateFormat(string $attribute): ?string
     {
         if ($result = $this->getRule($attribute, 'DateFormat')) {
-            return $result[1][0];
+            $format = $result[1][0] ?? null;
+
+            if (is_scalar($format) || $format instanceof Stringable) {
+                return (string) $format;
+            }
         }
 
         return null;
@@ -235,37 +277,63 @@ trait ValidatesAttributes
      */
     protected function getDateTimestamp(mixed $value): ?int
     {
-        $date = is_null($value) ? null : $this->getDateTime($value);
-
-        return $date ? $date->getTimestamp() : null;
-    }
-
-    /**
-     * Given two date/time strings, check that one is after the other.
-     */
-    protected function checkDateTimeOrder(string $format, string $first, string $second, string $operator): bool
-    {
-        $firstDate = $this->getDateTimeWithOptionalFormat($format, $first);
-
-        $format = $this->getDateFormat($second) ?: $format;
-
-        if (! $secondDate = $this->getDateTimeWithOptionalFormat($format, $second)) {
-            if (is_null($second = $this->getValue($second))) {
-                return true;
-            }
-
-            $secondDate = $this->getDateTimeWithOptionalFormat($format, $second);
+        if (! $value instanceof DateTimeInterface
+            && ! is_float($value)
+            && ! is_int($value)
+            && ! is_string($value)) {
+            return null;
         }
 
-        return ($firstDate && $secondDate) && $this->compare($firstDate, $secondDate, $operator);
+        return $this->getDateTime($value)?->getTimestamp();
     }
 
     /**
-     * Get a DateTime instance from a string.
+     * Compare a date value with a literal or referenced field using the given format.
      */
-    protected function getDateTimeWithOptionalFormat(string $format, string $value): ?DateTimeInterface
+    protected function checkDateTimeOrder(string $format, mixed $value, mixed $argument, string $operator): bool
     {
-        if ($date = DateTime::createFromFormat('!' . $format, $value)) {
+        $current = $this->getDateTimeWithOptionalFormat($format, $value);
+
+        if ($current === null) {
+            return false;
+        }
+
+        $target = $this->getDateTimeWithOptionalFormat($format, $argument);
+
+        if ($target !== null) {
+            return $this->compare($current, $target, $operator);
+        }
+
+        if (! ValidationRuleParser::looksLikeDateFieldReference($argument)) {
+            return false;
+        }
+
+        $fieldValue = $this->getValue($argument);
+
+        if ($fieldValue === null) {
+            return true;
+        }
+
+        $targetFormat = $this->getDateFormat($argument) ?: $format;
+        $target = $this->getDateTimeWithOptionalFormat($targetFormat, $fieldValue);
+
+        return $target !== null && $this->compare($current, $target, $operator);
+    }
+
+    /**
+     * Get a DateTime instance from a supported value using the given format.
+     */
+    protected function getDateTimeWithOptionalFormat(string $format, mixed $value): ?DateTimeInterface
+    {
+        if (! $value instanceof DateTimeInterface
+            && ! is_float($value)
+            && ! is_int($value)
+            && ! is_string($value)) {
+            return null;
+        }
+
+        if (! $value instanceof DateTimeInterface
+            && ($date = DateTime::createFromFormat('!' . $format, (string) $value))) {
             return $date;
         }
 
@@ -275,7 +343,7 @@ trait ValidatesAttributes
     /**
      * Get a DateTime instance from a string with no format.
      */
-    protected function getDateTime(DateTimeInterface|string $value): ?DateTimeInterface
+    protected function getDateTime(DateTimeInterface|float|int|string $value): ?DateTimeInterface
     {
         try {
             return @Date::parse($value) ?: null; // @phpstan-ignore ternary.alwaysTrue (Date::parse() PHPDoc claims non-null but can fail at runtime)
@@ -396,6 +464,8 @@ trait ValidatesAttributes
 
     /**
      * Validate that an attribute is a boolean.
+     *
+     * @param array{0?: 'strict'} $parameters
      */
     public function validateBoolean(string $attribute, mixed $value, array $parameters): bool
     {
@@ -626,10 +696,9 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'digits');
 
-        $value = (string) $value;
-
-        return ! preg_match('/[^0-9]/', $value)
-            && strlen($value) == $parameters[0];
+        return (is_numeric($value) || is_string($value))
+            && ! preg_match('/[^0-9]/', (string) $value)
+            && strlen((string) $value) == $parameters[0];
     }
 
     /**
@@ -641,9 +710,13 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(2, $parameters, 'digits_between');
 
-        $length = strlen($value = (string) $value);
+        if (! is_string($value) && ! is_numeric($value)) {
+            return false;
+        }
 
-        return ! preg_match('/[^0-9]/', $value)
+        $length = strlen((string) $value);
+
+        return ! preg_match('/[^0-9]/', (string) $value)
             && $length >= $parameters[0] && $length <= $parameters[1];
     }
 
@@ -732,7 +805,9 @@ trait ValidatesAttributes
             array_filter(sscanf($parameters['min_ratio'], '%f/%d'))
         );
 
-        return ($width / $height) > ($minNumerator / $minDenominator);
+        $precision = 1 / (max(($width + $height) / 2, $height) + 1);
+
+        return ($minNumerator / $minDenominator) - ($width / $height) > $precision;
     }
 
     /**
@@ -749,7 +824,9 @@ trait ValidatesAttributes
             array_filter(sscanf($parameters['max_ratio'], '%f/%d'))
         );
 
-        return ($width / $height) < ($maxNumerator / $maxDenominator);
+        $precision = 1 / (max(($width + $height) / 2, $height) + 1);
+
+        return ($width / $height) - ($maxNumerator / $maxDenominator) > $precision;
     }
 
     /**
@@ -815,11 +892,15 @@ trait ValidatesAttributes
             return false;
         }
 
+        if (preg_match('/[\r\n]/', (string) $value) > 0) {
+            return false;
+        }
+
         $validations = (new Collection($parameters))
             ->unique()
             ->map(fn ($validation) => match (true) {
                 $validation === 'strict' => new NoRFCWarningsValidation,
-                $validation === 'dns' => new DNSCheckValidation,
+                $validation === 'dns' => new DNSCheckValidation(static::$fakeDnsLookups ? new FakeDnsGetRecordWrapper : null),
                 $validation === 'spoof' => new SpoofCheckValidation,
                 $validation === 'filter' => new FilterEmailValidation,
                 $validation === 'filter_unicode' => FilterEmailValidation::unicode(),
@@ -843,6 +924,10 @@ trait ValidatesAttributes
      */
     protected function isValidEmail(string $value): bool
     {
+        if (preg_match('/[\r\n]/', $value) > 0) {
+            return false;
+        }
+
         $emailValidator = Container::getInstance()->make(EmailValidator::class);
 
         return $emailValidator->isValid($value, new MultipleValidationWithAnd([new RFCValidation]));
@@ -850,6 +935,10 @@ trait ValidatesAttributes
 
     /**
      * Validate that a value has a specific character encoding.
+     *
+     * @param array<int, int|string> $parameters
+     *
+     * @throws InvalidArgumentException
      */
     public function validateEncoding(string $attribute, mixed $value, array $parameters): bool
     {
@@ -961,7 +1050,7 @@ trait ValidatesAttributes
             $id,
             $idColumn,
             $extra
-        ) == 0;
+        ) === 0;
     }
 
     /**
@@ -1241,26 +1330,18 @@ trait ValidatesAttributes
 
     /**
      * Validate that an attribute is lowercase.
-     *
-     * @param array<int, int|string> $parameters
      */
-    public function validateLowercase(string $attribute, mixed $value, mixed $parameters): bool
+    public function validateLowercase(string $attribute, mixed $value): bool
     {
-        $value = (string) $value;
-
-        return Str::lower($value) === $value;
+        return is_string($value) && Str::lower($value) === $value;
     }
 
     /**
      * Validate that an attribute is uppercase.
-     *
-     * @param array<int, int|string> $parameters
      */
-    public function validateUppercase(string $attribute, mixed $value, mixed $parameters): bool
+    public function validateUppercase(string $attribute, mixed $value): bool
     {
-        $value = (string) $value;
-
-        return Str::upper($value) === $value;
+        return is_string($value) && Str::upper($value) === $value;
     }
 
     /**
@@ -1268,11 +1349,14 @@ trait ValidatesAttributes
      */
     public function validateHexColor(string $attribute, mixed $value): bool
     {
-        return preg_match('/^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i', (string) $value) === 1;
+        return is_string($value)
+            && preg_match('/^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i', $value) === 1;
     }
 
     /**
      * Validate the MIME type of a file is an image MIME type.
+     *
+     * @param array<int, string> $parameters
      */
     public function validateImage(string $attribute, mixed $value, array $parameters = []): bool
     {
@@ -1302,7 +1386,15 @@ trait ValidatesAttributes
             return count(array_diff($value, $parameters)) === 0;
         }
 
-        return ! is_array($value) && in_array((string) $value, $parameters);
+        $parameters = array_map(
+            static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
+                ? (string) $parameter
+                : $parameter,
+            $parameters,
+        );
+
+        return (is_scalar($value) || $value instanceof Stringable)
+            && in_array((string) $value, $parameters, true);
     }
 
     /**
@@ -1327,6 +1419,8 @@ trait ValidatesAttributes
 
     /**
      * Validate that an array contains at least one of the given keys.
+     *
+     * @param array<int, int|string> $parameters
      */
     public function validateInArrayKeys(string $attribute, mixed $value, array $parameters): bool
     {
@@ -1349,6 +1443,8 @@ trait ValidatesAttributes
 
     /**
      * Validate that an attribute is an integer.
+     *
+     * @param array{0?: 'strict'} $parameters
      */
     public function validateInteger(string $attribute, mixed $value, array $parameters = []): bool
     {
@@ -1463,9 +1559,13 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'max_digits');
 
-        $length = strlen($value = (string) $value);
+        if (! is_string($value) && ! is_numeric($value)) {
+            return false;
+        }
 
-        return ! preg_match('/[^0-9]/', $value) && $length <= $parameters[0];
+        $length = strlen((string) $value);
+
+        return ! preg_match('/[^0-9]/', (string) $value) && $length <= $parameters[0];
     }
 
     /**
@@ -1558,9 +1658,13 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'min_digits');
 
-        $length = strlen($value = (string) $value);
+        if (! is_string($value) && ! is_numeric($value)) {
+            return false;
+        }
 
-        return ! preg_match('/[^0-9]/', $value) && $length >= $parameters[0];
+        $length = strlen((string) $value);
+
+        return ! preg_match('/[^0-9]/', (string) $value) && $length >= $parameters[0];
     }
 
     /**
@@ -1714,6 +1818,8 @@ trait ValidatesAttributes
 
     /**
      * Validate that an attribute is numeric.
+     *
+     * @param array{0?: 'strict'} $parameters
      */
     public function validateNumeric(string $attribute, mixed $value, array $parameters = []): bool
     {
@@ -2241,7 +2347,11 @@ trait ValidatesAttributes
      */
     public function validateStartsWith(string $attribute, mixed $value, mixed $parameters): bool
     {
-        return Str::startsWith((string) $value, $parameters);
+        if (is_string($value) || is_numeric($value)) {
+            return Str::startsWith((string) $value, $parameters);
+        }
+
+        return false;
     }
 
     /**
@@ -2251,7 +2361,11 @@ trait ValidatesAttributes
      */
     public function validateDoesntStartWith(string $attribute, mixed $value, mixed $parameters): bool
     {
-        return ! Str::startsWith((string) $value, $parameters);
+        if (is_string($value) || is_numeric($value)) {
+            return ! Str::startsWith((string) $value, $parameters);
+        }
+
+        return false;
     }
 
     /**
@@ -2261,7 +2375,11 @@ trait ValidatesAttributes
      */
     public function validateEndsWith(string $attribute, mixed $value, mixed $parameters): bool
     {
-        return Str::endsWith((string) $value, $parameters);
+        if (is_string($value) || is_numeric($value)) {
+            return Str::endsWith((string) $value, $parameters);
+        }
+
+        return false;
     }
 
     /**
@@ -2271,7 +2389,11 @@ trait ValidatesAttributes
      */
     public function validateDoesntEndWith(string $attribute, mixed $value, mixed $parameters): bool
     {
-        return ! Str::endsWith((string) $value, $parameters);
+        if (is_string($value) || is_numeric($value)) {
+            return ! Str::endsWith((string) $value, $parameters);
+        }
+
+        return false;
     }
 
     /**
@@ -2284,6 +2406,8 @@ trait ValidatesAttributes
 
     /**
      * Validate that an attribute is a valid timezone.
+     *
+     * @param array<string, null|string> $parameters
      */
     public function validateTimezone(string $attribute, mixed $value, array $parameters = []): bool
     {
@@ -2295,6 +2419,8 @@ trait ValidatesAttributes
 
     /**
      * Validate that an attribute is a valid URL.
+     *
+     * @param array<int, string> $parameters
      */
     public function validateUrl(string $attribute, mixed $value, array $parameters = []): bool
     {
@@ -2427,7 +2553,8 @@ trait ValidatesAttributes
             '>' => $first > $second,
             '<=' => $first <= $second,
             '>=' => $first >= $second,
-            '=' => $first == $second,
+            '=' => ($first === $second)
+                || ($first == $second && $first !== null && $second !== null),
             default => throw new InvalidArgumentException,
         };
     }
