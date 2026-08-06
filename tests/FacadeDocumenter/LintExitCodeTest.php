@@ -201,7 +201,7 @@ class LintExitCodeTest extends FacadeDocumenterTestCase
             'App\Lint\Multiple\SecondFacade',
         ]);
 
-        $this->assertSame(1, $lint->getExitCode());
+        $this->assertSame(1, $lint->getExitCode(), $lint->getErrorOutput() . $lint->getOutput());
 
         $output = $lint->getOutput();
 

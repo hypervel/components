@@ -231,6 +231,9 @@ class ConstFetchResolutionTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('@method static int numericValue()', $contents);
     }
 
+    /**
+     * Prefer lexical constant owners and preserve explicit global names.
+     */
     public function testConstantOwnersPreferLexicalClassesAndPreserveExplicitGlobalNames(): void
     {
         $this->writeAppFile(

@@ -230,7 +230,7 @@ class PhpstanTagResolutionTest extends FacadeDocumenterTestCase
 
         $contents = $this->appFileContents('App\PhpstanTags\GenericConditional\Facade');
 
-        $this->assertStringContainsString('@method static object|mixed make(string $concrete)', $contents);
+        $this->assertStringContainsString('@method static mixed make(string $concrete)', $contents);
         $this->assertStringNotContainsString('$concrete is string', $contents);
     }
 
@@ -285,7 +285,7 @@ class PhpstanTagResolutionTest extends FacadeDocumenterTestCase
 
         $contents = $this->appFileContents('App\PhpstanTags\BareConditional\Facade');
 
-        $this->assertStringContainsString('@method static object|mixed make(string $concrete)', $contents);
+        $this->assertStringContainsString('@method static mixed make(string $concrete)', $contents);
         $this->assertStringNotContainsString('$concrete is string', $contents);
     }
 

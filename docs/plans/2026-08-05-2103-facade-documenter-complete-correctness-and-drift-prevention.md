@@ -221,6 +221,7 @@ The complete rules are:
 - union and nullable: structurally flatten their AST members, collapse any union containing `mixed` to `mixed`, deduplicate exact members, add one `null` for nullable, parenthesize intersection members, and join with `|` without outer parentheses;
 - intersection: deduplicate members, parenthesize union or nullable children, and join with `&` without outer parentheses;
 - conditional: retain its own required outer parentheses; it needs no extra wrapper when used as a union child;
+- flattened conditional branches: deduplicate their top-level members and collapse the result to `mixed` when an exact member is `mixed`;
 - array: parenthesize union, intersection, or nullable operands before `[]`; an already-parenthesized conditional remains valid;
 - native `ReflectionUnionType`: parenthesize every `ReflectionIntersectionType` member;
 - generics: retain nested unions inside `<...>` without unnecessary outer parentheses;
@@ -238,7 +239,7 @@ Use that scanner at the three parent boundaries:
 - intersection members: parenthesize any child rendering that contains a top-level union;
 - array operands: parenthesize any rendering containing a top-level union or intersection before appending `[]`.
 
-Keep the scanner in `flattenConditionalBranches()` and `mergeDocblockTypeWithNativeNullability()`, which also combine already-rendered strings. Keep the merge function's independent `mixed` guard. Do not patch it to recognize leading `?`; canonical `|null` output removes the second spelling.
+Keep the scanner in `flattenConditionalBranches()` and `mergeDocblockTypeWithNativeNullability()`, which also combine already-rendered strings. Conditional flattening must apply the same exact-member `mixed` collapse as structural unions. Keep the merge function's independent `mixed` guard. Do not patch it to recognize leading `?`; canonical `|null` output removes the second spelling.
 
 ### 4. Resolve relative class names from the correct owner
 
@@ -505,7 +506,9 @@ After all focused renderer tests pass, run the parse-back invariant against the 
 
 Then run the corrected generator across all discovered facades. Review every generated method change against the owning proxy, native signature, PHPDoc, contract, and imports. Do not accept generated output mechanically. At minimum, expect and verify:
 
+- `App`: the four flattened container conditionals containing an exact `mixed` branch collapse from redundant `object|mixed` output to `mixed`;
 - `Date`: the 18 nullable-shorthand occurrences across 10 `@method` lines become canonical `|null` metadata; existing source unions that already spell null first keep their member order, and any additional Date drift must be traced;
+- `Redis`: `keys()` and `lInsert()` advertise their native client result unions instead of `void`, while the working facade subscription methods remain present;
 - `Request`: `float()` preserves the proxy's `0.0` default instead of emitting `0`;
 - `Sentry`: `getIntegration()` retains `IntegrationInterface|null` through `@phpstan-template` instead of the current generator's `mixed|null`; the independently stale `withScope()` line refreshes from committed `mixed|void` to the current generator's coherent `mixed` type, but is not evidence for the template fix;
 - `Inertia` and `Socialite`: existing stale metadata is refreshed against their current proxies.
@@ -568,6 +571,14 @@ use Stringable as BaseStringable;
 Use `Stringable` for the two return types and `BaseStringable` in `normalizeEnumValue()`. No comment or compatibility shim is needed; the aliases state the distinction and preserve existing runtime behavior.
 
 Add source-owning regression coverage which reflects both methods and asserts the exact Hypervel return type, then passes an anonymous object implementing global `Stringable` through `enum()` and confirms string-backed enum coercion still succeeds. Existing Fluent and Request tests already cover the broader `enum()` and `enums()` behavior, so do not duplicate that matrix. Regenerate only the Request facade lines produced by these signatures; other global `Stringable` metadata remains unchanged.
+
+### 16. Correct Redis dynamic command metadata
+
+`RedisConnection` owns PHPDoc `@method` metadata for commands forwarded to the native Redis client. Its `keys()` and `lInsert()` tags incorrectly advertise `void`, even though phpredis returns `array|false|Redis` and `false|int|Redis` respectively. Correct the owning tags and regenerate the Redis facade from that source.
+
+Pooled Redis connections deliberately reject `reset`, `subscribe`, `psubscribe`, and `ssubscribe`. The first and last commands are already absent from the connection docblock, but stale `subscribe` and `psubscribe` tags advertise calls which always reach `callSubscribe(): never` and throw. Remove those two tags. This changes IDE and static-analysis metadata only; it does not change runtime dispatch.
+
+Extend `tests/Redis/PackageMetadataTest.php` with exact assertions for the corrected source and generated return types. Add a separate case-insensitive connection-docblock regression which asserts that all four guarded commands remain absent. The Redis facade must continue to advertise its working `subscribe()` and `psubscribe()` APIs from `RedisManager`. Reflected methods are collected before class-level mixin tags and win deduplication, so deleting the stale connection tags does not alter those generated facade methods.
 
 ## Test Plan
 
@@ -674,6 +685,10 @@ Create `FilePublicationTest.php`. Give a fixture facade a non-default mode such 
 
 Create `PackageMetadataTest.php` and assert the exact direct requirement set contains `php`, `composer-runtime-api`, `phpstan/phpdoc-parser`, `hypervel/filesystem`, and `hypervel/support`. Root consistency is deliberately owned by the repository-wide Composer test instead of being duplicated here.
 
+### Redis dynamic command metadata
+
+Extend `tests/Redis/PackageMetadataTest.php` with exact source and facade assertions for the `keys()` and `lInsert()` return types. Run it red before regenerating Redis and green afterward. In a separate focused method, lowercase the `RedisConnection` docblock and assert that `reset`, `subscribe`, `psubscribe`, and `ssubscribe` are not advertised. Existing Redis connection tests continue to own the runtime throwing contract.
+
 ### Composer manifest consistency
 
 Create `tests/Composer/PackageManifestConsistencyTest.php`. Walk every split manifest's `require` and `require-dev` entries and enforce the root consistency rule from section 8. Also validate every declared autoload path and compare each split support block with the root. Run it red against the verified constraint mismatches, missing root declarations, dead Boost mappings, and support metadata drift; apply the approved manifest corrections and run it green. Remove the superseded root checks from Auth, Broadcasting, Http, Mail, Notifications, and Facade Documenter while keeping their package-specific assertions, and run each changed package test immediately.
@@ -709,9 +724,10 @@ Move and extend `FacadeDocblocksTest.php` as described above. Before regeneratio
 13. Run `./vendor/bin/phpunit --no-progress tests/FacadeDocumenter` and fix only verified failures at their owning boundary.
 14. Change the moved all-facade test from Support-only lint discovery to production `autoload.psr-4` discovery. Run it to obtain the expected current drift without regenerating yet, then run its parse-back method separately to reconfirm current syntax.
 15. Correct the `InteractsWithData` dual-Stringable contract and run its focused signature and coercion regressions.
-16. Generate all 49 facades with the corrected CLI. Review every changed method line against its source, then run the all-facade test green.
-17. Run `composer fix` once as the final checkpoint before code review. Review formatter changes, especially generated imports. Enum default shortening belongs to the generator's `shortenImportedGlobalTypes()` path and should already be stable before formatting; a formatter diff there is a defect to trace, not expected cleanup.
-18. Perform a full self-review of every changed source caller/callee, generated facade diff, parser grammar branch, file mode path, split dependency, test cleanup path, and discovery candidate. Confirm no stale branch, comment, import, fixture, or generated method remains. Run targeted tests for any corrections; repeat `composer fix` only if they warrant another full-repository checkpoint.
+16. Correct the Redis command metadata, run its focused package metadata test red and green, and retain the working facade subscription methods.
+17. Generate all 49 facades with the corrected CLI. Review every changed method line against its source, then run the all-facade test green.
+18. Run `composer fix` once as the final checkpoint before code review. Review formatter changes, especially generated imports. Enum default shortening belongs to the generator's `shortenImportedGlobalTypes()` path and should already be stable before formatting; a formatter diff there is a defect to trace, not expected cleanup.
+19. Perform a full self-review of every changed source caller/callee, generated facade diff, parser grammar branch, file mode path, split dependency, test cleanup path, and discovery candidate. Confirm no stale branch, comment, import, fixture, or generated method remains. Run targeted tests for any corrections; repeat `composer fix` only if they warrant another full-repository checkpoint.
 
 No Testbench source is changed, so `composer test:testbench` is not required solely because these tests use the Testbench base class.
 
@@ -729,6 +745,7 @@ No Testbench source is changed, so `composer test:testbench` is not required sol
 - Modify `src/fortify/composer.json`.
 - Modify `src/passkeys/composer.json`.
 - Modify `src/prompts/composer.json`.
+- Modify `src/redis/src/RedisConnection.php`.
 - Modify `src/support/src/Traits/InteractsWithData.php`.
 - Modify `src/validation/composer.json`.
 - Do not change `src/facade-documenter/README.md`; it is already thin, links canonical docs, and names the tracked upstream.
@@ -739,6 +756,7 @@ No Testbench source is changed, so `composer test:testbench` is not required sol
 - Create `tests/Composer/PackageManifestConsistencyTest.php`.
 - Modify `tests/Auth/PackageMetadataTest.php`, `tests/Broadcasting/PackageMetadataTest.php`, `tests/Http/PackageMetadataTest.php`, `tests/Mail/PackageMetadataTest.php`, and `tests/Notifications/PackageMetadataTest.php` to remove their duplicated root cross-checks.
 - Modify `tests/Support/Traits/InteractsWithDataTest.php` with the two Stringable contract regressions.
+- Modify `tests/Redis/PackageMetadataTest.php` with source-owned Redis command metadata regressions.
 - Rename `tests/FacadeDocumenter/CaseInsensitiveDedupeTest.php` to `tests/FacadeDocumenter/ClassDocblockMethodFilteringTest.php`.
 - Rename `tests/FacadeDocumenter/NullableSelfStaticTest.php` to `tests/FacadeDocumenter/RelativeTypeResolutionTest.php`.
 - Move `tests/Support/FacadeDocblocksTest.php` to `tests/FacadeDocumenter/FacadeDocblocksTest.php`.
@@ -752,7 +770,7 @@ No Testbench source is changed, so `composer test:testbench` is not required sol
 ### Generated facades
 
 - Regenerate only facade files reported stale by the corrected generator.
-- Review every generated diff; expected minimum files include `Date.php`, `Request.php`, `Inertia.php`, `Socialite.php`, and Sentry's `Facade.php`.
+- Review every generated diff; expected minimum files include `App.php`, `Date.php`, `Redis.php`, `Request.php`, `Inertia.php`, `Socialite.php`, and Sentry's `Facade.php`.
 - Do not add a generated-facade workflow or hardcoded facade list.
 
 ## Deliberate Simplicity and Performance
@@ -780,6 +798,7 @@ No Testbench source is changed, so `composer test:testbench` is not required sol
 - Facade updates either complete atomically with their original mode or fail non-zero without changing the target.
 - Every one of the current 49 first-party facades is discovered, syntax-checked, and linted through the normal test suite.
 - Generated metadata matches current proxy source and contains no stale or dead entries.
+- Source-owned contracts consumed by generated metadata are truthful: `InteractsWithData` returns Hypervel's `Stringable` while still coercing any global stringable, and `RedisConnection` advertises native command results without advertising guarded commands.
 - The split package declares every directly used runtime dependency.
 - Every split `require` and `require-dev` dependency is represented consistently in the root manifest through one repository-wide invariant.
 - Root and split autoload paths exist, and every split package carries the repository's canonical support metadata.

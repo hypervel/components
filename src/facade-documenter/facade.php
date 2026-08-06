@@ -893,7 +893,7 @@ function canPreserveConditionalTarget($method, $typeNode)
 }
 
 /**
- * Flatten and deduplicate resolved conditional branches.
+ * Flatten, collapse, and deduplicate resolved conditional branches.
  *
  * @param string $if
  * @param string $else
@@ -901,10 +901,12 @@ function canPreserveConditionalTarget($method, $typeNode)
  */
 function flattenConditionalBranches($if, $else)
 {
-    return collect([
+    $members = collect([
         ...splitTopLevelTypes($if),
         ...splitTopLevelTypes($else),
-    ])->uniqueStrict()->implode('|');
+    ])->uniqueStrict();
+
+    return $members->containsStrict('mixed') ? 'mixed' : $members->implode('|');
 }
 
 /**
