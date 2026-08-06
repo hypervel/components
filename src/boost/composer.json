@@ -20,13 +20,8 @@
         }
     ],
     "support": {
-        "issues": "https://github.com/hypervel/boost/issues",
-        "source": "https://github.com/hypervel/boost"
-    },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Boost\\": "src/"
-        }
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "require": {
         "php": "^8.4"
