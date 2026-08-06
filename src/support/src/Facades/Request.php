@@ -13,6 +13,7 @@ namespace Hypervel\Support\Facades;
  * @method static void setTrustedHosts(array $hostPatterns)
  * @method static string[] getTrustedHosts()
  * @method static \Hypervel\Http\Request instance()
+ * @method static \Hypervel\Support\CarbonImmutable startedAt()
  * @method static string method()
  * @method static \Hypervel\Support\Uri uri()
  * @method static string root()
