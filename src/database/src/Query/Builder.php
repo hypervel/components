@@ -2941,7 +2941,7 @@ class Builder implements BuilderContract
         ?int $page = null,
         Closure|int|null $total = null,
     ): LengthAwarePaginator {
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = $page ?? Paginator::resolveCurrentPage($pageName);
 
         $total = value($total) ?? $this->getCountForPagination();
 
@@ -2968,7 +2968,7 @@ class Builder implements BuilderContract
         string $pageName = 'page',
         ?int $page = null,
     ): PaginatorContract {
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = $page ?? Paginator::resolveCurrentPage($pageName);
 
         $this->offset(($page - 1) * $perPage)->limit($perPage + 1);
 
@@ -2986,7 +2986,7 @@ class Builder implements BuilderContract
      * @param array<ExpressionContract|string>|ExpressionContract|string $columns
      */
     public function cursorPaginate(
-        ?int $perPage = 15,
+        int $perPage = 15,
         ExpressionContract|array|string $columns = ['*'],
         string $cursorName = 'cursor',
         Cursor|string|null $cursor = null,

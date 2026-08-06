@@ -3,7 +3,7 @@ Database for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/database)
 
-Ported from: https://github.com/laravel/framework
+Documentation: https://hypervel.org/docs/database
 
 ## Differences From Laravel
 
@@ -12,3 +12,5 @@ Ported from: https://github.com/laravel/framework
 - Laravel's remaining directly deprecated Database compatibility forwarders are intentionally not ported. Use the current class-keyed factory resolver, schema blueprint and grammar APIs, and correctly named PostgreSQL truncation method instead.
 - `make:migration` omits Laravel's deprecated `--fullpath` option and obsolete Composer constructor dependency because migration creation no longer dumps autoload files.
 - `Blueprint::dropForeign()` widens Laravel's method signature with an optional constraint name when columns are supplied, allowing explicitly named foreign keys to be dropped portably across SQLite and the server databases. Custom `Blueprint` subclasses that override this method must accept the optional second argument.
+
+Ported from: https://github.com/laravel/framework

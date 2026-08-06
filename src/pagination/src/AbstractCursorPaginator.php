@@ -9,6 +9,7 @@ use ArrayIterator;
 use Closure;
 use Exception;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Http\Resources\Json\JsonResource;
@@ -66,7 +67,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * The query parameters to add to all URLs.
      *
-     * @var array<string, mixed>
+     * @var array<array-key, mixed>
      */
     protected array $query = [];
 
@@ -115,7 +116,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
         $parameters = is_null($cursor) ? [] : [$this->cursorName => $cursor->encode()];
 
         if (count($this->query) > 0) {
-            $parameters = array_merge($this->query, $parameters);
+            $parameters = array_replace($this->query, $parameters);
         }
 
         return $this->path()
@@ -272,7 +273,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get / set the URL fragment to be appended to URLs.
      *
-     * @return null|$this|string
+     * @return ($fragment is null ? null|string : $this)
      */
     public function fragment(?string $fragment = null): static|string|null
     {
@@ -290,8 +291,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @return $this
      */
-    public function appends(array|string|null $key, ?string $value = null): static
-    {
+    public function appends(
+        array|int|string|null $key,
+        array|bool|float|int|string|null $value = null,
+    ): static {
         if (is_null($key)) {
             return $this;
         }
@@ -306,7 +309,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Add an array of query string values.
      *
-     * @param array<string, mixed> $keys
+     * @param array<array-key, mixed> $keys
      * @return $this
      */
     protected function appendArray(array $keys): static
@@ -337,7 +340,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @return $this
      */
-    protected function addQuery(string $key, mixed $value): static
+    protected function addQuery(int|string $key, mixed $value): static
     {
         if ($key !== $this->cursorName) {
             $this->query[$key] = $value;
@@ -501,7 +504,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get an instance of the view factory from the resolver.
      */
-    public static function viewFactory(): mixed
+    public static function viewFactory(): Factory
     {
         return Paginator::viewFactory();
     }
@@ -571,6 +574,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function setCollection(Collection $collection): static
     {
+        // The receiver's templates are rebound by @phpstan-this-out only after this assignment.
         /* @phpstan-ignore assign.propertyType */
         $this->items = $collection;
 

@@ -21,6 +21,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JsonException;
 use JsonSerializable;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -758,6 +759,28 @@ class SupportCollectionTest extends TestCase
         $this->assertSame($expected, $results);
         $this->assertStringContainsString("\n", $results);
         $this->assertStringContainsString('    ', $results);
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToJsonThrowsForInvalidUtf8($collection): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new $collection(["\xB1\x31"]))->toJson();
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToPrettyJsonPropagatesInvalidUtf8Failure($collection): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new $collection(["\xB1\x31"]))->toPrettyJson();
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToJsonHonorsInvalidUtf8Substitution($collection): void
+    {
+        $this->assertSame('["\ufffd1"]', (new $collection(["\xB1\x31"]))->toJson(JSON_INVALID_UTF8_SUBSTITUTE));
     }
 
     #[DataProvider('collectionClassProvider')]

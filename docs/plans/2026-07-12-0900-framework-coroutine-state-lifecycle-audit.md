@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None.
-- **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None.
+- **Active package or work unit:** None. `pagination` is complete; detail plan `2026-08-06-0928-pagination-correctness-current-parity-and-query-contracts.md`.
+- **Ledger entries required for the active work:** None. The completed Pagination work is recorded under `Complete Pagination correctness, current parity, and query contracts`, with its cross-package findings also recorded at their owning package entries.
+- **Pending revalidation carried into the active work:** None. The completed View audit owns `ComponentAttributeBag::data()`; Translation's `__()` conditional type remains routed to its active owner audit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1147,11 +1147,20 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `permission-04` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-04` |
 | `permission-05` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-05` |
 | `fortify-02` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Harden Eloquent identity and partial-projection safety`; finding `fortify-02` |
-| `pagination-01` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-01` |
-| `pagination-02` | `pagination` | `pagination` (targeted correction complete); later full `pagination` audit | `Harden Eloquent identity and partial-projection safety`; finding `pagination-02` |
+| `pagination-01` | `pagination` | `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `pagination-01` |
+| `pagination-02` | `pagination` | `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `pagination-02` |
+| `collections-15` | `collections` | `collections` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `collections-15` |
+| `support-32` | `support` | `support` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `support-32` |
+| `support-33` | `support` | `support` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `support-33` |
+| `sanctum-02` | `sanctum` | `sanctum` (targeted correction complete); later full `sanctum` audit | `Complete Pagination correctness, current parity, and query contracts`; finding `sanctum-02` |
+| `api-client-01` | `api-client` | `api-client` (targeted correction complete); later full `api-client` audit | `Complete Pagination correctness, current parity, and query contracts`; finding `api-client-01` |
+| `database-24` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-24` |
+| `database-25` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-25` |
+| `scout-41` | `scout` | `scout` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `scout-41` |
+| `routing-25` | `routing` | `routing` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `routing-25` |
 | `queue-41` | `database`, `queue` | `database`, `queue`, and `notifications` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `queue-41` |
-| `scout-01` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-01` |
-| `scout-02` | `scout` | `scout` (targeted correction complete); later full `scout` audit | `Harden Eloquent identity and partial-projection safety`; finding `scout-02` |
+| `scout-01` | `scout` | `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; carried finding `scout-01` |
+| `scout-02` | `scout` | `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; carried finding `scout-02` |
 | `notifications-08` | `notifications` | `notifications` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `notifications-08` |
 | `http-04` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-04` |
 | `http-05` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-05` |
@@ -1269,7 +1278,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `routing`
 - [x] `view`
 - [ ] `translation`
-- [ ] `pagination`
+- [x] `pagination`
 - [ ] `socialite`
 - [ ] `sanctum`
 - [ ] `fortify`

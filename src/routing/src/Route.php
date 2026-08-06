@@ -786,6 +786,8 @@ class Route
     /**
      * Get or set the domain for the route.
      *
+     * @return ($domain is null ? null|string : $this)
+     *
      * @throws InvalidArgumentException
      */
     public function domain(BackedEnum|string|null $domain = null): static|string|null

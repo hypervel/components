@@ -9,6 +9,7 @@ use BadMethodCallException;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Traits\ForwardsCalls;
+use JsonException;
 use JsonSerializable;
 use Stringable;
 
@@ -107,10 +108,12 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
 
     /**
      * Convert the resource to its JSON representation.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options);
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
