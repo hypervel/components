@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None. `routing` is complete; detail plan `2026-08-05-2352-routing-correctness-current-parity-and-cache-lifecycles.md`.
-- **Ledger entries required for the active work:** None. The completed Routing work is recorded under `Complete Routing correctness, current parity, and cache lifecycles`, with `redis-24` and `collections-14` cross-referenced from the owning Redis and Collections entries.
-- **Pending revalidation carried into the active work:** None. `contracts-05`, `reflection-02`, `container-08`, `support-02`, and `routing-01` are revalidated.
+- **Active package or work unit:** None.
+- **Ledger entries required for the active work:** None.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1003,7 +1003,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | Finding | Owning package | Affected or revalidation packages | Ledger entry |
 |---|---|---|---|
 | `validation-01` | `validation` | `contracts` and `validation` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
-| `view-01` | `view` | `contracts` and `foundation` (revalidation complete); later full `view` audit | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
+| `view-01` | `view` | `contracts`, `foundation`, and `view` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
 | `filesystem-01` | `filesystem` | `contracts` and `filesystem` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
 | `queue-01` | `queue` | `contracts` and `queue` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
 | `contracts-05` | `contracts` | `http`, `foundation`, `console`, `database`, and `routing` (revalidation complete) | `Harden framework contracts and request-scoped state`; finding `contracts-05` |
@@ -1011,7 +1011,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `http-01` | `http` | `macroable` and `http` (revalidation complete), `testing`; later full `testing` audit | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
 | `console-01` | `console` | `contracts` and `console` (revalidation complete) | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
 | `reflection-01` | `reflection` | `events` and `foundation` (revalidation complete) | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
-| `reflection-02` | `reflection` | `foundation`, `console`, and `routing` (revalidation complete); later full `view` audit | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
+| `reflection-02` | `reflection` | `foundation`, `console`, `routing`, and `view` (revalidation complete) | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
 | `reflection-04` | `reflection` | `di` and `queue` (revalidation complete), `support`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 | `config-01` | `config` | `foundation` (revalidation complete) | `Preserve configuration identity across worker reloads`; finding `config-01` |
 | `config-02` | `foundation` | `reverb` (revalidation complete), `testing`; later full `testing` audit | `Preserve configuration identity across worker reloads`; finding `config-02` |
@@ -1175,6 +1175,9 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `routing-18` | `routing` | `auth` (revalidation complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `routing-18` |
 | `collections-14` | `collections` | `collections` and `routing` (revalidation complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `collections-14` |
 | `validation-18` | `validation` | `validation` and `support` (revalidation complete) | `Complete Validation correctness, parity, and compiled lifecycles`; finding `validation-18` |
+| `view-09` | `foundation` | `foundation` and `view` (revalidation complete) | `Complete View correctness, lifecycle, and current parity`; finding `view-09` |
+| `view-24` | `foundation` | `foundation` and `view` (revalidation complete) | `Complete View correctness, lifecycle, and current parity`; finding `view-24` |
+| `translation-10` | `translation` | `view` (sibling revalidation complete); later full `translation` audit | `Complete View correctness, lifecycle, and current parity`; finding `translation-10` |
 
 ## Package checklist
 
@@ -1262,7 +1265,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `auth`
 - [x] `validation`
 - [x] `routing`
-- [ ] `view`
+- [x] `view`
 - [ ] `translation`
 - [ ] `pagination`
 - [ ] `socialite`
