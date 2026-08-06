@@ -13,6 +13,7 @@ use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\InteractsWithData;
 use Hypervel\Support\Traits\Macroable;
 use IteratorAggregate;
+use JsonException;
 use JsonSerializable;
 use Traversable;
 
@@ -175,14 +176,18 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Convert the fluent instance to JSON.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options);
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
      * Convert the fluent instance to pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string
     {

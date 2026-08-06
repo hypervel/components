@@ -12,6 +12,7 @@ use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use IteratorAggregate;
+use JsonException;
 use ReflectionObject;
 
 include_once __DIR__ . '/Enums.php';
@@ -145,6 +146,27 @@ class SupportFluentTest extends TestCase
         $this->assertSame($expected, $results);
         $this->assertStringContainsString("\n", $results);
         $this->assertStringContainsString('    ', $results);
+    }
+
+    public function testToJsonThrowsForInvalidUtf8(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new Fluent(['value' => "\xB1\x31"]))->toJson();
+    }
+
+    public function testToPrettyJsonPropagatesInvalidUtf8Failure(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new Fluent(['value' => "\xB1\x31"]))->toPrettyJson();
+    }
+
+    public function testToJsonHonorsInvalidUtf8Substitution(): void
+    {
+        $fluent = new Fluent(['value' => "\xB1\x31"]);
+
+        $this->assertSame('{"value":"\ufffd1"}', $fluent->toJson(JSON_INVALID_UTF8_SUBSTITUTE));
     }
 
     public function testScope()

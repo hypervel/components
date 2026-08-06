@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\Collection;
 use Hypervel\Support\MessageBag;
 use Hypervel\Tests\TestCase;
+use JsonException;
 
 class SupportMessageBagTest extends TestCase
 {
@@ -278,6 +279,31 @@ class SupportMessageBagTest extends TestCase
         $this->assertStringContainsString('    ', $results);
         $this->assertStringContainsString('123', $results);
         $this->assertStringNotContainsString('"123"', $results);
+    }
+
+    public function testMessageBagJsonThrowsForInvalidUtf8(): void
+    {
+        $container = new MessageBag(['value' => "\xB1\x31"]);
+
+        $this->expectException(JsonException::class);
+
+        $container->toJson();
+    }
+
+    public function testMessageBagPrettyJsonPropagatesInvalidUtf8Failure(): void
+    {
+        $container = new MessageBag(['value' => "\xB1\x31"]);
+
+        $this->expectException(JsonException::class);
+
+        $container->toPrettyJson();
+    }
+
+    public function testMessageBagJsonHonorsInvalidUtf8Substitution(): void
+    {
+        $container = new MessageBag(['value' => "\xB1\x31"]);
+
+        $this->assertSame('{"value":["\ufffd1"]}', $container->toJson(JSON_INVALID_UTF8_SUBSTITUTE));
     }
 
     public function testCountReturnsCorrectValue()
