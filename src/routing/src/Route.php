@@ -1493,6 +1493,9 @@ class Route
      */
     public function setContainer(Container $container): static
     {
+        // Router::findRoute() reinstalls this container on every dispatch. Returning
+        // early preserves resolved middleware and controller caches; changing
+        // middleware aliases or groups after resolution requires explicit invalidation.
         if ($this->container === $container) {
             return $this;
         }
@@ -1504,6 +1507,8 @@ class Route
         $this->controllerDispatcher = null;
         $this->resolvedMiddleware = null;
         $this->shouldCacheControllerOnRoute = null;
+
+        CoroutineContext::forget($this->controllerContextKey());
 
         return $this;
     }

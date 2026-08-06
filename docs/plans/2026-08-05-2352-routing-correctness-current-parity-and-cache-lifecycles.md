@@ -139,6 +139,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `routing-21` | Route-key coercion defect | Major | Preserve numeric-string route names across uncached lookups, compiled indexes, alternate-verb scans, and server warmup, and expose truthful numeric-string URI map contracts. |
 | `routing-22` | Middleware truthiness defect | Major | Preserve falsy middleware names in controller attributes and `:0` parameters while expanding middleware groups. |
 | `routing-23` | URL base-path defect | Major | Strip only complete base-path segments in `previousPath()` and encode plus quote request bases before relative route removal. |
+| `routing-24` | Container replacement defect | Major | Clear a route's coroutine-local controller when installing a genuinely different container. |
 | `collections-14` | Collection type-contract defect | Minor | Declare the existing multi-group `groupBy()` callback contract once on `Enumerable` and inherit it in both implementations. |
 
 The rejected `APP_FORCE_HTTPS` rename receives no finding. `FORCE_HTTPS` is deliberate and
@@ -170,6 +171,7 @@ public function setContainer(Container $container): static
 
     $this->container = $container;
     // Existing complete invalidation for a genuinely different container.
+    CoroutineContext::forget($this->controllerContextKey());
 
     return $this;
 }
@@ -178,8 +180,12 @@ public function setContainer(Container $container): static
 This does not change or flush the compiled Symfony matcher. It stops repeated middleware name
 resolution and repeated dispatcher/controller cache misses on every normal request. Keep the
 existing different-container counterfactual and add identity-retention/resolution-count tests.
-A genuinely different container clears both the resolved middleware and the controller-derived
-computed middleware that feeds it.
+A genuinely different container clears the resolved middleware, the controller-derived computed
+middleware that feeds it, and the coroutine-local controller resolved from the old container.
+Use a focused non-shared controller regression that proves the next resolution returns the exact
+instance owned by the new container. Do not add a controller-action guard: forgetting an absent
+context key is already a no-op, and the identical-container early return keeps this work off the
+ordinary dispatch path.
 
 After that, keep the protected three-argument parser and recursive `static::` dispatch. Port
 Laravel's direct guard verbatim inside it. Call the private validator only inside public
@@ -721,6 +727,7 @@ Run each changed test file immediately. The focused matrix must cover:
 16. previous-path base-segment boundaries and relative route generation under encoded and
     regex-significant request base URLs.
 17. registrar metadata merged with action-array metadata.
+18. different-container replacement evicting the exact route's coroutine-local controller.
 
 Use `InteractsWithRedis` for all real Redis tests. Then run focused Routing, Redis, Wayfinder,
 Encryption, Auth, Support/facade, and integration groups, followed once at the end by
@@ -732,6 +739,8 @@ validation, and package-checklist parity.
 
 - Ordinary route matching retains the compiled Symfony matcher and now preserves middleware,
   dispatcher, controller-lifetime, and controller caches for the identical container.
+- Installing a genuinely different container performs one coroutine-context removal alongside
+  the route's existing cache invalidation; ordinary dispatch returns before this work.
 - Domain registration becomes assignment-based O(1) work. Compiled method/action lookup no
   longer reconstructs the full cached route table. Today every compiled-route 404 checks roughly
   six alternate verbs, rebuilding the complete route table for each check; the indexed lookup

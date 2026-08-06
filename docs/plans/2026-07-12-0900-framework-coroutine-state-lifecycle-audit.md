@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None. `validation` is complete; detail plan `2026-08-05-2221-validation-correctness-parity-and-compiled-lifecycles.md`.
-- **Ledger entries required for the active work:** None. The completed Validation work is recorded under `Complete Validation correctness, parity, and compiled lifecycles`, with `validation-18` cross-referenced from `Correct Support utility boundaries and authentication timing isolation`.
-- **Pending revalidation carried into the active work:** None. `validation-01`, `support-29`, and the Support-owned side of `validation-18` are revalidated.
+- **Active package or work unit:** None. `routing` is complete; detail plan `2026-08-05-2352-routing-correctness-current-parity-and-cache-lifecycles.md`.
+- **Ledger entries required for the active work:** None. The completed Routing work is recorded under `Complete Routing correctness, current parity, and cache lifecycles`, with `redis-24` and `collections-14` cross-referenced from the owning Redis and Collections entries.
+- **Pending revalidation carried into the active work:** None. `contracts-05`, `reflection-02`, `container-08`, `support-02`, and `routing-01` are revalidated.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
