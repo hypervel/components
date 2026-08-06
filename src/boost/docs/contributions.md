@@ -98,6 +98,17 @@ composer lint
 composer lint:fix
 ```
 
+To run the database integration tests, pass the connection name to the database test runner:
+
+```shell
+bin/run-database-tests.sh mysql
+bin/run-database-tests.sh mariadb
+bin/run-database-tests.sh pgsql
+bin/run-database-tests.sh sqlite
+```
+
+The runner sets `DB_CONNECTION` from this argument. Configure the remaining database environment variables (see `.env.example`) before running the command. Any additional ParaTest options are forwarded to each database test suite. For example, you may use `bin/run-database-tests.sh pgsql -p 3 --filter=EloquentPrunableTest` to control the worker count and select a specific test.
+
 Some checks only run in the CI pipeline. If CI fails, please review the failure and update your pull request before requesting another review.
 
 <a name="compiled-assets"></a>

@@ -15,6 +15,11 @@ use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Schema;
 use LogicException;
 
+/**
+ * The fixtures are intentionally smaller than Laravel's because this suite
+ * enforces a 60-second per-test limit and runs concurrently under ParaTest.
+ * The chunk-boundary behavior and ModelsPruned event counts remain covered.
+ */
 class EloquentPrunableTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void
@@ -50,7 +55,7 @@ class EloquentPrunableTest extends DatabaseTestCase
     {
         Event::fake();
 
-        collect(range(1, 5000))->map(function ($id) {
+        collect(range(1, 1050))->map(function ($id) {
             return ['name' => 'foo'];
         })->chunk(200)->each(function ($chunk) {
             PrunableTestModel::insert($chunk->all());
@@ -58,8 +63,8 @@ class EloquentPrunableTest extends DatabaseTestCase
 
         $count = (new PrunableTestModel)->pruneAll();
 
-        $this->assertEquals(1500, $count);
-        $this->assertEquals(3500, PrunableTestModel::count());
+        $this->assertEquals(1001, $count);
+        $this->assertEquals(49, PrunableTestModel::count());
 
         Event::assertDispatched(ModelsPruned::class, 2);
     }
@@ -68,17 +73,17 @@ class EloquentPrunableTest extends DatabaseTestCase
     {
         Event::fake();
 
-        collect(range(1, 5000))->map(function ($id) {
+        collect(range(1, 50))->map(function ($id) {
             return ['deleted_at' => now()];
-        })->chunk(200)->each(function ($chunk) {
+        })->chunk(20)->each(function ($chunk) {
             PrunableSoftDeleteTestModel::insert($chunk->all());
         });
 
-        $count = (new PrunableSoftDeleteTestModel)->pruneAll();
+        $count = (new PrunableSoftDeleteTestModel)->pruneAll(10);
 
-        $this->assertEquals(3000, $count);
+        $this->assertEquals(30, $count);
         $this->assertEquals(0, PrunableSoftDeleteTestModel::count());
-        $this->assertEquals(2000, PrunableSoftDeleteTestModel::withTrashed()->count());
+        $this->assertEquals(20, PrunableSoftDeleteTestModel::withTrashed()->count());
 
         Event::assertDispatched(ModelsPruned::class, 3);
     }
@@ -87,18 +92,19 @@ class EloquentPrunableTest extends DatabaseTestCase
     {
         Event::fake();
 
-        collect(range(1, 5000))->map(function ($id) {
+        collect(range(1, 50))->map(function ($id) {
             return ['name' => 'foo'];
-        })->chunk(200)->each(function ($chunk) {
+        })->chunk(20)->each(function ($chunk) {
             PrunableWithCustomPruneMethodTestModel::insert($chunk->all());
         });
 
-        $count = (new PrunableWithCustomPruneMethodTestModel)->pruneAll();
+        $count = (new PrunableWithCustomPruneMethodTestModel)->pruneAll(10);
 
-        $this->assertEquals(1000, $count);
-        $this->assertTrue((bool) PrunableWithCustomPruneMethodTestModel::first()->pruned);
+        $this->assertEquals(10, $count);
+        // Unlike the upstream test, order explicitly because PostgreSQL does not guarantee default row order.
+        $this->assertTrue((bool) PrunableWithCustomPruneMethodTestModel::orderBy('id')->first()->pruned);
         $this->assertFalse((bool) PrunableWithCustomPruneMethodTestModel::orderBy('id', 'desc')->first()->pruned);
-        $this->assertEquals(5000, PrunableWithCustomPruneMethodTestModel::count());
+        $this->assertEquals(50, PrunableWithCustomPruneMethodTestModel::count());
 
         Event::assertDispatched(ModelsPruned::class, 1);
     }
@@ -108,18 +114,18 @@ class EloquentPrunableTest extends DatabaseTestCase
         Event::fake();
         Exceptions::fake();
 
-        collect(range(1, 5000))->map(function ($id) {
+        collect(range(1, 50))->map(function ($id) {
             return ['name' => 'foo'];
-        })->chunk(200)->each(function ($chunk) {
+        })->chunk(20)->each(function ($chunk) {
             PrunableWithException::insert($chunk->all());
         });
 
-        $count = (new PrunableWithException)->pruneAll();
+        $count = (new PrunableWithException)->pruneAll(10);
 
-        $this->assertEquals(999, $count);
+        $this->assertEquals(9, $count);
 
         Event::assertDispatched(ModelsPruned::class, 1);
-        Event::assertDispatched(fn (ModelsPruned $event) => $event->count === 999);
+        Event::assertDispatched(fn (ModelsPruned $event) => $event->count === 9);
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(fn (Exception $exception) => $exception->getMessage() === 'foo bar');
     }
@@ -131,7 +137,7 @@ class PrunableTestModel extends Model
 
     public function prunable()
     {
-        return $this->where('id', '<=', 1500);
+        return $this->where('id', '<=', 1001);
     }
 }
 
@@ -142,7 +148,7 @@ class PrunableSoftDeleteTestModel extends Model
 
     public function prunable()
     {
-        return $this->where('id', '<=', 3000);
+        return $this->where('id', '<=', 30);
     }
 }
 
@@ -152,7 +158,7 @@ class PrunableWithCustomPruneMethodTestModel extends Model
 
     public function prunable()
     {
-        return $this->where('id', '<=', 1000);
+        return $this->where('id', '<=', 10);
     }
 
     public function prune()
@@ -169,12 +175,12 @@ class PrunableWithException extends Model
 
     public function prunable()
     {
-        return $this->where('id', '<=', 1000);
+        return $this->where('id', '<=', 10);
     }
 
     public function prune()
     {
-        if ($this->id === 500) {
+        if ($this->id === 5) {
             throw new Exception('foo bar');
         }
     }

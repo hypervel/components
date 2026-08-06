@@ -49,10 +49,16 @@ jobs:
         run: PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
 
       - name: Run framework test suite
-        run: vendor/bin/phpunit -c phpunit.xml.dist
+        run: vendor/bin/paratest -c phpunit.xml.dist
 
       - name: Run Testbench package-mode suite
         run: php src/testbench/bin/testbench package:test --parallel tests/Testbench
 
+      # Local equivalent: composer test:dogfood. Direct commands bypass Composer's process timeout in CI.
+      - name: Install Testbench dogfood package dependencies
+        working-directory: dogfood/testbench-package
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
       - name: Run Testbench dogfood package suite
-        run: composer test:dogfood
+        working-directory: dogfood/testbench-package
+        run: vendor/bin/testbench package:test --parallel
