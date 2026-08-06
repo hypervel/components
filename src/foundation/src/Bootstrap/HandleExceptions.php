@@ -253,6 +253,9 @@ class HandleExceptions
      */
     public static function flushState(?TestCase $testCase = null): void
     {
+        // AfterEachTestSubscriber resets framework static state after each test.
+        // This reset remains caller-driven because restoring PHPUnit's error
+        // handler requires the active test case.
         if (is_null(static::$app)) {
             return;
         }

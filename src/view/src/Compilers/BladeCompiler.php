@@ -17,6 +17,7 @@ use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\View\Component;
 use InvalidArgumentException;
+use ParseError;
 
 class BladeCompiler extends Compiler implements CompilerInterface
 {
@@ -44,12 +45,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
     use Concerns\CompilesUseStatements;
     use ReflectsClosures;
 
-    /*
+    /**
      * Temporarily store the raw blocks found in the template.
      */
     protected const RAW_BLOCKS_CONTEXT_KEY = '__view.raw_blocks';
 
-    /*
+    /**
      * Footer lines to be added to the template.
      */
     protected const FOOTER_CONTEXT_KEY = '__view.footer';
@@ -60,7 +61,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected const PATH_CONTEXT_KEY = '__view.path';
 
     /**
-     * The "regular" / legacy echo string format.
+     * The temporary echo format override for the current coroutine.
      */
     protected const ECHO_FORMAT_CONTEXT_KEY = '__view.echo_format';
 
@@ -119,9 +120,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected array $escapedTags = ['{{{', '}}}'];
 
     /**
-     * Array of footer lines to be added to the template.
+     * The "regular" / legacy echo string format.
      */
-    protected array $footer = [];
+    protected string $echoFormat = 'e(%s)';
 
     /**
      * The array of anonymous component paths to search for components in.
@@ -248,54 +249,68 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function compileString(string $value): string
     {
-        CoroutineContext::set(static::FOOTER_CONTEXT_KEY, []);
-        $result = '';
+        // Raw blocks are pass-owned; component hashes may be publicly seeded for this pass.
+        CoroutineContext::setMany([
+            static::LAST_SECTION_CONTEXT_KEY => '',
+            static::FOOTER_CONTEXT_KEY => [],
+            static::RAW_BLOCKS_CONTEXT_KEY => [],
+        ]);
 
-        foreach ($this->prepareStringsForCompilationUsing as $callback) {
-            $value = $callback($value);
+        try {
+            $result = '';
+
+            foreach ($this->prepareStringsForCompilationUsing as $callback) {
+                $value = $callback($value);
+            }
+
+            $value = $this->storeUncompiledBlocks($value);
+
+            // First we will compile the Blade component tags. This is a precompile style
+            // step which compiles the component Blade tags into @component directives
+            // that may be used by Blade. Then we should call any other precompilers.
+            $value = $this->compileComponentTags(
+                $this->compileComments($value)
+            );
+
+            foreach ($this->precompilers as $precompiler) {
+                $value = $precompiler($value);
+            }
+
+            // Here we will loop through all of the tokens returned by the Zend lexer and
+            // parse each one into the corresponding valid PHP. We will then have this
+            // template as the correctly rendered PHP that can be rendered natively.
+            foreach (token_get_all($value) as $token) {
+                $result .= is_array($token) ? $this->parseToken($token) : $token;
+            }
+
+            if (CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY, []) !== []) {
+                $result = $this->restoreRawContent($result);
+            }
+
+            // If there are any footer lines that need to get added to a template we will
+            // add them here at the end of the template. This gets used mainly for the
+            // template inheritance via the extends keyword that should be appended.
+            $footers = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
+            if (count($footers) > 0) {
+                $result = $this->addFooters($result);
+            }
+
+            if (! empty($this->echoHandlers)) {
+                $result = $this->addBladeCompilerVariable($result);
+            }
+
+            return str_replace(
+                ['##BEGIN-COMPONENT-CLASS##', '##END-COMPONENT-CLASS##'],
+                '',
+                $result
+            );
+        } finally {
+            // Caught failures must not accumulate pass state in coroutine or process-global context.
+            CoroutineContext::setMany([
+                static::RAW_BLOCKS_CONTEXT_KEY => [],
+                static::COMPONENT_HASH_STACK_CONTEXT_KEY => [],
+            ]);
         }
-
-        $value = $this->storeUncompiledBlocks($value);
-
-        // First we will compile the Blade component tags. This is a precompile style
-        // step which compiles the component Blade tags into @component directives
-        // that may be used by Blade. Then we should call any other precompilers.
-        $value = $this->compileComponentTags(
-            $this->compileComments($value)
-        );
-
-        foreach ($this->precompilers as $precompiler) {
-            $value = $precompiler($value);
-        }
-
-        // Here we will loop through all of the tokens returned by the Zend lexer and
-        // parse each one into the corresponding valid PHP. We will then have this
-        // template as the correctly rendered PHP that can be rendered natively.
-        foreach (token_get_all($value) as $token) {
-            $result .= is_array($token) ? $this->parseToken($token) : $token;
-        }
-
-        if (! empty(CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY))) {
-            $result = $this->restoreRawContent($result);
-        }
-
-        // If there are any footer lines that need to get added to a template we will
-        // add them here at the end of the template. This gets used mainly for the
-        // template inheritance via the extends keyword that should be appended.
-        $footer = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
-        if (count($footer) > 0) {
-            $result = $this->addFooters($result, $footer);
-        }
-
-        if (! empty($this->echoHandlers)) {
-            $result = $this->addBladeCompilerVariable($result);
-        }
-
-        return str_replace(
-            ['##BEGIN-COMPONENT-CLASS##', '##END-COMPONENT-CLASS##'],
-            '',
-            $result
-        );
     }
 
     /**
@@ -421,6 +436,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
         return $this->getComponentTagCompiler()->compile($value);
     }
 
+    /**
+     * Get the component tag compiler.
+     */
     protected function getComponentTagCompiler(): ComponentTagCompiler
     {
         if (isset($this->componentTagCompiler)) {
@@ -439,13 +457,13 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function restoreRawContent(string $result): string
     {
-        $rawBlocks = CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY);
+        $rawBlocks = CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY, []);
 
         $result = preg_replace_callback('/' . $this->getRawPlaceholder('(\d+)') . '/', function ($matches) use ($rawBlocks) {
             return $rawBlocks[$matches[1]];
         }, $result);
 
-        $rawBlocks = CoroutineContext::set(static::RAW_BLOCKS_CONTEXT_KEY, []);
+        CoroutineContext::set(static::RAW_BLOCKS_CONTEXT_KEY, []);
 
         return $result;
     }
@@ -461,10 +479,22 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Add the stored footers onto the given content.
      */
-    protected function addFooters(string $result, array $footer): string
+    protected function addFooters(string $result): string
     {
+        $footers = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
+
         return ltrim($result, "\n")
-                . "\n" . implode("\n", array_reverse($footer));
+                . "\n" . implode("\n", array_reverse($footers));
+    }
+
+    /**
+     * Push a footer onto the stack.
+     */
+    protected function pushFooter(string $footer): void
+    {
+        $footers = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
+        $footers[] = $footer;
+        CoroutineContext::set(static::FOOTER_CONTEXT_KEY, $footers);
     }
 
     /**
@@ -474,7 +504,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     {
         [$id, $content] = $token;
 
-        if ($id == T_INLINE_HTML) {
+        if ($id === T_INLINE_HTML) {
             foreach ($this->compilers as $type) {
                 $content = $this->{"compile{$type}"}($content);
             }
@@ -574,7 +604,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function hasEvenNumberOfParentheses(string $expression): bool
     {
-        $tokens = token_get_all('<?php ' . $expression);
+        try {
+            $tokens = token_get_all('<?php ' . $expression);
+        } catch (ParseError) {
+            // Xdebug can make token_get_all throw for incomplete expressions.
+            return false;
+        }
 
         if (array_last($tokens) !== ')') {
             return false;
@@ -584,9 +619,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
         $closing = 0;
 
         foreach ($tokens as $token) {
-            if ($token == ')') {
+            if ($token === ')') {
                 ++$closing;
-            } elseif ($token == '(') {
+            } elseif ($token === '(') {
                 ++$opening;
             }
         }
@@ -636,6 +671,60 @@ class BladeCompiler extends Compiler implements CompilerInterface
         }
 
         return $expression;
+    }
+
+    /**
+     * Split an expression at top-level commas.
+     *
+     * @return list<string>
+     */
+    protected function splitTopLevel(string $expression, int $limit): array
+    {
+        $expression = $this->stripParentheses($expression);
+
+        if (! str_contains($expression, ',')) {
+            return [$expression];
+        }
+
+        try {
+            $tokens = token_get_all('<?php ' . $expression);
+        } catch (ParseError) {
+            return [$expression];
+        }
+
+        $segments = [''];
+        $segment = 0;
+        $depth = 0;
+
+        foreach ($tokens as $token) {
+            if (is_array($token)) {
+                if ($token[0] === T_OPEN_TAG) {
+                    continue;
+                }
+
+                if (in_array($token[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES, T_ATTRIBUTE], true)) {
+                    ++$depth;
+                }
+
+                $segments[$segment] .= $token[1];
+
+                continue;
+            }
+
+            if (in_array($token, ['(', '[', '{'], true)) {
+                ++$depth;
+            } elseif (in_array($token, [')', ']', '}'], true)) {
+                --$depth;
+            } elseif ($token === ',' && $depth === 0 && $segment < $limit - 1) {
+                $segments[++$segment] = '';
+
+                continue;
+            }
+
+            $segments[$segment] .= $token;
+        }
+
+        return $segments;
     }
 
     /**
@@ -712,9 +801,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
         if (is_null($class)) {
             $class = $alias;
             $alias = str_contains($class, '\View\Components\\')
-                            ? (new Collection(explode('\\', Str::after($class, '\View\Components\\'))))->map(function ($segment) {
-                                return Str::kebab($segment);
-                            })->implode(':')
+                            ? (new Stringable($class))->after('\View\Components\\')->explode('\\')
+                                ->map(fn ($segment) => Str::kebab($segment))
+                                ->implode(':')
                             : Str::kebab(class_basename($class));
         }
 
@@ -940,25 +1029,31 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function usingEchoFormat(string $format, callable $callback): string
     {
-        $originalEchoFormat = $this->getEchoFormat();
+        $hadOverride = CoroutineContext::has(static::ECHO_FORMAT_CONTEXT_KEY);
+        $previous = CoroutineContext::get(static::ECHO_FORMAT_CONTEXT_KEY);
 
-        $this->setEchoFormat($format);
+        CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
 
         try {
-            $output = call_user_func($callback);
+            return call_user_func($callback);
         } finally {
-            $this->setEchoFormat($originalEchoFormat);
+            if ($hadOverride) {
+                CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $previous);
+            } else {
+                CoroutineContext::forget(static::ECHO_FORMAT_CONTEXT_KEY);
+            }
         }
-
-        return $output;
     }
 
     /**
      * Set the echo format to be used by the compiler.
+     *
+     * Boot-only. The format persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
      */
     public function setEchoFormat(string $format): void
     {
-        CoroutineContext::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
+        $this->echoFormat = $format;
     }
 
     /**
@@ -966,11 +1061,14 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function getEchoFormat(): string
     {
-        return CoroutineContext::get(static::ECHO_FORMAT_CONTEXT_KEY, 'e(%s)');
+        return CoroutineContext::get(static::ECHO_FORMAT_CONTEXT_KEY, $this->echoFormat);
     }
 
     /**
      * Set the "echo" format to double encode entities.
+     *
+     * Boot-only. The format persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
      */
     public function withDoubleEncoding(): void
     {
@@ -979,6 +1077,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Set the "echo" format to not double encode entities.
+     *
+     * Boot-only. The format persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
      */
     public function withoutDoubleEncoding(): void
     {
@@ -987,16 +1088,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Indicate that component tags should not be compiled.
+     *
+     * Boot-only. The setting persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
      */
     public function withoutComponentTags(): void
     {
         $this->compilesComponentTags = false;
-    }
-
-    protected function pushFooter($footer)
-    {
-        $stack = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
-        $stack[] = $footer;
-        CoroutineContext::set(static::FOOTER_CONTEXT_KEY, $stack);
     }
 }

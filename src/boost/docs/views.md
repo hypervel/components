@@ -351,7 +351,7 @@ View::creator('profile', ProfileCreator::class);
 <a name="optimizing-views"></a>
 ## Optimizing Views
 
-By default, Blade template views are compiled on demand. When a request is executed that renders a view, Hypervel will determine if a compiled version of the view exists. If the file exists, Hypervel will then determine if the uncompiled view has been modified more recently than the compiled view. If the compiled view either does not exist, or the uncompiled view has been modified, Hypervel will recompile the view.
+By default, Blade template views are compiled on demand. The first time a worker renders a view, Hypervel will determine if a compiled version of the view exists. If the file exists, Hypervel will then determine if the uncompiled view has been modified more recently than the compiled view. If the compiled view either does not exist, or the uncompiled view has been modified, Hypervel will recompile the view. The worker will reuse that compiled view for subsequent requests.
 
 Compiling views during the request may have a small negative impact on performance, so Hypervel provides the `view:cache` Artisan command to precompile all of the views utilized by your application. For increased performance, you may wish to run this command as part of your deployment process:
 
@@ -366,3 +366,5 @@ You may use the `view:clear` command to clear the view cache:
 ```shell
 php artisan view:clear
 ```
+
+When editing views while application workers are running, you should run this command so the workers compile the updated views the next time they are rendered.

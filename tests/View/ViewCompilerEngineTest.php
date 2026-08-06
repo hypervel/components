@@ -6,6 +6,7 @@ namespace Hypervel\Tests\View;
 
 use ErrorException;
 use Exception;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
@@ -65,11 +66,11 @@ class ViewCompilerEngineTest extends TestCase
         $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
 
-    public function testThatViewsAreNotAskTwiceIfTheyAreExpired()
+    public function testThatViewsAreNotAskTwiceIfTheyAreExpired(): void
     {
         $engine = $this->getEngine();
         $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/basic.php');
-        $engine->getCompiler()->shouldReceive('isExpired')->twice()->andReturn(false);
+        $engine->getCompiler()->shouldReceive('isExpired')->times(3)->andReturn(false);
         $engine->getCompiler()->shouldReceive('compile')->never();
 
         $engine->get(__DIR__ . '/Fixtures/foo.php');
@@ -79,9 +80,13 @@ class ViewCompilerEngineTest extends TestCase
         CompilerEngine::forgetCompiledOrNotExpired();
 
         $engine->get(__DIR__ . '/Fixtures/foo.php');
+
+        CompilerEngine::flushState();
+
+        $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
 
-    public function testViewsAreRecompiledWhenCompiledViewIsMissingViaFileNotFoundException()
+    public function testViewsAreRecompiledWhenCompiledViewIsMissingViaFileNotFoundException(): void
     {
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
@@ -115,18 +120,18 @@ class ViewCompilerEngineTest extends TestCase
         $engine->getCompiler()
             ->shouldReceive('isExpired')
             ->once()
-            ->andReturn(true);
+            ->andReturn(false);
 
         $engine->getCompiler()
             ->shouldReceive('compile')
-            ->twice()
+            ->once()
             ->with($path);
 
         $engine->get($path);
         $engine->get($path);
     }
 
-    public function testViewsAreRecompiledWhenCompiledViewIsMissingViaRequireException()
+    public function testViewsAreRecompiledWhenCompiledViewIsMissingViaRequireException(): void
     {
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
@@ -160,18 +165,18 @@ class ViewCompilerEngineTest extends TestCase
         $engine->getCompiler()
             ->shouldReceive('isExpired')
             ->once()
-            ->andReturn(true);
+            ->andReturn(false);
 
         $engine->getCompiler()
             ->shouldReceive('compile')
-            ->twice()
+            ->once()
             ->with($path);
 
         $engine->get($path);
         $engine->get($path);
     }
 
-    public function testViewsAreRecompiledJustOnceWhenCompiledViewIsMissing()
+    public function testViewsAreRecompiledJustOnceWhenCompiledViewIsMissing(): void
     {
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
@@ -207,11 +212,11 @@ class ViewCompilerEngineTest extends TestCase
         $engine->getCompiler()
             ->shouldReceive('isExpired')
             ->once()
-            ->andReturn(true);
+            ->andReturn(false);
 
         $engine->getCompiler()
             ->shouldReceive('compile')
-            ->twice()
+            ->once()
             ->with($path);
 
         $engine->get($path);
@@ -290,6 +295,51 @@ class ViewCompilerEngineTest extends TestCase
         $this->expectException(ViewException::class);
         $this->expectExceptionMessage("File does not exist at path {$path}.");
         $engine->get($path);
+    }
+
+    public function testExpiredViewsAreCheckedAndCompiledOnEveryRender(): void
+    {
+        $path = __DIR__ . '/Fixtures/foo.php';
+        $compiled = __DIR__ . '/Fixtures/basic.php';
+        $engine = $this->getEngine();
+
+        $engine->getCompiler()->shouldReceive('isExpired')->twice()->with($path)->andReturn(true);
+        $engine->getCompiler()->shouldReceive('compile')->twice()->with($path);
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->twice()->with($path)->andReturn($compiled);
+
+        $engine->get($path);
+        $engine->get($path);
+    }
+
+    public function testCompiledPathIsPoppedAfterSuccessfulRender(): void
+    {
+        $path = __DIR__ . '/Fixtures/foo.php';
+        $engine = $this->getEngine();
+
+        $engine->getCompiler()->shouldReceive('isExpired')->once()->with($path)->andReturn(false);
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->once()->with($path)->andReturn(__DIR__ . '/Fixtures/basic.php');
+
+        $engine->get($path);
+
+        $this->assertSame([], CoroutineContext::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, []));
+    }
+
+    public function testCompiledPathIsPoppedAfterCaughtRenderFailure(): void
+    {
+        $path = __DIR__ . '/Fixtures/foo.php';
+        $engine = $this->getEngine();
+
+        $engine->getCompiler()->shouldReceive('isExpired')->once()->with($path)->andReturn(false);
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->once()->with($path)->andReturn(__DIR__ . '/Fixtures/regular-exception.php');
+
+        try {
+            $engine->get($path);
+            $this->fail('The view should have failed to render.');
+        } catch (ViewException $exception) {
+            $this->assertStringContainsString('regular exception message', $exception->getMessage());
+        }
+
+        $this->assertSame([], CoroutineContext::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, []));
     }
 
     protected function getEngine($filesystem = null)

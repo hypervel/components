@@ -18,8 +18,11 @@ trait CompilesEchos
 
     /**
      * Add a handler to be executed before echoing a given class.
+     *
+     * Boot-only. The handler persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent rendered echo.
      */
-    public function stringable(string|callable $class, ?callable $handler = null): void
+    public function stringable(Closure|string $class, ?callable $handler = null): void
     {
         if ($class instanceof Closure) {
             [$class, $handler] = [$this->firstClosureParameterType($class), $class];

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
+use Hypervel\Context\CoroutineContext;
+
 trait CompilesLayouts
 {
     /**
-     * The name of the last section that was started.
+     * The name of the last section started during the current compile pass.
      */
-    protected ?string $lastSection = null;
+    protected const LAST_SECTION_CONTEXT_KEY = '__view.last_section';
 
     /**
      * Compile the extends statements into valid PHP.
@@ -44,7 +46,7 @@ trait CompilesLayouts
      */
     protected function compileSection(string $expression): string
     {
-        $this->lastSection = trim($expression, "()'\" ");
+        CoroutineContext::set(static::LAST_SECTION_CONTEXT_KEY, trim($expression, "()'\" "));
 
         return "<?php \$__env->startSection{$expression}; ?>";
     }
@@ -54,9 +56,10 @@ trait CompilesLayouts
      */
     protected function compileParent(): string
     {
-        $escapedLastSection = strtr($this->lastSection, ['\\' => '\\\\', "'" => "\\'"]);
+        $lastSection = CoroutineContext::get(static::LAST_SECTION_CONTEXT_KEY, '');
+        $escapedLastSection = strtr($lastSection, ['\\' => '\\\\', "'" => "\\'"]);
 
-        return "<?php echo \$__env->getParentPlaceholder('{$escapedLastSection}'); ?>";
+        return "<?php echo \\Hypervel\\View\\Factory::parentPlaceholder('{$escapedLastSection}'); ?>";
     }
 
     /**
