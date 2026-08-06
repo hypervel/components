@@ -301,9 +301,10 @@ trait CompilesConditionals
      */
     protected function compilePushIf(string $expression): string
     {
-        $parts = $this->parseConditionalStackExpression($expression);
+        $parts = $this->splitTopLevel($expression, 2);
+        $stack = trim($parts[1]);
 
-        return "<?php if({$parts[0]}): \$__env->startPush({$parts[1]}); ?>";
+        return "<?php if({$parts[0]}): \$__env->startPush({$stack}); ?>";
     }
 
     /**
@@ -311,25 +312,10 @@ trait CompilesConditionals
      */
     protected function compileElsePushIf(string $expression): string
     {
-        $parts = $this->parseConditionalStackExpression($expression);
+        $parts = $this->splitTopLevel($expression, 2);
+        $stack = trim($parts[1]);
 
-        return "<?php \$__env->stopPush(); elseif({$parts[0]}): \$__env->startPush({$parts[1]}); ?>";
-    }
-
-    /**
-     * Parse a conditional stack expression.
-     */
-    protected function parseConditionalStackExpression(string $expression): array
-    {
-        $segments = explode(',', $this->stripParentheses($expression));
-
-        if (count($segments) > 2) {
-            $stack = array_pop($segments);
-
-            return [implode(',', $segments), trim($stack)];
-        }
-
-        return $segments;
+        return "<?php \$__env->stopPush(); elseif({$parts[0]}): \$__env->startPush({$stack}); ?>";
     }
 
     /**

@@ -423,6 +423,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
         return $this->getComponentTagCompiler()->compile($value);
     }
 
+    /**
+     * Get the component tag compiler.
+     */
     protected function getComponentTagCompiler(): ComponentTagCompiler
     {
         if (isset($this->componentTagCompiler)) {
@@ -655,6 +658,60 @@ class BladeCompiler extends Compiler implements CompilerInterface
         }
 
         return $expression;
+    }
+
+    /**
+     * Split an expression at top-level commas.
+     *
+     * @return list<string>
+     */
+    protected function splitTopLevel(string $expression, int $limit): array
+    {
+        $expression = $this->stripParentheses($expression);
+
+        if (! str_contains($expression, ',')) {
+            return [$expression];
+        }
+
+        try {
+            $tokens = token_get_all('<?php ' . $expression);
+        } catch (ParseError) {
+            return [$expression];
+        }
+
+        $segments = [''];
+        $segment = 0;
+        $depth = 0;
+
+        foreach ($tokens as $token) {
+            if (is_array($token)) {
+                if ($token[0] === T_OPEN_TAG) {
+                    continue;
+                }
+
+                if (in_array($token[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES, T_ATTRIBUTE], true)) {
+                    ++$depth;
+                }
+
+                $segments[$segment] .= $token[1];
+
+                continue;
+            }
+
+            if (in_array($token, ['(', '[', '{'], true)) {
+                ++$depth;
+            } elseif (in_array($token, [')', ']', '}'], true)) {
+                --$depth;
+            } elseif ($token === ',' && $depth === 0 && $segment < $limit - 1) {
+                $segments[++$segment] = '';
+
+                continue;
+            }
+
+            $segments[$segment] .= $token;
+        }
+
+        return $segments;
     }
 
     /**
