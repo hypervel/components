@@ -122,6 +122,9 @@ class ConsoleSchedulingFeature extends Feature
         $this->shouldHandleCheckIn = false;
     }
 
+    /**
+     * Start tracing the scheduled task.
+     */
     public function handleScheduledTaskStarting(ScheduledTaskStarting $event): void
     {
         // When scheduling a command class the command name will be the most descriptive
@@ -139,6 +142,9 @@ class ConsoleSchedulingFeature extends Feature
         $this->pushSpan($transaction);
     }
 
+    /**
+     * Finish tracing the scheduled task with its published outcome.
+     */
     public function handleScheduledTaskFinished(ScheduledTaskFinished $event): void
     {
         $exitCode = $event->task->exitCode();
@@ -152,6 +158,9 @@ class ConsoleSchedulingFeature extends Feature
         }
     }
 
+    /**
+     * Mark tracing for the scheduled task as failed.
+     */
     public function handleScheduledTaskFailed(): void
     {
         if ($this->maybeFinishSpan(SpanStatus::internalError()) !== null) {
