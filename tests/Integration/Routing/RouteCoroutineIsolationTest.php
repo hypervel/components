@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Routing;
 
 use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
+use Hypervel\Routing\Router;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -215,6 +217,95 @@ class RouteCoroutineIsolationTest extends RoutingTestCase
         // Each coroutine should resolve its own matched route from the container.
         $this->assertContains('users/{id}', $results);
         $this->assertContains('posts/{id}', $results);
+    }
+
+    public function testSiblingRoutesDoNotShareParametersOrOriginalParameters(): void
+    {
+        $users = new Route('GET', '/users/{id}', ['uses' => fn () => null]);
+        $posts = new Route('GET', '/posts/{id}', ['uses' => fn () => null]);
+
+        $users->bind(Request::create('/users/1'));
+        $users->setParameter('id', 'changed-user');
+        $posts->bind(Request::create('/posts/2'));
+        $posts->setParameter('id', 'changed-post');
+
+        $this->assertSame('changed-user', $users->parameter('id'));
+        $this->assertSame('1', $users->originalParameter('id'));
+        $this->assertSame('changed-post', $posts->parameter('id'));
+        $this->assertSame('2', $posts->originalParameter('id'));
+    }
+
+    public function testSiblingRoutesDoNotShareBoundControllerInstances(): void
+    {
+        $container = new Container;
+        $container->bind(RouteCoroutineIsolationTestController::class, fn () => new RouteCoroutineIsolationTestController);
+
+        $first = (new Route('GET', '/first', ['uses' => RouteCoroutineIsolationTestController::class . '@index']))
+            ->setContainer($container);
+        $second = (new Route('GET', '/second', ['uses' => RouteCoroutineIsolationTestController::class . '@index']))
+            ->setContainer($container);
+
+        $firstController = $first->getController();
+        $secondController = $second->getController();
+
+        $this->assertNotSame($firstController, $secondController);
+        $this->assertSame($firstController, $first->getController());
+        $this->assertSame($secondController, $second->getController());
+
+        $first->flushController();
+
+        $this->assertNotSame($firstController, $first->getController());
+        $this->assertSame($secondController, $second->getController());
+    }
+
+    public function testNestedRouteResponsesPreserveTheOuterRouteState(): void
+    {
+        $router = $this->app->make(Router::class);
+        $observed = [];
+
+        $router->get('/inner', function (Request $request) use (&$observed) {
+            $route = $request->route();
+            $route->setParameter('inner', 'value');
+
+            $observed['inner_parameters'] = $route->parameters();
+            $observed['inner_original_parameters'] = $route->originalParameters();
+
+            return 'inner';
+        })->name('inner');
+
+        $router->get('/outer/{id}', function () use ($router, &$observed) {
+            $outer = $router->current();
+
+            $observed['current_before'] = $outer;
+            $observed['container_before'] = $this->app->make(Route::class);
+
+            $router->respondWithRoute('inner');
+
+            $observed['current_after'] = $router->current();
+            $observed['container_after'] = $this->app->make(Route::class);
+            $observed['outer_parameters'] = $outer->parameters();
+            $observed['outer_original_parameters'] = $outer->originalParameters();
+
+            return 'outer';
+        })->name('outer');
+
+        $router->getRoutes()->refreshNameLookups();
+
+        $request = Request::create('/outer/42');
+        RequestContext::set($request);
+
+        $response = $router->dispatch($request);
+        $outer = $router->getRoutes()->getByName('outer');
+
+        $this->assertSame('outer', $response->getContent());
+        $this->assertSame($outer, $observed['current_before']);
+        $this->assertSame($outer, $observed['current_after']);
+        $this->assertSame($outer, $observed['container_before']);
+        $this->assertSame($outer, $observed['container_after']);
+        $this->assertSame(['inner' => 'value'], $observed['inner_parameters']);
+        $this->assertSame([], $observed['inner_original_parameters']);
+        $this->assertSame(['id' => '42'], $observed['outer_parameters']);
+        $this->assertSame(['id' => '42'], $observed['outer_original_parameters']);
     }
 }
 

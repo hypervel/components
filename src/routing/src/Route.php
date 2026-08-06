@@ -11,6 +11,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Attributes\Controllers\Middleware as MiddlewareAttribute;
+use Hypervel\Routing\Attributes\Controllers\WithoutMiddleware;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Routing\Controllers\HasMiddleware;
@@ -27,6 +28,10 @@ use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
+use Laravel\SerializableClosure\Serializers\Native as NativeSerializer;
+use Laravel\SerializableClosure\Serializers\Signed as SignedSerializer;
+use Laravel\SerializableClosure\Support\SelfReference;
+use Laravel\SerializableClosure\UnsignedSerializableClosure;
 use LogicException;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -54,12 +59,17 @@ class Route
      * mutable state (parameters, controller instances) must be stored in
      * coroutine-local Context rather than on the Route instance.
      */
-    private const PARAMS_CONTEXT_KEY = '__routing.parameters';
+    private const PARAMS_CONTEXT_KEY_PREFIX = '__routing.parameters.';
 
     /**
      * Context key for coroutine-local original route parameters.
      */
-    private const ORIGINAL_PARAMS_CONTEXT_KEY = '__routing.original_parameters';
+    private const ORIGINAL_PARAMS_CONTEXT_KEY_PREFIX = '__routing.original_parameters.';
+
+    /**
+     * Context key prefix for coroutine-local controller instances.
+     */
+    private const CONTROLLER_CONTEXT_KEY_PREFIX = '__routing.controller.';
 
     /**
      * The URI pattern the route responds to.
@@ -252,7 +262,13 @@ class Route
     {
         if (! $this->callable) {
             $this->callable = $this->isSerializedClosure()
-                ? unserialize($this->action['uses'])->getClosure()
+                ? unserialize($this->action['uses'], ['allowed_classes' => [
+                    SerializableClosure::class,
+                    UnsignedSerializableClosure::class,
+                    NativeSerializer::class,
+                    SignedSerializer::class,
+                    SelfReference::class,
+                ]])->getClosure()
                 : $this->action['uses'];
         }
 
@@ -315,9 +331,17 @@ class Route
         }
 
         return CoroutineContext::getOrSet(
-            '__routing.controller.' . $class,
+            $this->controllerContextKey(),
             fn () => $this->container->make($class)
         );
+    }
+
+    /**
+     * Get this route's coroutine-local controller context key.
+     */
+    private function controllerContextKey(): string
+    {
+        return self::CONTROLLER_CONTEXT_KEY_PREFIX . spl_object_id($this);
     }
 
     /**
@@ -363,6 +387,9 @@ class Route
     /**
      * Flush the cached controller state on the route.
      *
+     * Boot or tests only. Clears caches on the worker-shared route and
+     * evicts its controller class from the container.
+     *
      * Clears both the route-level property cache (for worker-shared controllers)
      * and the coroutine Context entry (for scoped/bound controllers), plus the
      * container's auto-singleton cache so make() creates a fresh instance.
@@ -375,7 +402,7 @@ class Route
 
         if ($this->isControllerAction()) {
             $class = ltrim((string) $this->getControllerClass(), '\\');
-            CoroutineContext::forget('__routing.controller.' . $class);
+            CoroutineContext::forget($this->controllerContextKey());
             $this->container?->forgetInstance($class);
         }
     }
@@ -427,6 +454,23 @@ class Route
     }
 
     /**
+     * Get this route's coroutine-local parameter context key.
+     */
+    private function parametersContextKey(): string
+    {
+        // Framework dispatch never reads a route's Context slots after releasing that route.
+        return self::PARAMS_CONTEXT_KEY_PREFIX . spl_object_id($this);
+    }
+
+    /**
+     * Get this route's coroutine-local original-parameter context key.
+     */
+    private function originalParametersContextKey(): string
+    {
+        return self::ORIGINAL_PARAMS_CONTEXT_KEY_PREFIX . spl_object_id($this);
+    }
+
+    /**
      * Bind the route to a given request for execution.
      *
      * Parameters are stored in coroutine Context, not on the Route instance,
@@ -438,8 +482,8 @@ class Route
 
         $parameters = (new RouteParameterBinder($this))->parameters($request);
 
-        CoroutineContext::set(self::PARAMS_CONTEXT_KEY, $parameters);
-        CoroutineContext::set(self::ORIGINAL_PARAMS_CONTEXT_KEY, $parameters);
+        CoroutineContext::set($this->parametersContextKey(), $parameters);
+        CoroutineContext::set($this->originalParametersContextKey(), $parameters);
 
         return $this;
     }
@@ -449,7 +493,7 @@ class Route
      */
     public function hasParameters(): bool
     {
-        return CoroutineContext::has(self::PARAMS_CONTEXT_KEY);
+        return CoroutineContext::has($this->parametersContextKey());
     }
 
     /**
@@ -487,9 +531,9 @@ class Route
     {
         $this->parameters();
 
-        $parameters = CoroutineContext::get(self::PARAMS_CONTEXT_KEY, []);
+        $parameters = CoroutineContext::get($this->parametersContextKey(), []);
         $parameters[$name] = $value;
-        CoroutineContext::set(self::PARAMS_CONTEXT_KEY, $parameters);
+        CoroutineContext::set($this->parametersContextKey(), $parameters);
     }
 
     /**
@@ -499,9 +543,9 @@ class Route
     {
         $this->parameters();
 
-        $parameters = CoroutineContext::get(self::PARAMS_CONTEXT_KEY, []);
+        $parameters = CoroutineContext::get($this->parametersContextKey(), []);
         unset($parameters[$name]);
-        CoroutineContext::set(self::PARAMS_CONTEXT_KEY, $parameters);
+        CoroutineContext::set($this->parametersContextKey(), $parameters);
     }
 
     /**
@@ -511,8 +555,8 @@ class Route
      */
     public function parameters(): array
     {
-        if (CoroutineContext::has(self::PARAMS_CONTEXT_KEY)) {
-            return CoroutineContext::get(self::PARAMS_CONTEXT_KEY);
+        if (CoroutineContext::has($this->parametersContextKey())) {
+            return CoroutineContext::get($this->parametersContextKey());
         }
 
         throw new LogicException('Route is not bound.');
@@ -525,8 +569,8 @@ class Route
      */
     public function originalParameters(): array
     {
-        if (CoroutineContext::has(self::ORIGINAL_PARAMS_CONTEXT_KEY)) {
-            return CoroutineContext::get(self::ORIGINAL_PARAMS_CONTEXT_KEY);
+        if (CoroutineContext::has($this->originalParametersContextKey())) {
+            return CoroutineContext::get($this->originalParametersContextKey());
         }
 
         throw new LogicException('Route is not bound.');
@@ -995,7 +1039,13 @@ class Route
                 'O:47:"Laravel\SerializableClosure\SerializableClosure',
                 'O:55:"Laravel\SerializableClosure\UnsignedSerializableClosure',
             ])) {
-            return $this->missing = unserialize($missing)->getClosure();
+            return $this->missing = unserialize($missing, ['allowed_classes' => [
+                SerializableClosure::class,
+                UnsignedSerializableClosure::class,
+                NativeSerializer::class,
+                SignedSerializer::class,
+                SelfReference::class,
+            ]])->getClosure();
         }
 
         return $missing;
@@ -1161,7 +1211,68 @@ class Route
                 ['only' => $instance->only, 'except' => $instance->except],
             ) ? null : $instance->middleware;
         })
-            ->filter()
+            ->filter(static fn (Closure|string|null $middleware): bool => $middleware !== null)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get the excluded middleware for the route's controller.
+     */
+    public function excludedControllerMiddleware(): array
+    {
+        if (! $this->isControllerAction()) {
+            return [];
+        }
+
+        [$controllerClass, $controllerMethod] = [
+            $this->getControllerClass(),
+            $this->getControllerMethod(),
+        ];
+
+        return $this->attributeProvidedControllerMiddlewareExclusions($controllerClass, $controllerMethod);
+    }
+
+    /**
+     * Get the attribute provided excluded controller middleware for the given class and method.
+     */
+    protected function attributeProvidedControllerMiddlewareExclusions(string $class, string $method): array
+    {
+        try {
+            $reflectionClass = new ReflectionClass($class);
+            $reflectionMethod = $reflectionClass->getMethod($method);
+        } catch (ReflectionException) {
+            return [];
+        }
+
+        $attributes = new Collection;
+
+        $current = $reflectionClass;
+
+        while ($current) {
+            $classAttributes = array_reverse($current->getAttributes(
+                WithoutMiddleware::class,
+                ReflectionAttribute::IS_INSTANCEOF
+            ));
+
+            foreach ($classAttributes as $attribute) {
+                $attributes->prepend($attribute);
+            }
+
+            $current = $current->getParentClass();
+        }
+
+        return $attributes->merge(
+            $reflectionMethod->getAttributes(WithoutMiddleware::class, ReflectionAttribute::IS_INSTANCEOF)
+        )->map(function (ReflectionAttribute $attribute) use ($method) {
+            $instance = $attribute->newInstance();
+
+            return static::methodExcludedByOptions(
+                $method,
+                ['only' => $instance->only, 'except' => $instance->except],
+            ) ? null : $instance->middleware;
+        })
+            ->filter(static fn (?string $middleware): bool => $middleware !== null)
             ->values()
             ->all();
     }
@@ -1184,7 +1295,10 @@ class Route
      */
     public function excludedMiddleware(): array
     {
-        return (array) ($this->action['excluded_middleware'] ?? []);
+        return array_merge(
+            (array) ($this->action['excluded_middleware'] ?? []),
+            $this->excludedControllerMiddleware(),
+        );
     }
 
     /**
@@ -1256,6 +1370,41 @@ class Route
     public function waitsFor(): ?int
     {
         return $this->waitSeconds;
+    }
+
+    /**
+     * Add metadata to the route.
+     */
+    public function metadata(array $metadata): static
+    {
+        $this->action['metadata'] = RouteGroup::mergeMetadata(
+            $this->action['metadata'] ?? [],
+            $metadata
+        );
+
+        return $this;
+    }
+
+    /**
+     * Get metadata for the route.
+     *
+     * @return ($key is null ? array<array-key, mixed> : mixed)
+     */
+    public function getMetadata(?string $key = null, mixed $default = null): mixed
+    {
+        $metadata = $this->action['metadata'] ?? [];
+
+        return is_null($key) ? $metadata : Arr::get($metadata, $key, $default);
+    }
+
+    /**
+     * Set the metadata for the route, replacing any existing metadata.
+     */
+    public function setMetadata(array $metadata): static
+    {
+        $this->action['metadata'] = $metadata;
+
+        return $this;
     }
 
     /**
@@ -1344,8 +1493,13 @@ class Route
      */
     public function setContainer(Container $container): static
     {
+        if ($this->container === $container) {
+            return $this;
+        }
+
         $this->container = $container;
         $this->callableDispatcher = null;
+        $this->computedMiddleware = null;
         $this->controller = null;
         $this->controllerDispatcher = null;
         $this->resolvedMiddleware = null;
