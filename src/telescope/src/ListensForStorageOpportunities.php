@@ -91,7 +91,7 @@ trait ListensForStorageOpportunities
     {
         $events = $app->make(Dispatcher::class);
 
-        $events->listen(BeforeHandleCommand::class, function (BeforeHandleCommand $event) {
+        $events->listen(BeforeHandleCommand::class, function (BeforeHandleCommand $event): void {
             // The long-lived scheduler records only inside each finite task coroutine.
             if ($event->command->getName() === 'schedule:run') {
                 return;
@@ -104,7 +104,7 @@ trait ListensForStorageOpportunities
             }
         });
 
-        $events->listen(ScheduledTaskStarting::class, function () {
+        $events->listen(ScheduledTaskStarting::class, function (): void {
             if (static::shouldListen() && static::commandIsApproved('schedule:run')) {
                 static::startRecording();
             }
