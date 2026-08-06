@@ -255,5 +255,7 @@ trait ManagesComponents
         CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, []);
         CoroutineContext::set(static::COMPONENT_DATA_CONTEXT_KEY, []);
         CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+        CoroutineContext::set(static::SLOTS_CONTEXT_KEY, []);
+        CoroutineContext::set(static::SLOT_STACK_CONTEXT_KEY, []);
     }
 }
