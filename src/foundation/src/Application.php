@@ -28,6 +28,7 @@ use Hypervel\Support\Traits\Macroable;
 use JsonException;
 use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -812,7 +813,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         }
 
         return in_array(
-            $_SERVER['argv'][1] ?? null,
+            (new ArgvInput)->getFirstArgument(),
             is_array($commands[0] ?? null) ? $commands[0] : $commands,
             true
         );

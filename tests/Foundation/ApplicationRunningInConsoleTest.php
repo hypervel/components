@@ -227,6 +227,24 @@ class ApplicationRunningInConsoleTest extends TestCase
         $this->assertTrue($app->runningConsoleCommand('migrate'));
     }
 
+    public function testRunningConsoleCommandMatchesCommandAfterLongOption(): void
+    {
+        $_SERVER['argv'] = ['artisan', '--env=production', 'migrate'];
+        $app = new Application;
+
+        $this->assertTrue($app->runningConsoleCommand('migrate'));
+        $this->assertFalse($app->runningConsoleCommand('--env=production'));
+    }
+
+    public function testRunningConsoleCommandMatchesCommandAfterShortOption(): void
+    {
+        $_SERVER['argv'] = ['artisan', '-v', 'queue:work'];
+        $app = new Application;
+
+        $this->assertTrue($app->runningConsoleCommand('queue:work'));
+        $this->assertFalse($app->runningConsoleCommand('-v'));
+    }
+
     public function testRunningConsoleCommandMatchesOneOfMultiple()
     {
         $_SERVER['argv'] = ['artisan', 'migrate'];
