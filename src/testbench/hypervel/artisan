@@ -49,20 +49,20 @@ if (
 ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
 
 $httpBootstrapCommands = ['serve', 'watch'];
+$input = new Symfony\Component\Console\Input\ArgvInput();
 
-if (in_array($_SERVER['argv'][1] ?? null, $httpBootstrapCommands, true)) {
+if (in_array($input->getFirstArgument(), $httpBootstrapCommands, true)) {
     putenv('APP_RUNNING_IN_CONSOLE=false');
     $_ENV['APP_RUNNING_IN_CONSOLE'] = 'false';
     $_SERVER['APP_RUNNING_IN_CONSOLE'] = 'false';
 }
 
-(function () {
+(function () use ($input) {
     /** @var Hypervel\Contracts\Foundation\Application $app */
     $app = require BASE_PATH . '/bootstrap/app.php';
 
     $kernel = $app->make(Hypervel\Contracts\Console\Kernel::class);
 
-    $input = new Symfony\Component\Console\Input\ArgvInput();
     $output = new Symfony\Component\Console\Output\ConsoleOutput();
 
     $status = $kernel->handle($input, $output);
