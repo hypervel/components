@@ -12,11 +12,12 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class CursorPaginatorTest extends TestCase
 {
-    public function testReturnsRelevantContextInformation()
+    public function testReturnsRelevantContextInformation(): void
     {
         $p = new CursorPaginator($array = [['id' => 1], ['id' => 2], ['id' => 3]], 2, null, [
             'parameters' => ['id'],
@@ -39,7 +40,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertEquals($pageInfo, $p->toArray());
     }
 
-    public function testPaginatorRemovesTrailingSlashes()
+    public function testPaginatorRemovesTrailingSlashes(): void
     {
         $p = new CursorPaginator(
             $array = [['id' => 4], ['id' => 5], ['id' => 6]],
@@ -51,7 +52,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame('http://website.com/test?cursor=' . $this->getCursor(['id' => 5]), $p->nextPageUrl());
     }
 
-    public function testPaginatorGeneratesUrlsWithoutTrailingSlash()
+    public function testPaginatorGeneratesUrlsWithoutTrailingSlash(): void
     {
         $p = new CursorPaginator(
             $array = [['id' => 4], ['id' => 5], ['id' => 6]],
@@ -63,7 +64,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame('http://website.com/test?cursor=' . $this->getCursor(['id' => 5]), $p->nextPageUrl());
     }
 
-    public function testItRetrievesThePaginatorOptions()
+    public function testItRetrievesThePaginatorOptions(): void
     {
         $p = new CursorPaginator(
             $array = [['id' => 4], ['id' => 5], ['id' => 6]],
@@ -75,7 +76,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame($p->getOptions(), $options);
     }
 
-    public function testPaginatorReturnsPath()
+    public function testPaginatorReturnsPath(): void
     {
         $p = new CursorPaginator(
             $array = [['id' => 4], ['id' => 5], ['id' => 6]],
@@ -87,7 +88,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame($p->path(), 'http://website.com/test');
     }
 
-    public function testCanTransformPaginatorItems()
+    public function testCanTransformPaginatorItems(): void
     {
         $p = new CursorPaginator(
             $array = [['id' => 4], ['id' => 5], ['id' => 6]],
@@ -106,7 +107,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame([['id' => 6], ['id' => 7]], $p->items());
     }
 
-    public function testCursorPaginatorOnFirstAndLastPage()
+    public function testCursorPaginatorOnFirstAndLastPage(): void
     {
         $paginator = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]], 2, null, [
             'parameters' => ['id'],
@@ -124,7 +125,27 @@ class CursorPaginatorTest extends TestCase
         $this->assertTrue($paginator->onLastPage());
     }
 
-    public function testReturnEmptyCursorWhenItemsAreEmpty()
+    public function testItemsAreConsistentlyReindexedForNextAndPreviousPages(): void
+    {
+        $next = new CursorPaginator([
+            10 => ['id' => 1],
+            20 => ['id' => 2],
+            30 => ['id' => 3],
+        ], 2, null, ['parameters' => ['id']]);
+
+        $this->assertSame([0, 1], array_keys($next->items()));
+
+        $previous = new CursorPaginator([
+            10 => ['id' => 4],
+            20 => ['id' => 3],
+            30 => ['id' => 2],
+        ], 2, new Cursor(['id' => 5], false), ['parameters' => ['id']]);
+
+        $this->assertSame([0, 1], array_keys($previous->items()));
+        $this->assertSame([['id' => 3], ['id' => 4]], $previous->items());
+    }
+
+    public function testReturnEmptyCursorWhenItemsAreEmpty(): void
     {
         $cursor = new Cursor(['id' => 25], true);
 
@@ -147,7 +168,7 @@ class CursorPaginatorTest extends TestCase
         ], $p->toArray());
     }
 
-    public function testCursorPaginatorToJson()
+    public function testCursorPaginatorToJson(): void
     {
         $paginator = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4]], 2, null);
         $results = $paginator->toJson();
@@ -157,7 +178,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame($expected, $results);
     }
 
-    public function testCursorPaginatorToPrettyJson()
+    public function testCursorPaginatorToPrettyJson(): void
     {
         $paginator = new CursorPaginator([['id' => '1'], ['id' => '2'], ['id' => '3'], ['id' => '4']], 2, null);
         $results = $paginator->toPrettyJson();
@@ -174,7 +195,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertStringContainsString('"id": 1', $results);
     }
 
-    public function testNextCursorReturnsCursorObject()
+    public function testNextCursorReturnsCursorObject(): void
     {
         $p = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3]], 2, null, [
             'parameters' => ['id'],
@@ -186,7 +207,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame(2, $nextCursor->parameter('id'));
     }
 
-    public function testPreviousCursorReturnsCursorObject()
+    public function testPreviousCursorReturnsCursorObject(): void
     {
         $cursor = new Cursor(['id' => 3], true);
         $p = new CursorPaginator([['id' => 3], ['id' => 4], ['id' => 5]], 2, $cursor, [
@@ -199,7 +220,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame(3, $previousCursor->parameter('id'));
     }
 
-    public function testPreviousCursorReturnsNullWhenNoCursor()
+    public function testPreviousCursorReturnsNullWhenNoCursor(): void
     {
         $p = new CursorPaginator([['id' => 1], ['id' => 2]], 2, null, [
             'parameters' => ['id'],
@@ -208,7 +229,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertNull($p->previousCursor());
     }
 
-    public function testNextCursorReturnsNullOnLastPage()
+    public function testNextCursorReturnsNullOnLastPage(): void
     {
         $cursor = new Cursor(['id' => 3]);
         $p = new CursorPaginator([['id' => 3], ['id' => 4]], 2, $cursor, [
@@ -218,7 +239,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertNull($p->nextCursor());
     }
 
-    public function testGetCursorForItem()
+    public function testGetCursorForItem(): void
     {
         $p = new CursorPaginator([['id' => 1]], 1, null, [
             'parameters' => ['id'],
@@ -233,7 +254,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertTrue($cursor->pointsToPreviousItems());
     }
 
-    public function testGetParametersForItem()
+    public function testGetParametersForItem(): void
     {
         $p = new CursorPaginator([['id' => 1, 'name' => 'a']], 1, null, [
             'parameters' => ['id', 'name'],
@@ -290,21 +311,23 @@ class CursorPaginatorTest extends TestCase
         ];
     }
 
-    public function testIntegerPivotCursorParametersArePreserved(): void
+    public function testMixedPivotCursorParametersArePreserved(): void
     {
-        $model = new CursorPaginatorModel;
-        $pivot = new Pivot;
-        $pivot->setTable('role_user');
-        $pivot->setRawAttributes(['position' => 7], true);
-        $model->setRelation('membership', $pivot);
-        $paginator = new CursorPaginator([$model], 1, null, [
-            'parameters' => ['role_user.position'],
-        ]);
+        foreach ([7, true, 4.25] as $value) {
+            $model = new CursorPaginatorModel;
+            $pivot = new Pivot;
+            $pivot->setTable('role_user');
+            $pivot->setRawAttributes(['position' => $value], true);
+            $model->setRelation('membership', $pivot);
+            $paginator = new CursorPaginator([$model], 1, null, [
+                'parameters' => ['role_user.position'],
+            ]);
 
-        $this->assertSame(
-            ['role_user.position' => 7],
-            $paginator->getParametersForItem($model),
-        );
+            $this->assertSame(
+                ['role_user.position' => $value],
+                $paginator->getParametersForItem($model),
+            );
+        }
     }
 
     public function testNullPivotCursorParametersThrow(): void
@@ -324,7 +347,7 @@ class CursorPaginatorTest extends TestCase
         $paginator->getParametersForItem($model);
     }
 
-    public function testFragmentAppearsInUrl()
+    public function testFragmentAppearsInUrl(): void
     {
         $p = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3]], 2, null, [
             'parameters' => ['id'],
@@ -337,7 +360,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertStringContainsString('#section', $nextUrl);
     }
 
-    public function testAppendsQueryParams()
+    public function testAppendsQueryParams(): void
     {
         $p = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3]], 2, null, [
             'parameters' => ['id'],
@@ -348,7 +371,23 @@ class CursorPaginatorTest extends TestCase
         $this->assertStringContainsString('sort=name', $nextUrl);
     }
 
-    public function testCursorReturnsCurrentCursor()
+    public function testAppendsPreservesIntegerKeysAndSupportedValues(): void
+    {
+        $paginator = new CursorPaginator([], 1);
+        $paginator->appends([
+            2 => 'two',
+            5 => 4.25,
+            'enabled' => true,
+            'filters' => ['status' => 'active'],
+        ]);
+
+        $this->assertSame(
+            '/?2=two&5=4.25&enabled=1&filters%5Bstatus%5D=active',
+            $paginator->url(null),
+        );
+    }
+
+    public function testCursorReturnsCurrentCursor(): void
     {
         $cursor = new Cursor(['id' => 10], true);
         $p = new CursorPaginator([['id' => 10]], 1, $cursor, [
@@ -358,14 +397,14 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame($cursor, $p->cursor());
     }
 
-    public function testCursorReturnsNullWhenNoCursor()
+    public function testCursorReturnsNullWhenNoCursor(): void
     {
         $p = new CursorPaginator([['id' => 1]], 1, null);
 
         $this->assertNull($p->cursor());
     }
 
-    public function testGetCursorNameAndSetCursorName()
+    public function testGetCursorNameAndSetCursorName(): void
     {
         $p = new CursorPaginator([['id' => 1]], 1, null);
 
@@ -376,7 +415,7 @@ class CursorPaginatorTest extends TestCase
         $this->assertSame('page_cursor', $p->getCursorName());
     }
 
-    public function testIsEmptyAndIsNotEmpty()
+    public function testIsEmptyAndIsNotEmpty(): void
     {
         $p = new CursorPaginator([], 2, null);
         $this->assertTrue($p->isEmpty());
@@ -387,14 +426,14 @@ class CursorPaginatorTest extends TestCase
         $this->assertTrue($p->isNotEmpty());
     }
 
-    public function testCount()
+    public function testCount(): void
     {
         $p = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3]], 3, null);
 
         $this->assertSame(3, $p->count());
     }
 
-    public function testArrayAccess()
+    public function testArrayAccess(): void
     {
         $p = new CursorPaginator([['id' => 1], ['id' => 2], ['id' => 3]], 3, null);
 
@@ -414,7 +453,32 @@ class CursorPaginatorTest extends TestCase
         $this->assertFalse(isset($p[0]));
     }
 
-    protected function getCursor($params, $isNext = true)
+    public function testCursorPaginatorJsonThrowsForInvalidUtf8(): void
+    {
+        $paginator = new CursorPaginator([['id' => "\xB1\x31"]], 1);
+
+        $this->expectException(JsonException::class);
+
+        $paginator->toJson();
+    }
+
+    public function testCursorPaginatorPrettyJsonPropagatesInvalidUtf8Failure(): void
+    {
+        $paginator = new CursorPaginator([['id' => "\xB1\x31"]], 1);
+
+        $this->expectException(JsonException::class);
+
+        $paginator->toPrettyJson();
+    }
+
+    public function testCursorPaginatorJsonHonorsInvalidUtf8Substitution(): void
+    {
+        $paginator = new CursorPaginator([['id' => "\xB1\x31"]], 1);
+
+        $this->assertStringContainsString('\ufffd1', $paginator->toJson(JSON_INVALID_UTF8_SUBSTITUTE));
+    }
+
+    protected function getCursor(array $params, bool $isNext = true): string
     {
         return (new Cursor($params, $isNext))->encode();
     }
