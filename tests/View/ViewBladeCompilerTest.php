@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
@@ -12,6 +13,7 @@ use Hypervel\View\Compilers\BladeCompiler;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClassConstant;
 use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
@@ -253,6 +255,27 @@ class ViewBladeCompilerTest extends TestCase
             "<?php echo \\Hypervel\\View\\Factory::parentPlaceholder(''); ?>",
             $compiler->compileString('@parent')
         );
+    }
+
+    public function testRawBlocksAreClearedAfterCompilationFailure(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $failure = new RuntimeException('failed');
+        $caught = null;
+
+        $compiler->directive('fail', fn (): never => throw $failure);
+
+        try {
+            $compiler->compileString('@verbatim {{ $retained }} @endverbatim @fail');
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $contextKey = (new ReflectionClassConstant(BladeCompiler::class, 'RAW_BLOCKS_CONTEXT_KEY'))->getValue();
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame([], CoroutineContext::get($contextKey, []));
+        $this->assertSame(' {{ $fresh }} ', $compiler->compileString('@verbatim {{ $fresh }} @endverbatim'));
     }
 
     public function testEchoFormatDefaultIsVisibleInsideSiblingCoroutines(): void

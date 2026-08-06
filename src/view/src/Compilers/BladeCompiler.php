@@ -249,55 +249,68 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function compileString(string $value): string
     {
-        CoroutineContext::set(static::LAST_SECTION_CONTEXT_KEY, '');
-        CoroutineContext::set(static::FOOTER_CONTEXT_KEY, []);
-        $result = '';
+        // Raw blocks are pass-owned; component hashes may be publicly seeded for this pass.
+        CoroutineContext::setMany([
+            static::LAST_SECTION_CONTEXT_KEY => '',
+            static::FOOTER_CONTEXT_KEY => [],
+            static::RAW_BLOCKS_CONTEXT_KEY => [],
+        ]);
 
-        foreach ($this->prepareStringsForCompilationUsing as $callback) {
-            $value = $callback($value);
+        try {
+            $result = '';
+
+            foreach ($this->prepareStringsForCompilationUsing as $callback) {
+                $value = $callback($value);
+            }
+
+            $value = $this->storeUncompiledBlocks($value);
+
+            // First we will compile the Blade component tags. This is a precompile style
+            // step which compiles the component Blade tags into @component directives
+            // that may be used by Blade. Then we should call any other precompilers.
+            $value = $this->compileComponentTags(
+                $this->compileComments($value)
+            );
+
+            foreach ($this->precompilers as $precompiler) {
+                $value = $precompiler($value);
+            }
+
+            // Here we will loop through all of the tokens returned by the Zend lexer and
+            // parse each one into the corresponding valid PHP. We will then have this
+            // template as the correctly rendered PHP that can be rendered natively.
+            foreach (token_get_all($value) as $token) {
+                $result .= is_array($token) ? $this->parseToken($token) : $token;
+            }
+
+            if (CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY, []) !== []) {
+                $result = $this->restoreRawContent($result);
+            }
+
+            // If there are any footer lines that need to get added to a template we will
+            // add them here at the end of the template. This gets used mainly for the
+            // template inheritance via the extends keyword that should be appended.
+            $footers = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
+            if (count($footers) > 0) {
+                $result = $this->addFooters($result);
+            }
+
+            if (! empty($this->echoHandlers)) {
+                $result = $this->addBladeCompilerVariable($result);
+            }
+
+            return str_replace(
+                ['##BEGIN-COMPONENT-CLASS##', '##END-COMPONENT-CLASS##'],
+                '',
+                $result
+            );
+        } finally {
+            // Caught failures must not accumulate pass state in coroutine or process-global context.
+            CoroutineContext::setMany([
+                static::RAW_BLOCKS_CONTEXT_KEY => [],
+                static::COMPONENT_HASH_STACK_CONTEXT_KEY => [],
+            ]);
         }
-
-        $value = $this->storeUncompiledBlocks($value);
-
-        // First we will compile the Blade component tags. This is a precompile style
-        // step which compiles the component Blade tags into @component directives
-        // that may be used by Blade. Then we should call any other precompilers.
-        $value = $this->compileComponentTags(
-            $this->compileComments($value)
-        );
-
-        foreach ($this->precompilers as $precompiler) {
-            $value = $precompiler($value);
-        }
-
-        // Here we will loop through all of the tokens returned by the Zend lexer and
-        // parse each one into the corresponding valid PHP. We will then have this
-        // template as the correctly rendered PHP that can be rendered natively.
-        foreach (token_get_all($value) as $token) {
-            $result .= is_array($token) ? $this->parseToken($token) : $token;
-        }
-
-        if (CoroutineContext::get(static::RAW_BLOCKS_CONTEXT_KEY, []) !== []) {
-            $result = $this->restoreRawContent($result);
-        }
-
-        // If there are any footer lines that need to get added to a template we will
-        // add them here at the end of the template. This gets used mainly for the
-        // template inheritance via the extends keyword that should be appended.
-        $footers = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
-        if (count($footers) > 0) {
-            $result = $this->addFooters($result);
-        }
-
-        if (! empty($this->echoHandlers)) {
-            $result = $this->addBladeCompilerVariable($result);
-        }
-
-        return str_replace(
-            ['##BEGIN-COMPONENT-CLASS##', '##END-COMPONENT-CLASS##'],
-            '',
-            $result
-        );
     }
 
     /**

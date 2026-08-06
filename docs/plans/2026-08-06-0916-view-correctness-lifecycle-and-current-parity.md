@@ -13,7 +13,7 @@ Complete the View audit against:
 
 This is a correction and parity pass, not a redesign. Preserve Hypervel's worker-singleton Factory/compiler architecture, coroutine-local render and compile state, worker-lived immutable metadata and freshness caches, lock-free component creation, alias-first `Blade::component()` registration, strict string compiler paths, and request-shared-data overlay. No accepted change adds a lock, watcher, retry, registry, request-scoped Factory/compiler, render-state snapshot, eviction policy, or compatibility shim.
 
-No useful Laravel API is removed or narrowed. The restored provider, compiler, layout, dynamic-component, named-argument, and PHPDoc surfaces improve parity. The intentional alias-first API and strict path model remain documented Hypervel differences. The `@elsePushIf` repair and failed-render loop cleanup correct defects that current Laravel also carries.
+No useful Laravel API is removed. The public component-hash seed path remains supported when the immediately following compile pass consumes it; retaining a seed across unrelated intervening passes is removed to bound stale state. The restored provider, compiler, layout, dynamic-component, named-argument, and PHPDoc surfaces improve parity. The intentional alias-first API and strict path model remain documented Hypervel differences. The `@elsePushIf` repair and failed-render loop cleanup correct defects that current Laravel also carries.
 
 ### Approved tradeoffs
 
@@ -139,6 +139,8 @@ The accepted maintenance set was checked against current Laravel source, unit te
 
 The inherited compiled Factory FQCN means overriding `parentPlaceholderSalt()` on a Factory subclass is not complete for cached `@parent` output. Do not claim otherwise and do not invent a dynamic compiler indirection in this work.
 
+`stringable()` accepts only the two registration shapes its string-keyed handler map can represent: a class string plus handler, or a typed closure from which the class is inferred. Other callable shapes cannot be array keys, so the corrected `Closure|string` type does not remove working behavior.
+
 ### Findings
 
 | ID | Result |
@@ -183,6 +185,7 @@ The inherited compiled Factory FQCN means overriding `parentPlaceholderSalt()` o
 | `view-38` | Remove `Component::ignoredParameterNames()` from template scope as internal metadata. |
 | `view-39` | Split top-level arguments correctly across conditional stacks, once-only stacks, and `@json`, preserving HTML-safe JSON flags. |
 | `view-40` | Complete concise method metadata and the slot-context return type in touched View source. |
+| `view-41` | Clear raw-block and component-hash compile state after success or failure while preserving the public immediate seed-then-compile component contract. |
 
 ## Implementation design
 
@@ -396,6 +399,27 @@ Keep the two supported registration forms and regenerate facade metadata from th
 
 Port the bounded upstream maintenance in place: direct empty-array checks, explicit `implode('', ...)`, direct `Stringable` use, current component reflection/filtering, alias derivation, and the two missing uncountable-loop tests. Make the complete loose-comparison inventory strict: `ManagesLoops` uses `===` for initial `last`, incremented `first`, and incremented `last`; `BladeCompiler::parseToken()` uses `=== T_INLINE_HTML`; and both parenthesis-token comparisons use `===`. Catch only `ParseError` around `token_get_all()` with a concise WHY naming Xdebug. Do not add a synthetic runtime seam.
 
+Raw blocks are wholly protected compile-pass state, so initialize their context entry at `compileString()` entry. Component hashes differ: `newComponentHash()` and `compileEndComponentClass()` are public and facade-exposed, and Laravel's tests seed a hash immediately before the consuming compile pass. Preserve a hash present at entry, then clear both stores in `finally` after success or failure:
+
+```php
+CoroutineContext::setMany([
+    static::LAST_SECTION_CONTEXT_KEY => '',
+    static::FOOTER_CONTEXT_KEY => [],
+    static::RAW_BLOCKS_CONTEXT_KEY => [],
+]);
+
+try {
+    // Compile the complete template.
+} finally {
+    CoroutineContext::setMany([
+        static::RAW_BLOCKS_CONTEXT_KEY => [],
+        static::COMPONENT_HASH_STACK_CONTEXT_KEY => [],
+    ]);
+}
+```
+
+A public hash seed therefore belongs to the immediately following compile pass; unrelated intervening passes do not preserve it. Do not snapshot or restore arbitrary stack contents: well-formed class component tags open and close in one pass, and retaining pass state would preserve the verified worker-memory leak. Keep `restoreRawContent()` unchanged and retain the fail-fast typed empty-pop behavior.
+
 ### 5. Restore the parent-placeholder and section-content model (`view-15`, `view-33`, `view-34`)
 
 Use one immutable worker salt and no section map:
@@ -553,6 +577,7 @@ Preserve siblings such as `/views` and `/views-admin`, collapse trailing-separat
 - `tests/View/Blade/BladeJsonTest.php`: multi-key inline arrays and interpolated strings retain default HTML-safe flags and depth.
 - `tests/View/Blade/BladeComponentTagCompilerTest.php`: nested custom namespace, unnamed slot, and backed-enum paths where owned.
 - `tests/View/ViewBladeCompilerTest.php` and focused Blade suites: compiler marker `v3`, coroutine section isolation, echo-format ownership, footer signature, end-directive overrides, Xdebug-only `ParseError` source behavior without a synthetic seam, supported stringable forms, strict maintenance, and loop cases.
+- `tests/View/ViewBladeCompilerTest.php` and `tests/View/Blade/BladeComponentsTest.php`: clear raw blocks and component hashes after caught compile failures, preserve the original exception, preserve fresh subsequent compilation, and retain the public immediate seed-then-compile component sequence.
 - `tests/View/ViewCompilerEngineTest.php`: cache true/false, deletion recovery, compiled-path cleanup, and both cache-reset entry points.
 - `tests/View/ViewComponentTest.php` and `ViewStaticStateTest.php`: internal methods stay out of component data and standardized cleanup resets every static field.
 - Raw Testbench and shared Mockery-lifecycle tests: central exception-handler ownership, exhaustive teardown ordering, and first-failure preservation without a second framework-reset registry.
@@ -577,7 +602,7 @@ Before implementation, set all three core routing-index bullets to this View wor
 
 - replace the “later full `view` audit” marker inside the `view-01` and `reflection-02` rows of the cross-package dependency index with complete revalidation;
 - tick the core package checklist's `view` entry only in the final bookkeeping commit;
-- add one complete View ledger entry covering `view-02` through `view-40`, rejected machinery, performance, validation, and the detail-plan link;
+- add one complete View ledger entry covering `view-02` through `view-41`, rejected machinery, performance, validation, and the detail-plan link;
 - amend the earlier `view-01` and `reflection-02` entries with View revalidation;
 - add only genuine cross-package rows: Foundation-owned config/command and exception-handler changes, the Boost reserved-name documentation, Testbench and Testing cleanup ownership, and the separately routed `translation-10` twin;
 - record the inherited parent-placeholder subclass limitation without presenting speculative machinery as unresolved work;
