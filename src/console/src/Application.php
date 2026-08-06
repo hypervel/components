@@ -19,6 +19,8 @@ use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
+use Symfony\Component\Console\Exception\ExceptionInterface;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputInterface;
@@ -113,6 +115,31 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
         return ProcessUtils::escapeArgument(
             defined('ARTISAN_BINARY') ? ARTISAN_BINARY : 'artisan'
         );
+    }
+
+    /**
+     * Resolve the command name from argv before the console application boots.
+     *
+     * Symfony's inherited getCommandName() reports the command selected by a
+     * running application. This method first binds the framework's global
+     * options so their values are not mistaken for the command name.
+     */
+    public static function resolveCommandName(ArgvInput $input): ?string
+    {
+        // No Hypervel console application exists yet, so application-specific
+        // getEnvironmentOption() overrides cannot participate. Constructing
+        // Symfony's authoritative definition also enables async PCNTL signals
+        // when supported; the real console application does the same next.
+        $definition = (new SymfonyApplication)->getDefinition();
+        $definition->addOption(self::createEnvironmentOption());
+
+        try {
+            $input->bind($definition);
+        } catch (ExceptionInterface) {
+            // Command-specific options cannot be validated until the command is known.
+        }
+
+        return $input->getFirstArgument();
     }
 
     /**
@@ -519,9 +546,20 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      */
     protected function getEnvironmentOption()
     {
-        $message = 'The environment the command should run under';
+        return self::createEnvironmentOption();
+    }
 
-        return new InputOption('--env', null, InputOption::VALUE_OPTIONAL, $message);
+    /**
+     * Create the global environment option.
+     */
+    private static function createEnvironmentOption(): InputOption
+    {
+        return new InputOption(
+            '--env',
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'The environment the command should run under'
+        );
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation;
 
 use Closure;
 use Composer\Autoload\ClassLoader;
+use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -813,7 +814,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         }
 
         return in_array(
-            (new ArgvInput)->getFirstArgument(),
+            ConsoleApplication::resolveCommandName(new ArgvInput),
             is_array($commands[0] ?? null) ? $commands[0] : $commands,
             true
         );
