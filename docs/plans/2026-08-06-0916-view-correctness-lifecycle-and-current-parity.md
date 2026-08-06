@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-**Status:** Complete; implementation, validation, self-review, and code review signed off.
+**Status:** Complete; follow-up implementation, validation, self-review, and code review signed off.
 
 Complete the View audit against:
 
@@ -135,7 +135,7 @@ The package owns filesystem publication and output-buffer cleanup, but no persis
 
 ### Upstream and compatibility
 
-The accepted maintenance set was checked against current Laravel source, unit tests, `tests/Integration/View`, and the originating changes listed in the audit evidence. Preserve Hypervel's worker-lived freshness/component metadata, coroutine-local request-shared-data overlay (`view-01`), alias-first component registration, and strict string compiler paths. The intentional implementation divergences relevant to this work are exact-size inline publication (`view-04`), corrected `@elsePushIf` parsing (`view-05`), loop cleanup (`view-08`), direct placeholder hashing without Laravel's memo map (`view-15`), directory-boundary cache-root comparison (`view-24`), reserved-namespace replacement (`view-27`), split worker/coroutine echo formats (`view-29`), verified-fresh-only memoization (`view-30`), render-before-store section content (`view-33`), exhaustive compiled-path cleanup (`view-35`), and strict loop/token identity (`view-36`). `view-34` removes a divergence by restoring Laravel's lazy default rendering. These are internal correctness or lifecycle differences and do not remove a useful Laravel-facing API.
+The accepted maintenance set was checked against current Laravel source, unit tests, `tests/Integration/View`, and the originating changes listed in the audit evidence. Preserve Hypervel's worker-lived freshness/component metadata, coroutine-local request-shared-data overlay (`view-01`), alias-first component registration, and strict string compiler paths. The intentional implementation divergences relevant to this work are exact-size inline publication (`view-04`), corrected conditional-stack parsing (`view-05`), loop cleanup (`view-08`), direct placeholder hashing without Laravel's memo map (`view-15`), directory-boundary cache-root comparison (`view-24`), reserved-namespace replacement (`view-27`), split worker/coroutine echo formats (`view-29`), verified-fresh-only memoization (`view-30`), render-before-store section content (`view-33`), exhaustive compiled-path cleanup (`view-35`), strict loop/token identity (`view-36`), standardized static cleanup (`view-37`), internal component-method filtering (`view-38`), and top-level directive argument parsing (`view-39`). `view-34` removes a divergence by restoring Laravel's lazy default rendering. These are internal correctness or lifecycle differences and do not remove a useful Laravel-facing API.
 
 The inherited compiled Factory FQCN means overriding `parentPlaceholderSalt()` on a Factory subclass is not complete for cached `@parent` output. Do not claim otherwise and do not invent a dynamic compiler indirection in this work.
 
@@ -147,7 +147,7 @@ The inherited compiled Factory FQCN means overriding `parentPlaceholderSalt()` o
 | `view-02` | Flush slot and slot-stack state with component state. |
 | `view-03` | Terminate a nonempty default `style` before concatenation. |
 | `view-04` | Publish missing, empty, or partial inline templates with `Filesystem::replace()`. |
-| `view-05` | Parse comma-bearing `@pushIf` and `@elsePushIf` expressions like Laravel while preserving ordinary two-argument output. |
+| `view-05` | Parse comma-bearing conditions in `@pushIf` and `@elsePushIf`; superseded parsing is consolidated by `view-39`. |
 | `view-06` | Resolve `Namespace\Accordion\Accordion` for nested default components. |
 | `view-07` | Scope the compiler's current section name to one coroutine and compile pass, and define standalone `@parent` as the empty-section placeholder. |
 | `view-08` | Flush loop frames through `Factory::flushState()`. |
@@ -179,6 +179,10 @@ The inherited compiled Factory FQCN means overriding `parentPlaceholderSalt()` o
 | `view-34` | Do not render a default View when `yieldContent()` finds an existing section. |
 | `view-35` | Pop the compiled-path stack in `finally` across success and failure. |
 | `view-36` | Use strict identity for the six loose loop/token comparisons in View source. |
+| `view-37` | Give `Component` and `CompilerEngine` complete standardized static cleanup hooks without exposing the new worker-global mutator to templates. |
+| `view-38` | Remove `Component::ignoredParameterNames()` from template scope as internal metadata. |
+| `view-39` | Split top-level arguments correctly across conditional stacks, once-only stacks, and `@json`, preserving HTML-safe JSON flags. |
+| `view-40` | Complete concise method metadata and the slot-context return type in touched View source. |
 
 ## Implementation design
 
@@ -220,24 +224,30 @@ if ($key === 'style') {
 }
 ```
 
-Share only the parsing rule genuinely used twice:
+Split only top-level directive arguments in the shared compiler. A no-comma expression returns immediately; comma-bearing expressions use PHP's tokenizer so strings and nested `()`, `[]`, and `{}` remain intact:
 
 ```php
-protected function parseConditionalStackExpression(string $expression): array
+protected function splitTopLevel(string $expression, int $limit): array
 {
-    $segments = explode(',', $this->stripParentheses($expression));
+    $expression = $this->stripParentheses($expression);
 
-    if (count($segments) > 2) {
-        $stack = array_pop($segments);
-
-        return [implode(',', $segments), trim($stack)];
+    if (! str_contains($expression, ',')) {
+        return [$expression];
     }
 
-    return $segments;
+    try {
+        $tokens = token_get_all('<?php ' . $expression);
+    } catch (ParseError) {
+        return [$expression];
+    }
+
+    // Append token text while tracking brackets; split only commas at depth zero.
 }
 ```
 
-Use it in both conditional stack compilers. This retains the leading whitespace in Laravel's ordinary two-argument compiled output and preserves fail-loud behavior for malformed one-argument directives. Port Laravel's two multi-comma `@pushIf` regressions and add the equivalent `@elsePushIf` case. Add the nested conventional candidate after the direct class candidate misses:
+Account for `T_CURLY_OPEN`, `T_DOLLAR_OPEN_CURLY_BRACES`, and `T_ATTRIBUTE` as tokenizer-combined openers. Do not recover malformed nesting: when no top-level separator is found, return one segment and preserve fail-loud generated PHP. Use the helper with limit two for `@pushIf`, `@elsePushIf`, `@pushOnce`, and `@prependOnce`, and limit three for `@json`; each compiler trims its optional trailing arguments. This deliberately normalizes a meaningless leading-space artifact in two conditional-stack outputs. It fixes literal and nested commas, one-argument once directives whose generated ID follows a nested comma expression, and multi-key inline JSON arrays that otherwise silently replace the default `JSON_HEX_*` flags with a data fragment. There is no render-time path.
+
+Port Laravel's two multi-comma `@pushIf` regressions and add equivalent `@elsePushIf`, once-only stack, and JSON safety cases. Add the nested conventional candidate after the direct class candidate misses:
 
 ```php
 if (class_exists($class = $class . '\\' . Str::afterLast($class, '\\'))) {
@@ -455,6 +465,21 @@ try {
 
 Add cache-enabled hot-path, cache-disabled repeated compilation, first-render deletion recovery, successful stack cleanup, and caught-failure stack cleanup tests. Keep exception formatting inside `PhpEngine`, where the current path remains visible before `finally` runs.
 
+### 6a. Standardize static cleanup and component method filtering (`view-37`, `view-38`)
+
+Keep Laravel's specific reset APIs and compose them through Hypervel's standard test hook:
+
+```php
+public static function flushState(): void
+{
+    static::flushCache();
+    static::forgetFactory();
+    static::forgetComponentsResolver();
+}
+```
+
+`Component::flushCache()` also resets `$ignoredParameterNames`, which is a reflection cache and cannot become stale within a worker. `CompilerEngine::flushState()` delegates to `forgetCompiledOrNotExpired()`, which remains the production API used by `ViewClearCommand`. The test subscriber calls only the two standardized hooks. Delete Testbench's duplicate framework-reset registry. Its raw PHPUnit base restores exception-handler state through the same protected seam and exhaustive teardown ordering as the Components test base, because restoring PHPUnit's handler uniquely requires the active test case. Put that ownership explanation once in `HandleExceptions::flushState()`, not at individual call sites. Add `flushState` to `Component::ignoredMethods()` so template evaluation cannot invoke the new worker-global cleanup method. Also exclude `ignoredParameterNames` because framework metadata does not belong in template scope; this is completeness with no separate reachable failure. Keep Boost's reserved-keyword list synchronized with the complete base Component filter.
+
 ### 7. Make configuration and provider contracts explicit (`view-09`, `view-17`, `view-18`)
 
 Add the canonical Foundation defaults:
@@ -524,10 +549,13 @@ Preserve siblings such as `/views` and `/views-admin`, collapse trailing-separat
 - `tests/View/ViewFactoryTest.php`: slot/slot-stack and loop cleanup, placeholder parity, stored View isolation, and unused yield-default side effects. Use a closure bound to the Factory only to prove both protected slot context entries are empty after `flushState()`; no public behavior exposes the retained slot-stack state.
 - `tests/View/ViewComponentAttributeBagTest.php`: default/current style termination and PHPDoc-preserving behavior.
 - `tests/View/ComponentTest.php`: digest keys, empty/partial publication recovery, namespace replacement, and cache hits. Protected cache inspection is explicitly allowed here because bounded retained key bytes are the load-bearing `view-26` invariant and no public output exposes the cache key.
-- `tests/View/Blade/BladePushTest.php`: comma-bearing `@pushIf` and `@elsePushIf`.
+- `tests/View/Blade/BladePushTest.php` and `BladePrependTest.php`: top-level conditional and once-only stack arguments, including literal and nested commas, tokenizer-combined interpolation openers, and generated IDs.
+- `tests/View/Blade/BladeJsonTest.php`: multi-key inline arrays and interpolated strings retain default HTML-safe flags and depth.
 - `tests/View/Blade/BladeComponentTagCompilerTest.php`: nested custom namespace, unnamed slot, and backed-enum paths where owned.
 - `tests/View/ViewBladeCompilerTest.php` and focused Blade suites: compiler marker `v3`, coroutine section isolation, echo-format ownership, footer signature, end-directive overrides, Xdebug-only `ParseError` source behavior without a synthetic seam, supported stringable forms, strict maintenance, and loop cases.
-- `tests/View/ViewCompilerEngineTest.php`: cache true/false, deletion recovery, and compiled-path cleanup.
+- `tests/View/ViewCompilerEngineTest.php`: cache true/false, deletion recovery, compiled-path cleanup, and both cache-reset entry points.
+- `tests/View/ViewComponentTest.php` and `ViewStaticStateTest.php`: internal methods stay out of component data and standardized cleanup resets every static field.
+- Raw Testbench and shared Mockery-lifecycle tests: central exception-handler ownership, exhaustive teardown ordering, and first-failure preservation without a second framework-reset registry.
 - `tests/View/ViewEngineResolverTest.php`, provider/config tests, and new `tests/View/PackageMetadataTest.php`: visibility, canonical defaults, lifecycle docs, and split metadata.
 - `tests/Integration/View`: nested-root, path-prefix sibling, trailing-separator duplicate, filesystem-root, and current upstream full-app View scenarios.
 - Mail View tests: cloned Factory/finder isolation remains intact.
@@ -549,9 +577,9 @@ Before implementation, set all three core routing-index bullets to this View wor
 
 - replace the “later full `view` audit” marker inside the `view-01` and `reflection-02` rows of the cross-package dependency index with complete revalidation;
 - tick the core package checklist's `view` entry only in the final bookkeeping commit;
-- add one complete View ledger entry covering `view-02` through `view-36`, rejected machinery, performance, validation, and the detail-plan link;
+- add one complete View ledger entry covering `view-02` through `view-40`, rejected machinery, performance, validation, and the detail-plan link;
 - amend the earlier `view-01` and `reflection-02` entries with View revalidation;
-- add only genuine cross-package rows: Foundation-owned config/command changes and the separately routed `translation-10` twin;
+- add only genuine cross-package rows: Foundation-owned config/command and exception-handler changes, the Boost reserved-name documentation, Testbench and Testing cleanup ownership, and the separately routed `translation-10` twin;
 - record the inherited parent-placeholder subclass limitation without presenting speculative machinery as unresolved work;
 - leave no TODO, deferral, compatibility alias, dead middleware/property/helper, or superseded documentation.
 

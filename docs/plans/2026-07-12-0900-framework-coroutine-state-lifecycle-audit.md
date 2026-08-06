@@ -1177,6 +1177,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `validation-18` | `validation` | `validation` and `support` (revalidation complete) | `Complete Validation correctness, parity, and compiled lifecycles`; finding `validation-18` |
 | `view-09` | `foundation` | `foundation` and `view` (revalidation complete) | `Complete View correctness, lifecycle, and current parity`; finding `view-09` |
 | `view-24` | `foundation` | `foundation` and `view` (revalidation complete) | `Complete View correctness, lifecycle, and current parity`; finding `view-24` |
+| `view-37` | `view` | `view` (revalidation complete), `foundation`, `testbench`, and `testing` (targeted corrections complete); later full `testbench` and `testing` audits | `Complete View correctness, lifecycle, and current parity`; finding `view-37` |
+| `view-38` | `view` | `view` (revalidation complete), `boost` (targeted correction complete); later full `boost` audit | `Complete View correctness, lifecycle, and current parity`; finding `view-38` |
 | `translation-10` | `translation` | `view` (sibling revalidation complete); later full `translation` audit | `Complete View correctness, lifecycle, and current parity`; finding `translation-10` |
 
 ## Package checklist
