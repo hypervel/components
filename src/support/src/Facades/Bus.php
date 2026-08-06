@@ -18,7 +18,7 @@ use Hypervel\Support\Testing\Fakes\BusFake;
  * @method static \Hypervel\Bus\PendingBatch batch(mixed $jobs)
  * @method static \Hypervel\Foundation\Bus\PendingChain chain(mixed $jobs = null)
  * @method static bool hasCommandHandler(mixed $command)
- * @method static bool|mixed getCommandHandler(mixed $command)
+ * @method static mixed getCommandHandler(mixed $command)
  * @method static mixed dispatchToQueue(mixed $command)
  * @method static void dispatchAfterResponse(mixed $command, mixed $handler = null)
  * @method static \Hypervel\Bus\Dispatcher pipeThrough(array $pipes)

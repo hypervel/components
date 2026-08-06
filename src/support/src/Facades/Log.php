@@ -36,8 +36,8 @@ namespace Hypervel\Support\Facades;
  * @method static \Psr\Log\LoggerInterface getLogger()
  * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
  * @method static void setEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $dispatcher)
- * @method static \Hypervel\Log\Logger|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static \Hypervel\Log\Logger|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  *
  * @see \Hypervel\Log\LogManager
  */

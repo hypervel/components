@@ -288,4 +288,70 @@ class PhpstanTagResolutionTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('@method static object|mixed make(string $concrete)', $contents);
         $this->assertStringNotContainsString('$concrete is string', $contents);
     }
+
+    /**
+     * Prefer PHPStan template bounds while retaining standard template fallback.
+     */
+    public function testPhpstanTemplateBoundsTakePrecedence(): void
+    {
+        $this->writeAppFile(
+            'PhpstanTags/Templates/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\PhpstanTags\Templates;
+
+                class Proxy
+                {
+                    /**
+                     * @template TResult of \stdClass
+                     * @phpstan-template TResult of \DateTimeImmutable
+                     * @return TResult
+                     */
+                    public function preferred(): mixed
+                    {
+                        return null;
+                    }
+
+                    /**
+                     * @template TResult of \stdClass
+                     * @return TResult
+                     */
+                    public function fallback(): mixed
+                    {
+                        return null;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'PhpstanTags/Templates/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\PhpstanTags\Templates;
+
+                /**
+                 * @see \App\PhpstanTags\Templates\Proxy
+                 */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\PhpstanTags\Templates\Facade']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+
+        $contents = $this->appFileContents('App\PhpstanTags\Templates\Facade');
+
+        $this->assertStringContainsString('@method static \DateTimeImmutable preferred()', $contents);
+        $this->assertStringContainsString('@method static \stdClass fallback()', $contents);
+    }
 }

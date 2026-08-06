@@ -6,7 +6,7 @@ namespace Hypervel\Tests\FacadeDocumenter;
 
 class ConstFetchResolutionTest extends FacadeDocumenterTestCase
 {
-    public function testSingleConstantResolvesToItsValueType()
+    public function testSingleConstantResolvesToItsValueType(): void
     {
         $this->writeAppFile(
             'ConstFetch/Single/Proxy.php',
@@ -59,7 +59,7 @@ class ConstFetchResolutionTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('@method static int statusCode()', $contents);
     }
 
-    public function testWildcardConstantResolvesToUnionOfValueTypes()
+    public function testWildcardConstantResolvesToUnionOfValueTypes(): void
     {
         $this->writeAppFile(
             'ConstFetch/Wildcard/Proxy.php',
@@ -117,7 +117,7 @@ class ConstFetchResolutionTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('@method static int activeHeader()', $contents);
     }
 
-    public function testKeyOfArrayConstantResolvesToKeyTypeUnion()
+    public function testKeyOfArrayConstantResolvesToKeyTypeUnion(): void
     {
         $this->writeAppFile(
             'ConstFetch/KeyOf/Proxy.php',
@@ -174,7 +174,7 @@ class ConstFetchResolutionTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('@method static string label()', $contents);
     }
 
-    public function testValueOfArrayConstantResolvesToValueTypeUnion()
+    public function testValueOfArrayConstantResolvesToValueTypeUnion(): void
     {
         $this->writeAppFile(
             'ConstFetch/ValueOf/Proxy.php',
@@ -229,5 +229,183 @@ class ConstFetchResolutionTest extends FacadeDocumenterTestCase
         $contents = $this->appFileContents('App\ConstFetch\ValueOf\Facade');
 
         $this->assertStringContainsString('@method static int numericValue()', $contents);
+    }
+
+    public function testConstantOwnersPreferLexicalClassesAndPreserveExplicitGlobalNames(): void
+    {
+        $this->writeAppFile(
+            'ConstFetch/Shadow/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ConstFetch\Shadow;
+
+                class DateTime
+                {
+                    public const string VALUE = 'shadow';
+
+                    public const array MAP = [
+                        'alpha' => 1,
+                        'beta' => 2,
+                    ];
+                }
+
+                class Proxy
+                {
+                    /** @return DateTime::VALUE */
+                    public function scalarConstant(): mixed
+                    {
+                        return DateTime::VALUE;
+                    }
+
+                    /** @return key-of<DateTime::MAP> */
+                    public function mapKey(): mixed
+                    {
+                        return 'alpha';
+                    }
+
+                    /** @return value-of<DateTime::MAP> */
+                    public function mapValue(): mixed
+                    {
+                        return 1;
+                    }
+
+                    /** @return \DateTime::ATOM */
+                    public function explicitGlobalShadowed(): mixed
+                    {
+                        return \DateTime::ATOM;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ConstFetch/Shadow/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ConstFetch\Shadow;
+
+                /** @see \App\ConstFetch\Shadow\Proxy */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\ConstFetch\Shadow\Facade']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+
+        $contents = $this->appFileContents('App\ConstFetch\Shadow\Facade');
+
+        $this->assertStringContainsString('@method static string scalarConstant()', $contents);
+        $this->assertStringContainsString('@method static string mapKey()', $contents);
+        $this->assertStringContainsString('@method static int mapValue()', $contents);
+        $this->assertStringContainsString('@method static string explicitGlobalShadowed()', $contents);
+    }
+
+    /**
+     * Resolve relative constant owners from the declaring and selected classes.
+     */
+    public function testRelativeConstantOwnersUsePhpSemantics(): void
+    {
+        $this->writeAppFile(
+            'ConstFetch/Relative/GrandProxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ConstFetch\Relative;
+
+                class GrandProxy
+                {
+                    public const VALUE = 'grand';
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ConstFetch/Relative/DeclaringProxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ConstFetch\Relative;
+
+                class DeclaringProxy extends GrandProxy
+                {
+                    public const VALUE = 123;
+
+                    /** @return self::VALUE */
+                    public function selfConstant(): mixed
+                    {
+                        return self::VALUE;
+                    }
+
+                    /** @return parent::VALUE */
+                    public function parentConstant(): mixed
+                    {
+                        return parent::VALUE;
+                    }
+
+                    /** @return static::VALUE */
+                    public function staticConstant(): mixed
+                    {
+                        return static::VALUE;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ConstFetch/Relative/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ConstFetch\Relative;
+
+                class Proxy extends DeclaringProxy
+                {
+                    public const VALUE = true;
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ConstFetch/Relative/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ConstFetch\Relative;
+
+                /**
+                 * @see \App\ConstFetch\Relative\Proxy
+                 */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\ConstFetch\Relative\Facade']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+
+        $contents = $this->appFileContents('App\ConstFetch\Relative\Facade');
+
+        $this->assertStringContainsString('@method static int selfConstant()', $contents);
+        $this->assertStringContainsString('@method static string parentConstant()', $contents);
+        $this->assertStringContainsString('@method static bool staticConstant()', $contents);
     }
 }

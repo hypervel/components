@@ -29,7 +29,7 @@ use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true)
  * @method static void mergeAttributes(\Hypervel\Console\Scheduling\Event $event)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes user(string $user)
- * @method static \Hypervel\Console\Scheduling\PendingEventAttributes environments(array|mixed $environments)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes environments(mixed $environments)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes evenInMaintenanceMode()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes evenWhenPaused()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes onOneServer()
@@ -79,7 +79,7 @@ use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes saturdays()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes sundays()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes weekly()
- * @method static \Hypervel\Console\Scheduling\PendingEventAttributes weeklyOn(array|mixed $dayOfWeek, string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes weeklyOn(mixed $dayOfWeek, string $time = '0:0')
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes monthly()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes monthlyOn(int $dayOfMonth = 1, string $time = '0:0')
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes twiceMonthly(int $first = 1, int $second = 16, string $time = '0:0')
@@ -89,7 +89,7 @@ use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes quarterlyOn(int $dayOfQuarter = 1, string $time = '0:0')
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes yearly()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes yearlyOn(int $month = 1, string|int $dayOfMonth = 1, string $time = '0:0')
- * @method static \Hypervel\Console\Scheduling\PendingEventAttributes days(array|mixed $days)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes days(mixed $days)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes timezone(\DateTimeZone|\UnitEnum|string $timezone)
  *
  * @see \Hypervel\Console\Scheduling\Schedule

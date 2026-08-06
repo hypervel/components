@@ -41,7 +41,7 @@ namespace Hypervel\Support\Facades;
  * @method static void flash(\UnitEnum|string $key, mixed $value = true)
  * @method static void now(\UnitEnum|string $key, mixed $value)
  * @method static void reflash()
- * @method static void keep(array|mixed $keys = null)
+ * @method static void keep(mixed $keys = null)
  * @method static void flashInput(array $value)
  * @method static \Hypervel\Contracts\Cache\Repository cache()
  * @method static mixed remove(\UnitEnum|string $key)
