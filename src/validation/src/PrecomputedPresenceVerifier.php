@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use Stringable;
+
 /**
  * Presence verifier that returns pre-computed results from batched queries.
  *
@@ -36,9 +38,9 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
     {
         $map = [];
 
-        foreach ($values as $v) {
-            if ($v !== null) {
-                $map[(string) $v] = true;
+        foreach ($values as $value) {
+            if (($normalized = self::normalizeValue($value)) !== null) {
+                $map[$normalized] = true;
             }
         }
 
@@ -62,7 +64,13 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
             return $this->fallback?->getCount($collection, $column, $value, $excludeId, $idColumn, $extra) ?? 0;
         }
 
-        return isset($this->lookups[$key][is_scalar($value) ? (string) $value : '']) ? 1 : 0;
+        $normalized = self::normalizeValue($value);
+
+        if ($normalized === null) {
+            return $this->fallback?->getCount($collection, $column, $value, $excludeId, $idColumn, $extra) ?? 0;
+        }
+
+        return isset($this->lookups[$key][$normalized]) ? 1 : 0;
     }
 
     /**
@@ -87,16 +95,16 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
         $lookup = $this->lookups[$key];
         $seen = [];
 
-        foreach ($values as $val) {
-            if (! is_scalar($val)) {
-                continue;
+        foreach ($values as $value) {
+            $normalized = self::normalizeValue($value);
+
+            if ($normalized === null) {
+                return $this->fallback?->getMultiCount($collection, $column, $values, $extra) ?? 0;
             }
 
-            $stringVal = (string) $val;
-
-            if (! isset($seen[$stringVal]) && isset($lookup[$stringVal])) {
+            if (! isset($seen[$normalized]) && isset($lookup[$normalized])) {
                 ++$count;
-                $seen[$stringVal] = true;
+                $seen[$normalized] = true;
             }
         }
 
@@ -121,5 +129,17 @@ final class PrecomputedPresenceVerifier implements DatabasePresenceVerifierInter
     public function hasLookups(): bool
     {
         return $this->lookups !== [];
+    }
+
+    /**
+     * Normalize a supported presence value.
+     */
+    private static function normalizeValue(mixed $value): ?string
+    {
+        if (! is_scalar($value) && ! $value instanceof Stringable) {
+            return null;
+        }
+
+        return (string) $value;
     }
 }
