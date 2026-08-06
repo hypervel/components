@@ -343,6 +343,7 @@
                 "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\ObjectPool\\ObjectPoolServiceProvider",
+                "Hypervel\\Pagination\\PaginationServiceProvider",
                 "Hypervel\\Passkeys\\PasskeysServiceProvider",
                 "Hypervel\\Fortify\\FortifyServiceProvider",
                 "Hypervel\\Grpc\\GrpcServiceProvider",
