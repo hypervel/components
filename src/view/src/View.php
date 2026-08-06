@@ -317,33 +317,33 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Determine if a piece of data is bound.
      */
-    public function offsetExists(mixed $key): bool
+    public function offsetExists(mixed $offset): bool
     {
-        return array_key_exists($key, $this->data);
+        return array_key_exists($offset, $this->data);
     }
 
     /**
      * Get a piece of bound data to the view.
      */
-    public function offsetGet(mixed $key): mixed
+    public function offsetGet(mixed $offset): mixed
     {
-        return $this->data[$key];
+        return $this->data[$offset];
     }
 
     /**
      * Set a piece of data on the view.
      */
-    public function offsetSet(mixed $key, mixed $value): void
+    public function offsetSet(mixed $offset, mixed $value): void
     {
-        $this->with($key, $value);
+        $this->with($offset, $value);
     }
 
     /**
      * Unset a piece of data from the view.
      */
-    public function offsetUnset(mixed $key): void
+    public function offsetUnset(mixed $offset): void
     {
-        unset($this->data[$key]);
+        unset($this->data[$offset]);
     }
 
     /**

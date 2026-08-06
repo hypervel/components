@@ -11,7 +11,7 @@ use InvalidArgumentException;
 
 class ViewEngineResolverTest extends TestCase
 {
-    public function testResolversMayBeResolved()
+    public function testResolversMayBeResolved(): void
     {
         $resolver = new EngineResolver;
         $resolver->register('foo', function () {
@@ -22,12 +22,26 @@ class ViewEngineResolverTest extends TestCase
         $this->assertTrue($result === $resolver->resolve('foo'));
     }
 
-    public function testResolverThrowsExceptionOnUnknownEngine()
+    public function testResolverThrowsExceptionOnUnknownEngine(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
         $resolver = new EngineResolver;
         $resolver->resolve('foo');
+    }
+
+    public function testRegisteringAResolverForAResolvedEngineForgetsThePriorInstance(): void
+    {
+        $resolver = new EngineResolver;
+        $first = new FakeEngine;
+        $second = new FakeEngine;
+
+        $resolver->register('foo', fn () => $first);
+        $this->assertSame($first, $resolver->resolve('foo'));
+
+        $resolver->register('foo', fn () => $second);
+
+        $this->assertSame($second, $resolver->resolve('foo'));
     }
 }
 

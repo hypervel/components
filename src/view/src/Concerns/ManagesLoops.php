@@ -33,7 +33,7 @@ trait ManagesLoops
             'remaining' => $length ?? null,
             'count' => $length,
             'first' => true,
-            'last' => isset($length) ? $length == 1 : null,
+            'last' => isset($length) ? $length === 1 : null,
             'odd' => false,
             'even' => true,
             'depth' => count($loopsStack) + 1,
@@ -54,11 +54,11 @@ trait ManagesLoops
         $loopsStack[$index] = array_merge($loopsStack[$index], [
             'iteration' => $loop['iteration'] + 1,
             'index' => $loop['iteration'],
-            'first' => $loop['iteration'] == 0,
+            'first' => $loop['iteration'] === 0,
             'odd' => ! $loop['odd'],
             'even' => ! $loop['even'],
             'remaining' => isset($loop['count']) ? $loop['remaining'] - 1 : null,
-            'last' => isset($loop['count']) ? $loop['iteration'] == $loop['count'] - 1 : null,
+            'last' => isset($loop['count']) ? $loop['iteration'] === $loop['count'] - 1 : null,
         ]);
 
         CoroutineContext::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
@@ -92,5 +92,13 @@ trait ManagesLoops
     public function getLoopStack(): array
     {
         return CoroutineContext::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+    }
+
+    /**
+     * Flush the loop stack.
+     */
+    protected function flushLoops(): void
+    {
+        CoroutineContext::set(static::LOOPS_STACK_CONTEXT_KEY, []);
     }
 }

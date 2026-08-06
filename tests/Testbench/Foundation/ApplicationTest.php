@@ -9,21 +9,12 @@ use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\PHPUnit\TestCase;
-use Override;
 use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\default_skeleton_path;
 
 class ApplicationTest extends TestCase
 {
-    #[Override]
-    protected function tearDown(): void
-    {
-        TestbenchApplication::flushState($this);
-
-        parent::tearDown();
-    }
-
     #[Test]
     public function itCanCreateAnApplication()
     {

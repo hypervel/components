@@ -22,7 +22,7 @@ $value = context()->get($__contextArgs[0]); ?>';
     /**
      * Compile the endcontext statements into valid PHP.
      */
-    protected function compileEndcontext(): string
+    protected function compileEndcontext(?string $expression): string
     {
         return '<?php unset($value);
 if (isset($__contextPrevious) && !empty($__contextPrevious)) { $value = array_pop($__contextPrevious); }

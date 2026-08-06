@@ -148,12 +148,12 @@ class ViewTest extends TestCase
     {
         $view = $this->getView(['foo' => 'bar']);
         $this->assertInstanceOf(ArrayAccess::class, $view);
-        $this->assertTrue($view->offsetExists('foo'));
-        $this->assertSame('bar', $view->offsetGet('foo'));
-        $view->offsetSet('foo', 'baz');
-        $this->assertSame('baz', $view->offsetGet('foo'));
-        $view->offsetUnset('foo');
-        $this->assertFalse($view->offsetExists('foo'));
+        $this->assertTrue($view->offsetExists(offset: 'foo'));
+        $this->assertSame('bar', $view->offsetGet(offset: 'foo'));
+        $view->offsetSet(offset: 'foo', value: 'baz');
+        $this->assertSame('baz', $view->offsetGet(offset: 'foo'));
+        $view->offsetUnset(offset: 'foo');
+        $this->assertFalse($view->offsetExists(offset: 'foo'));
     }
 
     public function testViewConstructedWithObjectData(): void

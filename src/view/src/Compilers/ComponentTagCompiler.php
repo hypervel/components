@@ -390,6 +390,10 @@ class ComponentTagCompiler
             return $class;
         }
 
+        if (class_exists($class = $class . '\\' . Str::afterLast($class, '\\'))) {
+            return $class;
+        }
+
         return null;
     }
 
@@ -405,6 +409,9 @@ class ComponentTagCompiler
         return $namespace . 'View\Components\\' . $class;
     }
 
+    /**
+     * Get the application namespace.
+     */
     protected function getNamespace(): string
     {
         if (isset($this->namespace)) {
@@ -527,7 +534,9 @@ class ComponentTagCompiler
         /x";
 
         $value = preg_replace_callback($pattern, function ($matches) {
-            $name = $this->stripQuotes($matches['inlineName'] ?: $matches['name'] ?: $matches['boundName']);
+            $name = $this->stripQuotes(
+                $matches['inlineName'] ?: $matches['name'] ?: $matches['boundName']
+            ) ?: "'slot'";
 
             if (Str::contains($name, '-') && ! empty($matches['inlineName'])) {
                 $name = Str::camel($name);
