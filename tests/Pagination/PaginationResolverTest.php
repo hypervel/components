@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Pagination;
 
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\View\Factory;
 use Hypervel\Http\Request;
+use Hypervel\Pagination\AbstractCursorPaginator;
+use Hypervel\Pagination\AbstractPaginator;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\PaginationState;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Testbench\TestCase;
-use Swoole\Coroutine\Channel;
+use Mockery as m;
+use ReflectionProperty;
 
-use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
 
 /**
  * Tests that pagination resolvers work correctly with Swoole's coroutine architecture.
@@ -92,6 +96,15 @@ class PaginationResolverTest extends TestCase
         $this->assertNull(CursorPaginator::resolveCurrentCursor());
     }
 
+    public function testCurrentCursorResolverReturnsNullForArrayInput(): void
+    {
+        $this->setUpMockRequest(['cursor' => ['invalid']]);
+
+        PaginationState::resolveUsing($this->app);
+
+        $this->assertNull(CursorPaginator::resolveCurrentCursor());
+    }
+
     public function testCurrentPathResolverReadsFromRequest(): void
     {
         $this->setUpMockRequest([], 'https://example.com/users');
@@ -128,33 +141,57 @@ class PaginationResolverTest extends TestCase
         $this->assertSame([], Paginator::resolveQueryString());
     }
 
+    public function testRequestResolversUseRequestContextInsteadOfTheContainerBinding(): void
+    {
+        $cursor = new Cursor(['id' => 42]);
+        $this->app->instance('request', Request::create('https://container.example?cursor=invalid&page=9'));
+        RequestContext::set(Request::create(
+            'https://context.example/users?cursor=' . $cursor->encode() . '&page=4&sort=name'
+        ));
+
+        PaginationState::resolveUsing($this->app);
+
+        $this->assertSame('https://context.example/users', Paginator::resolveCurrentPath());
+        $this->assertSame(4, Paginator::resolveCurrentPage());
+        $this->assertSame([
+            'cursor' => $cursor->encode(),
+            'page' => '4',
+            'sort' => 'name',
+        ], Paginator::resolveQueryString());
+        $this->assertSame(42, CursorPaginator::resolveCurrentCursor()?->parameter('id'));
+    }
+
+    public function testViewFactoryResolverHonorsLazyContainerRebinding(): void
+    {
+        PaginationState::resolveUsing($this->app);
+
+        $factory = m::mock(Factory::class);
+        $this->app->instance('view', $factory);
+
+        $this->assertSame($factory, Paginator::viewFactory());
+    }
+
     public function testCoroutineIsolation(): void
     {
         PaginationState::resolveUsing($this->app);
 
-        $channel = new Channel(2);
+        [$firstPage, $secondPage] = parallel([
+            function (): int {
+                $this->setUpMockRequest(['page' => '5']);
+                usleep(5000);
 
-        // Coroutine 1: page 5
-        go(function () use ($channel) {
-            $this->setUpMockRequest(['page' => '5']);
-            $channel->push(['coroutine' => 1, 'page' => Paginator::resolveCurrentPage()]);
-        });
+                return Paginator::resolveCurrentPage();
+            },
+            function (): int {
+                $this->setUpMockRequest(['page' => '10']);
+                usleep(5000);
 
-        // Coroutine 2: page 10
-        go(function () use ($channel) {
-            $this->setUpMockRequest(['page' => '10']);
-            $channel->push(['coroutine' => 2, 'page' => Paginator::resolveCurrentPage()]);
-        });
+                return Paginator::resolveCurrentPage();
+            },
+        ]);
 
-        $results = [];
-        $results[] = $channel->pop(1.0);
-        $results[] = $channel->pop(1.0);
-
-        // Sort by coroutine number for consistent assertion
-        usort($results, fn ($a, $b) => $a['coroutine'] <=> $b['coroutine']);
-
-        $this->assertSame(5, $results[0]['page']);
-        $this->assertSame(10, $results[1]['page']);
+        $this->assertSame(5, $firstPage);
+        $this->assertSame(10, $secondPage);
     }
 
     public function testCursorCoroutineIsolation(): void
@@ -164,38 +201,66 @@ class PaginationResolverTest extends TestCase
         $cursor1 = new Cursor(['id' => 100], true);
         $cursor2 = new Cursor(['id' => 200], false);
 
-        $channel = new Channel(2);
+        $results = parallel([
+            function () use ($cursor1): array {
+                $this->setUpMockRequest(['cursor' => $cursor1->encode()]);
+                usleep(5000);
+                $resolved = CursorPaginator::resolveCurrentCursor();
 
-        go(function () use ($channel, $cursor1) {
-            $this->setUpMockRequest(['cursor' => $cursor1->encode()]);
-            $resolved = CursorPaginator::resolveCurrentCursor();
-            $channel->push([
-                'coroutine' => 1,
-                'id' => $resolved->parameter('id'),
-                'pointsToNext' => $resolved->pointsToNextItems(),
-            ]);
-        });
+                return [
+                    'id' => $resolved->parameter('id'),
+                    'pointsToNext' => $resolved->pointsToNextItems(),
+                ];
+            },
+            function () use ($cursor2): array {
+                $this->setUpMockRequest(['cursor' => $cursor2->encode()]);
+                usleep(5000);
+                $resolved = CursorPaginator::resolveCurrentCursor();
 
-        go(function () use ($channel, $cursor2) {
-            $this->setUpMockRequest(['cursor' => $cursor2->encode()]);
-            $resolved = CursorPaginator::resolveCurrentCursor();
-            $channel->push([
-                'coroutine' => 2,
-                'id' => $resolved->parameter('id'),
-                'pointsToNext' => $resolved->pointsToNextItems(),
-            ]);
-        });
-
-        $results = [];
-        $results[] = $channel->pop(1.0);
-        $results[] = $channel->pop(1.0);
-
-        usort($results, fn ($a, $b) => $a['coroutine'] <=> $b['coroutine']);
+                return [
+                    'id' => $resolved->parameter('id'),
+                    'pointsToNext' => $resolved->pointsToNextItems(),
+                ];
+            },
+        ]);
 
         $this->assertSame(100, $results[0]['id']);
         $this->assertTrue($results[0]['pointsToNext']);
         $this->assertSame(200, $results[1]['id']);
         $this->assertFalse($results[1]['pointsToNext']);
+    }
+
+    public function testFlushStateRestoresEveryStaticPaginationSetting(): void
+    {
+        $factory = m::mock(Factory::class);
+        $cursor = new Cursor(['id' => 10]);
+
+        Paginator::currentPathResolver(fn () => '/custom');
+        Paginator::currentPageResolver(fn () => 9);
+        Paginator::queryStringResolver(fn () => ['sort' => 'name']);
+        Paginator::viewFactoryResolver(fn () => $factory);
+        Paginator::defaultView('pagination::custom');
+        Paginator::defaultSimpleView('pagination::simple-custom');
+        CursorPaginator::currentCursorResolver(fn () => $cursor);
+
+        $this->assertSame('/custom', Paginator::resolveCurrentPath());
+        $this->assertSame(9, Paginator::resolveCurrentPage());
+        $this->assertSame(['sort' => 'name'], Paginator::resolveQueryString());
+        $this->assertSame($factory, Paginator::viewFactory());
+        $this->assertSame('pagination::custom', Paginator::$defaultView);
+        $this->assertSame('pagination::simple-custom', Paginator::$defaultSimpleView);
+        $this->assertSame($cursor, CursorPaginator::resolveCurrentCursor());
+
+        AbstractPaginator::flushState();
+        AbstractCursorPaginator::flushState();
+
+        foreach (['currentPathResolver', 'currentPageResolver', 'queryStringResolver', 'viewFactoryResolver'] as $property) {
+            $this->assertNull((new ReflectionProperty(AbstractPaginator::class, $property))->getValue());
+        }
+
+        $this->assertSame('pagination::tailwind', Paginator::$defaultView);
+        $this->assertSame('pagination::simple-tailwind', Paginator::$defaultSimpleView);
+        $this->assertNull((new ReflectionProperty(AbstractCursorPaginator::class, 'currentCursorResolver'))->getValue());
     }
 
     /**
