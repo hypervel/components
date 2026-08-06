@@ -24,19 +24,19 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
             $table->timestamps();
         });
 
-        Schema::create('test_users', function ($table) {
+        Schema::create('test_users', function (Blueprint $table) {
             $table->increments('id');
             $table->string('name')->nullable();
             $table->unsignedInteger('owner_id')->nullable();
             $table->timestamps();
         });
 
-        Schema::create('test_owners', function ($table) {
+        Schema::create('test_owners', function (Blueprint $table) {
             $table->increments('id');
             $table->timestamps();
         });
 
-        Schema::create('test_post_user', function ($table) {
+        Schema::create('test_post_user', function (Blueprint $table) {
             $table->unsignedInteger('post_id');
             $table->unsignedInteger('user_id');
         });
