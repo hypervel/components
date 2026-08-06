@@ -376,11 +376,13 @@ trait BuildsQueries
 
     /**
      * Paginate the given query using a cursor paginator.
-     *
-     * @return \Hypervel\Contracts\Pagination\CursorPaginator
      */
-    protected function paginateUsingCursor(int $perPage, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null)
-    {
+    protected function paginateUsingCursor(
+        int $perPage,
+        array|string $columns = ['*'],
+        string $cursorName = 'cursor',
+        Cursor|string|null $cursor = null,
+    ): CursorPaginator {
         if (! $cursor instanceof Cursor) {
             $cursor = is_string($cursor)
                 ? Cursor::fromEncoded($cursor)
