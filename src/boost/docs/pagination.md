@@ -165,7 +165,7 @@ However, cursor pagination has the following limitations:
 <a name="manually-creating-a-paginator"></a>
 ### Manually Creating a Paginator
 
-Sometimes you may wish to create a pagination instance manually, passing it an array of items that you already have in memory. You may do so by creating either an `Hypervel\Pagination\Paginator`, `Hypervel\Pagination\LengthAwarePaginator` or `Hypervel\Pagination\CursorPaginator` instance, depending on your needs.
+Sometimes you may wish to create a pagination instance manually, passing it an array of items that you already have in memory. You may do so by creating either a `Hypervel\Pagination\Paginator`, `Hypervel\Pagination\LengthAwarePaginator` or `Hypervel\Pagination\CursorPaginator` instance, depending on your needs.
 
 The `Paginator` and `CursorPaginator` classes do not need to know the total number of items in the result set; however, because of this, these classes do not have methods for retrieving the index of the last page. The `LengthAwarePaginator` accepts almost the same arguments as the `Paginator`; however, it requires a count of the total number of items in the result set.
 
