@@ -9,7 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Cookie\CookieValuePrefix;
-use Hypervel\Foundation\Testing\Coroutine\Waiter;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Foundation\Testing\RequestContextSynchronizer;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
@@ -537,7 +537,7 @@ trait MakesHttpRequests
             }
 
             return $response;
-        }, 10.0);
+        }, 10.0, copyContext: true);
     }
 
     /**
