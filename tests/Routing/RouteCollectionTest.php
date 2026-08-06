@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Routing;
 
 use ArrayIterator;
+use Hypervel\Container\Container;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
+use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
+use Hypervel\Routing\Router;
 use LogicException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -268,6 +272,24 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertEquals($routeB, $this->routeCollection->getByAction('OverwrittenView@view'));
     }
 
+    public function testRouteCollectionIndexesZeroAsAValidRouteName(): void
+    {
+        $route = new Route('GET', 'zero', [
+            'controller' => 'ZeroController@index',
+            'as' => '0',
+        ]);
+
+        $this->routeCollection->add($route);
+
+        $this->assertTrue($this->routeCollection->hasNamedRoute('0'));
+        $this->assertSame($route, $this->routeCollection->getByName('0'));
+        $this->assertSame([0 => $route], $this->routeCollection->getRoutesByName());
+
+        $this->routeCollection->refreshNameLookups();
+
+        $this->assertSame($route, $this->routeCollection->getByName('0'));
+    }
+
     public function testCannotCacheDuplicateRouteNames()
     {
         $this->routeCollection->add(
@@ -280,6 +302,23 @@ class RouteCollectionTest extends RoutingTestCase
         $this->expectException(LogicException::class);
 
         $this->routeCollection->compile();
+    }
+
+    public function testCompiledRouteCollectionPreservesRouteMetadata(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'users', [
+                'uses' => 'UsersController@index',
+                'as' => 'users',
+                'metadata' => ['head' => ['title' => 'Users']],
+            ])
+        );
+
+        $route = $this->routeCollection
+            ->toCompiledRouteCollection(new Router(new Dispatcher, new Container), new Container)
+            ->getByName('users');
+
+        $this->assertSame(['title' => 'Users'], $route->getMetadata('head'));
     }
 
     public function testRouteCollectionDontMatchNonMatchingDoubleSlashes()
@@ -429,5 +468,253 @@ class RouteCollectionTest extends RoutingTestCase
                 'no-domain-get2' => $noDomainGet2,
             ],
         ], $this->routeCollection->getRoutesByMethod());
+    }
+
+    public function testDomainRoutesAreMatchedBeforeNonDomainRoutes(): void
+    {
+        $this->routeCollection->add(
+            (new Route('GET', 'users', ['uses' => 'NoDomainController@index']))->name('no-domain')
+        );
+
+        $this->routeCollection->add(
+            (new Route('GET', 'users', ['uses' => 'DomainController@index']))->domain('api.test')->name('with-domain')
+        );
+
+        $request = Request::create('http://api.test/users', 'GET');
+
+        $this->assertSame('with-domain', $this->routeCollection->match($request)->getName());
+    }
+
+    public function testDuplicateDomainRoutesReplaceTheExistingRouteInEveryLookup(): void
+    {
+        $first = (new Route('GET', 'users', [
+            'uses' => 'FirstController@index',
+            'controller' => 'FirstController@index',
+            'as' => 'first',
+        ]))->domain('api.test');
+        $replacement = (new Route('GET', 'users', [
+            'uses' => 'ReplacementController@index',
+            'controller' => 'ReplacementController@index',
+            'as' => 'replacement',
+        ]))->domain('api.test');
+
+        $this->routeCollection->add($first);
+        $this->routeCollection->add($replacement);
+        $this->routeCollection->refreshNameLookups();
+        $this->routeCollection->refreshActionLookups();
+
+        $this->assertSame(['api.testusers' => $replacement], $this->routeCollection->get('GET'));
+        $this->assertSame([$replacement], $this->routeCollection->getRoutes());
+        $this->assertNull($this->routeCollection->getByName('first'));
+        $this->assertSame($replacement, $this->routeCollection->getByName('replacement'));
+        $this->assertNull($this->routeCollection->getByAction('FirstController@index'));
+        $this->assertSame($replacement, $this->routeCollection->getByAction('ReplacementController@index'));
+    }
+
+    public function testCompiledRouteCollectionGetReturnsAllRoutesWhenMethodIsNull(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users.index'])
+        );
+        $this->routeCollection->add(
+            new Route('POST', 'users', ['uses' => 'UsersController@store', 'as' => 'users.store'])
+        );
+
+        $compiled = $this->toCompiledRouteCollection();
+
+        $this->assertCount(2, $compiled->get());
+        $this->assertCount(2, $compiled->getRoutes());
+    }
+
+    public function testCompiledRouteCollectionCanRetrieveByMethod(): void
+    {
+        $this->routeCollection->add(new Route('GET', 'foo/index', [
+            'uses' => 'FooController@index',
+            'as' => 'route_name',
+        ]));
+
+        $compiled = $this->toCompiledRouteCollection();
+
+        $this->assertCount(1, $compiled->get('GET'));
+        $this->assertCount(0, $compiled->get('PUT'));
+        $this->assertSame('route_name', $compiled->get('GET')['foo/index']->getName());
+
+        $this->routeCollection->add(new Route('GET', 'bar/show', [
+            'uses' => 'BarController@show',
+            'as' => 'bar_show',
+        ]));
+
+        $compiled = $this->toCompiledRouteCollection();
+
+        $this->assertCount(2, $compiled->get('GET'));
+    }
+
+    public function testCompiledRouteCollectionCanRetrieveByAction(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'foo/index', ['controller' => 'FooController@index', 'as' => 'foo_index'])
+        );
+
+        $compiled = $this->toCompiledRouteCollection();
+        $route = $compiled->getByAction('FooController@index');
+
+        $this->assertNotNull($route);
+        $this->assertSame('foo_index', $route->getName());
+        $this->assertSame($compiled->getByName('foo_index'), $route);
+        $this->assertNull($compiled->getByAction('Missing@action'));
+    }
+
+    public function testCompiledRouteCollectionActionIndexPreservesZeroRouteName(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'zero', ['controller' => 'ZeroController@index', 'as' => '0'])
+        );
+
+        $compiled = $this->toCompiledRouteCollection();
+
+        $this->assertSame($compiled->getByName('0'), $compiled->getByAction('ZeroController@index'));
+    }
+
+    public function testCompiledRouteCollectionActionIndexPreservesNonZeroNumericRouteName(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'forty-two', ['controller' => 'FortyTwoController@index', 'as' => '42'])
+        );
+
+        $compiled = $this->toCompiledRouteCollection();
+
+        $this->assertSame($compiled->getByName('42'), $compiled->getByAction('FortyTwoController@index'));
+    }
+
+    public function testCompiledRouteCollectionMethodIndexesPreserveNumericRouteNames(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'zero', ['controller' => 'ZeroController@index', 'as' => '0'])
+        );
+
+        $compiled = $this->toCompiledRouteCollection();
+        $route = $compiled->getByName('0');
+
+        $this->assertSame($route, $compiled->get('GET')['zero']);
+        $this->assertSame($route, $compiled->getRoutesByMethod()['GET']['zero']);
+        $this->assertSame([0], array_keys($compiled->getRoutesByName()));
+    }
+
+    public function testCompiledRouteCollectionWarmupPreservesNumericRouteNames(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'zero', ['controller' => 'ZeroController@index', 'as' => '0'])
+        );
+
+        $compiled = $this->toCompiledRouteCollection();
+
+        $this->assertSame([$compiled->getByName('0')], $compiled->getWarmableRoutes());
+    }
+
+    public function testCompiledRouteCollectionAlternateVerbChecksPreserveNumericRouteNames(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'zero', ['controller' => 'ZeroController@index', 'as' => '0'])
+        );
+
+        $request = Request::create('missing', 'POST');
+
+        $this->expectExceptionObject(new NotFoundHttpException(
+            'The route missing could not be found.'
+        ));
+
+        $this->toCompiledRouteCollection()->match($request);
+    }
+
+    public function testCompiledRouteCollectionActionLookupPrefersFirstRegisteredRoute(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'first', ['controller' => 'FooController@index', 'as' => 'first_route'])
+        );
+        $this->routeCollection->add(
+            new Route('GET', 'second', ['controller' => 'FooController@index', 'as' => 'second_route'])
+        );
+
+        $route = $this->toCompiledRouteCollection()->getByAction('FooController@index');
+
+        $this->assertSame('first_route', $route->getName());
+    }
+
+    public function testCompiledRouteCollectionCanGetRoutesByMethod(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'foo/index', ['uses' => 'FooController@index', 'as' => 'foo_index'])
+        );
+        $this->routeCollection->add(
+            new Route('GET', 'foo/show', ['uses' => 'FooController@show', 'as' => 'foo_show'])
+        );
+        $this->routeCollection->add(
+            new Route('POST', 'bar', ['uses' => 'BarController@create', 'as' => 'bar_create'])
+        );
+
+        $routesByMethod = $this->toCompiledRouteCollection()->getRoutesByMethod();
+
+        $this->assertSame(['foo/index', 'foo/show'], array_keys($routesByMethod['GET']));
+        $this->assertSame(['foo/index', 'foo/show'], array_keys($routesByMethod['HEAD']));
+        $this->assertSame(['bar'], array_keys($routesByMethod['POST']));
+        $this->assertSame('foo_index', $routesByMethod['GET']['foo/index']->getName());
+        $this->assertSame('bar_create', $routesByMethod['POST']['bar']->getName());
+    }
+
+    public function testCompiledRouteCollectionDynamicallyAddedRouteOverridesCachedRouteForSameUri(): void
+    {
+        $this->routeCollection->add(
+            new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users.cached'])
+        );
+
+        $compiled = $this->toCompiledRouteCollection();
+
+        $compiled->add(
+            new Route('GET', 'users', ['uses' => 'UsersController@dynamicIndex', 'as' => 'users.dynamic'])
+        );
+
+        $routes = $compiled->get('GET');
+
+        $this->assertCount(1, $routes);
+        $this->assertSame('users.dynamic', $routes['users']->getName());
+    }
+
+    public function testCompiledRouteCollectionRequestMethodNotAllowed(): void
+    {
+        $this->expectExceptionObject(new MethodNotAllowedHttpException(
+            ['GET', 'HEAD'],
+            'The POST method is not supported for route users. Supported methods: GET, HEAD.'
+        ));
+
+        $this->routeCollection->add(
+            new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users'])
+        );
+
+        $request = Request::create('users', 'POST');
+
+        $this->toCompiledRouteCollection()->match($request);
+    }
+
+    public function testCompiledRouteCollectionThrowsNotFoundForUnmatchedPath(): void
+    {
+        $this->expectExceptionObject(new NotFoundHttpException(
+            'The route this-path-does-not-exist could not be found.'
+        ));
+
+        $this->routeCollection->add(
+            new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => 'users'])
+        );
+
+        $request = Request::create('this-path-does-not-exist', 'GET');
+
+        $this->toCompiledRouteCollection()->match($request);
+    }
+
+    protected function toCompiledRouteCollection(): CompiledRouteCollection
+    {
+        return $this->routeCollection->toCompiledRouteCollection(
+            new Router(new Dispatcher, new Container),
+            new Container,
+        );
     }
 }
