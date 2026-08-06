@@ -38,7 +38,7 @@ class UrlSigningTest extends RoutingTestCase
         });
     }
 
-    public function testSigningUrlWorksWhenPreviousKeysConfigIsMissing(): void
+    public function testSigningUrlRequiresPreviousKeysConfiguration(): void
     {
         $config = $this->app->make('config');
         $appConfig = $config->array('app');
@@ -51,11 +51,11 @@ class UrlSigningTest extends RoutingTestCase
             return $request->hasValidSignature() ? 'valid' : 'invalid';
         })->name('foo');
 
-        $this->assertIsString($url = URL::signedRoute('foo', ['id' => 1]));
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'Configuration value for key [app.previous_keys] must be an array, NULL given.'
+        ));
 
-        tap($this->get($url), function ($response) {
-            $this->assertSame('valid', $response->original);
-        });
+        URL::signedRoute('foo', ['id' => 1]);
     }
 
     public function testSigningUrlWithCustomRouteSlug()

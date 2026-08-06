@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Routing;
 
-use Closure;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\View\Factory as ViewFactoryContract;
@@ -12,6 +11,7 @@ use Hypervel\Routing\Console\ControllerMakeCommand;
 use Hypervel\Routing\Console\MiddlewareMakeCommand;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
+use Hypervel\Routing\Middleware\ThrottleRequestsWithRedis;
 use Hypervel\Support\ServiceProvider;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -26,6 +26,7 @@ class RoutingServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->registerRouter();
+        $this->registerRedisThrottle();
         $this->registerUrlGenerator();
         $this->registerRedirector();
         $this->registerPsrRequest();
@@ -47,8 +48,16 @@ class RoutingServiceProvider extends ServiceProvider
     protected function registerRouter(): void
     {
         $this->app->singleton('router', function ($app) {
-            return new Router($app['events'], $app);
+            return new Router($app->make('events'), $app);
         });
+    }
+
+    /**
+     * Register the Redis request throttler.
+     */
+    protected function registerRedisThrottle(): void
+    {
+        $this->app->bind(ThrottleRequestsWithRedis::class);
     }
 
     /**
@@ -57,7 +66,7 @@ class RoutingServiceProvider extends ServiceProvider
     protected function registerUrlGenerator(): void
     {
         $this->app->singleton('url', function ($app) {
-            $routes = $app['router']->getRoutes();
+            $routes = $app->make('router')->getRoutes();
 
             // The URL generator needs the route collection that exists on the router.
             // Keep in mind this is an object, so we're passing by references here
@@ -66,49 +75,41 @@ class RoutingServiceProvider extends ServiceProvider
 
             return new UrlGenerator(
                 $routes,
-                $app->rebinding(
-                    'request',
-                    $this->requestRebinder()
-                ),
+                $app->make('request'),
                 $app->make('config')->get('app.asset_url')
             );
         });
 
         $this->app->extend('url', function (UrlGenerator $url, $app) {
-            if ($app->make('config')->boolean('app.force_https', false)) {
+            if ($app->make('config')->boolean('app.force_https')) {
                 $url->forceHttps();
             }
 
             $url->setSessionResolver(function () {
-                return $this->app['session'] ?? null;
+                return $this->app->bound('session')
+                    ? $this->app->make('session')
+                    : null;
             });
 
             $url->setKeyResolver(function () {
                 $config = $this->app->make('config');
 
-                return [$config->string('app.key'), ...$config->array('app.previous_keys', [])];
+                return [$config->string('app.key'), ...$config->array('app.previous_keys')];
             });
 
             // If the route collection is "rebound", for example, when the routes stay
             // cached for the application, we will need to rebind the routes on the
             // URL generator instance so it has the latest version of the routes.
             $app->rebinding('routes', function ($app, $routes) {
-                $app['url']->setRoutes($routes);
+                $app->make('url')->setRoutes($routes);
             });
 
             return $url;
         });
     }
 
-    /**
-     * Get the URL generator request rebinder.
-     */
-    protected function requestRebinder(): Closure
-    {
-        return function ($app, $request) {
-            $app['url']->setRequest($request);
-        };
-    }
+    // REMOVED: Container request rebinding mutates the worker-lifetime URL generator.
+    // Requests resolve from coroutine-local RequestContext instead.
 
     /**
      * Register the Redirector service.
@@ -116,13 +117,13 @@ class RoutingServiceProvider extends ServiceProvider
     protected function registerRedirector(): void
     {
         $this->app->singleton('redirect', function ($app) {
-            $redirector = new Redirector($app['url']);
+            $redirector = new Redirector($app->make('url'));
 
             // If the session is set on the application instance, we'll inject it into
             // the redirector instance. This allows the redirect responses to allow
             // for the quite convenient "with" methods that flash to the session.
-            if (isset($app['session.store'])) {
-                $redirector->setSession($app['session.store']);
+            if ($app->bound('session.store')) {
+                $redirector->setSession($app->make('session.store'));
             }
 
             return $redirector;
@@ -172,7 +173,10 @@ class RoutingServiceProvider extends ServiceProvider
     protected function registerResponseFactory(): void
     {
         $this->app->singleton(ResponseFactoryContract::class, function ($app) {
-            return new ResponseFactory($app[ViewFactoryContract::class], $app['redirect']);
+            return new ResponseFactory(
+                $app->make(ViewFactoryContract::class),
+                $app->make('redirect')
+            );
         });
     }
 

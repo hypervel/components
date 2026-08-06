@@ -31,12 +31,13 @@ class EncryptionServiceProvider extends ServiceProvider
     protected function registerEncrypter(): void
     {
         $this->app->singleton('encrypter', function ($app) {
-            $config = $app->make('config')->array('app');
+            $config = $app->make('config');
+            $appConfig = $config->array('app');
 
-            return (new Encrypter($this->parseKey($config), $config['cipher']))
+            return (new Encrypter($this->parseKey($appConfig), $config->string('app.cipher')))
                 ->previousKeys(array_map(
                     fn (#[SensitiveParameter] string $key) => $this->parseKey(['key' => $key]),
-                    $config['previous_keys'] ?? []
+                    $config->array('app.previous_keys')
                 ));
         });
     }
@@ -76,7 +77,7 @@ class EncryptionServiceProvider extends ServiceProvider
      */
     protected function key(#[SensitiveParameter] array $config): string
     {
-        return tap($config['key'], function ($key) {
+        return tap($config['key'] ?? null, function ($key) {
             if (empty($key)) {
                 throw new MissingAppKeyException;
             }
