@@ -14,7 +14,7 @@ This plan is the implementation source of truth. Before implementation, reread `
 - The HTML health response always reports the current request's render duration accurately in long-lived workers and in Testbench.
 - Telescope and Sentry consume the request API rather than reading transport details or a global constant.
 - `HYPERVEL_START` disappears from executable framework/application behavior without a deprecated alias, fallback, or replacement global.
-- Related Telescope command decisions use dispatched command identity rather than positional process arguments, scheduled tasks execute in finite task-owned coroutines with task-local observability state, and both shipped artisan entrypoints use Symfony's first-argument primitive instead of raw `argv[1]` for their pre-bootstrap server-mode check.
+- Related Telescope command decisions use dispatched command identity rather than positional process arguments, scheduled tasks execute in finite task-owned coroutines with task-local observability state, and all three shipped CLI entrypoints use one shared Symfony-definition-backed resolver instead of unbound input scans or raw `argv[1]` for their pre-bootstrap server-mode check.
 - No unrelated time API changes: `now()`, the Date facade, Carbon, scheduler clocks, and the existing kernel/console lifecycle timers continue to behave as they do now.
 
 ## Goals and invariants
@@ -32,7 +32,7 @@ This plan is the implementation source of truth. Before implementation, reread `
 
 ## Anti-overengineering and performance rules
 
-- Add exactly one public API: `Request::startedAt()`. Do not add a request-start service, facade, contract method, raw timestamp accessor, middleware, event, DTO, transport wrapper, or metadata registry.
+- Add exactly one public request-timing API: `Request::startedAt()`. Do not add a request-start service, facade, contract method, raw timestamp accessor, middleware, event, DTO, transport wrapper, or metadata registry.
 - Keep one protected float on each Request. Do not eagerly allocate Carbon for every HTTP, gRPC, WebSocket, and Reverb request; construct it only when the accessor is called.
 - Do not add caching merely to promise Carbon object identity. The contract is the instant's value, not whether repeated calls return the same object.
 - Do not add a `REQUEST_TIME` integer fallback. Supported Swoole HTTP/1 and HTTP/2 paths and Symfony's synthetic-request factory provide `REQUEST_TIME_FLOAT`; direct construction needs only the precise `microtime(true)` fallback. Falling back to integer seconds is an unreachable production branch that destroys useful duration precision.
@@ -45,7 +45,7 @@ This plan is the implementation source of truth. Before implementation, reread `
 - Keep the long-lived `schedule:run` command coroutine outside Telescope recording. Start observability inside each task coroutine so queues, defers, spans, and batch identity share the task's real lifecycle.
 - The coroutine and channel allocation per due scheduled invocation is deliberate lifecycle ownership on a low-frequency scheduler path, not request hot-path overhead. Do not add pooling or reuse machinery.
 - Do not add an entry to `docs/ai/differences-vs-laravel.md`; that file explicitly says it is queued for deletion and forbids new entries.
-- Do not build or duplicate Symfony's complete console input definition merely to classify `serve` / `watch` before application bootstrap. Reuse unbound `ArgvInput::getFirstArgument()` and document its narrow residual limit for a space-separated optional `--env` value.
+- Resolve pre-bootstrap command names by binding Symfony's authoritative default application definition plus Hypervel's global `--env` option, following Symfony's own `Application::doRun()` flow. Do not hand-build a parallel option definition, special-case argv tokens, or cache mutable definitions.
 - Churn and compatibility with pre-0.4 code do not justify retaining an inferior shape. Conversely, do not expand the work beyond verified request/command lifecycle defects discovered by this audit.
 
 ## Research and settled facts
@@ -127,7 +127,7 @@ The new tests must assert exact deterministic values and consecutive-request ind
 
 ### Related console, Telescope, scheduler, and Sentry findings
 
-The same audit found five live positional-argv defects and one stale config surface:
+The same audit found several live command-classification defects, stale ignore entries, and one stale config surface:
 
 - `ScheduleWatcher::register()` decides at provider boot from `$_SERVER['argv'][1]`, recognizes nonexistent `crontab:run`, and misses programmatic/global-option-safe command identity.
 - `Telescope::runningApprovedArtisanCommand()` also reads `argv[1]` even though its `BeforeHandle` listener receives the resolved `Command` instance.
@@ -135,10 +135,11 @@ The same audit found five live positional-argv defects and one stale config surf
 - The live Composer command `package:discover` is absent from Telescope's default ignore paths.
 - Sentry publishes `sentry.ignore_commands`, but no source in current Hypervel or v0.3 consumes it. It is dead configuration, not an incomplete feature contract.
 - Both the canonical and Testbench artisan templates use raw `$_SERVER['argv'][1]` to enter HTTP mode for `serve` / `watch`, although both already create `ArgvInput`. Supported forms such as `--env=production serve`, `-v serve`, and `--ansi watch` therefore miss the mode switch and hit the misleading `APP_RUNNING_IN_CONSOLE is true` server guard.
+- Testbench's separate `bin/testbench` entrypoint creates one unbound `ArgvInput` in `Console\Commander`, classifies `serve` before application boot, and then passes the same input to the Kernel. Its direct `getFirstArgument()` check likewise mistakes the separated `--env` value for the command.
 
 These are included because they are verified manifestations of the same process-entry/argv lifecycle assumption. Do not generalize this into a console subsystem rewrite.
 
-A fifth instance exists on the public `Foundation\Application::runningConsoleCommand()` / `App` facade API. It is a faithful Laravel port but misclassifies a supported invocation such as `artisan --env=production migrate`. The maintainer approved correcting that behavior as an intentional Hypervel improvement. `src/testing/src/Console/TestCommandBase.php` separately slices argv from offset two to forward test-runner options; that is not command classification and is not part of this work.
+The same positional defect exists on the public `Foundation\Application::runningConsoleCommand()` / `App` facade API. It is a faithful Laravel port but misclassifies a supported invocation such as `artisan --env=production migrate`. The maintainer approved correcting that behavior as an intentional Hypervel improvement. `src/testing/src/Console/TestCommandBase.php` separately slices argv from offset two to forward test-runner options; that is not command classification and is not part of this work.
 
 A source/test search found no first-party production caller of `runningConsoleCommand()`: only its public contract declaration, facade annotation, implementation, and focused tests exist. The correction therefore has no internal framework call-site blast radius and improves only the behavior promised by the existing public contract.
 
@@ -272,23 +273,32 @@ Use Carbon's frozen current time plus seeded server variables to assert determin
 
 In Testbench, remove the entire `setUp()` override that defines the constant and remove `Override` if no other use remains. Make the existing health assertion exact instead of merely checking the phrase.
 
-### 5. Remove `HYPERVEL_START` and its stale documentation
+### 5. Remove `HYPERVEL_START` and resolve entrypoint command names
+
+Add `Hypervel\Console\Application::resolveCommandName(ArgvInput $input)` as the shared command-classification boundary used before the real console application boots. It obtains a fresh Symfony default application definition, adds a fresh Hypervel environment option, binds the caller-owned input inside Symfony's `ExceptionInterface` catch pattern, and then calls `getFirstArgument()`. The catch permits command-specific options that cannot be validated until the command is known; real command execution rebinds the same input and reports invalid options normally.
+
+Keep `ArgvInput` as the parameter type because its token scan is the behavior being prepared. Use one private static environment-option factory from both the resolver and the existing Laravel-compatible protected `getEnvironmentOption()` method. Do not change that protected method's signature or visibility, unify the static and instance definition paths, cache definitions, or add shared state.
+
+The resolver must construct a Symfony application because Symfony exposes its authoritative default definition through the application instance. Before bootstrap, no Hypervel console application exists and application-specific `getEnvironmentOption()` overrides cannot participate. Symfony application construction enables async PCNTL signals when supported; the real console application does the same immediately after entrypoint classification. Record both facts in one concise source comment rather than adding signal save/restore machinery.
 
 - Delete `define('HYPERVEL_START', microtime(true));` from the separate application skeleton's `artisan` entry point.
-- In that same entrypoint, instantiate `ArgvInput` once before the HTTP-bootstrap check, classify with `$input->getFirstArgument()`, and pass the same input to `Application::handleCommand()`:
+- In that same entrypoint, instantiate `ArgvInput` once before the HTTP-bootstrap check, classify it with the shared resolver, and pass the same input to `Application::handleCommand()`:
 
 ```php
 $input = new ArgvInput();
 
-if (in_array($input->getFirstArgument(), ['serve', 'watch'], true)) {
+if (in_array(ConsoleApplication::resolveCommandName($input), ['serve', 'watch'], true)) {
     // Existing environment assignments.
 }
 
 $status = $app->handleCommand($input);
 ```
 
-- Make the equivalent change in `src/testbench/hypervel/artisan`: construct its fully-qualified `ArgvInput` once, use `getFirstArgument()` for the check, capture the input in the immediately invoked closure, and remove the inner duplicate construction.
-- An unbound `ArgvInput` correctly skips valueless global options and `--env=value`, covering `-v serve`, `--ansi watch`, and `--env=production serve`. It cannot know that the separate token after optional `--env` is an option value, so `--env production serve` still resolves `production`. Record this limitation honestly; reproducing/binding the full application and command option definitions before bootstrap is disproportionate to this two-command mode check.
+- Make the equivalent change in `src/testbench/hypervel/artisan`: import every referenced class coherently, construct `ArgvInput` once, classify through the resolver, capture the input in the immediately invoked closure, and remove the inner duplicate construction.
+- Make the equivalent classifier change in Testbench's `Console\Commander`, which owns the shipped `bin/testbench` entrypoint. Its sole caller creates an `ArgvInput`, so narrow the protected preparation method from generic `InputInterface` to `ArgvInput`, pass the same object onward, and cover `testbench --env production serve` in the existing focused environment test. Rename Commander's existing Symfony Application alias to avoid colliding with Hypervel's `ConsoleApplication` alias.
+- Declare `hypervel/console` directly in Testbench's standalone package manifest because Commander now imports its Application class; do not rely on Foundation's transitive dependency.
+- The resolver covers valueless global options, attached values, and separated optional values, including `-v serve`, `--ansi watch`, `--env=production serve`, and `--env production serve`. A later command-specific option may make the preliminary bind throw, but Symfony's catch pattern still leaves the command name available and final command binding remains authoritative.
+- In Commander, resolver construction enables async PCNTL signals before `prepareCommandSignals()` snapshots the flag. That method therefore records `true`, and cleanup restores `true` immediately before `handle()` exits; no live caller can observe the restoration. Keep the existing order so process signal handlers are not installed before application bootstrap.
 - Replace the collections scheduled-task example with the already-established local idiom:
 
 ```php
@@ -393,9 +403,9 @@ $_SERVER['argv'] = ['artisan', '--env=production', 'migrate'];
 $app->runningConsoleCommand('migrate'); // currently false
 ```
 
-Preserve the method name, parameters, return type, facade annotation, contract declaration, and ordinary Laravel behavior while resolving the command with `(new ArgvInput())->getFirstArgument()`. Import `Symfony\Component\Console\Input\ArgvInput` directly. Add focused `tests/Foundation/ApplicationRunningInConsoleTest.php` coverage for `--env=production migrate`, `-v queue:work`, and the existing direct forms.
+Preserve the method name, parameters, return type, facade annotation, contract declaration, and ordinary Laravel behavior while delegating a fresh `ArgvInput` to `Console\Application::resolveCommandName()`. Import both owning classes directly. Add focused `tests/Foundation/ApplicationRunningInConsoleTest.php` coverage for `--env=production migrate`, `--env production migrate`, `-v queue:work`, and the existing direct forms.
 
-Do not cache the parsed command or add a console-input service: argv can vary in tests and programmatic environments, the method has no first-party hot-path caller, and a fresh unbound ArgvInput is the smallest correct primitive for the supported option forms. Retain the same honest residual limit as the entrypoints: without binding a full application input definition, `--env production migrate` resolves `production` as the first argument. Duplicating Symfony/Hypervel's global option definition solely to classify this pre-bootstrap edge form would be a brittle parallel parser; keep the bounded native improvement instead.
+Do not cache the parsed command or add a console-input service: argv can vary in tests and programmatic environments, the method has no first-party hot-path caller, and fresh local input/definition objects avoid shared mutation. This is an intentional additive Hypervel API absent from Laravel; every existing Laravel method signature, contract, facade annotation, and protected extension point remains unchanged.
 
 ### 8. Remove dead Sentry command configuration
 
@@ -430,6 +440,8 @@ Do not edit package READMEs or `docs/ai/differences-vs-laravel.md`. This is a do
 
 Do not change `Console\Kernel::commandStartedAt()` or command lifecycle duration handlers. They describe the top-level command passed through Kernel `handle()` / `terminate()`, including a long-running `schedule:run`; nested `Kernel::call()` and `$this->call()` do not establish a second Kernel lifecycle in Laravel or Hypervel.
 
+Keep `Console\Kernel::handle()`'s generic `InputInterface::getFirstArgument()` check for `env:encrypt` / `env:decrypt` unchanged. All three shipped `ArgvInput` entrypoints now bind the global definition through the resolver before the Kernel sees the same input, while programmatic `ArrayInput` callers read the command from their parameter map directly. Do not add an `ArgvInput` type branch to the generic Kernel boundary or duplicate pre-bootstrap resolution there.
+
 Do not add a scheduler todo. Hypervel's in-process scheduled command intentionally uses `Kernel::call()` and task events rather than a subprocess. Calling `Kernel::terminate()` per task would dispatch application termination and tear down state still owned by the daemon and concurrent coroutines. The new task coroutine supplies invocation-local cleanup, while `ScheduledTaskFinished::$runtime` supplies task duration. Report the narrower Laravel difference—top-level command lifecycle duration handlers do not fire per Hypervel scheduled task—in the final maintainer handoff; do not implement a partial termination lifecycle or a second timing API.
 
 ## File-by-file implementation map
@@ -442,11 +454,17 @@ Do not add a scheduler todo. Hypervel's in-process scheduled command intentional
 | `src/support/src/Facades/Request.php` | Regenerate the facade docblock so the new Request accessor is exposed to static analysis. |
 | `tests/Http/HttpRequestTest.php` | Add construction, normalization, stability, conversion, clone/duplicate, and reinitialize coverage. |
 | `tests/HttpServer/RequestBridgeTest.php` | Pin lowercase-to-uppercase float transport and accessor precision. |
-| `src/foundation/src/Application.php` | Resolve public console-command classification through unbound `ArgvInput::getFirstArgument()`. |
-| `tests/Foundation/ApplicationRunningInConsoleTest.php` | Preserve direct forms and cover option-prefixed command classification. |
+| `src/console/src/Application.php` | Add the shared Symfony-definition-backed command-name resolver and one environment-option factory. |
+| `tests/Console/ConsoleApplicationCommandNameTest.php` | Cover direct/global-option resolution and preliminary command-option binding failures. |
+| `src/foundation/src/Application.php` | Delegate public console-command classification to the shared resolver. |
+| `tests/Foundation/ApplicationRunningInConsoleTest.php` | Preserve direct forms and cover attached/separated option-prefixed command classification. |
+| `tests/Foundation/Console/KernelTest.php` | Prove a pre-bound input is rebound and its command-specific options execute correctly. |
 | `src/foundation/src/Configuration/ApplicationBuilder.php` | Pass the already-injected Request into health view data. |
 | `src/testbench/src/Workbench/Workbench.php` | Inject and pass Request into Workbench health view. |
-| `src/testbench/hypervel/artisan` | Reuse one ArgvInput and replace positional server-mode detection with `getFirstArgument()`. |
+| `src/testbench/hypervel/artisan` | Import all classes coherently, reuse one ArgvInput, and classify server mode through the shared resolver. |
+| `src/testbench/src/Console/Commander.php` | Classify the shipped Testbench CLI's ArgvInput through the shared resolver while preserving signal-handler setup order. |
+| `src/testbench/composer.json` | Declare the directly used `hypervel/console` package. |
+| `tests/Testbench/CommanderEnvironmentTest.php` | Cover separated `--env` command classification through the shared resolver. |
 | `src/foundation/src/resources/health-up.blade.php` | Remove constant guard and render request-owned deterministic duration. |
 | `tests/Integration/Foundation/Support/Providers/RouteServiceProviderHealthTest.php` | Add exact and sequential HTML timing regressions; preserve JSON/error cases. |
 | `tests/Testbench/Workbench/DiscoversTest.php` | Delete constant setup and assert exact request duration. |
@@ -475,7 +493,7 @@ Do not add a scheduler todo. Hypervel's in-process scheduled command intentional
 | `tests/Integration/Console/Scheduling/SubMinuteSchedulingTest.php` | Cover pre-paused repeat safety, natural skipped-event cadence, maintenance, and `evenWhenPaused()` behavior. |
 | `src/sentry/src/Tracing/Middleware.php` | Use accessor and exact Carbon-to-epoch conversion. |
 | `tests/Sentry/Tracing/MiddlewareTest.php` | Assert captured transaction's exact microsecond start timestamp. |
-| `src/sentry/src/Features/ConsoleSchedulingFeature.php` | Finalize scheduled transactions from the published task exit code exactly once. |
+| `src/sentry/src/Features/ConsoleSchedulingFeature.php` | Finalize scheduled transactions from the published task exit code exactly once and document the three task handlers. |
 | `tests/Sentry/Features/ConsoleSchedulingIntegrationTest.php` | Prove successful and non-zero scheduled commands publish one transaction with the correct final status. |
 | `src/sentry/config/sentry.php` | Remove never-consumed `ignore_commands`. |
 | `src/sentry/src/SentryServiceProvider.php` | Stop filtering the deleted non-SDK option. |
@@ -487,7 +505,7 @@ Do not add a scheduler todo. Hypervel's in-process scheduled command intentional
 
 | File | Change |
 |---|---|
-| `contrib/hypervel/hypervel/artisan` | Delete the process-entry constant, reuse one ArgvInput, and replace positional server-mode detection. |
+| `contrib/hypervel/hypervel/artisan` | Delete the process-entry constant, reuse one ArgvInput, and classify server mode through the shared resolver. |
 
 No private package or application file changes are expected; repeat the broad search before completion in case the repositories move during implementation.
 
@@ -558,13 +576,20 @@ Use fixed microsecond timestamps; compare exact epoch/microsecond values rather 
 ### Public application command classification
 
 - Existing direct command-name, array/variadic, non-console, missing-argv, `serve`, and `watch` cases retain their behavior.
-- `--env=production migrate` and `-v queue:work` resolve the actual command name and match only the requested command.
-- Keep the separated-value `--env production migrate` limitation explicit in this plan; do not duplicate or partially bind the console application's global option definition to make this one classifier parse more than Symfony's unbound `getFirstArgument()` supports.
+- `--env=production migrate`, `--env production migrate`, and `-v queue:work` resolve the actual command name and match only the requested command.
 
-### Artisan entrypoint checks
+### Pre-bootstrap command-name resolution
 
-- With components' installed Symfony Console, directly verify unbound `ArgvInput::getFirstArgument()` returns `serve` / `watch` for `--env=production serve`, `-v serve`, and `--ansi watch`; record that `--env production serve` returns `production` and remains outside this bounded fix.
-- Inspect both entrypoints to ensure the same ArgvInput instance used for classification is later passed to the command kernel/application; do not retain a second construction or raw `argv[1]` check.
+- Direct commands, `--env=production migrate`, `--env production migrate`, `-v queue:work`, and `--ansi watch` resolve through a successful global-definition bind.
+- `serve --host 0.0.0.0` and `--env production serve --host=0.0.0.0` resolve `serve` after the preliminary bind rejects command-specific options. Removing the catch must fail these regressions.
+- An `ArgvInput` first classified by the resolver can be passed to the real console kernel, rebound against a registered command, and execute with the command-specific option value intact.
+- Do not add an `-e` case; Hypervel's global `--env` option has no shortcut, so that invocation is invalid.
+
+### CLI entrypoint checks
+
+- With components' installed Symfony Console, verify the shared resolver returns `serve` / `watch` for `--env=production serve`, `--env production serve`, `-v serve`, and `--ansi watch`, including command-specific options after the command.
+- Inspect all three entrypoints to ensure the same ArgvInput instance resolved before bootstrap is later passed to the command kernel/application; do not retain a second construction, raw `argv[1]` check, or direct unbound `getFirstArgument()` classification.
+- Run `tests/Testbench/CommanderEnvironmentTest.php` to prove the Testbench CLI wiring accepts a separated `--env` value. The shared resolver suite, rather than this wiring test, owns the remaining global-option matrix.
 - Run `php -l src/testbench/hypervel/artisan` and the Testbench suites. The canonical skeleton has no installed `vendor/`, so its real local gate is `php -l artisan`; do not run `composer test` there unless dependencies are installed for some independent reason.
 
 ### Negative/stale checks
@@ -580,7 +605,7 @@ Use fixed microsecond timestamps; compare exact epoch/microsecond values rather 
 
 Work one file at a time with `apply_patch`, preserving unrelated worktree changes. Run the named focused test immediately after each coherent source/test pair.
 
-1. Add `Symfony\Component\Console\Input\ArgvInput` to `src/foundation/src/Application.php`, update `runningConsoleCommand()` to use `getFirstArgument()`, add direct/option-prefixed cases to `tests/Foundation/ApplicationRunningInConsoleTest.php`, and run that focused test file.
+1. Add focused command-name resolver coverage, implement `Console\Application::resolveCommandName()` with Symfony's definition-bind/catch flow and the shared environment-option factory, then run the new test file. Delegate `Foundation\Application::runningConsoleCommand()` to it and cover both attached and separated `--env` values. Add the real kernel rebind regression and run both changed Foundation test files.
 2. Add Request unit regressions, implement `Request::$startedAtTimestamp`, initialization normalization, and `startedAt()`, then run `tests/Http/HttpRequestTest.php`.
 3. Extend RequestBridge coverage and run `tests/HttpServer/RequestBridgeTest.php`. Do not change RequestBridge production normalization unless the counterfactual test disproves the audited behavior.
 4. Update both health route owners and the Blade template; add deterministic application health coverage and run that test file.
@@ -594,8 +619,8 @@ Work one file at a time with `apply_patch`, preserving unrelated worktree change
 12. Correct Sentry's scheduled-task final status and exactly-once completion, add the integration regressions, and run `tests/Sentry/Features/ConsoleSchedulingIntegrationTest.php`.
 13. Add the small HTTP kernel lifecycle assertion and run `tests/Foundation/Http/KernelTest.php`. Keep console kernel lifecycle behavior unchanged.
 14. Regenerate the Request facade docblock, then update the request, coroutine, and collections documentation. Do not create a scheduler todo, edit the forbidden AI differences file, or edit package READMEs.
-15. Update `src/testbench/hypervel/artisan`, run its syntax/ArgvInput checks and focused Testbench coverage, then run `composer test:testbench`.
-16. In `contrib/hypervel/hypervel`, remove the skeleton constant, reuse ArgvInput for mode detection and command handling, and run `php -l artisan`. The repository currently has no `vendor/`; do not install dependencies or attempt `composer test` solely for this entry-script edit.
+15. Update `src/testbench/hypervel/artisan` to import all class references, classify its one ArgvInput through the shared resolver, and pass that same input onward. Update Testbench `Console\Commander` to use the resolver for its own one ArgvInput, declare the direct console-package dependency, preserve its signal setup order, and add the focused environment regression. Run all three CLI entrypoint checks and focused Testbench coverage, then run `composer test:testbench`.
+16. In `contrib/hypervel/hypervel`, remove the skeleton constant, classify its one ArgvInput through the shared resolver, pass that input to command handling, and run `php -l artisan`. The repository currently has no `vendor/`; do not install dependencies or attempt `composer test` solely for this entry-script edit.
 17. Run package-focused groups, the final validation gates, stale searches, and the complete fresh review below.
 
 ## Validation cadence
@@ -638,7 +663,8 @@ Before requesting code review:
 - Remove dead code, stale comments, obsolete tests, unused imports, compatibility branches, and superseded documentation.
 - Confirm the generated Request facade exposes `startedAt()` and the facade-docblock lint is current.
 - Confirm no second metadata API, raw Swoole exposure, raw timestamp method, request contract expansion, recording-state stack, batch-reset mechanism, alternate scheduler concurrency layer, or forbidden AI-difference entry slipped in.
-- Confirm both artisan entrypoints use the bounded `getFirstArgument()` improvement, state its separated-`--env` limitation honestly, and do not contain a partial custom option parser.
+- Confirm all three shipped CLI entrypoints use the shared Symfony-definition-backed resolver, support separated `--env` values, pass the same input onward, and contain no partial custom option parser.
+- Confirm Testbench Commander keeps signal-handler installation after application bootstrap preparation and the generic Kernel contains no duplicate ArgvInput-specific resolver branch.
 - Confirm `Console\Kernel::commandStartedAt()` and its lifecycle handlers are unchanged: they still describe only the top-level Kernel `handle()` / `terminate()` lifecycle.
 - Include the narrower Laravel difference in the final handoff rather than source or todo documentation: scheduled Laravel subprocesses establish their own command lifecycle, while Hypervel's intentional in-process `Kernel::call()` does not and cannot safely simulate `terminate()` without tearing down the long-lived application.
 - Report the `AGENTS.md` versus `docs/ai/differences-vs-laravel.md` instruction conflict to the maintainer without changing either file in this work.
