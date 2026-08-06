@@ -1319,6 +1319,7 @@ Below is a list of all available validation rules and their function:
 [Alpha Dash](#rule-alpha-dash)
 [Alpha Numeric](#rule-alpha-num)
 [Ascii](#rule-ascii)
+[Base64](#rule-base64)
 [Confirmed](#rule-confirmed)
 [Current Password](#rule-current-password)
 [Different](#rule-different)
@@ -1493,6 +1494,14 @@ The field under validation must be `"yes"`, `"on"`, `1`, `"1"`, `true`, or `"tru
 
 The field under validation must have a valid A or AAAA record according to the `dns_get_record` PHP function. The hostname of the provided URL is extracted using the `parse_url` PHP function before being passed to `dns_get_record`.
 
+When testing validation rules that perform DNS lookups, such as `active_url` and `email:dns`, you may use the `Validator::fakeDnsLookups` method. This fakes DNS lookups while preserving the rules' other validation behavior:
+
+```php
+use Hypervel\Support\Facades\Validator;
+
+Validator::fakeDnsLookups();
+```
+
 <a name="rule-after"></a>
 #### after:_date_
 
@@ -1507,6 +1516,8 @@ Instead of passing a date string to be evaluated by `strtotime`, you may specify
 ```php
 'finish_date' => 'required|date|after:start_date'
 ```
+
+If the referenced field is missing or `null`, validation passes. You should also apply the `required` rule if the referenced field must be present. An unparseable date string or an invalid value in a referenced field will fail validation.
 
 For convenience, date-based rules may be constructed using the fluent `date` rule builder:
 
@@ -1637,6 +1648,11 @@ if ($validator->stopOnFirstFailure()->fails()) {
 }
 ```
 
+<a name="rule-base64"></a>
+#### base64
+
+The field under validation must be a valid Base64 encoded string.
+
 <a name="rule-can"></a>
 #### can
 
@@ -1656,6 +1672,8 @@ use Hypervel\Validation\Rule;
 #### before:_date_
 
 The field under validation must be a value preceding the given date. The dates will be passed into the PHP `strtotime` function in order to be converted into a valid `DateTime` instance. In addition, like the [after](#rule-after) rule, the name of another field under validation may be supplied as the value of `date`.
+
+Missing, `null`, and invalid comparison values are handled in the same way as the [after](#rule-after) rule.
 
 For convenience, date-based rules may also be constructed using the fluent `date` rule builder:
 
@@ -3187,6 +3205,17 @@ Password::min(8)
     ->numbers()
     ->symbols()
     ->uncompromised()
+```
+
+You may convert a `Password` rule object to a string suitable for the HTML `passwordrules` attribute using the `toPasswordRulesString` method:
+
+```blade
+<input
+    type="password"
+    name="password"
+    autocomplete="new-password"
+    passwordrules="{{ Password::defaults()->toPasswordRulesString() }}"
+/>
 ```
 
 <a name="defining-default-password-rules"></a>

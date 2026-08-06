@@ -38,7 +38,7 @@ trait FormatsMessages
         $customKey = "validation.custom.{$attribute}.{$lowerRule}";
 
         $customMessage = $this->getCustomMessageFromTranslator(
-            in_array($rule, $this->sizeRules)
+            in_array($rule, $this->sizeRules, true)
                 ? [$customKey . ".{$this->getAttributeType($attribute)}", $customKey]
                 : $customKey
         );
@@ -53,7 +53,7 @@ trait FormatsMessages
         // If the rule being validated is a "size" rule, we will need to gather the
         // specific error message for the type of attribute being validated such
         // as a number, file or string which all have different message types.
-        if (in_array($rule, $this->sizeRules)) {
+        if (in_array($rule, $this->sizeRules, true)) {
             return $this->getSizeMessage($attributeWithPlaceholders, $rule);
         }
 
@@ -66,11 +66,13 @@ trait FormatsMessages
             return $value;
         }
 
-        return $this->getFromLocalArray(
+        $message = $this->getFromLocalArray(
             $attribute,
             $lowerRule,
             $this->fallbackMessages
-        ) ?: $key;
+        );
+
+        return is_string($message) && $message !== '' && $message !== '0' ? $message : $key;
     }
 
     /**
@@ -78,11 +80,15 @@ trait FormatsMessages
      */
     protected function getInlineMessage(string $attribute, string $rule): ?string
     {
-        $inlineEntry = $this->getFromLocalArray($attribute, Str::snake($rule));
+        $message = $this->getFromLocalArray($attribute, Str::snake($rule));
 
-        return is_array($inlineEntry) && in_array($rule, $this->sizeRules)
-            ? ($inlineEntry[$this->getAttributeType($attribute)] ?? null)
-            : $inlineEntry;
+        if (is_array($message)) {
+            return in_array($rule, $this->sizeRules, true)
+                ? ($message[$this->getAttributeType($attribute)] ?? null)
+                : null;
+        }
+
+        return $message;
     }
 
     /**
@@ -249,7 +255,7 @@ trait FormatsMessages
     {
         $primaryAttribute = $this->getPrimaryAttribute($attribute);
 
-        $expectedAttributes = $attribute != $primaryAttribute
+        $expectedAttributes = $attribute !== $primaryAttribute
             ? [$attribute, $primaryAttribute]
             : [$attribute];
 

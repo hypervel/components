@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
-use PHPUnit\Framework\TestCase;
 
 class ValidationExceptionTest extends TestCase
 {

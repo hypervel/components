@@ -10,6 +10,24 @@ use PHPUnit\Framework\Attributes\TestWith;
 
 class DateFormatValidationTest extends TestCase
 {
+    private string $originalTimezone;
+
+    protected function setUp(): void
+    {
+        $this->originalTimezone = date_default_timezone_get();
+
+        parent::setUp();
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            date_default_timezone_set($this->originalTimezone);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     #[TestWith(['UTC'])]
     #[TestWith(['Europe/Amsterdam'])]
     public function testItCanValidateRegardlessOfTimezone(string $timezone): void

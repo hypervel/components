@@ -121,6 +121,9 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
      * call across all coroutines.
      *
      * @param null|callable|static $callback
+     * @return ($callback is null ? static : null)
+     *
+     * @throws InvalidArgumentException
      */
     public static function defaults(mixed $callback = null): ?static
     {
@@ -373,6 +376,37 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
             'compromisedThreshold' => $this->compromisedThreshold,
             'customRules' => $this->customRules,
         ];
+    }
+
+    /**
+     * Convert the password rule to a passwordrules HTML attribute string.
+     *
+     * @see https://developer.apple.com/password-rules/
+     */
+    public function toPasswordRulesString(): string
+    {
+        $rules = ['minlength: ' . $this->min];
+
+        if ($this->max) {
+            $rules[] = 'maxlength: ' . $this->max;
+        }
+
+        if ($this->mixedCase) {
+            $rules[] = 'required: lower';
+            $rules[] = 'required: upper';
+        } elseif ($this->letters) {
+            $rules[] = 'required: lower';
+        }
+
+        if ($this->numbers) {
+            $rules[] = 'required: digit';
+        }
+
+        if ($this->symbols) {
+            $rules[] = 'required: special';
+        }
+
+        return implode('; ', $rules) . ';';
     }
 
     /**

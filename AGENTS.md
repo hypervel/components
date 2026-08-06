@@ -130,7 +130,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 ### Documentation
 
 - **Use one source of truth** — Put all user documentation in `src/boost/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
-- **Match Hypervel's documentation style** — Use simple, human-friendly prose in Laravel's documentation style. Avoid internal jargon, stiff wording, needless detail, and anything that does not help readers understand or use the feature.
+- **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Prefer natural explanations and examples over implementation language; avoid internal jargon, stiff wording, and needless detail.
 
 #### Package READMEs
 
@@ -162,6 +162,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 
 ### Code conventions
 
+- **New Hypervel-owned code must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements.
 - **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, and properties are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type).
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
