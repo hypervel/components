@@ -24,6 +24,9 @@ class EngineResolver
      * Register a new engine resolver.
      *
      * The engine string typically corresponds to a file extension.
+     *
+     * Boot-only. The resolver persists on the singleton EngineResolver for the
+     * worker lifetime and applies to every subsequent engine resolution.
      */
     public function register(string $engine, Closure $resolver): void
     {
@@ -52,6 +55,9 @@ class EngineResolver
 
     /**
      * Remove a resolved engine.
+     *
+     * Boot or tests only. Clears a worker-wide resolved engine shared by every
+     * coroutine; the next resolution rebuilds it from its registered resolver.
      */
     public function forget(string $engine): void
     {
