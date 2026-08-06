@@ -206,6 +206,9 @@ class Factory implements FactoryContract
 
     /**
      * Indicate that unvalidated array keys should be included in validated data when the parent array is validated.
+     *
+     * Boot-only. The setting persists on the singleton Factory for the worker
+     * lifetime and affects every subsequent validator built.
      */
     public function includeUnvalidatedArrayKeys(): void
     {
@@ -214,6 +217,9 @@ class Factory implements FactoryContract
 
     /**
      * Indicate that unvalidated array keys should be excluded from the validated data, even if the parent array was validated.
+     *
+     * Boot-only. The setting persists on the singleton Factory for the worker
+     * lifetime and affects every subsequent validator built.
      */
     public function excludeUnvalidatedArrayKeys(): void
     {
@@ -221,7 +227,21 @@ class Factory implements FactoryContract
     }
 
     /**
+     * Fake the DNS lookups performed by validation rules so they always succeed.
+     *
+     * Tests only. The setting persists for the worker lifetime and affects
+     * every subsequent validator until global test state is flushed.
+     */
+    public function fakeDnsLookups(bool $value = true): void
+    {
+        Validator::fakeDnsLookups($value);
+    }
+
+    /**
      * Set the Validator instance resolver.
+     *
+     * Boot-only. The resolver persists on the singleton Factory for the worker
+     * lifetime and affects every subsequent validator built.
      */
     public function resolver(Closure $resolver): void
     {
@@ -239,13 +259,16 @@ class Factory implements FactoryContract
     /**
      * Get the Presence Verifier implementation.
      */
-    public function getPresenceVerifier(): PresenceVerifierInterface
+    public function getPresenceVerifier(): ?PresenceVerifierInterface
     {
         return $this->verifier;
     }
 
     /**
      * Set the Presence Verifier implementation.
+     *
+     * Boot-only. The verifier persists on the singleton Factory for the worker
+     * lifetime and affects every subsequent validator built.
      */
     public function setPresenceVerifier(PresenceVerifierInterface $presenceVerifier): void
     {
