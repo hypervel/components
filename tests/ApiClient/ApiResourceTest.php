@@ -9,6 +9,7 @@ use Hypervel\ApiClient\ApiRequest;
 use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use Mockery\MockInterface;
 
@@ -80,6 +81,25 @@ class ApiResourceTest extends TestCase
             ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->jsonSerialize());
+    }
+
+    public function testToJsonThrowsForInvalidUtf8(): void
+    {
+        $this->response->shouldReceive('json')->once()->andReturn(['value' => "\xB1\x31"]);
+
+        $this->expectException(JsonException::class);
+
+        $this->resource->toJson();
+    }
+
+    public function testToJsonHonorsInvalidUtf8Substitution(): void
+    {
+        $this->response->shouldReceive('json')->once()->andReturn(['value' => "\xB1\x31"]);
+
+        $this->assertSame(
+            '{"value":"\ufffd1"}',
+            $this->resource->toJson(JSON_INVALID_UTF8_SUBSTITUTE),
+        );
     }
 
     public function testArrayAccessOffsetExists(): void
