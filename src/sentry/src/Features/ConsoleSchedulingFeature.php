@@ -139,16 +139,24 @@ class ConsoleSchedulingFeature extends Feature
         $this->pushSpan($transaction);
     }
 
-    public function handleScheduledTaskFinished(): void
+    public function handleScheduledTaskFinished(ScheduledTaskFinished $event): void
     {
-        $this->maybeFinishSpan(SpanStatus::ok());
-        $this->maybePopScope();
+        $exitCode = $event->task->exitCode();
+        $status = $exitCode === null || $exitCode === 0
+            ? SpanStatus::ok()
+            : SpanStatus::internalError();
+
+        // Gate maybePopScope's flush so duplicate terminal events do not flush twice.
+        if ($this->maybeFinishSpan($status) !== null) {
+            $this->maybePopScope();
+        }
     }
 
     public function handleScheduledTaskFailed(): void
     {
-        $this->maybeFinishSpan(SpanStatus::internalError());
-        $this->maybePopScope();
+        if ($this->maybeFinishSpan(SpanStatus::internalError()) !== null) {
+            $this->maybePopScope();
+        }
     }
 
     private function startCheckIn(
