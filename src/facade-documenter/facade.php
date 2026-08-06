@@ -894,12 +894,8 @@ function canPreserveConditionalTarget($method, $typeNode)
 
 /**
  * Flatten, collapse, and deduplicate resolved conditional branches.
- *
- * @param string $if
- * @param string $else
- * @return string
  */
-function flattenConditionalBranches($if, $else)
+function flattenConditionalBranches(string $if, string $else): string
 {
     $members = collect([
         ...splitTopLevelTypes($if),
@@ -957,12 +953,8 @@ function splitTopLevelTypes(string $type, string $separator = '|'): array
  * docblock didn't already express nullability. Skips the null-append when the
  * resolved type is "mixed" (which already subsumes null) to avoid redundant
  * "mixed|null" output.
- *
- * @param null|string $docblockType
- * @param null|string $nativeType
- * @return null|string
  */
-function mergeDocblockTypeWithNativeNullability($docblockType, $nativeType)
+function mergeDocblockTypeWithNativeNullability(?string $docblockType, ?string $nativeType): ?string
 {
     $resolved = $docblockType ?? $nativeType;
 

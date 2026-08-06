@@ -555,7 +555,7 @@ Add `: void` to every remaining Facade Documenter test method, including methods
 - `TraitImportSourceTest.php`;
 - `WrapperCollapseTest.php`.
 
-Do not expand this into native typing of every untouched global function in the upstream-style executable. New and changed helpers should receive correct native types where the existing mixed AST/reflection boundary permits them without awkward unions or suppressions.
+Give the rewritten rendered-string pipeline complete native signatures: `splitTopLevelTypes(string, string): array`, `flattenConditionalBranches(string, string): string`, and `mergeDocblockTypeWithNativeNullability(?string, ?string): ?string`. Remove redundant `@param` and `@return` annotations while retaining behavioral prose. Do not expand this into native typing of every global function in the upstream-style executable; helpers at the mixed AST/reflection boundary remain untyped where precise signatures would require awkward unions or suppressions.
 
 ### 15. Correct the InteractsWithData Stringable contract
 
