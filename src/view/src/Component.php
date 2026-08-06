@@ -10,6 +10,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionMethod;
@@ -152,7 +153,7 @@ abstract class Component
      */
     protected function extractBladeViewFromString(string $contents): string
     {
-        $key = sprintf('%s::%s', static::class, $contents);
+        $key = hash('xxh128', sprintf('%s::%s', static::class, $contents));
 
         if (isset(static::$bladeViewCache[$key])) {
             return static::$bladeViewCache[$key];
@@ -170,17 +171,16 @@ abstract class Component
      */
     protected function createBladeViewFromString(Factory $factory, string $contents): string
     {
-        $factory->addNamespace(
-            '__components',
-            $directory = Container::getInstance()->make('config')->string('view.compiled')
-        );
+        $container = Container::getInstance();
+        $files = $container->make(Filesystem::class);
+        $directory = $container->make('config')->string('view.compiled');
+        $viewFile = $directory . '/' . hash('xxh128', $contents) . '.blade.php';
 
-        if (! is_file($viewFile = $directory . '/' . hash('xxh128', $contents) . '.blade.php')) {
-            if (! is_dir($directory)) {
-                mkdir($directory, 0755, true);
-            }
+        $factory->replaceNamespace('__components', $directory);
 
-            file_put_contents($viewFile, $contents);
+        if (! $files->exists($viewFile) || $files->size($viewFile) !== strlen($contents)) {
+            $files->ensureDirectoryExists($directory);
+            $files->replace($viewFile, $contents);
         }
 
         return '__components::' . basename($viewFile, '.blade.php');
@@ -207,8 +207,7 @@ abstract class Component
             $reflection = new ReflectionClass($this);
 
             static::$propertyCache[$class] = (new Collection($reflection->getProperties(ReflectionProperty::IS_PUBLIC)))
-                ->reject(fn (ReflectionProperty $property) => $property->isStatic())
-                ->reject(fn (ReflectionProperty $property) => $this->shouldIgnore($property->getName()))
+                ->reject(fn (ReflectionProperty $property) => $property->isStatic() || $this->shouldIgnore($property->getName()))
                 ->map(fn (ReflectionProperty $property) => $property->getName())
                 ->all();
         }
