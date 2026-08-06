@@ -251,6 +251,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "users" drop constraint "foo"', $statements[0]);
     }
 
+    public function testDropForeignWithColumnsAndName(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->dropForeign(['tenant_id', 'parent_id'], 'users_parent_fk');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table "users" drop constraint "users_parent_fk"', $statements[0]);
+    }
+
     public function testDropTimestamps()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');

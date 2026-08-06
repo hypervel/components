@@ -17,6 +17,7 @@ use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;
 
@@ -418,9 +419,17 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      */
-    public function dropForeign(array|string $index): Fluent
+    public function dropForeign(array|string $index, ?string $name = null): Fluent
     {
-        return $this->dropIndexCommand('dropForeign', 'foreign', $index);
+        if (is_string($index) && $name !== null) {
+            throw new InvalidArgumentException(
+                "Cannot drop foreign key [{$index}] with a second constraint name [{$name}]. Pass the foreign key columns as the first argument when specifying its name."
+            );
+        }
+
+        return is_array($index) && $name !== null
+            ? $this->indexCommand('dropForeign', $index, $name)
+            : $this->dropIndexCommand('dropForeign', 'foreign', $index);
     }
 
     /**
