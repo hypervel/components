@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Support\Sleep;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -43,6 +45,58 @@ class WaiterTest extends TestCase
         });
 
         $this->assertSame($id + 1, $result);
+    }
+
+    public function testWaitStartsWithFreshContextByDefault(): void
+    {
+        CoroutineContext::set('key_a', 'value_a');
+
+        $this->assertNull(wait(
+            static fn (): mixed => CoroutineContext::get('key_a')
+        ));
+    }
+
+    public function testWaitCanCopyAllContext(): void
+    {
+        CoroutineContext::set('key_a', 'value_a');
+        CoroutineContext::set('key_b', 'value_b');
+
+        $readContext = static fn (): array => [
+            CoroutineContext::get('key_a'),
+            CoroutineContext::get('key_b'),
+        ];
+
+        $this->assertSame(['value_a', 'value_b'], wait($readContext, copyContext: true));
+        $this->assertSame(['value_a', 'value_b'], wait($readContext, copyContext: []));
+    }
+
+    public function testWaitCanCopySelectedContextKeys(): void
+    {
+        CoroutineContext::set('key_a', 'value_a');
+        CoroutineContext::set('key_b', 'value_b');
+
+        $result = (new Waiter)->wait(
+            static fn (): array => [
+                CoroutineContext::get('key_a'),
+                CoroutineContext::get('key_b'),
+            ],
+            copyContext: ['key_a'],
+        );
+
+        $this->assertSame(['value_a', null], $result);
+    }
+
+    public function testContextReplicationFailureIsReportedInsteadOfTimingOut(): void
+    {
+        CoroutineContext::set('throwing', new ThrowingReplicableContext);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to replicate context.');
+
+        (new Waiter(0.01))->wait(
+            static fn (): string => 'never',
+            copyContext: true,
+        );
     }
 
     public function testWaitNone()

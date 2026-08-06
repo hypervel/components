@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Foundation\Support\Providers;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Events\DiagnosingHealth;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -39,6 +40,22 @@ class RouteServiceProviderHealthTest extends TestCase
         $this->get('/up')
             ->assertOk()
             ->assertSee('Application up');
+    }
+
+    public function testItRendersTheCurrentRequestDuration(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-06 12:00:00 UTC');
+
+        $this->call('GET', '/up', server: [
+            'REQUEST_TIME_FLOAT' => CarbonImmutable::now()->subSeconds(5)->getPreciseTimestamp(6) / 1_000_000,
+        ])->assertOk()
+            ->assertSee('Response rendered in 5000ms.');
+
+        $this->call('GET', '/up', server: [
+            'REQUEST_TIME_FLOAT' => CarbonImmutable::now()->subSeconds(2)->getPreciseTimestamp(6) / 1_000_000,
+        ])->assertOk()
+            ->assertSee('Response rendered in 2000ms.')
+            ->assertDontSee('Response rendered in 5000ms.');
     }
 
     public function testItReturnsJsonWhenRequestExpectsJson(): void

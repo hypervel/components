@@ -6,6 +6,7 @@ namespace Hypervel\Foundation;
 
 use Closure;
 use Composer\Autoload\ClassLoader;
+use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -28,6 +29,7 @@ use Hypervel\Support\Traits\Macroable;
 use JsonException;
 use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -812,7 +814,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         }
 
         return in_array(
-            $_SERVER['argv'][1] ?? null,
+            ConsoleApplication::resolveCommandName(new ArgvInput),
             is_array($commands[0] ?? null) ? $commands[0] : $commands,
             true
         );

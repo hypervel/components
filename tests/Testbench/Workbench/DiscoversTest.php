@@ -8,11 +8,11 @@ use Composer\InstalledVersions;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Foundation\Events\DiagnosingHealth;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithViews;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\TestCase;
-use Override;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -24,16 +24,6 @@ class DiscoversTest extends TestCase
 {
     use InteractsWithViews;
     use WithWorkbench;
-
-    #[Override]
-    protected function setUp(): void
-    {
-        if (! \defined('HYPERVEL_START')) {
-            \define('HYPERVEL_START', microtime(true));
-        }
-
-        parent::setUp();
-    }
 
     #[Test]
     public function itCanResolveWebRoutesFromDiscovers()
@@ -56,12 +46,16 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveHealthCheckFromDiscovers()
+    public function itCanResolveHealthCheckFromDiscovers(): void
     {
-        $this->get('/up')
+        CarbonImmutable::setTestNow('2026-08-06 12:00:00 UTC');
+
+        $this->call('GET', '/up', server: [
+            'REQUEST_TIME_FLOAT' => CarbonImmutable::now()->subSeconds(5)->getPreciseTimestamp(6) / 1_000_000,
+        ])
             ->assertOk()
             ->assertSee('HTTP request received')
-            ->assertSee('Response rendered in');
+            ->assertSee('Response rendered in 5000ms.');
     }
 
     #[Test]

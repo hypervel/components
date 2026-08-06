@@ -109,24 +109,36 @@ class ScheduleRunContextPropagationTest extends TestCase
         $this->assertSame('yes', $channel->pop(1.0));
     }
 
-    public function testForegroundTaskSharesParentContext()
+    public function testForegroundTaskReceivesIndependentCopyOfParentLogContext(): void
     {
         ContextRepository::getInstance()->add('parent_key', 'original');
+        $childValues = [];
 
         $eventMutex = m::mock(EventMutex::class);
         $eventMutex->shouldReceive('create')->andReturn(true);
         $eventMutex->shouldReceive('forget');
 
-        $event = new CallbackEvent($eventMutex, function () {
-            ContextRepository::getInstance()->add('parent_key', 'modified');
+        $event = new CallbackEvent($eventMutex, function () use (&$childValues) {
+            $context = ContextRepository::getInstance();
+            $childValues['inherited'] = $context->get('parent_key');
+
+            $context->add('parent_key', 'modified');
+            $context->add('child_only', 'child');
+
+            $childValues['modified'] = $context->get('parent_key');
+            $childValues['child_only'] = $context->get('child_only');
+
             return 0;
         });
 
         $command = $this->makeCommand();
         $this->invokeRunEvents($command, [$event]);
 
-        // Foreground tasks run in the same coroutine — mutations are visible
-        $this->assertSame('modified', ContextRepository::getInstance()->get('parent_key'));
+        $this->assertSame('original', $childValues['inherited']);
+        $this->assertSame('modified', $childValues['modified']);
+        $this->assertSame('child', $childValues['child_only']);
+        $this->assertSame('original', ContextRepository::getInstance()->get('parent_key'));
+        $this->assertNull(ContextRepository::getInstance()->get('child_only'));
     }
 
     /**

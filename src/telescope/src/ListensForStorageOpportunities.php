@@ -6,6 +6,7 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Hypervel\Console\Events\BeforeHandle as BeforeHandleCommand;
+use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -81,21 +82,33 @@ trait ListensForStorageOpportunities
     }
 
     /**
-     * Manage starting and stopping the recording state for commands.
+     * Start recording for approved console commands and scheduled tasks.
      *
-     * Boot-only. Registers a worker-lifetime command listener; runtime use
-     * would accumulate duplicate listeners.
+     * Boot-only. Registers worker-lifetime command and scheduled-task listeners;
+     * runtime use would accumulate duplicate listeners.
      */
     public static function manageRecordingStateForCommands(Container $app): void
     {
-        $app->make(Dispatcher::class)
-            ->listen(BeforeHandleCommand::class, function () {
-                if (static::shouldListen()
-                    && static::runningApprovedArtisanCommand()
-                ) {
-                    static::startRecording();
-                }
-            });
+        $events = $app->make(Dispatcher::class);
+
+        $events->listen(BeforeHandleCommand::class, function (BeforeHandleCommand $event): void {
+            // The long-lived scheduler records only inside each finite task coroutine.
+            if ($event->command->getName() === 'schedule:run') {
+                return;
+            }
+
+            if (static::shouldListen()
+                && static::commandIsApproved($event->command->getName())
+            ) {
+                static::startRecording();
+            }
+        });
+
+        $events->listen(ScheduledTaskStarting::class, function (): void {
+            if (static::shouldListen() && static::commandIsApproved('schedule:run')) {
+                static::startRecording();
+            }
+        });
     }
 
     /**

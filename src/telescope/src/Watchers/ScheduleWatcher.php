@@ -6,62 +6,52 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Console\Events;
 use Hypervel\Console\Scheduling\CallbackEvent;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 
 class ScheduleWatcher extends Watcher
 {
-    /**
-     * The entries repository.
-     */
-    protected ?EntriesRepository $entriesRepository = null;
+    protected const LAST_RECORDED_TASK_CONTEXT_KEY = '__telescope.schedule_watcher.last_recorded_task';
 
     /**
      * The application instance.
      */
-    protected ?Application $app = null;
+    protected Application $app;
 
     /**
      * Register the watcher.
      */
     public function register(Application $app): void
     {
-        if (! in_array($_SERVER['argv'][1] ?? null, ['crontab:run', 'schedule:run'])) {
-            return;
-        }
-
         $this->app = $app;
-
-        $this->entriesRepository = $app->make(EntriesRepository::class);
-
-        Telescope::startRecording();
 
         $app->make(Dispatcher::class)
             ->listen([
-                Events\ScheduledTaskStarting::class,
                 Events\ScheduledTaskFinished::class,
                 Events\ScheduledTaskFailed::class,
             ], [$this, 'recordCommand']);
     }
 
     /**
-     * Record a scheduled command was executed.
+     * Record a scheduled command that was executed.
      */
-    public function recordCommand(object $event): void
+    public function recordCommand(Events\ScheduledTaskFailed|Events\ScheduledTaskFinished $event): void
     {
-        if ($event instanceof Events\ScheduledTaskStarting) {
-            Telescope::startRecording();
-            return;
-        }
-
         if (! Telescope::isRecording()) {
             return;
         }
 
         $task = $event->task;
+        $taskId = spl_object_id($task);
+
+        if (CoroutineContext::get(static::LAST_RECORDED_TASK_CONTEXT_KEY) === $taskId) {
+            return;
+        }
+
+        CoroutineContext::set(static::LAST_RECORDED_TASK_CONTEXT_KEY, $taskId);
 
         Telescope::recordScheduledCommand(IncomingEntry::make([
             'command' => $task instanceof CallbackEvent ? 'Closure' : $task->command,
@@ -71,7 +61,5 @@ class ScheduleWatcher extends Watcher
             'user' => $task->user,
             'output' => $task->getOutput($this->app),
         ]));
-
-        Telescope::store($this->entriesRepository);
     }
 }

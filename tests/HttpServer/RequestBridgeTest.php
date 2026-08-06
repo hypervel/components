@@ -118,6 +118,7 @@ class RequestBridgeTest extends TestCase
                 'server_protocol' => 'HTTP/1.1',
                 'remote_addr' => '192.168.1.1',
                 'remote_port' => '54321',
+                'request_time_float' => 1_700_000_000.123456,
             ],
             header: ['host' => 'example.com'],
         );
@@ -126,6 +127,8 @@ class RequestBridgeTest extends TestCase
 
         $this->assertSame('192.168.1.1', $request->server->get('REMOTE_ADDR'));
         $this->assertSame('54321', $request->server->get('REMOTE_PORT'));
+        $this->assertSame(1_700_000_000.123456, $request->server('REQUEST_TIME_FLOAT'));
+        $this->assertSame(1_700_000_000_123_456.0, $request->startedAt()->getPreciseTimestamp(6));
     }
 
     public function testHeadersGetHttpPrefix(): void

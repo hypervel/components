@@ -87,6 +87,25 @@ class MiddlewareTest extends SentryTestCase
         $this->assertNull($property->getValue());
     }
 
+    public function testTransactionUsesTheRequestStartTimestamp(): void
+    {
+        $middleware = $this->app->make(Middleware::class);
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $request->server->set('REQUEST_TIME_FLOAT', 1_800_000_000.654321);
+
+        $response = $middleware->handle($request, fn () => new Response('OK'));
+
+        Middleware::signalRouteWasMatched();
+        $middleware->terminate($request, $response);
+        $middleware->finishTransaction();
+
+        $this->assertSentryTransactionCount(1);
+        $this->assertSame(1_700_000_000.123456, $this->getLastSentryEvent()?->getStartTimestamp());
+    }
+
     public function testAfterResponseSpansAreCapturedOnTransaction()
     {
         $middleware = $this->app->make(Middleware::class);
