@@ -2553,6 +2553,7 @@ trait ValidatesAttributes
             '>' => $first > $second,
             '<=' => $first <= $second,
             '>=' => $first >= $second,
+            // Distinct DateTime instances representing the same instant must compare equal.
             '=' => ($first === $second)
                 || ($first == $second && $first !== null && $second !== null),
             default => throw new InvalidArgumentException,
@@ -2592,7 +2593,7 @@ trait ValidatesAttributes
      */
     protected function isSameType(mixed $first, mixed $second): bool
     {
-        return gettype($first) == gettype($second);
+        return gettype($first) === gettype($second);
     }
 
     /**

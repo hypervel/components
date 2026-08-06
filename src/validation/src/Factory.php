@@ -151,8 +151,8 @@ class Factory implements FactoryContract
     /**
      * Register a custom validator extension.
      *
-     * Boot-only. The extension persists on the singleton Factory for the
-     * worker lifetime and applies to every subsequent validator built.
+     * Boot-only. Request-time registration persists for the worker lifetime and
+     * exposes the extension to validators built by every concurrent request.
      */
     public function extend(string $rule, Closure|string $extension, ?string $message = null): void
     {
@@ -166,8 +166,8 @@ class Factory implements FactoryContract
     /**
      * Register a custom implicit validator extension.
      *
-     * Boot-only. The extension persists on the singleton Factory for the
-     * worker lifetime and applies to every subsequent validator built.
+     * Boot-only. Request-time registration persists for the worker lifetime and
+     * exposes the extension to validators built by every concurrent request.
      */
     public function extendImplicit(string $rule, Closure|string $extension, ?string $message = null): void
     {
@@ -181,8 +181,8 @@ class Factory implements FactoryContract
     /**
      * Register a custom dependent validator extension.
      *
-     * Boot-only. The extension persists on the singleton Factory for the
-     * worker lifetime and applies to every subsequent validator built.
+     * Boot-only. Request-time registration persists for the worker lifetime and
+     * exposes the extension to validators built by every concurrent request.
      */
     public function extendDependent(string $rule, Closure|string $extension, ?string $message = null): void
     {
@@ -196,8 +196,8 @@ class Factory implements FactoryContract
     /**
      * Register a custom validator message replacer.
      *
-     * Boot-only. The replacer persists on the singleton Factory for the
-     * worker lifetime and applies to every subsequent validator built.
+     * Boot-only. Request-time registration persists for the worker lifetime and
+     * exposes the message replacer to validators built by every concurrent request.
      */
     public function replacer(string $rule, Closure|string $replacer): void
     {
@@ -207,8 +207,8 @@ class Factory implements FactoryContract
     /**
      * Indicate that unvalidated array keys should be included in validated data when the parent array is validated.
      *
-     * Boot-only. The setting persists on the singleton Factory for the worker
-     * lifetime and affects every subsequent validator built.
+     * Boot-only. Request-time mutation persists for the worker lifetime and can
+     * change validated-data shape for validators built by concurrent requests.
      */
     public function includeUnvalidatedArrayKeys(): void
     {
@@ -218,8 +218,8 @@ class Factory implements FactoryContract
     /**
      * Indicate that unvalidated array keys should be excluded from the validated data, even if the parent array was validated.
      *
-     * Boot-only. The setting persists on the singleton Factory for the worker
-     * lifetime and affects every subsequent validator built.
+     * Boot-only. Request-time mutation persists for the worker lifetime and can
+     * change validated-data shape for validators built by concurrent requests.
      */
     public function excludeUnvalidatedArrayKeys(): void
     {
@@ -229,8 +229,8 @@ class Factory implements FactoryContract
     /**
      * Fake the DNS lookups performed by validation rules so they always succeed.
      *
-     * Tests only. The setting persists for the worker lifetime and affects
-     * every subsequent validator until global test state is flushed.
+     * Tests only. The setting persists for the worker lifetime; failing to reset
+     * it through Validator::flushState() can make later tests bypass real DNS validation.
      */
     public function fakeDnsLookups(bool $value = true): void
     {
@@ -240,8 +240,8 @@ class Factory implements FactoryContract
     /**
      * Set the Validator instance resolver.
      *
-     * Boot-only. The resolver persists on the singleton Factory for the worker
-     * lifetime and affects every subsequent validator built.
+     * Boot-only. Request-time mutation persists for the worker lifetime and can
+     * change the Validator class used by concurrent builds.
      */
     public function resolver(Closure $resolver): void
     {
@@ -267,8 +267,8 @@ class Factory implements FactoryContract
     /**
      * Set the Presence Verifier implementation.
      *
-     * Boot-only. The verifier persists on the singleton Factory for the worker
-     * lifetime and affects every subsequent validator built.
+     * Boot-only. Request-time mutation persists for the worker lifetime and can
+     * route concurrent exists and unique checks through the wrong verifier.
      */
     public function setPresenceVerifier(PresenceVerifierInterface $presenceVerifier): void
     {

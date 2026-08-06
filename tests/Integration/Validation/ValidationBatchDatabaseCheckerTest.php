@@ -17,6 +17,8 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\BatchDatabaseChecker;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\PrecomputedPresenceVerifier;
+use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\Validator;
 use RuntimeException;
 
@@ -226,7 +228,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
 
     public function testObjectFormExistsRulesBatchCorrectly(): void
     {
-        $rule = new \Hypervel\Validation\Rules\Exists('batch_test_users', 'email');
+        $rule = new Exists('batch_test_users', 'email');
 
         $validator = $this->makeValidator(
             ['items' => [
@@ -241,7 +243,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
 
     public function testObjectFormUniqueRuleWithIgnoreBatchesCorrectly(): void
     {
-        $rule = (new \Hypervel\Validation\Rules\Unique('batch_test_users', 'email'))
+        $rule = (new Unique('batch_test_users', 'email'))
             ->ignore(1, 'id');
 
         $validator = $this->makeValidator(
@@ -257,6 +259,44 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertFalse($validator->errors()->has('items.0.email'));
         $this->assertTrue($validator->errors()->has('items.1.email'));
         $this->assertFalse($validator->errors()->has('items.2.email'));
+    }
+
+    public function testStringFormUniqueRuleUnescapesIgnoredValueBeforeBatching(): void
+    {
+        $email = 'slash\id@example.com';
+
+        $this->app->make('db')->table('batch_test_users')->insert([
+            'email' => $email,
+            'status' => 'active',
+        ]);
+
+        $rule = (string) (new Unique('batch_test_users', 'email'))
+            ->ignore($email, 'email');
+
+        $validator = $this->makeValidator(
+            ['items' => [
+                ['email' => $email],
+                ['email' => 'new@example.com'],
+            ]],
+            ['items.*.email' => ['required', $rule]],
+        );
+
+        DB::enableQueryLog();
+
+        try {
+            $result = $validator->passes();
+            $queryLog = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        $this->assertTrue($result);
+
+        $uniqueQueries = array_filter($queryLog, function ($entry) {
+            return str_contains($entry['query'], 'batch_test_users');
+        });
+
+        $this->assertCount(1, $uniqueQueries);
     }
 
     public function testArrayFormExistsRuleBlocksBatchingForSameTableColumn(): void
@@ -299,7 +339,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
 
     public function testObjectFormExistsWithInferredColumnAndDifferentShapeBlocksBatchingForSameTableColumn(): void
     {
-        $rule = (new \Hypervel\Validation\Rules\Exists('batch_test_users'))
+        $rule = (new Exists('batch_test_users'))
             ->where('status', 'active');
 
         $validator = $this->makeValidator(

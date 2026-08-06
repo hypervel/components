@@ -816,6 +816,10 @@ class Validator implements ValidatorContract
                 }
 
                 [$idColumn, $ignore] = $this->getUniqueIds($modelIdColumn, $parameters);
+
+                if ($ignore !== null) {
+                    $ignore = stripslashes((string) $ignore);
+                }
             }
             if (isset($parameters[4])) {
                 $wheres = $this->getExtraConditions(array_slice($parameters, 4));
@@ -2087,8 +2091,8 @@ class Validator implements ValidatorContract
     /**
      * Fake the DNS lookups performed by validation rules so they always succeed.
      *
-     * Tests only. The setting persists for the worker lifetime and affects
-     * every subsequent validator until global test state is flushed.
+     * Tests only. The setting persists for the worker lifetime; failing to reset
+     * it through Validator::flushState() can make later tests bypass real DNS validation.
      */
     public static function fakeDnsLookups(bool $value = true): void
     {

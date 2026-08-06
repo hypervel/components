@@ -274,7 +274,7 @@ trait PlanExecutor
             return match ($operator) {
                 '>=' => $size >= $numericTarget,
                 '<=' => $size <= $numericTarget,
-                '==' => $size == $numericTarget,
+                '==' => (float) $size === $numericTarget,
                 default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
             };
         }

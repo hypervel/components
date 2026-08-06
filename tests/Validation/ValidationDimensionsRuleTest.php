@@ -55,7 +55,7 @@ class ValidationDimensionsRuleTest extends TestCase
         $this->assertSame('dimensions:min_ratio=0.33333333333333,max_ratio=0.5', (string) $rule);
     }
 
-    public function testItCorrectlyFormatsWithSpecialValues()
+    public function testItCorrectlyFormatsWithSpecialValues(): void
     {
         $rule = new Dimensions;
 
@@ -70,21 +70,21 @@ class ValidationDimensionsRuleTest extends TestCase
         $this->assertSame('dimensions:width=300,height=400', (string) $rule);
     }
 
-    public function testDimensionsRuleMaintainsCorrectOrder()
+    public function testDimensionsRuleMaintainsCorrectOrder(): void
     {
         $rule = Rule::dimensions()->minWidth(100)->width(200)->maxWidth(300);
 
         $this->assertSame('dimensions:min_width=100,width=200,max_width=300', (string) $rule);
     }
 
-    public function testOverridingValues()
+    public function testOverridingValues(): void
     {
         $rule = Rule::dimensions()->width(100)->width(500);
 
         $this->assertSame('dimensions:width=500', (string) $rule);
     }
 
-    public function testRatioBetweenOverridesMinAndMaxRatio()
+    public function testRatioBetweenOverridesMinAndMaxRatio(): void
     {
         $rule = Rule::dimensions()->minRatio(0.5)->maxRatio(2.0)->ratioBetween(1, 1.5);
 
@@ -98,6 +98,9 @@ class ValidationDimensionsRuleTest extends TestCase
             ->ratioBetween(min: 2 / 5, max: 1 / 2);
 
         $trans = new Translator(new ArrayLoader, 'en');
+        $trans->addLines([
+            'validation.dimensions' => ':width :height :min_ratio :max_ratio',
+        ], 'en');
 
         $image = UploadedFile::fake();
 
@@ -108,7 +111,7 @@ class ValidationDimensionsRuleTest extends TestCase
         );
 
         $this->assertSame(
-            $trans->get('validation.dimensions', ['width' => 100, 'height' => 100, 'min_ratio' => 0.4, 'max_ratio' => 0.5]),
+            '100 100 0.4 0.5',
             $validator->errors()->first('image')
         );
 
@@ -119,7 +122,7 @@ class ValidationDimensionsRuleTest extends TestCase
         );
 
         $this->assertSame(
-            $trans->get('validation.dimensions', ['width' => 100, 'height' => 100, 'min_ratio' => 0.4, 'max_ratio' => 0.5]),
+            '100 100 0.4 0.5',
             $validator->errors()->first('image')
         );
     }

@@ -182,6 +182,7 @@ The cache-key correction adds `serialize()` only for cacheable string-rule array
 | `validation-34` | Date-field classification defect | Major | Recognize hyphenated and digit-leading named field paths without deoptimizing common ISO or pure-numeric literals. |
 | `validation-35` | Membership value defect | Major | Reject non-stringable submitted objects without throwing, with `not_in` remaining the exact inverse. |
 | `validation-36` | Fallback-message regression | Minor | Preserve Laravel's translation-key fallback for empty and string-zero fallback messages. |
+| `validation-37` | Batched-ignore defect | Major | Apply ordinary `unique` escaping semantics to parsed string/array batch metadata. |
 
 ## Implementation design
 
@@ -215,7 +216,7 @@ self::$maxSize = $size;
 
 Import the global `InvalidArgumentException`. Regress both a direct cache collision and a cross-Validator collision using a regex containing `|`; cover zero, negative, and positive capacities. Do not hash the serialized key, keep a collision registry, or add a disabled-cache mode.
 
-### 2. Restore presence-verifier ownership and supported value shapes (`validation-04`–`validation-06`, `validation-27`)
+### 2. Restore presence-verifier ownership and supported value shapes (`validation-04`–`validation-06`, `validation-27`, `validation-37`)
 
 Add one concrete batch method to `DatabasePresenceVerifier`, taking the connection per call so no mutable verifier selection spans a yield:
 
@@ -242,6 +243,8 @@ The `mixed` ignore parameter is deliberate: object-form `Unique::ignore()` is pu
 
 `BatchDatabaseChecker` must call the exact verifier it was given. Delete the duplicate facade query and condition construction. Preserve named/default connection selection, write-PDO use, chunking, ignore IDs, and existing condition operators.
 
+For parsed string/array `unique` rules, apply `stripslashes()` to each non-null ignored value after `getUniqueIds()`, matching `validateUnique()`. Object-form rules retain the raw value exposed by `presenceMetadata()`. This adds one string normalization per eligible parsed rule group before the existing database query; it adds no query, serialization layer, or retained state.
+
 Normalize candidate group values at one boundary:
 
 ```php
@@ -267,7 +270,7 @@ Import PHP's global `Stringable`. This intentionally supports one-dimensional sc
 
 Widen `PresenceVerifierInterface::getCount()` to `mixed`, which matches both built-ins and the Validator's real input domain. `PrecomputedPresenceVerifier` normalizes supported scalar/Stringable values; unsupported `getCount()` values delegate to its fallback, and unsupported `getMultiCount()` input delegates as a whole. No batching capability is added to the public contract.
 
-Tests must prove injected-resolver ownership without a DB facade, named/default connections, conditions, ignore IDs, chunking, scalar and one-dimensional array values, duplicates, empty arrays, unsupported fallback, custom-verifier numeric values, query counts, and verifier restoration in `finally`.
+Tests must prove injected-resolver ownership without a DB facade, named/default connections, conditions, escaped string-form ignore IDs, chunking, scalar and one-dimensional array values, duplicates, empty arrays, unsupported fallback, custom-verifier numeric values, query counts, and verifier restoration in `finally`.
 
 ### 3. Close the validator-aware optimizer hole (`validation-28`)
 
@@ -528,7 +531,7 @@ Port Laravel's guarded equality arm on the protected comparison extension point:
     || ($first == $second && $first !== null && $second !== null),
 ```
 
-The new operand guards are what correct the reachable null-equality defect. Once they hold, the guarded arm has the same result as loose equality for reachable non-null operands; do not claim or test the arm alone as the defect fix.
+The new operand guards are what correct the reachable null-equality defect. Once they hold, the guarded arm has the same result as loose equality for reachable non-null operands. Keep this narrow compatibility exception because distinct `DateTimeInterface` instances representing the same instant must compare by value; do not strictify it or claim the arm alone as the defect fix.
 
 The owner-approved missing/invalid policy is uniform across before, before-or-equal, after, after-or-equal, and date-equals:
 
@@ -573,6 +576,8 @@ public static function fakeDnsLookups(bool $value = true): void
 
 Add Factory/facade forwarding, `FakeDnsGetRecordWrapper`, the `active_url` branch, and the Egulias `email:dns` wrapper. Reset the flag inside the existing `Validator::flushState()` already registered with test cleanup; do not add another cleanup registry. Port focused active URL, email DNS, toggle, Factory, facade, and reset coverage.
 
+Both public DNS-faking docblocks must name `Validator::flushState()` as the reset owner and warn that failing to reset can make later tests in the same worker bypass real DNS validation.
+
 ### 8. Correct Factory, facade, and public lifecycle metadata (`validation-07`, `validation-18`, `validation-19`)
 
 Return `?PresenceVerifierInterface` from `Factory::getPresenceVerifier()` and update generated facade metadata. Do not synthesize a verifier for a directly constructed Factory.
@@ -588,7 +593,7 @@ Factory::resolver()
 Factory::setPresenceVerifier()
 ```
 
-Each warning must say the change persists for the worker lifetime and affects subsequent requests. Factory remains a singleton; no request-scoped clone, context slot, or lock is added.
+The array-key warnings must say request-time mutation can change validated-data shape for concurrent builds. The resolver warning must name the Validator class selected by concurrent builds, and the verifier warning must name concurrent `exists` / `unique` checks routed through the wrong verifier. Existing extension and replacer registrars must use the same concrete form, naming the rule extension or message replacer exposed to concurrent validator builds. Factory remains a singleton; no request-scoped clone, context slot, or lock is added.
 
 ### 9. Correct split ownership and public typing (`validation-22`–`validation-25`)
 
@@ -617,8 +622,8 @@ Give `src/validation/README.md` the canonical package shape: retain its title an
 Apply strict comparison only where operand domains are already proven:
 
 - presence counts against integer zero;
-- `gettype()` and message-key strings;
-- size results after explicit numeric normalization;
+- `gettype()` results and displayable-attribute keys;
+- String/Array size results after explicit float normalization;
 - the accepted hash, equality, and membership fixes above.
 
 Retain intentional parameter coercion in dimensions, decimal, and digit APIs; non-strict exclusion/dependent/distinct behavior; and nullable MIME/extension domains until a separate trace proves a defect. In particular, keep `Validator`'s `in_array('array', $rules) || in_array('list', $rules)` non-strict: `$rules` may contain a `Rules\ArrayRule` object whose `__toString()` is `array`, and strict membership would stop `excludeUnvalidatedArrayKeys` from recognizing it. No mechanical package rewrite.
@@ -673,16 +678,16 @@ Keep public documentation concise and Laravel-style:
 - record under `Differences From Laravel` the uniform missing/null and invalid date-comparison policy;
 - do not publish internal compiler, cache, or batching details.
 
-Update the core plan routing to Validation while active. After implementation, add one compact ledger work unit, amend the completed Support entry for the regenerated Validator facade, and add only genuine cross-package dependency-index rows. Record that current Laravel's PR `#59339` remains incomplete at two array-message escape paths and regresses wildcard type-specific size messages, that Laravel omits `DateEquals` from dependent-rule preprocessing, and that its max-ratio regression passes an ignored third argument to a two-parameter method. Recommend upstream reports without making them part of this branch. Revalidate `validation-01` and `support-29`; do not mark Validation complete until implementation, full gates, fresh self-review, code-review sign-off, owner checkpoint, and bookkeeping commit are complete.
+Update the core plan routing to Validation while active. After implementation, add one compact ledger work unit, amend the completed Support entry for the regenerated Validator facade, and add only genuine cross-package dependency-index rows. Record `validation-37` as a Validation-local correction with no dependency-index row. Record that current Laravel's PR `#59339` remains incomplete at two array-message escape paths and regresses wildcard type-specific size messages, that Laravel omits `DateEquals` from dependent-rule preprocessing, and that its max-ratio regression passes an ignored third argument to a two-parameter method. Recommend upstream reports without making them part of this branch. Revalidate `validation-01` and `support-29`; do not mark Validation complete until implementation, full gates, fresh self-review, code-review sign-off, owner checkpoint, and bookkeeping commit are complete.
 
 ## Regression matrix
 
 | Area | Required proof |
 |---|---|
 | Cache | Direct and cross-Validator collision; LRU capacity and invalid sizes; static reset unchanged. |
-| Presence batching | Injected resolver, connections, write PDO, conditions, ignores, chunks, arrays, unsupported fallback, query count, verifier restoration. |
+| Presence batching | Injected resolver, connections, write PDO, conditions, escaped string-form ignores, chunks, arrays, unsupported fallback, query count, verifier restoration. |
 | Optimizer | Validator-aware mutation defeats neither `unique` nor `exists`; ordinary eligible batches remain batched. |
-| Messages | Exact/wildcard scalar messages, type-specific size maps, missing rule entries, falsey fallback semantics, date-field reference rendering, translation fallback, and all nine documented integer-parameter replacers. |
+| Messages | Exact/wildcard scalar messages, type-specific size maps, dimensions placeholders, missing rule entries, falsey fallback semantics, date-field reference rendering, translation fallback, and all nine documented integer-parameter replacers. |
 | Password/email/images | Magic hash; CR/LF in every execution path; min/max ratios around tolerance and valid fluent range fixtures. |
 | Compiled parity | Guarded type matrix, current lowercase/uppercase override arity, array `not_in`, object-safe raw-array and fluent-rule strict scalar membership, fluent enum message rendering, malformed digit parameters, base/subclass equivalence. |
 | Dates | Five operators, literals/fields, escaped-dot, hyphenated, digit-leading, and wildcard fields, both comparison directions, absent/null/invalid/empty/unsupported field values, invalid-current plus absent-field ordering, castable format context, numerics, DateTime, epoch equality, and preserved inlining for common ISO/pure-numeric literals. |
@@ -700,6 +705,7 @@ Run each changed test file immediately. Then run focused Validation unit/integra
 - No recursive batch-value flattener, arbitrary custom-verifier batching, batch method on the public verifier contract, mutable per-query connection state, resolver registry, or extra query.
 - No generic value/date/comparison normalizer, comparison policy, differential harness, or new parser class/trait.
 - No parser-wide or replacer-wide parameter stringification, message-renderer guard, or machinery for unsupported raw array-form enum/object rule parameters.
+- No strict replacement for the guarded date equality arm; distinct date objects representing one instant require value equality.
 - No compile-time date parsing or Date-factory-dependent plan selection to optimize uncommon ambiguous literal shapes.
 - No port of Laravel PR `#59339`'s incomplete message branch.
 - No removal of compiled date checks, no Base64 compiler arm, and no widening of optimization to ambiguous rules.

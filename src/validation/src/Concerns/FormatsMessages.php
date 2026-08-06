@@ -255,7 +255,7 @@ trait FormatsMessages
     {
         $primaryAttribute = $this->getPrimaryAttribute($attribute);
 
-        $expectedAttributes = $attribute != $primaryAttribute
+        $expectedAttributes = $attribute !== $primaryAttribute
             ? [$attribute, $primaryAttribute]
             : [$attribute];
 
