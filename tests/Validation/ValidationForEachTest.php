@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
-use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 class ValidationForEachTest extends TestCase

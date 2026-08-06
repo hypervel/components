@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Validator;
-use PHPUnit\Framework\TestCase;
 
 class ValidationAddFailureTest extends TestCase
 {
