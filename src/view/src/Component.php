@@ -289,8 +289,10 @@ abstract class Component
             'withName',
             'withAttributes',
             'flushCache',
+            'flushState',
             'forgetFactory',
             'forgetComponentsResolver',
+            'ignoredParameterNames',
             'resolveComponentsUsing',
         ], $this->except);
     }
@@ -387,6 +389,7 @@ abstract class Component
         static::$constructorParametersCache = [];
         static::$methodCache = [];
         static::$propertyCache = [];
+        static::$ignoredParameterNames = [];
     }
 
     /**
@@ -426,5 +429,15 @@ abstract class Component
     public static function resolveComponentsUsing(Closure $resolver): void
     {
         static::$componentsResolver = $resolver;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushCache();
+        static::forgetFactory();
+        static::forgetComponentsResolver();
     }
 }

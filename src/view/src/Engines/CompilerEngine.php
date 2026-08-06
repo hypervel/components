@@ -83,6 +83,9 @@ class CompilerEngine extends PhpEngine
         }
     }
 
+    /**
+     * Push a compiled view path onto the stack.
+     */
     protected function pushCompiledPath(string $path): void
     {
         $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY, []);
@@ -90,6 +93,9 @@ class CompilerEngine extends PhpEngine
         CoroutineContext::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
     }
 
+    /**
+     * Pop the current compiled view path from the stack.
+     */
     protected function popCompiledPath(): void
     {
         $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY, []);
@@ -144,5 +150,13 @@ class CompilerEngine extends PhpEngine
     public static function forgetCompiledOrNotExpired(): void
     {
         static::$compiledOrNotExpired = [];
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::forgetCompiledOrNotExpired();
     }
 }

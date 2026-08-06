@@ -66,11 +66,11 @@ class ViewCompilerEngineTest extends TestCase
         $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
 
-    public function testThatViewsAreNotAskTwiceIfTheyAreExpired()
+    public function testThatViewsAreNotAskTwiceIfTheyAreExpired(): void
     {
         $engine = $this->getEngine();
         $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/basic.php');
-        $engine->getCompiler()->shouldReceive('isExpired')->twice()->andReturn(false);
+        $engine->getCompiler()->shouldReceive('isExpired')->times(3)->andReturn(false);
         $engine->getCompiler()->shouldReceive('compile')->never();
 
         $engine->get(__DIR__ . '/Fixtures/foo.php');
@@ -78,6 +78,10 @@ class ViewCompilerEngineTest extends TestCase
         $engine->get(__DIR__ . '/Fixtures/foo.php');
 
         CompilerEngine::forgetCompiledOrNotExpired();
+
+        $engine->get(__DIR__ . '/Fixtures/foo.php');
+
+        CompilerEngine::flushState();
 
         $engine->get(__DIR__ . '/Fixtures/foo.php');
     }

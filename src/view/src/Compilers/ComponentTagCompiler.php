@@ -409,6 +409,9 @@ class ComponentTagCompiler
         return $namespace . 'View\Components\\' . $class;
     }
 
+    /**
+     * Get the application namespace.
+     */
     protected function getNamespace(): string
     {
         if (isset($this->namespace)) {
