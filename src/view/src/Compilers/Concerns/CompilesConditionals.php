@@ -301,7 +301,7 @@ trait CompilesConditionals
      */
     protected function compilePushIf(string $expression): string
     {
-        $parts = explode(',', $this->stripParentheses($expression), 2);
+        $parts = $this->parseConditionalStackExpression($expression);
 
         return "<?php if({$parts[0]}): \$__env->startPush({$parts[1]}); ?>";
     }
@@ -311,9 +311,25 @@ trait CompilesConditionals
      */
     protected function compileElsePushIf(string $expression): string
     {
-        $parts = explode(',', $this->stripParentheses($expression), 2);
+        $parts = $this->parseConditionalStackExpression($expression);
 
         return "<?php \$__env->stopPush(); elseif({$parts[0]}): \$__env->startPush({$parts[1]}); ?>";
+    }
+
+    /**
+     * Parse a conditional stack expression.
+     */
+    protected function parseConditionalStackExpression(string $expression): array
+    {
+        $segments = explode(',', $this->stripParentheses($expression));
+
+        if (count($segments) > 2) {
+            $stack = array_pop($segments);
+
+            return [implode(',', $segments), trim($stack)];
+        }
+
+        return $segments;
     }
 
     /**

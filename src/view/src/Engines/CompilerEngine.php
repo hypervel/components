@@ -9,7 +9,7 @@ use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Exceptions\HttpResponseException;
-use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -48,38 +48,39 @@ class CompilerEngine extends PhpEngine
     {
         $this->pushCompiledPath($path);
 
-        // If this given view has expired, which means it has simply been edited since
-        // it was last compiled, we will re-compile the views so we can evaluate a
-        // fresh copy of the view. We'll pass the compiler the path of the view.
-        if (! isset(static::$compiledOrNotExpired[$path]) && $this->compiler->isExpired($path)) {
-            $this->compiler->compile($path);
-        }
-
-        // Once we have the path to the compiled file, we will evaluate the paths with
-        // typical PHP just like any other templates. We also keep a stack of views
-        // which have been rendered for right exception messages to be generated.
-
         try {
-            $results = $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
-        } catch (ViewException $e) {
-            if (! Str::of($e->getMessage())->contains(['No such file or directory', 'File does not exist at path'])) {
-                throw $e;
-            }
-
+            // If this given view has expired, which means it has simply been edited since
+            // it was last compiled, we will re-compile the views so we can evaluate a
+            // fresh copy of the view. We'll pass the compiler the path of the view.
             if (! isset(static::$compiledOrNotExpired[$path])) {
-                throw $e;
+                if ($this->compiler->isExpired($path)) {
+                    $this->compiler->compile($path);
+                } else {
+                    static::$compiledOrNotExpired[$path] = true;
+                }
             }
 
-            $this->compiler->compile($path);
+            // Once we have the path to the compiled file, we will evaluate the paths with
+            // typical PHP just like any other templates. We also keep a stack of views
+            // which have been rendered for right exception messages to be generated.
+            try {
+                return $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
+            } catch (ViewException $e) {
+                if ((new Stringable($e->getMessage()))->doesntContain(['No such file or directory', 'File does not exist at path'])) {
+                    throw $e;
+                }
 
-            $results = $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
+                if (! isset(static::$compiledOrNotExpired[$path])) {
+                    throw $e;
+                }
+
+                $this->compiler->compile($path);
+
+                return $this->evaluatePath($this->compiler->getCompiledPath($path), $data);
+            }
+        } finally {
+            $this->popCompiledPath();
         }
-
-        static::$compiledOrNotExpired[$path] = true;
-
-        $this->popCompiledPath();
-
-        return $results;
     }
 
     protected function pushCompiledPath(string $path): void
@@ -121,7 +122,7 @@ class CompilerEngine extends PhpEngine
      */
     protected function getMessage(Throwable $e): string
     {
-        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY);
+        $stack = CoroutineContext::get(static::COMPILED_PATH_CONTEXT_KEY, []);
 
         return $e->getMessage() . ' (View: ' . realpath(last($stack)) . ')';
     }
