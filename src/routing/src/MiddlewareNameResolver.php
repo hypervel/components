@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Routing;
 
 use Closure;
+use LogicException;
 
 class MiddlewareNameResolver
 {
@@ -28,6 +29,8 @@ class MiddlewareNameResolver
         // of middlewares that belong to the group. This allows developers to group a
         // set of middleware under single keys that can be conveniently referenced.
         if (isset($middlewareGroups[$name])) {
+            self::validateMiddlewareGroup($name, $middlewareGroups);
+
             return static::parseMiddlewareGroup($name, $map, $middlewareGroups);
         }
 
@@ -51,6 +54,10 @@ class MiddlewareNameResolver
             // merge its middleware into the results. This allows groups to conveniently
             // reference other groups without needing to repeat all their middlewares.
             if (isset($middlewareGroups[$middleware])) {
+                if ($name === $middleware) {
+                    throw new LogicException("[{$name}] middleware group is referencing itself.");
+                }
+
                 $results = array_merge($results, static::parseMiddlewareGroup(
                     $middleware,
                     $map,
@@ -73,9 +80,34 @@ class MiddlewareNameResolver
                 $middleware = $map[$middleware];
             }
 
-            $results[] = $middleware . ($parameters ? ':' . $parameters : '');
+            $results[] = $middleware . (! is_null($parameters) ? ':' . $parameters : '');
         }
 
         return $results;
+    }
+
+    /**
+     * Validate that the middleware group contains no indirect cycles.
+     */
+    private static function validateMiddlewareGroup(
+        string $name,
+        array $middlewareGroups,
+        array $activePath = []
+    ): void {
+        $activePath[] = $name;
+
+        foreach ($middlewareGroups[$name] as $middleware) {
+            if (! isset($middlewareGroups[$middleware]) || $middleware === $name) {
+                continue;
+            }
+
+            if (($start = array_search($middleware, $activePath, true)) !== false) {
+                $cycle = [...array_slice($activePath, $start), $middleware];
+
+                throw new LogicException('Middleware group cycle detected: [' . implode(' -> ', $cycle) . '].');
+            }
+
+            self::validateMiddlewareGroup($middleware, $middlewareGroups, $activePath);
+        }
     }
 }

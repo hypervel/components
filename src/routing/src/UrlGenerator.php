@@ -174,9 +174,18 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function previousPath(bool|string $fallback = false): string
     {
-        $previousPath = str_replace($this->to('/'), '', rtrim(preg_replace('/\?.*/', '', $this->previous($fallback)), '/'));
+        $previousPath = parse_url($this->previous($fallback), PHP_URL_PATH);
 
-        return $previousPath === '' ? '/' : $previousPath;
+        if (! is_string($previousPath) || $previousPath === '') {
+            return '/';
+        }
+
+        $basePath = parse_url($this->to('/'), PHP_URL_PATH) ?: '';
+        $previousPath = $basePath !== '/'
+            ? preg_replace('#^' . preg_quote($basePath, '#') . '(?=/|$)#', '', $previousPath)
+            : $previousPath;
+
+        return rtrim($previousPath, '/') ?: '/';
     }
 
     /**
@@ -388,6 +397,12 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function hasCorrectSignature(Request $request, bool $absolute = true, Closure|array $ignoreQuery = []): bool
     {
+        $signature = $request->query('signature');
+
+        if (! is_string($signature)) {
+            return false;
+        }
+
         $url = $absolute ? $request->url() : '/' . $request->path();
 
         $queryString = (new Collection(explode('&', (string) $request->server->get('QUERY_STRING'))))
@@ -415,7 +430,7 @@ class UrlGenerator implements UrlGeneratorContract
         foreach ($keys as $key) {
             if (hash_equals(
                 hash_hmac('sha256', $original, $key),
-                (string) $request->query('signature', '')
+                $signature
             )) {
                 return true;
             }
@@ -430,6 +445,10 @@ class UrlGenerator implements UrlGeneratorContract
     public function signatureHasNotExpired(Request $request): bool
     {
         $expires = $request->query('expires');
+
+        if ($expires !== null && ! is_string($expires)) {
+            return false;
+        }
 
         return ! ($expires && CarbonImmutable::now()->getTimestamp() > $expires);
     }
@@ -760,6 +779,9 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set a callback to be used to format the host of generated URLs.
      *
+     * Boot-only. The callback persists on the singleton URL generator and
+     * affects every subsequent request.
+     *
      * @return $this
      */
     public function formatHostUsing(Closure $callback): static
@@ -771,6 +793,9 @@ class UrlGenerator implements UrlGeneratorContract
 
     /**
      * Set a callback to be used to format the path of generated URLs.
+     *
+     * Boot-only. The callback persists on the singleton URL generator and
+     * affects every subsequent request.
      *
      * @return $this
      */
@@ -830,6 +855,9 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the route collection.
      *
+     * Boot or tests only. Replacing the collection mutates the singleton URL
+     * generator for every subsequent request.
+     *
      * @return $this
      */
     public function setRoutes(RouteCollectionInterface $routes): static
@@ -854,6 +882,9 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the session resolver for the generator.
      *
+     * Boot-only. The resolver persists on the singleton URL generator and
+     * affects every subsequent request.
+     *
      * @return $this
      */
     public function setSessionResolver(callable $sessionResolver): static
@@ -865,6 +896,9 @@ class UrlGenerator implements UrlGeneratorContract
 
     /**
      * Set the encryption key resolver.
+     *
+     * Boot-only. The resolver persists on the singleton URL generator and
+     * affects every subsequent request.
      *
      * @return $this
      */
@@ -886,6 +920,9 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the callback that should be used to attempt to resolve missing named routes.
      *
+     * Boot-only. The callback persists on the singleton URL generator and
+     * affects every subsequent request.
+     *
      * @return $this
      */
     public function resolveMissingNamedRoutesUsing(callable $missingNamedRouteResolver): static
@@ -905,6 +942,9 @@ class UrlGenerator implements UrlGeneratorContract
 
     /**
      * Set the root controller namespace.
+     *
+     * Boot-only. The namespace persists on the singleton URL generator and
+     * affects every subsequent request.
      *
      * @return $this
      */

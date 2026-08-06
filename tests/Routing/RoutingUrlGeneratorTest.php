@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing\RoutingUrlGeneratorTest;
 
+use ErrorException;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Database\Eloquent\Model;
@@ -159,6 +160,33 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('', $request->getBasePath());
         $this->assertSame('/other.php', $request->getBaseUrl());
         $this->assertSame('/foo/bar/subfolder', $url->route('foobar', [], false));
+    }
+
+    #[DataProvider('requestBaseUrlWithSpecialCharactersProvider')]
+    public function testRelativeRouteGenerationStripsRequestBaseUrlWithSpecialCharacters(string $directory): void
+    {
+        $request = Request::create("http://www.foo.com/{$directory}/index.php");
+
+        $request->server->set('SCRIPT_FILENAME', "/var/www/hypervel-project/public/{$directory}/index.php");
+        $request->server->set('PHP_SELF', "/{$directory}/index.php");
+
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            $request
+        );
+
+        $routes->add(new Route(['GET'], 'foo', ['as' => 'foo']));
+
+        $this->assertSame("/{$directory}/index.php", $request->getBaseUrl());
+        $this->assertSame('/foo', $url->route('foo', [], false));
+    }
+
+    public static function requestBaseUrlWithSpecialCharactersProvider(): array
+    {
+        return [
+            'encoded characters' => ['app(v2)'],
+            'regex metacharacters' => ['a+b'],
+        ];
     }
 
     public function testBasicGenerationWithPathFormatting()
@@ -961,10 +989,41 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $url->getRequest()->headers->set('referer', 'http://www.foo.com/bar?baz=bah');
         $this->assertSame('/bar', $url->previousPath());
 
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/foo');
+        $this->assertSame('/foo', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/foo?bar=baz');
+        $this->assertSame('/foo', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com');
+        $this->assertSame('/', $url->previousPath());
+
         $url->getRequest()->headers->remove('referer');
         $this->assertSame('/', $url->previousPath());
 
         $this->assertSame('/bar', $url->previousPath('/bar'));
+    }
+
+    public function testPreviousPathWithBaseUrl(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('http://www.foo.com/subdir/current')
+        );
+
+        $url->useOrigin('http://www.foo.com/subdir');
+
+        $url->getRequest()->headers->set('referer', 'http://www.foo.com/subdir/dashboard?x=1');
+        $this->assertSame('/dashboard', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/foo');
+        $this->assertSame('/foo', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.foo.com/subdir');
+        $this->assertSame('/', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/subdirfoo');
+        $this->assertSame('/subdirfoo', $url->previousPath());
     }
 
     public function testRouteNotDefinedException()
@@ -1164,6 +1223,44 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
 
         $this->assertTrue($url3->hasValidSignature($firstRequest));
         $this->assertTrue($url3->hasValidSignature($secondRequest));
+    }
+
+    public function testSignedUrlWithArraySignatureReturnsFalseWithoutWarning(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+        $url->setKeyResolver(fn () => 'secret');
+
+        $request = Request::create('http://www.foo.com/foo?signature[]=foo&signature[]=bar');
+
+        set_error_handler(static function (int $errorNumber, string $errorMessage) {
+            throw new ErrorException($errorMessage, 0, $errorNumber);
+        }, E_WARNING);
+
+        try {
+            $this->assertFalse($url->hasCorrectSignature($request));
+            $this->assertFalse($url->hasValidSignature($request));
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testSignedUrlWithArrayExpiresReturnsFalse(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+        $url->setKeyResolver(fn () => 'secret');
+
+        $query = 'expires[]=99999999999';
+        $signature = hash_hmac('sha256', 'http://www.foo.com/foo?' . $query, 'secret');
+        $request = Request::create('http://www.foo.com/foo?' . $query . '&signature=' . $signature);
+
+        $this->assertFalse($url->signatureHasNotExpired($request));
+        $this->assertFalse($url->hasValidSignature($request));
     }
 
     public function testMissingNamedRouteResolution()

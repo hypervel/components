@@ -39,7 +39,7 @@ interface RouteCollectionInterface extends Countable
     /**
      * Get routes from the collection by method.
      *
-     * @return array<int, Route>
+     * @return array<array-key, Route>
      */
     public function get(?string $method = null): array;
 
@@ -75,14 +75,14 @@ interface RouteCollectionInterface extends Countable
     /**
      * Get all of the routes keyed by their HTTP verb / method.
      *
-     * @return array<string, array<string, Route>>
+     * @return array<string, array<array-key, Route>>
      */
     public function getRoutesByMethod(): array;
 
     /**
      * Get all of the routes keyed by their name.
      *
-     * @return array<string, Route>
+     * @return array<array-key, Route>
      */
     public function getRoutesByName(): array;
 }

@@ -34,6 +34,13 @@ class MiddlewareAttributeTest extends RoutingTestCase
             'named',
         ], $route->controllerMiddleware());
     }
+
+    public function testAttributePreservesFalsyMiddlewareNames(): void
+    {
+        $route = Route::get('/', [FalsyMiddlewareAttributeController::class, 'index']);
+
+        $this->assertSame(['0', ''], $route->controllerMiddleware());
+    }
 }
 
 #[Middleware('all')]
@@ -56,6 +63,16 @@ class MiddlewareAttributeController
 class NamedMiddlewareAttributeController
 {
     #[Middleware(middleware: 'named')]
+    public function index(): void
+    {
+        // ...
+    }
+}
+
+#[Middleware('0')]
+#[Middleware('')]
+class FalsyMiddlewareAttributeController
+{
     public function index(): void
     {
         // ...

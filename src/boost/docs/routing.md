@@ -11,6 +11,7 @@
     - [Optional Parameters](#parameters-optional-parameters)
     - [Regular Expression Constraints](#parameters-regular-expression-constraints)
 - [Named Routes](#named-routes)
+- [Route Metadata](#route-metadata)
 - [Route Groups](#route-groups)
     - [Middleware](#route-group-middleware)
     - [Controllers](#route-group-controllers)
@@ -501,6 +502,38 @@ public function handle(Request $request, Closure $next): Response
     return $next($request);
 }
 ```
+
+<a name="route-metadata"></a>
+## Route Metadata
+
+You may attach application-specific metadata to a route using the `metadata` method:
+
+```php
+Route::get('/users', [UserController::class, 'index'])->metadata([
+    'head' => [
+        'title' => 'Users',
+        'robots' => ['index', 'follow'],
+    ],
+]);
+```
+
+Metadata may be retrieved from the current route using the `getMetadata` method. Dot notation may be used to retrieve nested values:
+
+```php
+$title = $request->route()->getMetadata('head.title');
+```
+
+Metadata may also be assigned to route groups and resource routes:
+
+```php
+Route::metadata(['section' => 'admin'])->group(function () {
+    Route::resource('users', UserController::class)->metadata([
+        'head' => ['title' => 'Users'],
+    ]);
+});
+```
+
+Nested associative arrays are merged with inherited metadata. Lists and empty arrays replace the inherited value.
 
 <a name="route-groups"></a>
 ## Route Groups

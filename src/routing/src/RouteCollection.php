@@ -19,11 +19,25 @@ class RouteCollection extends AbstractRouteCollection
     protected array $routes = [];
 
     /**
+     * Domain routes keyed by method, used to maintain domain-first ordering.
+     *
+     * @var array<string, array<string, Route>>
+     */
+    protected array $domainRoutes = [];
+
+    /**
      * A flattened array of all of the routes.
      *
      * @var array<string, Route>
      */
     protected array $allRoutes = [];
+
+    /**
+     * Domain routes in the flattened array, used to maintain domain-first ordering.
+     *
+     * @var array<string, Route>
+     */
+    protected array $allDomainRoutes = [];
 
     /**
      * A look-up table of routes by their names.
@@ -58,32 +72,38 @@ class RouteCollection extends AbstractRouteCollection
     {
         $methods = $route->methods();
         $domainAndUri = $route->getDomain() . $route->uri();
-
-        foreach ($methods as $method) {
-            $existing = $this->routes[$method][$domainAndUri] ?? null;
-
-            if ($existing !== null && $existing->getPort() !== $route->getPort()) {
-                throw new LogicException(
-                    "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
-                    . 'Same-path cross-port routes are not supported by the compiled matcher.'
-                );
-            }
-
-            if ($route->getDomain()) {
-                $domainRoutes = array_filter($this->routes[$method] ?? [], fn (Route $route) => $route->getDomain() !== null);
-
-                $this->routes[$method] = $domainRoutes + [$domainAndUri => $route] + ($this->routes[$method] ?? []);
-            } else {
-                $this->routes[$method][$domainAndUri] = $route;
-            }
-        }
+        $allRoutesKey = implode('|', $methods) . $domainAndUri;
 
         if ($route->getDomain()) {
-            $domainRoutes = array_filter($this->allRoutes, fn (Route $route) => $route->getDomain() !== null);
+            foreach ($methods as $method) {
+                $existing = $this->domainRoutes[$method][$domainAndUri] ?? null;
 
-            $this->allRoutes = $domainRoutes + [implode('|', $methods) . $domainAndUri => $route] + $this->allRoutes;
+                if ($existing !== null && $existing->getPort() !== $route->getPort()) {
+                    throw new LogicException(
+                        "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
+                        . 'Same-path cross-port routes are not supported by the compiled matcher.'
+                    );
+                }
+
+                $this->domainRoutes[$method][$domainAndUri] = $route;
+            }
+
+            $this->allDomainRoutes[$allRoutesKey] = $route;
         } else {
-            $this->allRoutes[implode('|', $methods) . $domainAndUri] = $route;
+            foreach ($methods as $method) {
+                $existing = $this->routes[$method][$domainAndUri] ?? null;
+
+                if ($existing !== null && $existing->getPort() !== $route->getPort()) {
+                    throw new LogicException(
+                        "Cannot register [{$method} {$domainAndUri}] for multiple ports. "
+                        . 'Same-path cross-port routes are not supported by the compiled matcher.'
+                    );
+                }
+
+                $this->routes[$method][$domainAndUri] = $route;
+            }
+
+            $this->allRoutes[$allRoutesKey] = $route;
         }
     }
 
@@ -95,7 +115,7 @@ class RouteCollection extends AbstractRouteCollection
         // If the route has a name, we will add it to the name look-up table, so that we
         // will quickly be able to find the route associated with a name and not have
         // to iterate through every route every time we need to find a named route.
-        if (($name = $route->getName()) && ! $this->inNameLookup($name)) {
+        if (($name = $route->getName()) !== null && $name !== '' && ! $this->inNameLookup($name)) {
             $this->nameList[$name] = $route;
         }
 
@@ -142,8 +162,8 @@ class RouteCollection extends AbstractRouteCollection
     {
         $this->nameList = [];
 
-        foreach ($this->allRoutes as $route) {
-            if (($name = $route->getName()) && ! $this->inNameLookup($name)) {
+        foreach ($this->allDomainRoutes + $this->allRoutes as $route) {
+            if (($name = $route->getName()) !== null && $name !== '' && ! $this->inNameLookup($name)) {
                 $this->nameList[$name] = $route;
             }
         }
@@ -158,7 +178,7 @@ class RouteCollection extends AbstractRouteCollection
     {
         $this->actionList = [];
 
-        foreach ($this->allRoutes as $route) {
+        foreach ($this->allDomainRoutes + $this->allRoutes as $route) {
             if (($controller = $route->getAction()['controller'] ?? null) && ! $this->inActionLookup($controller)) {
                 $this->addToActionList($route->getAction(), $route);
             }
@@ -190,7 +210,9 @@ class RouteCollection extends AbstractRouteCollection
      */
     public function get(?string $method = null): array
     {
-        return is_null($method) ? $this->getRoutes() : ($this->routes[$method] ?? []);
+        return is_null($method)
+            ? $this->getRoutes()
+            : ($this->domainRoutes[$method] ?? []) + ($this->routes[$method] ?? []);
     }
 
     /**
@@ -224,23 +246,29 @@ class RouteCollection extends AbstractRouteCollection
      */
     public function getRoutes(): array
     {
-        return array_values($this->allRoutes);
+        return array_values($this->allDomainRoutes + $this->allRoutes);
     }
 
     /**
      * Get all of the routes keyed by their HTTP verb / method.
      *
-     * @return array<string, array<string, Route>>
+     * @return array<string, array<array-key, Route>>
      */
     public function getRoutesByMethod(): array
     {
-        return $this->routes;
+        $result = $this->domainRoutes;
+
+        foreach ($this->routes as $method => $routes) {
+            $result[$method] = ($result[$method] ?? []) + $routes;
+        }
+
+        return $result;
     }
 
     /**
      * Get all of the routes keyed by their name.
      *
-     * @return array<string, Route>
+     * @return array<array-key, Route>
      */
     public function getRoutesByName(): array
     {

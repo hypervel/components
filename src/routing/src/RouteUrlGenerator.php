@@ -87,7 +87,9 @@ class RouteUrlGenerator
             $uri = preg_replace('#^(//|[^/?])+#', '', $uri);
 
             if ($base = $this->url->getRequest()->getBaseUrl()) {
-                $uri = preg_replace('#^' . $base . '#i', '', $uri);
+                $encodedBase = strtr(rawurlencode($base), $this->dontEncode);
+
+                $uri = preg_replace('#^' . preg_quote($encodedBase, '#') . '#i', '', $uri);
             }
 
             return '/' . ltrim($uri, '/');
