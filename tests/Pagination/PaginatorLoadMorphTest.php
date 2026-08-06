@@ -12,7 +12,7 @@ use Mockery as m;
 
 class PaginatorLoadMorphTest extends TestCase
 {
-    public function testCollectionLoadMorphCanChainOnThePaginator()
+    public function testCollectionLoadMorphCanChainOnThePaginator(): void
     {
         $relations = [
             'App\User' => 'photos',
