@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\FacadeDocumenter;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -14,6 +15,34 @@ abstract class FacadeDocumenterTestCase extends TestCase
      */
     protected bool $runTestsInCoroutine = false;
 
+    protected Filesystem $filesystem;
+
+    /** @var array<string, true> */
+    protected array $fixtureRoots = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->filesystem = new Filesystem;
+        $this->fixtureRoots = [];
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            foreach (array_keys($this->fixtureRoots) as $fixtureRoot) {
+                if (is_dir($fixtureRoot)) {
+                    $this->filesystem->deleteDirectory($fixtureRoot);
+                } else {
+                    $this->filesystem->delete($fixtureRoot);
+                }
+            }
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     /**
      * Write a PHP fixture file under BASE_PATH/app/{relativePath} so it is
      * autoloadable as App\{NamespaceFromRelativePath}\{ClassName}. Returns
@@ -21,11 +50,14 @@ abstract class FacadeDocumenterTestCase extends TestCase
      */
     protected function writeAppFile(string $relativePath, string $contents): string
     {
-        $path = BASE_PATH . '/app/' . ltrim($relativePath, '/');
+        $relativePath = ltrim($relativePath, '/');
+        $path = BASE_PATH . '/app/' . $relativePath;
+        $fixtureRoot = explode('/', $relativePath, 2)[0];
 
-        @mkdir(dirname($path), 0777, true);
+        $this->fixtureRoots[BASE_PATH . '/app/' . $fixtureRoot] = true;
+        $this->filesystem->ensureDirectoryExists(dirname($path));
 
-        file_put_contents($path, $contents);
+        $this->filesystem->put($path, $contents);
 
         return $path;
     }
@@ -42,7 +74,7 @@ abstract class FacadeDocumenterTestCase extends TestCase
         $wrapper = realpath(__DIR__ . '/bin/run-with-testbench-autoload.php');
 
         $process = new Process(
-            command: ['php', '-f', $wrapper, '--', ...$arguments],
+            command: [PHP_BINARY, '-f', $wrapper, '--', ...$arguments],
             env: array_merge($_ENV, ['TESTBENCH_BASE_PATH' => BASE_PATH]),
             timeout: 30,
         );
@@ -59,6 +91,6 @@ abstract class FacadeDocumenterTestCase extends TestCase
     {
         $relative = str_replace('\\', '/', substr($fqcn, strlen('App\\')));
 
-        return file_get_contents(BASE_PATH . '/app/' . $relative . '.php');
+        return $this->filesystem->get(BASE_PATH . '/app/' . $relative . '.php');
     }
 }

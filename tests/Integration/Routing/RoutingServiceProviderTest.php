@@ -9,14 +9,14 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class RoutingServiceProviderTest extends RoutingTestCase
 {
-    public function testResolvingPsrRequest()
+    public function testResolvingPsrRequest(): void
     {
         $psrRequest = $this->app->make(ServerRequestInterface::class);
 
         $this->assertInstanceOf(ServerRequestInterface::class, $psrRequest);
     }
 
-    public function testResolvingPsrResponse()
+    public function testResolvingPsrResponse(): void
     {
         $psrResponse = $this->app->make(ResponseInterface::class);
 

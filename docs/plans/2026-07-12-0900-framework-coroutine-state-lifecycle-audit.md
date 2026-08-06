@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None.
-- **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None.
+- **Active package or work unit:** None. `routing` is complete; detail plan `2026-08-05-2352-routing-correctness-current-parity-and-cache-lifecycles.md`.
+- **Ledger entries required for the active work:** None. The completed Routing work is recorded under `Complete Routing correctness, current parity, and cache lifecycles`, with `redis-24` and `collections-14` cross-referenced from the owning Redis and Collections entries.
+- **Pending revalidation carried into the active work:** None. `contracts-05`, `reflection-02`, `container-08`, `support-02`, and `routing-01` are revalidated.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1002,22 +1002,22 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 
 | Finding | Owning package | Affected or revalidation packages | Ledger entry |
 |---|---|---|---|
-| `validation-01` | `validation` | `contracts`; later full `validation` audit | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
+| `validation-01` | `validation` | `contracts` and `validation` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
 | `view-01` | `view` | `contracts` and `foundation` (revalidation complete); later full `view` audit | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
 | `filesystem-01` | `filesystem` | `contracts` and `filesystem` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
 | `queue-01` | `queue` | `contracts` and `queue` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
-| `contracts-05` | `contracts` | `http`, `foundation`, `console`, and `database` (revalidation complete); later full `routing` audit | `Harden framework contracts and request-scoped state`; finding `contracts-05` |
+| `contracts-05` | `contracts` | `http`, `foundation`, `console`, `database`, and `routing` (revalidation complete) | `Harden framework contracts and request-scoped state`; finding `contracts-05` |
 | `testbench-01` | `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
 | `http-01` | `http` | `macroable` and `http` (revalidation complete), `testing`; later full `testing` audit | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
 | `console-01` | `console` | `contracts` and `console` (revalidation complete) | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
 | `reflection-01` | `reflection` | `events` and `foundation` (revalidation complete) | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
-| `reflection-02` | `reflection` | `foundation` and `console` (revalidation complete); later full `routing` and `view` audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
+| `reflection-02` | `reflection` | `foundation`, `console`, and `routing` (revalidation complete); later full `view` audit | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
 | `reflection-04` | `reflection` | `di` and `queue` (revalidation complete), `support`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 | `config-01` | `config` | `foundation` (revalidation complete) | `Preserve configuration identity across worker reloads`; finding `config-01` |
 | `config-02` | `foundation` | `reverb` (revalidation complete), `testing`; later full `testing` audit | `Preserve configuration identity across worker reloads`; finding `config-02` |
 | `container-05` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
 | `container-06` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
-| `container-08` | `container` | `auth`, `cache`, `log`, `routing`, `support`; later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
+| `container-08` | `container` | `auth`, `cache`, `log`, `support`; `routing` (revalidation complete); later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
 | `container-09` | `auth`, `cache`, `log` | `container`, `auth`, `cache`, and `log` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
 | `container-10` | `log` | `container` and `log` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 | `context-01` | `context` | `container` and `foundation` (revalidation complete) | `Correct explicit coroutine context targeting`; finding `context-01` |
@@ -1053,7 +1053,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events`, `bus`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing`, `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `macroable-03` | `macroable` | `cookie`, `log`, and `notifications` (revalidation complete); later full `jwt` audit | `Complete Macroable callable and test-state handling`; finding `macroable-03` |
 | `auth-01` | `support`, `auth` | `auth` (revalidation complete) | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
@@ -1158,17 +1158,23 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `http-06` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-06` |
 | `testing-01` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-01` |
 | `testing-02` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-02` |
-| `routing-01` | `contracts`, `foundation`, `routing`, `support` | `contracts`, `foundation`, `support`, and `http` (revalidation complete); later full `routing` audit | `Complete HTTP correctness, JSON:API, and current Laravel parity`; finding `routing-01` |
+| `routing-01` | `contracts`, `foundation`, `routing`, `support` | `contracts`, `foundation`, `routing`, `support`, and `http` (revalidation complete) | `Complete HTTP correctness, JSON:API, and current Laravel parity`; finding `routing-01` |
 | `testbench-03` | `testbench` | `http` (revalidation complete); later full `testbench` audit | `Complete HTTP correctness, JSON:API, and current Laravel parity`; finding `testbench-03` |
 | `database-21` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-21` |
 | `database-22` | `database` | `database` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-22` |
 | `database-23` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-23` |
 | `mail-17` | `mail` | `mail` and `support` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `mail-17` |
 | `support-28` | `support` | `support` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-28` |
-| `support-29` | `support` | `support`, `mail`, and `validation` (targeted revalidation complete); later full `validation` audit | `Complete Mail correctness, current parity, and package boundaries`; finding `support-29` |
+| `support-29` | `support` | `support`, `mail`, and `validation` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-29` |
 | `contracts-10` | `contracts` | `contracts` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-10` |
 | `contracts-11` | `contracts` | `contracts`, `mail`, and `console` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-11` |
 | `filesystem-14` | `filesystem` | `filesystem` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `filesystem-14` |
+| `routing-04` | `routing` | `wayfinder` (targeted correction complete); later full `wayfinder` audit | `Complete Routing correctness, current parity, and cache lifecycles`; finding `routing-04` |
+| `redis-24` | `redis` | `redis` and `routing` (revalidation complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `redis-24` |
+| `routing-12` | `routing` | `encryption` (targeted correction complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `routing-12` |
+| `routing-18` | `routing` | `auth` (revalidation complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `routing-18` |
+| `collections-14` | `collections` | `collections` and `routing` (revalidation complete) | `Complete Routing correctness, current parity, and cache lifecycles`; finding `collections-14` |
+| `validation-18` | `validation` | `validation` and `support` (revalidation complete) | `Complete Validation correctness, parity, and compiled lifecycles`; finding `validation-18` |
 
 ## Package checklist
 
@@ -1254,8 +1260,8 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 ### Application and domain packages
 
 - [x] `auth`
-- [ ] `validation`
-- [ ] `routing`
+- [x] `validation`
+- [x] `routing`
 - [ ] `view`
 - [ ] `translation`
 - [ ] `pagination`

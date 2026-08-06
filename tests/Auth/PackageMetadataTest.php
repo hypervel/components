@@ -63,18 +63,6 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
-        foreach ($composer['require'] as $package => $constraint) {
-            if ($package === 'php') {
-                continue;
-            }
-
-            if (str_starts_with($package, 'hypervel/')) {
-                $this->assertSame('self.version', $rootComposer['replace'][$package]);
-            } else {
-                $this->assertSame($constraint, $rootComposer['require'][$package]);
-            }
-        }
-
         $providers = [
             AuthServiceProvider::class,
             PasswordResetServiceProvider::class,

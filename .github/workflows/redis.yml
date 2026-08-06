@@ -61,12 +61,16 @@ jobs:
           REDIS_PORT: 6379
           REDIS_DB: 0
           REDIS_TEST_SECONDARY_DB: 1
+        # Cap ParaTest's auto-detected workers: database 1 is reserved via
+        # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
         run: |
-          vendor/bin/phpunit tests/Integration/Auth
-          vendor/bin/phpunit tests/Integration/Cache/Redis
-          vendor/bin/phpunit tests/Integration/Horizon
-          vendor/bin/phpunit tests/Integration/RateLimiter
-          vendor/bin/phpunit tests/Integration/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
+          vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Redis
 
   valkey_9:
     runs-on: ubuntu-latest
@@ -121,9 +125,13 @@ jobs:
           REDIS_PORT: 6379
           REDIS_DB: 0
           REDIS_TEST_SECONDARY_DB: 1
+        # Cap ParaTest's auto-detected workers: database 1 is reserved via
+        # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
         run: |
-          vendor/bin/phpunit tests/Integration/Auth
-          vendor/bin/phpunit tests/Integration/Cache/Redis
-          vendor/bin/phpunit tests/Integration/Horizon
-          vendor/bin/phpunit tests/Integration/RateLimiter
-          vendor/bin/phpunit tests/Integration/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
+          vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Redis

@@ -8,6 +8,7 @@ use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ValidationRuleParserTest extends TestCase
 {
@@ -611,5 +612,32 @@ class ValidationRuleParserTest extends TestCase
                 'settings.layout.color',
             ],
         ], $results->implicitAttributes);
+    }
+
+    #[DataProvider('dateFieldReferenceProvider')]
+    public function testDateFieldReferencesAreClassifiedConservatively(mixed $argument, bool $expected): void
+    {
+        $this->assertSame($expected, ValidationRuleParser::looksLikeDateFieldReference($argument));
+    }
+
+    public static function dateFieldReferenceProvider(): array
+    {
+        return [
+            'field' => ['other', true],
+            'hyphenated field' => ['target-date', true],
+            'digit-leading field' => ['2fa-expiry', true],
+            'nested field' => ['items.*.start', true],
+            'nested hyphenated field' => ['items.*.start-date', true],
+            'escaped dot' => ['a\.b', true],
+            'multiple escaped dots' => ['a\.b\.c', true],
+            'ambiguous timestamp delegates' => ['20250102T120000Z', true],
+            'ambiguous identifier delegates' => ['march', true],
+            'relative literal' => ['today', false],
+            'date literal' => ['2020-01-01', false],
+            'compact date literal' => ['20250102', false],
+            'unix timestamp literal' => ['1735689600', false],
+            'punctuation' => ['!!!', false],
+            'non-string' => [123, false],
+        ];
     }
 }

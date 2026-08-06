@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Brick\Math\BigNumber;
-use DateTimeInterface;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\Enums\SizeMode;
 use InvalidArgumentException;
+use Stringable;
 
 /**
  * Execute compiled AttributePlans against validation data.
@@ -159,7 +159,8 @@ trait PlanExecutor
             CheckType::Ulid => is_string($value) && $this->isValidUlid($value),
             CheckType::Json => $this->executeInlineJson($value),
             CheckType::Ascii => is_string($value) && Str::isAscii($value),
-            CheckType::HexColor => preg_match('/^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i', (string) $value) === 1,
+            CheckType::HexColor => is_string($value)
+                && preg_match('/^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i', $value) === 1,
             CheckType::MacAddress => is_string($value) && filter_var($value, FILTER_VALIDATE_MAC) !== false,
 
             CheckType::Alpha => is_string($value) && preg_match('/\A[\pL\pM]+\z/u', $value) === 1,
@@ -172,8 +173,8 @@ trait PlanExecutor
                 && preg_match('/\A[\pL\pM\pN]+\z/u', (string) $value) > 0,
             CheckType::AlphaNumAscii => (is_string($value) || is_numeric($value))
                 && preg_match('/\A[a-zA-Z0-9]+\z/u', (string) $value) > 0,
-            CheckType::Lowercase => Str::lower((string) $value) === (string) $value,
-            CheckType::Uppercase => Str::upper((string) $value) === (string) $value,
+            CheckType::Lowercase => is_string($value) && Str::lower($value) === $value,
+            CheckType::Uppercase => is_string($value) && Str::upper($value) === $value,
 
             CheckType::SizeMin => $this->compareSize($attribute, $value, $check->param['n'], '>=', $check->param['mode']),
             CheckType::SizeMax => $this->compareSize($attribute, $value, $check->param['n'], '<=', $check->param['mode']),
@@ -185,25 +186,34 @@ trait PlanExecutor
                 $check->param['max'],
                 $check->param['mode']
             ),
-            CheckType::Digits => ! preg_match('/[^0-9]/', $s = (string) $value)
+            CheckType::Digits => (is_string($value) || is_numeric($value))
+                && ! preg_match('/[^0-9]/', $s = (string) $value)
                 && strlen($s) === $check->param,
             CheckType::DigitsBetween => $this->inlineDigitsBetween($value, $check->param),
-            CheckType::MinDigits => ! preg_match('/[^0-9]/', $s = (string) $value)
+            CheckType::MinDigits => (is_string($value) || is_numeric($value))
+                && ! preg_match('/[^0-9]/', $s = (string) $value)
                 && strlen($s) >= $check->param,
-            CheckType::MaxDigits => ! preg_match('/[^0-9]/', $s = (string) $value)
+            CheckType::MaxDigits => (is_string($value) || is_numeric($value))
+                && ! preg_match('/[^0-9]/', $s = (string) $value)
                 && strlen($s) <= $check->param,
 
             CheckType::Regex => (is_string($value) || is_numeric($value))
                 && preg_match($check->param, (string) $value) > 0,
             CheckType::NotRegex => (is_string($value) || is_numeric($value))
                 && preg_match($check->param, (string) $value) < 1,
-            CheckType::StartsWith => Str::startsWith((string) $value, $check->param),
-            CheckType::EndsWith => Str::endsWith((string) $value, $check->param),
-            CheckType::DoesntStartWith => ! Str::startsWith((string) $value, $check->param),
-            CheckType::DoesntEndWith => ! Str::endsWith((string) $value, $check->param),
+            CheckType::StartsWith => (is_string($value) || is_numeric($value))
+                && Str::startsWith((string) $value, $check->param),
+            CheckType::EndsWith => (is_string($value) || is_numeric($value))
+                && Str::endsWith((string) $value, $check->param),
+            CheckType::DoesntStartWith => (is_string($value) || is_numeric($value))
+                && ! Str::startsWith((string) $value, $check->param),
+            CheckType::DoesntEndWith => (is_string($value) || is_numeric($value))
+                && ! Str::endsWith((string) $value, $check->param),
 
-            CheckType::In => ! is_array($value) && in_array((string) $value, $check->param),
-            CheckType::NotIn => ! is_array($value) && ! in_array((string) $value, $check->param),
+            CheckType::In => (is_scalar($value) || $value instanceof Stringable)
+                && in_array((string) $value, $check->param, true),
+            CheckType::NotIn => ! ((is_scalar($value) || $value instanceof Stringable)
+                && in_array((string) $value, $check->param, true)),
 
             CheckType::IsDate => $this->isValidDate($value),
             CheckType::DateFormat => $this->inlineMatchesDateFormat($value, $check->param),
@@ -264,7 +274,7 @@ trait PlanExecutor
             return match ($operator) {
                 '>=' => $size >= $numericTarget,
                 '<=' => $size <= $numericTarget,
-                '==' => $size == $numericTarget,
+                '==' => (float) $size === $numericTarget,
                 default => throw new InvalidArgumentException("Unsupported size comparison operator: {$operator}"),
             };
         }
@@ -326,6 +336,10 @@ trait PlanExecutor
      */
     private function inlineDigitsBetween(mixed $value, array $range): bool
     {
+        if (! is_string($value) && ! is_numeric($value)) {
+            return false;
+        }
+
         $length = strlen($value = (string) $value);
 
         return ! preg_match('/[^0-9]/', $value)
@@ -358,25 +372,26 @@ trait PlanExecutor
      * in checkDateTimeOrder). Without format: parse via getDateTimestamp
      * (as in the no-format branch of compareDates).
      *
-     * @param array{target: string, format: ?string} $param
+     * @param array{target: mixed, format: ?string} $param
      */
     private function inlineCompareDates(mixed $value, array $param, string $operator): bool
     {
-        if (! is_string($value) && ! is_numeric($value) && ! $value instanceof DateTimeInterface) {
+        if ($param['format'] !== null) {
+            $current = $this->getDateTimeWithOptionalFormat($param['format'], $value);
+            $target = $this->getDateTimeWithOptionalFormat($param['format'], $param['target']);
+
+            return $current !== null
+                && $target !== null
+                && $this->compare($current, $target, $operator);
+        }
+
+        $current = $this->getDateTimestamp($value);
+        $target = $this->getDateTimestamp($param['target']);
+
+        if ($current === null || $target === null) {
             return false;
         }
 
-        if ($param['format'] !== null) {
-            $firstDate = $this->getDateTimeWithOptionalFormat($param['format'], (string) $value);
-            $secondDate = $this->getDateTimeWithOptionalFormat($param['format'], $param['target']);
-
-            return ($firstDate && $secondDate) && $this->compare($firstDate, $secondDate, $operator);
-        }
-
-        return $this->compare(
-            $this->getDateTimestamp($value),
-            $this->getDateTimestamp($param['target']),
-            $operator,
-        );
+        return $this->compare($current, $target, $operator);
     }
 }

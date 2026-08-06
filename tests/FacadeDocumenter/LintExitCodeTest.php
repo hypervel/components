@@ -6,7 +6,7 @@ namespace Hypervel\Tests\FacadeDocumenter;
 
 class LintExitCodeTest extends FacadeDocumenterTestCase
 {
-    public function testLintOnUpToDateDocblockExitsZero()
+    public function testLintOnUpToDateDocblockExitsZero(): void
     {
         $this->writeAppFile(
             'Lint/Clean/Proxy.php',
@@ -54,7 +54,7 @@ class LintExitCodeTest extends FacadeDocumenterTestCase
         $this->assertSame(0, $lint->getExitCode(), '--lint should exit 0 when the docblock is already up to date');
     }
 
-    public function testLintOnDriftedDocblockExitsNonZeroAndShowsExpected()
+    public function testLintOnDriftedDocblockExitsNonZeroAndShowsExpected(): void
     {
         $this->writeAppFile(
             'Lint/Drift/Proxy.php',
@@ -114,5 +114,100 @@ class LintExitCodeTest extends FacadeDocumenterTestCase
         $stdout = $lint->getOutput();
         $this->assertStringContainsString('Did not find expected docblock', $stdout);
         $this->assertStringContainsString('@method static int beta()', $stdout);
+    }
+
+    /**
+     * Report every drifted facade before exiting.
+     */
+    public function testLintReportsEveryDriftedFacade(): void
+    {
+        $this->writeAppFile(
+            'Lint/Multiple/FirstProxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Lint\Multiple;
+
+                class FirstProxy
+                {
+                    public function alpha(): string
+                    {
+                        return 'a';
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Lint/Multiple/FirstFacade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Lint\Multiple;
+
+                /**
+                 * @see \App\Lint\Multiple\FirstProxy
+                 */
+                class FirstFacade
+                {
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Lint/Multiple/SecondProxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Lint\Multiple;
+
+                class SecondProxy
+                {
+                    public function beta(): int
+                    {
+                        return 1;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Lint/Multiple/SecondFacade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Lint\Multiple;
+
+                /**
+                 * @see \App\Lint\Multiple\SecondProxy
+                 */
+                class SecondFacade
+                {
+                }
+                PHP
+        );
+
+        $lint = $this->runDocumenter([
+            '--lint',
+            'App\Lint\Multiple\FirstFacade',
+            'App\Lint\Multiple\SecondFacade',
+        ]);
+
+        $this->assertSame(1, $lint->getExitCode(), $lint->getErrorOutput() . $lint->getOutput());
+
+        $output = $lint->getOutput();
+
+        $this->assertStringContainsString('Did not find expected docblock for [App\Lint\Multiple\FirstFacade].', $output);
+        $this->assertStringContainsString('@method static string alpha()', $output);
+        $this->assertStringContainsString('Did not find expected docblock for [App\Lint\Multiple\SecondFacade].', $output);
+        $this->assertStringContainsString('@method static int beta()', $output);
     }
 }

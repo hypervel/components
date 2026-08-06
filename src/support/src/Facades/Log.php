@@ -29,15 +29,15 @@ namespace Hypervel\Support\Facades;
  * @method static void log(string $level, \Hypervel\Contracts\Support\Arrayable|\Hypervel\Contracts\Support\Jsonable|\Stringable|array|string $message, mixed[] $context = [])
  * @method static \Hypervel\Log\LogManager setApplication(\Hypervel\Contracts\Foundation\Application $app)
  * @method static void write(string $level, \Hypervel\Contracts\Support\Arrayable|\Hypervel\Contracts\Support\Jsonable|\Stringable|array|string $message, array $context = [])
- * @method static \Hypervel\Log\Logger withContext(array $context = [])
  * @method static \Hypervel\Log\Logger withName(string $name)
+ * @method static \Hypervel\Log\Logger withContext(array $context = [])
  * @method static array<string, mixed> getContext()
  * @method static void listen(\Closure $callback)
  * @method static \Psr\Log\LoggerInterface getLogger()
  * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
  * @method static void setEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $dispatcher)
- * @method static \Hypervel\Log\Logger|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static \Hypervel\Log\Logger|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  *
  * @see \Hypervel\Log\LogManager
  */

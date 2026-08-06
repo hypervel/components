@@ -480,6 +480,32 @@ class ValidationRuleParser
     }
 
     /**
+     * Determine if a rule argument names a field rather than stating a date literal.
+     *
+     * Behavioral callers must attempt literal parsing first. Compiler callers may
+     * conservatively delegate because false positives only select the full path.
+     *
+     * @phpstan-assert-if-true string $argument
+     */
+    public static function looksLikeDateFieldReference(mixed $argument): bool
+    {
+        if (! is_string($argument)) {
+            return false;
+        }
+
+        if (in_array(strtolower($argument), ['today', 'yesterday', 'tomorrow', 'now'], true)) {
+            return false;
+        }
+
+        // A name character keeps common numeric and ISO date literals inline while
+        // still allowing digit-leading and hyphenated field path segments.
+        return preg_match(
+            '/^(?=.*[A-Za-z_])[A-Za-z0-9_-]+(\\\?\.[A-Za-z0-9_*-]+)*$/',
+            $argument,
+        ) === 1;
+    }
+
+    /**
      * Expand the conditional rules in the given array of rules.
      */
     public static function filterConditionalRules(array $rules, array $data = []): array

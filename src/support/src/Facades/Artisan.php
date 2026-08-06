@@ -7,7 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 
 /**
- * @method static mixed handle(\Symfony\Component\Console\Input\InputInterface $input, \Symfony\Component\Console\Output\OutputInterface|null $output = null)
+ * @method static int handle(\Symfony\Component\Console\Input\InputInterface $input, \Symfony\Component\Console\Output\OutputInterface|null $output = null)
  * @method static void bootstrap()
  * @method static void schedule(\Hypervel\Console\Scheduling\Schedule $schedule)
  * @method static \Hypervel\Console\Scheduling\Schedule resolveConsoleSchedule()
@@ -18,7 +18,7 @@ use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
  * @method static \Hypervel\Contracts\Console\Kernel addCommandPaths(array $paths)
  * @method static \Hypervel\Contracts\Console\Kernel addCommandRoutePaths(array $paths)
  * @method static void registerCommand(\Symfony\Component\Console\Command\Command $command)
- * @method static void call(string $command, array $parameters = [], \Symfony\Component\Console\Output\OutputInterface|null $outputBuffer = null)
+ * @method static int call(string $command, array $parameters = [], \Symfony\Component\Console\Output\OutputInterface|null $outputBuffer = null)
  * @method static \Hypervel\Foundation\Bus\PendingDispatch queue(string $command, array $parameters = [])
  * @method static array all()
  * @method static string output()

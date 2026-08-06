@@ -12,8 +12,11 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Traits\InteractsWithData;
 use Hypervel\Tests\TestCase;
+use ReflectionMethod;
+use Stringable;
 use TypeError;
 
 enum InteractsWithDataTestStringEnum: string
@@ -41,6 +44,32 @@ class InteractsWithDataTest extends TestCase
         parent::setUp();
 
         Container::setInstance(new Application);
+    }
+
+    public function testStringMethodsDeclareSupportStringableReturnType(): void
+    {
+        foreach (['str', 'string'] as $method) {
+            $returnType = (new ReflectionMethod(TestInteractsWithDataClass::class, $method))->getReturnType();
+
+            $this->assertSame(HypervelStringable::class, $returnType?->getName());
+        }
+    }
+
+    public function testStringBackedEnumAcceptsAnyStringableValue(): void
+    {
+        $instance = new TestInteractsWithDataClass([
+            'timezone' => new class implements Stringable {
+                public function __toString(): string
+                {
+                    return 'UTC';
+                }
+            },
+        ]);
+
+        $this->assertSame(
+            InteractsWithDataTestStringEnum::Utc,
+            $instance->enum('timezone', InteractsWithDataTestStringEnum::class),
+        );
     }
 
     public function testDateReturnsNullWhenKeyIsNotFilled(): void

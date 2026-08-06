@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Queue\ThrottlesExceptionsRedisStoreTest;
+namespace Hypervel\Tests\Integration\Queue\Redis\ThrottlesExceptionsRedisStoreTest;
 
 use Exception;
 use Hypervel\Bus\Dispatcher;

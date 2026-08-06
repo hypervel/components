@@ -12,7 +12,7 @@ class StaticPrefixGuardTest extends FacadeDocumenterTestCase
      * and the render loop's guard prevents the facade from producing an
      * invalid "@method static static …" line.
      */
-    public function testStaticMethodTagIsNotDoublePrefixed()
+    public function testStaticMethodTagIsNotDoublePrefixed(): void
     {
         $this->writeAppFile(
             'StaticGuard/Proxy.php',

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Cache;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;

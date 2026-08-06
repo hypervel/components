@@ -732,7 +732,7 @@ class BusBatchTest extends TestCase
     }
 
     #[DataProvider('serializedOptions')]
-    public function testOptionsUnserializeOnPostgres($serialize, $options)
+    public function testOptionsUnserializeOnPostgres($serialize, $options): void
     {
         $factory = m::mock(BatchFactory::class);
 
@@ -760,7 +760,7 @@ class BusBatchTest extends TestCase
             ->withSomeOfArgs($batch, '', '', '', '', '', '', $options)
             ->andReturn(m::mock(Batch::class));
 
-        $batch->find(1);
+        $batch->find('1');
     }
 
     public static function serializedOptions(): array

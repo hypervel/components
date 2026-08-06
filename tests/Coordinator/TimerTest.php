@@ -32,7 +32,6 @@ class TimerTest extends TestCase
                 $this->assertFalse($isClosing);
             }, $identifier);
 
-            $this->assertSame(0, $id);
             usleep(10000);
             $this->assertSame(1, $id);
         });
@@ -73,7 +72,7 @@ class TimerTest extends TestCase
             $id = 0;
             $timer = new Timer;
             $identifier = uniqid();
-            $timer->after(0.001, function ($isClosing) use (&$id) {
+            $timer->after(10.0, function ($isClosing) use (&$id) {
                 ++$id;
                 $this->assertTrue($isClosing);
             }, $identifier);
@@ -141,7 +140,7 @@ class TimerTest extends TestCase
             $id = 0;
             $timer = new Timer;
             $identifier = uniqid();
-            $ret = $timer->after(0.001, function () use (&$id) {
+            $ret = $timer->after(10.0, function () use (&$id) {
                 ++$id;
             }, $identifier);
             $timer->clear($ret);

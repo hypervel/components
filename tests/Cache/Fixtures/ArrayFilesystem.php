@@ -84,12 +84,12 @@ class ArrayFilesystem implements Filesystem
         return true;
     }
 
-    public function prepend(string $path, string $data): bool
+    public function prepend(string $path, string $data, string $separator = PHP_EOL): bool
     {
         return false;
     }
 
-    public function append(string $path, string $data): bool
+    public function append(string $path, string $data, string $separator = PHP_EOL): bool
     {
         return false;
     }

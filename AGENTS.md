@@ -92,7 +92,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 5. Fix the underlying defect — never add a workaround for incorrect framework code.
 6. Add a regression test for the bug and run that test file immediately.
 7. Check types, API parity, coroutine isolation, and worker-lifetime state around the changed code.
-8. Complete the verification order below.
+8. Complete the verification workflow below.
 
 ### Framework enhancements
 
@@ -100,16 +100,17 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 2. Decide which state is local, coroutine-scoped, or worker-scoped before writing code — see Coroutine and Worker-Lifetime State.
 3. Preserve Laravel API parity by default. If parity conflicts with Hypervel's architecture, preserves a verified defect or deprecated upstream API, or would require worse code or a workaround, STOP, recommend the cleanest design, and obtain user approval before planning or editing. Never make Hypervel code worse merely to preserve parity.
 4. Test the public behavior, failure paths, coroutine isolation, and cleanup the feature needs.
-5. Complete the verification order below.
+5. Complete the verification workflow below.
 
-### Verification order
+### Verification
 
-1. Run each changed or new test file immediately after working on it — never defer.
-2. Run the package or focused tests the change affects.
-3. Run phpstan on source changes (see Static Analysis).
-4. Run php-cs-fixer.
-5. Run `composer test:parallel` for the full suite.
-6. Run `composer test:testbench` after Testbench changes.
+During implementation, run new or changed test files immediately. After completing a coherent implementation slice, run the affected package or focused test suite.
+
+At a meaningful checkpoint—such as before code review or after completing a substantial slice—run `composer fix` once. It runs the full formatter, PHPStan, parallel test suite, and Testbench tests, so do not run those full checks separately at the same checkpoint.
+
+After review fixes, run the relevant targeted tests. Repeat `composer fix` only when the changes warrant another full-repository check.
+
+If `composer fix` fails, use targeted checks while correcting the issue. Afterwards, inspect the `fix` script in `composer.json` and run the failed check plus each remaining entry. Rerun an earlier check only if the correction could affect it.
 
 ## Development Conventions
 
@@ -131,7 +132,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 ### Documentation
 
 - **Use one source of truth** — Put all user documentation in `src/boost/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
-- **Match Hypervel's documentation style** — Use simple, human-friendly prose in Laravel's documentation style. Avoid internal jargon, stiff wording, needless detail, and anything that does not help readers understand or use the feature.
+- **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Prefer natural explanations and examples over implementation language; avoid internal jargon, stiff wording, and needless detail.
 
 #### Package READMEs
 
@@ -163,6 +164,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 
 ### Code conventions
 
+- **New Hypervel-owned code must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements.
 - **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, and properties are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type).
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
@@ -190,7 +192,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Use `xxh128` for internal non-cryptographic hashing** — cache and context keys, content checksums, and change detection. It is faster than `sha256`, which is reserved for trust boundaries: stored credential digests, signatures, and anything an attacker gains by forging. Seed it when the hashed value comes from user input, as `SwooleStore` does for its physical table keys.
 - **Use immutable dates by default** — Hypervel defaults to `Hypervel\Support\CarbonImmutable`, including where Laravel uses mutable Carbon. Create public or application-configurable dates through the `Date` facade or date helpers, and use exact `CarbonImmutable` for framework-owned internal or held values. Type configurable Carbon boundaries as `CarbonInterface` and native or third-party boundaries as `DateTimeInterface`. Capture the return value of every date modifier whose result must persist. Use `Hypervel\Support\Carbon` only for explicit mutable opt-out or conversion behavior.
 - **Use typed config getters and avoid duplicate defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, and `$config->array()` over `$config->get()` for values that cannot be null. Framework and package defaults are shallow-merged with application config. `mergeableOptions()` is only for named groups such as connections or stores: application entries replace matching defaults, while other default entries remain. Other nested arrays are replaced as a whole. Keep a fallback when a setting inside one of those replaced arrays is intentionally optional.
-- **Env var naming** — ported config keeps its upstream env var names. New Hypervel-specific keys start with the config file's domain prefix (`SERVER_`, `APP_`) with the clearest name for the rest, e.g. `SERVER_WORKERS` for the `Constant::OPTION_WORKER_NUM` server option. If a config value mirrors another config key, reuse that key's env var instead of defining a duplicate — e.g. the Slack log channel username falls back to `APP_NAME`.
+- **Env var naming** — Ported config keeps upstream names. New Hypervel-specific settings should use the established prefix for the package or subsystem that owns the value (`SERVER_`, `CACHE_`, `REDIS_`, etc.). Determine ownership semantically, not from the config filename: aggregate files such as `app.php` contain multiple domains, and `APP_` is for genuinely application-wide settings. If a value mirrors another config key, reuse that key's environment variable instead of defining a duplicate.
 - **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
 - **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 
@@ -372,7 +374,7 @@ Test supported public behavior, meaningful branches, verified regressions, and r
 
 ### Directory layout
 
-All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below.
+All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.
 
 Package-specific tests that require one database driver go in `tests/Integration/{PackageName}/Database/{Postgres|MySql|MariaDb|Sqlite}/`. The database workflows discover these directories by convention.
 
@@ -391,7 +393,7 @@ Always call `parent::setUp()` in your setUp method.
 
 Put application environment configuration in `defineEnvironment()` or a `#[DefineEnvironment]` method. Do not mutate application config in `setUp()`, because providers or resolved services may already have consumed it.
 
-Within test methods, use the Laravel-style `config()` helper directly for deliberate runtime configuration changes; do not add test-local wrappers around the configuration repository.
+Within test methods, use `config()` directly to read or mutate configuration values. Do not use no-argument `config()` as a dependency source; resolve the `Repository` contract from the container when constructing a test subject manually.
 
 ### Test support files
 
@@ -640,6 +642,8 @@ If a test fails with a type error, the source code type may be wrong — not the
 
 Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they need no local service configuration.
 
+Service workflows enumerate their test directories explicitly. Adding a service-specific directory requires adding it to the matching workflow; using the service trait provides isolation and skip behavior but does not make CI discover the test.
+
 #### External service test traits
 
 Integration tests that use an external service must use that service's test trait.
@@ -673,8 +677,8 @@ Each integration group has its own workflow file in `.github/workflows/`:
 | Workflow | Runs | Directory |
 |----------|------|-----------|
 | `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
-| `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database` |
-| `redis.yml` | Redis, Valkey | `tests/Integration/Auth`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/RateLimiter`, `tests/Integration/Redis` |
+| `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
+| `redis.yml` | Redis, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis` |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must spin up the service container and set the appropriate env vars.
@@ -691,7 +695,7 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
-Run `./vendor/bin/phpstan` and `./vendor/bin/php-cs-fixer fix` without flags — the repository config files control levels and rules.
+Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
 **When fixing phpstan errors:**
 
@@ -761,9 +765,9 @@ Search **both `src/` and `tests/`** for any `use` statements or references to th
 
 After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through. See the Static Analysis section.
 
-#### 5. Run the full test suite
+#### 5. Complete verification
 
-Run `composer test:parallel` (and `composer test:testbench` after Testbench changes), completing the verification order under Change Workflow. For failures, follow When to Stop and Report: straightforward fixes (e.g. a missed namespace update) go ahead; anything more complex gets stopped and explained.
+Complete the verification workflow under Change Workflow. For failures, follow When to Stop and Report: straightforward fixes (e.g. a missed namespace update) go ahead; anything more complex gets stopped and explained.
 
 ### Provider and listener reminder
 
@@ -831,9 +835,9 @@ Use this exact cadence for each test class:
 4. If any failure exposes a source code bug, missing functionality, or unclear behavioral difference, STOP and report the root cause with your recommended fix.
 5. Once the test class is green, move to the next test class. Work serially on one test class at a time.
 
-#### 6. Run the full test suite
+#### 6. Complete verification
 
-After all test files are ported, run the full test suite with `composer test:parallel`. Same rules as the source workflow — straightforward fixes go ahead, anything complex gets stopped and explained.
+After all test files are ported, complete the verification workflow under Change Workflow. Same rules as the source workflow — straightforward fixes go ahead, anything complex gets stopped and explained.
 
 ## Porting Laravel Tests
 

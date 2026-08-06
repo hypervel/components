@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Queue\RedisQueueTest;
+namespace Hypervel\Tests\Integration\Queue\Redis\RedisQueueTest;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;

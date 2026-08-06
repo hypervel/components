@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Cache;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Exception;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;

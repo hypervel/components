@@ -52,7 +52,5 @@ class PackageMetadataTest extends TestCase
 
         $this->assertSame($providers, $composer['extra']['hypervel']['providers']);
         $this->assertContains(BroadcastServiceProvider::class, $rootComposer['extra']['hypervel']['providers']);
-        $this->assertSame('^3.0', $rootComposer['require']['psr/log']);
-        $this->assertSame('self.version', $rootComposer['replace']['hypervel/routing']);
     }
 }

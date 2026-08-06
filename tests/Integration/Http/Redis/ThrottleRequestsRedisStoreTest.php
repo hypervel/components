@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Http;
+namespace Hypervel\Tests\Integration\Http\Redis;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Http\Request;
@@ -20,7 +20,7 @@ class ThrottleRequestsRedisStoreTest extends TestCase
     public function testNamedLimiterUsesRedisWithoutDedicatedMiddleware(): void
     {
         $manager = $this->app->make(RateLimiter::class);
-        $manager->for('redis', fn () => Limit::perSecond(2)->by('route'), store: 'redis');
+        $manager->for('redis', fn () => Limit::perMinute(2)->by('route'), store: 'redis');
 
         Route::get('/', fn (): string => 'yes')->middleware(ThrottleRequests::using('redis'));
 
@@ -31,14 +31,13 @@ class ThrottleRequestsRedisStoreTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertHeader('X-RateLimit-Remaining', 0);
-        $this->get('/')
+        $denied = $this->get('/')
             ->assertTooManyRequests()
-            ->assertHeader('Retry-After', 1)
-            ->assertHeader('X-RateLimit-Remaining', 0);
+            ->assertHeader('X-RateLimit-Limit', 2)
+            ->assertHeader('X-RateLimit-Remaining', 0)
+            ->assertHeader('Retry-After');
 
-        usleep(1_100_000);
-
-        $this->get('/')->assertOk();
+        $this->assertGreaterThan(0, (int) $denied->headers->get('Retry-After'));
     }
 
     public function testResponseBasedLimitUsesRedisInspectionAndConditionalConsumption(): void

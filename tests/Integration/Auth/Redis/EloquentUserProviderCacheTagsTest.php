@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Auth\EloquentUserProviderCacheTagsTest;
+namespace Hypervel\Tests\Integration\Auth\Redis\EloquentUserProviderCacheTagsTest;
 
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;

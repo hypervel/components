@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Queue\RateLimitedRedisStoreTest;
+namespace Hypervel\Tests\Integration\Queue\Redis\RateLimitedRedisStoreTest;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;

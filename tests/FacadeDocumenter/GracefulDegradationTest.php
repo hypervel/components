@@ -6,7 +6,7 @@ namespace Hypervel\Tests\FacadeDocumenter;
 
 class GracefulDegradationTest extends FacadeDocumenterTestCase
 {
-    public function testFacadeWithUnresolvableSeeExitsCleanlyWithoutStackTrace()
+    public function testFacadeWithUnresolvableSeeExitsNonZeroAndReportsMissingClass(): void
     {
         $this->writeAppFile(
             'Degradation/UnresolvableSee/Facade.php',
@@ -32,14 +32,13 @@ class GracefulDegradationTest extends FacadeDocumenterTestCase
 
         $combined = $process->getOutput() . $process->getErrorOutput();
 
-        // exceptionHandler prints the exception's string representation, which
-        // includes the stack trace frames. Confirm the output at least stays
-        // within the exceptionHandler path and does not leak an uncaught
-        // ReflectionException with PHP's raw engine-level formatting.
-        $this->assertStringContainsString('Class', $combined, 'Expected human-readable class-not-found message');
+        $this->assertStringContainsString(
+            'ReflectionException: Class "App\Degradation\UnresolvableSee\DoesNotExist" does not exist',
+            $combined,
+        );
     }
 
-    public function testMissingConstantFetchFallsBackToMixed()
+    public function testMissingConstantFetchFallsBackToMixed(): void
     {
         $this->writeAppFile(
             'Degradation/MissingConstant/Proxy.php',
@@ -92,7 +91,7 @@ class GracefulDegradationTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('@method static mixed value()', $contents);
     }
 
-    public function testKeyOfAgainstNonArrayConstantFallsBackToMixed()
+    public function testKeyOfAgainstNonArrayConstantFallsBackToMixed(): void
     {
         $this->writeAppFile(
             'Degradation/NonArrayKeyOf/Proxy.php',

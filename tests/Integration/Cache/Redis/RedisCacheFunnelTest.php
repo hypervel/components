@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Cache;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Tests\Integration\Cache\CacheFunnelTestCase;
 
 class RedisCacheFunnelTest extends CacheFunnelTestCase
 {

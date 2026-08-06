@@ -6,7 +6,7 @@ namespace Hypervel\Tests\FacadeDocumenter;
 
 class IgnoredMethodsTest extends FacadeDocumenterTestCase
 {
-    public function testFacadeMayExcludeProxyMethodsFromGeneratedDocblock()
+    public function testFacadeMayExcludeProxyMethodsFromGeneratedDocblock(): void
     {
         $this->writeAppFile(
             'IgnoredMethods/Proxy.php',
@@ -64,5 +64,61 @@ class IgnoredMethodsTest extends FacadeDocumenterTestCase
 
         $this->assertStringContainsString('@method static string visible()', $contents);
         $this->assertStringNotContainsString('@method static string hidden()', $contents);
+    }
+
+    public function testIgnoreHookMustBeStatic(): void
+    {
+        $this->writeAppFile(
+            'IgnoredMethods/NonStaticProxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\IgnoredMethods;
+
+                class NonStaticProxy
+                {
+                    public function visible(): string
+                    {
+                        return 'visible';
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'IgnoredMethods/NonStaticFacade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\IgnoredMethods;
+
+                /**
+                 * @see \App\IgnoredMethods\NonStaticProxy
+                 */
+                class NonStaticFacade
+                {
+                    /**
+                     * @return array<int, string>
+                     */
+                    protected function ignoredFacadeDocumenterMethods(): array
+                    {
+                        return [];
+                    }
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\IgnoredMethods\NonStaticFacade']);
+        $combined = $process->getOutput() . $process->getErrorOutput();
+
+        $this->assertNotSame(0, $process->getExitCode());
+        $this->assertStringContainsString(
+            'ReflectionException: Trying to invoke non static method App\IgnoredMethods\NonStaticFacade::ignoredFacadeDocumenterMethods() without an object',
+            $combined,
+        );
     }
 }

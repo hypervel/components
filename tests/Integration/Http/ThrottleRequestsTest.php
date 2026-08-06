@@ -6,9 +6,15 @@ namespace Hypervel\Tests\Integration\Http;
 
 use Hypervel\Auth\GenericUser;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\Contracts\Store;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Routing\Exceptions\MissingRateLimiterException;
 use Hypervel\Routing\Middleware\ThrottleRequests;
 use Hypervel\Routing\Route as RoutingRoute;
@@ -226,6 +232,75 @@ class ThrottleRequestsTest extends TestCase
         $this->get('/')->assertTooManyRequests();
     }
 
+    public function testResponseBasedLimitUsesItsConfiguredResponse(): void
+    {
+        $manager = $this->app->make(RateLimiter::class);
+        $manager->for('not-found', fn () => Limit::perMinute(1)
+            ->by('not-found')
+            ->after(fn (Response $response): bool => $response->getStatusCode() === 404)
+            ->response(fn (): Response => new Response('ah ah ah', 429)));
+
+        Route::get('/', fn (): Response => new Response('missing', 404))
+            ->middleware(ThrottleRequests::using('not-found'));
+
+        $this->get('/')->assertNotFound();
+        $this->get('/')->assertTooManyRequests()->assertContent('ah ah ah');
+    }
+
+    public function testOrdinaryLimitUsesOneAtomicConsumeWithoutInspection(): void
+    {
+        $store = $this->countingStoreFor('uploads', Limit::perMinute(2)->by('uploads'));
+
+        Route::get('/', fn (): string => 'yes')->middleware(ThrottleRequests::using('uploads'));
+
+        $this->get('/')
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Remaining', 1);
+
+        $this->assertSame(1, $store->consumeCalls);
+        $this->assertSame(0, $store->inspectCalls);
+    }
+
+    public function testExcludedResponseUsesOneInspectionWithoutConsumption(): void
+    {
+        $store = $this->countingStoreFor(
+            'not-found',
+            Limit::perMinute(2)
+                ->by('not-found')
+                ->after(fn (Response $response): bool => $response->getStatusCode() === 404),
+        );
+
+        Route::get('/', fn (): Response => new Response('ok'))
+            ->middleware(ThrottleRequests::using('not-found'));
+
+        $this->get('/')
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Remaining', 2);
+
+        $this->assertSame(0, $store->consumeCalls);
+        $this->assertSame(1, $store->inspectCalls);
+    }
+
+    public function testQualifyingResponseUsesOneInspectionAndOneAtomicConsume(): void
+    {
+        $store = $this->countingStoreFor(
+            'not-found',
+            Limit::perMinute(2)
+                ->by('not-found')
+                ->after(fn (Response $response): bool => $response->getStatusCode() === 404),
+        );
+
+        Route::get('/', fn (): Response => new Response('missing', 404))
+            ->middleware(ThrottleRequests::using('not-found'));
+
+        $this->get('/')
+            ->assertNotFound()
+            ->assertHeader('X-RateLimit-Remaining', 1);
+
+        $this->assertSame(1, $store->consumeCalls);
+        $this->assertSame(1, $store->inspectCalls);
+    }
+
     public function testConcurrentPostResponseDenialDoesNotReplaceTheAdmittedResponse(): void
     {
         $manager = $this->app->make(RateLimiter::class);
@@ -327,6 +402,57 @@ class ThrottleRequestsTest extends TestCase
             ->assertOk()
             ->assertHeader('X-RateLimit-Limit', 1)
             ->assertHeader('X-RateLimit-Remaining', 0);
+    }
+
+    private function countingStoreFor(string $name, AdmissionPolicy $policy): ThrottleRequestsCountingStore
+    {
+        config([
+            'rate-limiter.stores.counting' => [
+                'driver' => 'counting',
+            ],
+        ]);
+
+        $store = new ThrottleRequestsCountingStore(new WorkerArrayStore);
+        $manager = $this->app->make(RateLimiter::class);
+        $manager->extend('counting', static fn (): Store => $store);
+        $manager->for($name, static fn (): AdmissionPolicy => $policy, store: 'counting');
+
+        return $store;
+    }
+}
+
+class ThrottleRequestsCountingStore implements Store
+{
+    public int $consumeCalls = 0;
+
+    public int $inspectCalls = 0;
+
+    public function __construct(protected Store $store)
+    {
+    }
+
+    public function consume(string $key, AdmissionPolicy $policy): LimitResult
+    {
+        ++$this->consumeCalls;
+
+        return $this->store->consume($key, $policy);
+    }
+
+    public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
+    {
+        ++$this->inspectCalls;
+
+        return $this->store->inspect($key, $policy);
+    }
+
+    public function recordFailure(string $key, Backoff $backoff): BackoffResult
+    {
+        return $this->store->recordFailure($key, $backoff);
+    }
+
+    public function clear(string $key): bool
+    {
+        return $this->store->clear($key);
     }
 }
 

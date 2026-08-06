@@ -9,6 +9,10 @@
         "auth",
         "swoole"
     ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
     "require": {
         "php": "^8.4",
         "ext-json": "*",

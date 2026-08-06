@@ -11,7 +11,12 @@ use Hypervel\Routing\RouteAction;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Js;
 use Hypervel\Support\Str;
+use Laravel\SerializableClosure\SerializableClosure;
+use Laravel\SerializableClosure\Serializers\Native as NativeSerializer;
+use Laravel\SerializableClosure\Serializers\Signed as SignedSerializer;
 use Laravel\SerializableClosure\Support\ReflectionClosure;
+use Laravel\SerializableClosure\Support\SelfReference;
+use Laravel\SerializableClosure\UnsignedSerializableClosure;
 use ReflectionClass;
 use ReflectionParameter;
 
@@ -313,7 +318,13 @@ class Route
     private function closure(): Closure
     {
         return RouteAction::containsSerializedClosure($this->base->getAction())
-            ? unserialize($this->base->getAction('uses'))->getClosure()
+            ? unserialize($this->base->getAction('uses'), ['allowed_classes' => [
+                SerializableClosure::class,
+                UnsignedSerializableClosure::class,
+                NativeSerializer::class,
+                SignedSerializer::class,
+                SelfReference::class,
+            ]])->getClosure()
             : $this->base->getAction('uses');
     }
 }
