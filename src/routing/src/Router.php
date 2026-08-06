@@ -874,6 +874,9 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a callback to run after implicit bindings are substituted.
      *
+     * Boot-only. The callback persists on the singleton Router and affects
+     * every subsequent route binding.
+     *
      * @return $this
      */
     public function substituteImplicitBindingsUsing(callable $callback): static
@@ -895,6 +898,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Register a route matched event listener.
+     *
+     * Boot-only. The listener persists on the worker-lifetime event dispatcher
+     * and runs for every subsequent route match.
      */
     public function matched(string|callable $callback): void
     {
@@ -1003,6 +1009,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Remove the given middleware from the specified group.
+     *
+     * Boot-only. The group mutation persists on the singleton Router and does
+     * not invalidate middleware already resolved on routes.
      *
      * @return $this
      */
@@ -1249,6 +1258,8 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Set the global resource parameter mapping.
+     *
+     * Boot-only. The mapping persists in static state for the worker lifetime.
      */
     public function resourceParameters(array $parameters = []): void
     {
@@ -1257,6 +1268,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Get or set the verbs used in the resource URIs.
+     *
+     * Boot-only when setting. Custom verbs persist in static state for the
+     * worker lifetime.
      */
     public function resourceVerbs(array $verbs = []): ?array
     {
@@ -1273,6 +1287,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Set the route collection instance.
+     *
+     * Boot or tests only. Replacing the collection mutates the singleton Router
+     * and its shared route binding for every subsequent request.
      */
     public function setRoutes(RouteCollection $routes): void
     {

@@ -89,10 +89,12 @@ class DurationLimiterIntegrationTest extends TestCase
     public function testAcquireSetsDecaysAtAndRemaining(): void
     {
         $limiter = new DurationLimiter($this->redis(), 'acquire-key', 2, 2);
+        $before = time();
 
         $acquired1 = $limiter->acquire();
         $this->assertTrue($acquired1);
-        $this->assertGreaterThanOrEqual(time(), $limiter->decaysAt);
+        $this->assertGreaterThanOrEqual($before + 2, $limiter->decaysAt);
+        $this->assertLessThanOrEqual(time() + 2, $limiter->decaysAt);
         $this->assertSame(1, $limiter->remaining);
 
         $acquired2 = $limiter->acquire();
@@ -104,26 +106,68 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertSame(0, $limiter->remaining);
     }
 
-    public function testTooManyAttemptsReportsCorrectly(): void
+    public function testTooManyAttemptsReportsFreshWindowMetadataWithoutCreatingAKey(): void
     {
-        $limiter = new DurationLimiter($this->redis(), 'too-many-key', 2, 1);
+        $redis = $this->redis();
+        $limiter = new DurationLimiter($redis, 'fresh-key', 2, 60);
+        $before = time();
 
-        // Initially, should not have too many attempts
         $this->assertFalse($limiter->tooManyAttempts());
-        $this->assertSame(0, $limiter->decaysAt);
-        $this->assertGreaterThan(0, $limiter->remaining);
+        $this->assertGreaterThanOrEqual($before + 60, $limiter->decaysAt);
+        $this->assertLessThanOrEqual(time() + 60, $limiter->decaysAt);
+        $this->assertSame(2, $limiter->remaining);
+        $this->assertSame(0, $redis->exists('fresh-key'));
+    }
 
-        // Use up the available slots
+    public function testTooManyAttemptsReportsOccupiedWindowMetadata(): void
+    {
+        $redis = $this->redis();
+        $limiter = new DurationLimiter($redis, 'occupied-key', 2, 60);
+
         $this->assertTrue($limiter->acquire());
         $this->assertTrue($limiter->acquire());
 
-        // Now, too many attempts within the same window
         $this->assertTrue($limiter->tooManyAttempts());
-        $this->assertSame(0, max(0, $limiter->remaining));
+        $this->assertGreaterThan(time(), $limiter->decaysAt);
+        $this->assertSame(0, $limiter->remaining);
+        $this->assertSame('2', $redis->hget('occupied-key', 'count'));
+    }
 
-        // After decay window, attempts should be allowed again
-        sleep(1);
-        $this->assertFalse($limiter->tooManyAttempts());
+    public function testTooManyAttemptsClampsOverLimitRemainingCount(): void
+    {
+        $limiter = new DurationLimiter($this->redis(), 'over-limit-key', 2, 60);
+
+        $this->assertTrue($limiter->acquire());
+        $this->assertTrue($limiter->acquire());
+        $this->assertFalse($limiter->acquire());
+        $this->assertFalse($limiter->acquire());
+
+        $this->assertTrue($limiter->tooManyAttempts());
+        $this->assertSame(0, $limiter->remaining);
+    }
+
+    public function testTooManyAttemptsReportsExpiredWindowMetadataWithoutResettingTheKey(): void
+    {
+        $redis = $this->redis();
+        $now = time();
+        $expiredAt = $now - 60;
+
+        $redis->hmset('expired-key', [
+            'start' => $now - 120,
+            'end' => $expiredAt,
+            'count' => 2,
+        ]);
+
+        $limiter = new DurationLimiter($redis, 'expired-key', 2, 60);
+        $before = time();
+
+        $tooManyAttempts = $limiter->tooManyAttempts();
+
+        $this->assertGreaterThanOrEqual($before + 60, $limiter->decaysAt);
+        $this->assertLessThanOrEqual(time() + 60, $limiter->decaysAt);
+        $this->assertSame(2, $limiter->remaining);
+        $this->assertFalse($tooManyAttempts);
+        $this->assertSame((string) $expiredAt, $redis->hget('expired-key', 'end'));
     }
 
     public function testClearResetsLimiter(): void

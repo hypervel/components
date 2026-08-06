@@ -68,7 +68,7 @@ abstract class AbstractRouteCollection implements Countable, IteratorAggregate, 
     /**
      * Determine if a route in the array matches the request.
      *
-     * @param array<int, Route> $routes
+     * @param array<array-key, Route> $routes
      */
     protected function matchAgainstRoutes(array $routes, Request $request, bool $includingMethod = true): ?Route
     {
@@ -229,7 +229,7 @@ abstract class AbstractRouteCollection implements Countable, IteratorAggregate, 
      *
      * For RouteCollection, this is the same as getRoutes(). For
      * CompiledRouteCollection, this returns the cached Route instances
-     * from $cachedRoutesByName that are actually used during matching,
+     * from $nameCache that are actually used during matching,
      * not throwaway objects from getRoutes().
      *
      * @return array<int, Route>

@@ -10,9 +10,13 @@ use Hypervel\Cache\RateLimiter;
 use Hypervel\Cache\RateLimiting\GlobalLimit;
 use Hypervel\Cache\RateLimiting\Limit;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Http\Request;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Routing\Middleware\ThrottleRequests;
+use Hypervel\Routing\Middleware\ThrottleRequestsWithRedis;
 use Hypervel\Tests\Routing\RoutingTestCase;
+use Mockery as m;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -137,6 +141,67 @@ class ThrottleRequestsTest extends RoutingTestCase
 
         $this->assertSame(0, $scopeCalls);
         $this->assertSame(1, $limiter->attempts(hash('xxh128', '123')));
+    }
+
+    public function testRedisThrottleUsesOneAtomicAcquireForOrdinaryLimits(): void
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('eval')->once()->andReturn([1, time() + 60, 1]);
+
+        $response = $this->redisThrottle(Limit::perMinute(2), $connection)->handle(
+            Request::create('/upload'),
+            fn () => new Response('ok'),
+            'uploads',
+        );
+
+        $this->assertSame('1', $response->headers->get('X-RateLimit-Remaining'));
+    }
+
+    public function testRedisThrottleUsesOnePrecheckForAnExcludedResponse(): void
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('eval')->once()->andReturn([time() + 60, 2]);
+
+        $response = $this->redisThrottle(
+            Limit::perMinute(2)->after(fn (Response $response): bool => $response->getStatusCode() === 404),
+            $connection,
+        )->handle(
+            Request::create('/upload'),
+            fn () => new Response('ok'),
+            'uploads',
+        );
+
+        $this->assertSame('2', $response->headers->get('X-RateLimit-Remaining'));
+    }
+
+    public function testRedisThrottleUsesAPrecheckAndAcquireForAQualifyingResponse(): void
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('eval')
+            ->twice()
+            ->andReturn([time() + 60, 2], [1, time() + 60, 1]);
+
+        $response = $this->redisThrottle(
+            Limit::perMinute(2)->after(fn (Response $response): bool => $response->getStatusCode() === 404),
+            $connection,
+        )->handle(
+            Request::create('/upload'),
+            fn () => new Response('not found', 404),
+            'uploads',
+        );
+
+        $this->assertSame('1', $response->headers->get('X-RateLimit-Remaining'));
+    }
+
+    private function redisThrottle(Limit $limit, RedisProxy $connection): ThrottleRequestsWithRedis
+    {
+        $limiter = new RateLimiter(new Repository(new ArrayStore));
+        $limiter->for('uploads', fn () => $limit);
+
+        $redis = m::mock(RedisFactory::class);
+        $redis->shouldReceive('connection')->andReturn($connection);
+
+        return new ThrottleRequestsWithRedis($limiter, $redis);
     }
 }
 
