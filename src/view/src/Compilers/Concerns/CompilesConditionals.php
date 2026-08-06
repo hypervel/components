@@ -301,9 +301,10 @@ trait CompilesConditionals
      */
     protected function compilePushIf(string $expression): string
     {
-        $parts = explode(',', $this->stripParentheses($expression), 2);
+        $parts = $this->splitTopLevel($expression, 2);
+        $stack = trim($parts[1]);
 
-        return "<?php if({$parts[0]}): \$__env->startPush({$parts[1]}); ?>";
+        return "<?php if({$parts[0]}): \$__env->startPush({$stack}); ?>";
     }
 
     /**
@@ -311,9 +312,10 @@ trait CompilesConditionals
      */
     protected function compileElsePushIf(string $expression): string
     {
-        $parts = explode(',', $this->stripParentheses($expression), 2);
+        $parts = $this->splitTopLevel($expression, 2);
+        $stack = trim($parts[1]);
 
-        return "<?php \$__env->stopPush(); elseif({$parts[0]}): \$__env->startPush({$parts[1]}); ?>";
+        return "<?php \$__env->stopPush(); elseif({$parts[0]}): \$__env->startPush({$stack}); ?>";
     }
 
     /**

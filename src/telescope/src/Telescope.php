@@ -140,12 +140,12 @@ class Telescope
     }
 
     /**
-     * Determine if the application is running an approved command.
+     * Determine if the given command is approved for recording.
      */
-    protected static function runningApprovedArtisanCommand(): bool
+    protected static function commandIsApproved(?string $command): bool
     {
         return ! in_array(
-            $_SERVER['argv'][1] ?? null,
+            $command,
             array_merge([
                 // 'migrate',
                 'migrate:rollback',
@@ -153,15 +153,15 @@ class Telescope
                 // 'migrate:refresh',
                 'migrate:reset',
                 'migrate:install',
+                'package:discover',
                 'queue:listen',
                 'queue:work',
                 'horizon',
                 'horizon:work',
                 'horizon:supervisor',
                 'watch',
-                'start',
-                'serve',
-            ], config('telescope.ignore_commands', []))
+            ], config('telescope.ignore_commands', [])),
+            true
         );
     }
 

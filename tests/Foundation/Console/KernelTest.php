@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
+use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Events\Dispatcher;
@@ -16,6 +18,7 @@ use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -185,6 +188,29 @@ class KernelTest extends TestCase
         $this->assertSame(1, $kernel->handle(new StringInput('')));
     }
 
+    public function testHandleRebindsInputAfterPreBootstrapCommandResolution(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->registerCommand(new KernelPreboundInputCommand);
+        $input = new ArgvInput([
+            'artisan',
+            'test:prebound-input',
+            '--value=configured',
+        ]);
+        $output = new BufferedOutput;
+
+        $this->assertSame(
+            'test:prebound-input',
+            ConsoleApplication::resolveCommandName($input),
+        );
+
+        $status = $kernel->handle($input, $output);
+        $kernel->terminate($input, $status);
+
+        $this->assertSame(0, $status);
+        $this->assertSame('configured', trim($output->fetch()));
+    }
+
     public function testItDispatchesTerminatingEvent()
     {
         $called = [];
@@ -205,5 +231,15 @@ class KernelTest extends TestCase
             'terminating event',
             'terminating callback',
         ], $called);
+    }
+}
+
+class KernelPreboundInputCommand extends Command
+{
+    protected ?string $signature = 'test:prebound-input {--value=}';
+
+    public function handle(): void
+    {
+        $this->line((string) $this->option('value'));
     }
 }

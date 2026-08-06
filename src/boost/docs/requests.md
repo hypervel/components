@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Interacting With The Request](#interacting-with-the-request)
     - [Accessing the Request](#accessing-the-request)
+    - [Request Start Time and Server Metadata](#request-start-time-and-server-metadata)
     - [Request Path, Host, and Method](#request-path-and-method)
     - [Request Headers](#request-headers)
     - [Request IP Address](#request-ip-address)
@@ -104,6 +105,27 @@ class UserController extends Controller
     }
 }
 ```
+
+<a name="request-start-time-and-server-metadata"></a>
+### Request Start Time and Server Metadata
+
+The `startedAt` method returns a `Hypervel\Support\CarbonImmutable` instance representing when Swoole began processing the current request on the worker, before Hypervel's server bridge and HTTP kernel handled it:
+
+```php
+$startedAt = $request->startedAt();
+```
+
+You may retrieve an individual server value using the `server` method, or call the method without an argument to retrieve all server metadata. Values received from Swoole use uppercase PHP / Symfony names:
+
+```php
+$requestTime = $request->server('REQUEST_TIME_FLOAT');
+
+$server = $request->server();
+```
+
+The request start time remains available for the lifetime of the request object, including after the HTTP kernel has terminated the request. The kernel's request lifecycle timer is a separate, later timing boundary used by lifecycle duration handlers.
+
+When handling a WebSocket connection, the request start time describes the initial HTTP handshake, not subsequent WebSocket messages.
 
 <a name="request-path-and-method"></a>
 ### Request Path, Host, and Method

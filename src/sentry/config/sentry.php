@@ -178,15 +178,6 @@ return [
         ValidationException::class,
     ],
 
-    // Artisan commands that should not be traced
-    'ignore_commands' => [
-        'crontab:run',
-        'make:*',
-        'migrate*',
-        'tinker',
-        'vendor:publish',
-    ],
-
     // HTTP timeout for the Sentry SDK transport (seconds)
     'http_timeout' => (float) env('SENTRY_HTTP_TIMEOUT', 2.0),
 

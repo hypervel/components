@@ -106,6 +106,45 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('drop index "my_schema"."foo"', $statements[0]);
     }
 
+    public function testDropForeignWithColumnsAndName(): void
+    {
+        $db = new Manager;
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $schema = $db->getConnection()->getSchemaBuilder();
+
+        $schema->create('parents', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unique(['tenant_id', 'id']);
+        });
+
+        $schema->create('children', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('parent_id');
+            $table->foreign(
+                ['tenant_id', 'parent_id'],
+                'children_parent_fk',
+            )->references(['tenant_id', 'id'])->on('parents');
+        });
+
+        $this->assertCount(1, $schema->getForeignKeys('children'));
+
+        $schema->table('children', function (Blueprint $table): void {
+            $table->dropForeign(
+                ['tenant_id', 'parent_id'],
+                'children_parent_fk',
+            );
+        });
+
+        $this->assertSame([], $schema->getForeignKeys('children'));
+    }
+
     public function testDropColumn()
     {
         $db = new Manager;

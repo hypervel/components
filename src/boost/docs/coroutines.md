@@ -436,6 +436,22 @@ $result = wait(function () {
 
 If no timeout is provided, `wait` will wait up to 10 seconds for the closure to finish.
 
+The child coroutine receives a fresh context by default. You may copy all parent context keys, or only the keys the child needs, using the `copyContext` argument:
+
+```php
+use Hypervel\Context\CoroutineContext;
+
+$result = wait(function () {
+    return CoroutineContext::get('request_id');
+}, copyContext: true);
+
+$result = wait(function () {
+    return CoroutineContext::get('request_id');
+}, copyContext: ['request_id']);
+```
+
+Copied object values follow the same replication behavior as [`go` and `Coroutine::fork`](#copying-coroutine-context).
+
 If the closure throws an exception, `wait` rethrows it in the waiting coroutine after the child's deferred callbacks have finished.
 
 If the timeout is reached, Hypervel cancels the child by throwing `Swoole\Coroutine\CanceledException` inside it. Hypervel then gives the child up to 10 seconds to finish and run its deferred callbacks before throwing `Hypervel\Coroutine\Exceptions\WaitTimeoutException` in the waiting coroutine.

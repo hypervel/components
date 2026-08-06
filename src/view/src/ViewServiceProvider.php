@@ -29,7 +29,7 @@ class ViewServiceProvider extends ServiceProvider
     /**
      * Register the view environment.
      */
-    protected function registerFactory(): void
+    public function registerFactory(): void
     {
         $this->app->singleton('view', function ($app) {
             // Next we need to grab the engine resolver instance that will be used by the
@@ -63,28 +63,28 @@ class ViewServiceProvider extends ServiceProvider
     /**
      * Register the view finder implementation.
      */
-    protected function registerViewFinder(): void
+    public function registerViewFinder(): void
     {
         $this->app->bind('view.finder', function ($app) {
-            return new FileViewFinder($app['files'], $app->make('config')->array('view.paths'));
+            return new FileViewFinder($app->make('files'), $app->make('config')->array('view.paths'));
         });
     }
 
     /**
      * Register the Blade compiler implementation.
      */
-    protected function registerBladeCompiler(): void
+    public function registerBladeCompiler(): void
     {
         $this->app->singleton('blade.compiler', function ($app) {
             $config = $app->make('config');
 
             return tap(new BladeCompiler(
-                $app['files'],
+                $app->make('files'),
                 $config->string('view.compiled'),
-                $config->boolean('view.relative_hash', false) ? $app->basePath() : '',
-                $config->boolean('view.cache', true),
-                $config->string('view.compiled_extension', 'php'),
-                $config->boolean('view.check_cache_timestamps', true),
+                $config->boolean('view.relative_hash') ? $app->basePath() : '',
+                $config->boolean('view.cache'),
+                $config->string('view.compiled_extension'),
+                $config->boolean('view.check_cache_timestamps'),
             ), function ($blade) {
                 $blade->component('dynamic-component', DynamicComponent::class);
             });
@@ -94,7 +94,7 @@ class ViewServiceProvider extends ServiceProvider
     /**
      * Register the engine resolver instance.
      */
-    protected function registerEngineResolver(): void
+    public function registerEngineResolver(): void
     {
         $this->app->singleton('view.engine.resolver', function () {
             $resolver = new EngineResolver;
@@ -113,7 +113,7 @@ class ViewServiceProvider extends ServiceProvider
     /**
      * Register the file engine implementation.
      */
-    protected function registerFileEngine(EngineResolver $resolver): void
+    public function registerFileEngine(EngineResolver $resolver): void
     {
         $resolver->register('file', function () {
             return new FileEngine(Container::getInstance()->make('files'));
@@ -123,7 +123,7 @@ class ViewServiceProvider extends ServiceProvider
     /**
      * Register the PHP engine implementation.
      */
-    protected function registerPhpEngine(EngineResolver $resolver): void
+    public function registerPhpEngine(EngineResolver $resolver): void
     {
         $resolver->register('php', function () {
             return new PhpEngine(Container::getInstance()->make('files'));
@@ -133,7 +133,7 @@ class ViewServiceProvider extends ServiceProvider
     /**
      * Register the Blade engine implementation.
      */
-    protected function registerBladeEngine(EngineResolver $resolver): void
+    public function registerBladeEngine(EngineResolver $resolver): void
     {
         $resolver->register('blade', function () {
             $app = Container::getInstance();

@@ -11,6 +11,7 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Hypervel\Tests\Database\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 
 class DatabaseSchemaBlueprintTest extends TestCase
@@ -85,6 +86,35 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $blueprint->dropSpatialIndex(['coordinates']);
         $commands = $blueprint->getCommands();
         $this->assertSame('geo_coordinates_spatialindex', $commands[0]->index);
+    }
+
+    public function testDropForeignPreservesColumnsWithAnExplicitName(): void
+    {
+        $blueprint = $this->getBlueprint(table: 'children');
+        $blueprint->dropForeign(
+            ['tenant_id', 'parent_id'],
+            'children_parent_fk',
+        );
+
+        $command = $blueprint->getCommands()[0];
+
+        $this->assertSame(['tenant_id', 'parent_id'], $command->columns);
+        $this->assertSame('children_parent_fk', $command->index);
+    }
+
+    public function testDropForeignRejectsTwoConstraintNames(): void
+    {
+        $blueprint = $this->getBlueprint(table: 'children');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Cannot drop foreign key [children_first_fk] with a second constraint name [children_second_fk]. Pass the foreign key columns as the first argument when specifying its name.',
+        );
+
+        $blueprint->dropForeign(
+            'children_first_fk',
+            'children_second_fk',
+        );
     }
 
     public function testIndexCommandsPreserveExplicitIndexNameZero(): void

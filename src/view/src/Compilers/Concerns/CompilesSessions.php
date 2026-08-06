@@ -22,7 +22,7 @@ $value = session()->get($__sessionArgs[0]); ?>';
     /**
      * Compile the endsession statements into valid PHP.
      */
-    protected function compileEndsession(): string
+    protected function compileEndsession(?string $expression): string
     {
         return '<?php unset($value);
 if (isset($__sessionPrevious) && !empty($__sessionPrevious)) { $value = array_pop($__sessionPrevious); }

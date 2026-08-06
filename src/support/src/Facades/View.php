@@ -67,7 +67,7 @@ namespace Hypervel\Support\Facades;
  * @method static string stopSection(bool $overwrite = false)
  * @method static string appendSection()
  * @method static string yieldContent(string $section, \Hypervel\Contracts\View\View|string $default = '')
- * @method static string getParentPlaceholder(string $section = '')
+ * @method static string parentPlaceholder(string $section = '')
  * @method static bool hasSection(string $name)
  * @method static bool sectionMissing(string $name)
  * @method static mixed getSection(string $name, string|null $default = null)

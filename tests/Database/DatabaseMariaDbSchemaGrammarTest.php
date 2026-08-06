@@ -288,6 +288,16 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` drop foreign key `foo`', $statements[0]);
     }
 
+    public function testDropForeignWithColumnsAndName(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->dropForeign(['tenant_id', 'parent_id'], 'users_parent_fk');
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('alter table `users` drop foreign key `users_parent_fk`', $statements[0]);
+    }
+
     public function testDropTimestamps()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');

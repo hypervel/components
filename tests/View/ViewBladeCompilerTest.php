@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View;
 
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -11,6 +13,8 @@ use Hypervel\View\Compilers\BladeCompiler;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClassConstant;
+use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -19,7 +23,7 @@ class ViewBladeCompilerTest extends TestCase
     public function testIsExpiredReturnsTrueIfCompiledFileDoesntExist(): void
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(false);
         $this->assertTrue($compiler->isExpired('foo'));
     }
 
@@ -34,18 +38,18 @@ class ViewBladeCompilerTest extends TestCase
     public function testIsExpiredReturnsTrueWhenModificationTimesWarrant(): void
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(true);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(true);
         $files->shouldReceive('lastModified')->once()->with('foo')->andReturn(100);
-        $files->shouldReceive('lastModified')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(0);
+        $files->shouldReceive('lastModified')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(0);
         $this->assertTrue($compiler->isExpired('foo'));
     }
 
     public function testIsExpiredReturnsFalseWhenUseCacheIsTrueAndNoFileModification(): void
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(true);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(true);
         $files->shouldReceive('lastModified')->once()->with('foo')->andReturn(0);
-        $files->shouldReceive('lastModified')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(100);
+        $files->shouldReceive('lastModified')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(100);
         $this->assertFalse($compiler->isExpired('foo'));
     }
 
@@ -58,14 +62,14 @@ class ViewBladeCompilerTest extends TestCase
     public function testIsExpiredReturnsFalseWhenIgnoreCacheTimestampsIsTrue(): void
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__, shouldCheckTimestamps: false);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(true);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(true);
         $this->assertFalse($compiler->isExpired('foo'));
     }
 
     public function testCompilePathIsProperlyCreated(): void
     {
         $compiler = new BladeCompiler($this->getFiles(), __DIR__);
-        $this->assertEquals(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', $compiler->getCompiledPath('foo'));
+        $this->assertEquals(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php', $compiler->getCompiledPath('foo'));
     }
 
     public function testCompileCompilesFileAndReturnsContents(): void
@@ -73,8 +77,8 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
-        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(false);
+        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
     }
 
@@ -84,14 +88,14 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(false);
         $files->shouldReceive('makeDirectory')->once()->with(__DIR__, 0777, true, true);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
-        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(false);
+        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
     }
 
     public function testCompileUpdatesCacheIfChanged(): void
     {
-        $compiledPath = __DIR__ . '/' . hash('xxh128', 'v2foo') . '.php';
+        $compiledPath = __DIR__ . '/' . hash('xxh128', 'v3foo') . '.php';
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
@@ -103,7 +107,7 @@ class ViewBladeCompilerTest extends TestCase
 
     public function testCompileKeepsCacheIfUnchanged(): void
     {
-        $compiledPath = __DIR__ . '/' . hash('xxh128', 'v2foo') . '.php';
+        $compiledPath = __DIR__ . '/' . hash('xxh128', 'v3foo') . '.php';
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
@@ -160,8 +164,8 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
-        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(false);
+        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
         $this->assertSame('foo', $compiler->getPath());
     }
@@ -178,8 +182,8 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
-        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(false);
+        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->setPath('foo');
         $compiler->compile();
         $this->assertSame('foo', $compiler->getPath());
@@ -187,8 +191,8 @@ class ViewBladeCompilerTest extends TestCase
 
     public function testCompilePathsAreIsolatedBetweenConcurrentCoroutines(): void
     {
-        $firstCompiledPath = __DIR__ . '/' . hash('xxh128', 'v2first') . '.php';
-        $secondCompiledPath = __DIR__ . '/' . hash('xxh128', 'v2second') . '.php';
+        $firstCompiledPath = __DIR__ . '/' . hash('xxh128', 'v3first') . '.php';
+        $secondCompiledPath = __DIR__ . '/' . hash('xxh128', 'v3second') . '.php';
 
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('first')->andReturnUsing(function (): string {
@@ -209,6 +213,182 @@ class ViewBladeCompilerTest extends TestCase
         ]);
     }
 
+    public function testSectionNamesAreIsolatedBetweenConcurrentCompilations(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $firstPaused = new Channel(1);
+        $releaseFirst = new Channel(1);
+
+        $compiler->directive('pause', function (string $expression) use ($firstPaused, $releaseFirst): string {
+            $firstPaused->push(true);
+            $releaseFirst->pop();
+
+            return '';
+        });
+
+        try {
+            $results = parallel([
+                'first' => fn (): string => $compiler->compileString("@section('first') @pause @parent"),
+                'second' => function () use ($compiler, $firstPaused, $releaseFirst): string {
+                    $firstPaused->pop();
+                    $compiled = $compiler->compileString("@section('second') @parent");
+                    $releaseFirst->push(true);
+
+                    return $compiled;
+                },
+            ]);
+        } finally {
+            $firstPaused->close();
+            $releaseFirst->close();
+        }
+
+        $this->assertStringContainsString("Factory::parentPlaceholder('first')", $results['first']);
+        $this->assertStringContainsString("Factory::parentPlaceholder('second')", $results['second']);
+    }
+
+    public function testStandaloneParentUsesTheEmptySectionPlaceholder(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $compiler->compileString("@section('prior')");
+
+        $this->assertSame(
+            "<?php echo \\Hypervel\\View\\Factory::parentPlaceholder(''); ?>",
+            $compiler->compileString('@parent')
+        );
+    }
+
+    public function testRawBlocksAreClearedAfterCompilationFailure(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $failure = new RuntimeException('failed');
+        $caught = null;
+
+        $compiler->directive('fail', fn (): never => throw $failure);
+
+        try {
+            $compiler->compileString('@verbatim {{ $retained }} @endverbatim @fail');
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $contextKey = (new ReflectionClassConstant(BladeCompiler::class, 'RAW_BLOCKS_CONTEXT_KEY'))->getValue();
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame([], CoroutineContext::get($contextKey, []));
+        $this->assertSame(' {{ $fresh }} ', $compiler->compileString('@verbatim {{ $fresh }} @endverbatim'));
+    }
+
+    public function testEchoFormatDefaultIsVisibleInsideSiblingCoroutines(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $compiler->setEchoFormat('boot(%s)');
+
+        $results = parallel([
+            'first' => fn (): string => $compiler->compileString('{{ $first }}'),
+            'second' => fn (): string => $compiler->compileString('{{ $second }}'),
+        ]);
+
+        $this->assertSame('<?php echo boot($first); ?>', $results['first']);
+        $this->assertSame('<?php echo boot($second); ?>', $results['second']);
+    }
+
+    public function testEchoFormatOverridesAreNestedAndRestored(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $compiler->setEchoFormat('boot(%s)');
+
+        $result = $compiler->usingEchoFormat('outer(%s)', function () use ($compiler): string {
+            $inner = $compiler->usingEchoFormat(
+                'inner(%s)',
+                fn (): string => $compiler->compileString('{{ $value }}')
+            );
+
+            return $inner . '|' . $compiler->compileString('{{ $value }}');
+        });
+
+        $this->assertSame(
+            '<?php echo inner($value); ?>|<?php echo outer($value); ?>',
+            $result
+        );
+        $this->assertSame('<?php echo boot($value); ?>', $compiler->compileString('{{ $value }}'));
+    }
+
+    public function testEchoFormatOverrideIsRestoredAfterFailure(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $compiler->setEchoFormat('boot(%s)');
+
+        try {
+            $compiler->usingEchoFormat('temporary(%s)', fn (): never => throw new RuntimeException('failed'));
+        } catch (RuntimeException $exception) {
+            $this->assertSame('failed', $exception->getMessage());
+        }
+
+        $this->assertSame('<?php echo boot($value); ?>', $compiler->compileString('{{ $value }}'));
+    }
+
+    public function testEchoFormatOverrideIsIsolatedBetweenConcurrentCompilations(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), __DIR__);
+        $compiler->setEchoFormat('boot(%s)');
+        $firstPaused = new Channel(1);
+        $releaseFirst = new Channel(1);
+
+        try {
+            $results = parallel([
+                'first' => fn (): string => $compiler->usingEchoFormat(
+                    'first(%s)',
+                    function () use ($compiler, $firstPaused, $releaseFirst): string {
+                        $firstPaused->push(true);
+                        $releaseFirst->pop();
+
+                        return $compiler->compileString('{{ $value }}');
+                    }
+                ),
+                'second' => function () use ($compiler, $firstPaused, $releaseFirst): string {
+                    $firstPaused->pop();
+                    $compiled = $compiler->compileString('{{ $value }}');
+                    $releaseFirst->push(true);
+
+                    return $compiled;
+                },
+            ]);
+        } finally {
+            $firstPaused->close();
+            $releaseFirst->close();
+        }
+
+        $this->assertSame('<?php echo first($value); ?>', $results['first']);
+        $this->assertSame('<?php echo boot($value); ?>', $results['second']);
+    }
+
+    public function testFooterExtensionContract(): void
+    {
+        $compiler = new TestableBladeCompiler($this->getFiles(), __DIR__);
+
+        $compiler->pushTestFooter('first');
+        $compiler->pushTestFooter('second');
+
+        $this->assertSame("body\nsecond\nfirst", $compiler->addTestFooters("\nbody"));
+    }
+
+    public function testEndDirectiveExtensionContracts(): void
+    {
+        $compiler = new TestableBladeCompiler($this->getFiles(), __DIR__);
+
+        $this->assertSame(
+            "session:('session') error:('error') context:('context')",
+            $compiler->compileString("@endsession('session') @enderror('error') @endcontext('context')")
+        );
+    }
+
+    public function testParenthesisGuardRejectsIncompleteExpressions(): void
+    {
+        $compiler = new TestableBladeCompiler($this->getFiles(), __DIR__);
+
+        $this->assertFalse($compiler->hasBalancedParentheses('example('));
+    }
+
     public function testRawTagsCanBeSetToLegacyValues(): void
     {
         $compiler = new BladeCompiler($this->getFiles(), __DIR__);
@@ -227,8 +407,8 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('foo')->andReturn($content);
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
-        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', $compiled);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php')->andReturn(false);
+        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3foo') . '.php', $compiled);
 
         $compiler->compile('foo');
     }
@@ -280,8 +460,8 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2') . '.php')->andReturn(false);
-        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2') . '.php', 'Hello World');
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3') . '.php')->andReturn(false);
+        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v3') . '.php', 'Hello World');
         $compiler->setPath('');
         $compiler->compile();
     }
@@ -291,8 +471,8 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('0')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v20') . '.php')->andReturn(false);
-        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v20') . '.php', 'Hello World<?php /**PATH 0 ENDPATH**/ ?>');
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v30') . '.php')->andReturn(false);
+        $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v30') . '.php', 'Hello World<?php /**PATH 0 ENDPATH**/ ?>');
         $compiler->compile('0');
         $this->assertSame('0', $compiler->getPath());
     }
@@ -378,5 +558,38 @@ class ViewBladeCompilerTest extends TestCase
     protected function getFiles(): Filesystem
     {
         return m::mock(Filesystem::class);
+    }
+}
+
+class TestableBladeCompiler extends BladeCompiler
+{
+    public function addTestFooters(string $result): string
+    {
+        return $this->addFooters($result);
+    }
+
+    public function pushTestFooter(string $footer): void
+    {
+        $this->pushFooter($footer);
+    }
+
+    public function hasBalancedParentheses(string $expression): bool
+    {
+        return $this->hasEvenNumberOfParentheses($expression);
+    }
+
+    protected function compileEndsession(?string $expression): string
+    {
+        return 'session:' . $expression;
+    }
+
+    protected function compileEnderror(?string $expression): string
+    {
+        return 'error:' . $expression;
+    }
+
+    protected function compileEndcontext(?string $expression): string
+    {
+        return 'context:' . $expression;
     }
 }

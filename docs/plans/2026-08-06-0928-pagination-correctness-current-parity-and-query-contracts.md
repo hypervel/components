@@ -134,9 +134,9 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `scout-41` | Search pagination defect | Major | High | Clamp all four public Scout page producers to page one before any engine sees zero or a negative page. |
 | `routing-25` | Current Laravel type parity | Minor | High | Add `Route::domain()`'s conditional get/set PHPDoc and the missing current Routing type fixture. |
 
-`foundation`'s `__()` conditional type and View's `ComponentAttributeBag::data()` type are routed
-to their active owning work. Record the complete #60586 file-set review and durable routes in the
-ledger/dependency index; do not edit concurrently owned source.
+View's `ComponentAttributeBag::data()` type is complete in its owning audit. Translation's `__()`
+conditional type remains routed to its active owning work. Record the complete #60586 file-set
+review and durable route in the ledger/dependency index.
 
 ## Implementation
 
@@ -357,10 +357,9 @@ public function fragment(?string $fragment = null);
 
 Use current `ArrayIterator`/`Traversable` docs and assertions exactly, preserving stronger native
 types. Port `Lottery::choose()`'s current conditional PHPDoc and add `types/Support/Lottery.php`
-to pin both branches; no upstream fixture exists. Route Foundation `__()` and View
-`ComponentAttributeBag::data()` to their active owning work and record the complete #60586 file
-inventory so neither is lost. Add the existing Hypervel-only `View::getPath()` contract widening
-to the active View route for its owner to assess and document.
+to pin both branches; no upstream fixture exists. Record View's completed
+`ComponentAttributeBag::data()` correction, route Translation's `__()` conditional type to its
+active owning work, and record the complete #60586 file inventory so neither is lost.
 
 Add the one remaining unowned source correction from that inventory:
 
@@ -378,7 +377,8 @@ Record the file-set result, not just its names: Collections `Arr::random()`,
 Email/File/Password defaults are already truthfully stronger; Hypervel's real mapped fixtures
 `types/Collections/Arr.php` and `types/Collections/Collection.php` already pin the two Support
 type files; Pagination contracts, abstracts, and type fixture plus Support Lottery land here;
-Foundation and View remain the two durable active-owner routes.
+View's `ComponentAttributeBag::data()` correction is complete, and Translation remains the
+durable active-owner route.
 
 Hypervel has no Routing type fixture. Create `types/Routing/Route.php` by porting the complete
 current seven-assertion upstream file rather than only the historical PR additions. Add the
@@ -605,9 +605,8 @@ After implementation and review:
   residual structural fact;
 - revalidate `pagination-01`/`pagination-02` and update their dependency-index rows from “later
   full pagination audit” to complete;
-- add durable dependency routes for active Foundation/Translation and View ownership without
-  editing their concurrently owned source, including the existing Hypervel-only
-  `Contracts\View\View::getPath()` widening;
+- retain View's completed `ComponentAttributeBag::data()` owner record and a durable dependency
+  route for Translation's `__()` conditional type;
 - explicitly revalidate the completed `collections`, `support`, `database`, `routing`, and
   `scout` packages and amend their ledger entries for `collections-15`, `support-32`,
   `support-33`, `database-24`, `database-25`, `routing-25`, and `scout-41`;

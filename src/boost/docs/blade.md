@@ -1255,8 +1255,10 @@ By default, some keywords are reserved for Blade's internal use in order to rend
 
 - `data`
 - `flushCache`
+- `flushState`
 - `forgetComponentsResolver`
 - `forgetFactory`
+- `ignoredParameterNames`
 - `render`
 - `resolve`
 - `resolveComponentsUsing`
