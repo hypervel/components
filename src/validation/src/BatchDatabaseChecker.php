@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Support\Facades\DB;
+use Stringable;
 
 /**
  * Execute batched database queries for wildcard exists/unique validation.
@@ -23,20 +23,16 @@ final class BatchDatabaseChecker
     /**
      * Build a PrecomputedPresenceVerifier from grouped rules.
      *
-     * Accepts the fallback verifier explicitly rather than resolving from
-     * the container, so that custom verifiers set via setPresenceVerifier()
-     * are respected for non-batched fallback lookups.
-     *
      * @param array<string, array{meta: array<string, mixed>, values: list<mixed>}> $groups
      * @param array<string, true> $unsafeTableColumns table:column pairs that must not be
      *                                                precomputed because other rules use the
      *                                                same pair with a different query shape
      */
-    public static function buildVerifier(array $groups, ?PresenceVerifierInterface $fallback, array $unsafeTableColumns = []): ?PrecomputedPresenceVerifier
+    public static function buildVerifier(array $groups, DatabasePresenceVerifier $presenceVerifier, array $unsafeTableColumns = []): ?PrecomputedPresenceVerifier
     {
-        $verifier = new PrecomputedPresenceVerifier($fallback);
+        $verifier = new PrecomputedPresenceVerifier($presenceVerifier);
 
-        self::registerLookups($verifier, $groups, $unsafeTableColumns);
+        self::registerLookups($verifier, $presenceVerifier, $groups, $unsafeTableColumns);
 
         return $verifier->hasLookups() ? $verifier : null;
     }
@@ -51,8 +47,12 @@ final class BatchDatabaseChecker
      *
      * @param array<string, true> $unsafeTableColumns table:column pairs blocked from precomputing
      */
-    private static function registerLookups(PrecomputedPresenceVerifier $verifier, array $groups, array $unsafeTableColumns = []): void
-    {
+    private static function registerLookups(
+        PrecomputedPresenceVerifier $verifier,
+        DatabasePresenceVerifier $presenceVerifier,
+        array $groups,
+        array $unsafeTableColumns = [],
+    ): void {
         // Detect table:column collisions — multiple query shapes targeting the
         // same table:column cannot be safely stored in the verifier.
         $tableColumnCounts = [];
@@ -63,6 +63,10 @@ final class BatchDatabaseChecker
 
         foreach ($groups as $group) {
             $values = self::uniqueStringValues($group['values']);
+
+            if ($values === null) {
+                continue;
+            }
 
             if ($values === []) {
                 continue;
@@ -78,6 +82,7 @@ final class BatchDatabaseChecker
             }
 
             $fetched = self::queryValues(
+                $presenceVerifier,
                 $meta['connection'],
                 $meta['table'],
                 $meta['column'],
@@ -102,6 +107,7 @@ final class BatchDatabaseChecker
      * @return array<int, mixed>
      */
     private static function queryValues(
+        DatabasePresenceVerifier $presenceVerifier,
         ?string $connection,
         string $table,
         string $column,
@@ -113,36 +119,15 @@ final class BatchDatabaseChecker
         $results = [];
 
         foreach (array_chunk($values, self::CHUNK_SIZE) as $chunk) {
-            $query = (
-                $connection !== null
-                ? DB::connection($connection)->table($table)
-                : DB::table($table)
-            )->useWritePdo();
-
-            $query->whereIn($column, $chunk);
-
-            // Replay scalar where conditions (matching DatabasePresenceVerifier::addWhere())
-            foreach ($wheres as $whereColumn => $whereValue) {
-                $whereValue = (string) $whereValue;
-
-                if ($whereValue === 'NULL') {
-                    $query->whereNull($whereColumn);
-                } elseif ($whereValue === 'NOT_NULL') {
-                    $query->whereNotNull($whereColumn);
-                } elseif (str_starts_with($whereValue, '!')) {
-                    $query->where($whereColumn, '!=', mb_substr($whereValue, 1));
-                } else {
-                    $query->where($whereColumn, $whereValue);
-                }
-            }
-
-            if ($ignore !== null && $ignore !== 'NULL') {
-                $query->where($idColumn, '<>', $ignore);
-            }
-
-            /** @var array<int, mixed> $chunkResults */
-            $chunkResults = $query->pluck($column)->all();
-            array_push($results, ...$chunkResults);
+            array_push($results, ...$presenceVerifier->getExistingValues(
+                $table,
+                $column,
+                $chunk,
+                $connection,
+                $ignore,
+                $idColumn,
+                $wheres,
+            ));
         }
 
         return $results;
@@ -152,10 +137,22 @@ final class BatchDatabaseChecker
      * Deduplicate and cast values to strings for batch queries.
      *
      * @param array<mixed> $values
-     * @return list<string>
+     * @return null|list<string>
      */
-    private static function uniqueStringValues(array $values): array
+    private static function uniqueStringValues(array $values): ?array
     {
-        return array_values(array_unique(array_map(strval(...), $values), SORT_STRING));
+        $normalized = [];
+
+        foreach ($values as $value) {
+            foreach (is_array($value) ? $value : [$value] as $item) {
+                if (! is_scalar($item) && ! $item instanceof Stringable) {
+                    return null;
+                }
+
+                $normalized[] = (string) $item;
+            }
+        }
+
+        return array_values(array_unique($normalized, SORT_STRING));
     }
 }

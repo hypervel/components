@@ -8,6 +8,7 @@ use Hypervel\Contracts\Validation\ImplicitRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\Enums\SizeMode;
+use Stringable;
 
 /**
  * Compile pipe-string or array rules into an AttributePlan.
@@ -86,8 +87,12 @@ final class RuleCompiler
                 $modes[] = $mode;
             }
 
-            if ($dateFormat === null && $parsedName === 'DateFormat' && isset($parsedParams[0])) {
-                $dateFormat = $parsedParams[0];
+            if ($dateFormat === null && $parsedName === 'DateFormat') {
+                $format = $parsedParams[0] ?? null;
+
+                if (is_scalar($format) || $format instanceof Stringable) {
+                    $dateFormat = (string) $format;
+                }
             }
 
             if ($parsedName === 'Array') {
@@ -343,16 +348,16 @@ final class RuleCompiler
             'Max' => self::tryInlineSize(CheckType::SizeMax, $parameters, $context),
             'Size' => self::tryInlineSize(CheckType::SizeExact, $parameters, $context),
             'Between' => self::tryInlineSizeBetween($parameters, $context),
-            'Digits' => isset($parameters[0])
+            'Digits' => self::hasExactIntegerParameters($parameters, 1)
                 ? new InlineCheck(CheckType::Digits, (int) $parameters[0], parameters: $parameters)
                 : null,
-            'DigitsBetween' => count($parameters) === 2
+            'DigitsBetween' => self::hasExactIntegerParameters($parameters, 2)
                 ? new InlineCheck(CheckType::DigitsBetween, [(int) $parameters[0], (int) $parameters[1]], parameters: $parameters)
                 : null,
-            'MinDigits' => isset($parameters[0])
+            'MinDigits' => self::hasExactIntegerParameters($parameters, 1)
                 ? new InlineCheck(CheckType::MinDigits, (int) $parameters[0], parameters: $parameters)
                 : null,
-            'MaxDigits' => isset($parameters[0])
+            'MaxDigits' => self::hasExactIntegerParameters($parameters, 1)
                 ? new InlineCheck(CheckType::MaxDigits, (int) $parameters[0], parameters: $parameters)
                 : null,
 
@@ -369,10 +374,28 @@ final class RuleCompiler
 
             'In' => $context['hasSiblingArrayRule']
                 ? null
-                : new InlineCheck(CheckType::In, $parameters, parameters: $parameters),
+                : new InlineCheck(
+                    CheckType::In,
+                    array_map(
+                        static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
+                            ? (string) $parameter
+                            : $parameter,
+                        $parameters,
+                    ),
+                    parameters: $parameters,
+                ),
             'NotIn' => $context['hasSiblingArrayRule']
                 ? null
-                : new InlineCheck(CheckType::NotIn, $parameters, parameters: $parameters),
+                : new InlineCheck(
+                    CheckType::NotIn,
+                    array_map(
+                        static fn (mixed $parameter): mixed => is_scalar($parameter) || $parameter instanceof Stringable
+                            ? (string) $parameter
+                            : $parameter,
+                        $parameters,
+                    ),
+                    parameters: $parameters,
+                ),
 
             'Date' => new InlineCheck(CheckType::IsDate),
             'DateFormat' => isset($parameters[0])
@@ -437,6 +460,19 @@ final class RuleCompiler
     }
 
     /**
+     * Determine if the parameters are exact integer strings.
+     */
+    private static function hasExactIntegerParameters(array $parameters, int $count): bool
+    {
+        return count($parameters) === $count
+            && array_all(
+                $parameters,
+                static fn (mixed $parameter): bool => is_string($parameter)
+                    && preg_match('/^[+-]?\d+$/D', $parameter) === 1,
+            );
+    }
+
+    /**
      * Try to inline a date comparison rule.
      *
      * Bakes the literal target string and sibling date_format (if any) into
@@ -452,7 +488,7 @@ final class RuleCompiler
             return null;
         }
 
-        if (self::looksLikeFieldRef($parameters[0])) {
+        if (ValidationRuleParser::looksLikeDateFieldReference($parameters[0])) {
             return null;
         }
 
@@ -461,22 +497,6 @@ final class RuleCompiler
             ['target' => $parameters[0], 'format' => $context['dateFormat']],
             parameters: $parameters,
         );
-    }
-
-    /**
-     * Determine if a string looks like a field reference rather than a date literal.
-     *
-     * Conservative — in ambiguous cases returns true (treat as field ref) so the
-     * rule goes through DelegatedCheck where compareDates() resolves the reference.
-     */
-    private static function looksLikeFieldRef(string $arg): bool
-    {
-        $literals = ['today', 'yesterday', 'tomorrow', 'now'];
-        if (in_array(strtolower($arg), $literals, true)) {
-            return false;
-        }
-
-        return preg_match('/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_*]+)*$/', $arg) === 1;
     }
 
     /**
