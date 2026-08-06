@@ -99,6 +99,8 @@ class Lottery
 
     /**
      * Run the lottery.
+     *
+     * @return ($times is null ? mixed : list<mixed>)
      */
     public function choose(?int $times = null): mixed
     {
