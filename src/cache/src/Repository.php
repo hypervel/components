@@ -155,6 +155,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * Retrieve multiple items from the cache by key.
      *
      * @param iterable<string|UnitEnum> $keys
+     * @return iterable<string, mixed>
      */
     public function getMultiple(iterable $keys, mixed $default = null): iterable
     {

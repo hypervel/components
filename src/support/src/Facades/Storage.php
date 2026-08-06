@@ -11,8 +11,8 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @method static \Hypervel\Contracts\Filesystem\Filesystem drive(\UnitEnum|string|null $name = null)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem disk(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem drive(UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem disk(UnitEnum|string|null $name = null)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem build(array|string $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createLocalDriver(array $config, string $name = 'local')
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
@@ -26,18 +26,21 @@ use function Hypervel\Support\enum_value;
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
  * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Hypervel\Contracts\Container\Container $app)
+ * @method static void flushState()
  * @method static \Hypervel\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
  * @method static \Hypervel\Filesystem\FilesystemManager addPoolable(string $driver)
  * @method static \Hypervel\Filesystem\FilesystemManager removePoolable(string $driver)
  * @method static array getPoolables()
  * @method static \Hypervel\Filesystem\FilesystemManager setPoolables(array $poolables)
+ * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static string path(string $path)
  * @method static bool exists(string $path)
  * @method static string|null get(string $path)
  * @method static null|resource readStream(string $path)
  * @method static null|resource readStreamRange(string $path, int|null $start, int|null $end)
- * @method static string|bool put(string $path, resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Http\File|\Hypervel\Http\UploadedFile $contents, mixed $options = [])
+ * @method static string|bool put(string $path, \Hypervel\Http\File|resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Http\UploadedFile $contents, mixed $options = [])
  * @method static string|false putFile(\Hypervel\Http\File|\Hypervel\Http\UploadedFile|string $path, \Hypervel\Http\File|\Hypervel\Http\UploadedFile|array|string|null $file = null, mixed $options = [])
  * @method static string|false putFileAs(\Hypervel\Http\File|\Hypervel\Http\UploadedFile|string $path, \Hypervel\Http\File|\Hypervel\Http\UploadedFile|array|string|null $file, array|string|null $name = null, mixed $options = [])
  * @method static bool writeStream(string $path, resource $resource, array $options = [])
@@ -66,7 +69,7 @@ use function Hypervel\Support\enum_value;
  * @method static bool fileMissing(string $path)
  * @method static bool directoryExists(string $path)
  * @method static bool directoryMissing(string $path)
- * @method static array|bool|float|int|string|null json(string $path, int $flags = 0)
+ * @method static array|string|int|float|bool|null json(string $path, int $flags = 0)
  * @method static \Symfony\Component\HttpFoundation\StreamedResponse response(string $path, string|null $name = null, array $headers = [], string $disposition = 'inline')
  * @method static \Symfony\Component\HttpFoundation\Response serve(\Hypervel\Http\Request $request, string $path, string|null $name = null, array $headers = [])
  * @method static \Symfony\Component\HttpFoundation\StreamedResponse download(string $path, string|null $name = null, array $headers = [])
@@ -78,23 +81,21 @@ use function Hypervel\Support\enum_value;
  * @method static string temporaryUrl(string $path, \DateTimeInterface $expiration, array $options = [])
  * @method static array|string temporaryUploadUrl(string $path, \DateTimeInterface $expiration, array $options = [])
  * @method static array getConfig()
- * @method static mixed withDriver(\Closure $callback)
- * @method static mixed withAdapter(\Closure $callback)
- * @method static mixed withClient(\Closure $callback)
- * @method static \Hypervel\ObjectPool\PoolDefinition getDefinition()
- * @method static string getPoolName()
- * @method static bool invalidatePool()
  * @method static void serveUsing(\Closure|null $callback)
  * @method static void buildTemporaryUrlsUsing(\Closure|null $callback)
  * @method static void buildTemporaryUploadUrlsUsing(\Closure|null $callback)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static \Hypervel\Contracts\Filesystem\Filesystem|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static bool has(string $location)
  * @method static string read(string $location)
  * @method static int fileSize(string $path)
  * @method static string visibility(string $path)
  * @method static void write(string $location, string $contents, array $config = [])
  * @method static void createDirectory(string $location, array $config = [])
+ * @method static \Hypervel\ObjectPool\PoolDefinition getDefinition()
+ * @method static string getPoolName()
+ * @method static bool invalidatePool()
+ * @method static mixed withDriver(\Closure $callback)
+ * @method static mixed withAdapter(\Closure $callback)
+ * @method static mixed withClient(\Closure $callback)
  *
  * @see \Hypervel\Filesystem\FilesystemManager
  */
@@ -188,6 +189,33 @@ class Storage extends Facade
         );
     }
 
+    /**
+     * Get methods that should be excluded from the generated facade docblock.
+     *
+     * The Storage facade documents methods supported by every disk plus the
+     * borrow-scoped accessors for pooled disks. Disk-specific raw accessors
+     * and adapter extensions remain available on compatible resolved disks.
+     *
+     * @return array<int, string>
+     */
+    protected static function ignoredFacadeDocumenterMethods(): array
+    {
+        return [
+            'flushMacros',
+            'getAdapter',
+            'getClient',
+            'getDriver',
+            'hasMacro',
+            'listContents',
+            'macro',
+            'macroCall',
+            'mixin',
+        ];
+    }
+
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'filesystem';

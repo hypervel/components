@@ -27,7 +27,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Contracts\Cache\Repository
+ * @mixin \Hypervel\Cache\Repository
  * @mixin \Hypervel\Contracts\Cache\LockProvider
  * @mixin \Hypervel\Cache\TaggableStore
  */

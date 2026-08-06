@@ -11,7 +11,7 @@ class TraitImportSourceTest extends FacadeDocumenterTestCase
      * own file does not, docblock type resolution must walk the trait's use
      * statements — not the declaring class's — to resolve short names.
      */
-    public function testMethodInheritedFromTraitResolvesTraitFileImports()
+    public function testMethodInheritedFromTraitResolvesTraitFileImports(): void
     {
         $this->writeAppFile(
             'TraitImport/Other/Payload.php',
