@@ -29,8 +29,6 @@ class CreateVendorSymlinkTest extends TestCase
             $this->application->flush();
         }
 
-        TestbenchApplication::flushState($this);
-
         parent::tearDown();
     }
 
