@@ -54,8 +54,6 @@ class RequestWatcher extends Watcher
             return;
         }
 
-        $startTime = (float) $event->request->server('REQUEST_TIME_FLOAT');
-
         Telescope::recordRequest(IncomingEntry::make([
             'ip_address' => $event->request->ip(),
             'uri' => str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/',
@@ -70,7 +68,7 @@ class RequestWatcher extends Watcher
             'response' => $this->response($event->response),
             'context' => $this->facadeContext(),
             'coroutine_context' => $this->getContext(),
-            'duration' => $startTime > 0 ? floor((microtime(true) - $startTime) * 1000) : null,
+            'duration' => floor($event->request->startedAt()->diffInMilliseconds()),
             'memory' => round(memory_get_peak_usage(true) / 1024 / 1024, 1),
         ]));
 

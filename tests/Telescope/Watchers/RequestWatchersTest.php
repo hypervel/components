@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Http\UploadedFile;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\View;
@@ -20,12 +21,16 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 ])]
 class RequestWatchersTest extends FeatureTestCase
 {
-    public function testRequestWatcherRegistersRequests()
+    public function testRequestWatcherRegistersRequests(): void
     {
+        CarbonImmutable::setTestNow('2026-08-06 12:00:00 UTC');
+
         $result = ['email' => 'albert@hypervel.org'];
         Route::get('/emails', fn () => $result);
 
-        $this->get('/emails')->assertSuccessful();
+        $this->call('GET', '/emails', server: [
+            'REQUEST_TIME_FLOAT' => CarbonImmutable::now()->subSeconds(5)->getPreciseTimestamp(6) / 1_000_000,
+        ])->assertSuccessful();
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -34,6 +39,7 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(200, $entry->content['response_status']);
         $this->assertSame('/emails', $entry->content['uri']);
         $this->assertSame($result, $entry->content['response']);
+        $this->assertSame(5000, $entry->content['duration']);
     }
 
     public function testRequestWatcherRegisters404()
