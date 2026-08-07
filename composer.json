@@ -352,6 +352,7 @@
                 "Hypervel\\Redis\\RedisServiceProvider",
                 "Hypervel\\Reverb\\ReverbServiceProvider",
                 "Hypervel\\Routing\\RoutingServiceProvider",
+                "Hypervel\\Sanctum\\SanctumServiceProvider",
                 "Hypervel\\Server\\ServerServiceProvider",
                 "Hypervel\\ServerProcess\\ServerProcessServiceProvider",
                 "Hypervel\\Session\\SessionServiceProvider",

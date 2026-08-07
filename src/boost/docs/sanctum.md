@@ -151,6 +151,8 @@ public function boot(): void
 }
 ```
 
+If your user model needs to customize Sanctum's token relationship, override the protected `newTokenRelation` method. Sanctum uses this dedicated factory instead of the model-wide `newMorphMany` hook.
+
 <a name="last-used-timestamps"></a>
 ### Last Used Timestamps
 
@@ -213,7 +215,7 @@ For Redis, `SERIALIZER_NONE`, native PHP, and available igbinary serializers pre
 
 Sanctum cache settings and `sanctum.last_used_at` are read during process startup and must not be changed while a worker is serving requests.
 
-Sanctum also caches missing token IDs as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked or unknown token. Missing tokenable models are not cached because their visibility may depend on the current query context. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints.
+Sanctum also caches missing token IDs as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked or unknown token. Missing tokenable models are not cached because their visibility may depend on the current query context. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints. Continue to apply your application's normal rate limiting; the cache is not a replacement for request throttling.
 
 The `last_used_at_update_interval` option controls how frequently Sanctum writes a cached token's `last_used_at` timestamp back to the database. The default value is `300`, so the timestamp is updated at most once every five minutes for each token while caching is enabled. The cache TTL should be greater than or equal to this interval so active cached tokens do not expire before the next allowed timestamp write.
 
@@ -221,22 +223,38 @@ Sanctum token caching pairs well with the authentication package's [user lookup 
 
 The cached token entry never embeds its `tokenable` relation. During authentication, the live token receives the exact tokenable instance used for provider validation before authentication callbacks and events run.
 
-Deleting a personal access token or making an application-visible update clears both cached entries. Sanctum's internal `last_used_at` write clears only the token entry, so it does not defeat the tokenable cache. You may also clear both entries manually using the `clearTokenCache` method:
+Creating, updating, or deleting a personal access token automatically invalidates its affected cache entries after the database transaction commits. This includes soft deletes, restores, and force deletes performed on token model instances. Deleting through the token relation also invalidates every matched token when caching is enabled:
 
 ```php
-use Hypervel\Sanctum\PersonalAccessToken;
+$user->tokens()->delete();
 
-PersonalAccessToken::clearTokenCache($tokenId);
+$user->tokens()->where('name', 'Temporary')->delete();
 ```
+
+The relation fixes the matched token set before deletion and invalidates exactly those tokens. A token created concurrently after matching is not included in the deletion. Invalidations run immediately when there is no transaction, wait for the outer commit when there is one, and are discarded on rollback.
+
+Sanctum's internal `last_used_at` write refreshes only the token entry, so it does not defeat the tokenable cache. Raw SQL, quiet or eventless model mutations, arbitrary builder updates, and bulk restores bypass automatic invalidation. Clear both entries explicitly when using those escape hatches:
+
+```php
+use Hypervel\Sanctum\Sanctum;
+
+$tokenModel = Sanctum::personalAccessTokenModel();
+
+$tokenModel::clearTokenCache($tokenId);
+```
+
+The `sanctum:prune-expired` command also deletes records without immediately clearing their cache entries. These tokens are already expired and cannot authenticate, and their cache entries are removed when the configured cache TTL elapses.
 
 Tokenable model changes do not automatically evict token-ID-keyed entries. The cache TTL is therefore the maximum staleness bound. If a change must be reflected immediately during token authentication, clear the cache for that model's tokens:
 
 ```php
-use Hypervel\Sanctum\PersonalAccessToken;
+use Hypervel\Sanctum\Sanctum;
+
+$tokenModel = Sanctum::personalAccessTokenModel();
 
 $user->tokens()
     ->pluck('id')
-    ->each(fn (int|string $tokenId) => PersonalAccessToken::clearTokenCache($tokenId));
+    ->each(fn (int|string $tokenId) => $tokenModel::clearTokenCache($tokenId));
 ```
 
 <a name="token-prefix"></a>
@@ -572,6 +590,8 @@ axios.get('/sanctum/csrf-cookie').then(response => {
     // Login...
 });
 ```
+
+You may change the `sanctum` route prefix using the string `sanctum.prefix` configuration value, or disable the route by setting the boolean `sanctum.routes` configuration value to `false`.
 
 During this request, Hypervel will set an `XSRF-TOKEN` cookie containing the current CSRF token. This token should then be URL decoded and passed in an `X-XSRF-TOKEN` header on subsequent requests, which some HTTP client libraries like Axios and the Angular HttpClient will do automatically for you. If your JavaScript HTTP library does not set the value for you, you will need to manually set the `X-XSRF-TOKEN` header to match the URL decoded value of the `XSRF-TOKEN` cookie that is set by this route.
 

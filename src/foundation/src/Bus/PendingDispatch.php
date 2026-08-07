@@ -125,7 +125,7 @@ class PendingDispatch
     }
 
     /**
-     * Indicate that the job should be dispatched after all database transactions have committed.
+     * Indicate that the job should be dispatched after the open parent database transactions have committed.
      */
     public function afterCommit(): static
     {

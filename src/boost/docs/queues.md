@@ -1354,13 +1354,15 @@ When the `after_commit` option is `true`, you may dispatch jobs within database 
 
 If a transaction is rolled back due to an exception that occurs during the transaction, the jobs that were dispatched during that transaction will be discarded.
 
+After-commit work is associated with the most recently started open transaction and runs once it and every transaction enclosing it on the same connection have committed. It does not wait for transactions on other connections. If a job depends on work across connections, dispatch it only after the other dependencies have committed or while the transaction that will commit last remains open.
+
 > [!NOTE]
-> Setting the `after_commit` configuration option to `true` will also cause any queued event listeners, mailables, notifications, and broadcast events to be dispatched after all open database transactions have been committed.
+> Setting the `after_commit` configuration option to `true` will also cause any queued event listeners, mailables, notifications, and broadcast events to be dispatched after the open parent database transactions have committed.
 
 <a name="specifying-commit-dispatch-behavior-inline"></a>
 #### Specifying Commit Dispatch Behavior Inline
 
-If you do not set the `after_commit` queue connection configuration option to `true`, you may still indicate that a specific job should be dispatched after all open database transactions have been committed. To accomplish this, you may chain the `afterCommit` method onto your dispatch operation:
+If you do not set the `after_commit` queue connection configuration option to `true`, you may still indicate that a specific job should be dispatched after the open parent database transactions have committed. To accomplish this, you may chain the `afterCommit` method onto your dispatch operation:
 
 ```php
 use App\Jobs\ProcessPodcast;

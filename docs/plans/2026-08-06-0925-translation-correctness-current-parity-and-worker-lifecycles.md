@@ -154,7 +154,7 @@ Preserve these in the owner handoff without changing the cited references or fix
 | `translation-11` | Type / upstream metadata parity | Minor | Complete loader map shapes and the fallback type. |
 | `translation-12` | Provider / package ownership cleanup | Minor | Use typed `make()` resolution, one config resolution, no duplicate defaults or promoted assignment, and remove the unused direct Container dependency. |
 | `translation-13` | Test ownership and isolation | Minor | Replace process-global fixture communication, restore inherited coroutine execution, correct bases/types, and remove stale fixture code. |
-| `translation-14` | Array translation defect | Major | Make the replacement boundary array-capable so JSON and PHP-file arrays preserve mixed leaves, explicitly keyed empty arrays remain values, and `get(): array|string` is honored consistently. |
+| `translation-14` | Array translation defect | Major | Make the replacement boundary array-capable so JSON and PHP-file arrays preserve mixed leaves, explicitly keyed empty arrays remain values, and `get(): array\|string` is honored consistently. |
 
 ## Approval surface before implementation
 

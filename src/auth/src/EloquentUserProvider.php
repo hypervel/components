@@ -475,11 +475,11 @@ class EloquentUserProvider implements UserProvider
      *
      * Uses a descriptor-based registry: each (storeName, prefix) pair is
      * stored under a deterministic hash for its model class so duplicate
-     * configs collapse. On save/delete, the listener iterates descriptors
-     * for the model class, re-resolves each store by name via the cache
-     * manager, rebuilds the key using the current global resolver callback,
-     * and calls forget(). Nothing holds a reference to a provider instance —
-     * safe against forgetGuards() + re-resolve cycles under Swoole.
+     * configs collapse. On save/delete, the listener resolves the cache-key
+     * identifier while the model context is available. After commit, it reads
+     * the current descriptors, re-resolves each store by name, and calls
+     * forget(). Nothing holds a reference to a provider instance — safe
+     * against forgetGuards() + re-resolve cycles under Swoole.
      *
      * Event listener registration is guarded by the model's dispatcher
      * being non-null — HasEvents::registerModelEvent() silently no-ops
@@ -518,14 +518,25 @@ class EloquentUserProvider implements UserProvider
         $invalidate = static function (Model&UserContract $user) use ($modelClass): void {
             $id = $user->getAuthIdentifier();
             $identifierSegment = static::resolveCacheKeyIdentifier($id, $modelClass, $user);
+            $connection = $user->getConnection();
 
-            $cacheManager = Container::getInstance()->make('cache');
+            $callback = static function () use ($identifierSegment, $modelClass): void {
+                $cacheManager = Container::getInstance()->make('cache');
 
-            foreach (static::$cachedProviders[$modelClass] ?? [] as $descriptor) {
-                $cacheManager
-                    ->store($descriptor['storeName'])
-                    ->forget($descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment);
+                foreach (static::$cachedProviders[$modelClass] ?? [] as $descriptor) {
+                    $cacheManager
+                        ->store($descriptor['storeName'])
+                        ->forget($descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment);
+                }
+            };
+
+            if ($connection->getTransactionManager() === null && $connection->transactionLevel() === 0) {
+                $callback();
+
+                return;
             }
+
+            $connection->afterCommit($callback);
         };
 
         $modelClass::saved($invalidate);

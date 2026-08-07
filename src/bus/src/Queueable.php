@@ -57,7 +57,7 @@ trait Queueable
     public array|DateInterval|DateTimeInterface|int|null $delay = null;
 
     /**
-     * Indicates whether the job should be dispatched after all database transactions have committed.
+     * Indicates whether the job should be dispatched after the open parent database transactions have committed.
      */
     public ?bool $afterCommit = null;
 
@@ -187,7 +187,7 @@ trait Queueable
     }
 
     /**
-     * Indicate that the job should be dispatched after all database transactions have committed.
+     * Indicate that the job should be dispatched after the open parent database transactions have committed.
      */
     public function afterCommit(): static
     {

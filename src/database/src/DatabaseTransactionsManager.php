@@ -306,7 +306,11 @@ class DatabaseTransactionsManager
     /**
      * Register a transaction callback.
      *
-     * @param null|string $connection base name from Connection::getName(); null uses the latest applicable transaction across all connections
+     * A null connection selects the most recently started applicable transaction on any
+     * connection. The callback runs when that transaction and its enclosing stack on the
+     * same connection commit.
+     *
+     * @param null|string $connection base name from Connection::getName()
      */
     public function addCallback(callable $callback, ?string $connection = null): void
     {
@@ -321,7 +325,11 @@ class DatabaseTransactionsManager
     /**
      * Register a callback for transaction rollback.
      *
-     * @param null|string $connection base name from Connection::getName(); null uses the latest applicable transaction across all connections
+     * A null connection selects the most recently started applicable transaction on any
+     * connection. The callback runs when that transaction and its enclosing stack on the
+     * same connection roll back.
+     *
+     * @param null|string $connection base name from Connection::getName()
      */
     public function addCallbackForRollback(callable $callback, ?string $connection = null): void
     {

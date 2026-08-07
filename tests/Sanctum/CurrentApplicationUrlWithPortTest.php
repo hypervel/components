@@ -35,4 +35,13 @@ class CurrentApplicationUrlWithPortTest extends TestCase
 
         $this->assertEquals('', $result);
     }
+
+    public function testFlushStateRestoresCurrentRequestHostPlaceholder(): void
+    {
+        Sanctum::$currentRequestHostPlaceholder = '__CUSTOM_HOST__';
+
+        Sanctum::flushState();
+
+        $this->assertSame('__SANCTUM_CURRENT_REQUEST_HOST__', Sanctum::$currentRequestHostPlaceholder);
+    }
 }
