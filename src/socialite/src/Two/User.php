@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Socialite\Two;
 
 use Hypervel\Socialite\AbstractUser;
+use SensitiveParameter;
 
 class User extends AbstractUser
 {
@@ -29,9 +30,40 @@ class User extends AbstractUser
     public array $approvedScopes = [];
 
     /**
+     * The complete access token response.
+     */
+    public array $accessTokenResponseBody = [];
+
+    /**
+     * Create a fake OAuth 2 user instance.
+     */
+    public static function fake(#[SensitiveParameter] array $attributes = []): self
+    {
+        $attributes = array_merge([
+            'id' => '123456789',
+            'nickname' => 'testuser',
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'avatar' => 'https://example.com/avatar.jpg',
+            'token' => 'fake-token',
+            'refreshToken' => 'fake-refresh-token',
+            'expiresIn' => 3600,
+            'approvedScopes' => [],
+            'accessTokenResponseBody' => [],
+        ], $attributes);
+
+        return (new self)->setRaw($attributes)->map($attributes)
+            ->setToken($attributes['token'])
+            ->setRefreshToken($attributes['refreshToken'])
+            ->setExpiresIn($attributes['expiresIn'])
+            ->setApprovedScopes($attributes['approvedScopes'])
+            ->setAccessTokenResponseBody($attributes['accessTokenResponseBody']);
+    }
+
+    /**
      * Set the token on the user.
      */
-    public function setToken(?string $token): static
+    public function setToken(#[SensitiveParameter] ?string $token): static
     {
         $this->token = $token;
 
@@ -41,7 +73,7 @@ class User extends AbstractUser
     /**
      * Set the refresh token required to obtain a new access token.
      */
-    public function setRefreshToken(?string $refreshToken): static
+    public function setRefreshToken(#[SensitiveParameter] ?string $refreshToken): static
     {
         $this->refreshToken = $refreshToken;
 
@@ -64,6 +96,16 @@ class User extends AbstractUser
     public function setApprovedScopes(array $approvedScopes): static
     {
         $this->approvedScopes = $approvedScopes;
+
+        return $this;
+    }
+
+    /**
+     * Set the complete access token response on the user.
+     */
+    public function setAccessTokenResponseBody(#[SensitiveParameter] array $accessTokenResponseBody): static
+    {
+        $this->accessTokenResponseBody = $accessTokenResponseBody;
 
         return $this;
     }

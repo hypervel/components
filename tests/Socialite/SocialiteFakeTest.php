@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Socialite;
 
 use Hypervel\Socialite\Contracts\Factory;
 use Hypervel\Socialite\Socialite;
+use Hypervel\Socialite\SocialiteManager;
 use Hypervel\Socialite\SocialiteServiceProvider;
 use Hypervel\Socialite\Testing\FakeProvider;
 use Hypervel\Socialite\Testing\SocialiteFake;
@@ -25,7 +26,7 @@ class SocialiteFakeTest extends TestCase
         return [SocialiteServiceProvider::class];
     }
 
-    public function testItCanFakeADriverWithAUser()
+    public function testItCanFakeADriverWithAUser(): void
     {
         $user = (new OAuth2User)->map([
             'id' => '123',
@@ -45,7 +46,7 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('test@example.com', $retrievedUser->getEmail());
     }
 
-    public function testItCanFakeADriverWithAClosure()
+    public function testItCanFakeADriverWithAClosure(): void
     {
         Socialite::fake('github', function () {
             return (new OAuth2User)->map([
@@ -61,7 +62,7 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('Closure User', $user->getName());
     }
 
-    public function testItCanFakeMultipleDrivers()
+    public function testItCanFakeMultipleDrivers(): void
     {
         Socialite::fake('github', (new OAuth2User)->map(['id' => 'github-123']));
         Socialite::fake('google', (new OAuth2User)->map(['id' => 'google-456']));
@@ -80,7 +81,31 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('enum-123', $provider->user()->getId());
     }
 
-    public function testItReturnsFakeRedirectResponse()
+    public function testOAuthTwoUserFakeHasDefaultsAndAcceptsOverrides(): void
+    {
+        $default = OAuth2User::fake();
+
+        $this->assertSame('123456789', $default->id);
+        $this->assertSame('fake-token', $default->token);
+        $this->assertSame('fake-refresh-token', $default->refreshToken);
+        $this->assertSame(3600, $default->expiresIn);
+        $this->assertSame([], $default->approvedScopes);
+        $this->assertSame([], $default->accessTokenResponseBody);
+
+        $overridden = OAuth2User::fake([
+            'id' => 'custom-id',
+            'token' => 'custom-token',
+            'approvedScopes' => ['read'],
+            'accessTokenResponseBody' => ['token_type' => 'Bearer'],
+        ]);
+
+        $this->assertSame('custom-id', $overridden->id);
+        $this->assertSame('custom-token', $overridden->token);
+        $this->assertSame(['read'], $overridden->approvedScopes);
+        $this->assertSame(['token_type' => 'Bearer'], $overridden->accessTokenResponseBody);
+    }
+
+    public function testItReturnsFakeRedirectResponse(): void
     {
         Socialite::fake('github', (new OAuth2User)->map(['id' => '123']));
 
@@ -89,7 +114,7 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('https://socialite.fake/github/authorize', $response->getTargetUrl());
     }
 
-    public function testItForwardsCallsToTheRealProviderMethods()
+    public function testItForwardsCallsToTheRealProviderMethods(): void
     {
         $this->app->make('config')->set('services.github', [
             'client_id' => 'test-client-id',
@@ -115,7 +140,7 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('123', $user->getId());
     }
 
-    public function testItPreservesDecoratorPatternWhenChainingMethods()
+    public function testItPreservesDecoratorPatternWhenChainingMethods(): void
     {
         $this->app->make('config')->set('services.github', [
             'client_id' => 'test-client-id',
@@ -142,7 +167,7 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('123', $user->getId());
     }
 
-    public function testItReturnsRealDriverWhenNotFaked()
+    public function testItReturnsRealDriverWhenNotFaked(): void
     {
         $this->app->make('config')->set('services.github', [
             'client_id' => 'test-client-id',
@@ -164,5 +189,15 @@ class SocialiteFakeTest extends TestCase
 
         // Google should return the real provider since it wasn't faked
         $this->assertInstanceOf(GoogleProvider::class, Socialite::driver('google'));
+    }
+
+    public function testFactoryFakeDoesNotReplaceTheConcreteManager(): void
+    {
+        $manager = $this->app->make(SocialiteManager::class);
+
+        Socialite::fake('github', OAuth2User::fake());
+
+        $this->assertInstanceOf(SocialiteFake::class, $this->app->make(Factory::class));
+        $this->assertSame($manager, $this->app->make(SocialiteManager::class));
     }
 }
