@@ -15,7 +15,7 @@ class LoginRateLimiter
      * Create a new login rate limiter instance.
      */
     public function __construct(
-        private readonly RateLimiter $limiter,
+        protected RateLimiter $limiter,
     ) {
     }
 
@@ -76,7 +76,7 @@ class LoginRateLimiter
      * Scoped to the current guard so lockouts in one actor silo never
      * block logins in another for the same username and IP.
      */
-    private function throttleKey(Request $request): string
+    protected function throttleKey(Request $request): string
     {
         return Str::transliterate(Fortify::guardName() . '|' . Str::lower((string) $request->input(Fortify::username())) . '|' . $request->ip());
     }

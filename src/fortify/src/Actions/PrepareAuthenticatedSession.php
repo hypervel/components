@@ -10,8 +10,11 @@ use Hypervel\Http\Request;
 
 class PrepareAuthenticatedSession
 {
+    /**
+     * Create a new class instance.
+     */
     public function __construct(
-        private readonly LoginRateLimiter $limiter,
+        protected LoginRateLimiter $limiter,
     ) {
     }
 
