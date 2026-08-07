@@ -23,7 +23,7 @@ php tests/Benchmarks/RateLimiter/benchmark.php \
 
 Each output row records operations per second and p50, p95, and p99 operation latency. The heading records the PHP and Swoole versions, workload size, warmup, concurrency, and generated rate limiter prefix. Each store also prints its non-secret connection, driver, and sizing inputs.
 
-The harness measures fixed-window and leaky-bucket rate limits on both allowed-heavy and denied-heavy paths. It runs each path with one client and with the requested number of clients contending for the same rate limit. Redis and pooled database operations can overlap while awaiting I/O. Swoole operations do not suspend inside one worker, so its concurrent row measures the normal single-worker coroutine workload rather than cross-process lock contention; the forked-worker test suite covers cross-process correctness.
+The harness measures fixed-window, sliding-window, and leaky-bucket rate limits on both allowed-heavy and denied-heavy paths. It runs each path with one client and with the requested number of clients contending for the same rate limit. Redis and pooled database operations can overlap while awaiting I/O. Swoole operations do not suspend inside one worker, so its concurrent row measures the normal single-worker coroutine workload rather than cross-process lock contention; the forked-worker test suite covers cross-process correctness.
 
 Use a configured MySQL, MariaDB, or PostgreSQL connection when comparing production database behavior. SQLite results are explicitly labeled and should not be treated as representative of a networked database.
 

@@ -9,6 +9,7 @@ use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 
@@ -50,7 +51,7 @@ class RateLimiterBenchmark
             printf("\nStore: %s\n", $storeName);
             printf("Backend: %s\n", $this->describeBackend($storeName, $limiter));
             printf(
-                "%-13s %-8s %8s %14s %12s %12s %12s\n",
+                "%-14s %-8s %8s %14s %12s %12s %12s\n",
                 'policy',
                 'path',
                 'clients',
@@ -60,7 +61,7 @@ class RateLimiterBenchmark
                 'p99 us',
             );
 
-            foreach (['fixed-window', 'leaky-bucket'] as $policyName) {
+            foreach (['fixed-window', 'sliding-window', 'leaky-bucket'] as $policyName) {
                 foreach (['allowed', 'denied'] as $path) {
                     foreach (array_values(array_unique([1, $this->concurrency])) as $clients) {
                         $this->benchmarkScenario($limiter, $storeName, $policyName, $path, $clients);
@@ -102,7 +103,7 @@ class RateLimiterBenchmark
             sort($samples, SORT_NUMERIC);
 
             printf(
-                "%-13s %-8s %8d %14.0f %12.2f %12.2f %12.2f\n",
+                "%-14s %-8s %8d %14.0f %12.2f %12.2f %12.2f\n",
                 $policyName,
                 $path,
                 $clients,
@@ -124,6 +125,7 @@ class RateLimiterBenchmark
         if (! $expectedAllowed) {
             return match ($policyName) {
                 'fixed-window' => Limit::perDay(1)->by($key),
+                'sliding-window' => SlidingWindow::perDay(1)->by($key),
                 'leaky-bucket' => LeakyBucket::perDay(1)->burst(1)->by($key),
                 default => throw new LogicException("Unknown benchmark policy [{$policyName}]."),
             };
@@ -133,6 +135,7 @@ class RateLimiterBenchmark
 
         return match ($policyName) {
             'fixed-window' => Limit::perMinute($capacity)->by($key),
+            'sliding-window' => SlidingWindow::perMinute($capacity)->by($key),
             'leaky-bucket' => LeakyBucket::perSecond(min($capacity, 1_000_000))
                 ->burst($capacity)
                 ->by($key),
