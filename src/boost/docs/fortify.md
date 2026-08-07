@@ -95,7 +95,7 @@ use Hypervel\Fortify\Features;
 'features' => [
     Features::registration(),
     Features::resetPasswords(),
-    Features::emailVerification(),
+    // Features::emailVerification(),
     Features::updateProfileInformation(),
     Features::updatePasswords(),
     Features::twoFactorAuthentication([
@@ -110,12 +110,16 @@ use Hypervel\Fortify\Features;
 ],
 ```
 
-`Features::twoFactorAuthentication()` and `Features::passkeys()` store feature options in the config repository while the config file is loaded. Do not call these methods from request handlers.
+Email verification is commented out in newly published configuration. Enable it after your user model implements the [`MustVerifyEmail` contract](/docs/{{version}}/fortify#email-verification).
+
+Supplying options to `Features::twoFactorAuthentication()` or `Features::passkeys()` stores them in the process-global config repository and should only be done during boot. Calling either method without options only returns its feature identifier and is safe during request handling.
 
 <a name="views"></a>
 ### Views
 
 Fortify does not ship frontend views, but view routes are enabled by default. If `fortify.views` is `true`, Fortify registers view routes for login, registration, password reset, email verification, password confirmation, and two-factor challenge pages. Register view responses with the methods below, or set `fortify.views` to `false` when your application only uses JSON endpoints.
+
+If views are disabled while password resets remain enabled, define a route named `password.reset` or [customize the password reset URL](/docs/{{version}}/passwords#reset-link-customization) during boot with `ResetPassword::createUrlUsing()`.
 
 Register view responses during boot:
 
@@ -232,7 +236,7 @@ Registration remains application-controlled. Multi-guard applications should mak
 
 Fortify's login route accepts the field configured by `fortify.username` and a `password` field. The default username field is `email`. A `remember` field may be provided to use remember-me authentication.
 
-Set `fortify.lowercase_usernames` to `true` if usernames / email addresses should be lowercased during login, registration, profile updates, password reset link requests, and password resets.
+The published Fortify configuration lowercases usernames and email addresses during login, registration, profile updates, password reset link requests, and password resets. Set `fortify.lowercase_usernames` to `false` to disable this behavior. Applications without a published `config/fortify.php` file use the package fallback of `false`.
 
 <a name="customizing-user-authentication"></a>
 ### Customizing User Authentication

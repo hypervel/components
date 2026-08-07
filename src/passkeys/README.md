@@ -1,11 +1,7 @@
 Passkeys for Hypervel
 ===
 
-Passwordless authentication using WebAuthn passkeys for Hypervel.
-
-Ported from: https://github.com/laravel/passkeys-server
-
-See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documentation.
+Documentation: https://hypervel.org/docs/fortify
 
 ## Differences From Laravel
 
@@ -16,3 +12,5 @@ See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documenta
 - Passkeys include explicit orphan cleanup for polymorphic owners.
 - Passkeys support boot-time request-aware callbacks for redirects and WebAuthn relying party / origin settings, such as for custom domains, multi-guard apps, or multi-tenant apps.
 - Passkey registration responses do not store request data on singleton response instances.
+
+Ported from: https://github.com/laravel/passkeys-server
