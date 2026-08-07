@@ -37,7 +37,7 @@ class User extends AbstractUser
     /**
      * Create a fake OAuth 2 user instance.
      */
-    public static function fake(#[SensitiveParameter] array $attributes = []): self
+    public static function fake(#[SensitiveParameter] array $attributes = []): static
     {
         $attributes = array_merge([
             'id' => '123456789',
@@ -52,7 +52,7 @@ class User extends AbstractUser
             'accessTokenResponseBody' => [],
         ], $attributes);
 
-        return (new self)->setRaw($attributes)->map($attributes)
+        return (new static)->setRaw($attributes)->map($attributes)
             ->setToken($attributes['token'])
             ->setRefreshToken($attributes['refreshToken'])
             ->setExpiresIn($attributes['expiresIn'])

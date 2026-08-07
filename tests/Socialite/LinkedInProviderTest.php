@@ -115,6 +115,7 @@ class LinkedInProviderTest extends TestCase
                         $image(100, 'https://example.com/avatar.jpg'),
                         ['data' => [], 'identifiers' => []],
                         $image(800, 'https://example.com/avatar-original.jpg'),
+                        $image(1200, 'https://example.com/unrelated-image.jpg'),
                     ],
                 ],
             ],

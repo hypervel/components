@@ -19,6 +19,10 @@ enum SocialiteFakeTestIntIdentifier: int
     case Zero = 0;
 }
 
+class SocialiteFakeTestUser extends OAuth2User
+{
+}
+
 class SocialiteFakeTest extends TestCase
 {
     protected function getPackageProviders($app): array
@@ -103,6 +107,11 @@ class SocialiteFakeTest extends TestCase
         $this->assertSame('custom-token', $overridden->token);
         $this->assertSame(['read'], $overridden->approvedScopes);
         $this->assertSame(['token_type' => 'Bearer'], $overridden->accessTokenResponseBody);
+    }
+
+    public function testOAuthTwoUserFakeUsesLateStaticBinding(): void
+    {
+        $this->assertInstanceOf(SocialiteFakeTestUser::class, SocialiteFakeTestUser::fake());
     }
 
     public function testItReturnsFakeRedirectResponse(): void
