@@ -55,7 +55,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 |---|---|---|
 | `socialite-01` | Security defect / Major | Send both Bitbucket user and email tokens in `Authorization: Bearer`; never place them in URLs. |
 | `socialite-02` | Upstream defect / Minor | Port current LinkedIn `StillImage` handling: hoist the optional node to `[]` and terminate width reads with `?? null`. |
-| `socialite-03` | Current parity improvement | Port OAuth2 `Two\User::fake()` and current focused tests/docs; OAuth1 remains unsupported. |
+| `socialite-03` | Current parity improvement | Port OAuth2 `Two\User::fake()` and current focused tests/docs, using late-static construction for ecosystem user subclasses; OAuth1 remains unsupported. |
 | `socialite-04` | Provider/security defect / Major | Use GitLab `/api/v4/user` and Bearer auth. This also corrects current Laravel Socialite behavior. |
 | `socialite-05` | JWT validation defect / Major | Accept exactly Google's bare and HTTPS issuer forms; use the package's named issuer/audience exceptions without flattening their cause. |
 | `socialite-06` | Security defect / Major | Send generic OIDC UserInfo tokens through Bearer auth while retaining the JSON accept header. |
@@ -71,7 +71,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `socialite-16` | Extension documentation gap / Minor | Document `OpenIdProvider`, custom OAuth2 providers, parser hooks, request access, full token responses, and provider registration in Laravel-docs prose. |
 | `socialite-17` | Secret-handling defect / Major | Apply `#[SensitiveParameter]` to every active client-secret, token, code, ID-token, secret config, and token-response frame. Keep user profiles, client IDs, state, nonce, and scopes diagnostic, and derive reflection coverage from the provider surface rather than maintaining a duplicate method inventory. |
 | `socialite-18` | Container identity defect / Major | Make `SocialiteManager` the canonical auto-singleton and alias Factory to it. Preserve Factory-only facade fake swaps and delete duplicate manager overrides. |
-| `socialite-19` | Tenant-correctness/performance/availability defect / Major | Key generic OIDC discovery by its exact URL and use one bounded exact-URL parsed-JWKS concern for generic OIDC, Google, and Facebook, including cache directives and one throttled rotation retry. Remove manual Facebook RSA construction and `phpseclib`. |
+| `socialite-19` | Tenant-correctness/performance/availability defect / Major | Key generic OIDC discovery by its exact URL and use one bounded exact-URL parsed-JWKS concern for generic OIDC, Google, and Facebook, including cache directives, a five-minute fallback, and one throttled rotation retry. Remove manual Facebook RSA construction and `phpseclib`. |
 | `socialite-20` | OAuth response defect / Major | Preserve the submitted refresh token when rotation omits one; add four protected response parsers and a whole-response user-mapping seam, use nullable exact expiry parsing, and remove redundant Google/Twitch/OIDC orchestration. |
 | `socialite-21` | OIDC validation defect / Major | Accept scalar/list audiences, require this client ID, reject additional audiences unless listed in `trusted_audiences`, and do not universally require `azp`. Apply to generic OIDC, Google, and Facebook. |
 | `socialite-22` | Coroutine context identity defect / Major | Replace recyclable object-ID namespaces with a lazy monotonic process-lifetime sequence that is intentionally never reset. |
@@ -274,7 +274,7 @@ protected function userInstance(#[SensitiveParameter] array $response, array $us
 }
 ```
 
-Port `Two\User::fake(array $attributes = [])` from current upstream, adapted to strict Hypervel types. Include `accessTokenResponseBody` with a default empty array, pass an override through its setter, and cover both behaviors.
+Port `Two\User::fake(array $attributes = [])` from current upstream, adapted to strict Hypervel types and late-static construction so ecosystem subclasses return the called class. Include `accessTokenResponseBody` with a default empty array, pass an override through its setter, and cover both behaviors.
 
 ### 4. Secure provider transport and OIDC validation
 
@@ -347,13 +347,15 @@ The implementation must derive the current URL before reuse, fetch/decode into a
 Add `src/socialite/src/Two/Concerns/InteractsWithJwks.php` and use it from generic OIDC, Google, and Facebook. The concern owns:
 
 ```php
-/** @var null|array{url: string, keys: array, expiresAt: ?int} */
+/** @var null|array{url: string, keys: array, expiresAt: int} */
 protected ?array $jwks = null;
 
 /** @var null|array{url: string, attemptedAt: int} */
 protected ?array $jwksRefreshAttempt = null;
 
 protected int $jwksRefreshCooldownSeconds = 10;
+
+protected int $jwksDefaultTtlSeconds = 300;
 ```
 
 Keep the concern's key-fetch/cache helpers private. The only per-provider override is `protected function getJwksUri(bool $refresh = false): string`: generic OIDC refreshes discovery when requested, while Google and Facebook return fixed URLs. The concern also owns one shared protected decode boundary:
@@ -367,7 +369,7 @@ It fetches the parsed keys, calls `JWT::decode()`, and performs the single throt
 The fetch algorithm must:
 
 1. derive the lookup URL with `getJwksUri(false)` before consulting the one-entry cache;
-2. on an ordinary read, return matching keys while `expiresAt === null` or the current `time()` is before expiry;
+2. on an ordinary read, return matching keys while the current `time()` is before expiry;
 3. on a forced read, return matching cached keys when the refresh-attempt entry matches the lookup URL and remains inside the cooldown, without calling `getJwksUri(true)` or performing any HTTP request;
 4. otherwise stamp the lookup URL with one captured `time()` before refresh I/O, call `getJwksUri(true)`, and replace the stamp's URL with the refreshed URL before the JWKS request if discovery changed it;
 5. fetch, throwing-decode, and `JWK::parseKeySet()` into locals, then atomically assign the complete refreshed URL/keys/expiry entry;
@@ -375,9 +377,9 @@ The fetch algorithm must:
 
 Replacing the stamp URL aligns a successful newly discovered key set with later cooldown checks. Stamping before I/O also throttles a same-URL discovery or JWKS failure when matching cached keys remain. A cold failure, or a changed-URL failure with no matching keys, deliberately retries on the next login because the cooldown has no correct keys it can return; do not add a second failure-only timestamp or suppression path.
 
-Parse every `Cache-Control` header value and every comma-separated directive case-insensitively. `no-cache` or `no-store` anywhere wins and makes the entry immediately stale. Accept `max-age=N` only when `N` is a non-negative decimal integer no greater than `PHP_INT_MAX - $now`, including zero-padded values allowed by HTTP's `1*DIGIT` grammar; when repeated valid values exist, use the smallest. Normalize leading zeroes locally before `FILTER_VALIDATE_INT`. Ignore malformed, negative, and out-of-range max-age values. If no usable directive remains, retain the entry without expiry, preserving generic OIDC's current cache-until-failure behavior. Deliberately ignore `Expires`.
+Parse every `Cache-Control` header value and every comma-separated directive case-insensitively. `no-cache` or `no-store` anywhere wins and makes the entry immediately stale. Accept `max-age=N` only when `N` is a non-negative decimal integer no greater than `PHP_INT_MAX - $now`, including zero-padded values allowed by HTTP's `1*DIGIT` grammar; when repeated valid values exist, use the smallest. Normalize leading zeroes locally before `FILTER_VALIDATE_INT`. Ignore malformed, negative, and out-of-range max-age values. If no usable directive remains, use the provider-tunable five-minute fallback so revoked headerless keys cannot remain trusted for the worker lifetime. Deliberately ignore `Expires`.
 
-Use `time()` for both expiry and cooldown. A wall-clock jump may shorten or extend reuse, but signature/kid failure still forces refresh; mixing `hrtime()` with protocol timestamps would add complexity without improving the contract. Headerless retention is safe only because forced refresh lands in the same change.
+Use `time()` for both expiry and cooldown. A wall-clock jump may shorten or extend reuse, but the fallback bounds headerless retention and signature/kid failure still forces refresh; mixing `hrtime()` with protocol timestamps would add complexity without improving the contract.
 
 Facebook now decodes through the shared boundary, so unknown kids produce the library's authentication failure instead of a null dereference. Remove `phpseclib/phpseclib` from the Socialite split package and, because no other package uses it, remove the root direct dependency and update the lock through Composer.
 
@@ -441,7 +443,7 @@ Run each changed test file immediately. The final focused coverage must include:
 - `LinkedInProviderTest`: missing `StillImage` on each searched size without warnings;
 - `GoogleProviderIdTokenTest`, `FacebookProviderTest`, and `OpenIdProviderTest`: scalar/list/string-configured trusted audiences, issuer classes without Google's catch-all flattening, required OIDC ID-token failure, signature/kid rotation recovery, OIDC complete-response publication, and provider-specific JWKS use;
 - generic OIDC discovery coverage: request-local base-URL changes never reuse another tenant's discovery document, refresh reaches the network, and malformed/failing data does not replace a valid entry;
-- shared JWKS coverage: reuse before `max-age`, refetch after expiry, repeated/comma-separated directives, zero-padded and malformed max-age handling, immediate staleness for `no-cache` and `no-store`, indefinite headerless reuse plus failure refresh, exact-URL switching, same-URL failed-refresh cooldown with no discovery request, cold/changed-URL failure retry, refreshed discovery changing the JWKS URL, malformed response not published, local-before-atomic-assignment behavior, no refresh for a token without `kid`, and rotation recovery for generic OIDC, Google, and Facebook where each rotated key causes exactly one refetch and a successful second decode;
+- shared JWKS coverage: reuse before `max-age`, refetch after expiry, repeated/comma-separated directives, zero-padded and malformed max-age handling, immediate staleness for `no-cache` and `no-store`, bounded headerless reuse, exact-URL switching, same-URL failed-refresh cooldown with no discovery request, cold/changed-URL failure retry, refreshed discovery changing the JWKS URL, malformed response not published, local-before-atomic-assignment behavior, no refresh for a token without `kid`, and rotation recovery for generic OIDC, Google, and Facebook where each rotated key causes exactly one refetch and a successful second decode;
 - OIDC tests: enabled and disabled nonce validation, nonce consumption, previous discovery failure, runtime exception taxonomy, and non-null user response;
 - derived reflection coverage for every sensitive parameter, new provider overrides without inventory changes, and corrected native return contracts;
 - `tests/Support/ManagerTest.php`: `setContainer()` refreshes config as well as container;
@@ -456,12 +458,12 @@ Then run focused Socialite, Support, Object Pool, and Reverb suites; `composer v
 - Ordinary non-Socialite requests are unchanged.
 - Provider construction pays one local integer increment; each instance caches the resulting namespace.
 - Callback paths add only bounded array/string/type checks beside unavoidable network and JWT work.
-- JWKS caching removes repeated Google/Facebook network calls and preserves generic OIDC headerless reuse; it retains exactly one key set and one refresh timestamp per cached provider.
+- JWKS caching removes repeated Google/Facebook network calls and bounds generic OIDC headerless reuse to five minutes by default; it retains exactly one key set and one refresh timestamp per cached provider.
 - A throttled forced JWKS retry returns the matching cached keys before refreshed discovery, so the cooldown path performs no HTTP work.
 - No lock, yield, timer, background job, framework cache, unbounded tenant map, LRU, registry, clone, container lookup, or new ordinary network round trip is added.
 - `#[SensitiveParameter]` and native type metadata add no meaningful normal-path work.
 
-Laravel-facing OAuth2 APIs remain unless a cleaner Hypervel design has an explicit owner gate. Before source implementation, obtain approval for: public raw context helpers becoming protected; the retained Request property becoming `getRequest()` context access; the three protected JWKS methods becoming the concern's `getJwksUri()` / `decodeUsingJwks()` surface; removal of documented OAuth1-only `formatConfig()`; and the additive `User::fake()`, parser/whole-response mapping, full-response, and `trusted_audiences` surfaces. These changes improve coroutine safety or first-party extensibility without compatibility shims. Exception-base changes affect Hypervel-original classes only. `Token::$expiresIn` widens safely to `?int`; supported named arguments and useful Laravel OAuth2 behavior remain intact.
+Laravel-facing OAuth2 APIs remain unless a cleaner Hypervel design has an explicit owner gate. Before source implementation, obtain approval for: public raw context helpers becoming protected; the retained Request property becoming `getRequest()` context access; the three protected JWKS methods becoming the concern's `getJwksUri()` / `decodeUsingJwks()` surface; removal of documented OAuth1-only `formatConfig()`; and the additive `User::fake()`, parser/whole-response mapping, full-response, and `trusted_audiences` surfaces. These changes improve coroutine safety or first-party extensibility without compatibility shims. `User::fake()` deliberately uses late-static construction rather than upstream's `new self`, so inherited ecosystem factories return the called subclass. Exception-base changes affect Hypervel-original classes only. `Token::$expiresIn` widens safely to `?int`; supported named arguments and useful Laravel OAuth2 behavior remain intact.
 
 ## Explicit rejections
 
