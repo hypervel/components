@@ -11,5 +11,5 @@ interface Factory
     /**
      * Get a provider implementation.
      */
-    public function driver(UnitEnum|string|null $driver = null): mixed;
+    public function driver(UnitEnum|string|null $driver = null): Provider;
 }

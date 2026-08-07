@@ -47,4 +47,20 @@ class GenericTestProviderStub extends AbstractProvider
     {
         return $this->getRequest();
     }
+
+    /**
+     * Store a marker in the provider context.
+     */
+    public function rememberProviderMarker(string $marker): void
+    {
+        $this->setContext('marker', $marker);
+    }
+
+    /**
+     * Get the marker from the provider context.
+     */
+    public function getProviderMarker(): ?string
+    {
+        return $this->getContext('marker');
+    }
 }

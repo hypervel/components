@@ -181,7 +181,6 @@
         "nyholm/psr7": "^1.0",
         "paragonie/constant_time_encoding": "^3.1",
         "phpoption/phpoption": "^1.9",
-        "phpseclib/phpseclib": "^3.0",
         "psr/clock": "^1.0",
         "psr/container": "^2.0.1",
         "psr/http-client": "^1.0",

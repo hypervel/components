@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
-use Exception;
+use Firebase\JWT\JWT;
 use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Http\Request;
+use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
+use Hypervel\Socialite\Two\Exceptions\InvalidIssuerException;
 use Hypervel\Socialite\Two\GoogleProvider;
 use Hypervel\Socialite\Two\User;
+use Hypervel\Tests\Socialite\Fixtures\CreatesJwksFixtures;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -19,33 +23,97 @@ use ReflectionMethod;
 
 class GoogleProviderIdTokenTest extends TestCase
 {
-    public function testItCanDetectJwtTokens()
+    use CreatesJwksFixtures;
+
+    public function testItCanDetectJwtTokens(): void
     {
         $provider = $this->getProvider();
-
-        $jwtToken = $this->createMockJwtToken();
-        $accessToken = 'ya29.a0AfH6SMCxyz123456789';
+        $key = $this->createRsaKeyPair('current-key');
 
         $method = new ReflectionMethod($provider, 'isJwtToken');
 
-        $this->assertTrue($method->invoke($provider, $jwtToken));
-        $this->assertFalse($method->invoke($provider, $accessToken));
+        $this->assertTrue($method->invoke($provider, $this->createSignedToken($key)));
+        $this->assertFalse($method->invoke($provider, 'ya29.a0AfH6SMCxyz123456789'));
     }
 
-    public function testItUsesJwtVerificationForIdTokens()
+    #[DataProvider('validIssuerProvider')]
+    public function testItAcceptsTheDocumentedIssuers(string $issuer): void
     {
         $provider = $this->getProvider();
-        $idToken = $this->createMockJwtToken();
+        $key = $this->createRsaKeyPair('current-key');
 
-        $this->mockJwksResponse($provider);
+        $this->expectJwksResponses($provider, [$key]);
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessageMatches('/Failed to verify Google JWT token/');
+        $user = $provider->userFromToken($this->createSignedToken($key, issuer: $issuer));
 
-        $provider->userFromToken($idToken);
+        $this->assertSame('123456789012345678901', $user->getId());
     }
 
-    public function testItFallsBackToApiCallForAccessTokens()
+    public static function validIssuerProvider(): array
+    {
+        return [
+            'bare issuer' => ['accounts.google.com'],
+            'HTTPS issuer' => ['https://accounts.google.com'],
+        ];
+    }
+
+    public function testItRejectsAnInvalidIssuerWithTheNamedException(): void
+    {
+        $provider = $this->getProvider();
+        $key = $this->createRsaKeyPair('current-key');
+
+        $this->expectJwksResponses($provider, [$key]);
+        $this->expectException(InvalidIssuerException::class);
+
+        $provider->userFromToken($this->createSignedToken($key, issuer: 'https://invalid-issuer.example'));
+    }
+
+    public function testItRejectsAnInvalidAudienceWithTheNamedException(): void
+    {
+        $provider = $this->getProvider();
+        $key = $this->createRsaKeyPair('current-key');
+
+        $this->expectJwksResponses($provider, [$key]);
+        $this->expectException(InvalidAudienceException::class);
+
+        $provider->userFromToken($this->createSignedToken($key, audience: 'another-client'));
+    }
+
+    public function testItAcceptsConfiguredTrustedAudiences(): void
+    {
+        $provider = $this->getProvider();
+        $provider->setConfig(['trusted_audiences' => 'trusted-api']);
+        $key = $this->createRsaKeyPair('current-key');
+
+        $this->expectJwksResponses($provider, [$key]);
+
+        $user = $provider->userFromToken($this->createSignedToken(
+            $key,
+            audience: ['test-client-id', 'trusted-api'],
+        ));
+
+        $this->assertSame('123456789012345678901', $user->getId());
+    }
+
+    public function testItRefreshesJwksOnceForAChangedKey(): void
+    {
+        $provider = $this->getProvider();
+        $oldKey = $this->createRsaKeyPair('old-key');
+        $newKey = $this->createRsaKeyPair('new-key');
+
+        $this->expectJwksResponses($provider, [$oldKey, $newKey]);
+
+        $this->assertSame(
+            '123456789012345678901',
+            $provider->userFromToken($this->createSignedToken($oldKey))->getId(),
+        );
+        $this->assertSame(
+            '123456789012345678901',
+            $provider->userFromToken($this->createSignedToken($newKey))->getId(),
+        );
+    }
+
+    public function testItFallsBackToApiCallForAccessTokens(): void
     {
         $provider = $this->getProvider();
         $accessToken = 'ya29.a0AfH6SMCxyz123456789';
@@ -92,40 +160,7 @@ class GoogleProviderIdTokenTest extends TestCase
         $this->assertSame('Test User', $user->getName());
     }
 
-    #[DataProvider('invalidJwtProvider')]
-    public function testItHandlesInvalidJwtTokens(string $description, array $tokenOverrides, bool $expectedException = true)
-    {
-        $provider = $this->getProvider();
-        $invalidToken = $this->createInvalidJwtToken($tokenOverrides);
-
-        if ($expectedException) {
-            $this->mockJwksResponse($provider);
-            $this->expectException(Exception::class);
-            $this->expectExceptionMessageMatches('/Failed to verify Google JWT token/');
-        }
-
-        $provider->userFromToken($invalidToken);
-    }
-
-    public static function invalidJwtProvider(): array
-    {
-        return [
-            'invalid issuer' => [
-                'Invalid issuer',
-                ['payload' => ['iss' => 'https://invalid-issuer.com']],
-            ],
-            'invalid audience' => [
-                'Invalid audience',
-                ['payload' => ['aud' => 'wrong-client-id']],
-            ],
-            'missing key id' => [
-                'Missing key ID',
-                ['header' => ['kid' => null]],
-            ],
-        ];
-    }
-
-    public function testUserMappingWorksWithIdTokenFormat()
+    public function testUserMappingWorksWithIdTokenFormat(): void
     {
         $provider = $this->getProvider();
 
@@ -161,99 +196,38 @@ class GoogleProviderIdTokenTest extends TestCase
         );
     }
 
-    /**
-     * Create a mock JWT token for testing.
-     */
-    protected function createMockJwtToken(): string
+    private function expectJwksResponses(GoogleProvider $provider, array $keys): void
     {
-        $header = ['typ' => 'JWT', 'alg' => 'RS256', 'kid' => 'test-key-id'];
-        $payload = [
-            'iss' => 'https://accounts.google.com',
+        $httpClient = m::mock(Client::class);
+        $provider->setHttpClient($httpClient);
+
+        $httpClient->expects('get')
+            ->with('https://www.googleapis.com/oauth2/v3/certs')
+            ->times(count($keys))
+            ->andReturn(...array_map(
+                fn (array $key): Response => new Response(
+                    headers: ['Cache-Control' => 'max-age=3600'],
+                    body: json_encode($this->jwks($key)),
+                ),
+                $keys,
+            ));
+    }
+
+    private function createSignedToken(
+        array $key,
+        string $issuer = 'https://accounts.google.com',
+        array|string $audience = 'test-client-id',
+    ): string {
+        return JWT::encode([
+            'iss' => $issuer,
             'sub' => '123456789012345678901',
-            'aud' => 'test-client-id',
+            'aud' => $audience,
             'email' => 'testuser@gmail.com',
             'email_verified' => true,
             'name' => 'Test User',
             'picture' => 'https://lh3.googleusercontent.com/photo.jpg',
             'iat' => time(),
             'exp' => time() + 3600,
-        ];
-
-        return $this->base64UrlEncode(json_encode($header))
-            . '.'
-            . $this->base64UrlEncode(json_encode($payload))
-            . '.'
-            . $this->base64UrlEncode('mock-signature');
-    }
-
-    /**
-     * Mock JWKS response for testing JWT verification.
-     */
-    protected function mockJwksResponse(GoogleProvider $provider): void
-    {
-        $httpClient = m::mock(Client::class);
-        $provider->setHttpClient($httpClient);
-
-        $jwksResponse = m::mock(ResponseInterface::class);
-        $jwksStream = m::mock(StreamInterface::class);
-
-        $mockJwks = [
-            'keys' => [
-                [
-                    'kid' => 'test-key-id',
-                    'kty' => 'RSA',
-                    'use' => 'sig',
-                    'n' => 'mock-n-value',
-                    'e' => 'AQAB',
-                ],
-            ],
-        ];
-
-        $httpClient->shouldReceive('get')
-            ->with('https://www.googleapis.com/oauth2/v3/certs')
-            ->once()
-            ->andReturn($jwksResponse);
-
-        $jwksResponse->shouldReceive('getBody')->once()->andReturn($jwksStream);
-        $jwksStream->shouldReceive('__toString')->once()->andReturn(json_encode($mockJwks));
-    }
-
-    /**
-     * Create an invalid JWT token for testing.
-     */
-    protected function createInvalidJwtToken(array $overrides): string
-    {
-        $header = array_merge(
-            ['typ' => 'JWT', 'alg' => 'RS256', 'kid' => 'test-key-id'],
-            $overrides['header'] ?? []
-        );
-
-        $payload = array_merge([
-            'iss' => 'https://accounts.google.com',
-            'sub' => '123456789',
-            'aud' => 'test-client-id',
-            'email' => 'test@example.com',
-            'name' => 'Test User',
-            'iat' => time(),
-            'exp' => time() + 3600,
-        ], $overrides['payload'] ?? []);
-
-        $header = array_filter($header, function ($value) {
-            return $value !== null;
-        });
-
-        return $this->base64UrlEncode(json_encode($header))
-            . '.'
-            . $this->base64UrlEncode(json_encode($payload))
-            . '.'
-            . $this->base64UrlEncode('mock-signature');
-    }
-
-    /**
-     * Base64URL encode data.
-     */
-    protected function base64UrlEncode(string $data): string
-    {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+        ], $key['private'], 'RS256', $key['kid']);
     }
 }

@@ -9,12 +9,14 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
+use Hypervel\Socialite\Contracts\Factory;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\SocialiteManager;
+use Hypervel\Socialite\SocialiteServiceProvider;
 use Hypervel\Socialite\Two\GithubProvider;
 use Hypervel\Socialite\Two\GitlabProvider;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
+use Hypervel\Tests\Socialite\Fixtures\OAuthTwoTestProviderStub;
 use ReflectionProperty;
 use Swoole\Coroutine\Channel;
 
@@ -22,6 +24,11 @@ use function Hypervel\Coroutine\parallel;
 
 class SocialiteManagerTest extends TestCase
 {
+    protected function getPackageProviders($app): array
+    {
+        return [SocialiteServiceProvider::class];
+    }
+
     public function setUp(): void
     {
         parent::setUp();
@@ -34,7 +41,7 @@ class SocialiteManagerTest extends TestCase
             ]);
     }
 
-    public function testItCanInstantiateTheGithubDriver()
+    public function testItCanInstantiateTheGithubDriver(): void
     {
         $factory = $this->app->make(SocialiteManager::class);
 
@@ -43,7 +50,24 @@ class SocialiteManagerTest extends TestCase
         $this->assertInstanceOf(GithubProvider::class, $provider);
     }
 
-    public function testGitlabDriverUsesConfiguredHost()
+    public function testFactoryAndConcreteManagerShareOneDriverRegistry(): void
+    {
+        $factory = $this->app->make(Factory::class);
+        $manager = $this->app->make(SocialiteManager::class);
+
+        $this->assertSame($manager, $factory);
+
+        $manager->extend('custom', static fn (Container $container) => new OAuthTwoTestProviderStub(
+            $container->make('request'),
+            'client_id',
+            'client_secret',
+            'redirect'
+        ));
+
+        $this->assertSame($manager->driver('custom'), $factory->driver('custom'));
+    }
+
+    public function testGitlabDriverUsesConfiguredHost(): void
     {
         $this->app->make('config')
             ->set('services.gitlab', [
@@ -63,7 +87,7 @@ class SocialiteManagerTest extends TestCase
         );
     }
 
-    public function testGitlabDriverFallsBackToDefaultHostWhenHostIsNull()
+    public function testGitlabDriverFallsBackToDefaultHostWhenHostIsNull(): void
     {
         $this->app->make('config')
             ->set('services.gitlab', [
@@ -83,7 +107,7 @@ class SocialiteManagerTest extends TestCase
         );
     }
 
-    public function testGitlabHostOverrideIsIsolatedPerCoroutine()
+    public function testGitlabHostOverrideIsIsolatedPerCoroutine(): void
     {
         $provider = new GitlabProvider(
             Request::create('/'),
@@ -115,7 +139,10 @@ class SocialiteManagerTest extends TestCase
         $this->assertStringStartsWith('https://gitlab-b.example.com/oauth/authorize?', $urlB);
     }
 
-    public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArray()
+    // REMOVED: Laravel Socialite's OAuth 1 and legacy Twitter manager tests do not apply;
+    // Hypervel exposes X through OAuth 2 as the "x" driver.
+
+    public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArray(): void
     {
         $factory = $this->app->make(SocialiteManager::class);
         $this->app->make('config')
@@ -129,14 +156,14 @@ class SocialiteManagerTest extends TestCase
         $this->assertSame(['user:email', 'read:user'], $provider->getScopes());
     }
 
-    public function testItCanInstantiateTheGithubDriverWithScopesWithoutArrayFromConfig()
+    public function testItCanInstantiateTheGithubDriverWithScopesWithoutArrayFromConfig(): void
     {
         $factory = $this->app->make(SocialiteManager::class);
         $provider = $factory->driver('github');
         $this->assertSame(['user:email'], $provider->getScopes());
     }
 
-    public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayMergedByProgrammaticScopesUsingScopesMethod()
+    public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayMergedByProgrammaticScopesUsingScopesMethod(): void
     {
         $factory = $this->app->make(SocialiteManager::class);
         $this->app->make('config')
@@ -150,7 +177,7 @@ class SocialiteManagerTest extends TestCase
         $this->assertSame(['user:email', 'read:user'], $provider->getScopes());
     }
 
-    public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayOverwrittenByProgrammaticScopesUsingSetScopesMethod()
+    public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayOverwrittenByProgrammaticScopesUsingSetScopesMethod(): void
     {
         $factory = $this->app->make(SocialiteManager::class);
         $this->app->make('config')
@@ -164,7 +191,7 @@ class SocialiteManagerTest extends TestCase
         $this->assertSame(['read:user'], $provider->getScopes());
     }
 
-    public function testItThrowsExceptionWhenClientSecretIsMissing()
+    public function testItThrowsExceptionWhenClientSecretIsMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [client_secret] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
@@ -180,7 +207,7 @@ class SocialiteManagerTest extends TestCase
         $factory->driver('github');
     }
 
-    public function testItThrowsExceptionWhenClientIdIsMissing()
+    public function testItThrowsExceptionWhenClientIdIsMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [client_id] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
@@ -196,7 +223,7 @@ class SocialiteManagerTest extends TestCase
         $factory->driver('github');
     }
 
-    public function testItThrowsExceptionWhenRedirectIsMissing()
+    public function testItThrowsExceptionWhenRedirectIsMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
@@ -212,7 +239,7 @@ class SocialiteManagerTest extends TestCase
         $factory->driver('github');
     }
 
-    public function testItThrowsExceptionWhenConfigurationIsCompletelyMissing()
+    public function testItThrowsExceptionWhenConfigurationIsCompletelyMissing(): void
     {
         $this->expectException(DriverMissingConfigurationException::class);
         $this->expectExceptionMessage('Missing required configuration keys [client_id, client_secret, redirect] for [Hypervel\Socialite\Two\GithubProvider] OAuth provider.');
@@ -225,7 +252,7 @@ class SocialiteManagerTest extends TestCase
         $factory->driver('github');
     }
 
-    public function testSetConfigOverridesDriverCredentials()
+    public function testSetConfigOverridesDriverCredentials(): void
     {
         $factory = $this->app->make(SocialiteManager::class);
 
@@ -244,7 +271,7 @@ class SocialiteManagerTest extends TestCase
         $this->assertStringNotContainsString('github-client-id', $response->getTargetUrl());
     }
 
-    public function testSameProviderClassWithDifferentDriversDoesNotCollide()
+    public function testSameProviderClassWithDifferentDriversDoesNotCollide(): void
     {
         $this->app->make('config')
             ->set('services.github_a', [
@@ -283,7 +310,7 @@ class SocialiteManagerTest extends TestCase
         $this->assertStringContainsString('client_id=tenant_b', $driverB->redirect()->getTargetUrl());
     }
 
-    public function testConfigScopesSurviveAcrossCoroutines()
+    public function testConfigScopesSurviveAcrossCoroutines(): void
     {
         $this->app->make('config')
             ->set('services.github', [
@@ -310,7 +337,7 @@ class SocialiteManagerTest extends TestCase
         $this->assertSame(['user:email', 'read:user'], $childScopes);
     }
 
-    public function testGenericProviderGetsRequestRefreshed()
+    public function testCachedProviderGetsRequestRefreshed(): void
     {
         $firstRequest = Request::create('/first');
         $secondRequest = Request::create('/second');
@@ -319,8 +346,11 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->make(SocialiteManager::class);
 
-        $factory->extend('generic', static fn (Container $container) => new GenericTestProviderStub(
-            $container->make('request')
+        $factory->extend('generic', static fn (Container $container) => new OAuthTwoTestProviderStub(
+            $container->make('request'),
+            'client_id',
+            'client_secret',
+            'redirect'
         ));
 
         $provider = $factory->driver('generic');
@@ -332,7 +362,7 @@ class SocialiteManagerTest extends TestCase
         $this->assertSame($secondRequest, $provider->getProviderRequest());
     }
 
-    public function testSetContainerRefreshesConfig()
+    public function testSetContainerRefreshesConfig(): void
     {
         $factory = $this->app->make(SocialiteManager::class);
 

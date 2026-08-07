@@ -16,7 +16,7 @@ use Psr\Http\Message\StreamInterface;
 
 class GoogleProviderTest extends TestCase
 {
-    public function testMapUserFromAccessToken()
+    public function testMapUserFromAccessToken(): void
     {
         $provider = new GoogleTestProviderStub(
             m::mock(Request::class),

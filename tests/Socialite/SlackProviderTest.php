@@ -11,7 +11,7 @@ use Mockery as m;
 
 class SlackProviderTest extends TestCase
 {
-    public function testDefaultScopeKeyIsUserScope()
+    public function testDefaultScopeKeyIsUserScope(): void
     {
         $request = m::mock(Request::class);
 
@@ -32,7 +32,7 @@ class SlackProviderTest extends TestCase
         $this->assertArrayHasKey('user_scope', $query);
     }
 
-    public function testAsBotUserChangesScopeKey()
+    public function testAsBotUserChangesScopeKey(): void
     {
         $request = m::mock(Request::class);
 

@@ -13,10 +13,11 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
+use ReflectionMethod;
 
 class LinkedInProviderTest extends TestCase
 {
-    public function testMapUserWithoutEmailAndAddress()
+    public function testMapUserWithoutEmailAndAddress(): void
     {
         $request = m::mock(Request::class);
         $request->allows('input')->with('code')->andReturns('fake-code');
@@ -76,5 +77,51 @@ class LinkedInProviderTest extends TestCase
         $this->assertInstanceOf(User::class, $user);
         $this->assertSame($userId, $user->getId());
         $this->assertNull($user->getEmail());
+    }
+
+    public function testMapUserSkipsImagesWithoutStillImageMetadata(): void
+    {
+        $provider = new LinkedInProvider(
+            m::mock(Request::class),
+            'client_id',
+            'client_secret',
+            'redirect',
+        );
+        $method = new ReflectionMethod($provider, 'mapUserToObject');
+
+        $image = fn (int $width, string $url): array => [
+            'data' => [
+                'com.linkedin.digitalmedia.mediaartifact.StillImage' => [
+                    'storageSize' => ['width' => $width],
+                ],
+            ],
+            'identifiers' => [['identifier' => $url]],
+        ];
+
+        $user = $method->invoke($provider, [
+            'id' => 1,
+            'firstName' => [
+                'preferredLocale' => ['language' => 'en', 'country' => 'US'],
+                'localized' => ['en_US' => 'Taylor'],
+            ],
+            'lastName' => [
+                'preferredLocale' => ['language' => 'en', 'country' => 'US'],
+                'localized' => ['en_US' => 'Otwell'],
+            ],
+            'profilePicture' => [
+                'displayImage~' => [
+                    'elements' => [
+                        ['data' => [], 'identifiers' => []],
+                        $image(100, 'https://example.com/avatar.jpg'),
+                        ['data' => [], 'identifiers' => []],
+                        $image(800, 'https://example.com/avatar-original.jpg'),
+                        $image(1200, 'https://example.com/unrelated-image.jpg'),
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame('https://example.com/avatar.jpg', $user->getAvatar());
+        $this->assertSame('https://example.com/avatar-original.jpg', $user->avatar_original);
     }
 }
