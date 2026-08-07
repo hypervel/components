@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\PersonalAccessToken;
+use Hypervel\Sanctum\PersonalAccessTokenRelation;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\TransientToken;
 use Hypervel\Testbench\TestCase;
@@ -97,8 +98,31 @@ class HasApiTokensTest extends TestCase
         $this->assertFalse(Sanctum::supportsTokens(new DummyAuthenticatable));
         $this->assertFalse(Sanctum::supportsTokens(null));
     }
+
+    public function testTokenRelationUsesTheDedicatedFactoryExtensionPoint(): void
+    {
+        $user = new UserWithCustomTokenRelation;
+
+        $this->assertInstanceOf(PersonalAccessTokenRelation::class, $user->tokens());
+        $this->assertTrue($user->tokenRelationCreated);
+    }
 }
 
 class SanctumUserChild extends User
 {
+}
+
+class UserWithCustomTokenRelation extends User
+{
+    public bool $tokenRelationCreated = false;
+
+    /**
+     * Instantiate the personal access token relationship.
+     */
+    protected function newTokenRelation(): PersonalAccessTokenRelation
+    {
+        $this->tokenRelationCreated = true;
+
+        return parent::newTokenRelation();
+    }
 }
