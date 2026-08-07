@@ -28,7 +28,7 @@ $schema = JsonSchema::object([
 ]);
 ```
 
-Each builder is a fresh, independent object, so schemas may be safely constructed for individual requests or operations.
+Each call creates a new schema builder, so you may build schemas independently without sharing state between them.
 
 <a name="building-schemas"></a>
 ## Building Schemas
@@ -60,7 +60,7 @@ $schema = JsonSchema::object([
 ]);
 ```
 
-A closure may be used when you prefer to build properties from the provided factory:
+If you prefer to use the provided schema factory, you may pass a closure to the `object` method:
 
 ```php
 use Hypervel\JsonSchema\JsonSchemaTypeFactory;
@@ -99,6 +99,8 @@ $schema = JsonSchema::array()
     ->unique();
 ```
 
+You may pass `false` to the `unique` method to remove the unique-items constraint.
+
 <a name="metadata-and-constraints"></a>
 ### Metadata and Constraints
 
@@ -120,12 +122,12 @@ $schema = JsonSchema::string()->enum(Status::class);
 
 String schemas also provide `min`, `max`, `pattern`, and `format`. Integer and number schemas provide `min`, `max`, and `multipleOf`. Array schemas provide `min`, `max`, `items`, and `unique`.
 
-Defaults are annotations and are not validated against the schema. An explicit `null` default is preserved even when the schema itself is not nullable.
+The `default` method adds the JSON Schema `default` annotation. Default values are not validated against the schema, and an explicit `null` default is preserved even when the schema is not nullable.
 
 <a name="required-and-nullable-properties"></a>
 ### Required and Nullable Properties
 
-The `required` and `nullable` methods control different behavior. Calling `required` means an object property must be present. Calling `nullable` means its value may be `null`:
+Although they are often used together, the `required` and `nullable` methods control different behavior. The `required` method indicates that an object property must be present, while the `nullable` method indicates that its value may be `null`:
 
 ```php
 $schema = JsonSchema::object([
@@ -139,11 +141,13 @@ In this example, `name` must be present. The optional `nickname` property may be
 <a name="union-types"></a>
 ### Union Types
 
-The `union` method accepts JSON Schema primitive type names and allows a value to match any of them:
+The `union` method accepts an array of JSON Schema type names and allows a value to match any of them. Supported types are `string`, `integer`, `number`, `boolean`, `object`, and `array`:
 
 ```php
 $schema = JsonSchema::union(['string', 'integer']);
 ```
+
+You may also include `null` as a union member, which has the same effect as calling the `nullable` method.
 
 Union schemas may also be nullable or carry shared metadata:
 
@@ -185,12 +189,14 @@ $json = $schema->toString();
 $json = (string) $schema;
 ```
 
-String conversion throws a `JsonException` when a default, enum value, or other schema value cannot be encoded as JSON. Calling `toArray` or converting to JSON throws an `InvalidArgumentException` for an empty union or any-of builder unless `nullable` adds a valid `null` alternative.
+If a default, enum value, or other schema value cannot be encoded as JSON, the `toString` method and string casting will throw a `JsonException`.
+
+An empty union or any-of schema cannot be serialized unless the `nullable` method adds `null` as a valid alternative. Otherwise, the `toArray` and `toString` methods, as well as string casting, will throw an `InvalidArgumentException`.
 
 <a name="reconstructing-schemas"></a>
 ## Reconstructing Schemas
 
-The `fromArray` method reconstructs a builder from a supported JSON Schema array:
+If you already have a JSON Schema represented as a PHP array, you may use the `fromArray` method to create a schema builder from it:
 
 ```php
 $schema = JsonSchema::fromArray([
@@ -202,12 +208,12 @@ $schema = JsonSchema::fromArray([
 ]);
 ```
 
-This is useful when a schema is stored as configuration or received from another trusted source and you need to extend it or serialize it through the builder.
+This can be useful when loading a schema from configuration or another system and you would like to continue working with it through the fluent builder.
 
 <a name="local-references"></a>
 ### Local References
 
-`fromArray` resolves local JSON Pointer references, including references into `$defs`:
+The `fromArray` method also resolves local JSON Pointer references, including references into `$defs`:
 
 ```php
 $schema = JsonSchema::fromArray([
@@ -226,13 +232,24 @@ $schema = JsonSchema::fromArray([
 ]);
 ```
 
-Remote references are not supported. Circular references, excessive reference depth, and excessive total expansion throw an `InvalidArgumentException`.
+Only local references are supported. An `InvalidArgumentException` will be thrown if the schema contains a remote or circular reference, a reference path with more than 256 references, or more than 20,000 expanded schema fragments.
 
 <a name="supported-schema-subset"></a>
 ### Supported Schema Subset
 
-The builder reconstructs the primitive, object, array, union, any-of, nullable, metadata, enum, default, and constraint keywords exposed by its fluent API. Null-only schemas are accepted using either the scalar or array form. A permissive `items: true` behaves like an omitted item constraint. Standard annotations and vendor extensions that are not modeled by the builder are ignored.
+The `fromArray` method can reconstruct schemas that use the same types, metadata, and constraints available through the fluent builder. It also accepts schemas whose only allowed type is `null`, whether the type is written as a string or as an array.
 
-Unsupported JSON Schema 2020-12 assertions are rejected instead of being silently removed. These include `const`, `not`, `allOf`, `if`, `dependentSchemas`, `dependentRequired`, `prefixItems`, `contains`, `patternProperties`, `propertyNames`, `unevaluatedItems`, `unevaluatedProperties`, `exclusiveMinimum`, `exclusiveMaximum`, `minProperties`, `maxProperties`, and `$dynamicRef`.
+When working with schemas represented as PHP arrays, setting `items` to `true` or `[]` is treated the same as omitting the item constraint. Likewise, setting `additionalProperties` to `true` or `[]` preserves the default behavior of allowing additional properties.
 
-An `InvalidArgumentException` is also thrown for malformed recognized keywords, empty input compositions, schema-valued `additionalProperties`, tuple or false `items`, boolean property schemas, type-specific assertions on unions, and competing compositions. This prevents a reconstructed builder from silently accepting data that the original schema rejected.
+A `oneOf` schema may only be reconstructed when it contains one schema and a branch whose only keyword is `"type": "null"`. In this case, the schema is reconstructed as nullable.
+
+Annotations and vendor extensions that are not represented by the builder are ignored.
+
+> [!WARNING]
+> The `fromArray` method will throw an `InvalidArgumentException` when a schema contains a recognized JSON Schema 2020-12 validation rule that cannot be represented by the fluent builder. This prevents the rule from being silently discarded.
+
+The unsupported JSON Schema 2020-12 validation keywords are `const`, `not`, `allOf`, `if`, `dependentSchemas`, `dependentRequired`, `prefixItems`, `contains`, `patternProperties`, `propertyNames`, `unevaluatedItems`, `unevaluatedProperties`, `exclusiveMinimum`, `exclusiveMaximum`, `minProperties`, `maxProperties`, and `$dynamicRef`.
+
+An `InvalidArgumentException` will also be thrown when a supported keyword contains a malformed value, such as a non-string `pattern`, a non-array `required` value, or an empty `anyOf` or `oneOf` array.
+
+Some valid JSON Schema forms cannot be represented by the fluent builder. These include an `additionalProperties` value that contains another schema, tuple or `false` values for `items`, boolean schemas used as object properties or composition branches, type-specific constraints on a multi-type union, and `anyOf` or `oneOf` schemas that carry incompatible type or composition rules. A nullable composition also cannot be reconstructed when its non-null branch and the keywords beside the composition give different values for the same keyword. Attempting to reconstruct these forms will throw an `InvalidArgumentException`.
