@@ -26,6 +26,11 @@ class VerifyingOpenIdTestProviderStub extends OpenIdProvider
         $this->jwksRefreshCooldownSeconds = $seconds;
     }
 
+    public function setJwksDefaultTtlSeconds(int $seconds): void
+    {
+        $this->jwksDefaultTtlSeconds = $seconds;
+    }
+
     protected function getBaseUrl(): string
     {
         return $this->getConfig('base_url', 'http://base.url');

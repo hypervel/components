@@ -375,7 +375,7 @@ class AcmeOpenIdProvider extends OpenIdProvider implements ProviderInterface
 }
 ```
 
-The base provider discovers the authorization, token, UserInfo, and JSON Web Key Set endpoints. UserInfo requests use Bearer authorization, and signing keys are reused according to the provider's cache directives and refreshed once when a provider rotates them.
+The base provider discovers the authorization, token, UserInfo, and JSON Web Key Set endpoints. UserInfo requests use Bearer authorization, and signing keys are reused according to the provider's cache directives, or for five minutes when none are provided, and refreshed once when a provider rotates them.
 
 An ID token must include the configured client ID in its audience. If the provider also includes audiences for your APIs or other trusted services, list them using the `trusted_audiences` configuration option:
 

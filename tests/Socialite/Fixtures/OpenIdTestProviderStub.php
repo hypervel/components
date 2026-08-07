@@ -29,11 +29,6 @@ class OpenIdTestProviderStub extends OpenIdProvider
         return 'http://token.url';
     }
 
-    protected function getUserByToken(#[SensitiveParameter] string $token): array
-    {
-        return parent::getUserByToken($token);
-    }
-
     /**
      * Get user based on the OIDC token.
      */

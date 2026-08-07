@@ -16,7 +16,7 @@ trait InteractsWithJwks
     /**
      * The parsed JSON Web Key Set for the current URI.
      *
-     * @var null|array{url: string, keys: array, expiresAt: null|int}
+     * @var null|array{url: string, keys: array, expiresAt: int}
      */
     protected ?array $jwks = null;
 
@@ -31,6 +31,11 @@ trait InteractsWithJwks
      * The minimum seconds between forced JWKS refreshes.
      */
     protected int $jwksRefreshCooldownSeconds = 10;
+
+    /**
+     * The fallback lifetime for JWKS responses without cache directives.
+     */
+    protected int $jwksDefaultTtlSeconds = 300;
 
     /**
      * Get the JSON Web Key Set URI for the provider.
@@ -65,7 +70,7 @@ trait InteractsWithJwks
 
         if (! $refresh
             && ($this->jwks['url'] ?? null) === $url
-            && ($this->jwks['expiresAt'] === null || $now < $this->jwks['expiresAt'])) {
+            && $now < $this->jwks['expiresAt']) {
             return $this->jwks['keys'];
         }
 
@@ -104,7 +109,7 @@ trait InteractsWithJwks
     /**
      * Get the expiration timestamp from the response cache directives.
      */
-    private function getJwksExpiresAt(ResponseInterface $response, int $now): ?int
+    private function getJwksExpiresAt(ResponseInterface $response, int $now): int
     {
         $maxAge = null;
 
@@ -138,6 +143,6 @@ trait InteractsWithJwks
             }
         }
 
-        return $maxAge === null ? null : $now + $maxAge;
+        return $now + ($maxAge ?? $this->jwksDefaultTtlSeconds);
     }
 }

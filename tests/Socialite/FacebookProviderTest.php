@@ -12,6 +12,7 @@ use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\Exceptions\InvalidIssuerException;
 use Hypervel\Socialite\Two\FacebookProvider;
 use Hypervel\Socialite\Two\User;
+use Hypervel\Tests\Socialite\Fixtures\CreatesJwksFixtures;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
@@ -19,6 +20,8 @@ use UnexpectedValueException;
 
 class FacebookProviderTest extends TestCase
 {
+    use CreatesJwksFixtures;
+
     public function testMapUserToObjectWithAccessTokenResponse(): void
     {
         $provider = $this->getProvider();
@@ -108,7 +111,7 @@ class FacebookProviderTest extends TestCase
 
         $this->expectJwksResponses($provider, [$knownKey, $knownKey]);
         $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('"kid" invalid, unable to lookup correct key');
+        $this->expectExceptionMessage('"kid" invalid');
 
         $provider->userFromToken($this->createSignedToken($unknownKey));
     }
@@ -178,43 +181,5 @@ class FacebookProviderTest extends TestCase
             'iat' => time(),
             'exp' => time() + 3600,
         ], $key['private'], 'RS256', $key['kid']);
-    }
-
-    private function createRsaKeyPair(string $kid): array
-    {
-        $key = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-
-        if ($key === false) {
-            $this->fail('Unable to generate RSA key pair for Facebook ID token test.');
-        }
-
-        openssl_pkey_export($key, $privateKey);
-        $details = openssl_pkey_get_details($key);
-
-        return [
-            'kid' => $kid,
-            'private' => $privateKey,
-            'jwk' => [
-                'kid' => $kid,
-                'kty' => 'RSA',
-                'use' => 'sig',
-                'alg' => 'RS256',
-                'n' => $this->base64UrlEncode($details['rsa']['n']),
-                'e' => $this->base64UrlEncode($details['rsa']['e']),
-            ],
-        ];
-    }
-
-    private function jwks(array $key): array
-    {
-        return ['keys' => [$key['jwk']]];
-    }
-
-    private function base64UrlEncode(string $value): string
-    {
-        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 }

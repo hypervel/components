@@ -15,6 +15,7 @@ use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidNonceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidUserInfoUrlException;
 use Hypervel\Socialite\Two\User;
+use Hypervel\Tests\Socialite\Fixtures\CreatesJwksFixtures;
 use Hypervel\Tests\Socialite\Fixtures\OpenIdTestProviderStub;
 use Hypervel\Tests\Socialite\Fixtures\VerifyingOpenIdTestProviderStub;
 use Hypervel\Tests\TestCase;
@@ -29,6 +30,8 @@ use UnexpectedValueException;
 
 class OpenIdProviderTest extends TestCase
 {
+    use CreatesJwksFixtures;
+
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE(): void
     {
         $request = m::mock(Request::class);
@@ -584,7 +587,7 @@ class OpenIdProviderTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testOidcJwksIgnoresMalformedAndOverflowingMaxAgeValues(): void
+    public function testOidcJwksFallsBackToDefaultTtlForMalformedAndOverflowingMaxAgeValues(): void
     {
         $key = $this->createRsaKeyPair('malformed-max-age');
         $provider = $this->createVerifyingProvider();
@@ -602,6 +605,24 @@ class OpenIdProviderTest extends TestCase
         $provider->verifyToken($token);
 
         $this->addToAssertionCount(1);
+    }
+
+    public function testOidcJwksUsesDefaultTtlWhenCacheDirectivesAreMissing(): void
+    {
+        $key = $this->createRsaKeyPair('default-ttl-key');
+        $provider = $this->createVerifyingProvider();
+        $provider->setJwksDefaultTtlSeconds(0);
+
+        $this->expectOpenIdConfigRequests($provider->http, 1);
+        $this->expectJwksRequests($provider->http, [
+            $this->jwks($key),
+            $this->jwks($key),
+        ]);
+
+        $token = $this->createSignedToken($key);
+
+        $this->assertSame('foo', $provider->verifyToken($token)['sub']);
+        $this->assertSame('foo', $provider->verifyToken($token)['sub']);
     }
 
     public function testOidcJwksSwitchesWithTheExactDiscoveryUrl(): void
@@ -804,47 +825,5 @@ class OpenIdProviderTest extends TestCase
             'iat' => time(),
             'exp' => time() + 3600,
         ], $key['private'], 'RS256', $includeKid ? $key['kid'] : null);
-    }
-
-    private function createRsaKeyPair(string $kid): array
-    {
-        $key = openssl_pkey_new([
-            'private_key_bits' => 2048,
-            'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
-
-        if ($key === false) {
-            $this->fail('Unable to generate RSA key pair for OIDC test.');
-        }
-
-        openssl_pkey_export($key, $privateKey);
-        $details = openssl_pkey_get_details($key);
-
-        return [
-            'kid' => $kid,
-            'private' => $privateKey,
-            'jwk' => [
-                'kid' => $kid,
-                'kty' => 'RSA',
-                'use' => 'sig',
-                'alg' => 'RS256',
-                'n' => $this->base64UrlEncode($details['rsa']['n']),
-                'e' => $this->base64UrlEncode($details['rsa']['e']),
-            ],
-        ];
-    }
-
-    private function jwks(array $key): array
-    {
-        return [
-            'keys' => [
-                $key['jwk'],
-            ],
-        ];
-    }
-
-    private function base64UrlEncode(string $value): string
-    {
-        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 }
