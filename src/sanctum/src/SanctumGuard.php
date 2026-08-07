@@ -13,6 +13,7 @@ use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -163,53 +164,14 @@ class SanctumGuard implements GuardContract
             return null;
         }
 
+        /** @var Request $request */
         $request = $this->app->make('request');
 
         if (is_callable(Sanctum::$accessTokenRetrievalCallback)) {
             return (string) (Sanctum::$accessTokenRetrievalCallback)($request);
         }
 
-        $token = $this->getBearerToken($request);
-
-        return $this->isValidBearerToken($token) ? $token : null;
-    }
-
-    /**
-     * Get the bearer token from the request headers.
-     */
-    protected function getBearerToken(mixed $request): ?string
-    {
-        $header = $request->header('Authorization', '');
-
-        if (str_starts_with($header, 'Bearer ')) {
-            return substr($header, 7);
-        }
-
-        // Check for token in request input as fallback
-        if ($request->has('token')) {
-            return $request->input('token');
-        }
-
-        return null;
-    }
-
-    /**
-     * Determine if the bearer token is in the correct format.
-     */
-    protected function isValidBearerToken(?string $token = null): bool
-    {
-        if (! is_null($token) && str_contains($token, '|')) {
-            $model = new (Sanctum::$personalAccessTokenModel)();
-
-            // @phpstan-ignore function.alreadyNarrowedType (custom token models may not extend Model)
-            if (method_exists($model, 'getKeyType') && $model->getKeyType() === 'int') {
-                [$id, $token] = explode('|', $token, 2);
-
-                return ctype_digit($id) && ! empty($token);
-            }
-        }
-
-        return ! empty($token);
+        return $request->bearerToken();
     }
 
     /**
