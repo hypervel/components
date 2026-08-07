@@ -8,10 +8,10 @@ use Closure;
 use Hypervel\Contracts\Auth\Access\Authorizable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\Support\Config;
+use Symfony\Component\HttpFoundation\Response;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -28,7 +28,7 @@ class RoleOrPermissionMiddleware
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next, mixed $roleOrPermission, ?string $guard = null): Response
+    public function handle(Request $request, Closure $next, array|string|UnitEnum $roleOrPermission, ?string $guard = null): Response
     {
         $guard = Guard::normalizeName($guard);
         $authGuard = $this->auth->guard($guard);
