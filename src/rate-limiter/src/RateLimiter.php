@@ -36,9 +36,11 @@ class RateLimiter extends MultipleInstanceManager
     protected array $limiterStores = [];
 
     /**
-     * The callback used to resolve the scope for named limiter keys.
+     * The callbacks used to resolve scopes for named limiter keys.
+     *
+     * @var list<Closure(string): ?string>
      */
-    protected ?Closure $keyScopeResolver = null;
+    protected array $keyScopeResolvers = [];
 
     /**
      * Get a limiter store by name.
@@ -94,14 +96,24 @@ class RateLimiter extends MultipleInstanceManager
     }
 
     /**
-     * Register the named limiter key scope resolver.
+     * Register a named limiter key scope resolver.
      *
-     * Boot-only. The callback persists on the singleton manager for the worker
-     * lifetime and affects every subsequent named limiter operation.
+     * Boot-only. Each non-null callback is appended in registration order,
+     * while passing null clears every registered callback. The callbacks
+     * persist on the singleton manager for the worker lifetime and affect
+     * every subsequent named limiter operation.
+     *
+     * @param null|(Closure(string): ?string) $resolver
      */
     public function resolveKeyScopeUsing(?Closure $resolver): void
     {
-        $this->keyScopeResolver = $resolver;
+        if ($resolver === null) {
+            $this->keyScopeResolvers = [];
+
+            return;
+        }
+
+        $this->keyScopeResolvers[] = $resolver;
     }
 
     /**
@@ -155,9 +167,29 @@ class RateLimiter extends MultipleInstanceManager
             $store,
             new KeyResolver(
                 $this->config->string('rate-limiter.prefix'),
-                fn (string $limiterName): ?string => $this->keyScopeResolver?->__invoke($limiterName),
+                fn (string $limiterName): array => $this->resolveKeyScopes($limiterName),
             ),
         );
+    }
+
+    /**
+     * Resolve the contributed scopes for a named limiter.
+     *
+     * @return list<string>
+     */
+    protected function resolveKeyScopes(string $limiterName): array
+    {
+        $scopes = [];
+
+        foreach ($this->keyScopeResolvers as $resolver) {
+            $scope = $resolver($limiterName);
+
+            if ($scope !== null) {
+                $scopes[] = $scope;
+            }
+        }
+
+        return $scopes;
     }
 
     /**

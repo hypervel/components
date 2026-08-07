@@ -14,7 +14,7 @@ class KeyResolver
     /**
      * Create a new physical key resolver.
      *
-     * @param null|Closure(string): ?string $scopeResolver
+     * @param null|(Closure(string): (null|list<string>|string)) $scopeResolver
      */
     public function __construct(
         protected string $prefix,
@@ -43,10 +43,12 @@ class KeyResolver
             $identity .= $this->segment('limiter', $limiterName);
 
             if (! ($policy instanceof AdmissionPolicy && $policy->global)) {
-                $scope = $this->scopeResolver?->__invoke($limiterName);
+                $scopes = $this->scopeResolver?->__invoke($limiterName);
 
-                if ($scope !== null) {
-                    $identity .= $this->segment('scope', $scope);
+                if ($scopes !== null) {
+                    foreach (is_array($scopes) ? $scopes : [$scopes] as $scope) {
+                        $identity .= $this->segment('scope', $scope);
+                    }
                 }
             }
         }

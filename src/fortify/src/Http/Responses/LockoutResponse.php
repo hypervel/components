@@ -13,8 +13,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 class LockoutResponse implements LockoutResponseContract
 {
+    /**
+     * Create a new response instance.
+     */
     public function __construct(
-        private readonly LoginRateLimiter $limiter,
+        protected LoginRateLimiter $limiter,
     ) {
     }
 

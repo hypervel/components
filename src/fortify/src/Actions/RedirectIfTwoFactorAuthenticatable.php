@@ -26,8 +26,11 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
 {
     use DispatchesEvents;
 
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
-        protected readonly LoginRateLimiter $limiter,
+        protected LoginRateLimiter $limiter,
         protected readonly Config $config,
     ) {
     }

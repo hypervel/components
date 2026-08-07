@@ -17,8 +17,11 @@ class ConfirmTwoFactorAuthentication
 {
     use DispatchesEvents;
 
+    /**
+     * Create a new action instance.
+     */
     public function __construct(
-        protected readonly TwoFactorAuthenticationProvider $provider,
+        protected TwoFactorAuthenticationProvider $provider,
     ) {
     }
 

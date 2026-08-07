@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Hypervel\Fortify\Actions\EnableTwoFactorAuthentication;
@@ -16,11 +15,6 @@ use Hypervel\Routing\Controller;
 
 class TwoFactorAuthenticationController extends Controller
 {
-    public function __construct(
-        private readonly Container $container,
-    ) {
-    }
-
     /**
      * Enable two factor authentication for the user.
      */
@@ -31,7 +25,7 @@ class TwoFactorAuthenticationController extends Controller
 
         $enable($user, $request->boolean('force', false));
 
-        return $this->container->make(TwoFactorEnabledResponse::class);
+        return app(TwoFactorEnabledResponse::class);
     }
 
     /**
@@ -44,6 +38,6 @@ class TwoFactorAuthenticationController extends Controller
 
         $disable($user);
 
-        return $this->container->make(TwoFactorDisabledResponse::class);
+        return app(TwoFactorDisabledResponse::class);
     }
 }
