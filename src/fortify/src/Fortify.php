@@ -63,7 +63,7 @@ class Fortify
      */
     public static function username(): string
     {
-        return self::config()->string('fortify.username', 'email');
+        return self::config()->string('fortify.username');
     }
 
     /**
@@ -71,7 +71,7 @@ class Fortify
      */
     public static function email(): string
     {
-        return self::config()->string('fortify.email', 'email');
+        return self::config()->string('fortify.email');
     }
 
     /**

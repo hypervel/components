@@ -9,7 +9,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\RateLimiter\RateLimiter for(\UnitEnum|string $name, \Closure $callback, \UnitEnum|string|null $store = null)
  * @method static \Closure|null limiter(\UnitEnum|string $name)
  * @method static string|null limiterStore(\UnitEnum|string $name)
- * @method static void resolveKeyScopeUsing(\Closure|null $resolver)
+ * @method static void resolveKeyScopeUsing(null|\Closure $resolver)
  * @method static string getDefaultInstance()
  * @method static void setDefaultInstance(string $name)
  * @method static array getInstanceConfig(string $name)

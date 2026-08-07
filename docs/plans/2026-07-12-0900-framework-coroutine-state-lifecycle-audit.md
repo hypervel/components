@@ -1079,7 +1079,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-14` | `foundation`, `queue` | `foundation` and `queue` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
 | `http-03` | `http`, `foundation` | `contracts`, `foundation`, and `http` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `http-03` |
 | `auth-02` | `auth` | `foundation` and `auth` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `auth-02` |
-| `auth-12` | `auth` | `fortify` (revalidation complete); later full `fortify` audit | `Complete Auth correctness, lifecycle, and current parity`; finding `auth-12` |
+| `auth-12` | `auth` | `fortify` (revalidation complete) | `Complete Auth correctness, lifecycle, and current parity`; finding `auth-12` |
 | `database-03` | `database` | `foundation` and `database` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `database-03` |
 | `foundation-17` | `foundation` | `foundation` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `foundation-17` |
 | `foundation-18` | `foundation` | `foundation` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `foundation-18` |
@@ -1123,7 +1123,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-40` | `queue` | `queue` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `queue-40` |
 | `redis-23` | `redis` | `redis` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `redis-23` |
 | `telescope-03` | `telescope` | `telescope` (targeted correction complete); later full `telescope` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `telescope-03` |
-| `fortify-01` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `fortify-01` |
+| `fortify-01` | `fortify` | `fortify` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `fortify-01` |
 | `reverb-06` | `reverb` | `reverb` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `reverb-06` |
 | `cache-11` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-11` |
 | `cache-20` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-20` |
@@ -1146,7 +1146,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `permission-03` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-03` |
 | `permission-04` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-04` |
 | `permission-05` | `permission` | `permission` (targeted correction complete); later full `permission` audit | `Harden Eloquent identity and partial-projection safety`; finding `permission-05` |
-| `fortify-02` | `fortify` | `fortify` (targeted correction complete); later full `fortify` audit | `Harden Eloquent identity and partial-projection safety`; finding `fortify-02` |
+| `fortify-02` | `fortify` | `fortify` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `fortify-02` |
 | `pagination-01` | `pagination` | `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `pagination-01` |
 | `pagination-02` | `pagination` | `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `pagination-02` |
 | `collections-15` | `collections` | `collections` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `collections-15` |
@@ -1308,7 +1308,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `pagination`
 - [x] `socialite`
 - [x] `sanctum`
-- [ ] `fortify`
+- [x] `fortify`
 - [ ] `passkeys`
 - [ ] `permission`
 - [ ] `jwt`

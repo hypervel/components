@@ -6,7 +6,6 @@ namespace Hypervel\Fortify\Actions;
 
 use Closure;
 use Hypervel\Auth\Events\Lockout;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\LockoutResponse;
 use Hypervel\Fortify\LoginRateLimiter;
@@ -16,9 +15,11 @@ class EnsureLoginIsNotThrottled
 {
     use DispatchesEvents;
 
+    /**
+     * Create a new class instance.
+     */
     public function __construct(
-        protected readonly LoginRateLimiter $limiter,
-        protected readonly Container $container,
+        protected LoginRateLimiter $limiter,
     ) {
     }
 
@@ -36,6 +37,6 @@ class EnsureLoginIsNotThrottled
             static fn (): Lockout => new Lockout($request),
         );
 
-        return $this->container->make(LockoutResponse::class);
+        return app(LockoutResponse::class);
     }
 }

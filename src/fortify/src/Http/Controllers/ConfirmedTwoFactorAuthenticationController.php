@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Actions\ConfirmTwoFactorAuthentication;
 use Hypervel\Fortify\Contracts\TwoFactorConfirmedResponse;
@@ -14,11 +13,6 @@ use Hypervel\Routing\Controller;
 
 class ConfirmedTwoFactorAuthenticationController extends Controller
 {
-    public function __construct(
-        private readonly Container $container,
-    ) {
-    }
-
     /**
      * Confirm two factor authentication for the user.
      */
@@ -29,6 +23,6 @@ class ConfirmedTwoFactorAuthenticationController extends Controller
 
         $confirm($user, (string) $request->input('code'));
 
-        return $this->container->make(TwoFactorConfirmedResponse::class);
+        return app(TwoFactorConfirmedResponse::class);
     }
 }

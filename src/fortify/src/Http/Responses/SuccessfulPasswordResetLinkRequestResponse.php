@@ -11,8 +11,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SuccessfulPasswordResetLinkRequestResponse implements SuccessfulPasswordResetLinkRequestResponseContract
 {
+    /**
+     * Create a new response instance.
+     */
     public function __construct(
-        private readonly string $status,
+        protected string $status,
     ) {
     }
 

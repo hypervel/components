@@ -14,7 +14,7 @@ class Features
      */
     public static function enabled(string $feature): bool
     {
-        return in_array($feature, self::config()->array('fortify.features', []), true);
+        return in_array($feature, self::config()->array('fortify.features'), true);
     }
 
     /**
@@ -140,6 +140,10 @@ class Features
     /**
      * Enable the two factor authentication feature.
      *
+     * Boot-only when options are supplied. Non-empty options mutate the process-global
+     * configuration repository and affect every subsequent request in the worker;
+     * calling without options performs no mutation and is safe at request time.
+     *
      * @param array<string, mixed> $options
      */
     public static function twoFactorAuthentication(array $options = []): string
@@ -152,6 +156,10 @@ class Features
     /**
      * Enable the passkeys feature.
      *
+     * Boot-only when options are supplied. Non-empty options mutate the process-global
+     * configuration repository and affect every subsequent request in the worker;
+     * calling without options performs no mutation and is safe at request time.
+     *
      * @param array<string, mixed> $options
      */
     public static function passkeys(array $options = []): string
@@ -163,8 +171,6 @@ class Features
 
     /**
      * Set options for the given feature.
-     *
-     * Boot/config/test only. The config repository is process-global and must not be mutated from request handlers.
      *
      * @param array<string, mixed> $options
      */
