@@ -40,7 +40,9 @@ readonly class Limit extends AdmissionPolicy
      */
     public static function perMinute(int $maxAttempts, int $decayMinutes = 1): static
     {
-        return new static($maxAttempts, static::multiply($decayMinutes, 60, 'decay minutes'));
+        $decayMicroseconds = static::multiply($decayMinutes, 60_000_000, 'decay minutes');
+
+        return new static($maxAttempts, intdiv($decayMicroseconds, 1_000_000));
     }
 
     /**
@@ -48,7 +50,7 @@ readonly class Limit extends AdmissionPolicy
      */
     public static function perMinutes(int $decayMinutes, int $maxAttempts): static
     {
-        return new static($maxAttempts, static::multiply($decayMinutes, 60, 'decay minutes'));
+        return static::perMinute($maxAttempts, $decayMinutes);
     }
 
     /**
@@ -56,7 +58,9 @@ readonly class Limit extends AdmissionPolicy
      */
     public static function perHour(int $maxAttempts, int $decayHours = 1): static
     {
-        return new static($maxAttempts, static::multiply($decayHours, 3600, 'decay hours'));
+        $decayMicroseconds = static::multiply($decayHours, 3_600_000_000, 'decay hours');
+
+        return new static($maxAttempts, intdiv($decayMicroseconds, 1_000_000));
     }
 
     /**
@@ -64,7 +68,9 @@ readonly class Limit extends AdmissionPolicy
      */
     public static function perDay(int $maxAttempts, int $decayDays = 1): static
     {
-        return new static($maxAttempts, static::multiply($decayDays, 86400, 'decay days'));
+        $decayMicroseconds = static::multiply($decayDays, 86_400_000_000, 'decay days');
+
+        return new static($maxAttempts, intdiv($decayMicroseconds, 1_000_000));
     }
 
     /**

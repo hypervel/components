@@ -8,6 +8,7 @@ use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Tests\TestCase;
 use Stringable;
 
@@ -25,6 +26,10 @@ class KeyResolverTest extends TestCase
         $this->assertSame(
             'd91bec8237651325e9d9bc0c89d9119b',
             $resolver->resolve(Limit::perMinute(60)->by('user:1'), 'api'),
+        );
+        $this->assertSame(
+            '28f58bbedbb7a4f75f8e7899ded97686',
+            $resolver->resolve(SlidingWindow::perMinute(60)->by('user:1'), 'api'),
         );
         $this->assertSame(
             '72519c9daf2298e61f4ce018cacde4ac',
@@ -65,6 +70,21 @@ class KeyResolverTest extends TestCase
         $policy = Limit::perMinute(60)->by('user:1');
         $key = $resolver->resolve($policy);
 
+        $this->assertSame($key, $resolver->resolve($policy->cost(5)));
+        $this->assertSame($key, $resolver->resolve($policy->after(static fn (): bool => true)));
+        $this->assertSame($key, $resolver->resolve($policy->response(static fn (): string => 'limited')));
+    }
+
+    public function testSlidingWindowIdentityIncludesStablePolicySettings(): void
+    {
+        $resolver = new KeyResolver('app', static fn (): ?string => null);
+        $policy = SlidingWindow::perMinute(60)->by('user:1');
+        $key = $resolver->resolve($policy);
+
+        $this->assertNotSame($key, $resolver->resolve(SlidingWindow::perMinute(61)->by('user:1')));
+        $this->assertNotSame($key, $resolver->resolve(SlidingWindow::perMinutes(2, 60)->by('user:1')));
+        $this->assertNotSame($key, $resolver->resolve(Limit::perMinute(60)->by('user:1')));
+        $this->assertNotSame($key, $resolver->resolve($policy->globally()));
         $this->assertSame($key, $resolver->resolve($policy->cost(5)));
         $this->assertSame($key, $resolver->resolve($policy->after(static fn (): bool => true)));
         $this->assertSame($key, $resolver->resolve($policy->response(static fn (): string => 'limited')));

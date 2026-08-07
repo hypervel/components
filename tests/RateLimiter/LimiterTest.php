@@ -15,6 +15,7 @@ use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\LimitResult;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
@@ -47,6 +48,7 @@ class LimiterTest extends TestCase
 
         foreach ([
             Limit::perMinute(1)->cost(2),
+            SlidingWindow::perMinute(1)->cost(2),
             LeakyBucket::perSecond(1)->cost(2),
         ] as $policy) {
             try {
@@ -55,6 +57,32 @@ class LimiterTest extends TestCase
             } catch (InvalidRateLimitException) {
                 $this->addToAssertionCount(1);
             }
+        }
+
+        $this->assertSame(0, $scopeCalls);
+        $this->assertSame(0, $store->calls);
+    }
+
+    public function testSlidingWindowValidatesItsFullStateLifetimeBeforeKeyOrStoreAccess(): void
+    {
+        $store = new LimiterCountingStore;
+        $scopeCalls = 0;
+        $limiter = new Limiter($store, new KeyResolver('app', static function () use (&$scopeCalls): ?string {
+            ++$scopeCalls;
+
+            return 'scope';
+        }));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(
+            intdiv(AdmissionPolicy::MAX_INTEGER, 1_000_000) - 90,
+        ));
+
+        try {
+            $limiter->consume(SlidingWindow::perMinute(1), 'api');
+            $this->fail('Expected an invalid rate limit exception.');
+        } catch (InvalidRateLimitException) {
+            $this->addToAssertionCount(1);
+        } finally {
+            CarbonImmutable::setTestNow();
         }
 
         $this->assertSame(0, $scopeCalls);

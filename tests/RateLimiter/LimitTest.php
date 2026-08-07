@@ -8,6 +8,7 @@ use Hypervel\RateLimiter\Exceptions\InvalidRateLimitException;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class LimitTest extends TestCase
 {
@@ -19,6 +20,25 @@ class LimitTest extends TestCase
         $this->assertPolicy(Limit::perHour(8, 9), 8, 32400);
         $this->assertPolicy(Limit::perDay(10, 11), 10, 950400);
         $this->assertInstanceOf(Unlimited::class, Limit::none());
+    }
+
+    #[DataProvider('decayOverflowProvider')]
+    public function testFactoryOverflowNamesItsPublicDecayUnit(callable $factory, string $unit): void
+    {
+        $this->expectException(InvalidRateLimitException::class);
+        $this->expectExceptionMessage("The rate limit decay {$unit} exceeds the maximum supported duration.");
+
+        $factory();
+    }
+
+    public static function decayOverflowProvider(): array
+    {
+        return [
+            'seconds' => [static fn () => Limit::perSecond(1, 9_007_199_255), 'seconds'],
+            'minutes' => [static fn () => Limit::perMinute(1, 150_119_988), 'minutes'],
+            'hours' => [static fn () => Limit::perHour(1, 2_502_000), 'hours'],
+            'days' => [static fn () => Limit::perDay(1, 104_250), 'days'],
+        ];
     }
 
     // REMOVED: Laravel's GlobalLimit constructor coverage is replaced by the

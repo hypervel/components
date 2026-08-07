@@ -70,6 +70,10 @@ class KeyResolver
                 . $this->segment('max-attempts', (string) $policy->maxAttempts)
                 . $this->segment('decay-seconds', (string) $policy->decaySeconds)
                 . $this->segment('global', $policy->global ? '1' : '0'),
+            $policy instanceof SlidingWindow => $this->segment('policy', 'sliding-window')
+                . $this->segment('max-attempts', (string) $policy->maxAttempts)
+                . $this->segment('window-seconds', (string) $policy->windowSeconds)
+                . $this->segment('global', $policy->global ? '1' : '0'),
             $policy instanceof LeakyBucket => $this->segment('policy', 'leaky-bucket')
                 . $this->segment('rate', (string) $policy->rate)
                 . $this->segment('period-microseconds', (string) $policy->periodMicroseconds)
