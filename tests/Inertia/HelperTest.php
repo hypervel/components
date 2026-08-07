@@ -20,6 +20,12 @@ class HelperTest extends TestCase
         $this->assertInstanceOf(Response::class, inertia('User/Edit', ['user' => ['name' => 'Jonathan']]));
     }
 
+    public function testTheHelperFunctionDelegatesEveryStringComponent(): void
+    {
+        $this->assertInstanceOf(Response::class, inertia(''));
+        $this->assertInstanceOf(Response::class, inertia('0'));
+    }
+
     public function testTheInstanceIsTheSameAsTheFacadeInstance(): void
     {
         Inertia::share('key', 'value');
