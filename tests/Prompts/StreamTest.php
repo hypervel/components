@@ -4,15 +4,128 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Stream;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use RuntimeException;
+use WeakReference;
 
 use function Hypervel\Prompts\stream;
 
 class StreamTest extends TestCase
 {
+    public function testUndecoratedStreamWritesExactChunksWithoutTerminalWork(): void
+    {
+        Prompt::fake();
+        Prompt::setOutput(new BufferedConsoleOutput(decorated: false));
+        Prompt::terminal()->shouldNotReceive('cols'); // @phpstan-ignore-line
+        Prompt::terminal()->shouldNotReceive('supportsTrueColor'); // @phpstan-ignore-line
+        $stream = new Stream;
+
+        $stream->append('Hello, ');
+        $stream->append("World!\nDone.");
+
+        $this->assertSame("Hello, World!\nDone.", Prompt::content());
+        $this->assertSame("Hello, World!\nDone.", $stream->value());
+        $this->assertSame(['Hello, World!', 'Done.'], $stream->lines());
+
+        $stream->close();
+        $content = Prompt::content();
+        unset($stream);
+
+        $this->assertSame($content, Prompt::content());
+        $this->assertStringNotContainsString("\e", Prompt::content());
+    }
+
+    public function testCloseRestoresCursorBeforeRetainedStreamIsDestroyed(): void
+    {
+        Prompt::fake();
+        $stream = new Stream;
+
+        $stream->append('Hello');
+        $stream->close();
+
+        $this->assertFalse(
+            (new ReflectionProperty(Prompt::class, 'cursorHidden'))->getValue(),
+        );
+
+        $content = Prompt::content();
+        unset($stream);
+
+        $this->assertSame($content, Prompt::content());
+    }
+
+    #[DataProvider('trueColorProvider')]
+    public function testAbandonedDecoratedStreamRestoresCursorImmediately(bool $supportsTrueColor): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('supportsTrueColor')->once()->andReturn($supportsTrueColor); // @phpstan-ignore-line
+
+        if ($supportsTrueColor) {
+            Prompt::terminal()->shouldReceive('foregroundColor')->once()->andReturn([204, 204, 204]); // @phpstan-ignore-line
+            Prompt::terminal()->shouldReceive('backgroundColor')->once()->andReturn([0, 0, 0]); // @phpstan-ignore-line
+        }
+
+        $garbageCollectionEnabled = gc_enabled();
+        gc_disable();
+
+        try {
+            $stream = new Stream;
+            $reference = WeakReference::create($stream);
+
+            $this->assertTrue(
+                (new ReflectionProperty(Prompt::class, 'cursorHidden'))->getValue(),
+            );
+
+            unset($stream);
+
+            $this->assertNull($reference->get());
+            $this->assertFalse(
+                (new ReflectionProperty(Prompt::class, 'cursorHidden'))->getValue(),
+            );
+        } finally {
+            if ($garbageCollectionEnabled) {
+                gc_enable();
+            }
+        }
+    }
+
+    /**
+     * Provide terminal true-color support modes.
+     *
+     * @return iterable<string, array{bool}>
+     */
+    public static function trueColorProvider(): iterable
+    {
+        yield 'fallback colors' => [false];
+        yield 'true colors' => [true];
+    }
+
+    public function testColorProbeFailureDoesNotAcquireCursorOwnership(): void
+    {
+        Prompt::fake();
+        $failure = new RuntimeException('unable to query terminal colors');
+
+        Prompt::terminal()->shouldReceive('supportsTrueColor')->once()->andReturnTrue(); // @phpstan-ignore-line
+        Prompt::terminal()->shouldReceive('foregroundColor')->once()->andThrow($failure); // @phpstan-ignore-line
+
+        try {
+            new Stream;
+
+            $this->fail('Expected stream construction to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertStringNotContainsString("\e[?25l", Prompt::content());
+        $this->assertFalse(
+            (new ReflectionProperty(Prompt::class, 'cursorHidden'))->getValue(),
+        );
+    }
+
     public function testRendersAppendedText()
     {
         Prompt::fake();

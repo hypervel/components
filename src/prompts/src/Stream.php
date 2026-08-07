@@ -7,6 +7,7 @@ namespace Hypervel\Prompts;
 use Closure;
 use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 use RuntimeException;
+use Throwable;
 
 class Stream extends Prompt
 {
@@ -25,17 +26,38 @@ class Stream extends Prompt
     protected array $fadingOutColors = [];
 
     /**
+     * Whether chunks should be written directly without terminal animation.
+     */
+    protected bool $direct = false;
+
+    /**
      * Create a new Stream instance.
      */
     public function __construct()
     {
+        $this->direct = ! static::output()->isDecorated();
+
+        if ($this->direct) {
+            return;
+        }
+
         $this->maxWidth = static::terminal()->cols() - 20;
-        $this->hideCursor();
         $this->fadingOutColors = $this->fadeOut();
+        $this->hideCursor();
     }
 
+    /**
+     * Append a message to the stream.
+     */
     public function append(string $message): self
     {
+        if ($this->direct) {
+            $this->message .= $message;
+            static::output()->write($message);
+
+            return $this;
+        }
+
         $this->currentlyFading[] = $message;
 
         while (count($this->currentlyFading) > count($this->fadingOutColors)) {
@@ -47,22 +69,49 @@ class Stream extends Prompt
         return $this;
     }
 
+    /**
+     * Close the stream and finish rendering its output.
+     */
     public function close(): void
     {
+        if ($this->direct) {
+            return;
+        }
+
+        $failure = null;
+
         try {
             while (count($this->currentlyFading) > 0) {
                 $this->message .= array_shift($this->currentlyFading);
                 $this->render();
                 usleep(25_000);
             }
-        } finally {
-            $this->showCursor();
+        } catch (Throwable $exception) {
+            $failure = $exception;
+        }
+
+        try {
+            $this->restoreTerminalState();
+        } catch (Throwable $exception) {
+            $failure ??= $exception;
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
-    /** @return array<int, string> */
+    /**
+     * Get the rendered stream lines.
+     *
+     * @return array<int, string>
+     */
     public function lines(): array
     {
+        if ($this->direct) {
+            return explode(PHP_EOL, $this->message);
+        }
+
         $toFadeIn = [];
 
         foreach ($this->currentlyFading as $index => $message) {
@@ -82,6 +131,11 @@ class Stream extends Prompt
         return $finalLines;
     }
 
+    /**
+     * Disable prompting for input.
+     *
+     * @throws RuntimeException
+     */
     public function prompt(): mixed
     {
         throw new RuntimeException('Stream cannot be prompted');
@@ -102,10 +156,11 @@ class Stream extends Prompt
      */
     protected function fadeOut(int $steps = 10): array
     {
+        // Stored closures must remain static so an abandoned stream can reach destructor cleanup.
         if (! static::terminal()->supportsTrueColor()) {
             return [
-                fn (string $text) => $text,
-                fn (string $text) => $this->dim($text),
+                static fn (string $text) => $text,
+                static fn (string $text) => "\e[2m{$text}\e[22m",
             ];
         }
 
@@ -113,13 +168,13 @@ class Stream extends Prompt
         $bg = static::terminal()->backgroundColor();
 
         return array_map(
-            function (int $step) use ($fg, $bg, $steps) {
+            static function (int $step) use ($fg, $bg, $steps) {
                 $factor = 1 - ($step / $steps);
                 $r = (int) ($bg[0] + ($fg[0] - $bg[0]) * $factor);
                 $g = (int) ($bg[1] + ($fg[1] - $bg[1]) * $factor);
                 $b = (int) ($bg[2] + ($fg[2] - $bg[2]) * $factor);
 
-                return fn (string $text) => "\e[38;2;{$r};{$g};{$b}m{$text}\e[0m";
+                return static fn (string $text) => "\e[38;2;{$r};{$g};{$b}m{$text}\e[0m";
             },
             range(0, $steps - 1),
         );
