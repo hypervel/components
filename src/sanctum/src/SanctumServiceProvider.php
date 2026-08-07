@@ -9,6 +9,7 @@ use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Http\Request;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
+use Hypervel\Sanctum\Http\Controllers\CsrfCookieController;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
@@ -102,15 +104,14 @@ class SanctumServiceProvider extends ServiceProvider
             });
         }
 
-        $this->registerSanctumGuard();
-        $this->configureSessionCookies();
-
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
             $this->registerCommands();
         }
 
-        $this->registerRoutes();
+        $this->defineRoutes();
+        $this->configureGuard();
+        $this->configureMiddleware();
     }
 
     /**
@@ -149,40 +150,85 @@ class SanctumServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register the Sanctum authentication guard.
+     * Define the Sanctum routes.
      */
-    protected function registerSanctumGuard(): void
+    protected function defineRoutes(): void
     {
-        $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
-            $authManager->extend('sanctum', function ($app, $name, $config) use ($authManager) {
-                $sessionGuards = $config['session_guards'] ?? null;
-                $isSessionGuardName = static fn (mixed $guard): bool => is_string($guard) && $guard !== '';
+        if ($this->app->routesAreCached()) {
+            return;
+        }
 
-                if (! is_array($sessionGuards) || array_filter($sessionGuards, $isSessionGuardName) !== $sessionGuards) {
-                    throw new InvalidArgumentException(
-                        "Auth guard [{$name}] uses the sanctum driver but does not declare a valid session guards list. "
-                        . "Set auth.guards.{$name}.session_guards to an array of session guard names, or [] to disable stateful session authentication."
-                    );
-                }
+        $config = $this->app->make(ConfigRepository::class);
 
-                return new SanctumGuard(
-                    name: $name,
-                    provider: $authManager->createUserProvider($config['provider'] ?? null),
-                    app: $app,
-                    sessionGuards: $sessionGuards,
-                    events: $app->bound('events') ? $app->make('events') : null,
-                    expiration: $app->make('config')->get('sanctum.expiration'),
-                    trackLastUsedAt: $app->make('config')->boolean('sanctum.last_used_at'),
-                );
-            });
+        if (! $config->boolean('sanctum.routes', true)) {
+            return;
+        }
+
+        Route::group(['prefix' => $config->string('sanctum.prefix', 'sanctum')], function (): void {
+            Route::get('/csrf-cookie', [CsrfCookieController::class, 'show'])
+                ->middleware('web')
+                ->name('sanctum.csrf-cookie');
         });
     }
 
     /**
-     * Configure session cookies for stateful frontend requests.
+     * Configure the Sanctum authentication guard.
      */
-    protected function configureSessionCookies(): void
+    protected function configureGuard(): void
     {
+        $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager): void {
+            // AuthManager rebinds custom creators to itself, so keep the
+            // protected provider extension point behind its original scope.
+            $createGuard = fn (Container $app, string $name, array $config): SanctumGuard => $this->createGuard(
+                $authManager,
+                $app,
+                $name,
+                $config,
+            );
+
+            $authManager->extend(
+                'sanctum',
+                static fn (Container $app, string $name, array $config): SanctumGuard => $createGuard($app, $name, $config),
+            );
+        });
+    }
+
+    /**
+     * Create a new Sanctum guard instance.
+     */
+    protected function createGuard(
+        AuthManager $authManager,
+        Container $app,
+        string $name,
+        array $config,
+    ): SanctumGuard {
+        $sessionGuards = $config['session_guards'] ?? null;
+        $isSessionGuardName = static fn (mixed $guard): bool => is_string($guard) && $guard !== '';
+
+        if (! is_array($sessionGuards) || array_filter($sessionGuards, $isSessionGuardName) !== $sessionGuards) {
+            throw new InvalidArgumentException(
+                "Auth guard [{$name}] uses the sanctum driver but does not declare a valid session guards list. "
+                . "Set auth.guards.{$name}.session_guards to an array of session guard names, or [] to disable stateful session authentication."
+            );
+        }
+
+        return new SanctumGuard(
+            name: $name,
+            provider: $authManager->createUserProvider($config['provider'] ?? null),
+            app: $app,
+            sessionGuards: $sessionGuards,
+            events: $app->bound('events') ? $app->make('events') : null,
+            expiration: $app->make('config')->get('sanctum.expiration'),
+            trackLastUsedAt: $app->make('config')->boolean('sanctum.last_used_at'),
+        );
+    }
+
+    /**
+     * Configure Sanctum's middleware behavior.
+     */
+    protected function configureMiddleware(): void
+    {
+        // Middleware::statefulApi() owns priority configuration before the HTTP kernel is built.
         StartSession::configureSessionCookieUsing(function (Request $request, array $cookie): array {
             if (! $request->attributes->get('sanctum')) {
                 return $cookie;
@@ -193,15 +239,6 @@ class SanctumServiceProvider extends ServiceProvider
                 'same_site' => 'lax',
             ]);
         });
-    }
-
-    /**
-     * Register the package routes.
-     */
-    protected function registerRoutes(): void
-    {
-        Route::middleware(config('sanctum.middleware', 'web'))
-            ->group(__DIR__ . '/../routes/web.php');
     }
 
     /**
