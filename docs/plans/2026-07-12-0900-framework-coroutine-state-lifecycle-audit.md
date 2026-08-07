@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None. `pagination` is complete; detail plan `2026-08-06-0928-pagination-correctness-current-parity-and-query-contracts.md`.
-- **Ledger entries required for the active work:** None. The completed Pagination work is recorded under `Complete Pagination correctness, current parity, and query contracts`, with its cross-package findings also recorded at their owning package entries.
-- **Pending revalidation carried into the active work:** None. The completed View audit owns `ComponentAttributeBag::data()`; Translation's `__()` conditional type remains routed to its active owner audit.
+- **Active package or work unit:** None. `sanctum` is complete; detail plan `2026-08-07-1302-sanctum-correctness-cache-settlement-and-current-parity.md`.
+- **Ledger entries required for the active work:** None. The completed Sanctum work is recorded under `Complete Sanctum correctness, cache settlement, and current parity`, with its Database and Auth findings also recorded at their owning package entries.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1053,11 +1053,11 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events`, `bus`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum`, `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum` (revalidation complete), `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `macroable-03` | `macroable` | `cookie`, `log`, and `notifications` (revalidation complete); later full `jwt` audit | `Complete Macroable callable and test-state handling`; finding `macroable-03` |
 | `auth-01` | `support`, `auth` | `auth` (revalidation complete) | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
-| `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
+| `sanctum-01` | `sanctum` | `encryption` and `sanctum` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 | `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
 | `server-process-10` | `server-process` | `foundation` (revalidation complete) | `Make custom server processes failure-safe`; finding `server-process-10` |
 | `signal-05` | `contracts`, `signal` | `server-process` (revalidation complete) | `Complete Signal handler reliability, public APIs, and deployment guidance`; finding `signal-05` |
@@ -1110,7 +1110,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `telescope-01` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
 | `telescope-02` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
 | `sentry-01` | `sentry` | `redis` (revalidation complete); later full `sentry` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
-| `cache-04` | `cache` | `auth` (full-audit revalidation complete), `sanctum` and `testbench` (revalidation complete); later full remaining consumer audits | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-04` |
+| `cache-04` | `cache` | `auth`, `sanctum`, and `testbench` (revalidation complete); later full remaining consumer audits | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-04` |
 | `filesystem-12` | `filesystem` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `filesystem-12` |
 | `session-23` | `cache` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `session-23` |
 | `contracts-09` | `contracts` | `foundation` and `broadcasting` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `contracts-09` |
@@ -1152,7 +1152,25 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `collections-15` | `collections` | `collections` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `collections-15` |
 | `support-32` | `support` | `support` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `support-32` |
 | `support-33` | `support` | `support` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `support-33` |
-| `sanctum-02` | `sanctum` | `sanctum` (targeted correction complete); later full `sanctum` audit | `Complete Pagination correctness, current parity, and query contracts`; finding `sanctum-02` |
+| `sanctum-02` | `sanctum` | `sanctum` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `sanctum-02` |
+| `sanctum-03` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-03` |
+| `sanctum-04` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-04` |
+| `sanctum-05` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-05` |
+| `sanctum-06` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-06` |
+| `sanctum-07` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-07` |
+| `sanctum-08` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-08` |
+| `sanctum-09` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-09` |
+| `sanctum-10` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-10` |
+| `sanctum-12` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-12` |
+| `sanctum-13` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-13` |
+| `sanctum-14` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-14` |
+| `sanctum-15` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-15` |
+| `sanctum-16` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-16` |
+| `sanctum-17` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-17` |
+| `sanctum-18` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-18` |
+| `database-26` | `database` | `database`, `auth`, and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `database-26` |
+| `database-27` | `database` | `database`, `bus`, `foundation`, `queue`, `events`, `mail`, `notifications`, `broadcasting`, `scout`, and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `database-27` |
+| `auth-18` | `auth` | `auth` and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `auth-18` |
 | `api-client-01` | `api-client` | `api-client` (targeted correction complete); later full `api-client` audit | `Complete Pagination correctness, current parity, and query contracts`; finding `api-client-01` |
 | `database-24` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-24` |
 | `database-25` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-25` |
@@ -1280,7 +1298,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `translation`
 - [x] `pagination`
 - [ ] `socialite`
-- [ ] `sanctum`
+- [x] `sanctum`
 - [ ] `fortify`
 - [ ] `passkeys`
 - [ ] `permission`
