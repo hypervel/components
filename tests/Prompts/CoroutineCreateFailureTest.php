@@ -34,14 +34,16 @@ class CoroutineCreateFailureTest extends TestCase
                 $this->fail('Expected animation coroutine creation to fail.');
             } catch (CoroutineCreateException) {
                 $this->assertFalse($callbackRan);
-                $this->assertTrue(
-                    (new ReflectionProperty($spinner, 'hasFinished'))
-                        ->getValue($spinner),
+                $this->assertFalse(
+                    (new ReflectionProperty(Prompt::class, 'cursorHidden'))
+                        ->getValue(),
                 );
             }
 
+            $content = Prompt::content();
             unset($spinner);
 
+            $this->assertSame($content, Prompt::content());
             $this->assertFalse(
                 (new ReflectionProperty(Prompt::class, 'cursorHidden'))
                     ->getValue(),
@@ -69,10 +71,16 @@ class CoroutineCreateFailureTest extends TestCase
                 $this->assertTrue(
                     (new ReflectionProperty($task, 'finished'))->getValue($task),
                 );
+                $this->assertFalse(
+                    (new ReflectionProperty(Prompt::class, 'cursorHidden'))
+                        ->getValue(),
+                );
             }
 
+            $content = Prompt::content();
             unset($task);
 
+            $this->assertSame($content, Prompt::content());
             $this->assertFalse(
                 (new ReflectionProperty(Prompt::class, 'cursorHidden'))
                     ->getValue(),

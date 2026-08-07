@@ -4,18 +4,212 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Task;
 use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use ReflectionMethod;
 use ReflectionProperty;
+use RuntimeException;
 
 use function Hypervel\Prompts\task;
 
 class TaskTest extends TestCase
 {
+    public function testPrintsCompletionLineAfterSuccessfulStaticTaskWithSummary(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'My Task', keepSummary: true);
+        (new ReflectionMethod($task, 'renderStatically'))
+            ->invoke($task, fn (Logger $logger): null => null);
+
+        Prompt::assertStrippedOutputContains('✔ My Task');
+    }
+
+    public function testStaticTaskLoggerUpdatesTaskStateAndRendersStableSummary(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Starting', keepSummary: true);
+        $result = (new ReflectionMethod($task, 'renderStatically'))
+            ->invoke($task, function (Logger $logger): string {
+                $logger->label('Finished');
+                $logger->subLabel('All steps complete');
+                $logger->success('Deployment complete');
+
+                return 'done';
+            });
+
+        $this->assertSame('done', $result);
+        $this->assertSame('Finished', $task->label);
+        $this->assertSame('All steps complete', $task->subLabel);
+        $this->assertSame([
+            ['type' => 'success', 'message' => 'Deployment complete'],
+        ], $task->stableMessages);
+        Prompt::assertStrippedOutputContains('Finished');
+        Prompt::assertStrippedOutputContains('Deployment complete');
+        Prompt::assertStrippedOutputDoesntContain('✔ Finished');
+    }
+
+    public function testDoesNotPrintStaticCompletionLineWithoutSummary(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'My Task');
+        (new ReflectionMethod($task, 'renderStatically'))
+            ->invoke($task, fn (Logger $logger): null => null);
+
+        Prompt::assertStrippedOutputDoesntContain('✔ My Task');
+    }
+
+    public function testDoesNotPrintStaticCompletionLineAfterFailure(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'My Task', keepSummary: true);
+        $renderStatically = new ReflectionMethod($task, 'renderStatically');
+
+        try {
+            $renderStatically->invoke($task, function (Logger $logger): never {
+                throw new RuntimeException('boom');
+            });
+
+            $this->fail('Expected the task callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('boom', $exception->getMessage());
+        }
+
+        Prompt::assertStrippedOutputDoesntContain('✔ My Task');
+    }
+
+    public function testPrintsCompletionLineAfterSuccessfulCoroutineTaskWithSummary(): void
+    {
+        Prompt::fake();
+
+        (new Task(label: 'My Task', keepSummary: true))
+            ->run(fn (Logger $logger): null => null);
+
+        Prompt::assertStrippedOutputContains('✔ My Task');
+    }
+
+    public function testUndecoratedTaskWritesPlainStartAndCompletionLines(): void
+    {
+        Prompt::fake();
+        Prompt::setOutput(new BufferedConsoleOutput(decorated: false));
+
+        $result = (new Task(label: 'My Task', keepSummary: true))
+            ->run(fn (Logger $logger): string => 'done');
+
+        $this->assertSame('done', $result);
+        $this->assertSame(2, substr_count(Prompt::content(), 'My Task'));
+        $this->assertStringEndsWith(' ✔ My Task' . PHP_EOL, Prompt::content());
+        $this->assertStringNotContainsString("\e", Prompt::content());
+    }
+
+    public function testTaskCanBeReusedWithoutStaleOperationStateOrAnimation(): void
+    {
+        Prompt::fake();
+        $task = new Task(label: 'Running');
+
+        $task->run(function (Logger $logger): void {
+            $logger->line('first');
+        });
+        $task->run(function (Logger $logger): void {
+            $logger->line('second');
+        });
+
+        $this->assertSame(['second'], $task->logs);
+        $this->assertTrue($task->finished);
+
+        $content = Prompt::content();
+        usleep(150_000);
+
+        $this->assertSame($content, Prompt::content());
+    }
+
+    public function testRejectsNegativeLogLimit(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The task log limit must be zero or greater.');
+
+        new Task(limit: -1);
+    }
+
+    public function testRejectsNegativeLogLimitAtOperationEntryWithoutResettingState(): void
+    {
+        Prompt::fake();
+        $task = new Task(label: 'My Task', limit: 10);
+        $task->appendLogLine('kept');
+        $task->limit = -1;
+        $callbackRuns = 0;
+
+        try {
+            $task->run(function (Logger $logger) use (&$callbackRuns): void {
+                ++$callbackRuns;
+            });
+
+            $this->fail('Expected the task log limit to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('The task log limit must be zero or greater.', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $callbackRuns);
+        $this->assertSame(['kept'], $task->logs);
+    }
+
+    public function testZeroLogLimitDiscardsLogLines(): void
+    {
+        Prompt::fake();
+        $task = new Task(limit: 0);
+
+        $task->run(function (Logger $logger): void {
+            $logger->line('hidden');
+        });
+
+        $this->assertSame([], $task->logs);
+    }
+
+    public function testTinyTerminalUsesZeroLogLimitWithoutChangingConfiguration(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('lines')->andReturn(5); // @phpstan-ignore-line
+        $task = new Task(limit: 10);
+
+        $task->run(function (Logger $logger): void {
+            $logger->line('hidden');
+        });
+
+        $this->assertSame([], $task->logs);
+        $this->assertSame(10, $task->limit);
+    }
+
+    public function testReusedTaskRecalculatesLogLimitWhenTheTerminalGrows(): void
+    {
+        Prompt::fake();
+        Prompt::setOutput(new BufferedConsoleOutput(decorated: false));
+        Prompt::terminal()->shouldReceive('lines')->andReturn(5, 5, 30, 30); // @phpstan-ignore-line
+        $task = new Task(limit: 10);
+
+        $task->run(function (Logger $logger): void {
+            $logger->line('first');
+        });
+
+        $this->assertSame([], $task->logs);
+        $this->assertSame(10, $task->limit);
+
+        $task->run(function (Logger $logger): void {
+            $logger->line('second');
+            $logger->line('third');
+        });
+
+        $this->assertSame(['second', 'third'], $task->logs);
+        $this->assertSame(10, $task->limit);
+    }
+
     public function testRendersTaskAndReturnsValue()
     {
         Prompt::fake();
