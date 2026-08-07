@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None. `translation` is complete; detail plan `2026-08-06-0925-translation-correctness-current-parity-and-worker-lifecycles.md`.
-- **Ledger entries required for the active work:** None. The completed Translation work is recorded under `Complete Translation correctness, current parity, and worker lifecycles`, with its cross-package findings recorded at their owning package entries.
-- **Pending revalidation carried into the active work:** None. The completed View audit owns `ComponentAttributeBag::data()`; the completed Translation audit owns `__()`'s conditional type.
+- **Active package or work unit:** None. `prompts` is complete; detail plan `2026-08-07-1654-prompts-correctness-current-parity-and-terminal-lifecycles.md`.
+- **Ledger entries required for the active work:** None. The completed Prompts work is recorded under `Complete Prompts correctness, current parity, and terminal lifecycles`, with Queue and Testbench corrections recorded in the same work unit.
+- **Pending revalidation carried into the active work:** None. The full `testbench` audit remains on the package checklist; its owner-process shutdown correction is complete under `testbench-04`.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1194,6 +1194,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `routing-26` | `routing` | `foundation` and `routing` (targeted correction complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `routing-26` |
 | `session-25` | `session` | `foundation` and `session` (targeted correction complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `session-25` |
 | `view-42` | `view` | `foundation` and `view` (revalidation complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `view-42` |
+| `queue-42` | `queue` | `queue` (targeted correction complete) | `Complete Prompts correctness, current parity, and terminal lifecycles`; finding `queue-42` |
+| `testbench-04` | `testbench` | `testbench` (targeted correction complete) and `prompts` (revalidation complete); later full `testbench` audit | `Complete Prompts correctness, current parity, and terminal lifecycles`; finding `testbench-04` |
 
 ## Package checklist
 
@@ -1301,7 +1303,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 - [ ] `testing`
 - [ ] `testbench`
-- [ ] `prompts`
+- [x] `prompts`
 - [ ] `tinker`
 - [ ] `boost`
 - [ ] `facade-documenter`
