@@ -44,7 +44,7 @@ class NewPasswordController extends Controller
      */
     public function store(Request $request): Responsable
     {
-        if ($this->config->boolean('fortify.lowercase_usernames', false) && $request->has(Fortify::email())) {
+        if ($this->config->boolean('fortify.lowercase_usernames') && $request->has(Fortify::email())) {
             $request->merge([
                 Fortify::email() => Str::lower((string) $request->{Fortify::email()}),
             ]);
