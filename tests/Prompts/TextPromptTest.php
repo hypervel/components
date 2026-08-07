@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\Support\Result;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Tests\TestCase;
 
@@ -170,5 +171,22 @@ class TextPromptTest extends TestCase
         Prompt::fake(['', Key::ENTER]);
         $result = text('What is your name?');
         $this->assertSame('', $result);
+    }
+
+    public function testRunLoopRetriesTransientEmptyTerminalReads(): void
+    {
+        Prompt::fake();
+        Prompt::terminal()->shouldReceive('read')->once()->andReturn(''); // @phpstan-ignore-line
+        Prompt::terminal()->shouldReceive('read')->once()->andReturn('x'); // @phpstan-ignore-line
+        $keys = [];
+
+        $result = (new TextPrompt('Name'))->runLoop(function (string $key) use (&$keys): Result {
+            $keys[] = $key;
+
+            return Result::from('done');
+        });
+
+        $this->assertSame(['x'], $keys);
+        $this->assertSame('done', $result);
     }
 }

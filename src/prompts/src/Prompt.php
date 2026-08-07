@@ -78,12 +78,17 @@ abstract class Prompt
     /**
      * The cancellation callback.
      */
-    protected static ?Closure $cancelUsing;
+    protected static ?Closure $cancelUsing = null;
 
     /**
      * Indicates if the prompt has been validated.
      */
     protected bool $validated = false;
+
+    /**
+     * Indicates whether this prompt's terminal state has been restored.
+     */
+    protected bool $terminalStateRestored = true;
 
     /**
      * The custom validation callback.
@@ -92,6 +97,8 @@ abstract class Prompt
 
     /**
      * The revert handler from the StepBuilder.
+     *
+     * One physical terminal cannot coherently host concurrent interactive forms.
      */
     protected static ?Closure $revertUsing = null;
 
@@ -115,6 +122,8 @@ abstract class Prompt
      */
     public function prompt(): mixed
     {
+        $operationFailure = null;
+
         try {
             $this->capturePreviousNewLines();
 
@@ -130,11 +139,17 @@ abstract class Prompt
             }
 
             $this->checkEnvironment();
+            $this->terminalStateRestored = false;
 
             try {
                 static::terminal()->setTty('-icanon -isig -echo');
             } catch (Throwable $e) {
-                static::output()->writeln("<comment>{$e->getMessage()}</comment>");
+                try {
+                    static::output()->writeln("<comment>{$e->getMessage()}</comment>");
+                } catch (Throwable) {
+                    throw $e;
+                }
+
                 static::fallbackWhen(true);
 
                 return $this->fallback();
@@ -168,8 +183,20 @@ abstract class Prompt
             });
 
             return $result;
+        } catch (Throwable $exception) {
+            $operationFailure = $exception;
+
+            throw $exception;
         } finally {
             $this->clearListeners();
+
+            try {
+                $this->restoreTerminalState();
+            } catch (Throwable $exception) {
+                if ($operationFailure === null) {
+                    throw $exception;
+                }
+            }
         }
     }
 
@@ -180,12 +207,9 @@ abstract class Prompt
      */
     public function runLoop(callable $callable): mixed
     {
-        while (($key = static::terminal()->read()) !== null) { // @phpstan-ignore notIdentical.alwaysTrue
-            /**
-             * If $key is an empty string, Terminal::read
-             * has failed. We can continue to the next
-             * iteration of the loop, and try again.
-             */
+        while (true) {
+            $key = static::terminal()->read();
+
             if ($key === '') {
                 continue;
             }
@@ -272,6 +296,39 @@ abstract class Prompt
     }
 
     /**
+     * Restore terminal state changed by the prompt operation.
+     */
+    protected function restoreTerminalState(): void
+    {
+        if ($this->terminalStateRestored) {
+            return;
+        }
+
+        $this->terminalStateRestored = true;
+        $failure = null;
+
+        try {
+            $this->restoreCursor();
+        } catch (Throwable $exception) {
+            $failure = $exception;
+
+            // Cursor output is coroutine-scoped, so settled ownership cannot follow another output.
+            static::$cursorHidden = false;
+        }
+
+        try {
+            // The Terminal retains its mode on failure so the same controlling TTY can be retried.
+            static::terminal()->restoreTty();
+        } catch (Throwable $exception) {
+            $failure ??= $exception;
+        }
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+    }
+
+    /**
      * Set the custom validation callback.
      */
     public static function validateUsing(Closure $callback): void
@@ -298,9 +355,6 @@ abstract class Prompt
     /**
      * Revert the prompt using the given callback.
      *
-     * Tests only. The callback persists in a static property for the worker
-     * lifetime and affects every subsequent prompt revert.
-     *
      * @internal
      */
     public static function revertUsing(Closure $callback): void
@@ -310,9 +364,6 @@ abstract class Prompt
 
     /**
      * Clear any previous revert callback.
-     *
-     * Tests only. Clears the worker-wide revert callback; concurrent prompts
-     * may observe different behavior depending on timing.
      *
      * @internal
      */
@@ -490,8 +541,6 @@ abstract class Prompt
      */
     public static function flushState(): void
     {
-        Terminal::flushState();
-
         static::$cancelUsing = null;
         static::$validateUsing = null;
         static::$revertUsing = null;
@@ -509,8 +558,10 @@ abstract class Prompt
      */
     public function __destruct()
     {
-        $this->restoreCursor();
-
-        static::terminal()->restoreTty();
+        try {
+            $this->restoreTerminalState();
+        } catch (Throwable) {
+            // Destructors are a best-effort fallback for interrupted operations.
+        }
     }
 }

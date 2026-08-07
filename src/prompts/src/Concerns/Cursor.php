@@ -16,6 +16,12 @@ trait Cursor
      */
     public function hideCursor(): void
     {
+        if (! static::output()->isDecorated()) {
+            return;
+        }
+
+        $this->terminalStateRestored = false;
+
         static::writeDirectly("\e[?25l");
 
         static::$cursorHidden = true;
@@ -26,6 +32,12 @@ trait Cursor
      */
     public function showCursor(): void
     {
+        if (! static::output()->isDecorated()) {
+            static::$cursorHidden = false;
+
+            return;
+        }
+
         static::writeDirectly("\e[?25h");
 
         static::$cursorHidden = false;
@@ -46,6 +58,10 @@ trait Cursor
      */
     public function moveCursor(int $x, int $y = 0): void
     {
+        if (! static::output()->isDecorated()) {
+            return;
+        }
+
         $sequence = '';
 
         if ($x < 0) {
@@ -68,6 +84,10 @@ trait Cursor
      */
     public function moveCursorToColumn(int $column): void
     {
+        if (! static::output()->isDecorated()) {
+            return;
+        }
+
         static::writeDirectly("\e[{$column}G");
     }
 
@@ -76,6 +96,10 @@ trait Cursor
      */
     public function moveCursorUp(int $lines): void
     {
+        if (! static::output()->isDecorated()) {
+            return;
+        }
+
         static::writeDirectly("\e[{$lines}A");
     }
 

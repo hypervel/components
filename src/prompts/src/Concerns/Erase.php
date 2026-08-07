@@ -11,6 +11,10 @@ trait Erase
      */
     public function eraseLines(int $count): void
     {
+        if (! static::output()->isDecorated()) {
+            return;
+        }
+
         $clear = '';
         for ($i = 0; $i < $count; ++$i) {
             $clear .= "\e[2K" . ($i < $count - 1 ? "\e[{$count}A" : '');
@@ -28,6 +32,10 @@ trait Erase
      */
     public function eraseDown(): void
     {
+        if (! static::output()->isDecorated()) {
+            return;
+        }
+
         static::writeDirectly("\e[J");
     }
 }
