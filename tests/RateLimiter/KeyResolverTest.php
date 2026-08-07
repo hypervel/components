@@ -93,10 +93,15 @@ class KeyResolverTest extends TestCase
     public function testMissingScopeResolverMatchesAResolverReturningNull(): void
     {
         $policy = Limit::perMinute(60)->by('user:1');
+        $unscoped = (new KeyResolver('app'))->resolve($policy, 'api');
 
         $this->assertSame(
+            $unscoped,
             (new KeyResolver('app', static fn (): ?string => null))->resolve($policy, 'api'),
-            (new KeyResolver('app'))->resolve($policy, 'api'),
+        );
+        $this->assertSame(
+            $unscoped,
+            (new KeyResolver('app', static fn (): array => []))->resolve($policy, 'api'),
         );
     }
 
@@ -135,6 +140,30 @@ class KeyResolverTest extends TestCase
         $this->assertNotSame(
             $resolver->resolve(Limit::perMinute(1)->by('1:key'), 'limiter'),
             $resolver->resolve(Limit::perMinute(1)->by('key'), 'limiter1:'),
+        );
+        $this->assertNotSame(
+            (new KeyResolver('app', static fn (): array => ['a', 'b']))
+                ->resolve(Limit::perMinute(1), 'limiter'),
+            (new KeyResolver('app', static fn (): array => ['ab']))
+                ->resolve(Limit::perMinute(1), 'limiter'),
+        );
+    }
+
+    public function testScopeSegmentsPreserveOrderAndSingleValueCompatibility(): void
+    {
+        $policy = Limit::perMinute(1);
+
+        $this->assertNotSame(
+            (new KeyResolver('app', static fn (): array => ['a', 'b']))
+                ->resolve($policy, 'limiter'),
+            (new KeyResolver('app', static fn (): array => ['b', 'a']))
+                ->resolve($policy, 'limiter'),
+        );
+        $this->assertSame(
+            (new KeyResolver('app', static fn (): string => 'tenant:7'))
+                ->resolve($policy, 'limiter'),
+            (new KeyResolver('app', static fn (): array => ['tenant:7']))
+                ->resolve($policy, 'limiter'),
         );
     }
 

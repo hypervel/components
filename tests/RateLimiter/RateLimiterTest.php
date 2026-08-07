@@ -89,6 +89,66 @@ class RateLimiterTest extends TestCase
         $this->assertTrue($store->inspect($policy, 'api')->denied());
     }
 
+    public function testScopeResolversComposeInRegistrationOrderAndMayBeCleared(): void
+    {
+        $manager = $this->app->make(RateLimiter::class);
+        $store = $manager->store('worker-array');
+        $policy = Limit::perMinute(1)->by('user');
+        $calls = [];
+
+        $this->assertTrue($store->consume($policy, 'api')->allowed());
+        $this->assertTrue($store->inspect($policy, 'api')->denied());
+
+        $manager->resolveKeyScopeUsing(static function (string $name) use (&$calls): ?string {
+            $calls[] = 'nullable:' . $name;
+
+            return null;
+        });
+
+        $this->assertTrue($store->inspect($policy, 'api')->denied());
+        $this->assertSame(['nullable:api'], $calls);
+
+        $calls = [];
+        $manager->resolveKeyScopeUsing(static function (string $name) use (&$calls): string {
+            $calls[] = 'tenant:' . $name;
+
+            return 'tenant:7';
+        });
+
+        $this->assertTrue($store->consume($policy, 'api')->allowed());
+        $this->assertSame(['nullable:api', 'tenant:api'], $calls);
+
+        $calls = [];
+        $manager->resolveKeyScopeUsing(static function (string $name) use (&$calls): string {
+            $calls[] = 'account:' . $name;
+
+            return 'account:9';
+        });
+
+        $this->assertTrue($store->consume($policy, 'api')->allowed());
+        $this->assertSame(
+            ['nullable:api', 'tenant:api', 'account:api'],
+            $calls,
+        );
+
+        $calls = [];
+        $manager->resolveKeyScopeUsing(null);
+        $manager->resolveKeyScopeUsing(static function (string $name) use (&$calls): string {
+            $calls[] = 'account:' . $name;
+
+            return 'account:9';
+        });
+
+        $this->assertTrue($store->consume($policy, 'api')->allowed());
+        $this->assertSame(['account:api'], $calls);
+
+        $calls = [];
+        $manager->resolveKeyScopeUsing(null);
+
+        $this->assertTrue($store->inspect($policy, 'api')->denied());
+        $this->assertSame([], $calls);
+    }
+
     public function testCustomDriverReturnsAStoreThatIsWrappedOnce(): void
     {
         config([

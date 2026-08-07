@@ -20,6 +20,7 @@
     - [Selecting a Store](#selecting-a-store)
 - [Exponential Backoff](#exponential-backoff)
 - [Named Rate Limiters](#named-rate-limiters)
+    - [Scoping Named Rate Limits](#scoping-named-rate-limits)
 - [Custom Stores](#custom-stores)
 - [Failure Behavior](#failure-behavior)
 
@@ -452,6 +453,34 @@ RateLimiter::for('api', function ($request) {
 ```
 
 You should register named limiters during application boot because their definitions are shared for the lifetime of the worker. Named limiters may be used by routing and queue middleware. The routing documentation covers [attaching named limiters to routes](/docs/{{version}}/routing#attaching-rate-limiters-to-routes), response callbacks, global rate limits, and stacked rate limits.
+
+<a name="scoping-named-rate-limits"></a>
+### Scoping Named Rate Limits
+
+If every named rate limit should also be separated by an account, workspace, or another value from the current context, you may register a key scope resolver:
+
+```php
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\RateLimiter;
+
+RateLimiter::resolveKeyScopeUsing(function (string $limiter): ?string {
+    return Context::get('account_id');
+});
+```
+
+Each registered resolver may contribute one scope. Hypervel combines the non-null scopes in registration order, allowing your application and installed packages to contribute independent dimensions without replacing one another. A resolver may return `null` when its scope does not apply.
+
+The resolver receives the named limiter, so it may vary its scope between limiters. It runs when Hypervel builds a key for a named rate limiter operation, including route and queue middleware.
+
+Register scope resolvers only during application boot. Passing `null` to `resolveKeyScopeUsing` clears every registered resolver. Changing the registered resolvers or their order creates new stored keys, while previous state expires normally.
+
+Scope resolvers apply only when an operation supplies a limiter name. If an admission policy should remain shared across every registered scope, use the `globally` method:
+
+```php
+RateLimiter::for('shared-api', function () {
+    return Limit::perMinute(1000)->globally();
+});
+```
 
 <a name="custom-stores"></a>
 ## Custom Stores
