@@ -26,7 +26,7 @@ use Hypervel\Passkeys\Http\Controllers\PasskeyLoginController;
 use Hypervel\Passkeys\Http\Controllers\PasskeyRegistrationController;
 use Hypervel\Support\Facades\Route;
 
-$middleware = (array) config('fortify.middleware', ['web']);
+$middleware = (array) config('fortify.middleware');
 $guard = config('fortify.guard');
 
 if (is_string($guard) && $guard !== '') {
@@ -34,8 +34,8 @@ if (is_string($guard) && $guard !== '') {
 }
 
 Route::group(['middleware' => $middleware], function () {
-    $enableViews = config('fortify.views', true);
-    $authMiddleware = config('fortify.auth_middleware', 'auth');
+    $enableViews = config('fortify.views');
+    $authMiddleware = config('fortify.auth_middleware');
 
     // Authentication...
     if ($enableViews) {
