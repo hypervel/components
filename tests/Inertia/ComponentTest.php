@@ -10,6 +10,8 @@ use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Tests\Inertia\Fixtures\FakeGateway;
+use Hypervel\View\ViewException;
+use JsonException;
 
 class ComponentTest extends TestCase
 {
@@ -25,7 +27,7 @@ class ComponentTest extends TestCase
      */
     protected function renderView(string $contents, array $data = []): string
     {
-        $state = CoroutineContext::getOrSet(InertiaState::CONTEXT_KEY, fn () => new InertiaState);
+        $state = InertiaState::current();
         $state->page = $data['page'] ?? [];
 
         return Blade::render($contents, $data, true);
@@ -39,7 +41,7 @@ class ComponentTest extends TestCase
         CoroutineContext::forget(InertiaState::CONTEXT_KEY);
     }
 
-    public function testHeadComponentRendersFallbackSlotWhenSsrIsDisabled()
+    public function testHeadComponentRendersFallbackSlotWhenSsrIsDisabled(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
 
@@ -51,7 +53,7 @@ class ComponentTest extends TestCase
         );
     }
 
-    public function testHeadComponentRendersSsrHeadWhenSsrIsEnabled()
+    public function testHeadComponentRendersSsrHeadWhenSsrIsEnabled(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
@@ -62,7 +64,7 @@ class ComponentTest extends TestCase
         $this->assertStringNotContainsString('<title>Fallback Title</title>', $rendered);
     }
 
-    public function testAppComponentRendersClientSideDivWhenSsrIsDisabled()
+    public function testAppComponentRendersClientSideDivWhenSsrIsDisabled(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
 
@@ -73,7 +75,27 @@ class ComponentTest extends TestCase
         $this->assertStringContainsString('data-page="app"', $rendered);
     }
 
-    public function testAppComponentRendersSsrBodyWhenSsrIsEnabled()
+    public function testAppComponentReportsPageEncodingFailures(): void
+    {
+        Config::set(['inertia.ssr.enabled' => false]);
+        $resource = fopen('php://memory', 'r');
+
+        try {
+            try {
+                $this->renderView('<x-inertia::app />', ['page' => ['value' => $resource]]);
+            } catch (ViewException $exception) {
+                $this->assertInstanceOf(JsonException::class, $exception->getPrevious());
+
+                return;
+            }
+
+            $this->fail('The unencodable page did not throw a view exception.');
+        } finally {
+            fclose($resource);
+        }
+    }
+
+    public function testAppComponentRendersSsrBodyWhenSsrIsEnabled(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
@@ -85,7 +107,7 @@ class ComponentTest extends TestCase
         );
     }
 
-    public function testAppComponentAcceptsCustomId()
+    public function testAppComponentAcceptsCustomId(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
 
@@ -96,7 +118,7 @@ class ComponentTest extends TestCase
         $this->assertStringContainsString('data-page="custom"', $rendered);
     }
 
-    public function testSsrIsOnlyDispatchedOnceWithComponents()
+    public function testSsrIsOnlyDispatchedOnceWithComponents(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
         $this->app->instance(Gateway::class, $gateway = new FakeGateway);
@@ -107,7 +129,7 @@ class ComponentTest extends TestCase
         $this->assertSame(1, $gateway->times);
     }
 
-    public function testAppComponentMatchesDirectiveOutputWhenSsrIsDisabled()
+    public function testAppComponentMatchesDirectiveOutputWhenSsrIsDisabled(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
 
@@ -120,20 +142,23 @@ class ComponentTest extends TestCase
         $this->assertSame($directive, $component);
     }
 
-    public function testAppComponentMatchesDirectiveOutputWhenSsrIsEnabled()
+    public function testAppComponentMatchesDirectiveOutputWhenSsrIsEnabled(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
+        $page = ['value' => "\xB1\x31"];
 
-        $directive = $this->renderView('@inertia', ['page' => self::EXAMPLE_PAGE_OBJECT]);
+        // FakeGateway supplies the SSR result without encoding the page, proving
+        // that neither rendering path performs its client-fallback encoding.
+        $directive = $this->renderView('@inertia', ['page' => $page]);
 
         $this->resetInertiaState();
 
-        $component = trim($this->renderView('<x-inertia::app />', ['page' => self::EXAMPLE_PAGE_OBJECT]));
+        $component = trim($this->renderView('<x-inertia::app />', ['page' => $page]));
 
         $this->assertSame($directive, $component);
     }
 
-    public function testAppComponentWithCustomIdMatchesDirectiveOutput()
+    public function testAppComponentWithCustomIdMatchesDirectiveOutput(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
 
@@ -146,7 +171,7 @@ class ComponentTest extends TestCase
         $this->assertSame($directive, $component);
     }
 
-    public function testHeadComponentWithoutSlotMatchesDirectiveOutputWhenSsrIsDisabled()
+    public function testHeadComponentWithoutSlotMatchesDirectiveOutputWhenSsrIsDisabled(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
 
@@ -159,7 +184,7 @@ class ComponentTest extends TestCase
         $this->assertSame($directive, $component);
     }
 
-    public function testHeadComponentWithoutSlotMatchesDirectiveOutputWhenSsrIsEnabled()
+    public function testHeadComponentWithoutSlotMatchesDirectiveOutputWhenSsrIsEnabled(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
@@ -172,7 +197,7 @@ class ComponentTest extends TestCase
         $this->assertSame($directive, $component);
     }
 
-    public function testComponentsDoNotCreateCachedViewFilesPerRequest()
+    public function testComponentsDoNotCreateCachedViewFilesPerRequest(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
@@ -188,7 +213,7 @@ class ComponentTest extends TestCase
         $this->assertSame($cachedViews, glob($viewCachePath . '/*.php'));
     }
 
-    public function testAppComponentRendersCurrentPageNotPreviousRender()
+    public function testAppComponentRendersCurrentPageNotPreviousRender(): void
     {
         Config::set(['inertia.ssr.enabled' => false]);
 
@@ -204,21 +229,21 @@ class ComponentTest extends TestCase
         $this->assertStringNotContainsString('"component":"FirstPage"', $second);
     }
 
-    public function testInertiaStateDoesNotLeakBetweenRequests()
+    public function testInertiaStateDoesNotLeakBetweenRequests(): void
     {
         Config::set(['inertia.ssr.enabled' => true]);
 
-        $state1 = CoroutineContext::getOrSet(InertiaState::CONTEXT_KEY, fn () => new InertiaState);
+        $state1 = InertiaState::current();
         $state1->page = self::EXAMPLE_PAGE_OBJECT;
         $state1->ssrDispatched = true;
         $state1->ssrResponse = app(Gateway::class)->dispatch($state1->page);
 
         $this->assertNotNull($state1->ssrResponse);
 
-        // Simulate request boundary by clearing Context state
+        // Simulate a request boundary by clearing the current context state.
         $this->resetInertiaState();
 
-        $state2 = CoroutineContext::getOrSet(InertiaState::CONTEXT_KEY, fn () => new InertiaState);
+        $state2 = InertiaState::current();
 
         $this->assertNotSame($state1, $state2);
         $this->assertNull($state2->ssrResponse);
