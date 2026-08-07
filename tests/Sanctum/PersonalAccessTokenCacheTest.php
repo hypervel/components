@@ -1186,6 +1186,49 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
     }
 
+    #[DefineEnvironment('useSecondaryConnectionPersonalAccessTokenModel')]
+    public function testTokenRelationInvalidationFailsClosedWithoutManagerDuringTransaction(): void
+    {
+        $this->createSecondaryConnectionTokenTable();
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'managerless-relation@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        $token = $user->tokens()->create([
+            'name' => 'Test Token',
+            'token' => hash('sha256', 'secret'),
+            'abilities' => ['*'],
+        ]);
+        $this->assertInstanceOf(SecondaryConnectionPersonalAccessToken::class, $token);
+        $foundToken = SecondaryConnectionPersonalAccessToken::findToken($token->id . '|secret');
+        $this->assertInstanceOf(SecondaryConnectionPersonalAccessToken::class, $foundToken);
+        $this->cacheRepository()->put("sanctum:{$token->id}:tokenable", 'cached', 300);
+        $connection = DB::connection('sanctum_secondary');
+        $manager = $connection->getTransactionManager();
+        $connection->unsetTransactionManager();
+        $connection->beginTransaction();
+
+        try {
+            try {
+                $user->tokens()->delete();
+
+                $this->fail('Expected fail-closed settlement.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Transactions Manager has not been set.', $exception->getMessage());
+            }
+        } finally {
+            if ($connection->transactionLevel() > 0) {
+                $connection->rollBack();
+            }
+
+            $connection->setTransactionManager($manager);
+        }
+
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+        $this->assertNotNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+    }
+
     public function testRolledBackTokenRelationDeleteKeepsCommittedCache(): void
     {
         $token = $this->createToken();

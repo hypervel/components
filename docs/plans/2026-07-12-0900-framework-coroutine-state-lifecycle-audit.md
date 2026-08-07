@@ -1170,6 +1170,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `sanctum-18` | `sanctum` | `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `sanctum-18` |
 | `database-26` | `database` | `database`, `auth`, and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `database-26` |
 | `database-27` | `database` | `database`, `bus`, `foundation`, `queue`, `events`, `mail`, `notifications`, `broadcasting`, `scout`, and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `database-27` |
+| `database-28` | `database` | `database`, `auth`, and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `database-28` |
 | `auth-18` | `auth` | `auth` and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `auth-18` |
 | `api-client-01` | `api-client` | `api-client` (targeted correction complete); later full `api-client` audit | `Complete Pagination correctness, current parity, and query contracts`; finding `api-client-01` |
 | `database-24` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-24` |

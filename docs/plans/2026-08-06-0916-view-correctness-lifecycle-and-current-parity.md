@@ -165,14 +165,14 @@ The inherited compiled Factory FQCN means overriding `parentPlaceholderSalt()` o
 | `view-18` | Document worker-lived mutators at their concrete boundaries. |
 | `view-19` | Record the approved alias-first component API as a Laravel difference. |
 | `view-20` | Document first-use-per-worker compiled-view freshness accurately. |
-| `view-21` | Accept `BackedEnum|string` dynamic component names. |
+| `view-21` | Accept `BackedEnum\|string` dynamic component names. |
 | `view-22` | Default unnamed slots to `slot`. |
 | `view-23` | Catch Xdebug-originated `ParseError` in `hasEvenNumberOfParentheses()`. |
 | `view-24` | Deduplicate nested `view:cache` roots without conflating path-prefix siblings. |
 | `view-25` | Port the current full-app View integration surface and fixtures. |
 | `view-26` | Hash inline-template cache keys to bound retained bytes. |
 | `view-27` | Replace, rather than append, the reserved `__components` namespace. |
-| `view-28` | Narrow `stringable()` to its actually supported `Closure|string` domain; route the Translation twin separately. |
+| `view-28` | Narrow `stringable()` to its actually supported `Closure\|string` domain; route the Translation twin separately. |
 | `view-29` | Make boot echo format worker-lived and callback overrides coroutine-local and nest-safe. |
 | `view-30` | Memoize only verified-fresh compiled paths, restoring `view.cache=false` and first-render deletion recovery. |
 | `view-31` | Delete the superseded footer property and type/relocate `pushFooter()`. |

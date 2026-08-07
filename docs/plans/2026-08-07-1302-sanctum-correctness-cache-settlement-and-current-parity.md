@@ -27,7 +27,8 @@ make documented bulk revocation cache-correct without intercepting unrelated Elo
 - `sanctum-01`, `sanctum-02`, and `cache-04` remain complete. The old audit label
   `sanctum-02` for relation deletion collided with the completed JSON finding; the relation
   correction is `sanctum-17`. The custom-model cache seam correction is `sanctum-18`.
-  New shared-owner findings are `database-26`, `database-27`, and `auth-18`.
+  New shared-owner findings are `database-26`, `database-27`, `database-28`, and
+  `auth-18`.
 
 ## Anti-overengineering rules
 
@@ -113,6 +114,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `sanctum-18` | Custom token-model cache defect | Major | Use late static binding consistently for every protected cache seam so custom key/store overrides are read, written, and invalidated coherently. |
 | `database-26` | Cross-connection callback defect and upstream defect | Major | Pass the connection name from `Connection::afterCommit()` and `afterRollBack()` to the existing transaction manager. |
 | `database-27` | Ambient callback contract documentation | Moderate | Preserve Laravel's latest-open-transaction behavior and correct claims that it coordinates every open connection. |
+| `database-28` | Pooled-connection lifecycle warning | Minor | Mark `Connection::unsetTransactionManager()` tests-only because the null manager survives pool release and breaks later callback scheduling. |
 | `auth-18` | User-cache settlement defect | Major | Settle Eloquent user cache invalidation on the model connection while preserving event-time identifier resolution and commit-time descriptor discovery. |
 | `sanctum-04`, `sanctum-13` | CSRF route and provider parity | Major | Port current route and protected provider structure, adapted to Hypervel's direct guard and middleware owner. |
 | `sanctum-05`, `sanctum-10` | Credential transport and token-ID validation | Major | Use the request bearer parser, centralize validation in `findToken()`, reject empty halves and out-of-range integer IDs before cache/SQL, and preserve custom overrides/string keys. |
@@ -126,7 +128,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 
 ## Implementation
 
-### 1. Correct named transaction callback ownership (`database-26`)
+### 1. Correct named transaction callback ownership and manager-removal guidance (`database-26`, `database-28`)
 
 In `ManagesTransactions`, forward the current connection name to the manager:
 
@@ -147,6 +149,10 @@ all-connections barrier: the manager cannot infer a callback's dependency set, a
 callback because an unrelated transaction rolled back is silent and unrecoverable. An early job is
 often observable and retryable, but not universally; neither behavior supplies atomic commits
 across connections.
+
+Mark `Connection::unsetTransactionManager()` tests-only without changing its signature,
+visibility, or behavior. A pooled connection retains the null manager after release, so calling
+this method at runtime breaks after-commit scheduling for later borrowers.
 
 Sanctum and Auth use this two-branch settlement shape:
 
@@ -517,11 +523,12 @@ dependencies are already committed or the selected transaction will commit last.
 Update the core plan's dependency index and checklist, plus the completion ledger:
 
 - add final dependency-index rows for `sanctum-03` through `sanctum-10` and `sanctum-12`
-  through `sanctum-18`, plus `database-26`, `database-27`, and `auth-18`; `sanctum-11` is superseded by the
+  through `sanctum-18`, plus `database-26` through `database-28` and `auth-18`; `sanctum-11` is superseded by the
   completed `sanctum-02` JSON finding and must not become a duplicate row;
 - route `database-26` to Database, Sanctum, and Auth and mark all revalidation complete;
 - route `database-27` to Database, Bus, Foundation, Queue, Events, Mail, Notifications,
   Broadcasting, and Scout;
+- route `database-28` to Database, Auth, and Sanctum;
 - route `auth-18` to Auth and Sanctum and mark both complete;
 - edit the existing `support-02`, `sanctum-01`, and `cache-04` dependency-index rows to remove
   their pending/later-full-Sanctum wording and mark Sanctum revalidated; retain the completed
@@ -564,6 +571,8 @@ locality, not cross-connection atomic coordination, including the qualified obse
 - Instance soft delete, restore, and force delete through a custom token model.
 - Cache-enabled all-token, constrained, zero-match, soft-delete, transaction, token-model-connection,
   integer-key, and custom string-key relation deletion; cache-disabled delete retains one query.
+- Managerless relation deletion inside an open transaction fails closed and preserves both cache
+  entries after rollback.
 - Override `newTokenRelation()` and prove it remains the supported construction seam.
 - Override a custom token model's primary-key name and protected `getCacheKey()`, then warm, mutate,
   and prove reads, refill, instance invalidation, and relation-delete invalidation all use its real
@@ -615,6 +624,7 @@ overengineering review before external code review.
 - `database-26` adds one connection-name argument lookup to callback registration only, not queries
   or request reads.
 - `database-27` changes documentation only; unnamed Queue/Event callback selection remains O(1).
+- `database-28` changes documentation and tests only.
 - Routes, config casts, provider structure, metadata, static cleanup, types, and docs are boot,
   command, test, or build-time only.
 - Laravel public names/signatures are restored or preserved. Intentional differences are limited to

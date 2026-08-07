@@ -6,6 +6,7 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Sanctum\Contracts\HasAbilities;
 use Mockery;
 use Mockery\MockInterface;
 use UnitEnum;
@@ -88,7 +89,7 @@ class Sanctum
     {
         $abilities = array_map(enum_value(...), $abilities);
 
-        /** @var \Hypervel\Sanctum\Contracts\HasAbilities&MockInterface $token */
+        /** @var HasAbilities&MockInterface $token */
         $token = Mockery::mock(static::personalAccessTokenModel())->shouldIgnoreMissing(false);
 
         if (in_array('*', $abilities, true)) {
