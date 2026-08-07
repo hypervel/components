@@ -247,7 +247,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
         $line = Arr::get($this->loaded[$namespace][$group][$locale], $item);
 
-        if (is_string($line) || (is_array($line) && $line !== [])) {
+        // Loaders return an empty array for missing or empty groups, so only a
+        // requested item may use an empty array as its translation value.
+        if (is_string($line) || (is_array($line) && ($line !== [] || $item !== null))) {
             return $this->makeReplacements($line, $replace);
         }
 

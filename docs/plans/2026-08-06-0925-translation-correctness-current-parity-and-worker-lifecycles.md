@@ -47,7 +47,7 @@ behavior remain compatible unless an approved correction below explicitly change
 | Laravel #58367 / #58648 | plural-condition grammar and tests | Port the intended numeric grammar, then close the verified residual invalid-label defect. |
 | Laravel #59174 / #59268 | PHP 8.4 float modulo handling | Port only the final operand-level casts; do not cast the whole plural count. |
 | Laravel locale hardening commits `c248521f5` / `e78d24f3` | Translator locale validation | Preserve dot-bearing locale names while rejecting exact dot segments at the filesystem boundary. |
-| Laravel #59913 / #59688 | loader namespace shapes and non-empty-array check | Port the current metadata and exact comparison. |
+| Laravel #59913 / #59688 | loader namespace shapes and empty-array comparison | Port the metadata and strict comparison, then distinguish an empty loaded group from an explicitly keyed empty value. |
 | Hypervel runtime traces | JSON values, protected replacements, Application events, worker state | Fix at the existing owning methods without a new service, cache, registry, parser, or lock. |
 
 ## Anti-overengineering rules
@@ -151,10 +151,10 @@ Preserve these in the owner handoff without changing the cited references or fix
 | `translation-08` | Worker-lifecycle documentation | Major | Mark shared mutators Boot-only and document effective locale and fallback ownership. |
 | `translation-09` | Optional-event overhead | Improvement | Guard `LocaleUpdated` construction and dispatch with `hasListeners()` and use typed canonical resolution. |
 | `translation-10` | Public callable type defect | Minor | Narrow `stringable()` to its real closure-or-class-string surface and reject an inert class registration immediately. |
-| `translation-11` | Type / upstream metadata parity | Minor | Complete loader map shapes, the fallback type, and the non-empty-array comparison. |
+| `translation-11` | Type / upstream metadata parity | Minor | Complete loader map shapes and the fallback type. |
 | `translation-12` | Provider / package ownership cleanup | Minor | Use typed `make()` resolution, one config resolution, no duplicate defaults or promoted assignment, and remove the unused direct Container dependency. |
 | `translation-13` | Test ownership and isolation | Minor | Replace process-global fixture communication, restore inherited coroutine execution, correct bases/types, and remove stale fixture code. |
-| `translation-14` | Array translation defect | Major | Make the replacement boundary array-capable so JSON and PHP-file arrays preserve mixed leaves and honor `get(): array|string` consistently. |
+| `translation-14` | Array translation defect | Major | Make the replacement boundary array-capable so JSON and PHP-file arrays preserve mixed leaves, explicitly keyed empty arrays remain values, and `get(): array|string` is honored consistently. |
 
 ## Approval surface before implementation
 
@@ -337,10 +337,10 @@ validation pass is added.
 - Replace the JSON terminal truthiness fallback with `makeReplacements($line ?? $key, $replace)`.
 - Collapse `getLine()`'s string and non-empty-array branches into one call to
   `makeReplacements()` and remove its separate `array_walk_recursive()` implementation. Keep an
-  empty PHP-file group as no line; an explicitly keyed empty JSON array remains a real `[]`
-  translation.
-- Keep string-only consumers fail-fast for array-valued keys through `string()`. Do not add special
-  handling for empty arrays.
+  empty loaded group as no line, while an explicitly keyed empty PHP or JSON array remains a real
+  `[]` translation and does not fall through to the fallback locale.
+- Keep string-only consumers fail-fast for every array-valued key through `string()`, including
+  empty arrays.
 - Keep a top-level non-null, non-string JSON value invalid: nested mixed values are covered by the
   promised array result, while `get(): array|string` cannot represent a top-level scalar. Preserve
   `null` as the missing-translation sentinel. Do not widen the return, coerce the value, or
@@ -361,7 +361,7 @@ validation pass is added.
 Update `tests/Translation/TranslationTranslatorTest.php`:
 
 - port the four typed accessor success/failure tests;
-- cover `''`, `'0'`, empty arrays, and `has()` agreement;
+- cover `''`, `'0'`, empty JSON and PHP arrays, fallback suppression, and `has()` agreement;
 - prove `choice()` on an array-valued key fails through the typed string accessor;
 - exercise the same nested mixed-leaf array through JSON and normal groups, with and without
   replacements, proving string replacement plus preservation of integer, float, boolean, null,
@@ -718,9 +718,10 @@ Before review, also:
   float modulo branches emit no PHP 8.4 deprecation and English `1.5` stays plural.
 - No invalid locale reaches a filesystem method through direct loader, explicit locale, fallback,
   resolver, configured locale, or setter paths; `en.UTF-8` remains valid.
-- JSON falsey string values and arrays round-trip consistently, null remains the missing-translation
-  sentinel, invalid roots and non-null scalar top-level values get named diagnostics, and array
-  replacement has one implementation.
+- JSON falsey string values and arrays round-trip consistently, explicitly keyed empty PHP arrays
+  do not fall through to another locale, null remains the missing-translation sentinel, invalid
+  roots and non-null scalar top-level values get named diagnostics, and array replacement has one
+  implementation.
 - Effective current locale is request-local; fallback and documented mutators are clearly boot-only;
   config remains unchanged by effective locale setters.
 - Optional locale events allocate and dispatch only for active listeners.

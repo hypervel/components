@@ -100,6 +100,22 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame(['breeze bar'], $translator->array('foo::bar.baz', ['foo' => 'bar'], 'en'));
     }
 
+    public function testEmptyArrayItemDoesNotFallBackWhileEmptyGroupRemainsMissing(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->setFallback('lv');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'bar', 'foo')->andReturn(['empty' => []]);
+        $translator->getLoader()->shouldReceive('load')->with('lv', 'bar', 'foo')->andReturn(['empty' => ['fallback']]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'missing', 'foo')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('lv', 'missing', 'foo')->andReturn([]);
+
+        $this->assertSame([], $translator->get('foo::bar.empty'));
+        $this->assertTrue($translator->has('foo::bar.empty'));
+        $this->assertSame([], $translator->array('foo::bar.empty'));
+        $this->assertSame('foo::missing', $translator->get('foo::missing'));
+    }
+
     public function testArrayMethodThrowsExceptionForStringItem(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
