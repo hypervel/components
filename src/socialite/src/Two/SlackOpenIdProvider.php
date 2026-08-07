@@ -6,6 +6,7 @@ namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\RequestOptions;
 use Hypervel\Support\Arr;
+use SensitiveParameter;
 
 class SlackOpenIdProvider extends AbstractProvider implements ProviderInterface
 {
@@ -29,7 +30,7 @@ class SlackOpenIdProvider extends AbstractProvider implements ProviderInterface
         return 'https://slack.com/api/openid.connect.token';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         $response = $this->getHttpClient()->get('https://slack.com/api/openid.connect.userInfo', [
             RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token],

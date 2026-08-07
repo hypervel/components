@@ -142,15 +142,16 @@ abstract class Manager
     /**
      * Set the container instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent driver resolution
-     * through this manager.
+     * Tests only. Swaps the singleton's container and configuration references;
+     * per-request use races across coroutines and breaks every concurrent driver
+     * resolution through this manager.
      *
      * @return $this
      */
     public function setContainer(Container $container): static
     {
         $this->container = $container;
+        $this->config = $container->make('config');
 
         return $this;
     }

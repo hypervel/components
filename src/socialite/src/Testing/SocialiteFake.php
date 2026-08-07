@@ -6,6 +6,7 @@ namespace Hypervel\Socialite\Testing;
 
 use Closure;
 use Hypervel\Socialite\Contracts\Factory;
+use Hypervel\Socialite\Contracts\Provider;
 use Hypervel\Socialite\Contracts\User as UserContract;
 use UnitEnum;
 
@@ -31,7 +32,7 @@ class SocialiteFake implements Factory
     /**
      * Get a provider implementation.
      */
-    public function driver(UnitEnum|string|null $driver = null): mixed
+    public function driver(UnitEnum|string|null $driver = null): Provider
     {
         if ($driver instanceof UnitEnum) {
             $driver = (string) enum_value($driver);

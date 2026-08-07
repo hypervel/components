@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Two;
 
-use Exception;
 use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use GuzzleHttp\RequestOptions;
+use Hypervel\Socialite\Two\Concerns\InteractsWithJwks;
+use Hypervel\Socialite\Two\Exceptions\InvalidIssuerException;
 use Hypervel\Support\Arr;
-use phpseclib3\Crypt\RSA;
-use phpseclib3\Math\BigInteger;
+use SensitiveParameter;
 
 class FacebookProvider extends AbstractProvider implements ProviderInterface
 {
+    use InteractsWithJwks;
+
     /**
      * The base Facebook Graph URL.
      */
@@ -54,7 +55,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
         return $this->graphUrl . '/' . $this->getGraphVersion() . '/oauth/access_token';
     }
 
-    public function getAccessTokenResponse(string $code): array
+    public function getAccessTokenResponse(#[SensitiveParameter] string $code): array
     {
         $response = $this->getHttpClient()->post($this->getTokenUrl(), [
             RequestOptions::FORM_PARAMS => $this->getTokenFields($code),
@@ -65,7 +66,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
         return Arr::add($data, 'expires_in', Arr::pull($data, 'expires'));
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         $this->setLastToken($token);
 
@@ -76,18 +77,28 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     /**
      * Get user based on the OIDC token.
      */
-    protected function getUserByOIDCToken(string $token): ?array
+    protected function getUserByOIDCToken(#[SensitiveParameter] string $token): ?array
     {
-        $kid = json_decode(base64_decode(explode('.', $token)[0]), true)['kid'] ?? null;
+        $segments = explode('.', $token);
+
+        if (count($segments) !== 3) {
+            return null;
+        }
+
+        $header = json_decode(JWT::urlsafeB64Decode($segments[0]), true);
+        $kid = is_array($header) ? ($header['kid'] ?? null) : null;
 
         if ($kid === null) {
             return null;
         }
 
-        $data = (array) JWT::decode($token, $this->getPublicKeyOfOIDCToken($kid));
+        $data = $this->decodeUsingJwks($token);
 
-        throw_if($data['aud'] !== $this->getClientId(), new Exception('Token has incorrect audience.'));
-        throw_if($data['iss'] !== 'https://www.facebook.com', new Exception('Token has incorrect issuer.'));
+        $this->validateAudience($data['aud'] ?? null);
+
+        if (($data['iss'] ?? null) !== 'https://www.facebook.com') {
+            throw new InvalidIssuerException;
+        }
 
         $data['id'] = $data['sub'];
 
@@ -103,27 +114,17 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     }
 
     /**
-     * Get the public key to verify the signature of OIDC token.
+     * Get Facebook's JSON Web Key Set URI.
      */
-    protected function getPublicKeyOfOIDCToken(string $kid): Key
+    protected function getJwksUri(bool $refresh = false): string
     {
-        $response = $this->getHttpClient()->get('https://limited.facebook.com/.well-known/oauth/openid/jwks/');
-
-        $key = Arr::first(json_decode($response->getBody()->getContents(), true)['keys'], function ($key) use ($kid) {
-            return $key['kid'] === $kid;
-        });
-
-        $key['n'] = new BigInteger(JWT::urlsafeB64Decode($key['n']), 256);
-        $key['e'] = new BigInteger(JWT::urlsafeB64Decode($key['e']), 256);
-
-        // @phpstan-ignore-next-line
-        return new Key((string) RSA::load($key), 'RS256');
+        return 'https://limited.facebook.com/.well-known/oauth/openid/jwks/';
     }
 
     /**
      * Get user based on the access token.
      */
-    protected function getUserFromAccessToken(string $token): array
+    protected function getUserFromAccessToken(#[SensitiveParameter] string $token): array
     {
         $params = [
             'access_token' => $token,
@@ -237,7 +238,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     /**
      * Set the last access token used.
      */
-    protected function setLastToken(string $token): static
+    protected function setLastToken(#[SensitiveParameter] string $token): static
     {
         $this->setContext('lastToken', $token);
 

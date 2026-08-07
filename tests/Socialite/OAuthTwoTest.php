@@ -20,13 +20,16 @@ use Hypervel\Tests\Socialite\Fixtures\OAuthTwoWithConfigTestProviderStub;
 use Hypervel\Tests\Socialite\Fixtures\OAuthTwoWithPKCETestProviderStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
+use SensitiveParameter;
 use Swoole\Coroutine\Channel;
+use TypeError;
 
 class OAuthTwoTest extends TestCase
 {
-    public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()
+    public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE(): void
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('session')
@@ -61,7 +64,7 @@ class OAuthTwoTest extends TestCase
         );
     }
 
-    public function testRedirectGeneratesTheProperRedirectResponseWithPKCE()
+    public function testRedirectGeneratesTheProperRedirectResponseWithPKCE(): void
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('session')
@@ -106,7 +109,7 @@ class OAuthTwoTest extends TestCase
         );
     }
 
-    public function testTokenRequestIncludesPKCECodeVerifier()
+    public function testTokenRequestIncludesPKCECodeVerifier(): void
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('has')
@@ -149,7 +152,7 @@ class OAuthTwoTest extends TestCase
         $this->assertSame($user->id, $provider->user()->id);
     }
 
-    public function testUserReturnsAUserInstanceForTheAuthenticatedRequest()
+    public function testUserReturnsAUserInstanceForTheAuthenticatedRequest(): void
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('session')
@@ -187,10 +190,15 @@ class OAuthTwoTest extends TestCase
         $this->assertSame('access_token', $user->token);
         $this->assertSame('refresh_token', $user->refreshToken);
         $this->assertSame(3600, $user->expiresIn);
+        $this->assertSame([
+            'access_token' => 'access_token',
+            'refresh_token' => 'refresh_token',
+            'expires_in' => 3600,
+        ], $user->accessTokenResponseBody);
         $this->assertSame($user->id, $provider->user()->id);
     }
 
-    public function testUserReturnsAUserInstanceForTheAuthenticatedFacebookRequest()
+    public function testUserReturnsAUserInstanceForTheAuthenticatedFacebookRequest(): void
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('session')
@@ -229,7 +237,7 @@ class OAuthTwoTest extends TestCase
         $this->assertSame($user->id, $provider->user()->id);
     }
 
-    public function testExceptionIsThrownIfStateIsInvalid()
+    public function testExceptionIsThrownIfStateIsInvalid(): void
     {
         $this->expectException(InvalidStateException::class);
 
@@ -253,7 +261,7 @@ class OAuthTwoTest extends TestCase
         $provider->user();
     }
 
-    public function testExceptionIsThrownIfStateIsNotSet()
+    public function testExceptionIsThrownIfStateIsNotSet(): void
     {
         $this->expectException(InvalidStateException::class);
 
@@ -270,7 +278,7 @@ class OAuthTwoTest extends TestCase
         $provider->user();
     }
 
-    public function testUserRefreshesToken()
+    public function testUserRefreshesToken(): void
     {
         $request = m::mock(Request::class);
         $provider = new OAuthTwoTestProviderStub(
@@ -296,7 +304,7 @@ class OAuthTwoTest extends TestCase
         $this->assertSame(['scope1', 'scope2'], $token->approvedScopes);
     }
 
-    public function testUserRefreshesGoogleToken()
+    public function testUserRefreshesGoogleToken(): void
     {
         $request = m::mock(Request::class);
         $provider = new GoogleTestProviderStub(
@@ -322,7 +330,132 @@ class OAuthTwoTest extends TestCase
         $this->assertSame(['scope1', 'scope2'], $token->approvedScopes);
     }
 
-    public function testSetConfigOverridesCredentialsInRedirect()
+    public function testTokenResponseParsersNormalizeProviderValues(): void
+    {
+        $provider = new OAuthTwoTestProviderStub(
+            m::mock(Request::class),
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+
+        $this->assertSame('access-token', $provider->parseProviderAccessToken(['access_token' => 'access-token']));
+        $this->assertNull($provider->parseProviderRefreshToken([]));
+        $this->assertSame('refresh-token', $provider->parseProviderRefreshToken(['refresh_token' => 'refresh-token']));
+        $this->assertSame([], $provider->parseProviderApprovedScopes([]));
+        $this->assertSame([], $provider->parseProviderApprovedScopes(['scope' => '']));
+        $this->assertSame(['read', 'write'], $provider->parseProviderApprovedScopes(['scope' => 'read,write']));
+        $this->assertSame(['read', 'write'], $provider->parseProviderApprovedScopes(['scope' => ['read', 'write']]));
+    }
+
+    #[DataProvider('expiresInProvider')]
+    public function testExpiresInParserAcceptsNonNegativeIntegers(array $response, ?int $expected): void
+    {
+        $provider = new OAuthTwoTestProviderStub(
+            m::mock(Request::class),
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+
+        $this->assertSame($expected, $provider->parseProviderExpiresIn($response));
+    }
+
+    public static function expiresInProvider(): array
+    {
+        return [
+            'missing' => [[], null],
+            'zero integer' => [['expires_in' => 0], 0],
+            'positive integer' => [['expires_in' => 600], 600],
+            'negative integer' => [['expires_in' => -1], null],
+            'zero string' => [['expires_in' => '0'], 0],
+            'positive digit string' => [['expires_in' => '600'], 600],
+            'zero-padded string' => [['expires_in' => '0600'], 600],
+            'negative string' => [['expires_in' => '-1'], null],
+            'decimal string' => [['expires_in' => '1.5'], null],
+            'integer maximum' => [['expires_in' => (string) PHP_INT_MAX], PHP_INT_MAX],
+            'integer overflow' => [['expires_in' => (string) PHP_INT_MAX . '0'], null],
+            'float' => [['expires_in' => 600.0], null],
+        ];
+    }
+
+    public function testMissingAccessTokenFailsAtTheParserBoundary(): void
+    {
+        $provider = new OAuthTwoTestProviderStub(
+            m::mock(Request::class),
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+
+        $this->expectException(TypeError::class);
+
+        $provider->parseProviderAccessToken([]);
+    }
+
+    public function testWholeTokenResponseCanMapAndPopulateTheUser(): void
+    {
+        $request = m::mock(Request::class);
+        $request->expects('input')->with('code')->andReturn('code');
+
+        $provider = new OAuthTwoWholeResponseTestProviderStub(
+            $request,
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+        $provider->stateless();
+        $provider->http = m::mock(Client::class);
+        $provider->http->expects('post')->andReturn($response = m::mock(ResponseInterface::class));
+        $stream = m::mock(StreamInterface::class);
+        $stream->allows('__toString')->andReturn(json_encode([
+            'access_token' => 'access-token',
+            'profile_id' => 'response-user',
+        ]));
+        $response->expects('getBody')->andReturn($stream);
+
+        $user = $provider->user();
+
+        $this->assertSame('response-user', $user->id);
+        $this->assertSame([
+            'access_token' => 'access-token',
+            'profile_id' => 'response-user',
+        ], $user->accessTokenResponseBody);
+
+        $userFromToken = $provider->userFromToken('known-token');
+
+        $this->assertSame([], $userFromToken->accessTokenResponseBody);
+    }
+
+    public function testFailedUserDecorationDoesNotCachePartialUser(): void
+    {
+        $request = m::mock(Request::class);
+        $request->expects('input')->with('code')->andReturn('code');
+
+        $provider = new OAuthTwoWholeResponseTestProviderStub(
+            $request,
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+        $provider->stateless();
+        $provider->http = m::mock(Client::class);
+        $provider->http->expects('post')->andReturn($response = m::mock(ResponseInterface::class));
+        $stream = m::mock(StreamInterface::class);
+        $stream->allows('__toString')->andReturn('{"profile_id":"response-user"}');
+        $response->expects('getBody')->andReturn($stream);
+
+        try {
+            $provider->user();
+            $this->fail('Expected token parsing to fail.');
+        } catch (TypeError) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertNull($provider->getProviderUser());
+    }
+
+    public function testSetConfigOverridesCredentialsInRedirect(): void
     {
         $request = m::mock(Request::class);
 
@@ -348,7 +481,7 @@ class OAuthTwoTest extends TestCase
         $this->assertStringNotContainsString('original_redirect', $response->getTargetUrl());
     }
 
-    public function testSetConfigOverridesCredentialsInTokenRequest()
+    public function testSetConfigOverridesCredentialsInTokenRequest(): void
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('session')
@@ -398,7 +531,7 @@ class OAuthTwoTest extends TestCase
         $this->assertSame('foo', $user->id);
     }
 
-    public function testSetConfigOverridesCredentialsInRefreshToken()
+    public function testSetConfigOverridesCredentialsInRefreshToken(): void
     {
         $request = m::mock(Request::class);
 
@@ -432,7 +565,7 @@ class OAuthTwoTest extends TestCase
         $this->assertSame('access_token', $token->token);
     }
 
-    public function testSetConfigPartialOverridePreservesDefaults()
+    public function testSetConfigPartialOverridePreservesDefaults(): void
     {
         $request = m::mock(Request::class);
 
@@ -453,7 +586,7 @@ class OAuthTwoTest extends TestCase
         $this->assertStringContainsString('redirect_uri=original_redirect', $response->getTargetUrl());
     }
 
-    public function testGetConfigReturnsAdditionalKeys()
+    public function testGetConfigReturnsAdditionalKeys(): void
     {
         $request = m::mock(Request::class);
 
@@ -475,7 +608,7 @@ class OAuthTwoTest extends TestCase
         $this->assertNull($provider->getProviderConfig('missing_key'));
     }
 
-    public function testWithConfigBaselineSurvivesAcrossCoroutines()
+    public function testWithConfigBaselineSurvivesAcrossCoroutines(): void
     {
         $request = m::mock(Request::class);
 
@@ -516,7 +649,7 @@ class OAuthTwoTest extends TestCase
         $this->assertSame('https://auth.example.com', $provider->getProviderConfig('base_url'));
     }
 
-    public function testSetConfigIsIsolatedPerCoroutine()
+    public function testSetConfigIsIsolatedPerCoroutine(): void
     {
         $request = m::mock(Request::class);
 
@@ -558,5 +691,13 @@ class OAuthTwoTest extends TestCase
         $this->assertStringContainsString('client_id=tenant_a', $parentUrl);
         $this->assertStringContainsString('client_id=tenant_b', $childUrl);
         $this->assertStringContainsString('client_id=base_id', $fallbackUrl);
+    }
+}
+
+class OAuthTwoWholeResponseTestProviderStub extends OAuthTwoTestProviderStub
+{
+    protected function getUserByTokenResponse(#[SensitiveParameter] array $response): array
+    {
+        return ['id' => $response['profile_id']];
     }
 }
