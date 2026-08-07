@@ -38,6 +38,19 @@ class ManagerTest extends TestCase
         $this->assertSame('zero', $manager->driver(ManagerIntegerIdentifier::Zero));
     }
 
+    public function testSetContainerRefreshesTheConfigurationRepository(): void
+    {
+        $manager = $this->createManager();
+        $container = new Container;
+        $configuration = new Repository(['source' => 'replacement']);
+        $container->instance('config', $configuration);
+
+        $manager->setContainer($container);
+
+        $this->assertSame($container, $manager->getContainer());
+        $this->assertSame($configuration, $manager->getConfigurationRepository());
+    }
+
     protected function createManager(): EnumIdentifierManager
     {
         $container = new Container;
@@ -52,6 +65,11 @@ class EnumIdentifierManager extends Manager
     public function getDefaultDriver(): string
     {
         return 'default';
+    }
+
+    public function getConfigurationRepository(): Repository
+    {
+        return $this->config;
     }
 }
 
