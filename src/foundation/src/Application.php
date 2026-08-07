@@ -10,10 +10,12 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\LocaleUpdated;
@@ -1248,7 +1250,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function getLocale(): string
     {
-        return $this['translator']->getLocale();
+        return $this->make(TranslatorContract::class)->getLocale();
     }
 
     /**
@@ -1272,7 +1274,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function getFallbackLocale(): string
     {
-        return $this['translator']->getFallback();
+        return $this->make(TranslatorContract::class)->getFallback();
     }
 
     /**
@@ -1280,11 +1282,18 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setLocale(string $locale): void
     {
-        $previous = $this['translator']->getLocale();
+        // Config supplies the boot defaults; the Translator owns the request-local
+        // current locale and worker-shared fallback thereafter.
+        $translator = $this->make(TranslatorContract::class);
 
-        $this['translator']->setLocale($locale);
+        $previous = $translator->getLocale();
+        $translator->setLocale($locale);
 
-        $this['events']->dispatch(new LocaleUpdated($locale, $previous));
+        $events = $this->make(DispatcherContract::class);
+
+        if ($events->hasListeners(LocaleUpdated::class)) {
+            $events->dispatch(new LocaleUpdated($locale, $previous));
+        }
     }
 
     /**
@@ -1295,7 +1304,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setFallbackLocale(string $fallbackLocale): void
     {
-        $this['translator']->setFallback($fallbackLocale);
+        $this->make(TranslatorContract::class)->setFallback($fallbackLocale);
     }
 
     /**

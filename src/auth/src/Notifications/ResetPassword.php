@@ -73,9 +73,9 @@ class ResetPassword extends Notification
     protected function buildMailMessage(string $url): MailMessage
     {
         return (new MailMessage)
-            ->subject(Lang::get('Reset your password'))
+            ->subject(Lang::string('Reset your password'))
             ->line(Lang::get('You are receiving this email because we received a password reset request for your account.'))
-            ->action(Lang::get('Reset Password'), $url)
+            ->action(Lang::string('Reset Password'), $url)
             ->line(Lang::get('This password reset link will expire in :count minutes.', ['count' => $this->expireMinutes]))
             ->line(Lang::get('If you did not request a password reset, no further action is required.'));
     }

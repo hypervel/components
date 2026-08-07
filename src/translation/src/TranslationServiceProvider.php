@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Translation\Loader;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ServiceProvider;
 
 class TranslationServiceProvider extends ServiceProvider
@@ -16,14 +19,15 @@ class TranslationServiceProvider extends ServiceProvider
         $this->registerLoader();
 
         $this->app->singleton('translator', function ($app) {
-            $loader = $app['translation.loader'];
+            $config = $app->make(ConfigRepository::class);
+            $loader = $app->make(Loader::class);
 
             $trans = new Translator(
                 $loader,
-                $app->make('config')->string('app.locale', 'en')
+                $config->string('app.locale')
             );
 
-            $trans->setFallback($app->make('config')->string('app.fallback_locale', 'en'));
+            $trans->setFallback($config->string('app.fallback_locale'));
 
             return $trans;
         });
@@ -36,7 +40,7 @@ class TranslationServiceProvider extends ServiceProvider
     {
         $this->app->singleton('translation.loader', function ($app) {
             return new FileLoader(
-                $app['files'],
+                $app->make(Filesystem::class),
                 [
                     dirname(__DIR__) . DIRECTORY_SEPARATOR . 'lang',
                     $app->langPath(),
