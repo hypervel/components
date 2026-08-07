@@ -8,15 +8,15 @@ use GuzzleHttp\Client;
 use Hypervel\Socialite\Two\OpenIdProvider;
 use Hypervel\Socialite\Two\User;
 use Mockery as m;
+use SensitiveParameter;
 
 class VerifyingOpenIdTestProviderStub extends OpenIdProvider
 {
-    /**
-     * @var \GuzzleHttp\Client|\Mockery\MockInterface
-     */
-    public $http;
+    protected bool $usesNonce = false;
 
-    public function verifyToken(string $token): ?array
+    public ?Client $http = null;
+
+    public function verifyToken(#[SensitiveParameter] string $token): array
     {
         return $this->getUserByOIDCToken($token);
     }
@@ -28,7 +28,7 @@ class VerifyingOpenIdTestProviderStub extends OpenIdProvider
 
     protected function getBaseUrl(): string
     {
-        return 'http://base.url';
+        return $this->getConfig('base_url', 'http://base.url');
     }
 
     protected function getAuthUrl(?string $state, ?string $nonce = null): string
@@ -41,7 +41,7 @@ class VerifyingOpenIdTestProviderStub extends OpenIdProvider
         return 'http://token.url';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         return ['id' => 'foo'];
     }
@@ -53,8 +53,6 @@ class VerifyingOpenIdTestProviderStub extends OpenIdProvider
 
     /**
      * Get a fresh instance of the Guzzle HTTP client.
-     *
-     * @return \GuzzleHttp\Client|\Mockery\MockInterface
      */
     protected function getHttpClient(): Client
     {

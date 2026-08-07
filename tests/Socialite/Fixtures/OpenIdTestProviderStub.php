@@ -8,17 +8,15 @@ use GuzzleHttp\Client;
 use Hypervel\Socialite\Two\OpenIdProvider;
 use Hypervel\Socialite\Two\User;
 use Mockery as m;
+use SensitiveParameter;
 
 class OpenIdTestProviderStub extends OpenIdProvider
 {
-    /**
-     * @var \GuzzleHttp\Client|\Mockery\MockInterface
-     */
-    public $http;
+    public ?Client $http = null;
 
     protected function getBaseUrl(): string
     {
-        return 'http://base.url';
+        return $this->getConfig('base_url', 'http://base.url');
     }
 
     protected function getAuthUrl(?string $state, ?string $nonce = null): string
@@ -31,15 +29,15 @@ class OpenIdTestProviderStub extends OpenIdProvider
         return 'http://token.url';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
-        return ['id' => 'foo'];
+        return parent::getUserByToken($token);
     }
 
     /**
      * Get user based on the OIDC token.
      */
-    protected function getUserByOIDCToken(string $token): ?array
+    protected function getUserByOIDCToken(#[SensitiveParameter] string $token): array
     {
         $this->validateOIDCPayload(
             $data = [
@@ -58,10 +56,28 @@ class OpenIdTestProviderStub extends OpenIdProvider
         return (new User)->map(['id' => $user['sub']]);
     }
 
+    public function getProviderOpenIdConfig(bool $refresh = false): array
+    {
+        return $this->getOpenIdConfig($refresh);
+    }
+
+    public function validateProviderPayload(array $payload): void
+    {
+        $this->validateOIDCPayload($payload);
+    }
+
+    public function getProviderUserByTokenResponse(#[SensitiveParameter] array $response): array
+    {
+        return $this->getUserByTokenResponse($response);
+    }
+
+    public function getProviderUserByToken(#[SensitiveParameter] string $token): array
+    {
+        return $this->getUserByToken($token);
+    }
+
     /**
      * Get a fresh instance of the Guzzle HTTP client.
-     *
-     * @return \GuzzleHttp\Client|\Mockery\MockInterface
      */
     protected function getHttpClient(): Client
     {

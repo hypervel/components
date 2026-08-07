@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Two\Exceptions;
 
-use InvalidArgumentException;
+use RuntimeException;
 
-class ConfigurationFetchingException extends InvalidArgumentException
+class ConfigurationFetchingException extends RuntimeException
 {
 }
