@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Reverb\Servers\Hypervel\Scaling;
 
 use ErrorException;
+use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Facades\Log;
 use RuntimeException;
-use Swoole\Atomic;
 use Swoole\Table;
 use Throwable;
 
@@ -28,28 +28,6 @@ class SwooleTableSharedState implements SharedState
 
     protected const string MEMBER_SMOOTHING_KEY_TYPE = 'p';
 
-    /**
-     * Number of striped locks for inter-worker row lifecycle protection.
-     */
-    protected const int STRIPE_COUNT = 64;
-
-    // Late-bound so deterministic test subclasses can shorten the spin phase.
-    protected const int SPINS_BEFORE_BACKOFF = 64;
-
-    // Late-bound so deterministic test subclasses can shorten the timeout.
-    protected const int LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 1_000_000_000;
-
-    /**
-     * Striped Atomic locks for inter-worker row lifecycle operations.
-     *
-     * Prevents races where one worker's decr+del interleaves with another
-     * worker's ensureRowExists+incr on the same key. Created before fork
-     * so they're shared across all workers via shared memory.
-     *
-     * @var list<Atomic>
-     */
-    protected array $locks;
-
     protected int $hashSeed;
 
     /**
@@ -60,18 +38,15 @@ class SwooleTableSharedState implements SharedState
      *
      * @param Table $table Main counter table (subscription counts, connection slots)
      * @param Table $lockTable Webhook throttle/dedupe lock table (timestamp-based TTLs)
+     * @param StripedLock $locks Inter-worker row lifecycle locks created before fork
      */
     public function __construct(
         protected Table $table,
         protected Table $lockTable,
+        protected StripedLock $locks,
         int $hashSeed = 0,
     ) {
         $this->hashSeed = $hashSeed ?: random_int(1, PHP_INT_MAX);
-
-        $this->locks = array_map(
-            fn () => new Atomic(0),
-            range(0, self::STRIPE_COUNT - 1),
-        );
     }
 
     /**
@@ -86,16 +61,17 @@ class SwooleTableSharedState implements SharedState
             $memberAdded = false;
         } else {
             $userKey = $this->physicalKey(self::USER_KEY_TYPE, $appId, $channel, $userId);
-            $locks = $this->locksFor($channelKey, $userKey);
-            $this->acquireAll($locks);
+            [$newCount, $userCount] = $this->locks->withLocks(
+                [$channelKey, $userKey],
+                function () use ($channelKey, $userKey): array {
+                    $this->ensurePresenceRowsExist($channelKey, $userKey);
 
-            try {
-                $this->ensurePresenceRowsExist($channelKey, $userKey);
-                $newCount = $this->table->incr($channelKey, 'count', 1);
-                $userCount = $this->table->incr($userKey, 'count', 1);
-            } finally {
-                $this->releaseAll($locks);
-            }
+                    return [
+                        $this->table->incr($channelKey, 'count', 1),
+                        $this->table->incr($userKey, 'count', 1),
+                    ];
+                },
+            );
 
             $memberAdded = ($userCount === 1);
         }
@@ -121,16 +97,17 @@ class SwooleTableSharedState implements SharedState
             $memberRemoved = false;
         } else {
             $userKey = $this->physicalKey(self::USER_KEY_TYPE, $appId, $channel, $userId);
-            $locks = $this->locksFor($channelKey, $userKey);
-            $this->acquireAll($locks);
+            [$newCount, $userCount] = $this->locks->withLocks(
+                [$channelKey, $userKey],
+                function () use ($channelKey, $userKey): array {
+                    $this->ensurePresenceRowsExist($channelKey, $userKey);
 
-            try {
-                $this->ensurePresenceRowsExist($channelKey, $userKey);
-                $newCount = $this->decrAndCleanup($channelKey);
-                $userCount = $this->decrAndCleanup($userKey);
-            } finally {
-                $this->releaseAll($locks);
-            }
+                    return [
+                        $this->decrAndCleanup($channelKey),
+                        $this->decrAndCleanup($userKey),
+                    ];
+                },
+            );
 
             $memberRemoved = ($userCount <= 0);
         }
@@ -168,10 +145,7 @@ class SwooleTableSharedState implements SharedState
     {
         $key = $this->physicalKey(self::CONNECTION_KEY_TYPE, $appId);
 
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-
-        try {
+        $this->locks->withLock($key, function () use ($key): void {
             if (! $this->table->exists($key)) {
                 return;
             }
@@ -181,9 +155,7 @@ class SwooleTableSharedState implements SharedState
             if ($newCount <= 0) {
                 $this->table->del($key);
             }
-        } finally {
-            $this->release($lock);
-        }
+        });
     }
 
     /**
@@ -256,14 +228,11 @@ class SwooleTableSharedState implements SharedState
     public function clearCacheMissLock(string $appId, string $channel): void
     {
         $key = $this->physicalKey(self::CACHE_MISS_LOCK_KEY_TYPE, $appId, $channel);
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
 
-        try {
-            $this->lockTable->del($key);
-        } finally {
-            $this->release($lock);
-        }
+        $this->locks->withLock(
+            $key,
+            fn (): bool => $this->lockTable->del($key),
+        );
     }
 
     /**
@@ -272,14 +241,11 @@ class SwooleTableSharedState implements SharedState
     public function clearSubscriptionCountLock(string $appId, string $channel): void
     {
         $key = $this->physicalKey(self::SUBSCRIPTION_COUNT_LOCK_KEY_TYPE, $appId, $channel);
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
 
-        try {
-            $this->lockTable->del($key);
-        } finally {
-            $this->release($lock);
-        }
+        $this->locks->withLock(
+            $key,
+            fn (): bool => $this->lockTable->del($key),
+        );
     }
 
     /**
@@ -288,15 +254,10 @@ class SwooleTableSharedState implements SharedState
     public function setSmoothingPending(string $appId, string $channel, int $ttlMs): void
     {
         $key = $this->physicalKey(self::CHANNEL_SMOOTHING_KEY_TYPE, $appId, $channel);
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-        $stored = false;
-
-        try {
-            $stored = $this->setLockRow($key, microtime(true));
-        } finally {
-            $this->release($lock);
-        }
+        $stored = $this->locks->withLock(
+            $key,
+            fn (): bool => $this->setLockRow($key, microtime(true)),
+        );
 
         if (! $stored) {
             $this->reportFullLockTable($key);
@@ -320,15 +281,10 @@ class SwooleTableSharedState implements SharedState
     public function setMemberSmoothingPending(string $appId, string $channel, string $userId, int $ttlMs): void
     {
         $key = $this->physicalKey(self::MEMBER_SMOOTHING_KEY_TYPE, $appId, $channel, $userId);
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-        $stored = false;
-
-        try {
-            $stored = $this->setLockRow($key, microtime(true));
-        } finally {
-            $this->release($lock);
-        }
+        $stored = $this->locks->withLock(
+            $key,
+            fn (): bool => $this->setLockRow($key, microtime(true)),
+        );
 
         if (! $stored) {
             $this->reportFullLockTable($key);
@@ -355,11 +311,8 @@ class SwooleTableSharedState implements SharedState
      */
     protected function tryLock(string $key, int $ttlMs): bool
     {
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-        $stored = false;
-
-        try {
+        $writeFailed = false;
+        $stored = $this->locks->withLock($key, function () use ($key, $ttlMs, &$writeFailed): bool {
             $row = $this->lockTable->get($key, 'locked_at');
             $now = microtime(true);
 
@@ -368,11 +321,12 @@ class SwooleTableSharedState implements SharedState
             }
 
             $stored = $this->setLockRow($key, $now);
-        } finally {
-            $this->release($lock);
-        }
+            $writeFailed = ! $stored;
 
-        if (! $stored) {
+            return $stored;
+        });
+
+        if ($writeFailed) {
             $this->reportFullLockTable($key);
         }
 
@@ -416,10 +370,7 @@ class SwooleTableSharedState implements SharedState
      */
     protected function consumeMarker(string $key, int $ttlMs): bool
     {
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-
-        try {
+        return $this->locks->withLock($key, function () use ($key, $ttlMs): bool {
             $row = $this->lockTable->get($key, 'locked_at');
 
             if ($row === false) {
@@ -435,9 +386,7 @@ class SwooleTableSharedState implements SharedState
             }
 
             return true;
-        } finally {
-            $this->release($lock);
-        }
+        });
     }
 
     /**
@@ -448,16 +397,11 @@ class SwooleTableSharedState implements SharedState
      */
     protected function atomicIncr(string $key): int
     {
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-
-        try {
+        return $this->locks->withLock($key, function () use ($key): int {
             $this->ensureRowExists($key);
 
             return $this->table->incr($key, 'count', 1);
-        } finally {
-            $this->release($lock);
-        }
+        });
     }
 
     /**
@@ -468,16 +412,11 @@ class SwooleTableSharedState implements SharedState
      */
     protected function atomicDecrAndCleanup(string $key): int
     {
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-
-        try {
+        return $this->locks->withLock($key, function () use ($key): int {
             $this->ensureRowExists($key);
 
             return $this->decrAndCleanup($key);
-        } finally {
-            $this->release($lock);
-        }
+        });
     }
 
     /**
@@ -494,108 +433,6 @@ class SwooleTableSharedState implements SharedState
         }
 
         return $newCount;
-    }
-
-    /**
-     * Get the striped locks for two keys in deterministic order.
-     *
-     * @return list<Atomic>
-     */
-    protected function locksFor(string $firstKey, string $secondKey): array
-    {
-        $firstIndex = $this->lockIndexFor($firstKey);
-        $secondIndex = $this->lockIndexFor($secondKey);
-
-        if ($firstIndex === $secondIndex) {
-            return [$this->locks[$firstIndex]];
-        }
-
-        if ($firstIndex < $secondIndex) {
-            return [$this->locks[$firstIndex], $this->locks[$secondIndex]];
-        }
-
-        return [$this->locks[$secondIndex], $this->locks[$firstIndex]];
-    }
-
-    /**
-     * Acquire every lock in order.
-     *
-     * @param list<Atomic> $locks
-     */
-    protected function acquireAll(array $locks): void
-    {
-        $acquired = [];
-
-        try {
-            foreach ($locks as $lock) {
-                $this->acquire($lock);
-                $acquired[] = $lock;
-            }
-        } catch (Throwable $exception) {
-            $this->releaseAll($acquired);
-
-            throw $exception;
-        }
-    }
-
-    /**
-     * Release every lock in reverse order.
-     *
-     * @param list<Atomic> $locks
-     */
-    protected function releaseAll(array $locks): void
-    {
-        foreach (array_reverse($locks) as $lock) {
-            $this->release($lock);
-        }
-    }
-
-    /**
-     * Get the striped lock for a given key.
-     */
-    protected function lockFor(string $key): Atomic
-    {
-        return $this->locks[$this->lockIndexFor($key)];
-    }
-
-    /**
-     * Get the striped lock index for a given key.
-     */
-    protected function lockIndexFor(string $key): int
-    {
-        return crc32($key) % self::STRIPE_COUNT;
-    }
-
-    /**
-     * Acquire a striped lock (spin-lock).
-     */
-    protected function acquire(Atomic $lock): void
-    {
-        $deadline = null;
-        $spins = 0;
-
-        while (! $lock->cmpset(0, 1)) {
-            $deadline ??= hrtime(true) + static::LOCK_ACQUIRE_TIMEOUT_NANOSECONDS;
-
-            if (++$spins < static::SPINS_BEFORE_BACKOFF) {
-                continue;
-            }
-
-            if (hrtime(true) >= $deadline) {
-                throw new RuntimeException('Timed out acquiring a Swoole table shared-state lock.');
-            }
-
-            $spins = 0;
-            usleep(1);
-        }
-    }
-
-    /**
-     * Release a striped lock.
-     */
-    protected function release(Atomic $lock): void
-    {
-        $lock->cmpset(1, 0);
     }
 
     /**

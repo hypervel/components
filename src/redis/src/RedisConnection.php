@@ -1606,15 +1606,17 @@ abstract class RedisConnection extends BaseConnection
      * isn't cached yet (NOSCRIPT error).
      *
      * Unlike naive implementations that treat any `false` return as NOSCRIPT,
-     * this method properly distinguishes NOSCRIPT errors from other failures
-     * (syntax errors, OOM, WRONGTYPE, etc.) and throws on non-NOSCRIPT errors.
+     * this method wraps script and data errors returned by phpredis as `false`
+     * while native server, cluster, authentication, and transport exceptions
+     * propagate unchanged.
      *
      * @param string $script The Lua script to execute
      * @param array<string> $keys Redis keys (passed as KEYS[] in Lua)
      * @param array<mixed> $args Additional arguments (passed as ARGV[] in Lua)
      * @return mixed The script's return value
      *
-     * @throws LuaScriptException If script execution fails (non-NOSCRIPT error)
+     * @throws LuaScriptException If phpredis returns a non-NOSCRIPT script or data error
+     * @throws RedisException If Redis rejects execution or the connection fails
      */
     public function evalWithShaCache(string $script, array $keys = [], array $args = []): mixed
     {

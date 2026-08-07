@@ -100,6 +100,11 @@ class FakeConnection extends BaseConnection
      */
     public function send(string $message): void
     {
+        // The real transport drops pushes after its file descriptor disconnects.
+        if ($this->wasTerminated) {
+            return;
+        }
+
         $this->messages[] = $message;
     }
 

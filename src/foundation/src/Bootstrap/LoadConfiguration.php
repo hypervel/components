@@ -167,6 +167,7 @@ class LoadConfiguration
             'logging' => ['channels'],
             'mail' => ['mailers'],
             'queue' => ['connections'],
+            'rate-limiter' => ['stores'],
         ][$name] ?? [];
     }
 

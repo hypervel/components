@@ -417,7 +417,7 @@ You may also rate limit exceptions logged or sent to an external error tracking 
 
 ```php
 use Hypervel\Broadcasting\BroadcastException;
-use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\RateLimiter\Limit;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -433,7 +433,7 @@ By default, limits will use the exception's class as the rate limit key. You can
 
 ```php
 use Hypervel\Broadcasting\BroadcastException;
-use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\RateLimiter\Limit;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -450,7 +450,7 @@ Of course, you may return a mixture of `Lottery` and `Limit` instances for diffe
 ```php
 use App\Exceptions\ApiMonitoringException;
 use Hypervel\Broadcasting\BroadcastException;
-use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Lottery;
 use Throwable;
 

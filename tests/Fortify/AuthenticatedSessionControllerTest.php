@@ -5,15 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Hypervel\Auth\Events\Logout;
-use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Fortify\Contracts\LoginViewResponse;
 use Hypervel\Fortify\LoginRateLimiter;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -143,7 +141,7 @@ class AuthenticatedSessionControllerTest extends TestCase
     public function testLockoutIsScopedToGuard(): void
     {
         $loginRateLimiter = new LoginRateLimiter(
-            new RateLimiter(new Repository(new ArrayStore))
+            $this->app->make(RateLimiter::class)
         );
 
         $request = Request::create('/login', 'POST', [

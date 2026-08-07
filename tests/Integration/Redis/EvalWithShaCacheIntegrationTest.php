@@ -8,6 +8,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use RedisException;
 
 /**
  * Integration tests for RedisConnection::evalWithShaCache().
@@ -141,6 +142,33 @@ class EvalWithShaCacheIntegrationTest extends TestCase
                 []
             );
         });
+    }
+
+    public function testEvalWithShaCachePreservesPhpRedisErrorClassification(): void
+    {
+        try {
+            Redis::withConnection(function ($connection) {
+                return $connection->evalWithShaCache(
+                    "return redis.error_reply('ERR application script failure')",
+                );
+            });
+
+            $this->fail('Expected the application script error to be wrapped.');
+        } catch (LuaScriptException $exception) {
+            $this->assertStringContainsString('ERR application script failure', $exception->getMessage());
+        }
+
+        try {
+            Redis::withConnection(function ($connection) {
+                return $connection->evalWithShaCache(
+                    "return redis.error_reply('OOM simulated server state')",
+                );
+            });
+
+            $this->fail('Expected the server-state error to propagate.');
+        } catch (RedisException $exception) {
+            $this->assertSame('OOM simulated server state', $exception->getMessage());
+        }
     }
 
     public function testEvalWithShaCacheReturnsNilAsFalse(): void

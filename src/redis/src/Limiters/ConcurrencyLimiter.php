@@ -133,11 +133,13 @@ class ConcurrencyLimiter
             return false;
         }
 
-        $result = $this->redis->eval(...array_merge(
-            [LuaScripts::acquireConcurrencySlot(), count($this->slots)],
-            $this->slots,
-            [$this->keyPrefix, $this->releaseAfter, $id],
-        ));
+        $result = $this->redis->withConnection(
+            fn (RedisConnection $connection): mixed => $connection->evalWithShaCache(
+                LuaScripts::acquireConcurrencySlot(),
+                $this->slots,
+                [$this->keyPrefix, $this->releaseAfter, $id],
+            ),
+        );
 
         return is_string($result) ? $result : false;
     }

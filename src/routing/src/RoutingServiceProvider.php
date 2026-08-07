@@ -11,7 +11,6 @@ use Hypervel\Routing\Console\ControllerMakeCommand;
 use Hypervel\Routing\Console\MiddlewareMakeCommand;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
-use Hypervel\Routing\Middleware\ThrottleRequestsWithRedis;
 use Hypervel\Support\ServiceProvider;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -26,7 +25,6 @@ class RoutingServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->registerRouter();
-        $this->registerRedisThrottle();
         $this->registerUrlGenerator();
         $this->registerRedirector();
         $this->registerPsrRequest();
@@ -50,14 +48,6 @@ class RoutingServiceProvider extends ServiceProvider
         $this->app->singleton('router', function ($app) {
             return new Router($app->make('events'), $app);
         });
-    }
-
-    /**
-     * Register the Redis request throttler.
-     */
-    protected function registerRedisThrottle(): void
-    {
-        $this->app->bind(ThrottleRequestsWithRedis::class);
     }
 
     /**

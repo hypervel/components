@@ -245,7 +245,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Routing\CallableDispatcher::flushState();
         \Hypervel\Routing\ControllerDispatcher::flushState();
         \Hypervel\Routing\ImplicitRouteBinding::flushCache();
-        \Hypervel\Routing\Middleware\ThrottleRequests::flushState();
         \Hypervel\Routing\Middleware\ValidateSignature::flushState();
         \Hypervel\Routing\PendingResourceRegistration::flushState();
         \Hypervel\Routing\PendingSingletonResourceRegistration::flushState();

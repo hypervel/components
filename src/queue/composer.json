@@ -47,6 +47,7 @@
         "hypervel/log": "^0.4",
         "hypervel/object-pool": "^0.4",
         "hypervel/pipeline": "^0.4",
+        "hypervel/rate-limiter": "^0.4",
         "hypervel/redis": "^0.4",
         "hypervel/support": "^0.4"
     },

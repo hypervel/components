@@ -791,12 +791,14 @@ class MailManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's container reference; per-request use
-     * races across coroutines and breaks every concurrent mail send.
+     * Tests only. Swaps the singleton's container and configuration references
+     * without rebuilding resolved mailers; per-request use races across
+     * coroutines and breaks every concurrent mail send.
      */
     public function setApplication(Container $app): static
     {
         $this->app = $app;
+        $this->config = $app->make('config');
 
         return $this;
     }

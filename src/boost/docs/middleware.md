@@ -296,25 +296,7 @@ use Hypervel\Foundation\Configuration\Middleware;
 })
 ```
 
-If you would like API throttling to use Redis, you may pass the `redis` argument to the `throttleApi` method:
-
-```php
-use Hypervel\Foundation\Configuration\Middleware;
-
-->withMiddleware(function (Middleware $middleware): void {
-    $middleware->throttleApi(redis: true);
-})
-```
-
-If you are registering throttling middleware manually and still want the `throttle` alias to use Redis, you may call the `throttleWithRedis` method:
-
-```php
-use Hypervel\Foundation\Configuration\Middleware;
-
-->withMiddleware(function (Middleware $middleware): void {
-    $middleware->throttleWithRedis();
-})
-```
+API throttling uses the store registered for the named limiter, or your application's default rate limiter store. Please consult the [rate limiting documentation](/docs/{{version}}/rate-limiting#configuration) to learn how to configure stores.
 
 If you would like to append or prepend middleware to these groups, you may use the `web` and `api` methods within your application's `bootstrap/app.php` file. The `web` and `api` methods are convenient alternatives to the `appendToGroup` method:
 
@@ -422,7 +404,7 @@ For convenience, some of Hypervel's built-in middleware are aliased by default. 
 | `password.confirm` | `Hypervel\Auth\Middleware\RequirePassword`                                                                  |
 | `precognitive`     | `Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests`                                            |
 | `signed`           | `Hypervel\Routing\Middleware\ValidateSignature`                                                             |
-| `throttle`         | `Hypervel\Routing\Middleware\ThrottleRequests` or `Hypervel\Routing\Middleware\ThrottleRequestsWithRedis` |
+| `throttle`         | `Hypervel\Routing\Middleware\ThrottleRequests`                                                              |
 | `verified`         | `Hypervel\Auth\Middleware\EnsureEmailIsVerified`                                                            |
 
 </div>
@@ -444,7 +426,6 @@ use Hypervel\Foundation\Configuration\Middleware;
         \Hypervel\View\Middleware\ShareErrorsFromSession::class,
         \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequests::class,
-        \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
         \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
         \Hypervel\Routing\Middleware\SubstituteBindings::class,
         \Hypervel\Auth\Middleware\Authorize::class,

@@ -189,15 +189,16 @@ abstract class MultipleInstanceManager
     /**
      * Set the application instance used by the manager.
      *
-     * Tests only. Swaps the singleton's application reference; per-request use
-     * races across coroutines and breaks every concurrent resolution through
-     * this manager.
+     * Tests only. Swaps the singleton's application and configuration references
+     * without rebuilding resolved instances; per-request use races across
+     * coroutines and breaks every concurrent resolution through this manager.
      *
      * @return $this
      */
     public function setApplication(Application $app): static
     {
         $this->app = $app;
+        $this->config = $app->make('config');
 
         return $this;
     }

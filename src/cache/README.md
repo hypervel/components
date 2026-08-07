@@ -5,6 +5,8 @@ Cache for Hypervel
 
 ## Differences From Laravel
 
+Laravel provides rate limiting through its Cache component. Hypervel provides it through the dedicated `hypervel/rate-limiter` package and `Hypervel\RateLimiter` namespace instead. See the [rate limiting documentation](https://hypervel.org/docs/rate-limiting).
+
 The `array` cache store is request-local in Hypervel. Laravel can keep array-store values on the store object because the PHP process normally ends after each request; Hypervel workers are long-lived, so mutable array-store data lives in `CoroutineContext` and resets when the current unit of work finishes.
 
 Hypervel also provides a `worker-array` cache store for deliberate worker-lifetime in-memory cache data. It is shared by coroutines in the same worker process and is cleared when that worker exits.

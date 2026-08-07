@@ -20,6 +20,7 @@ class InteractsWithRedisParallelTest extends TestCase
      * @var list<string>
      */
     private const REDIS_ENVIRONMENT_KEYS = [
+        'REDIS_HOST',
         'REDIS_DB',
         'REDIS_TEST_DB_MIN',
         'REDIS_TEST_DB_MAX',
@@ -252,6 +253,90 @@ class InteractsWithRedisParallelTest extends TestCase
         }
     }
 
+    public function testSequentialSetupNormalizesEveryConfiguredConnectionToTheBaseDatabase(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
+        $this->setRedisEnvironmentValue('REDIS_DB', '7');
+        $config = $this->app->make('config');
+        $config->set('database.redis.default.database', 1);
+        $config->set('database.redis.cache.database', 2);
+        $config->set('database.redis.queue.database', 3);
+
+        $harness = $this->harness();
+        $harness->runSetUp();
+
+        $this->assertSame(7, $config->integer('database.redis.default.database'));
+        $this->assertSame(7, $config->integer('database.redis.cache.database'));
+        $this->assertSame(7, $config->integer('database.redis.queue.database'));
+        $this->assertSame(1, $harness->flushRedisCalls);
+    }
+
+    public function testParallelSetupNormalizesEveryConfiguredConnectionToTheWorkerDatabase(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
+        $this->setRedisEnvironmentValue('REDIS_TEST_DB_MIN', '4');
+        $this->setRedisEnvironmentValue('REDIS_TEST_DB_MAX', '8');
+        $this->setParallelTestingToken('3');
+        $config = $this->app->make('config');
+
+        $harness = $this->harness();
+        $harness->runSetUp();
+
+        $this->assertSame(6, $config->integer('database.redis.default.database'));
+        $this->assertSame(6, $config->integer('database.redis.cache.database'));
+        $this->assertSame(6, $config->integer('database.redis.session.database'));
+        $this->assertSame(6, $config->integer('database.redis.queue.database'));
+        $this->assertSame(6, $config->integer('database.redis.reverb.database'));
+    }
+
+    public function testSetupIgnoresReservedAndNonConnectionConfiguration(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
+        $config = $this->app->make('config');
+        $config->set('database.redis.client', 'phpredis');
+        $config->set('database.redis.clusters', ['enabled' => true]);
+        $config->set('database.redis.fixture', 'value');
+        $options = $config->array('database.redis.options');
+
+        $this->harness()->runSetUp();
+
+        $this->assertSame('phpredis', $config->string('database.redis.client'));
+        $this->assertSame(['enabled' => true], $config->array('database.redis.clusters'));
+        $this->assertSame('value', $config->string('database.redis.fixture'));
+        $this->assertSame($options, $config->array('database.redis.options'));
+    }
+
+    public function testSetupTreatsEmptyConnectionUrlsAsUnset(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
+        $this->setRedisEnvironmentValue('REDIS_DB', '7');
+        $config = $this->app->make('config');
+        $config->set('database.redis.cache.url', '');
+        $config->set('database.redis.cache.database', 2);
+        $harness = $this->harness();
+
+        $harness->runSetUp();
+
+        $this->assertSame(7, $config->integer('database.redis.cache.database'));
+        $this->assertSame(1, $harness->flushRedisCalls);
+    }
+
+    public function testSetupRejectsUrlConfiguredConnections(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
+        $this->app->make('config')->set('database.redis.cache.url', 'redis://127.0.0.1:6379/4');
+        $harness = $this->harness();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Redis connection [cache] must use REDIS_HOST and REDIS_PORT during integration tests');
+
+        try {
+            $harness->runSetUp();
+        } finally {
+            $this->assertSame(0, $harness->flushRedisCalls);
+        }
+    }
+
     /**
      * Get an InteractsWithRedis harness.
      */
@@ -332,6 +417,8 @@ class InteractsWithRedisHarness
 {
     use InteractsWithRedis;
 
+    public int $flushRedisCalls = 0;
+
     public function __construct(
         protected ?ApplicationContract $app = null
     ) {
@@ -369,5 +456,21 @@ class InteractsWithRedisHarness
     public function workerDatabases(): array
     {
         return $this->redisWorkerDatabases();
+    }
+
+    /**
+     * Run Redis setup.
+     */
+    public function runSetUp(): void
+    {
+        $this->setUpInteractsWithRedis();
+    }
+
+    /**
+     * Flush the Redis database.
+     */
+    protected function flushRedis(): void
+    {
+        ++$this->flushRedisCalls;
     }
 }

@@ -307,6 +307,32 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         }
     }
 
+    public function testAcquireUsesTheSelectedConnectionPrefix(): void
+    {
+        $prefixed = Redis::connection($this->createRedisConnectionWithOptions(
+            'concurrency_limiter_prefixed',
+            ['prefix' => 'concurrency-limiter:'],
+        ));
+        $plain = Redis::connection($this->createRedisConnectionWithOptions(
+            'concurrency_limiter_plain',
+            ['prefix' => ''],
+        ));
+
+        $plain->del('concurrency-limiter:selected-connection1', 'selected-connection1');
+
+        $lease = (new ConcurrencyLimiter($prefixed, 'selected-connection', 1, 60))->acquire(0);
+
+        try {
+            $this->assertSame(1, $plain->exists('concurrency-limiter:selected-connection1'));
+            $this->assertSame(0, $plain->exists('selected-connection1'));
+            $this->assertTrue($lease->release());
+            $this->assertSame(0, $plain->exists('concurrency-limiter:selected-connection1'));
+        } finally {
+            $lease->release();
+            $plain->del('concurrency-limiter:selected-connection1', 'selected-connection1');
+        }
+    }
+
     /**
      * Get the Redis connection for testing.
      */

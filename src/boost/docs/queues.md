@@ -674,7 +674,7 @@ Although we just demonstrated how to write your own rate limiting job middleware
 For example, you may wish to allow users to backup their data once per hour while imposing no such limit on premium customers. To accomplish this, you may define a `RateLimiter` in the `boot` method of your `AppServiceProvider`:
 
 ```php
-use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\RateLimiter;
 
 /**
@@ -697,6 +697,8 @@ return Limit::perMinute(50)->by($job->user->id);
 ```
 
 Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
+
+Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several rate limits, Hypervel consumes them in the listed order. When a later rate limit denies the job, capacity already consumed by earlier rate limits is not restored.
 
 Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 
@@ -744,25 +746,16 @@ public function middleware(): array
 }
 ```
 
-<a name="rate-limiting-with-redis"></a>
-#### Rate Limiting With Redis
-
-If you are using Redis, you may use the `Hypervel\Queue\Middleware\RateLimitedWithRedis` middleware, which is fine-tuned for Redis and more efficient than the basic rate limiting middleware:
+The named limiter uses the store registered through `RateLimiter::for`, or the default rate limiter store when none was registered. You may override that selection for a job using the `store` method:
 
 ```php
-use Hypervel\Queue\Middleware\RateLimitedWithRedis;
-
 public function middleware(): array
 {
-    return [new RateLimitedWithRedis('backups')];
+    return [(new RateLimited('backups'))->store('redis')];
 }
 ```
 
-The `connection` method may be used to specify which Redis connection the middleware should use:
-
-```php
-return [(new RateLimitedWithRedis('backups'))->connection('limiter')];
-```
+The `RateLimited` middleware supports every configured rate limiter store.
 
 <a name="preventing-job-overlaps"></a>
 ### Preventing Job Overlaps
@@ -941,7 +934,9 @@ return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
 )];
 ```
 
-Internally, this middleware uses Hypervel's cache system to implement rate limiting, and the job's class name is utilized as the cache "key". You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and you would like them to share a common throttling "bucket" ensuring they respect a single shared limit:
+The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
+
+Internally, this middleware uses Hypervel's rate limiter, and the job's display name is used as the rate limit key. You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and would like them to share a common throttling bucket:
 
 ```php
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
@@ -957,7 +952,7 @@ public function middleware(): array
 }
 ```
 
-You may use the `byJob` method if each job should maintain its own throttling bucket. If you need to customize the cache key namespace, you may use the `withPrefix` method:
+You may use the `byJob` method if each job should maintain its own throttling bucket. If you need to customize the key prefix, you may use the `withPrefix` method:
 
 ```php
 return [
@@ -1032,24 +1027,13 @@ public function middleware(): array
 }
 ```
 
-<a name="throttling-exceptions-with-redis"></a>
-#### Throttling Exceptions With Redis
-
-If you are using Redis, you may use the `Hypervel\Queue\Middleware\ThrottlesExceptionsWithRedis` middleware, which is fine-tuned for Redis and more efficient than the basic exception throttling middleware:
+By default, exception throttling uses the default rate limiter store. You may select another configured store using the `store` method:
 
 ```php
-use Hypervel\Queue\Middleware\ThrottlesExceptionsWithRedis;
-
 public function middleware(): array
 {
-    return [new ThrottlesExceptionsWithRedis(10, 10 * 60)];
+    return [(new ThrottlesExceptions(10, 10 * 60))->store('redis')];
 }
-```
-
-The `connection` method may be used to specify which Redis connection the middleware should use:
-
-```php
-return [(new ThrottlesExceptionsWithRedis(10, 10 * 60))->connection('limiter')];
 ```
 
 <a name="releasing-jobs"></a>
