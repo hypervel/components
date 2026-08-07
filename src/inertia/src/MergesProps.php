@@ -141,7 +141,7 @@ trait MergesProps
             ),
         };
 
-        if (is_string($path) && $matchOn) {
+        if (is_string($path) && $matchOn !== null && $matchOn !== '') {
             $this->matchOn([...$this->matchOn, "{$path}.{$matchOn}"]);
         }
 
@@ -163,7 +163,7 @@ trait MergesProps
             ),
         };
 
-        if (is_string($path) && $matchOn) {
+        if (is_string($path) && $matchOn !== null && $matchOn !== '') {
             $this->matchOn([...$this->matchOn, "{$path}.{$matchOn}"]);
         }
 

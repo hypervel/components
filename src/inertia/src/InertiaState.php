@@ -6,17 +6,18 @@ namespace Hypervel\Inertia;
 
 use Closure;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\ReplicableContext;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\Response as SsrResponse;
 
 /**
- * Per-request Inertia state stored in coroutine Context.
+ * Inertia configuration and request state stored in coroutine Context.
  *
- * All request-scoped Inertia state lives here instead of on singleton
- * service classes. This ensures complete isolation between concurrent
- * requests in Swoole's long-running worker model.
+ * Providers configure one boot baseline outside a coroutine. Each request
+ * receives an independent copy so request mutations remain isolated in
+ * Swoole's long-running worker model.
  */
-class InertiaState
+class InertiaState implements ReplicableContext
 {
     /**
      * The coroutine Context key for this state.
@@ -31,7 +32,7 @@ class InertiaState
     /**
      * The shared properties included in every Inertia response.
      *
-     * @var array<string, mixed>
+     * @var array<array-key, mixed|ProvidesInertiaProperties>
      */
     public array $sharedProps = [];
 
@@ -89,24 +90,46 @@ class InertiaState
     public array $ssrExcludedPaths = [];
 
     /**
-     * Set the page data and dispatch SSR if not already dispatched.
-     *
-     * Used by Blade directives and view components to trigger SSR
-     * rendering. The result is cached so multiple calls (e.g. both
-     * @inertia and @inertiaHead) only dispatch once.
-     *
-     * @param array<string, mixed> $page
+     * Get the current Inertia state.
      */
-    public static function dispatchSsr(array $page): ?SsrResponse
+    public static function current(): self
     {
-        $state = CoroutineContext::getOrSet(self::CONTEXT_KEY, fn () => new self);
-        $state->page = $page;
+        if (CoroutineContext::has(self::CONTEXT_KEY)) {
+            /** @var self $state */
+            $state = CoroutineContext::get(self::CONTEXT_KEY);
 
-        if (! $state->ssrDispatched) {
-            $state->ssrDispatched = true;
-            $state->ssrResponse = app(Gateway::class)->dispatch($state->page);
+            return $state;
         }
 
-        return $state->ssrResponse;
+        // Providers configure Inertia before the server starts request coroutines,
+        // so each request begins with an independent copy of that boot baseline.
+        /** @var null|self $baseline */
+        $baseline = CoroutineContext::getFromNonCoroutine(self::CONTEXT_KEY);
+
+        $state = $baseline?->replicate() ?? new self;
+        CoroutineContext::set(self::CONTEXT_KEY, $state);
+
+        return $state;
+    }
+
+    /**
+     * Dispatch SSR if it has not already been dispatched for this request.
+     */
+    public function dispatchSsr(): ?SsrResponse
+    {
+        if (! $this->ssrDispatched) {
+            $this->ssrDispatched = true;
+            $this->ssrResponse = app(Gateway::class)->dispatch($this->page);
+        }
+
+        return $this->ssrResponse;
+    }
+
+    /**
+     * Create an independent copy with the same state.
+     */
+    public function replicate(): static
+    {
+        return clone $this;
     }
 }

@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia\Commands;
 
+use Hypervel\Console\SignalRegistry;
+use Hypervel\Inertia\Commands\StartSsr;
 use Hypervel\Tests\Inertia\TestCase;
+use Mockery as m;
+use ReflectionProperty;
 use Symfony\Component\Process\Process;
 
 class StartSsrTest extends TestCase
@@ -20,12 +24,15 @@ class StartSsrTest extends TestCase
         config()->set('inertia.ssr.bundle', __FILE__);
     }
 
-    protected function fakeProcess(): void
+    /**
+     * @param list<string> $command
+     */
+    protected function fakeProcess(array $command = ['true']): void
     {
-        $this->app->bind(Process::class, function ($app, $params) {
+        $this->app->bind(Process::class, function ($app, $params) use ($command) {
             $this->processCommand = $params['command'];
 
-            return new Process(['true']);
+            return new Process($command);
         });
     }
 
@@ -141,5 +148,28 @@ class StartSsrTest extends TestCase
         $this->artisan('inertia:start-ssr')->assertExitCode(0);
 
         $this->assertSame('nonexistent-runtime-binary', $this->processCommand[0]);
+    }
+
+    public function testReturnsFailureWhenTheChildProcessFails(): void
+    {
+        $this->fakeProcess([PHP_BINARY, '-r', 'exit(1);']);
+
+        $this->artisan('inertia:start-ssr')->assertExitCode(1);
+    }
+
+    public function testRegistersTerminationSignalsThroughTheCommandRegistry(): void
+    {
+        $this->fakeProcess();
+
+        $registry = m::mock(SignalRegistry::class);
+        $registry->shouldReceive('register')
+            ->once()
+            ->with([SIGINT, SIGQUIT, SIGTERM], m::type('callable'));
+        $registry->shouldReceive('unregister')->once()->with(null);
+
+        $command = $this->app->make(StartSsr::class);
+        (new ReflectionProperty($command, 'signalRegistry'))->setValue($command, $registry);
+
+        $this->artisan('inertia:start-ssr')->assertExitCode(0);
     }
 }

@@ -25,6 +25,9 @@ class ExceptionResponse implements Responsable
     /** @var null|class-string<Middleware> */
     protected ?string $middlewareClass = null;
 
+    /**
+     * Create a new exception response instance.
+     */
     public function __construct(
         public readonly Throwable $exception,
         public readonly Request $request,
@@ -35,6 +38,8 @@ class ExceptionResponse implements Responsable
     }
 
     /**
+     * Render the exception with the given Inertia component.
+     *
      * @param array<string, mixed> $props
      */
     public function render(string $component, array $props = []): static
@@ -46,6 +51,8 @@ class ExceptionResponse implements Responsable
     }
 
     /**
+     * Use the given Inertia middleware.
+     *
      * @param class-string<Middleware> $middlewareClass
      */
     public function usingMiddleware(string $middlewareClass): static
@@ -55,6 +62,9 @@ class ExceptionResponse implements Responsable
         return $this;
     }
 
+    /**
+     * Include the middleware shared data.
+     */
     public function withSharedData(): static
     {
         $this->includeSharedData = true;
@@ -62,6 +72,9 @@ class ExceptionResponse implements Responsable
         return $this;
     }
 
+    /**
+     * Set the root view.
+     */
     public function rootView(string $rootView): static
     {
         $this->rootView = $rootView;
@@ -69,6 +82,9 @@ class ExceptionResponse implements Responsable
         return $this;
     }
 
+    /**
+     * Return the response status code.
+     */
     public function statusCode(): int
     {
         return $this->response->getStatusCode();
@@ -109,6 +125,9 @@ class ExceptionResponse implements Responsable
             ->setStatusCode($this->response->getStatusCode());
     }
 
+    /**
+     * Resolve the Inertia middleware for the request.
+     */
     protected function resolveMiddleware(): ?Middleware
     {
         if ($this->middlewareClass) {
@@ -125,6 +144,8 @@ class ExceptionResponse implements Responsable
     }
 
     /**
+     * Resolve the Inertia middleware from the route.
+     *
      * @return null|class-string<Middleware>
      */
     protected function resolveMiddlewareFromRoute(): ?string
@@ -151,6 +172,8 @@ class ExceptionResponse implements Responsable
     }
 
     /**
+     * Resolve the Inertia middleware from the HTTP kernel.
+     *
      * @return null|class-string<Middleware>
      */
     protected function resolveMiddlewareFromKernel(): ?string

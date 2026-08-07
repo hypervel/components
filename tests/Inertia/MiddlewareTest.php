@@ -10,6 +10,7 @@ use Hypervel\Inertia\AlwaysProp;
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\Middleware;
 use Hypervel\Inertia\Ssr\HttpGateway;
+use Hypervel\Inertia\Support\Header;
 use Hypervel\Routing\Route as RouteInstance;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
@@ -22,6 +23,9 @@ use Hypervel\Tests\Inertia\Fixtures\SsrExceptMiddleware;
 use Hypervel\Tests\Inertia\Fixtures\WithAllErrorsMiddleware;
 use LogicException;
 use PHPUnit\Framework\Attributes\After;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MiddlewareTest extends TestCase
 {
@@ -47,6 +51,7 @@ class MiddlewareTest extends TestCase
 
         $response->assertRedirect('/foo');
         $response->assertStatus(303);
+        $response->assertHeader('Vary', 'X-Inertia');
         $this->assertTrue($fooCalled);
     }
 
@@ -82,7 +87,67 @@ class MiddlewareTest extends TestCase
             ]);
 
         $response->assertNoContent(200);
+        $response->assertHeader('Vary', 'X-Inertia');
         $this->assertTrue($fooCalled);
+    }
+
+    public function testNonInertiaResponsesPreserveExistingVaryHeaders(): void
+    {
+        $request = Request::create('/');
+        $response = new SymfonyResponse('content', 200, ['Vary' => 'Accept-Encoding']);
+
+        $result = (new Middleware)->handle($request, fn () => $response);
+
+        $this->assertSame($response, $result);
+        $this->assertSame(['Accept-Encoding', Header::INERTIA], $result->getVary());
+    }
+
+    public function testInertiaVaryHeaderIsDeduplicatedCaseInsensitively(): void
+    {
+        $request = Request::create('/');
+        $request->headers->set(Header::INERTIA, 'true');
+        $response = new SymfonyResponse('content', 200, ['Vary' => 'x-inertia, Accept-Encoding']);
+
+        $result = (new Middleware)->handle($request, fn () => $response);
+
+        $this->assertSame($response, $result);
+        $this->assertSame(['x-inertia', 'Accept-Encoding'], $result->getVary());
+    }
+
+    public function testZeroContentIsNotTreatedAsAnEmptyResponse(): void
+    {
+        $request = Request::create('/');
+        $request->headers->set(Header::INERTIA, 'true');
+        $response = new SymfonyResponse('0');
+
+        $result = (new Middleware)->handle($request, fn () => $response);
+
+        $this->assertSame($response, $result);
+        $this->assertSame('0', $result->getContent());
+    }
+
+    public function testStreamedResponsesAreNotTreatedAsEmptyResponses(): void
+    {
+        $request = Request::create('/');
+        $request->headers->set(Header::INERTIA, 'true');
+        $response = new StreamedResponse(fn () => print 'content');
+
+        $result = (new Middleware)->handle($request, fn () => $response);
+
+        $this->assertSame($response, $result);
+        $this->assertFalse($result->getContent());
+    }
+
+    public function testBinaryResponsesAreNotTreatedAsEmptyResponses(): void
+    {
+        $request = Request::create('/');
+        $request->headers->set(Header::INERTIA, 'true');
+        $response = new BinaryFileResponse(__FILE__);
+
+        $result = (new Middleware)->handle($request, fn () => $response);
+
+        $this->assertSame($response, $result);
+        $this->assertFalse($result->getContent());
     }
 
     public function testTheVersionIsOptional(): void
@@ -94,6 +159,7 @@ class MiddlewareTest extends TestCase
         ]);
 
         $response->assertSuccessful();
+        $response->assertHeader('Vary', 'X-Inertia');
         $response->assertJson(['component' => 'User/Edit']);
     }
 
@@ -134,6 +200,8 @@ class MiddlewareTest extends TestCase
 
         $response->assertStatus(409);
         $response->assertHeader('X-Inertia-Location', $this->baseUrl);
+        $response->assertHeader('X-Inertia-Version', '1234');
+        $response->assertHeader('Vary', 'X-Inertia');
         self::assertEmpty($response->getContent());
     }
 
@@ -263,6 +331,22 @@ class MiddlewareTest extends TestCase
         });
 
         $this->withoutExceptionHandling()->get('/', ['X-Inertia-Error-Bag' => 'example']);
+    }
+
+    public function testValidationErrorsPreserveAZeroErrorBagHeader(): void
+    {
+        Session::put('errors', (new ViewErrorBag)->put('default', new MessageBag([
+            'name' => 'The name field is required.',
+        ])));
+
+        Route::middleware([StartSession::class, ExampleMiddleware::class])->get('/', function () {
+            $errors = Inertia::getShared('errors')();
+
+            $this->assertIsObject($errors);
+            $this->assertSame('The name field is required.', $errors->{'0'}->name);
+        });
+
+        $this->withoutExceptionHandling()->get('/', ['X-Inertia-Error-Bag' => '0']);
     }
 
     public function testMiddlewareCanChangeTheRootViewViaAProperty(): void
@@ -440,6 +524,7 @@ class MiddlewareTest extends TestCase
 
         $response->assertStatus(409);
         $response->assertHeader('X-Inertia-Redirect', $this->baseUrl . '/article#section');
+        $response->assertHeader('Vary', 'X-Inertia');
         self::assertEmpty($response->getContent());
     }
 
@@ -503,14 +588,16 @@ class MiddlewareTest extends TestCase
 
         Route::middleware(StartSession::class)->get('/admin/dashboard', function (Request $request) use ($middleware) {
             return $middleware->handle($request, function ($request) {
+                $this->assertContains('admin/*', app(HttpGateway::class)->getExcludedPaths());
+                $this->assertContains('nova/*', app(HttpGateway::class)->getExcludedPaths());
+
                 return Inertia::render('Admin/Dashboard')->toResponse($request);
             });
         });
 
-        $this->get('/admin/dashboard');
+        $response = $this->withoutExceptionHandling()->get('/admin/dashboard');
 
-        $this->assertContains('admin/*', app(HttpGateway::class)->getExcludedPaths());
-        $this->assertContains('nova/*', app(HttpGateway::class)->getExcludedPaths());
+        $response->assertSuccessful();
     }
 
     public function testVersionIsCachedForWorkerLifetime(): void

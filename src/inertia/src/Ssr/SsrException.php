@@ -9,6 +9,11 @@ use Exception;
 class SsrException extends Exception
 {
     /**
+     * The SSR render failed event containing error details.
+     */
+    public ?SsrRenderFailed $event = null;
+
+    /**
      * Create a new SSR exception from a render failure event.
      */
     public static function fromEvent(SsrRenderFailed $event): self
@@ -28,11 +33,6 @@ class SsrException extends Exception
 
         return $exception;
     }
-
-    /**
-     * The SSR render failed event containing error details.
-     */
-    public ?SsrRenderFailed $event = null;
 
     /**
      * Get the component that failed to render.

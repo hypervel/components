@@ -25,7 +25,10 @@ class InertiaServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(Gateway::class, HttpGateway::class);
+        $this->app->singleton(
+            Gateway::class,
+            fn ($app) => $app->make(HttpGateway::class),
+        );
 
         $this->mergeConfigFrom(
             __DIR__ . '/../config/inertia.php',
@@ -40,13 +43,13 @@ class InertiaServiceProvider extends ServiceProvider
         $this->registerTestingMacros();
         $this->registerMiddleware();
 
-        $this->app->bind('inertia.view-finder', function ($app) {
+        $this->app->singleton('inertia.view-finder', function ($app) {
             $config = $app->make('config');
 
             return new FileViewFinder(
-                $app['files'],
+                $app->make('files'),
                 $config->array('inertia.pages.paths'),
-                $config->array('inertia.pages.extensions')
+                $config->array('inertia.pages.extensions'),
             );
         });
     }
@@ -174,7 +177,7 @@ class InertiaServiceProvider extends ServiceProvider
      */
     protected function registerMiddleware(): void
     {
-        $this->app['router']->aliasMiddleware(
+        $this->app->make('router')->aliasMiddleware(
             'inertia.encrypt',
             EncryptHistoryMiddleware::class
         );

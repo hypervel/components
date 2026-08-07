@@ -66,15 +66,9 @@ class StartSsr extends Command
         $process->setTimeout(null);
         $process->start();
 
-        if (extension_loaded('pcntl')) {
-            $stop = function () use ($process) {
-                $process->stop();
-            };
-            pcntl_async_signals(true);
-            pcntl_signal(SIGINT, $stop);
-            pcntl_signal(SIGQUIT, $stop);
-            pcntl_signal(SIGTERM, $stop);
-        }
+        $this->trap([SIGINT, SIGQUIT, SIGTERM], function () use ($process): void {
+            $process->stop();
+        });
 
         foreach ($process as $type => $data) {
             if ($process::OUT === $type) {
@@ -85,6 +79,6 @@ class StartSsr extends Command
             }
         }
 
-        return self::SUCCESS;
+        return $process->isSuccessful() ? self::SUCCESS : self::FAILURE;
     }
 }
