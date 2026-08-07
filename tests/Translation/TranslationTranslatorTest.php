@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Translation;
 
 use Hypervel\Contracts\Translation\Loader;
-use Hypervel\Coroutine\Coroutine;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
@@ -13,24 +13,23 @@ use Hypervel\Tests\Translation\Fixtures\Enums\Bar;
 use Hypervel\Tests\Translation\Fixtures\Enums\Baz;
 use Hypervel\Tests\Translation\Fixtures\Enums\Foo;
 use Hypervel\Translation\ArrayLoader;
+use Hypervel\Translation\FileLoader;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
+use InvalidArgumentException;
 use Mockery as m;
-
-use function Hypervel\Coroutine\parallel;
-use function Hypervel\Coroutine\run;
+use stdClass;
+use TypeError;
 
 class TranslationTranslatorTest extends TestCase
 {
-    protected bool $runTestsInCoroutine = false;
-
-    public function testHasMethodReturnsFalseWhenReturnedTranslationIsNull()
+    public function testHasMethodReturnsFalseWhenReturnedTranslationIsNull(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
         $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('bar'))->willReturn('foo');
         $this->assertFalse($translator->has('foo', 'bar'));
 
-        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en', 'sp'])->getMock();
+        $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
         $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('bar'))->willReturn('bar');
         $this->assertTrue($translator->has('foo', 'bar'));
 
@@ -53,7 +52,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertFalse($translator->hasForLocale('foo'));
     }
 
-    public function testGetMethodProperlyLoadsAndRetrievesItem()
+    public function testGetMethodProperlyLoadsAndRetrievesItem(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -63,7 +62,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo::bar.foo'));
     }
 
-    public function testGetMethodProperlyLoadsAndRetrievesArrayItem()
+    public function testGetMethodProperlyLoadsAndRetrievesArrayItem(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -73,7 +72,45 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo::bar.foo'));
     }
 
-    public function testGetMethodForNonExistingReturnsSameKey()
+    public function testStringMethodProperlyLoadsAndRetrievesStringItem(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'bar', 'foo')->andReturn(['baz' => 'breeze :foo']);
+
+        $this->assertSame('breeze bar', $translator->string('foo::bar.baz', ['foo' => 'bar'], 'en'));
+    }
+
+    public function testStringMethodThrowsExceptionForArrayItem(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'bar', 'foo')->andReturn(['baz' => ['breeze']]);
+        $this->expectExceptionObject(new InvalidArgumentException('Translation value for key [foo::bar.baz] must be a string, array given.'));
+
+        $translator->string('foo::bar.baz', [], 'en');
+    }
+
+    public function testArrayMethodProperlyLoadsAndRetrievesArrayItem(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'bar', 'foo')->andReturn(['baz' => ['breeze :foo']]);
+
+        $this->assertSame(['breeze bar'], $translator->array('foo::bar.baz', ['foo' => 'bar'], 'en'));
+    }
+
+    public function testArrayMethodThrowsExceptionForStringItem(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'bar', 'foo')->andReturn(['baz' => 'breeze']);
+        $this->expectExceptionObject(new InvalidArgumentException('Translation value for key [foo::bar.baz] must be an array, string given.'));
+
+        $translator->array('foo::bar.baz', [], 'en');
+    }
+
+    public function testGetMethodForNonExistingReturnsSameKey(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -84,7 +121,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo::unknown.bar', $translator->get('foo::unknown.bar'));
     }
 
-    public function testTransMethodProperlyLoadsAndRetrievesItemWithHTMLInTheMessage()
+    public function testTransMethodProperlyLoadsAndRetrievesItemWithHTMLInTheMessage(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -92,7 +129,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('breeze <p>test</p>', $translator->get('foo.bar', [], 'en'));
     }
 
-    public function testGetMethodProperlyLoadsAndRetrievesItemWithCapitalization()
+    public function testGetMethodProperlyLoadsAndRetrievesItemWithCapitalization(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -101,7 +138,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo::bar.foo'));
     }
 
-    public function testGetMethodProperlyLoadsAndRetrievesItemWithLongestReplacementsFirst()
+    public function testGetMethodProperlyLoadsAndRetrievesItemWithLongestReplacementsFirst(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -111,7 +148,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo::bar.foo'));
     }
 
-    public function testGetMethodProperlyLoadsAndRetrievesItemForFallback()
+    public function testGetMethodProperlyLoadsAndRetrievesItemForFallback(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->setFallback('lv');
@@ -122,7 +159,18 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo::bar.foo'));
     }
 
-    public function testGetDoesNotCallGetLineTwiceForMissingKeyWhenLocaleMatchesFallback()
+    public function testFallbackLocaleCanBeReadAndChanged(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+
+        $this->assertSame('', $translator->getFallback());
+
+        $translator->setFallback('lv');
+
+        $this->assertSame('lv', $translator->getFallback());
+    }
+
+    public function testGetDoesNotCallGetLineTwiceForMissingKeyWhenLocaleMatchesFallback(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['getLine'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
         $translator->setFallback('en');
@@ -133,7 +181,7 @@ class TranslationTranslatorTest extends TestCase
         $translator->get('messages.test', [], 'en');
     }
 
-    public function testGetMethodProperlyLoadsAndRetrievesItemForGlobalNamespace()
+    public function testGetMethodProperlyLoadsAndRetrievesItemForGlobalNamespace(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -141,7 +189,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('breeze bar', $translator->get('foo.bar', ['foo' => 'bar']));
     }
 
-    public function testChoiceMethodProperlyLoadsAndRetrievesItemForAnInt()
+    public function testChoiceMethodProperlyLoadsAndRetrievesItemForAnInt(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
         $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('en'))->willReturn('line');
@@ -152,7 +200,7 @@ class TranslationTranslatorTest extends TestCase
         $translator->choice('foo', 10, ['replace']);
     }
 
-    public function testChoiceMethodProperlyLoadsAndRetrievesItemForAFloat()
+    public function testChoiceMethodProperlyLoadsAndRetrievesItemForAFloat(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
         $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('en'))->willReturn('line');
@@ -163,7 +211,7 @@ class TranslationTranslatorTest extends TestCase
         $translator->choice('foo', 1.2, ['replace']);
     }
 
-    public function testChoiceMethodProperlyCountsCollectionsAndLoadsAndRetrievesItem()
+    public function testChoiceMethodProperlyCountsCollectionsAndLoadsAndRetrievesItem(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
         $translator->expects($this->exactly(2))->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('en'))->willReturn('line');
@@ -178,7 +226,7 @@ class TranslationTranslatorTest extends TestCase
         $translator->choice('foo', $values, ['replace']);
     }
 
-    public function testChoiceMethodProperlySelectsLocaleForChoose()
+    public function testChoiceMethodProperlySelectsLocaleForChoose(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'hasForLocale'])->setConstructorArgs([$this->getLoader(), 'cs'])->getMock();
         $translator->setFallback('en');
@@ -190,7 +238,7 @@ class TranslationTranslatorTest extends TestCase
         $translator->choice('foo', 10, ['replace']);
     }
 
-    public function testChoiceMethodProperlyUsesCustomCountReplacement()
+    public function testChoiceMethodProperlyUsesCustomCountReplacement(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get', 'localeForChoice'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
         $translator->expects($this->once())->method('get')->with($this->equalTo(':count foos'), $this->equalTo([]), $this->equalTo('en'))->willReturn('{1} :count foos|[2,*] :count foos');
@@ -201,42 +249,139 @@ class TranslationTranslatorTest extends TestCase
         $this->assertEquals('1,234 foos', $translator->choice(':count foos', 1234, ['count' => '1,234']));
     }
 
-    public function testGetJson()
+    public function testChoiceRequiresAStringTranslation(): void
+    {
+        $loader = (new ArrayLoader)->addMessages('en', 'messages', ['items' => ['one', 'many']]);
+        $translator = new Translator($loader, 'en');
+
+        $this->expectExceptionObject(new InvalidArgumentException('Translation value for key [messages.items] must be a string, array given.'));
+
+        $translator->choice('messages.items', 2);
+    }
+
+    public function testGetJson(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn(['foo' => 'one']);
         $this->assertSame('one', $translator->get('foo'));
     }
 
-    public function testGetJsonReplaces()
+    public function testGetJsonPreservesFalseyValuesAndHasAgreement(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([
+            'empty' => '',
+            'zero' => '0',
+            'items' => [],
+        ]);
+
+        $this->assertSame('', $translator->get('empty'));
+        $this->assertSame('0', $translator->get('zero'));
+        $this->assertSame([], $translator->get('items'));
+        $this->assertTrue($translator->has('empty'));
+        $this->assertTrue($translator->has('zero'));
+        $this->assertTrue($translator->has('items'));
+    }
+
+    public function testNullJsonTranslationValueIsTreatedAsMissing(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/en.json')->andReturn(true);
+        $files->shouldReceive('get')->once()->with(__DIR__ . '/en.json')->andReturn('{"untranslated":null}');
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/en/untranslated.php')->andReturn(false);
+
+        $translator = new Translator(new FileLoader($files, __DIR__), 'en');
+
+        $this->assertSame('untranslated', $translator->get('untranslated'));
+        $this->assertFalse($translator->has('untranslated'));
+    }
+
+    public function testGetPreservesMixedArrayLeavesForJsonTranslations(): void
+    {
+        $object = new stdClass;
+        $line = [
+            'message' => 'Hello :name',
+            7 => 42,
+            'nested' => [
+                'message' => 'Welcome :name',
+                'float' => 1.5,
+                'boolean' => false,
+                'null' => null,
+                'object' => $object,
+            ],
+        ];
+        $expected = $line;
+        $expected['message'] = 'Hello Taylor';
+        $expected['nested']['message'] = 'Welcome Taylor';
+
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn(['payload' => $line]);
+
+        $this->assertSame($line, $translator->get('payload'));
+        $result = $translator->get('payload', ['name' => 'Taylor']);
+        $this->assertSame($expected, $result);
+        $this->assertSame($object, $result['nested']['object']);
+        $this->assertSame('Hello :name', $line['message']);
+    }
+
+    public function testGetPreservesMixedArrayLeavesForGroupedTranslations(): void
+    {
+        $object = new stdClass;
+        $line = [
+            'message' => 'Hello :name',
+            7 => 42,
+            'nested' => [
+                'message' => 'Welcome :name',
+                'float' => 1.5,
+                'boolean' => false,
+                'null' => null,
+                'object' => $object,
+            ],
+        ];
+        $expected = $line;
+        $expected['message'] = 'Hello Taylor';
+        $expected['nested']['message'] = 'Welcome Taylor';
+
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
+        $translator->getLoader()->shouldReceive('load')->once()->with('en', 'messages', '*')->andReturn(['payload' => $line]);
+
+        $this->assertSame($line, $translator->get('messages.payload'));
+        $result = $translator->get('messages.payload', ['name' => 'Taylor']);
+        $this->assertSame($expected, $result);
+        $this->assertSame($object, $result['nested']['object']);
+        $this->assertSame('Hello :name', $line['message']);
+    }
+
+    public function testGetJsonReplaces(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn(['foo :i:c :u' => 'bar :i:c :u']);
         $this->assertSame('bar onetwo three', $translator->get('foo :i:c :u', ['i' => 'one', 'c' => 'two', 'u' => 'three']));
     }
 
-    public function testGetJsonHasAtomicReplacements()
+    public function testGetJsonHasAtomicReplacements(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn(['Hello :foo!' => 'Hello :foo!']);
         $this->assertSame('Hello baz:bar!', $translator->get('Hello :foo!', ['foo' => 'baz:bar', 'bar' => 'abcdef']));
     }
 
-    public function testGetJsonReplacesForAssociativeInput()
+    public function testGetJsonReplacesForAssociativeInput(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn(['foo :i :c' => 'bar :i :c']);
         $this->assertSame('bar eye see', $translator->get('foo :i :c', ['i' => 'eye', 'c' => 'see']));
     }
 
-    public function testGetJsonPreservesOrder()
+    public function testGetJsonPreservesOrder(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn(['to :name I give :greeting' => ':greeting :name']);
         $this->assertSame('Greetings David', $translator->get('to :name I give :greeting', ['name' => 'David', 'greeting' => 'Greetings']));
     }
 
-    public function testGetJsonForNonExistingJsonKeyLooksForRegularKeys()
+    public function testGetJsonForNonExistingJsonKeyLooksForRegularKeys(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -244,7 +389,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('one', $translator->get('foo.bar'));
     }
 
-    public function testGetJsonForNonExistingJsonKeyLooksForRegularKeysAndReplace()
+    public function testGetJsonForNonExistingJsonKeyLooksForRegularKeysAndReplace(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -252,7 +397,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('one two', $translator->get('foo.bar', ['message' => 'two']));
     }
 
-    public function testGetJsonForNonExistingReturnsSameKey()
+    public function testGetJsonForNonExistingReturnsSameKey(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -260,7 +405,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('Foo that bar', $translator->get('Foo that bar'));
     }
 
-    public function testGetJsonForNonExistingReturnsSameKeyAndReplaces()
+    public function testGetJsonForNonExistingReturnsSameKeyAndReplaces(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -268,7 +413,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo baz', $translator->get('foo :message', ['message' => 'baz']));
     }
 
-    public function testEmptyFallbacks()
+    public function testEmptyFallbacks(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()->shouldReceive('load')->once()->with('en', '*', '*')->andReturn([]);
@@ -301,7 +446,60 @@ class TranslationTranslatorTest extends TestCase
         );
     }
 
-    public function testGetJsonReplacesWithEnums()
+    public function testGetJsonReplacesWithRegisteredStringableClass(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()
+            ->shouldReceive('load')
+            ->once()
+            ->with('en', '*', '*')
+            ->andReturn(['test' => 'the date is :date']);
+
+        $translator->stringable(
+            CarbonImmutable::class,
+            fn (CarbonImmutable $carbon): string => $carbon->format('jS M Y')
+        );
+
+        $this->assertSame(
+            'the date is 1st Jan 1970',
+            $translator->get('test', ['date' => CarbonImmutable::createFromTimestamp(0)])
+        );
+    }
+
+    public function testStringableClassRequiresAHandler(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $translator->stringable(CarbonImmutable::class);
+    }
+
+    public function testStringableRejectsCallableArrays(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+
+        $this->expectException(TypeError::class);
+
+        $translator->stringable([$translator, 'get']);
+    }
+
+    public function testStringableRejectsInvokableObjects(): void
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $stringable = new class {
+            public function __invoke(): string
+            {
+                return 'formatted';
+            }
+        };
+
+        $this->expectException(TypeError::class);
+
+        $translator->stringable($stringable);
+    }
+
+    public function testGetJsonReplacesWithEnums(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->getLoader()
@@ -309,28 +507,28 @@ class TranslationTranslatorTest extends TestCase
             ->once()
             ->with('en', '*', '*')
             ->andReturn([
-                'string_backed_enum' => 'Laravel 12 was released in :month 2025',
-                'int_backed_enum' => 'Stay tuned for Laravel v:version',
-                'unit_enum' => ':person gets excited about every new Laravel release',
+                'string_backed_enum' => 'The release shipped in :month 2025',
+                'int_backed_enum' => 'Stay tuned for version :version',
+                'unit_enum' => ':person gets excited about every new release',
             ]);
 
         $this->assertSame(
-            'Laravel 12 was released in February 2025',
+            'The release shipped in February 2025',
             $translator->get('string_backed_enum', ['month' => Baz::February])
         );
 
         $this->assertSame(
-            'Stay tuned for Laravel v13',
+            'Stay tuned for version 13',
             $translator->get('int_backed_enum', ['version' => Bar::Thirteen])
         );
 
         $this->assertSame(
-            'Hosni gets excited about every new Laravel release',
+            'Hosni gets excited about every new release',
             $translator->get('unit_enum', ['person' => Foo::Hosni])
         );
     }
 
-    public function testTagReplacements()
+    public function testTagReplacements(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
 
@@ -338,17 +536,17 @@ class TranslationTranslatorTest extends TestCase
         $translator->getLoader()->shouldReceive('load')->once()->with('en', 'We have some nice <docs-link>documentation</docs-link>', '*')->andReturn([]);
 
         $this->assertSame(
-            'We have some nice <a href="https://laravel.com/docs">documentation</a>',
+            'We have some nice <a href="https://hypervel.org/docs">documentation</a>',
             $translator->get(
                 'We have some nice <docs-link>documentation</docs-link>',
                 [
-                    'docs-link' => fn ($children) => "<a href=\"https://laravel.com/docs\">{$children}</a>",
+                    'docs-link' => fn ($children) => "<a href=\"https://hypervel.org/docs\">{$children}</a>",
                 ]
             )
         );
     }
 
-    public function testTagReplacementsHandleMultipleOfSameTag()
+    public function testTagReplacementsHandleMultipleOfSameTag(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
 
@@ -366,7 +564,7 @@ class TranslationTranslatorTest extends TestCase
         );
     }
 
-    public function testDetermineLocalesUsingMethod()
+    public function testDetermineLocalesUsingMethod(): void
     {
         $translator = new Translator($this->getLoader(), 'en');
         $translator->determineLocalesUsing(function ($locales) {
@@ -380,38 +578,69 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo'));
     }
 
-    public function testMissingKeyHandlingIsIsolatedPerCoroutine()
+    public function testConfiguredInvalidLocaleIsRejectedBeforeFilesystemAccess(): void
     {
-        $translator = new Translator(new YieldingTranslationLoader, 'en');
-        $missingKeys = [];
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->never();
 
-        $translator->handleMissingKeysUsing(function (string $key) use (&$missingKeys): string {
-            $missingKeys[] = $key;
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid characters present in locale.');
 
-            return "missing:{$key}";
-        });
-
-        $results = null;
-
-        run(function () use ($translator, &$results): void {
-            $results = parallel([
-                fn (): bool => $translator->has('messages.first', 'en'),
-                function () use ($translator): string {
-                    usleep(2500);
-
-                    return $translator->get('messages.second', [], 'fr');
-                },
-            ]);
-        });
-
-        [$hasMissingKey, $translatedMissingKey] = $results;
-
-        $this->assertFalse($hasMissingKey);
-        $this->assertSame('missing:messages.second', $translatedMissingKey);
-        $this->assertSame(['messages.second'], $missingKeys);
+        new Translator(new FileLoader($files, __DIR__), '.');
     }
 
-    public function testMissingKeyCallbackDoesNotRecurse()
+    public function testExplicitInvalidLocaleIsRejectedBeforeFilesystemAccess(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->never();
+        $translator = new Translator(new FileLoader($files, __DIR__), 'en');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid characters present in locale.');
+
+        $translator->get('messages.welcome', [], 'en/US');
+    }
+
+    public function testInvalidFallbackLocaleIsRejectedBeforeItsFilesystemAccess(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/en.json')->andReturn(false);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/en/messages.php')->andReturn(false);
+        $translator = new Translator(new FileLoader($files, __DIR__), 'en');
+        $translator->setFallback('../fr');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid characters present in locale.');
+
+        $translator->get('messages.welcome');
+    }
+
+    public function testInvalidLocaleFromResolverIsRejectedBeforeItsFilesystemAccess(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->once()->with(__DIR__ . '/en.json')->andReturn(false);
+        $translator = new Translator(new FileLoader($files, __DIR__), 'en');
+        $translator->determineLocalesUsing(static fn (array $locales): array => ['en\US']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid characters present in locale.');
+
+        $translator->get('messages.welcome');
+    }
+
+    public function testSetLocaleRejectsInvalidLocaleImmediately(): void
+    {
+        $loader = m::mock(Loader::class);
+        $loader->shouldReceive('load')->never();
+        $translator = new Translator($loader, 'en');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid characters present in locale.');
+
+        $translator->setLocale('..');
+    }
+
+    public function testMissingKeyCallbackDoesNotRecurse(): void
     {
         $translator = new Translator(new ArrayLoader, 'en');
         $calls = 0;
@@ -426,7 +655,7 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame(1, $calls);
     }
 
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         Translator::macro('translationStaticStateProbe', static fn (): string => 'ok');
 
@@ -437,39 +666,13 @@ class TranslationTranslatorTest extends TestCase
         $this->assertFalse(Translator::hasMacro('translationStaticStateProbe'));
     }
 
-    public function testSetLocale()
-    {
-        $translator = new Translator($this->getLoader(), 'en');
-
-        run(function () use ($translator) {
-            Coroutine::create(function () use ($translator) {
-                $translator->setLocale('fr');
-                $this->assertSame('fr', $translator->getLocale());
-            });
-        });
-
-        $this->assertSame('en', $translator->getLocale());
-    }
-
-    public function testDoubleUnderscoreHelperReturnsNullWhenKeyIsNull()
+    public function testDoubleUnderscoreHelperReturnsNullWhenKeyIsNull(): void
     {
         $this->assertNull(__(null));
     }
 
-    protected function getLoader()
+    protected function getLoader(): Loader
     {
         return m::mock(Loader::class);
-    }
-}
-
-class YieldingTranslationLoader extends ArrayLoader
-{
-    public function load(string $locale, string $group, ?string $namespace = null): array
-    {
-        if ($locale === 'en' && $group === '*') {
-            usleep(5000);
-        }
-
-        return parent::load($locale, $group, $namespace);
     }
 }
