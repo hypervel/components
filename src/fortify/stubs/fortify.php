@@ -11,6 +11,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | These values define the guard and middleware Fortify uses for its routes.
+    | When null, Fortify follows the current request guard. Set a guard name to
+    | pin Fortify's built-in routes to that guard.
     |
     */
 
