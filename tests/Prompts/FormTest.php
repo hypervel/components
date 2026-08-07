@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 
 use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\form;
@@ -75,6 +76,36 @@ class FormTest extends TestCase
         ], $responses);
     }
 
+    public function testTtyRestoreFailureDoesNotPreventFormStepReversion(): void
+    {
+        Prompt::fake([
+            'L',
+            Key::ENTER,
+            Key::CTRL_U,
+            Key::ENTER,
+            Key::ENTER,
+        ]);
+        $restoreCalls = 0;
+
+        Prompt::terminal()
+            ->shouldReceive('restoreTty') // @phpstan-ignore-line
+            ->andReturnUsing(function () use (&$restoreCalls): void {
+                ++$restoreCalls;
+
+                if ($restoreCalls === 2) {
+                    throw new RuntimeException('terminal restoration failed');
+                }
+            });
+
+        $responses = form()
+            ->text('What is your name?')
+            ->confirm('Are you sure?')
+            ->submit();
+
+        $this->assertSame(['L', true], $responses);
+        $this->assertSame(4, $restoreCalls);
+    }
+
     public function testPassesAllAvailableResponsesToEachStep()
     {
         Prompt::fake([
@@ -139,6 +170,25 @@ class FormTest extends TestCase
 
         Prompt::assertOutputContains('This cannot be reverted.');
         $this->assertTrue($confirm);
+    }
+
+    public function testClearsRevertHandlerWhenFormFails(): void
+    {
+        Prompt::fake([Key::CTRL_U, Key::ENTER]);
+
+        try {
+            form()
+                ->add(static fn (): string => 'first')
+                ->add(static fn () => throw new RuntimeException('Form failed.'))
+                ->submit();
+
+            $this->fail('Expected the form to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Form failed.', $exception->getMessage());
+        }
+
+        $this->assertTrue(confirm('Are you sure?'));
+        Prompt::assertOutputContains('This cannot be reverted.');
     }
 
     public function testDoesNotAllowRevertingTheFirstStep()
