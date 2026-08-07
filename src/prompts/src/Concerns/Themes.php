@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts\Concerns;
 
 use Hypervel\Prompts\AutoCompletePrompt;
+use Hypervel\Prompts\Callout;
 use Hypervel\Prompts\Clear;
 use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\DataTablePrompt;
@@ -21,11 +22,13 @@ use Hypervel\Prompts\SelectPrompt;
 use Hypervel\Prompts\Spinner;
 use Hypervel\Prompts\Stream;
 use Hypervel\Prompts\SuggestPrompt;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Table;
 use Hypervel\Prompts\Task;
 use Hypervel\Prompts\TextareaPrompt;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Prompts\Themes\Default\AutoCompletePromptRenderer;
+use Hypervel\Prompts\Themes\Default\CalloutRenderer;
 use Hypervel\Prompts\Themes\Default\ClearRenderer;
 use Hypervel\Prompts\Themes\Default\ConfirmPromptRenderer;
 use Hypervel\Prompts\Themes\Default\DataTableRenderer;
@@ -86,6 +89,7 @@ trait Themes
             Stream::class => StreamRenderer::class,
             Task::class => TaskRenderer::class,
             DataTablePrompt::class => DataTableRenderer::class,
+            Callout::class => CalloutRenderer::class,
         ],
     ];
 
@@ -145,8 +149,13 @@ trait Themes
     protected function getRenderer(): callable
     {
         $class = get_class($this);
+        $renderer = static::$themes[static::$theme][$class] ?? static::$themes[self::DEFAULT_THEME][$class] ?? null;
 
-        return new (static::$themes[static::$theme][$class] ?? static::$themes[self::DEFAULT_THEME][$class])($this);
+        if ($renderer === null) {
+            throw new InvalidArgumentException("Prompt renderer for [{$class}] not found.");
+        }
+
+        return new $renderer($this);
     }
 
     /**
@@ -155,8 +164,9 @@ trait Themes
     protected function renderTheme(): string
     {
         $renderer = $this->getRenderer();
+        $frame = $renderer($this);
 
-        return $renderer($this);
+        return static::output()->isDecorated() ? $frame : Utils::stripEscapeSequences($frame);
     }
 
     /**

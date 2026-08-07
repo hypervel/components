@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts\Concerns;
 
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Terminal;
 use Mockery;
 use PHPUnit\Framework\Assert;
@@ -44,7 +45,8 @@ trait FakesInputOutput
         /* @phpstan-ignore-next-line */
         static::$terminal = $mock;
 
-        self::setOutput(new BufferedConsoleOutput);
+        // The fake models the decorated interactive terminal supplied above.
+        self::setOutput(new BufferedConsoleOutput(decorated: true));
     }
 
     /**
@@ -113,6 +115,6 @@ trait FakesInputOutput
      */
     public static function strippedContent(): string
     {
-        return preg_replace("/\e\\[[0-9;?]*[A-Za-z]/", '', static::content());
+        return Utils::stripEscapeSequences(static::content());
     }
 }
