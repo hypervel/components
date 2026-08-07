@@ -5,31 +5,82 @@ declare(strict_types=1);
 use Hypervel\Fortify\Features;
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication Guard and Middleware
+    |--------------------------------------------------------------------------
+    |
+    | These values define the guard and middleware Fortify uses for its routes.
+    |
+    */
+
     'middleware' => ['web'],
 
     'guard' => null,
 
     'auth_middleware' => 'auth',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Username and Email
+    |--------------------------------------------------------------------------
+    |
+    | These values identify the login and password-reset fields. Usernames may
+    | also be normalized to lowercase before authentication or persistence.
+    |
+    */
+
     'username' => 'email',
 
     'email' => 'email',
 
+    'lowercase_usernames' => true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fortify Views
+    |--------------------------------------------------------------------------
+    |
+    | Disable view routes when the application provides its own frontend.
+    |
+    */
+
     'views' => true,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Home Path and Redirects
+    |--------------------------------------------------------------------------
+    |
+    | Fortify uses these destinations after successful authentication actions.
+    | Null feature redirects fall back to the home path.
+    |
+    */
+
     'home' => '/home',
+
+    'redirects' => [
+        'login' => null,
+        'logout' => null,
+        'password-confirmation' => null,
+        'register' => null,
+        'email-verification' => null,
+        'password-reset' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Route Prefix, Domain, and Paths
+    |--------------------------------------------------------------------------
+    |
+    | Customize Fortify's route group or replace individual route paths here.
+    | Null path values retain the conventional Fortify path.
+    |
+    */
 
     'prefix' => '',
 
     'domain' => null,
-
-    'lowercase_usernames' => false,
-
-    'limiters' => [
-        'login' => 'login',
-        'two-factor' => '5,1',
-        'passkeys' => 'passkeys',
-    ],
 
     'paths' => [
         'login' => null,
@@ -74,14 +125,29 @@ return [
         ],
     ],
 
-    'redirects' => [
-        'login' => null,
-        'logout' => null,
-        'password-confirmation' => null,
-        'register' => null,
-        'email-verification' => null,
-        'password-reset' => null,
+    /*
+    |--------------------------------------------------------------------------
+    | Rate Limiters
+    |--------------------------------------------------------------------------
+    |
+    | These values select the rate limiters used by Fortify's public endpoints.
+    |
+    */
+
+    'limiters' => [
+        'login' => 'login',
+        'two-factor' => '5,1',
+        'passkeys' => 'passkeys',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Passkeys
+    |--------------------------------------------------------------------------
+    |
+    | These settings connect Fortify to Hypervel's passkey support.
+    |
+    */
 
     'passkeys' => [
         'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
@@ -90,10 +156,19 @@ return [
         'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Features
+    |--------------------------------------------------------------------------
+    |
+    | Remove features from this array to disable their routes and behavior.
+    |
+    */
+
     'features' => [
         Features::registration(),
         Features::resetPasswords(),
-        Features::emailVerification(),
+        // Features::emailVerification(),
         Features::updateProfileInformation(),
         Features::updatePasswords(),
         Features::twoFactorAuthentication([
