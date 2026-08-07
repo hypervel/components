@@ -22,6 +22,11 @@ class ArrayType extends Type
     protected ?Type $items = null;
 
     /**
+     * Whether the array items must be unique.
+     */
+    protected ?bool $uniqueItems = null;
+
+    /**
      * Set the minimum number of items (inclusive).
      */
     public function min(int $value): static
@@ -52,14 +57,22 @@ class ArrayType extends Type
     }
 
     /**
-     * Set the type's default value.
-     *
-     * @param array<int, mixed> $value
+     * Indicate that the array items must be unique.
      */
-    public function default(array $value): static
+    public function unique(bool $unique = true): static
     {
-        $this->default = $value;
+        $this->uniqueItems = $unique ?: null;
 
         return $this;
+    }
+
+    /**
+     * Set the type's default value.
+     *
+     * @param null|array<int, mixed> $value
+     */
+    public function default(?array $value): static
+    {
+        return $this->setDefault($value);
     }
 }

@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class NumberTypeTest extends TestCase
 {
-    public function testItMaySetMinValueAsFloat()
+    public function testItMaySetMinValueAsFloat(): void
     {
         $type = JsonSchema::number()->title('Price')->min(5.5);
 
@@ -20,7 +20,7 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMinValueAsInt()
+    public function testItMaySetMinValueAsInt(): void
     {
         $type = JsonSchema::number()->title('Price')->min(5);
 
@@ -31,7 +31,7 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMaxValueAsFloat()
+    public function testItMaySetMaxValueAsFloat(): void
     {
         $type = JsonSchema::number()->description('Max price')->max(10.75);
 
@@ -42,7 +42,7 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMaxValueAsInt()
+    public function testItMaySetMaxValueAsInt(): void
     {
         $type = JsonSchema::number()->description('Max price')->max(10);
 
@@ -53,7 +53,7 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetDefaultValue()
+    public function testItMaySetDefaultValue(): void
     {
         $type = JsonSchema::number()->default(9.99);
 
@@ -63,7 +63,16 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMultipleOfAsFloat()
+    public function testItDistinguishesAnExplicitNullDefaultFromAnUnsetDefault(): void
+    {
+        $this->assertArrayNotHasKey('default', JsonSchema::number()->toArray());
+        $this->assertSame([
+            'default' => null,
+            'type' => 'number',
+        ], JsonSchema::number()->default(null)->toArray());
+    }
+
+    public function testItMaySetMultipleOfAsFloat(): void
     {
         $type = JsonSchema::number()->multipleOf(0.5);
 
@@ -73,7 +82,7 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMultipleOfAsInt()
+    public function testItMaySetMultipleOfAsInt(): void
     {
         $type = JsonSchema::number()->multipleOf(3);
 
@@ -83,7 +92,7 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMayCombineMultipleOfWithMinAndMax()
+    public function testItMayCombineMultipleOfWithMinAndMax(): void
     {
         $type = JsonSchema::number()->min(0.0)->max(10.0)->multipleOf(0.25);
 
@@ -95,7 +104,7 @@ class NumberTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetEnum()
+    public function testItMaySetEnum(): void
     {
         $type = JsonSchema::number()->enum([1, 2.5, 3]);
 

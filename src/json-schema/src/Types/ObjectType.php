@@ -33,12 +33,10 @@ class ObjectType extends Type
     /**
      * Set the type's default value.
      *
-     * @param array<string, mixed> $value
+     * @param null|array<string, mixed> $value
      */
-    public function default(array $value): static
+    public function default(?array $value): static
     {
-        $this->default = $value;
-
-        return $this;
+        return $this->setDefault($value);
     }
 }

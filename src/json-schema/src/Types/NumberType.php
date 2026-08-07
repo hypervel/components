@@ -54,10 +54,8 @@ class NumberType extends Type
     /**
      * Set the type's default value.
      */
-    public function default(int|float $value): static
+    public function default(int|float|null $value): static
     {
-        $this->default = $value;
-
-        return $this;
+        return $this->setDefault($value);
     }
 }

@@ -71,10 +71,8 @@ class StringType extends Type
     /**
      * Set the type's default value.
      */
-    public function default(string $value): static
+    public function default(?string $value): static
     {
-        $this->default = $value;
-
-        return $this;
+        return $this->setDefault($value);
     }
 }

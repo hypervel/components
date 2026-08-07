@@ -54,10 +54,8 @@ class IntegerType extends Type
     /**
      * Set the type's default value.
      */
-    public function default(int $value): static
+    public function default(?int $value): static
     {
-        $this->default = $value;
-
-        return $this;
+        return $this->setDefault($value);
     }
 }

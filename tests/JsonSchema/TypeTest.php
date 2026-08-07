@@ -10,6 +10,7 @@ use Hypervel\Tests\JsonSchema\Fixtures\Enums\StringBackedEnum;
 use Hypervel\Tests\JsonSchema\Fixtures\Enums\UnitEnum;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JsonException;
 use Opis\JsonSchema\Resolvers\SchemaResolver;
 use Opis\JsonSchema\SchemaLoader;
 use Opis\JsonSchema\Validator;
@@ -20,7 +21,7 @@ use Stringable;
 
 class TypeTest extends TestCase
 {
-    public function testAsAArrayRepresentation()
+    public function testAsAArrayRepresentation(): void
     {
         $type = JsonSchema::object([
             'age' => JsonSchema::integer()->min(0)->required(),
@@ -41,7 +42,7 @@ class TypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testDoesHaveAStringRepresentation()
+    public function testDoesHaveAStringRepresentation(): void
     {
         $type = JsonSchema::object([
             'age' => JsonSchema::integer()->min(0)->required(),
@@ -64,7 +65,7 @@ class TypeTest extends TestCase
         JSON, $type->toString());
     }
 
-    public function testDoesHaveAStringableRepresentation()
+    public function testDoesHaveAStringableRepresentation(): void
     {
         $type = JsonSchema::object([
             'age' => JsonSchema::integer()->min(0)->required(),
@@ -88,7 +89,7 @@ class TypeTest extends TestCase
     }
 
     #[DataProvider('validSchemasProvider')]
-    public function testProducesValidJsonSchemas(Stringable $schema, mixed $data)
+    public function testProducesValidJsonSchemas(Stringable $schema, mixed $data): void
     {
         $this->assertValidOnJsonSchema($schema, $data);
     }
@@ -238,6 +239,9 @@ class TypeTest extends TestCase
             [JsonSchema::array()->items(JsonSchema::string()->max(3)), ['one', 'two']],
             [JsonSchema::array()->default(['x']), ['x']],
             [JsonSchema::array()->enum([['a'], ['b', 'c']]), ['b', 'c']],
+            [JsonSchema::array()->unique(), [1, 2, 3]],
+            [JsonSchema::array()->items(JsonSchema::string())->unique(), ['a', 'b', 'c']],
+            [JsonSchema::array()->unique(), []],
             // additional ArrayType cases
             [JsonSchema::array()->min(0), []], // explicit min zero
             [JsonSchema::array()->max(0), []], // exactly zero length
@@ -246,11 +250,35 @@ class TypeTest extends TestCase
             [JsonSchema::array()->enum([[]]), []],
             [JsonSchema::array()->nullable(), null],
             [JsonSchema::array()->nullable(false), []],
+
+            // UnionType
+            [JsonSchema::union(['string', 'number']), 'hello'],
+            [JsonSchema::union(['string', 'number']), 42],
+            [JsonSchema::union(['string', 'number']), 3.14],
+            [JsonSchema::union(['integer', 'boolean']), true],
+            [JsonSchema::union(['string', 'number'])->enum(['draft', 5]), 'draft'],
+            [JsonSchema::union(['string', 'number'])->nullable(), null],
+            [JsonSchema::union(['string', 'number'])->nullable(), 'still valid'],
+
+            // AnyOfType
+            [JsonSchema::anyOf([JsonSchema::string(), JsonSchema::integer()]), 'hello'],
+            [JsonSchema::anyOf([JsonSchema::string(), JsonSchema::integer()]), 10],
+            [JsonSchema::anyOf([JsonSchema::string(), JsonSchema::integer()])->nullable(), null],
+            [JsonSchema::anyOf([
+                JsonSchema::object([
+                    'type' => JsonSchema::string()->enum(['card'])->required(),
+                    'last4' => JsonSchema::string()->min(4)->max(4)->required(),
+                ]),
+                JsonSchema::object([
+                    'type' => JsonSchema::string()->enum(['bank_account'])->required(),
+                    'iban' => JsonSchema::string()->required(),
+                ]),
+            ]), (object) ['type' => 'card', 'last4' => '1234']],
         ];
     }
 
     #[DataProvider('invalidSchemasProvider')]
-    public function testProducesInvalidJsonSchemas(Stringable $schema, mixed $data)
+    public function testProducesInvalidJsonSchemas(Stringable $schema, mixed $data): void
     {
         $this->assertNotValidOnJsonSchema($schema, $data);
     }
@@ -337,6 +365,8 @@ class TypeTest extends TestCase
             [JsonSchema::array()->max(1), ['a', 'b']], // too many items
             [JsonSchema::array()->items(JsonSchema::string()->max(3)), ['four']], // item too long
             [JsonSchema::array()->enum([['a'], ['b', 'c']]), ['c', 'd']], // not in enum
+            [JsonSchema::array()->unique(), [1, 1, 2]],
+            [JsonSchema::array()->items(JsonSchema::string())->unique(), ['a', 'b', 'a']],
             // additional ArrayType cases
             [JsonSchema::array()->items(JsonSchema::integer()), ['a']], // wrong item type
             [JsonSchema::array()->min(1), []], // too few
@@ -344,10 +374,31 @@ class TypeTest extends TestCase
             [JsonSchema::array()->enum([['a'], ['b']]), ['a', 'b']], // not equal to any enum member
             [JsonSchema::array()->items(JsonSchema::string()->max(1)), ['ab']], // item too long
             [JsonSchema::array()->nullable(false), null], // not nullable
+
+            // UnionType
+            [JsonSchema::union(['string', 'number']), true], // boolean not in union
+            [JsonSchema::union(['string', 'number']), []], // array not in union
+            [JsonSchema::union(['string', 'number']), null], // null not allowed unless nullable
+            [JsonSchema::union(['integer', 'boolean']), 'nope'], // string not in union
+            [JsonSchema::union(['string', 'number'])->enum(['draft', 5]), 'archived'], // not in enum
+
+            // AnyOfType
+            [JsonSchema::anyOf([JsonSchema::string(), JsonSchema::integer()]), true],
+            [JsonSchema::anyOf([JsonSchema::string(), JsonSchema::integer()]), null],
+            [JsonSchema::anyOf([
+                JsonSchema::object([
+                    'type' => JsonSchema::string()->enum(['card'])->required(),
+                    'last4' => JsonSchema::string()->min(4)->max(4)->required(),
+                ]),
+                JsonSchema::object([
+                    'type' => JsonSchema::string()->enum(['bank_account'])->required(),
+                    'iban' => JsonSchema::string()->required(),
+                ]),
+            ]), (object) ['type' => 'card', 'iban' => 'wrong-branch']],
         ];
     }
 
-    public function testTypesInObjectSchema()
+    public function testTypesInObjectSchema(): void
     {
         $schema = JsonSchema::object(fn (JsonSchema $schema): array => [
             'name' => $schema->string()->required(),
@@ -357,7 +408,102 @@ class TypeTest extends TestCase
         $this->assertInstanceOf(JsonSchema::class, $schema);
     }
 
-    public function testThrowsWithInvalidEnumString()
+    public function testRequiredMayBeUnset(): void
+    {
+        $schema = JsonSchema::object([
+            'name' => JsonSchema::string()->required()->required(false),
+        ]);
+
+        $this->assertEquals([
+            'type' => 'object',
+            'properties' => [
+                'name' => [
+                    'type' => 'string',
+                ],
+            ],
+        ], $schema->toArray());
+
+        $this->assertValidOnJsonSchema($schema, (object) []);
+    }
+
+    public function testNullableMayBeUnset(): void
+    {
+        $schema = JsonSchema::string()->nullable()->nullable(false);
+
+        $this->assertEquals([
+            'type' => 'string',
+        ], $schema->toArray());
+
+        $this->assertNotValidOnJsonSchema($schema, null);
+    }
+
+    public function testNumericPropertyNamesProduceValidObjectSchemas(): void
+    {
+        $schemas = [
+            [
+                JsonSchema::object(['0' => JsonSchema::string()->required()]),
+                (object) ['0' => 'zero'],
+            ],
+            [
+                JsonSchema::object([
+                    '0' => JsonSchema::string()->required(),
+                    '1' => JsonSchema::integer()->required(),
+                ]),
+                (object) ['0' => 'zero', '1' => 1],
+            ],
+            [
+                JsonSchema::object([
+                    '1' => JsonSchema::string()->required(),
+                    '4' => JsonSchema::integer()->required(),
+                ]),
+                (object) ['1' => 'one', '4' => 4],
+            ],
+        ];
+
+        foreach ($schemas as [$schema, $data]) {
+            $this->assertValidOnJsonSchema($schema, $data);
+        }
+    }
+
+    public function testItPreservesAnEmptyEnum(): void
+    {
+        // Opis requires a non-empty enum, but JSON Schema 2020-12 permits an empty unsatisfiable enum.
+        $this->assertSame([
+            'enum' => [],
+            'type' => 'string',
+        ], JsonSchema::string()->enum([])->toArray());
+    }
+
+    #[DataProvider('invalidJsonValueProvider')]
+    public function testStringConversionPreservesJsonEncodingFailures(Stringable $schema): void
+    {
+        $this->expectException(JsonException::class);
+
+        $schema->__toString();
+    }
+
+    public static function invalidJsonValueProvider(): array
+    {
+        return [
+            'invalid UTF-8' => [JsonSchema::string()->default("\xB1\x31")],
+            'non-finite number' => [JsonSchema::number()->default(INF)],
+        ];
+    }
+
+    public function testStringConversionRejectsResources(): void
+    {
+        $resource = fopen('php://memory', 'r');
+
+        try {
+            $this->expectException(JsonException::class);
+
+            JsonSchema::string()->enum([$resource])->toString();
+        } finally {
+            fclose($resource);
+        }
+    }
+
+    public function testThrowsWithInvalidEnumString(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The provided class must be a BackedEnum.');
@@ -366,7 +512,7 @@ class TypeTest extends TestCase
         JsonSchema::string()->enum('NonExistentEnumClass');
     }
 
-    public function testThrowsWithNotAnEnumClass()
+    public function testThrowsWithNotAnEnumClass(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The provided class must be a BackedEnum.');
@@ -375,7 +521,7 @@ class TypeTest extends TestCase
         JsonSchema::string()->enum(stdClass::class);
     }
 
-    public function testThrowsWithUnitEnumClass()
+    public function testThrowsWithUnitEnumClass(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The provided class must be a BackedEnum.');

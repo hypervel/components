@@ -8,6 +8,8 @@ use BackedEnum;
 use Hypervel\JsonSchema\JsonSchema;
 use Hypervel\JsonSchema\Serializer;
 use InvalidArgumentException;
+use JsonException;
+use RuntimeException;
 
 abstract class Type extends JsonSchema
 {
@@ -32,6 +34,11 @@ abstract class Type extends JsonSchema
     protected mixed $default = null;
 
     /**
+     * Whether a default value was provided.
+     */
+    protected bool $hasDefault = false;
+
+    /**
      * The set of allowed values for the type.
      *
      * @var null|array<int, mixed>
@@ -48,21 +55,17 @@ abstract class Type extends JsonSchema
      */
     public function required(bool $required = true): static
     {
-        if ($required) {
-            $this->required = true;
-        }
+        $this->required = $required ?: null;
 
         return $this;
     }
 
     /**
-     * Indicate that the type is optional.
+     * Indicate that the type may be null.
      */
     public function nullable(bool $nullable = true): static
     {
-        if ($nullable) {
-            $this->nullable = true;
-        }
+        $this->nullable = $nullable ?: null;
 
         return $this;
     }
@@ -83,6 +86,17 @@ abstract class Type extends JsonSchema
     public function description(string $value): static
     {
         $this->description = $value;
+
+        return $this;
+    }
+
+    /**
+     * Set the type's default value.
+     */
+    protected function setDefault(mixed $value): static
+    {
+        $this->default = $value;
+        $this->hasDefault = true;
 
         return $this;
     }
@@ -114,6 +128,9 @@ abstract class Type extends JsonSchema
      * Convert the type to an array.
      *
      * @return array<string, mixed>
+     *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     public function toArray(): array
     {
@@ -122,14 +139,22 @@ abstract class Type extends JsonSchema
 
     /**
      * Convert the type to its string representation.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
+     * @throws RuntimeException
      */
     public function toString(): string
     {
-        return json_encode($this->toArray(), JSON_PRETTY_PRINT) ?: '';
+        return json_encode($this->toArray(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
     }
 
     /**
      * Convert the type to its string representation.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
+     * @throws RuntimeException
      */
     public function __toString(): string
     {

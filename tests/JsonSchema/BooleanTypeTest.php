@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class BooleanTypeTest extends TestCase
 {
-    public function testSerializesAsBooleanWithMetadata()
+    public function testSerializesAsBooleanWithMetadata(): void
     {
         $type = JsonSchema::boolean()->title('Enabled')->description('Feature flag');
 
@@ -20,7 +20,7 @@ class BooleanTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testMaySetDefaultTrueViaDefault()
+    public function testMaySetDefaultTrueViaDefault(): void
     {
         $type = JsonSchema::boolean()->default(true);
 
@@ -30,7 +30,7 @@ class BooleanTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testMaySetDefaultFalseViaDefault()
+    public function testMaySetDefaultFalseViaDefault(): void
     {
         $type = JsonSchema::boolean()->default(false);
 
@@ -40,7 +40,16 @@ class BooleanTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testMaySetEnum()
+    public function testItDistinguishesAnExplicitNullDefaultFromAnUnsetDefault(): void
+    {
+        $this->assertArrayNotHasKey('default', JsonSchema::boolean()->toArray());
+        $this->assertSame([
+            'default' => null,
+            'type' => 'boolean',
+        ], JsonSchema::boolean()->default(null)->toArray());
+    }
+
+    public function testMaySetEnum(): void
     {
         $type = JsonSchema::boolean()->enum([true, false]);
 
