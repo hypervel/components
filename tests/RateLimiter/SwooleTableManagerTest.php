@@ -26,12 +26,12 @@ class SwooleTableManagerTest extends TestCase
         $this->assertSame($state, $manager->get('swoole'));
         $this->assertTrue($table->set('maximum', [
             'value' => AdmissionPolicy::MAX_INTEGER,
-            'available_at' => AdmissionPolicy::MAX_INTEGER,
+            'secondary_value' => AdmissionPolicy::MAX_INTEGER,
             'expires_at' => AdmissionPolicy::MAX_INTEGER,
         ]));
         $this->assertSame([
             'value' => AdmissionPolicy::MAX_INTEGER,
-            'available_at' => AdmissionPolicy::MAX_INTEGER,
+            'secondary_value' => AdmissionPolicy::MAX_INTEGER,
             'expires_at' => AdmissionPolicy::MAX_INTEGER,
         ], $table->get('maximum'));
     }

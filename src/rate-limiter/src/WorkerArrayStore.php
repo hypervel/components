@@ -20,7 +20,7 @@ class WorkerArrayStore implements Store
     /**
      * The numeric rate limiter state held for this worker's lifetime.
      *
-     * @var array<string, array{value: int, available_at: int, expires_at: int}>
+     * @var array<string, array{value: int, secondary_value: int, expires_at: int}>
      */
     protected array $states = [];
 
@@ -29,20 +29,20 @@ class WorkerArrayStore implements Store
      */
     public function consume(string $key, AdmissionPolicy $policy): LimitResult
     {
-        [$value, $availableAt, $expiresAt] = $this->state($key);
+        [$value, $secondaryValue, $expiresAt] = $this->state($key);
 
         $result = $this->calculateConsume(
             $policy,
             $this->currentTimeInMicroseconds(),
             $value,
-            $availableAt,
+            $secondaryValue,
             $expiresAt,
         );
 
         if ($result->allowed()) {
             $this->states[$key] = [
                 'value' => $value,
-                'available_at' => $availableAt,
+                'secondary_value' => $secondaryValue,
                 'expires_at' => $expiresAt,
             ];
         }
@@ -57,13 +57,13 @@ class WorkerArrayStore implements Store
      */
     public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
     {
-        [$value, $availableAt, $expiresAt] = $this->state($key);
+        [$value, $secondaryValue, $expiresAt] = $this->state($key);
 
         return $this->calculateInspection(
             $policy,
             $this->currentTimeInMicroseconds(),
             $value,
-            $availableAt,
+            $secondaryValue,
             $expiresAt,
         );
     }
@@ -73,19 +73,19 @@ class WorkerArrayStore implements Store
      */
     public function recordFailure(string $key, Backoff $backoff): BackoffResult
     {
-        [$value, $availableAt, $expiresAt] = $this->state($key);
+        [$value, $secondaryValue, $expiresAt] = $this->state($key);
 
         $result = $this->calculateFailure(
             $backoff,
             $this->currentTimeInMicroseconds(),
             $value,
-            $availableAt,
+            $secondaryValue,
             $expiresAt,
         );
 
         $this->states[$key] = [
             'value' => $value,
-            'available_at' => $availableAt,
+            'secondary_value' => $secondaryValue,
             'expires_at' => $expiresAt,
         ];
 
@@ -117,6 +117,6 @@ class WorkerArrayStore implements Store
 
         return $state === null
             ? [0, 0, 0]
-            : [$state['value'], $state['available_at'], $state['expires_at']];
+            : [$state['value'], $state['secondary_value'], $state['expires_at']];
     }
 }

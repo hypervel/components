@@ -39,13 +39,13 @@ class SwooleStore implements Store
         for ($attempt = 0; $attempt < 2; ++$attempt) {
             /** @var array{LimitResult, bool} $outcome */
             $outcome = $this->state->withLock($key, function () use ($key, $policy): array {
-                [$value, $availableAt, $expiresAt] = $this->storedState($key);
+                [$value, $secondaryValue, $expiresAt] = $this->storedState($key);
 
                 $result = $this->calculateConsume(
                     $policy,
                     $this->currentTimeInMicroseconds(),
                     $value,
-                    $availableAt,
+                    $secondaryValue,
                     $expiresAt,
                 );
 
@@ -55,7 +55,7 @@ class SwooleStore implements Store
 
                 return [
                     $result,
-                    $this->writeState($key, $value, $availableAt, $expiresAt),
+                    $this->writeState($key, $value, $secondaryValue, $expiresAt),
                 ];
             });
 
@@ -83,13 +83,13 @@ class SwooleStore implements Store
     public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
     {
         return $this->state->withLock($key, function () use ($key, $policy): LimitResult|BackoffResult {
-            [$value, $availableAt, $expiresAt] = $this->storedState($key);
+            [$value, $secondaryValue, $expiresAt] = $this->storedState($key);
 
             return $this->calculateInspection(
                 $policy,
                 $this->currentTimeInMicroseconds(),
                 $value,
-                $availableAt,
+                $secondaryValue,
                 $expiresAt,
             );
         });
@@ -103,19 +103,19 @@ class SwooleStore implements Store
         for ($attempt = 0; $attempt < 2; ++$attempt) {
             /** @var array{BackoffResult, bool} $outcome */
             $outcome = $this->state->withLock($key, function () use ($key, $backoff): array {
-                [$value, $availableAt, $expiresAt] = $this->storedState($key);
+                [$value, $secondaryValue, $expiresAt] = $this->storedState($key);
 
                 $result = $this->calculateFailure(
                     $backoff,
                     $this->currentTimeInMicroseconds(),
                     $value,
-                    $availableAt,
+                    $secondaryValue,
                     $expiresAt,
                 );
 
                 return [
                     $result,
-                    $this->writeState($key, $value, $availableAt, $expiresAt),
+                    $this->writeState($key, $value, $secondaryValue, $expiresAt),
                 ];
             });
 
@@ -207,28 +207,28 @@ class SwooleStore implements Store
         }
 
         $value = $row['value'] ?? null;
-        $availableAt = $row['available_at'] ?? null;
+        $secondaryValue = $row['secondary_value'] ?? null;
         $expiresAt = $row['expires_at'] ?? null;
 
-        if (! is_int($value) || ! is_int($availableAt) || ! is_int($expiresAt)
-            || $value < 0 || $availableAt < 0 || $expiresAt < 0
+        if (! is_int($value) || ! is_int($secondaryValue) || ! is_int($expiresAt)
+            || $value < 0 || $secondaryValue < 0 || $expiresAt < 0
             || $value > AdmissionPolicy::MAX_INTEGER
-            || $availableAt > AdmissionPolicy::MAX_INTEGER
+            || $secondaryValue > AdmissionPolicy::MAX_INTEGER
             || $expiresAt > AdmissionPolicy::MAX_INTEGER) {
             throw new UnexpectedValueException('The stored Swoole rate limiter state is invalid.');
         }
 
-        return [$value, $availableAt, $expiresAt];
+        return [$value, $secondaryValue, $expiresAt];
     }
 
     /**
      * Write numeric state for a physical limiter key.
      */
-    protected function writeState(string $key, int $value, int $availableAt, int $expiresAt): bool
+    protected function writeState(string $key, int $value, int $secondaryValue, int $expiresAt): bool
     {
         return $this->state->table()->set($key, [
             'value' => $value,
-            'available_at' => $availableAt,
+            'secondary_value' => $secondaryValue,
             'expires_at' => $expiresAt,
         ]);
     }

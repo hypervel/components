@@ -11,6 +11,7 @@ use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\RateLimiter\Swoole\TableManager;
 use Hypervel\RateLimiter\Swoole\TableState;
 use Hypervel\RateLimiter\SwooleStore;
@@ -82,6 +83,37 @@ class SwooleStoreTest extends TestCase
         $this->assertTrue($store->clear('backoff'));
     }
 
+    public function testSlidingWindowRotatesStateAndKeepsItForTwoWindows(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-04 00:00:00.000000');
+        CarbonImmutable::setTestNow($now);
+        [$store, $state] = $this->store();
+        $policy = SlidingWindow::perSecond(10, 2)->cost(4);
+        $expiresAt = (int) $now->getPreciseTimestamp(6) + 4_000_000;
+
+        $this->assertTrue($store->consume('sliding', $policy)->allowed());
+        $this->assertSame([
+            'value' => 4,
+            'secondary_value' => 0,
+            'expires_at' => $expiresAt,
+        ], $state->table()->get('sliding'));
+
+        CarbonImmutable::setTestNow($now->addSeconds(2));
+
+        $this->assertTrue($store->consume('sliding', $policy->cost(3))->allowed());
+        $this->assertSame([
+            'value' => 3,
+            'secondary_value' => 4,
+            'expires_at' => $expiresAt + 2_000_000,
+        ], $state->table()->get('sliding'));
+
+        CarbonImmutable::setTestNow($now->addSeconds(5));
+        $this->assertSame(0, $store->pruneExpiredRows());
+
+        CarbonImmutable::setTestNow($now->addSeconds(6));
+        $this->assertSame(1, $store->pruneExpiredRows());
+    }
+
     public function testSwitchingToTestTimeKeepsTheEpochClockScale(): void
     {
         [$store] = $this->store();
@@ -143,7 +175,7 @@ class SwooleStoreTest extends TestCase
         $capacity = $this->fillUntilAllocationFails($state, $now + 60_000_000);
         $this->assertTrue($table->set($capacity['conflict_key'], [
             'value' => 1,
-            'available_at' => $now - 1,
+            'secondary_value' => 0,
             'expires_at' => $now - 1,
         ]));
 
@@ -174,13 +206,29 @@ class SwooleStoreTest extends TestCase
         $expiresAt = (int) CarbonImmutable::now()->getPreciseTimestamp(6) + 60_000_000;
         $this->assertTrue($state->table()->set('corrupt', [
             'value' => 1,
-            'available_at' => $expiresAt + 1,
+            'secondary_value' => $expiresAt + 1,
             'expires_at' => $expiresAt,
         ]));
 
         $this->expectException(UnexpectedValueException::class);
 
         $store->consume('corrupt', Limit::perMinute(10));
+    }
+
+    public function testCorruptSlidingWindowStateFailsClosed(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-04 00:00:00');
+        [$store, $state] = $this->store();
+        $expiresAt = (int) CarbonImmutable::now()->getPreciseTimestamp(6) + 120_000_000;
+        $this->assertTrue($state->table()->set('corrupt-sliding', [
+            'value' => 0,
+            'secondary_value' => 1,
+            'expires_at' => $expiresAt,
+        ]));
+
+        $this->expectException(UnexpectedValueException::class);
+
+        $store->consume('corrupt-sliding', SlidingWindow::perMinute(10));
     }
 
     /**
@@ -226,7 +274,7 @@ class SwooleStoreTest extends TestCase
             $key = "capacity:{$index}";
             $stored = @$table->set($key, [
                 'value' => 1,
-                'available_at' => $expiresAt,
+                'secondary_value' => 0,
                 'expires_at' => $expiresAt,
             ]);
 

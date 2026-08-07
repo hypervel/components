@@ -51,6 +51,11 @@ class DatabaseStoreTest extends DatabaseStoreTestCase
         $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
     }
 
+    public function testConcurrentSlidingWindowFirstUseAdmitsExactlyTheConfiguredCapacity(): void
+    {
+        $this->markTestSkipped('Requires the Swoole AIO scheduler fix from PR #6140.');
+    }
+
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);

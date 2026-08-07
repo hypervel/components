@@ -84,7 +84,7 @@ class TableManager
 
         $table = new Table($rows, $conflictProportion);
         $table->column('value', Table::TYPE_INT, 8);
-        $table->column('available_at', Table::TYPE_INT, 8);
+        $table->column('secondary_value', Table::TYPE_INT, 8);
         $table->column('expires_at', Table::TYPE_INT, 8);
 
         if (! $table->create()) {

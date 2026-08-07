@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\Config\Repository;
+use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\RateLimiter\Swoole\TableManager;
 use Hypervel\RateLimiter\Swoole\TableState;
 use Hypervel\RateLimiter\SwooleStore;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use Swoole\Atomic;
@@ -24,10 +27,10 @@ class SwooleStoreConcurrencyTest extends TestCase
 
     protected bool $runTestsInCoroutine = false;
 
-    public function testForkedWorkersAdmitExactlyTheConfiguredCapacity(): void
+    #[DataProvider('admissionPolicyProvider')]
+    public function testForkedWorkersAdmitExactlyTheConfiguredCapacity(AdmissionPolicy $policy): void
     {
         $state = $this->state();
-        $policy = Limit::perMinute(50);
         $processCount = 8;
         $attemptsPerProcess = 25;
         $ready = new Atomic(0);
@@ -125,6 +128,14 @@ class SwooleStoreConcurrencyTest extends TestCase
             $start->set(1);
             $this->cleanupProcesses($processes, $pids);
         }
+    }
+
+    public static function admissionPolicyProvider(): array
+    {
+        return [
+            'fixed window' => [Limit::perMinute(50)],
+            'sliding window' => [SlidingWindow::perMinute(50)],
+        ];
     }
 
     /**

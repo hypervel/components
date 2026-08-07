@@ -38,17 +38,17 @@ class DatabaseStore implements PrunableStore, Store
         $this->ensureOutsideTransaction($connection);
 
         return $connection->transaction(function (ConnectionInterface $connection) use ($key, $policy): LimitResult {
-            [$value, $availableAt, $expiresAt] = $this->stateForUpdate($connection, $key);
+            [$value, $secondaryValue, $expiresAt] = $this->stateForUpdate($connection, $key);
             $result = $this->calculateConsume(
                 $policy,
                 $this->currentDatabaseTimeInMicroseconds($connection),
                 $value,
-                $availableAt,
+                $secondaryValue,
                 $expiresAt,
             );
 
             if ($result->allowed()) {
-                $this->writeState($connection, $key, $value, $availableAt, $expiresAt);
+                $this->writeState($connection, $key, $value, $secondaryValue, $expiresAt);
             }
 
             return $result;
@@ -67,7 +67,7 @@ class DatabaseStore implements PrunableStore, Store
             ->useWritePdo()
             ->where('key', $key)
             ->first();
-        [$value, $availableAt, $expiresAt] = $row === null
+        [$value, $secondaryValue, $expiresAt] = $row === null
             ? [0, 0, 0]
             : $this->stateFromRow($row);
 
@@ -75,7 +75,7 @@ class DatabaseStore implements PrunableStore, Store
             $policy,
             $this->currentDatabaseTimeInMicroseconds($connection),
             $value,
-            $availableAt,
+            $secondaryValue,
             $expiresAt,
         );
     }
@@ -89,16 +89,16 @@ class DatabaseStore implements PrunableStore, Store
         $this->ensureOutsideTransaction($connection);
 
         return $connection->transaction(function (ConnectionInterface $connection) use ($key, $backoff): BackoffResult {
-            [$value, $availableAt, $expiresAt] = $this->stateForUpdate($connection, $key);
+            [$value, $secondaryValue, $expiresAt] = $this->stateForUpdate($connection, $key);
             $result = $this->calculateFailure(
                 $backoff,
                 $this->currentDatabaseTimeInMicroseconds($connection),
                 $value,
-                $availableAt,
+                $secondaryValue,
                 $expiresAt,
             );
 
-            $this->writeState($connection, $key, $value, $availableAt, $expiresAt);
+            $this->writeState($connection, $key, $value, $secondaryValue, $expiresAt);
 
             return $result;
         }, attempts: 3);
@@ -171,7 +171,7 @@ class DatabaseStore implements PrunableStore, Store
         $connection->table($this->table)->insertOrIgnore([
             'key' => $key,
             'value' => 0,
-            'available_at' => 0,
+            'secondary_value' => 0,
             'expires_at' => 0,
         ]);
     }
@@ -235,7 +235,7 @@ class DatabaseStore implements PrunableStore, Store
     {
         return [
             $this->integerValue($row->value ?? null, 'value'),
-            $this->integerValue($row->available_at ?? null, 'available_at'),
+            $this->integerValue($row->secondary_value ?? null, 'secondary_value'),
             $this->integerValue($row->expires_at ?? null, 'expires_at'),
         ];
     }
@@ -247,14 +247,14 @@ class DatabaseStore implements PrunableStore, Store
         ConnectionInterface $connection,
         string $key,
         int $value,
-        int $availableAt,
+        int $secondaryValue,
         int $expiresAt,
     ): void {
         $connection->table($this->table)
             ->where('key', $key)
             ->update([
                 'value' => $value,
-                'available_at' => $availableAt,
+                'secondary_value' => $secondaryValue,
                 'expires_at' => $expiresAt,
             ]);
     }

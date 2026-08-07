@@ -78,7 +78,7 @@ class DatabaseStoreTest extends TestCase
 
             return (object) [
                 'value' => 0,
-                'available_at' => 0,
+                'secondary_value' => 0,
                 'expires_at' => 0,
             ];
         });
@@ -99,7 +99,7 @@ class DatabaseStoreTest extends TestCase
             ->once()
             ->with([
                 'value' => 1,
-                'available_at' => 61_000_000,
+                'secondary_value' => 0,
                 'expires_at' => 61_000_000,
             ])
             ->andReturnUsing(static function () use (&$operations): int {
@@ -155,7 +155,7 @@ class DatabaseStoreTest extends TestCase
             ->with([
                 'key' => 'physical-key',
                 'value' => 0,
-                'available_at' => 0,
+                'secondary_value' => 0,
                 'expires_at' => 0,
             ])
             ->andReturnUsing(static function () use (&$operations): int {
@@ -170,7 +170,7 @@ class DatabaseStoreTest extends TestCase
 
             return (object) [
                 'value' => 0,
-                'available_at' => 0,
+                'secondary_value' => 0,
                 'expires_at' => 0,
             ];
         });
@@ -191,7 +191,7 @@ class DatabaseStoreTest extends TestCase
             ->once()
             ->with([
                 'value' => 1,
-                'available_at' => 61_000_000,
+                'secondary_value' => 0,
                 'expires_at' => 61_000_000,
             ])
             ->andReturnUsing(static function () use (&$operations): int {
@@ -242,7 +242,7 @@ class DatabaseStoreTest extends TestCase
             ->with([
                 'key' => 'physical-key',
                 'value' => 0,
-                'available_at' => 0,
+                'secondary_value' => 0,
                 'expires_at' => 0,
             ])
             ->andReturnUsing(static function () use (&$operations): int {
@@ -257,7 +257,7 @@ class DatabaseStoreTest extends TestCase
 
             return (object) [
                 'value' => 0,
-                'available_at' => 0,
+                'secondary_value' => 0,
                 'expires_at' => 0,
             ];
         });
@@ -268,8 +268,8 @@ class DatabaseStoreTest extends TestCase
                 $operations[] = 'update';
 
                 return $state['value'] === 1
-                    && $state['available_at'] > 60_000_000
-                    && $state['expires_at'] === $state['available_at'];
+                    && $state['secondary_value'] === 0
+                    && $state['expires_at'] > 60_000_000;
             }))
             ->andReturn(1);
 

@@ -22,7 +22,7 @@ class RateLimiterTableCommandTest extends TestCase
                 "Schema::create('rate_limits', function (Blueprint \$table) {",
                 "\$table->char('key', 32)->primary();",
                 "\$table->unsignedBigInteger('value')->default(0);",
-                "\$table->unsignedBigInteger('available_at')->default(0);",
+                "\$table->unsignedBigInteger('secondary_value')->default(0);",
                 "\$table->unsignedBigInteger('expires_at')->index();",
                 "Schema::dropIfExists('rate_limits');",
             ], 'create_rate_limits_table.php');

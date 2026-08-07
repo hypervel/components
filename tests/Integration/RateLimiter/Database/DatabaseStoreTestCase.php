@@ -15,6 +15,7 @@ use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
@@ -59,7 +60,8 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
         $this->assertTrue($denied->denied());
         $this->assertSame(0, $denied->remaining());
         $this->assertSame(2, (int) $row->value);
-        $this->assertSame((int) $row->available_at, (int) $row->expires_at);
+        $this->assertSame(0, (int) $row->secondary_value);
+        $this->assertGreaterThan(0, (int) $row->expires_at);
     }
 
     public function testInspectingMissingStateDoesNotCreateARow(): void
@@ -73,6 +75,29 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
         $this->assertSame(10, $result->remaining());
         $this->assertSame(0, $result->resetAfter());
         $this->assertFalse(DB::table('rate_limits')->where('key', $key)->exists());
+    }
+
+    public function testSlidingWindowRotatesWithinTheDatabaseTransaction(): void
+    {
+        $store = $this->store();
+        $key = str_repeat('s', 32);
+        $policy = SlidingWindow::perSecond(10)->cost(4);
+
+        $this->assertTrue($store->consume($key, $policy)->allowed());
+        $initial = DB::table('rate_limits')->where('key', $key)->first();
+        $this->assertSame(4, (int) $initial->value);
+        $this->assertSame(0, (int) $initial->secondary_value);
+
+        $this->waitForRateLimiterStoreContract(
+            static fn (): bool => $store->inspect($key, $policy)->resetAfter() <= 1,
+            1,
+        );
+
+        $this->assertTrue($store->consume($key, $policy->cost(3))->allowed());
+        $rotated = DB::table('rate_limits')->where('key', $key)->first();
+        $this->assertSame(3, (int) $rotated->value);
+        $this->assertSame(4, (int) $rotated->secondary_value);
+        $this->assertGreaterThan((int) $initial->expires_at, (int) $rotated->expires_at);
     }
 
     public function testLeakyBucketAndBackoffUseTheSharedCalculator(): void
@@ -120,7 +145,7 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
             Schema::create('custom_rate_limits', function (Blueprint $table): void {
                 $table->char('key', 32)->primary();
                 $table->unsignedBigInteger('value')->default(0);
-                $table->unsignedBigInteger('available_at')->default(0);
+                $table->unsignedBigInteger('secondary_value')->default(0);
                 $table->unsignedBigInteger('expires_at')->index();
             });
 
@@ -147,7 +172,7 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
             DB::table('rate_limits')->insert([
                 'key' => str_pad("expired{$index}", 32, 'x'),
                 'value' => 1,
-                'available_at' => 1,
+                'secondary_value' => 0,
                 'expires_at' => 1,
             ]);
         }
@@ -155,7 +180,7 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
         DB::table('rate_limits')->insert([
             'key' => str_repeat('l', 32),
             'value' => 1,
-            'available_at' => AdmissionPolicy::MAX_INTEGER,
+            'secondary_value' => 0,
             'expires_at' => AdmissionPolicy::MAX_INTEGER,
         ]);
 
@@ -169,7 +194,7 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
         DB::table('rate_limits')->insert([
             'key' => $key,
             'value' => 1,
-            'available_at' => 1,
+            'secondary_value' => 0,
             'expires_at' => 1,
         ]);
         $renewed = false;
@@ -184,7 +209,6 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
             $renewed = true;
 
             DB::table('rate_limits')->where('key', $key)->update([
-                'available_at' => AdmissionPolicy::MAX_INTEGER,
                 'expires_at' => AdmissionPolicy::MAX_INTEGER,
             ]);
         });
@@ -203,7 +227,7 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
         DB::table('rate_limits')->insert([
             'key' => $key,
             'value' => 1,
-            'available_at' => AdmissionPolicy::MAX_INTEGER,
+            'secondary_value' => AdmissionPolicy::MAX_INTEGER,
             'expires_at' => AdmissionPolicy::MAX_INTEGER - 1,
         ]);
 
@@ -227,6 +251,24 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
 
         $this->assertSame(5, count(array_filter($results)));
         $this->assertSame(5, (int) DB::table('rate_limits')->where('key', $key)->value('value'));
+    }
+
+    public function testConcurrentSlidingWindowFirstUseAdmitsExactlyTheConfiguredCapacity(): void
+    {
+        $store = $this->store();
+        $key = str_repeat('j', 32);
+        $policy = SlidingWindow::perMinute(5);
+        $operations = [];
+
+        for ($index = 0; $index < 10; ++$index) {
+            $operations[] = static fn (): bool => $store->consume($key, $policy)->allowed();
+        }
+
+        $results = parallel($operations);
+
+        $this->assertSame(5, count(array_filter($results)));
+        $this->assertSame(5, (int) DB::table('rate_limits')->where('key', $key)->value('value'));
+        $this->assertSame(0, (int) DB::table('rate_limits')->where('key', $key)->value('secondary_value'));
     }
 
     public function testConcurrentExistingStateDoesNotLoseUpdates(): void

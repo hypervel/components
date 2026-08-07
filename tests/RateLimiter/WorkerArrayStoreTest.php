@@ -9,6 +9,7 @@ use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\RateLimiter\Fixtures\RateLimiterStoreContract;
@@ -73,6 +74,28 @@ class WorkerArrayStoreTest extends TestCase
         $accepted = $limiter->consume($policy);
         $this->assertTrue($accepted->allowed());
         $this->assertSame(0, $accepted->remaining());
+    }
+
+    public function testSlidingWindowUsesGenericStateAndExtendsExpiryOnRotation(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-04 12:00:00.000000');
+        CarbonImmutable::setTestNow($now);
+        $store = new CorruptibleWorkerArrayStore;
+        $policy = SlidingWindow::perSecond(10, 2)->cost(4);
+        $expiresAt = (int) $now->getPreciseTimestamp(6) + 4_000_000;
+
+        $this->assertTrue($store->consume('sliding', $policy)->allowed());
+        $this->assertSame([4, 0, $expiresAt], $store->stateFor('sliding'));
+
+        CarbonImmutable::setTestNow($now->addSeconds(2));
+
+        $this->assertTrue($store->consume('sliding', $policy->cost(3))->allowed());
+        $this->assertSame([3, 4, $expiresAt + 2_000_000], $store->stateFor('sliding'));
+
+        CarbonImmutable::setTestNow($now->addSeconds(6));
+
+        $this->assertSame(10, $store->inspect('sliding', $policy)->remaining());
+        $this->assertSame([3, 4, $expiresAt + 2_000_000], $store->stateFor('sliding'));
     }
 
     public function testExponentialBackoffUsesThresholdDoublingCapAndInactivityReset(): void
@@ -173,12 +196,20 @@ class WorkerArrayStoreTest extends TestCase
 
 class CorruptibleWorkerArrayStore extends WorkerArrayStore
 {
-    public function putState(string $key, int $value, int $availableAt, int $expiresAt): void
+    public function putState(string $key, int $value, int $secondaryValue, int $expiresAt): void
     {
         $this->states[$key] = [
             'value' => $value,
-            'available_at' => $availableAt,
+            'secondary_value' => $secondaryValue,
             'expires_at' => $expiresAt,
         ];
+    }
+
+    /**
+     * @return array{int, int, int}
+     */
+    public function stateFor(string $key): array
+    {
+        return $this->state($key);
     }
 }
