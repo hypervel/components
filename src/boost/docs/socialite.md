@@ -12,6 +12,8 @@
     - [Dynamic Provider Configuration](#dynamic-provider-configuration)
     - [PKCE](#pkce)
     - [Custom Providers](#custom-providers)
+        - [OAuth 2.0 Providers](#custom-oauth2-providers)
+        - [OpenID Connect Providers](#custom-openid-connect-providers)
 - [Retrieving User Details](#retrieving-user-details)
     - [Retrieving User Details From a Token](#retrieving-user-details-from-a-token)
     - [Refreshing Access Tokens](#refreshing-access-tokens)
@@ -196,15 +198,30 @@ return Socialite::driver('google')
 If your application resolves provider credentials at runtime, you may use the `setConfig` method to override the provider configuration for the current request:
 
 ```php
+use App\Models\Tenant;
 use Hypervel\Socialite\Socialite;
 
-return Socialite::driver('github')
-    ->setConfig([
-        'client_id' => $tenant->github_client_id,
-        'client_secret' => $tenant->github_client_secret,
-        'redirect' => route('github.callback', ['tenant' => $tenant]),
-    ])
-    ->redirect();
+Route::get('/{tenant}/auth/github/redirect', function (Tenant $tenant) {
+    return Socialite::driver('github')
+        ->setConfig([
+            'client_id' => $tenant->github_client_id,
+            'client_secret' => $tenant->github_client_secret,
+            'redirect' => route('github.callback', ['tenant' => $tenant]),
+        ])
+        ->redirect();
+})->name('github.redirect');
+
+Route::get('/{tenant}/auth/github/callback', function (Tenant $tenant) {
+    $user = Socialite::driver('github')
+        ->setConfig([
+            'client_id' => $tenant->github_client_id,
+            'client_secret' => $tenant->github_client_secret,
+            'redirect' => route('github.callback', ['tenant' => $tenant]),
+        ])
+        ->user();
+
+    // ...
+})->name('github.callback');
 ```
 
 Partial overrides preserve the provider's base configuration. For example, you may override only the client ID while continuing to use the configured client secret and redirect URL:
@@ -216,6 +233,8 @@ return Socialite::driver('github')
 ```
 
 The `setConfig` method stores the override in coroutine-local context, so it is safe to use on cached provider instances. OAuth 2.0 providers understand the `client_id`, `client_secret`, and `redirect` keys. Other keys are also available to custom providers through their provider configuration.
+
+The redirect and callback are separate requests. If you use dynamic credentials, call `setConfig` in both routes so each request receives the same provider configuration.
 
 If you only need to override the callback URL for the current request, you may use the `redirectUrl` method:
 
@@ -249,26 +268,129 @@ The `x` driver enables PKCE by default.
 <a name="custom-providers"></a>
 ### Custom Providers
 
-You may register custom providers using the `extend` method. For OAuth 2.0 providers, use the `buildOAuth2Provider` method to build a provider instance from your `config/services.php` configuration:
+You may register custom providers using the `extend` method. Custom providers should be registered in the `boot` method of one of your application's service providers.
+
+<a name="custom-oauth2-providers"></a>
+#### OAuth 2.0 Providers
+
+For OAuth 2.0 providers, extend `Hypervel\Socialite\Two\AbstractProvider` and implement the `Hypervel\Socialite\Two\ProviderInterface` contract. The provider must define its authorization and token endpoints, retrieve the user using an access token, and map the provider's response to a Socialite user:
+
+```php
+namespace App\Socialite;
+
+use GuzzleHttp\RequestOptions;
+use Hypervel\Socialite\Two\AbstractProvider;
+use Hypervel\Socialite\Two\ProviderInterface;
+use Hypervel\Socialite\Two\User;
+use SensitiveParameter;
+
+class AcmeProvider extends AbstractProvider implements ProviderInterface
+{
+    protected function getAuthUrl(?string $state): string
+    {
+        return $this->buildAuthUrlFromBase('https://acme.example.com/oauth/authorize', $state);
+    }
+
+    protected function getTokenUrl(): string
+    {
+        return 'https://acme.example.com/oauth/token';
+    }
+
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
+    {
+        $response = $this->getHttpClient()->get('https://acme.example.com/api/user', [
+            RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token],
+        ]);
+
+        return json_decode((string) $response->getBody(), true);
+    }
+
+    protected function mapUserToObject(array $user): User
+    {
+        return (new User)->setRaw($user)->map([
+            'id' => $user['id'],
+            'name' => $user['name'],
+            'email' => $user['email'],
+        ]);
+    }
+}
+```
+
+You may then use the `buildOAuth2Provider` method to build the provider from your `config/services.php` configuration:
 
 ```php
 use App\Socialite\AcmeProvider;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Socialite\Socialite;
 
-Socialite::extend('acme', function (Container $app) {
-    return Socialite::buildOAuth2Provider(
-        AcmeProvider::class,
-        $app->make('config')->get('services.acme')
-    );
-});
+public function boot(): void
+{
+    Socialite::extend('acme', function (Container $app) {
+        return Socialite::buildOAuth2Provider(
+            AcmeProvider::class,
+            $app->make('config')->get('services.acme')
+        );
+    });
+}
 ```
 
-The `buildOAuth2Provider` method requires `client_id`, `client_secret`, and `redirect` configuration keys and will resolve relative redirect URLs to fully qualified URLs.
+The `buildOAuth2Provider` method requires `client_id`, `client_secret`, and `redirect` configuration keys and will resolve relative redirect URLs to fully qualified URLs. Register custom drivers from a service provider's `boot` method. The manager and the provider's baseline configuration live for the worker lifetime, so `withConfig` is intended for this boot-time setup. Use `setConfig` for request-specific values.
 
-If you need to adapt configuration for a custom OAuth 2.0 provider, the `formatConfig` method returns the provider configuration with `identifier`, `secret`, and `callback_uri` keys derived from `client_id`, `client_secret`, and `redirect`.
+If the provider returns a different token response shape, you may override the protected `parseAccessToken`, `parseRefreshToken`, `parseExpiresIn`, and `parseApprovedScopes` methods. A provider that needs the entire response to retrieve the user may override `getUserByTokenResponse` instead of replacing the `user` method:
 
-For non-OAuth2 federated login providers, extend `Hypervel\Socialite\AbstractProvider` and implement the `Hypervel\Socialite\Contracts\Provider` contract. Custom providers must provide `redirect` and `user` methods. The base provider includes coroutine-safe request handling, HTTP client handling, runtime configuration, stateless mode, and custom redirect parameters. When building a custom provider directly, call `withConfig` to seed the provider's baseline configuration:
+```php
+protected function getUserByTokenResponse(#[SensitiveParameter] array $response): array
+{
+    return $this->getUserByToken($response['credentials']['access_token']);
+}
+```
+
+The protected `getRequest` method returns the request for the current authentication flow. Use it when a provider needs request data beyond the authorization code. The returned `User` instance exposes the complete token response through its `accessTokenResponseBody` property.
+
+<a name="custom-openid-connect-providers"></a>
+#### OpenID Connect Providers
+
+For providers that publish OpenID Connect discovery metadata, extend `Hypervel\Socialite\Two\OpenIdProvider`. In addition to mapping the user response, your provider only needs to return the issuer's base URL:
+
+```php
+use Hypervel\Socialite\Two\OpenIdProvider;
+use Hypervel\Socialite\Two\ProviderInterface;
+use Hypervel\Socialite\Two\User;
+
+class AcmeOpenIdProvider extends OpenIdProvider implements ProviderInterface
+{
+    protected function getBaseUrl(): string
+    {
+        return 'https://identity.acme.example.com';
+    }
+
+    protected function mapUserToObject(array $user): User
+    {
+        return (new User)->setRaw($user)->map([
+            'id' => $user['sub'],
+            'name' => $user['name'] ?? null,
+            'email' => $user['email'] ?? null,
+        ]);
+    }
+}
+```
+
+The base provider discovers the authorization, token, UserInfo, and JSON Web Key Set endpoints. UserInfo requests use Bearer authorization, and signing keys are reused according to the provider's cache directives and refreshed once when a provider rotates them.
+
+An ID token must include the configured client ID in its audience. If the provider also includes audiences for your APIs or other trusted services, list them using the `trusted_audiences` configuration option:
+
+```php
+'acme' => [
+    'client_id' => env('ACME_CLIENT_ID'),
+    'client_secret' => env('ACME_CLIENT_SECRET'),
+    'redirect' => '/auth/acme/callback',
+    'trusted_audiences' => ['https://api.acme.example.com'],
+],
+```
+
+Generic OpenID Connect providers validate a one-time nonce stored in the session. The redirect and callback requests must therefore use the same session.
+
+For other federated login protocols, extend `Hypervel\Socialite\AbstractProvider` and implement the `Hypervel\Socialite\Contracts\Provider` contract. Custom providers must provide `redirect` and `user` methods. The base provider includes coroutine-safe request handling, HTTP client handling, runtime configuration, stateless mode, and custom redirect parameters. When building a custom provider directly, call `withConfig` to seed the provider's baseline configuration:
 
 ```php
 use App\Socialite\SamlProvider;
@@ -298,6 +420,7 @@ Route::get('/auth/callback', function () {
     $refreshToken = $user->refreshToken;
     $expiresIn = $user->expiresIn;
     $approvedScopes = $user->approvedScopes;
+    $accessTokenResponse = $user->accessTokenResponseBody;
 
     $user->getId();
     $user->getNickname();
@@ -306,6 +429,8 @@ Route::get('/auth/callback', function () {
     $user->getAvatar();
 });
 ```
+
+The `accessTokenResponseBody` property contains the complete response returned by the token endpoint. It is empty when the user was retrieved directly using `userFromToken` because no token exchange occurred.
 
 <a name="retrieving-user-details-from-a-token"></a>
 #### Retrieving User Details From a Token
@@ -353,6 +478,8 @@ use Hypervel\Socialite\Socialite;
 return Socialite::driver('google')->stateless()->user();
 ```
 
+The `stateless` method disables OAuth state validation only. The `x` driver's PKCE verifier and generic OpenID Connect nonce validation are stored in the session, so those flows must keep session continuity between their redirect and callback requests.
+
 <a name="testing"></a>
 ## Testing
 
@@ -378,14 +505,14 @@ test('user is redirected to github', function () {
 <a name="faking-the-callback"></a>
 #### Faking the Callback
 
-To test your application's callback route, you may invoke the `fake` method and provide a `User` instance that should be returned when your application requests the user's details from the provider. The `User` instance may be created using the `map` method:
+To test your application's callback route, you may invoke the `fake` method and provide a `User` instance that should be returned when your application requests the user's details from the provider. The `User` instance may be created using the `fake` method:
 
 ```php
 use Hypervel\Socialite\Socialite;
 use Hypervel\Socialite\Two\User;
 
 test('user can login with github', function () {
-    Socialite::fake('github', (new User)->map([
+    Socialite::fake('github', User::fake([
         'id' => 'github-123',
         'name' => 'Jason Beggs',
         'email' => 'jason@example.com',
@@ -403,27 +530,31 @@ test('user can login with github', function () {
 });
 ```
 
-If needed, you may manually specify token properties on the fake `User` instance:
+By default, the `User` instance includes fake OAuth token values. If needed, you may override these values by passing additional attributes to the `fake` method:
 
 ```php
-$fakeUser = (new User)->map([
+$fakeUser = User::fake([
     'id' => 'github-123',
     'name' => 'Jason Beggs',
     'email' => 'jason@example.com',
-])->setToken('fake-token')
-  ->setRefreshToken('fake-refresh-token')
-  ->setExpiresIn(3600)
-  ->setApprovedScopes(['read', 'write']);
+    'token' => 'fake-token',
+    'refreshToken' => 'fake-refresh-token',
+    'expiresIn' => 3600,
+    'approvedScopes' => ['read', 'write'],
+    'accessTokenResponseBody' => ['access_token' => 'fake-token'],
+]);
 ```
 
 You may also provide a closure to resolve the fake user when the provider's `user` method is called:
 
 ```php
 Socialite::fake('github', function () {
-    return (new User)->map([
+    return User::fake([
         'id' => 'github-123',
         'name' => 'Jason Beggs',
         'email' => 'jason@example.com',
     ]);
 });
 ```
+
+The fake replaces the `Hypervel\Socialite\Contracts\Factory` binding used by the facade. Code that resolves `Hypervel\Socialite\SocialiteManager` directly continues to use the real manager, so application code should depend on the factory contract when it needs an injectable Socialite manager.
