@@ -947,7 +947,7 @@ RateLimiter::for('uploads', function (Request $request) {
 });
 ```
 
-Named route limiters may use fixed-window or leaky-bucket rate limits, including weighted costs. To learn more about defining rate limits, please consult the [rate limiting documentation](/docs/{{version}}/rate-limiting#defining-rate-limits).
+Named route limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, including weighted costs. To learn more about defining rate limits, please consult the [rate limiting documentation](/docs/{{version}}/rate-limiting#defining-rate-limits).
 
 The optional third argument to `RateLimiter::for` selects a configured store for the named limiter. When omitted, Hypervel uses the default rate limiter store:
 

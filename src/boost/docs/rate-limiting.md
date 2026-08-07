@@ -6,7 +6,9 @@
     - [Database Store](#database-store)
     - [Swoole Store](#swoole-store)
 - [Defining Rate Limits](#defining-rate-limits)
+    - [Choosing a Rate Limit](#choosing-a-rate-limit)
     - [Fixed Windows](#fixed-windows)
+    - [Sliding Windows](#sliding-windows)
     - [Leaky Buckets](#leaky-buckets)
     - [Weighted Operations](#weighted-operations)
     - [Unlimited](#unlimited)
@@ -29,6 +31,7 @@ Hypervel includes a powerful rate limiter that you may use to limit HTTP routes,
 The rate limiter supports:
 
 - fixed-window limits;
+- sliding-window limits;
 - continuously replenishing leaky buckets;
 - weighted operations;
 - capped exponential failure backoff;
@@ -92,7 +95,7 @@ Hypervel includes four rate limiter stores:
 | `swoole` | Workers belonging to one Swoole server instance | Very high-throughput local limiting |
 | `worker-array` | One worker process | Automated tests only |
 
-The Redis store evaluates each fixed-window, leaky-bucket, and backoff decision atomically in a single cached Lua script, using one pooled connection checkout per operation. The database store uses transactions and row locks. It is a portable shared option when Redis is not available, but does not offer the same throughput.
+The Redis store evaluates each fixed-window, sliding-window, leaky-bucket, and backoff decision atomically in a single cached Lua script, using one pooled connection checkout per operation. The database store uses transactions and row locks. It is a portable shared option when Redis is not available, but does not offer the same throughput.
 
 The Swoole store keeps native integer state in shared memory. It is shared by workers forked from the same server master, but not by independent Hypervel server instances or different machines.
 
@@ -144,7 +147,7 @@ php artisan rate-limiter:prune database --chunk=2000
 
 The Swoole store allocates its table before server workers are forked. Changes to its table settings therefore require a server restart.
 
-Set `rows` higher than the greatest number of rate limit keys that may be active at once. A key remains active for its fixed window, leaky-bucket refill time, or backoff inactivity time. For example, if up to 40,000 client IP addresses may have active one-minute limits at once, configure substantially more than 40,000 rows.
+Set `rows` higher than the greatest number of rate limit keys that may be active at once. A key remains active for its fixed window, up to two sliding-window periods, its leaky-bucket refill time, or its backoff inactivity time. For example, if up to 40,000 client IP addresses may have active one-minute limits at once, configure substantially more than 40,000 rows.
 
 Swoole rounds `rows` up to a power of two with a minimum of 64 and allocates an additional collision area based on `conflict_proportion`. Hash collisions may exhaust that collision area before the table's total row count reaches its configured size. Hypervel logs a warning when table or collision pressure enters the configured `memory_limit_buffer`, and throws `Hypervel\RateLimiter\Exceptions\SwooleTableFullException` if a live entry cannot be allocated. It never evicts active limiter state because doing so could admit excess traffic.
 
@@ -166,6 +169,18 @@ $limit = Limit::perMinute(60)->by('user:'.$user->id);
 Enums, strings, integers, stringable objects, and `null` are accepted as keys. Backed enums use their values, while unit enums use their case names. A `null` key represents the same shared rate limit as an empty string.
 
 Invalid rate limit settings throw `Hypervel\RateLimiter\Exceptions\InvalidRateLimitException` before the store is changed.
+
+<a name="choosing-a-rate-limit"></a>
+### Choosing a Rate Limit
+
+Hypervel provides several rate limits for different kinds of work:
+
+| Rate Limit | When to Use It |
+|---|---|
+| Fixed window | You want a simple limit that resets all capacity at once. |
+| Sliding window | You want to smooth the traffic spike that may occur at a fixed-window boundary. |
+| Leaky bucket | You want capacity to replenish continuously or need precise burst control. |
+| Exponential backoff | You want repeated failures to create progressively longer delays. |
 
 <a name="fixed-windows"></a>
 ### Fixed Windows
@@ -189,6 +204,37 @@ $limit = Limit::perMinute(120, decayMinutes: 2);
 ```
 
 A denied operation does not consume capacity or extend the active window.
+
+<a name="sliding-windows"></a>
+### Sliding Windows
+
+The `SlidingWindow` class provides a rolling approximation that smooths traffic across window boundaries:
+
+```php
+use Hypervel\RateLimiter\SlidingWindow;
+
+$perSecond = SlidingWindow::perSecond(10);
+$perMinute = SlidingWindow::perMinute(60);
+$perFiveMinutes = SlidingWindow::perMinutes(5, 300);
+$perHour = SlidingWindow::perHour(1000);
+$perDay = SlidingWindow::perDay(10_000);
+```
+
+Sliding windows support the same `by`, `cost`, `globally`, `after`, and `response` modifiers as fixed windows.
+
+Like a fixed window, the first accepted operation starts the timer. Hypervel keeps the current and previous window counts, then gradually reduces how much the previous count contributes as the current window passes. This avoids the sharp reset at a fixed-window boundary while keeping the amount of stored state constant.
+
+Sliding windows are an approximation rather than an exact record of every operation during the preceding period. Use a leaky bucket when you need capacity to replenish continuously.
+
+Each factory accepts a window multiplier. For example, the following rate limit allows approximately 120 operations during a rolling two-minute period:
+
+```php
+$limit = SlidingWindow::perMinute(120, windowMinutes: 2);
+```
+
+Sliding-window state may contribute for up to two window periods. As a result, `resetAfter()` may return up to twice the configured window. Denied operations and inspections do not change the counts or extend their expiration.
+
+The capacity and window must be positive and small enough for every configured store to represent them exactly. Invalid values are rejected when the rate limit is created.
 
 <a name="leaky-buckets"></a>
 ### Leaky Buckets
@@ -228,7 +274,7 @@ $limit = Limit::perMinute(100)
     ->by('uploads:'.$user->id);
 ```
 
-The cost may not exceed the fixed-window capacity or leaky-bucket burst capacity. A denied weighted operation leaves the current capacity unchanged.
+The cost may not exceed the fixed-window or sliding-window capacity, or the leaky-bucket burst capacity. A denied weighted operation leaves the current capacity unchanged.
 
 <a name="unlimited"></a>
 ### Unlimited
@@ -269,10 +315,10 @@ if ($result->denied()) {
 A `LimitResult` provides:
 
 - `allowed()` and `denied()`;
-- `limit()`, the fixed-window capacity or leaky-bucket burst capacity;
+- `limit()`, the configured capacity;
 - `remaining()`, the whole capacity immediately available after the decision;
 - `retryAfter()`, the minimum whole seconds until the same cost may be accepted; and
-- `resetAfter()`, the whole seconds until the fixed window expires or the leaky bucket becomes full.
+- `resetAfter()`, the whole seconds until all current state stops contributing to the rate limit.
 
 Durations are rounded up, ensuring a caller is never instructed to retry before capacity is actually available.
 
@@ -433,7 +479,7 @@ interface Store
 }
 ```
 
-A custom store receives validated `Limit` and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
+A custom store receives validated `Limit`, `SlidingWindow`, and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
 
 If your custom store retains expired state, it may also implement `Hypervel\RateLimiter\Contracts\PrunableStore` so it can be targeted by the `rate-limiter:prune` command.
 
