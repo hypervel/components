@@ -1383,7 +1383,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateCurrentPassword()
+    public function testValidateCurrentPassword(): void
     {
         // Fails when user is not logged in.
         $auth = m::mock(Guard::class);
@@ -1398,6 +1398,7 @@ class ValidationValidatorTest extends TestCase
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
+        $trans->shouldReceive('string')->andReturnArg(0);
 
         $v = new Validator($trans, ['password' => 'foo'], ['password' => 'current_password']);
         $v->setContainer($container);
@@ -1422,6 +1423,7 @@ class ValidationValidatorTest extends TestCase
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
+        $trans->shouldReceive('string')->andReturnArg(0);
 
         $v = new Validator($trans, ['password' => 'foo'], ['password' => 'current_password']);
         $v->setContainer($container);

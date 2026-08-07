@@ -39,6 +39,14 @@ class VerifyEmailNotificationTest extends TestCase
         $this->assertSame(now()->addMinutes(60)->getTimestamp(), $this->expiresAt($url));
     }
 
+    public function testMailMessageUsesTranslatedStringMetadata(): void
+    {
+        $mail = (new VerifyEmail)->toMail(new VerifyEmailNotifiableStub);
+
+        $this->assertSame('Verify your email address', $mail->subject);
+        $this->assertSame('Verify Email Address', $mail->actionText);
+    }
+
     /**
      * Read the expiration timestamp from a signed URL.
      */
