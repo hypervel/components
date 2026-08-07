@@ -28,6 +28,7 @@ class PackageMetadataTest extends TestCase
         foreach ([
             'laravel/serializable-closure',
             'nesbot/carbon',
+            'nunomaduro/termwind',
             'symfony/console',
             'symfony/process',
             'hypervel/bus',
