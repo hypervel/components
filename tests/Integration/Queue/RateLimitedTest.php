@@ -12,6 +12,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\RateLimited;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -67,6 +68,16 @@ class RateLimitedTest extends TestCase
 
         $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
         $this->assertJobWasReleased(RateLimitedTestJob::class);
+    }
+
+    public function testSlidingWindowRetryDelayIsUsedWhenReleasingAJob(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+        $rateLimiter = $this->app->make(RateLimiter::class);
+        $rateLimiter->for('test', fn () => SlidingWindow::perSecond(1, 2));
+
+        $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
+        $this->assertJobWasReleasedAfter(RateLimitedTestJob::class, 6);
     }
 
     public function testRateLimitedJobsCanBeSkippedOnLimitReached(): void

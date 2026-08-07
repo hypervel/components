@@ -14,6 +14,7 @@ use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Routing\Exceptions\MissingRateLimiterException;
 use Hypervel\Routing\Middleware\ThrottleRequests;
@@ -206,6 +207,31 @@ class ThrottleRequestsTest extends TestCase
             ->assertTooManyRequests()
             ->assertHeader('X-RateLimit-Limit', 4)
             ->assertHeader('X-RateLimit-Remaining', 0);
+    }
+
+    public function testSlidingWindowHeadersUseItsCapacityAndRetryDelay(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+        $manager = $this->app->make(RateLimiter::class);
+        $manager->for('api', fn () => SlidingWindow::perSecond(2, 2)->by('api'));
+
+        Route::get('/', fn (): string => 'yes')->middleware(ThrottleRequests::using('api'));
+
+        $this->get('/')
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Limit', 2)
+            ->assertHeader('X-RateLimit-Remaining', 1);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertHeader('X-RateLimit-Remaining', 0);
+
+        $this->get('/')
+            ->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', 2)
+            ->assertHeader('X-RateLimit-Remaining', 0)
+            ->assertHeader('Retry-After', 3)
+            ->assertHeader('X-RateLimit-Reset', CarbonImmutable::now()->addSeconds(3)->getTimestamp());
     }
 
     // REMOVED: Laravel's shouldHashKeys(false) coverage does not apply because

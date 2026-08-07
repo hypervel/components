@@ -9,6 +9,7 @@ use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\SlidingWindow;
 
 trait RateLimiterStoreContract
 {
@@ -68,6 +69,75 @@ trait RateLimiterStoreContract
         );
 
         $expired = $limiter->inspect($policy);
+        $this->assertTrue($expired->allowed());
+        $this->assertSame(1, $expired->remaining());
+    }
+
+    public function testStoreContractSlidingWindowDecisionsAreAtomicAndComplete(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $key = $this->rateLimiterStoreContractKey('sliding');
+        $policy = SlidingWindow::perSecond(10, 2)->cost(4)->by($key);
+
+        $missing = $limiter->inspect($policy);
+        $this->assertTrue($missing->allowed());
+        $this->assertSame(10, $missing->limit());
+        $this->assertSame(10, $missing->remaining());
+        $this->assertSame(0, $missing->retryAfter());
+        $this->assertSame(0, $missing->resetAfter());
+
+        $accepted = $limiter->consume($policy);
+        $this->assertTrue($accepted->allowed());
+        $this->assertSame(6, $accepted->remaining());
+        $this->assertGreaterThan(2, $accepted->resetAfter());
+        $this->assertLessThanOrEqual(4, $accepted->resetAfter());
+
+        $this->assertSame(5, $limiter->consume($policy->cost(1))->remaining());
+
+        $denied = $limiter->consume($policy->cost(6));
+        $this->assertTrue($denied->denied());
+        $this->assertSame(5, $denied->remaining());
+        $this->assertGreaterThan(0, $denied->retryAfter());
+
+        $inspection = $limiter->inspect($policy);
+        $this->assertTrue($inspection->allowed());
+        $this->assertSame(5, $inspection->remaining());
+
+        $this->assertSame(11, $limiter->inspect(SlidingWindow::perSecond(11, 2)->by($key))->remaining());
+        $this->assertFalse($limiter->clear(SlidingWindow::perSecond(11, 2)->by($key)));
+        $this->assertTrue($limiter->clear($policy));
+        $this->assertSame(10, $limiter->inspect($policy)->remaining());
+    }
+
+    public function testStoreContractSlidingWindowRecoversAcrossABoundaryAndExpires(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $policy = SlidingWindow::perSecond(10, 2)
+            ->cost(6)
+            ->by($this->rateLimiterStoreContractKey('sliding-recovery'));
+
+        $this->assertTrue($limiter->consume($policy)->allowed());
+        $this->assertTrue($limiter->consume($policy->cost(5))->denied());
+
+        $this->waitForRateLimiterStoreContract(
+            static fn (): bool => $limiter->inspect($policy->cost(5))->allowed(),
+            3,
+        );
+
+        $recovered = $limiter->consume($policy->cost(5));
+        $this->assertTrue($recovered->allowed());
+        $this->assertGreaterThan(0, $recovered->resetAfter());
+
+        $expiring = SlidingWindow::perSecond(1)
+            ->by($this->rateLimiterStoreContractKey('sliding-expiry'));
+        $this->assertTrue($limiter->consume($expiring)->allowed());
+
+        $this->waitForRateLimiterStoreContract(
+            static fn (): bool => $limiter->inspect($expiring)->resetAfter() === 0,
+            2,
+        );
+
+        $expired = $limiter->inspect($expiring);
         $this->assertTrue($expired->allowed());
         $this->assertSame(1, $expired->remaining());
     }
