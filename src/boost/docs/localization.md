@@ -8,6 +8,7 @@
     - [Using Short Keys](#using-short-keys)
     - [Using Translation Strings as Keys](#using-translation-strings-as-keys)
 - [Retrieving Translation Strings](#retrieving-translation-strings)
+    - [Typed Translation Values](#typed-translation-values)
     - [Replacing Parameters in Translation Strings](#replacing-parameters-in-translation-strings)
     - [Pluralization](#pluralization)
 - [Overriding Package Language Files](#overriding-package-language-files)
@@ -52,9 +53,9 @@ php artisan lang:publish
 <a name="configuring-the-locale"></a>
 ### Configuring the Locale
 
-The default language for your application is stored in the `config/app.php` configuration file's `locale` configuration option, which is typically set using the `APP_LOCALE` environment variable. You are free to modify this value to suit the needs of your application.
+The default language for your application is stored in the `config/app.php` configuration file's `locale` configuration option, which is typically set using the `APP_LOCALE` environment variable. This value provides the initial locale when each application worker starts. You are free to modify this value to suit the needs of your application.
 
-You may also configure a "fallback language", which will be used when the default language does not contain a given translation string. Like the default language, the fallback language is also configured in the `config/app.php` configuration file, and its value is typically set using the `APP_FALLBACK_LOCALE` environment variable.
+You may also configure a "fallback language", which will be used when the current language does not contain a given translation string. Like the default language, the fallback language is also configured in the `config/app.php` configuration file, and its value is typically set using the `APP_FALLBACK_LOCALE` environment variable. This value provides the initial fallback locale for each worker.
 
 You may modify the default language for a single HTTP request at runtime using the `setLocale` method provided by the `App` facade:
 
@@ -72,10 +73,15 @@ Route::get('/greeting/{locale}', function (string $locale) {
 });
 ```
 
+The locale set by this method applies only to the current request.
+
+> [!IMPORTANT]
+> The fallback locale is shared by all requests handled by a worker. Therefore, the `App::setFallbackLocale` method should only be called during application boot, such as from the `boot` method of a service provider.
+
 <a name="determining-the-current-locale"></a>
 #### Determining the Current Locale
 
-You may use the `currentLocale` and `isLocale` methods on the `App` facade to determine the current locale or check if the locale is a given value:
+You may use the `currentLocale` and `isLocale` methods on the `App` facade to retrieve the effective locale for the current request or check if the locale is a given value:
 
 ```php
 use Hypervel\Support\Facades\App;
@@ -191,6 +197,19 @@ If you are using the [Blade templating engine](/docs/{{version}}/blade), you may
 ```blade
 {{ __('messages.welcome') }}
 ```
+
+<a name="typed-translation-values"></a>
+### Typed Translation Values
+
+Translation values may contain strings or arrays. When you know which type a translation should contain, you may use the `string` or `array` method on the translator returned by the `trans` helper:
+
+```php
+$message = trans()->string('messages.welcome');
+
+$options = trans()->array('messages.options');
+```
+
+If the translation value is not the expected type, an `InvalidArgumentException` will be thrown.
 
 <a name="replacing-parameters-in-translation-strings"></a>
 ### Replacing Parameters in Translation Strings

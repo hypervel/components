@@ -1053,7 +1053,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events`, `bus`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum` (revalidation complete), `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia`, `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum` (revalidation complete), `scout`, `session` (revalidation complete), `socialite`, `telescope`, `testbench`; `translation` (revalidation complete); later full remaining consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `macroable-03` | `macroable` | `cookie`, `log`, and `notifications` (revalidation complete); later full `jwt` audit | `Complete Macroable callable and test-state handling`; finding `macroable-03` |
 | `auth-01` | `support`, `auth` | `auth` (revalidation complete) | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
@@ -1206,7 +1206,12 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `view-24` | `foundation` | `foundation` and `view` (revalidation complete) | `Complete View correctness, lifecycle, and current parity`; finding `view-24` |
 | `view-37` | `view` | `view` (revalidation complete), `foundation`, `testbench`, and `testing` (targeted corrections complete); later full `testbench` and `testing` audits | `Complete View correctness, lifecycle, and current parity`; finding `view-37` |
 | `view-38` | `view` | `view` (revalidation complete), `boost` (targeted correction complete); later full `boost` audit | `Complete View correctness, lifecycle, and current parity`; finding `view-38` |
-| `translation-10` | `translation` | `view` (sibling revalidation complete); later full `translation` audit | `Complete View correctness, lifecycle, and current parity`; finding `translation-10` |
+| `translation-10` | `translation` | `translation` and `view` (sibling revalidation complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `translation-10` |
+| `translation-02` | `contracts`, `translation` | `auth`, `foundation`, `support`, `translation`, and `validation` (revalidation complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `translation-02` |
+| `translation-09` | `foundation`, `translation` | `foundation` and `translation` (revalidation complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `translation-09` |
+| `routing-26` | `routing` | `foundation` and `routing` (targeted correction complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `routing-26` |
+| `session-25` | `session` | `foundation` and `session` (targeted correction complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `session-25` |
+| `view-42` | `view` | `foundation` and `view` (revalidation complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `view-42` |
 
 ## Package checklist
 
@@ -1295,7 +1300,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `validation`
 - [x] `routing`
 - [x] `view`
-- [ ] `translation`
+- [x] `translation`
 - [x] `pagination`
 - [ ] `socialite`
 - [x] `sanctum`

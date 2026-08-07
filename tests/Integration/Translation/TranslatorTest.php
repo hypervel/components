@@ -12,33 +12,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class TranslatorTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        unset(
-            $_SERVER['__missing_translation_key'],
-            $_SERVER['__missing_translation_key_locale'],
-        );
-    }
-
-    protected function tearDown(): void
-    {
-        unset(
-            $_SERVER['__missing_translation_key'],
-            $_SERVER['__missing_translation_key_locale'],
-        );
-
-        parent::tearDown();
-    }
-
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app['translator']->addNamespace('tests', __DIR__ . '/Fixtures/lang');
         $app['translator']->addJsonPath(__DIR__ . '/Fixtures/lang');
     }
 
-    public function testItCanGetFromLocaleForJson()
+    public function testItCanGetFromLocaleForJson(): void
     {
         $this->assertSame('30 Days', $this->app['translator']->get('30 Days'));
 
@@ -47,7 +27,7 @@ class TranslatorTest extends TestCase
         $this->assertSame('30 jours', $this->app['translator']->get('30 Days'));
     }
 
-    public function testItCanCheckLanguageExistsHasFromLocaleForJson()
+    public function testItCanCheckLanguageExistsHasFromLocaleForJson(): void
     {
         $this->assertTrue($this->app['translator']->has('1 Day'));
         $this->assertTrue($this->app['translator']->hasForLocale('1 Day'));
@@ -60,23 +40,27 @@ class TranslatorTest extends TestCase
         $this->assertTrue($this->app['translator']->hasForLocale('30 Days'));
     }
 
-    public function testItCanCheckKeyExistsWithoutTriggeringHandleMissingKeys()
+    public function testItCanCheckKeyExistsWithoutTriggeringHandleMissingKeys(): void
     {
-        $this->app['translator']->handleMissingKeysUsing(function ($key) {
-            $_SERVER['__missing_translation_key'] = $key;
+        $missingKey = null;
+
+        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$missingKey): void {
+            $missingKey = $key;
         });
 
         $this->assertFalse($this->app['translator']->has('Foo Bar'));
-        $this->assertFalse(isset($_SERVER['__missing_translation_key']));
+        $this->assertNull($missingKey);
 
         $this->assertFalse($this->app['translator']->hasForLocale('Foo Bar', 'nl'));
-        $this->assertFalse(isset($_SERVER['__missing_translation_key']));
+        $this->assertNull($missingKey);
     }
 
-    public function testItCanHandleMissingKeysUsingCallback()
+    public function testItCanHandleMissingKeysUsingCallback(): void
     {
-        $this->app['translator']->handleMissingKeysUsing(function ($key) {
-            $_SERVER['__missing_translation_key'] = $key;
+        $missingKey = null;
+
+        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$missingKey): string {
+            $missingKey = $key;
 
             return 'callback key';
         });
@@ -84,43 +68,41 @@ class TranslatorTest extends TestCase
         $key = $this->app['translator']->get('some missing key');
 
         $this->assertSame('callback key', $key);
-        $this->assertSame('some missing key', $_SERVER['__missing_translation_key']);
-
-        $this->app['translator']->handleMissingKeysUsing(null);
+        $this->assertSame('some missing key', $missingKey);
     }
 
-    public function testItCanHandleMissingKeysNoReturn()
+    public function testItCanHandleMissingKeysNoReturn(): void
     {
-        $this->app['translator']->handleMissingKeysUsing(function ($key) {
-            $_SERVER['__missing_translation_key'] = $key;
+        $missingKey = null;
+
+        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$missingKey): void {
+            $missingKey = $key;
         });
 
         $key = $this->app['translator']->get('some missing key');
 
         $this->assertSame('some missing key', $key);
-        $this->assertSame('some missing key', $_SERVER['__missing_translation_key']);
-
-        $this->app['translator']->handleMissingKeysUsing(null);
+        $this->assertSame('some missing key', $missingKey);
     }
 
-    public function testItReturnsCorrectLocaleForMissingKeys()
+    public function testItReturnsCorrectLocaleForMissingKeys(): void
     {
-        $this->app['translator']->handleMissingKeysUsing(function ($key, $replacements, $locale) {
-            $_SERVER['__missing_translation_key_locale'] = $locale;
+        $missingLocale = null;
+
+        $this->app['translator']->handleMissingKeysUsing(function (string $key, array $replacements, string $locale) use (&$missingLocale): void {
+            $missingLocale = $locale;
         });
 
         $this->app['translator']->get('some missing key', [], 'ht');
 
-        $this->assertSame('ht', $_SERVER['__missing_translation_key_locale']);
-
-        $this->app['translator']->handleMissingKeysUsing(null);
+        $this->assertSame('ht', $missingLocale);
     }
 
-    public function testFileValidationDoesNotAttemptToTranslateAlreadyTranslatedMessages()
+    public function testFileValidationDoesNotAttemptToTranslateAlreadyTranslatedMessages(): void
     {
         $keysLookedUp = [];
 
-        $this->app['translator']->handleMissingKeysUsing(function ($key) use (&$keysLookedUp) {
+        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$keysLookedUp): void {
             $keysLookedUp[] = $key;
         });
 
@@ -132,12 +114,10 @@ class TranslatorTest extends TestCase
         $validator->fails();
 
         $this->assertNotContains('The file field must be a file of type: txt.', $keysLookedUp);
-
-        $this->app['translator']->handleMissingKeysUsing(null);
     }
 
     #[DataProvider('greetingChoiceDataProvider')]
-    public function testItCanHandleChoice(int $count, string $expected, ?string $locale = null)
+    public function testItCanHandleChoice(int $count, string $expected, ?string $locale = null): void
     {
         if ($locale !== null) {
             $this->app->setLocale($locale);
@@ -152,13 +132,13 @@ class TranslatorTest extends TestCase
     }
 
     #[DataProvider('greetingChoiceDataProvider')]
-    public function testItCanHandleChoiceWithChoiceSeparatorInReplaceString(int $count, string $expected, ?string $locale = null)
+    public function testItCanHandleChoiceWithChoiceSeparatorInReplaceString(int $count, string $expected, ?string $locale = null): void
     {
         if ($locale !== null) {
             $this->app->setLocale($locale);
         }
 
-        $name = 'Taylor | Laravel';
+        $name = 'Taylor | Hypervel';
 
         $this->assertSame(
             strtr($expected, [':name' => $name, ':count' => $count]),
@@ -166,6 +146,9 @@ class TranslatorTest extends TestCase
         );
     }
 
+    /**
+     * @return array<int, array{int, string, 2?: string}>
+     */
     public static function greetingChoiceDataProvider(): array
     {
         return [

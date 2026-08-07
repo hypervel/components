@@ -70,7 +70,9 @@ When bringing an existing upstream feature, fix, or API change into Hypervel:
 3. Treat the historical pull-request diffs as discovery and history only. Port the actual source, tests, and documentation from the current checked-out upstream default or development branch. Follow-up fixes and documentation improvements may have changed the final implementation or coverage.
 4. Compare that current upstream surface with the Hypervel implementation and apply the approved Hypervel adaptations under Porting Packages. If the upstream feature has no user-facing documentation, add proportionate Hypervel documentation at its natural public surface.
 
-### Audit what you modify
+### Audit changes during modification and code review
+
+Every audit must explicitly check for overengineering, Laravel-style ergonomics, and avoidable performance or scalability costs, especially repeated hot-path work, excessive database or network round trips (e.g. Redis), inefficient query or index design, unnecessary allocation or serialization, unbounded work, and worker-lifetime memory growth.
 
 Modifying code is an implicit assessment of it. Whenever you edit a method, move code, copy a file, or port from upstream, check what you touch for:
 
@@ -80,7 +82,7 @@ Modifying code is an implicit assessment of it. Whenever you edit a method, move
 - Deprecated APIs or dated patterns
 - Issues in the code right next to what you're changing
 
-Anything found follows When to Stop and Report — "the task didn't ask me to fix that" and "I copied it verbatim" are not reasons to stay silent. The trigger is modification: files read only for context don't need a line-by-line audit.
+Anything found follows When to Stop and Report — "the task didn't ask me to fix that" and "I copied it verbatim" are not reasons to stay silent. The trigger is modification or code review; files read only for context don't need a line-by-line audit.
 
 ### Framework bug fixes
 
@@ -162,8 +164,8 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 
 ### Code conventions
 
-- **New Hypervel-owned code must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements.
-- **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, and properties are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type).
+- **New Hypervel-owned code and packages must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements. Apply the requirements under [Audit changes during modification and code review](#audit-changes-during-modification-and-code-review) from initial design onward.
+- **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, and properties are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type). PHP does not allow return types on `__construct()` or `__destruct()`.
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
 - **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
