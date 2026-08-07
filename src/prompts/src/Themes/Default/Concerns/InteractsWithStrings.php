@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Themes\Default\Concerns;
 
+use Hypervel\Prompts\Support\Utils;
+
 trait InteractsWithStrings
 {
     /**
@@ -34,14 +36,8 @@ trait InteractsWithStrings
      */
     protected function stripEscapeSequences(string $text): string
     {
-        // Strip ANSI escape sequences.
-        $text = preg_replace("/\e[^m]*m/", '', $text);
-
-        // Strip Symfony named style tags.
-        $text = preg_replace('/<(info|comment|question|error)>(.*?)<\/\1>/', '$2', $text);
-
-        // Strip Symfony inline style tags.
-        return preg_replace('/<(?:(?:[fb]g|options)=[a-z,;]+)+>(.*?)<\/>/i', '$1', $text);
+        // Measurement and undecorated rendering must interpret escapes identically.
+        return Utils::stripEscapeSequences($text);
     }
 
     /**
@@ -146,7 +142,7 @@ trait InteractsWithStrings
             $segmentChars = mb_str_split($segment['text']);
 
             foreach ($segmentChars as $char) {
-                $chars[] = ['char' => $char, 'codes' => $segment['codes']];
+                $chars[] = ['char' => $char, 'codes' => $segment['codes'], 'link' => $segment['link']];
             }
         }
 
@@ -161,6 +157,7 @@ trait InteractsWithStrings
         foreach ($plainLines as $plainLine) {
             $line = '';
             $lastCodes = '';
+            $lastLink = '';
             $lineChars = mb_str_split($plainLine);
 
             foreach ($lineChars as $lineChar) {
@@ -175,7 +172,20 @@ trait InteractsWithStrings
                 }
 
                 if ($charIndex < count($chars)) {
+                    $link = $chars[$charIndex]['link'];
                     $codes = $chars[$charIndex]['codes'];
+
+                    if ($link !== $lastLink) {
+                        if ($lastLink !== '') {
+                            $line .= "\e]8;;\e\\";
+                        }
+
+                        if ($link !== '') {
+                            $line .= $link;
+                        }
+
+                        $lastLink = $link;
+                    }
 
                     if ($codes !== $lastCodes) {
                         if ($lastCodes !== '') {
@@ -201,6 +211,10 @@ trait InteractsWithStrings
                 $line .= "\e[0m";
             }
 
+            if ($lastLink !== '') {
+                $line .= "\e]8;;\e\\";
+            }
+
             $result[] = $line;
         }
 
@@ -210,42 +224,100 @@ trait InteractsWithStrings
     /**
      * Parse text into segments with their associated ANSI codes.
      *
-     * @return array<int, array{text: string, codes: string}>
+     * @return array<int, array{text: string, codes: string, link: string}>
      */
     protected function parseAnsiText(string $text): array
     {
         $segments = [];
         $currentCodes = '';
+        $currentLink = '';
         $currentText = '';
         $i = 0;
         $textLength = strlen($text);
 
         while ($i < $textLength) {
-            if ($text[$i] === "\e" && ($i + 1 < $textLength) && $text[$i + 1] === '[') {
-                // Save current segment if it has text
-                if ($currentText !== '') {
-                    $segments[] = ['text' => $currentText, 'codes' => $currentCodes];
-                    $currentText = '';
-                }
-
-                // Extract ANSI escape sequence
-                $escapeSequence = '';
-                while ($i < $textLength) {
-                    $escapeSequence .= $text[$i];
-                    ++$i;
-
-                    if (preg_match('/^\e\[[0-9;]*m$/', $escapeSequence)) {
-                        // Update current codes
-                        if ($escapeSequence === "\e[0m") {
-                            $currentCodes = '';
-                        } else {
-                            $currentCodes = $escapeSequence;
-                        }
-                        break;
+            if ($text[$i] === "\e" && ($i + 1 < $textLength)) {
+                if ($text[$i + 1] === '[') {
+                    // Save current segment if it has text
+                    if ($currentText !== '') {
+                        $segments[] = ['text' => $currentText, 'codes' => $currentCodes, 'link' => $currentLink];
+                        $currentText = '';
                     }
+
+                    $escapeSequence = "\e[";
+                    $i += 2;
+
+                    while ($i < $textLength && ord($text[$i]) >= 0x30 && ord($text[$i]) <= 0x3F) {
+                        $escapeSequence .= $text[$i];
+                        ++$i;
+                    }
+
+                    while ($i < $textLength && ord($text[$i]) >= 0x20 && ord($text[$i]) <= 0x2F) {
+                        $escapeSequence .= $text[$i];
+                        ++$i;
+                    }
+
+                    if ($i < $textLength && ord($text[$i]) >= 0x40 && ord($text[$i]) <= 0x7E) {
+                        $final = $text[$i];
+                        $escapeSequence .= $final;
+                        ++$i;
+
+                        if ($final === 'm') {
+                            $currentCodes = $escapeSequence === "\e[0m" ? '' : $escapeSequence;
+                        }
+
+                        continue;
+                    }
+
+                    $currentText .= $escapeSequence;
+
+                    continue;
                 }
 
-                continue;
+                if ($text[$i + 1] === ']') {
+                    // Save current segment if it has text
+                    if ($currentText !== '') {
+                        $segments[] = ['text' => $currentText, 'codes' => $currentCodes, 'link' => $currentLink];
+                        $currentText = '';
+                    }
+
+                    $escapeSequence = "\e]";
+                    $i += 2;
+                    $terminated = false;
+
+                    while ($i < $textLength) {
+                        if ($text[$i] === "\x07") {
+                            $escapeSequence .= "\x07";
+                            ++$i;
+                            $terminated = true;
+                            break;
+                        }
+
+                        if ($text[$i] === "\e" && ($i + 1 < $textLength) && $text[$i + 1] === '\\') {
+                            $escapeSequence .= "\e\\";
+                            $i += 2;
+                            $terminated = true;
+                            break;
+                        }
+
+                        $escapeSequence .= $text[$i];
+                        ++$i;
+                    }
+
+                    if (! $terminated) {
+                        $currentText .= $escapeSequence;
+
+                        continue;
+                    }
+
+                    if (str_starts_with($escapeSequence, "\e]8;")) {
+                        $currentLink = in_array($escapeSequence, ["\e]8;;\x07", "\e]8;;\e\\"], true)
+                            ? ''
+                            : $escapeSequence;
+                    }
+
+                    continue;
+                }
             }
 
             $currentText .= $text[$i];
@@ -254,7 +326,7 @@ trait InteractsWithStrings
 
         // Add final segment
         if ($currentText !== '') {
-            $segments[] = ['text' => $currentText, 'codes' => $currentCodes];
+            $segments[] = ['text' => $currentText, 'codes' => $currentCodes, 'link' => $currentLink];
         }
 
         return $segments;
