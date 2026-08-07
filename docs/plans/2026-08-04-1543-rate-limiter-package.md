@@ -4,6 +4,8 @@
 
 This is the implementation plan for replacing Hypervel's cache-bound rate limiter with a dedicated first-party `hypervel/rate-limiter` component. It is a final-codebase plan, not a compatibility or phased-migration plan. The implementation must remove the old rate-limiter implementation and every obsolete alternate path in the same change. There must be one canonical API and no aliases, shims, deprecated wrappers, stale tests, stale documentation, or TODO entries describing code that no longer exists.
 
+The companion [sliding-window plan](2026-08-07-1439-sliding-window-rate-limiter.md) adds the `SlidingWindow` admission policy and defines its exact algorithm, store changes, schema, tests, benchmark, and documentation. Read that focused plan for the complete sliding-window implementation context.
+
 The plan deliberately does not preserve source compatibility. Hypervel 0.4 is a work in progress, and the desired end state is the code that would have been written if this package had existed from the start.
 
 ## Desired outcome
@@ -29,7 +31,7 @@ Create `src/rate-limiter` as a split first-party package with these properties:
 - Do not build a compatibility layer under `Hypervel\Cache`.
 - Do not introduce a generic cache-backed driver.
 - Do not add a file driver. A correct file implementation would require a dedicated locked state format, and it would add a low-throughput production surface without an unmet use case because the database driver is the portable shared fallback.
-- Do not implement token bucket, sliding-log, sliding-window-counter, linear backoff, Fibonacci backoff, reservations, blocking waits, or distributed multi-limit transactions in this change. The type and store boundaries must permit future additions, but speculative algorithms must not produce unused code.
+- Do not implement token bucket, sliding log, segmented sliding windows, linear backoff, Fibonacci backoff, reservations, blocking waits, or distributed multi-limit transactions in this change. The type and store boundaries must permit future additions, but speculative algorithms must not produce unused code.
 - Do not introduce a process-global service/version registry as part of this package. The related framework capability work is separately recorded in `docs/todo.md`.
 - Do not use Redis Functions as an alternate deployment mode. Functions require server-side library lifecycle/permissions and create an operational branch without improving the one-round-trip steady-state contract over cached Lua scripts.
 
@@ -60,6 +62,7 @@ Do not add a `Hypervel\Cache\RateLimiter` alias or wrapper. Two class locations 
 The manager resolves named stores from `rate-limiter.stores`. Each store has a `driver` string, following Laravel's manager/config conventions. The algorithm is selected by the policy object's concrete type:
 
 - `AdmissionPolicy` is the clearly named admission-policy base; Laravel's familiar concrete `Limit` remains the fixed-window policy.
+- `SlidingWindow` is the weighted two-window counter policy.
 - `LeakyBucket` is the smoothed admission policy, implemented with GCRA.
 - `Unlimited` bypasses storage.
 - `Backoff::exponential(...)` returns a concrete exponential failure policy.
@@ -68,7 +71,7 @@ Adding an admission algorithm later means adding a typed policy and implementing
 
 ### 4. Backoff is not an admission algorithm
 
-Exponential backoff is based on failures and success/reset events; fixed window and leaky bucket decide whether a unit of work may be admitted. They therefore use different operations:
+Exponential backoff is based on failures and success/reset events; fixed windows, sliding windows, and leaky buckets decide whether a unit of work may be admitted. They therefore use different operations:
 
 - admission: `consume`, `inspect`, `clear`;
 - failure penalty: `inspect`, `recordFailure`, `clear`.
@@ -220,7 +223,7 @@ Modifiers shared by admission policies:
 - `after(callable $callback): static`;
 - `response(callable $callback): static`.
 
-Retain Laravel's convenient readable-property shape, but make the properties `public readonly`: `key`, `cost`, `global`, `afterCallback`, and `responseCallback` on `AdmissionPolicy`; `maxAttempts` and `decaySeconds` on `Limit`; and `rate`, `periodMicroseconds`, and `burst` on `LeakyBucket`. `AdmissionPolicy` declares a protected copy hook receiving every shared field; each concrete policy implements it by invoking its own constructor with those fields plus its typed algorithm fields. Shared modifiers call that hook. Concrete modifiers use the same constructor path. Do not use reflection, post-clone readonly writes, or a generic options array.
+Retain Laravel's convenient readable-property shape, but make the properties `public readonly`: `key`, `cost`, `global`, `afterCallback`, and `responseCallback` on `AdmissionPolicy`; `maxAttempts` and `decaySeconds` on `Limit`; `maxAttempts` and `windowSeconds` on `SlidingWindow`; and `rate`, `periodMicroseconds`, and `burst` on `LeakyBucket`. `AdmissionPolicy` declares a protected copy hook receiving every shared field; each concrete policy implements it by invoking its own constructor with those fields plus its typed algorithm fields. Shared modifiers call that hook. Concrete modifiers use the same constructor path. Do not use reflection, post-clone readonly writes, or a generic options array.
 
 Modifiers validate their own scalar/range input immediately. Cross-field constraints are validated on `Limiter::consume()`/`inspect()` before key resolution or storage access, so fluent order is irrelevant: both `LeakyBucket::perSecond(100)->cost(150)->burst(200)` and the reverse order are valid, while a final `cost > burst` fails before mutation. Internal stores may read the typed readonly properties directly without getter-call overhead.
 
@@ -259,8 +262,8 @@ final readonly class LimitResult implements Decision
 All public durations are integer seconds rounded up from the driver's finer internal precision:
 
 - `retryAfter()` is `0` when the requested cost was accepted and otherwise is the minimum wait until that cost can be accepted;
-- `resetAfter()` is the remaining fixed-window duration or time until a leaky bucket is full;
-- `limit()` is fixed-window capacity or leaky-bucket burst capacity;
+- `resetAfter()` is the time until all current state stops contributing to the rate limit;
+- `limit()` is the configured capacity;
 - `remaining()` is immediately consumable whole-token capacity after the decision.
 
 For `inspect()`, no consumption occurs, so `remaining()` is the capacity available in the observed state; `allowed()` answers whether this policy's configured cost could be consumed now. For an accepted `consume()`, remaining is measured after the cost is committed. For a denied consume, it is the unchanged current capacity. This distinction must be identical across stores and explicit in result tests.
@@ -287,7 +290,7 @@ class Limiter
 }
 ```
 
-`AdmissionPolicy` is the abstract base implemented by `Limit`, `LeakyBucket`, and `Unlimited`; the distinct name avoids conflating the `RateLimiter` manager, per-store `Limiter`, and Laravel-compatible `Limit`. `Backoff` is a separate concrete failure policy. `consume()` is the normal one-call atomic operation. `inspect()` never mutates state. The conditional PHPDoc return is part of both public and store contracts so PHPStan narrows admission inspection to `LimitResult` and backoff inspection to `BackoffResult` without caller assertions. `attempt()` atomically consumes before invoking the callback and returns `false` on denial; if a callback returns `null`, it returns `true`, preserving Laravel's convenient semantics. If the callback throws, the accepted token remains consumed. Code that should charge only on failure or on a response predicate must use `inspect()` followed by the appropriate explicit operation.
+`AdmissionPolicy` is the abstract base implemented by `Limit`, `SlidingWindow`, `LeakyBucket`, and `Unlimited`; the distinct name avoids conflating the `RateLimiter` manager, per-store `Limiter`, and Laravel-compatible `Limit`. `Backoff` is a separate concrete failure policy. `consume()` is the normal one-call atomic operation. `inspect()` never mutates state. The conditional PHPDoc return is part of both public and store contracts so PHPStan narrows admission inspection to `LimitResult` and backoff inspection to `BackoffResult` without caller assertions. `attempt()` atomically consumes before invoking the callback and returns `false` on denial; if a callback returns `null`, it returns `true`, preserving Laravel's convenient semantics. If the callback throws, the accepted token remains consumed. Code that should charge only on failure or on a response predicate must use `inspect()` followed by the appropriate explicit operation.
 
 The optional `limiterName` is only identity context for a policy obtained from `RateLimiter::for()`. Routing and queue middleware must pass it; direct calls omit it. It is deliberately not a mutable hidden field on a policy and not the selected store name. This closes the collision between two named limiters that return otherwise identical policies while keeping direct policy use terse.
 
@@ -379,6 +382,7 @@ src/rate-limiter/
     ├── RateLimiter.php
     ├── RateLimiterServiceProvider.php
     ├── RedisStore.php
+    ├── SlidingWindow.php
     ├── Swoole/
     │   ├── TableManager.php
     │   └── TableState.php
@@ -590,7 +594,7 @@ Do not alter `RedisConnection::callEvalsha()` or `evalWithShaCache()` behavior f
 ### Swoole store
 
 - Own a dedicated `Swoole\Table`; do not reuse `SwooleStore` or `SwooleTableManager` from cache.
-- Columns are `value`, `available_at`, and `expires_at`, all `Table::TYPE_INT` with an explicit 8-byte width.
+- Columns are `value`, `secondary_value`, and `expires_at`, all `Table::TYPE_INT` with an explicit 8-byte width.
 - Use a fixed 32-character hashed key.
 - Resolve the package-local `Swoole\TableManager` as an unbound concrete, using Hypervel's auto-singleton behavior rather than an explicit container binding. `Listeners\InitializeSwooleTables` asks it to resolve every configured Swoole limiter store during `BeforeServerStart`; later `createSwooleDriver()` retrieves that same named `TableState`. This is the necessary registry between pre-fork allocation and lazy store resolution, not a second rate-limiter/store cache.
 - Create every configured Swoole limiter table and its striped `Swoole\Atomic` locks before server fork, so all workers share them. After creating the configured tables, `InitializeSwooleTables` seals the manager. Before sealing, console/tests may explicitly initialize named tables; after sealing, `get()` returns only a pre-created state and an unknown name throws instead of allocating worker-private state. The sealed flag is set before fork and inherited by workers. Structural options (`rows`, columns, conflict proportion, store names) are restart-only.
@@ -614,16 +618,17 @@ Migration generated by `make:rate-limiter-table` (`rate-limiter:table` alias):
 Schema::create('rate_limits', function (Blueprint $table) {
     $table->char('key', 32)->primary();
     $table->unsignedBigInteger('value')->default(0);
-    $table->unsignedBigInteger('available_at')->default(0);
+    $table->unsignedBigInteger('secondary_value')->default(0);
     $table->unsignedBigInteger('expires_at')->index();
 });
 ```
 
 State mapping:
 
-- fixed window: `value = consumed`, `available_at = reset_at`, `expires_at = reset_at`;
-- leaky bucket: `value = TAT`, `available_at = 0`, `expires_at = full_refill_at`;
-- exponential backoff: `value = failures`, `available_at = blocked_until`, `expires_at = inactivity expiry`.
+- fixed window: `value = consumed`, `secondary_value = 0`, `expires_at = reset_at`;
+- sliding window: `value = current count`, `secondary_value = previous count`, `expires_at = end of the following window`;
+- leaky bucket: `value = TAT`, `secondary_value = 0`, `expires_at = full_refill_at`;
+- exponential backoff: `value = failures`, `secondary_value = blocked_until`, `expires_at = inactivity expiry`.
 
 The strategy and parameters are already in the hashed physical key, so a strategy column and JSON payload are unnecessary. This representation is compact, queryable, portable across Hypervel's MySQL, MariaDB, PostgreSQL, and SQLite connections, and avoids serialization.
 
@@ -838,7 +843,7 @@ Adapt the ported Queue integration base to Hypervel's auto-invoked trait lifecyc
 Update every applicable Boost document, not just the main rate-limiting page:
 
 - `routing.md`: named policies, leaky bucket, weighted cost, response-based semantics, stores, headers, and removal of `throttleWithRedis`;
-- update the existing `src/boost/docs/rate-limiting.md` in place as the single canonical rate-limiting document: cover the package architecture, direct consume/inspect/attempt/clear APIs, typed policies and results, fixed-window/leaky-bucket/backoff behavior, driver selection and guarantees, configuration, database migration/pruning, custom drivers, distribution boundaries, performance guidance, and failure behavior. Do not add a competing `rate-limiter.md` page;
+- update the existing `src/boost/docs/rate-limiting.md` in place as the single canonical rate-limiting document: cover the package architecture, direct consume/inspect/attempt/clear APIs, typed policies and results, fixed-window/sliding-window/leaky-bucket/backoff behavior, driver selection and guarantees, configuration, database migration/pruning, custom drivers, distribution boundaries, performance guidance, and failure behavior. Do not add a competing `rate-limiter.md` page;
 - `queues.md`: store selection and removal of Redis-specific middleware classes;
 - `fortify.md`, `errors.md`, `starter-kits.md`: imports and new typed calls;
 - `facades.md`: canonical accessor/class;
@@ -872,7 +877,7 @@ Create `tests/RateLimiter` and use the repository-required base test/coroutine c
 
 ### Policy/value tests
 
-- Every fixed-window and leaky-bucket factory converts periods correctly; leaky factories default burst to the sustained token count and `burst(1)` opts into strict smoothing.
+- Every fixed-window, sliding-window, and leaky-bucket factory converts periods correctly; leaky factories default burst to the sustained token count and `burst(1)` opts into strict smoothing.
 - Invalid zero/negative capacity, rate, duration, burst, cost, and backoff settings throw named exceptions.
 - Numeric boundary tests cover the shared Lua-exact/signed-64 limits and every overflow-prone multiplication/addition before a store mutation.
 - Fluent methods return new copies and do not mutate the original policy.
@@ -1001,7 +1006,7 @@ The standalone harness must call Testbench's `Bootstrapper::bootstrap()` and cre
 
 Measure at minimum:
 
-- fixed-window and leaky-bucket consume through Redis, Swoole, and one explicitly labeled configured database backend;
+- fixed-window, sliding-window, and leaky-bucket consume through Redis, Swoole, and one explicitly labeled configured database backend;
 - representative single-client and contended concurrency on allowed-heavy and denied-heavy paths, with the exact workload recorded in the output rather than a mandatory combinatorial matrix;
 - a one-time old cache-backed fixed-limiter baseline versus the new drivers before old code is removed; retain the recorded comparison, not a compatibility adapter or old implementation in the final harness;
 - p50/p95/p99 latency and operations/second. Measure pool wait, backend CPU, memory, or extra server versions ad hoc only when the core results expose a concrete question.
@@ -1041,7 +1046,7 @@ No step should add a temporary alias or dual API. If intermediate local compilat
 ## Final verification checklist
 
 - [ ] `Hypervel\RateLimiter` is the sole namespace; its facade and unconditional default provider resolve the new manager with no Cache shim or dual API.
-- [ ] Fixed, GCRA/leaky-bucket, unlimited, and exponential-backoff policies are typed; no strategy/driver enum, descriptor bag, or speculative algorithm exists.
+- [ ] Fixed-window, sliding-window, GCRA/leaky-bucket, unlimited, and exponential-backoff policies are typed; no strategy/driver enum, descriptor bag, or speculative algorithm exists.
 - [ ] Redis/Swoole/database/worker-array pass the shared semantic suite, and Redis/Swoole/database pass their applicable real-contention concurrency suites; failures never fail open and no driver routes through generic cache serialization.
 - [ ] Redis admission is one cached Lua call on the existing Redis 8 and Valkey 9 services; Swoole uses shared numeric state without live eviction and documents/logs capacity pressure; database uses only `rate_limits`.
 - [ ] Foundation, the application skeleton, and Testbench carry the same stores/migration, with database as the application default and worker-array as the deliberate Testbench default; named stores merge without duplicate package config.
