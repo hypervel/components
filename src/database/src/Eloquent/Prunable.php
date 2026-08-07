@@ -57,7 +57,7 @@ trait Prunable
     /**
      * Prune the model in the database.
      */
-    public function prune(): ?bool
+    public function prune(): int|bool|null
     {
         $this->pruning();
 

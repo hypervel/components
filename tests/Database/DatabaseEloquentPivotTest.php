@@ -8,6 +8,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Prunable;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
@@ -130,6 +131,28 @@ class DatabaseEloquentPivotTest extends TestCase
         $this->assertEquals(1, $rowsAffected);
     }
 
+    public function testModelDeleteWrappersReturnAffectedRowCountForPivots(): void
+    {
+        $pivot = new DeleteReturnPivotStub;
+        $pivot->exists = true;
+
+        $pivot->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $resolver->shouldReceive('connection')->once()->andReturn($connection = m::mock(Connection::class));
+        $connection->shouldReceive('transaction')->once()->andReturnUsing(fn ($callback) => $callback());
+
+        $this->assertSame(1, $pivot->deleteQuietly());
+        $this->assertSame(1, $pivot->deleteOrFail());
+        $this->assertSame(1, $pivot->forceDelete());
+    }
+
+    public function testPrunableReturnsAffectedRowCountForPivots(): void
+    {
+        $pivot = new PrunableDeleteReturnPivotStub;
+        $pivot->exists = true;
+
+        $this->assertSame(1, $pivot->prune());
+    }
+
     public function testPivotModelTableNameIsSingular()
     {
         $pivot = new Pivot;
@@ -217,6 +240,22 @@ class JsonCastStub extends Pivot
     protected array $casts = [
         'foo' => 'json',
     ];
+}
+
+class DeleteReturnPivotStub extends Pivot
+{
+    /**
+     * Return a simulated affected-row count.
+     */
+    public function delete(): int
+    {
+        return 1;
+    }
+}
+
+class PrunableDeleteReturnPivotStub extends DeleteReturnPivotStub
+{
+    use Prunable;
 }
 
 class DummyModel extends Model
