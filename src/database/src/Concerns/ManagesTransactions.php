@@ -458,12 +458,14 @@ trait ManagesTransactions
     /**
      * Execute the callback after a transaction commits.
      *
+     * The callback belongs to this connection's open transaction stack.
+     *
      * @throws RuntimeException
      */
     public function afterCommit(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallback($callback);
+            $this->transactionsManager->addCallback($callback, $this->getName());
 
             return;
         }
@@ -474,12 +476,14 @@ trait ManagesTransactions
     /**
      * Execute the callback after a transaction rolls back.
      *
+     * The callback belongs to this connection's open transaction stack.
+     *
      * @throws RuntimeException
      */
     public function afterRollBack(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallbackForRollback($callback);
+            $this->transactionsManager->addCallbackForRollback($callback, $this->getName());
 
             return;
         }
