@@ -201,6 +201,7 @@ class HttpGatewayTest extends TestCase
             $this->assertSame('Invalid SSR response.', $exception->event?->error);
         }
 
+        // Backoff must be armed before throw_on_error raises the exception.
         $this->assertNull($this->gateway->dispatch(self::EXAMPLE_PAGE_OBJECT));
         $this->assertSame(1, $mock->count());
         Event::assertDispatched(
