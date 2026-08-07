@@ -6,16 +6,12 @@ namespace Hypervel\Socialite;
 
 use GuzzleHttp\Client;
 use Hypervel\Http\Request;
+use Hypervel\Socialite\Concerns\HasProviderContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
+use LogicException;
+use SensitiveParameter;
 
-/**
- * Base class for all federated login providers.
- *
- * Provides protocol-agnostic infrastructure: HTTP client, request handling,
- * coroutine-safe configuration, state management, and custom parameters.
- * Protocol-specific subclasses (OAuth2, SAML2, etc.) extend this.
- */
 abstract class AbstractProvider
 {
     use HasProviderContext;
@@ -42,20 +38,18 @@ abstract class AbstractProvider
     /**
      * Create a new provider instance.
      */
-    public function __construct(
-        protected Request $request,
-        protected array $guzzle = []
-    ) {
+    public function __construct(Request $request, protected array $guzzle = [])
+    {
+        $this->setRequest($request);
     }
 
     /**
      * Set the baseline provider configuration.
      *
-     * Called once at registration time (e.g. from a builder or an extend callback).
-     * Writes to the instance property so config survives across coroutines.
-     * For per-request overrides, use setConfig() instead.
+     * Boot-only. The configuration persists for the worker lifetime and affects
+     * every subsequent request. Use setConfig() for per-request overrides.
      */
-    public function withConfig(array $config): static
+    public function withConfig(#[SensitiveParameter] array $config): static
     {
         $this->additionalConfig = $config;
 
@@ -65,10 +59,10 @@ abstract class AbstractProvider
     /**
      * Override provider configuration for the current request.
      *
-     * Writes to coroutine context for Swoole safety. Merges with the current
-     * effective config so partial overrides preserve baseline keys.
+     * The override is isolated to the current coroutine and must be applied
+     * independently on the redirect and callback requests.
      */
-    public function setConfig(array $config): static
+    public function setConfig(#[SensitiveParameter] array $config): static
     {
         $this->setContext('additionalConfig', array_replace($this->getConfig(), $config));
 
@@ -84,7 +78,7 @@ abstract class AbstractProvider
     {
         $config = $this->getContext('additionalConfig', $this->additionalConfig);
 
-        return $key ? Arr::get($config, $key, $default) : $config;
+        return Arr::get($config, $key, $default);
     }
 
     /**
@@ -125,8 +119,15 @@ abstract class AbstractProvider
      */
     protected function getRequest(): Request
     {
-        // @phpstan-ignore-next-line getContext('request') is only written by setRequest(Request).
-        return $this->getContext('request', $this->request);
+        $request = $this->getContext('request');
+
+        if (! $request instanceof Request) {
+            throw new LogicException(
+                'No request is available for this provider. Resolve it through Socialite::driver() or call setRequest().'
+            );
+        }
+
+        return $request;
     }
 
     /**
