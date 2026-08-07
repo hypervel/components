@@ -51,11 +51,8 @@ class DataTableRenderer extends Renderer implements Scrolling
         $filtered = $prompt->filteredRows();
         $visible = $prompt->visible();
 
-        $numCols = ! empty($prompt->headers)
-            ? count($prompt->headers)
-            : max(array_map('count', $prompt->rows));
-
-        $widths = $this->computeColumnWidths($prompt->headers, $prompt->rows, $numCols, $maxWidth);
+        $widths = $this->resolveColumnWidths($prompt, $maxWidth);
+        $numCols = count($widths);
         $innerWidth = array_sum($widths) + ($numCols * 2) + ($numCols - 1) + 2;
 
         // Top border (red)
@@ -67,6 +64,18 @@ class DataTableRenderer extends Renderer implements Scrolling
         // Search line (dimmed, to prevent layout shift)
         $searchContent = $this->renderSearchLine($prompt, $innerWidth - 2);
         $this->line($this->red(' │') . ' ' . $this->dim($this->pad($searchContent, $innerWidth - 2)) . ' ' . $this->red('│'));
+
+        if ($filtered === []) {
+            $this->line(' ' . $this->renderSimpleBorder('├', '┤', $innerWidth, 'red'));
+
+            $message = $prompt->searchValue() !== '' ? 'No results found.' : 'No rows.';
+            $emptyLine = $this->pad(' ' . $this->dim($this->strikethrough($message)), $innerWidth);
+            $this->line($this->red(' │') . $emptyLine . $this->red('│'));
+
+            $this->line(' ' . $this->renderSimpleBorder('└', '┘', $innerWidth, 'red'));
+
+            return (string) $this->error($prompt->cancelMessage);
+        }
 
         // Column separator
         $this->line(' ' . $this->renderBorder('├', '┬', '┤', $widths, 'red'));
@@ -109,12 +118,9 @@ class DataTableRenderer extends Renderer implements Scrolling
         $total = count($filtered);
         $visible = $prompt->visible();
 
-        $numCols = ! empty($prompt->headers)
-            ? count($prompt->headers)
-            : max(array_map('count', $prompt->rows));
-
         // Compute column widths from ALL rows (not filtered) to prevent layout shift when searching
-        $widths = $this->computeColumnWidths($prompt->headers, $prompt->rows, $numCols, $maxWidth);
+        $widths = $this->resolveColumnWidths($prompt, $maxWidth);
+        $numCols = count($widths);
 
         // Inner width between the outer │ chars:
         // cells (sum of w+2 padding each) + separators (numCols-1) + 2 (scrollbar area)
@@ -226,6 +232,29 @@ class DataTableRenderer extends Renderer implements Scrolling
         }
 
         return $this->dim('/ Search');
+    }
+
+    /**
+     * Resolve the column widths for the data table.
+     *
+     * @return array<int, int>
+     */
+    protected function resolveColumnWidths(DataTablePrompt $prompt, int $maxWidth): array
+    {
+        $numCols = count($prompt->headers);
+
+        if ($numCols === 0) {
+            foreach ($prompt->rows as $row) {
+                $numCols = max($numCols, count($row));
+            }
+        }
+
+        if ($numCols === 0) {
+            // Keep an empty table wide enough for its search affordance.
+            return [max(6, $maxWidth - 8)];
+        }
+
+        return $this->computeColumnWidths($prompt->headers, $prompt->rows, $numCols, $maxWidth);
     }
 
     /**
