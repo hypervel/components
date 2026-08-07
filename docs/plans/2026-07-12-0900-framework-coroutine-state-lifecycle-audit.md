@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None. `socialite` is complete; detail plan `2026-08-07-1416-socialite-correctness-first-party-extensibility-and-lifecycle.md`.
-- **Ledger entries required for the active work:** None. The completed Socialite work is recorded under `Complete Socialite correctness, first-party extensibility, and lifecycle`, with its cross-package findings recorded at their owning package entries.
-- **Pending revalidation carried into the active work:** None. Socialite revalidated `support-02` and completed `support-34`, `object-pool-04`, and `reverb-40` at their owning boundaries.
+- **Active package or work unit:** None. `json-schema` is complete; detail plan `2026-08-07-2015-json-schema-correctness-current-parity-and-bounded-reconstruction.md`.
+- **Ledger entries required for the active work:** None. The completed JSON Schema work is recorded under `Complete JSON Schema correctness, current parity, and bounded reconstruction`.
+- **Pending revalidation carried into the active work:** None. JSON Schema changed no lower-level assumption and has no repository runtime consumer requiring revalidation.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1317,7 +1317,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `sentry`
 - [ ] `inertia`
 - [x] `nested-set`
-- [ ] `json-schema`
+- [x] `json-schema`
 
 ### Tooling and developer surfaces
 
