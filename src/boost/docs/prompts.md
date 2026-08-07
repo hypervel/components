@@ -19,6 +19,7 @@
 - [Forms](#forms)
 - [Informational Messages](#informational-messages)
     - [Desktop Notifications](#desktop-notifications)
+- [Callouts](#callouts)
 - [Tables](#tables)
     - [Grids](#grids)
     - [Interactive Data Tables](#interactive-data-tables)
@@ -406,6 +407,8 @@ $role = select(
 );
 ```
 
+The `options` argument may be an array or a `Hypervel\Support\Collection` instance.
+
 You may also specify the default choice and an informational hint:
 
 ```php
@@ -508,6 +511,8 @@ $permissions = multiselect(
     options: ['Read', 'Create', 'Update', 'Delete']
 );
 ```
+
+The `options` and `default` arguments may be arrays or `Hypervel\Support\Collection` instances.
 
 You may also specify default choices and an informational hint:
 
@@ -626,6 +631,8 @@ use function Hypervel\Prompts\suggest;
 
 $name = suggest('What is your name?', ['Taylor', 'Dayle']);
 ```
+
+The `options` argument may be an array or a `Hypervel\Support\Collection` instance. A dynamic options closure may also return either type.
 
 Alternatively, you may pass a closure as the second argument to the `suggest` function. The closure will be called each time the user types an input character. The closure should accept a string parameter containing the user's input so far and return an array of options for auto-completion:
 
@@ -960,6 +967,8 @@ $name = autocomplete(
 );
 ```
 
+The `options` argument may be an array or a `Hypervel\Support\Collection` instance. A dynamic options closure may also return either type.
+
 You may also include placeholder text, a default value, and an informational hint:
 
 ```php
@@ -1161,6 +1170,100 @@ notify(
 );
 ```
 
+<a name="callouts"></a>
+## Callouts
+
+The `callout` function displays a boxed message with a label and content. Callouts are useful for displaying important information that should stand out, such as deployment summaries, error details, or status updates:
+
+```php
+use function Hypervel\Prompts\callout;
+
+callout(
+    label: 'Environment Configured',
+    content: 'Your application is running in production mode with 4 workers.',
+);
+```
+
+You may pass `warning` or `error` as the `type` argument to change the callout's visual style:
+
+```php
+callout(
+    label: 'Deprecation Notice',
+    content: 'The `--prefer-stable` flag will be removed in v4.0. Use `--stability=stable` instead.',
+    type: 'warning',
+);
+
+callout(
+    label: 'Database Connection Failed',
+    content: 'Could not connect to MySQL on 127.0.0.1:3306.',
+    type: 'error',
+);
+```
+
+The `info` argument adds a footer line to the callout, which is useful for displaying metadata like IDs or timestamps:
+
+```php
+callout(
+    label: 'Deployment Summary',
+    content: 'Your application was deployed to production.',
+    info: 'deploy-id: d4f8a2c',
+);
+```
+
+<a name="callout-rich-content"></a>
+#### Rich Content
+
+Instead of passing a string, you may pass an array of strings and elements to build rich, structured callouts. The `Element` class provides factory methods for creating headings, bulleted lists, numbered lists, key-value lists, and links:
+
+```php
+use Hypervel\Prompts\Elements\Element;
+
+use function Hypervel\Prompts\callout;
+
+callout('Deployment Summary', [
+    'Your application was deployed to production at 2024-03-15 14:32 UTC.',
+    Element::heading('What Changed'),
+    Element::bulletedList([
+        'Migrated 3 pending database migrations',
+        'Cleared and rebuilt route cache',
+        'Restarted 4 queue workers',
+    ]),
+    Element::heading('Next Steps'),
+    Element::numberedList([
+        'Verify the health check endpoint at /up',
+        'Monitor error rates for the next 15 minutes',
+        'Confirm background jobs are processing',
+    ]),
+]);
+```
+
+You may also use `Element::keyValueList` to display labeled data:
+
+```php
+callout('Database Connection Failed', [
+    'Could not connect to the database server.',
+    Element::keyValueList([
+        'Host' => '127.0.0.1',
+        'Port' => '3306',
+        'Database' => 'forge',
+        'Status' => 'Connection refused',
+    ]),
+], type: 'error');
+```
+
+The `Element::link` method creates a clickable hyperlink in terminals that support [OSC 8](https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda). You may provide a URL alone, or a URL with a custom label:
+
+```php
+callout('Server Health Check', [
+    'Multiple services are reporting degraded performance.',
+    Element::heading('Affected Services'),
+    'Look here: ' . Element::link('https://example.com/health', 'Health Dashboard'),
+    Element::link('https://example.com/health'),
+]);
+```
+
+If no label is provided, the URL itself will be displayed as the link text.
+
 <a name="tables"></a>
 ## Tables
 
@@ -1174,6 +1277,8 @@ table(
     rows: User::all(['name', 'email'])->toArray()
 );
 ```
+
+The `headers` and `rows` arguments may be arrays or `Hypervel\Support\Collection` instances.
 
 <a name="grids"></a>
 ### Grids
@@ -1190,6 +1295,8 @@ grid([
     'database/migrations',
 ]);
 ```
+
+The grid items may be provided as an array or a `Hypervel\Support\Collection` instance.
 
 You may also provide a maximum width for the grid:
 
@@ -1220,6 +1327,8 @@ $userId = datatable(
 ```
 
 If the `rows` argument is an associative array, the selected row's key will be returned. Otherwise, the selected row's numeric index will be returned.
+
+The `headers` and `rows` arguments may be arrays or `Hypervel\Support\Collection` instances.
 
 You may also provide a custom filter callback. The callback will receive the row and the current search query:
 
@@ -1253,7 +1362,7 @@ $response = spin(
 ```
 
 > [!NOTE]
-> Hypervel's `spin` function uses Swoole coroutines to animate the spinner, so the PCNTL extension is not required.
+> Hypervel animates the spinner when it runs inside a Swoole coroutine. Outside a coroutine or when output is redirected, the spinner is displayed without animation while the callback runs.
 
 <a name="progress"></a>
 ## Progress Bars
@@ -1271,6 +1380,8 @@ $users = progress(
 ```
 
 The `progress` function acts like a map function and will return an array containing the return value of each iteration of your callback.
+
+When output is redirected, the progress bar writes only its final result instead of writing each intermediate update.
 
 The callback may also accept the `Hypervel\Prompts\Progress` instance, allowing you to modify the label and hint on each iteration:
 
@@ -1326,7 +1437,7 @@ task(
 The callback receives a `Logger` instance that you may use to display log lines, status messages, and streamed text in the task's output area.
 
 > [!NOTE]
-> Under Hypervel's CLI, the `task` function uses Swoole coroutines to animate. The PCNTL extension is only consulted as a fallback when running outside a coroutine.
+> Hypervel animates tasks inside a Swoole coroutine. Outside a coroutine, task animation requires the PCNTL and POSIX extensions. Tasks are displayed without animation when these extensions are unavailable or output is redirected.
 
 <a name="task-logging"></a>
 #### Logging Lines
