@@ -17,8 +17,8 @@ class RecoveryCodeReplaced
      * Create a new event instance.
      */
     public function __construct(
-        public readonly Authenticatable $user,
-        public readonly string $code,
+        public Authenticatable $user,
+        public string $code,
     ) {
     }
 }
