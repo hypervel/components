@@ -300,7 +300,7 @@
         "pda/pheanstalk": "^8.0.2",
         "phpstan/phpdoc-parser": "^2.3",
         "phpstan/phpstan": "^2.0",
-        "phpunit/phpunit": "~13.2.5",
+        "phpunit/phpunit": "^13.0.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
         "swoole/ide-helper": "^6.0.2",
