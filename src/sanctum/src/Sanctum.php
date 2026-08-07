@@ -8,19 +8,21 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Mockery;
 use Mockery\MockInterface;
+use UnitEnum;
 
-/**
- * @template TToken of \Hypervel\Sanctum\Contracts\HasAbilities = \Hypervel\Sanctum\PersonalAccessToken
- */
+use function Hypervel\Support\enum_value;
+
 class Sanctum
 {
     /** @var class-string<PersonalAccessToken> */
     protected const string DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL = PersonalAccessToken::class;
 
+    protected const string DEFAULT_CURRENT_REQUEST_HOST_PLACEHOLDER = '__SANCTUM_CURRENT_REQUEST_HOST__';
+
     /**
      * The personal access client model class name.
      *
-     * @var class-string<TToken>
+     * @var class-string<PersonalAccessToken>
      */
     public static string $personalAccessTokenModel = self::DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL;
 
@@ -41,7 +43,7 @@ class Sanctum
     /**
      * A placeholder to instruct Sanctum to include the current request host in the list of stateful domains.
      */
-    public static string $currentRequestHostPlaceholder = '__SANCTUM_CURRENT_REQUEST_HOST__';
+    public static string $currentRequestHostPlaceholder = self::DEFAULT_CURRENT_REQUEST_HOST_PLACEHOLDER;
 
     /**
      * Get the current application URL from the "APP_URL" environment variable - with port.
@@ -73,32 +75,44 @@ class Sanctum
     /**
      * Set the current user for the application with the given abilities.
      *
-     * @param \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
-     * @param array<string> $abilities
+     * Tests only. This installs a Mockery token double and replaces the current
+     * coroutine's authenticated user and default guard with test state.
+     *
+     * @template TUser of Authenticatable
+     *
+     * @param TUser $user
+     * @param array<string|UnitEnum> $abilities
+     * @return TUser
      */
-    public static function actingAs($user, array $abilities = [], string $guard = 'sanctum'): mixed
+    public static function actingAs(Authenticatable $user, array $abilities = [], string $guard = 'sanctum'): Authenticatable
     {
-        /** @var \Hypervel\Sanctum\Contracts\HasAbilities&MockInterface $token */
-        $token = Mockery::mock(self::personalAccessTokenModel())->shouldIgnoreMissing(false);
+        $abilities = array_map(enum_value(...), $abilities);
 
-        if (in_array('*', $abilities)) {
+        /** @var \Hypervel\Sanctum\Contracts\HasAbilities&MockInterface $token */
+        $token = Mockery::mock(static::personalAccessTokenModel())->shouldIgnoreMissing(false);
+
+        if (in_array('*', $abilities, true)) {
             $token->shouldReceive('can')->andReturn(true);
         } else {
-            /* @phpstan-ignore-next-line */
-            $token->shouldReceive('can')->andReturnUsing(function (string $ability) use ($abilities) {
-                return in_array($ability, $abilities);
+            $expectation = $token->shouldReceive('can');
+            // @phpstan-ignore method.notFound (A named shouldReceive() returns an expectation, not HigherOrderMessage.)
+            $expectation->andReturnUsing(function (UnitEnum|string $ability) use ($abilities): bool {
+                return in_array(enum_value($ability), $abilities, true);
             });
         }
 
+        // @phpstan-ignore method.notFound (The documented HasApiTokens trait provides this method.)
         $user->withAccessToken($token);
 
+        // @phpstan-ignore property.notFound (Eloquent and compatible authenticatables expose this testing flag.)
         if (isset($user->wasRecentlyCreated) && $user->wasRecentlyCreated) {
+            // @phpstan-ignore property.notFound (Eloquent and compatible authenticatables expose this testing flag.)
             $user->wasRecentlyCreated = false;
         }
 
-        // Set the user on the guard
         $authManager = Container::getInstance()->make('auth');
         $authManager->guard($guard)->setUser($user);
+        $authManager->shouldUse($guard);
 
         return $user;
     }
@@ -110,7 +124,7 @@ class Sanctum
      * worker lifetime and is used for every token resolution across all
      * coroutines.
      *
-     * @param class-string<TToken> $model
+     * @param class-string<PersonalAccessToken> $model
      */
     public static function usePersonalAccessTokenModel(string $model): void
     {
@@ -142,7 +156,7 @@ class Sanctum
     /**
      * Get the token model class name.
      *
-     * @return class-string<TToken>
+     * @return class-string<PersonalAccessToken>
      */
     public static function personalAccessTokenModel(): string
     {
@@ -157,5 +171,6 @@ class Sanctum
         static::$personalAccessTokenModel = self::DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL;
         static::$accessTokenRetrievalCallback = null;
         static::$accessTokenAuthenticationCallback = null;
+        static::$currentRequestHostPlaceholder = self::DEFAULT_CURRENT_REQUEST_HOST_PLACEHOLDER;
     }
 }
