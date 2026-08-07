@@ -7,6 +7,7 @@ namespace Hypervel\Prompts;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use RuntimeException;
+use Throwable;
 
 class Spinner extends Prompt
 {
@@ -26,11 +27,6 @@ class Spinner extends Prompt
     public bool $static = false;
 
     /**
-     * Indicates if the spinner has finished.
-     */
-    protected bool $hasFinished = false;
-
-    /**
      * Create a new Spinner instance.
      */
     public function __construct(public string $message = '')
@@ -47,14 +43,26 @@ class Spinner extends Prompt
      */
     public function spin(Closure $callback): mixed
     {
+        $this->static = false;
+        $this->count = 0;
+        $this->state = 'initial';
+        $this->prevFrame = '';
         $this->capturePreviousNewLines();
+
+        if (! static::output()->isDecorated() || ! Coroutine::inCoroutine()) {
+            return $this->renderStatically($callback);
+        }
+
+        /** @var bool $finished */
+        $finished = false;
+        $operationFailure = null;
 
         try {
             $this->hideCursor();
             $this->render();
 
-            Coroutine::fork(function (): void {
-                while (! $this->hasFinished) {
+            Coroutine::fork(function () use (&$finished): void {
+                while (! $finished) {
                     $this->render();
 
                     ++$this->count;
@@ -64,10 +72,71 @@ class Spinner extends Prompt
             });
 
             return $callback();
+        } catch (Throwable $exception) {
+            $operationFailure = $exception;
+
+            throw $exception;
         } finally {
-            $this->hasFinished = true;
-            $this->eraseRenderedLines();
+            $finished = true;
+            $cleanupFailure = $this->settleOperation();
+
+            if ($operationFailure === null && $cleanupFailure !== null) {
+                throw $cleanupFailure;
+            }
         }
+    }
+
+    /**
+     * Render a static version of the spinner.
+     *
+     * @template TReturn of mixed
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    protected function renderStatically(Closure $callback): mixed
+    {
+        $this->static = true;
+        $operationFailure = null;
+
+        try {
+            $this->hideCursor();
+            $this->render();
+
+            return $callback();
+        } catch (Throwable $exception) {
+            $operationFailure = $exception;
+
+            throw $exception;
+        } finally {
+            $cleanupFailure = $this->settleOperation();
+
+            if ($operationFailure === null && $cleanupFailure !== null) {
+                throw $cleanupFailure;
+            }
+        }
+    }
+
+    /**
+     * Erase the last frame and restore terminal state.
+     */
+    private function settleOperation(): ?Throwable
+    {
+        $failure = null;
+
+        try {
+            $this->eraseRenderedLines();
+        } catch (Throwable $exception) {
+            $failure = $exception;
+        }
+
+        try {
+            $this->restoreTerminalState();
+        } catch (Throwable $exception) {
+            $failure ??= $exception;
+        }
+
+        return $failure;
     }
 
     /**
