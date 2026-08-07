@@ -17,7 +17,7 @@ use Psr\Http\Message\StreamInterface;
 
 class SlackOpenIdProviderTest extends TestCase
 {
-    public function testResponse()
+    public function testResponse(): void
     {
         $user = $this->fromResponse([
             'sub' => 'U1Q2W3E4R5T',
@@ -46,7 +46,7 @@ class SlackOpenIdProviderTest extends TestCase
         ], $user->attributes);
     }
 
-    public function testMissingEmailAndAvatar()
+    public function testMissingEmailAndAvatar(): void
     {
         $user = $this->fromResponse([
             'sub' => 'U1Q2W3E4R5T',

@@ -7,6 +7,7 @@ namespace Hypervel\Socialite\Two;
 use Exception;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Support\Arr;
+use SensitiveParameter;
 
 class BitbucketProvider extends AbstractProvider implements ProviderInterface
 {
@@ -30,10 +31,10 @@ class BitbucketProvider extends AbstractProvider implements ProviderInterface
         return 'https://bitbucket.org/site/oauth2/access_token';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         $response = $this->getHttpClient()->get('https://api.bitbucket.org/2.0/user', [
-            RequestOptions::QUERY => ['access_token' => $token],
+            RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token],
         ]);
 
         $user = json_decode((string) $response->getBody(), true);
@@ -48,12 +49,12 @@ class BitbucketProvider extends AbstractProvider implements ProviderInterface
     /**
      * Get the email for the given access token.
      */
-    protected function getEmailByToken(string $token): ?string
+    protected function getEmailByToken(#[SensitiveParameter] string $token): ?string
     {
-        $emailsUrl = 'https://api.bitbucket.org/2.0/user/emails?access_token=' . $token;
-
         try {
-            $response = $this->getHttpClient()->get($emailsUrl);
+            $response = $this->getHttpClient()->get('https://api.bitbucket.org/2.0/user/emails', [
+                RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token],
+            ]);
         } catch (Exception $e) {
             return null;
         }
@@ -83,7 +84,7 @@ class BitbucketProvider extends AbstractProvider implements ProviderInterface
     /**
      * Get the access token for the given code.
      */
-    public function getAccessToken(string $code): string
+    public function getAccessToken(#[SensitiveParameter] string $code): string
     {
         $response = $this->getHttpClient()->post($this->getTokenUrl(), [
             RequestOptions::AUTH => [$this->getClientId(), $this->getClientSecret()],
