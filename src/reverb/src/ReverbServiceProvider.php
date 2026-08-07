@@ -90,7 +90,7 @@ class ReverbServiceProvider extends ServiceProvider
         $this->app->singleton(ServerProviderManager::class);
 
         if (! $this->app->bound(ChannelManager::class)) {
-            $this->app->singleton(ChannelManager::class, ArrayChannelManager::class);
+            $this->app->alias(ArrayChannelManager::class, ChannelManager::class);
         }
 
         if (! $this->app->bound(ChannelConnectionManager::class)) {
