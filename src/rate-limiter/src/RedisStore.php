@@ -43,7 +43,7 @@ if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
 end
 
 local current = tonumber(raw)
-if not current or current < 0 or current > limit or current % 1 ~= 0 then
+if current > limit then
     return redis.error_reply('ERR corrupt rate limiter counter')
 end
 
@@ -67,6 +67,120 @@ end
 
 local incremented = redis.call('INCRBY', KEYS[1], ARGV[2])
 return {1, limit, limit - incremented, 0, ttlMicroseconds}
+LUA;
+
+    private const string SLIDING_WINDOW_SCRIPT = <<<'LUA'
+local WEIGHT_SCALE = 1000000
+local mode = ARGV[1]
+local cost = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local windowSeconds = tonumber(ARGV[4])
+local windowMilliseconds = windowSeconds * 1000
+local fullLifetimeMilliseconds = windowMilliseconds * 2
+
+local function empty_result()
+    if mode == 'inspect' then
+        return {1, limit, limit, 0, 0}
+    end
+
+    redis.call('HSET', KEYS[1], 'current', cost, 'previous', 0)
+    redis.call('PEXPIRE', KEYS[1], fullLifetimeMilliseconds)
+    return {1, limit, limit - cost, 0, fullLifetimeMilliseconds * 1000}
+end
+
+local state = redis.call('HMGET', KEYS[1], 'current', 'previous')
+
+if not state[1] and not state[2] then
+    return empty_result()
+end
+
+if not state[1] or not state[2] then
+    return redis.error_reply('ERR corrupt rate limiter sliding-window state')
+end
+
+for _, raw in ipairs(state) do
+    if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
+        return redis.error_reply('ERR corrupt rate limiter sliding-window state')
+    end
+end
+
+local current = tonumber(state[1])
+local previous = tonumber(state[2])
+
+if current > limit or previous > limit then
+    return redis.error_reply('ERR corrupt rate limiter sliding-window state')
+end
+
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl == -1 then
+    return redis.error_reply('ERR corrupt rate limiter sliding-window state has no expiry')
+end
+if ttl <= 0 then
+    return empty_result()
+end
+if current == 0 then
+    return redis.error_reply('ERR corrupt rate limiter sliding-window state')
+end
+
+local remainingMilliseconds
+local rotated = false
+
+if ttl > windowMilliseconds then
+    remainingMilliseconds = ttl - windowMilliseconds
+else
+    previous = current
+    current = 0
+    remainingMilliseconds = ttl
+    rotated = true
+end
+
+local weight
+if remainingMilliseconds >= windowMilliseconds then
+    weight = WEIGHT_SCALE
+else
+    weight = math.floor(remainingMilliseconds * 1000 / windowSeconds)
+end
+
+local weightedPrevious = math.floor(previous * weight / WEIGHT_SCALE)
+local estimated = current + weightedPrevious
+local resetMicroseconds = ttl * 1000
+
+if estimated > limit - cost then
+    local available = limit - current - cost
+    local retryMicroseconds
+
+    if available >= 0 then
+        local maximumWeight = math.floor(((available + 1) * WEIGHT_SCALE - 1) / previous)
+        local maximumRemainingMilliseconds = math.floor(
+            ((maximumWeight + 1) * windowSeconds - 1) / 1000
+        )
+        retryMicroseconds = (remainingMilliseconds - maximumRemainingMilliseconds) * 1000
+    else
+        local nextAvailable = limit - cost
+        local maximumWeight = math.floor(((nextAvailable + 1) * WEIGHT_SCALE - 1) / current)
+        local maximumRemainingMilliseconds = math.floor(
+            ((maximumWeight + 1) * windowSeconds - 1) / 1000
+        )
+        retryMicroseconds = remainingMilliseconds * 1000
+            + (windowMilliseconds - maximumRemainingMilliseconds) * 1000
+    end
+
+    return {0, limit, math.max(0, limit - estimated), retryMicroseconds, resetMicroseconds}
+end
+
+if mode == 'inspect' then
+    return {1, limit, limit - estimated, 0, resetMicroseconds}
+end
+
+if rotated then
+    local nextTtl = ttl + windowMilliseconds
+    redis.call('HSET', KEYS[1], 'current', cost, 'previous', previous)
+    redis.call('PEXPIRE', KEYS[1], nextTtl)
+    return {1, limit, limit - estimated - cost, 0, nextTtl * 1000}
+end
+
+redis.call('HINCRBY', KEYS[1], 'current', cost)
+return {1, limit, limit - estimated - cost, 0, resetMicroseconds}
 LUA;
 
     private const string LEAKY_BUCKET_SCRIPT = <<<'LUA'
@@ -95,7 +209,7 @@ if raw then
     end
 
     storedTat = tonumber(raw)
-    if not storedTat or storedTat < 0 or storedTat > MAX_INTEGER or storedTat % 1 ~= 0 then
+    if storedTat > MAX_INTEGER then
         return redis.error_reply('ERR corrupt rate limiter TAT')
     end
 
@@ -170,8 +284,7 @@ if state[1] or state[2] then
     failures = tonumber(state[1])
     availableAt = tonumber(state[2])
 
-    if not failures or failures < 0 or failures > MAX_INTEGER or failures % 1 ~= 0
-        or not availableAt or availableAt < 0 or availableAt > MAX_INTEGER or availableAt % 1 ~= 0 then
+    if failures > MAX_INTEGER or availableAt > MAX_INTEGER then
         return redis.error_reply('ERR corrupt rate limiter backoff state')
     end
 
@@ -242,6 +355,7 @@ LUA;
     {
         return match (true) {
             $policy instanceof Limit => $this->executeFixedWindow($key, $policy, 'consume'),
+            $policy instanceof SlidingWindow => $this->executeSlidingWindow($key, $policy, 'consume'),
             $policy instanceof LeakyBucket => $this->executeLeakyBucket($key, $policy, 'consume'),
             default => throw new InvalidRateLimitException(sprintf(
                 'Admission policy [%s] is not supported.',
@@ -259,6 +373,7 @@ LUA;
     {
         return match (true) {
             $policy instanceof Limit => $this->executeFixedWindow($key, $policy, 'inspect'),
+            $policy instanceof SlidingWindow => $this->executeSlidingWindow($key, $policy, 'inspect'),
             $policy instanceof LeakyBucket => $this->executeLeakyBucket($key, $policy, 'inspect'),
             $policy instanceof Backoff => $this->executeBackoff($key, $policy, 'inspect'),
             default => throw new InvalidRateLimitException(sprintf(
@@ -297,6 +412,21 @@ LUA;
             (string) $policy->cost,
             (string) $policy->maxAttempts,
             (string) ($policy->decaySeconds * 1000),
+        ]);
+
+        return $this->limitResult($result, $policy->maxAttempts);
+    }
+
+    /**
+     * Execute a sliding-window operation.
+     */
+    protected function executeSlidingWindow(string $key, SlidingWindow $policy, string $mode): LimitResult
+    {
+        $result = $this->execute(self::SLIDING_WINDOW_SCRIPT, $key, [
+            $mode,
+            (string) $policy->cost,
+            (string) $policy->maxAttempts,
+            (string) $policy->windowSeconds,
         ]);
 
         return $this->limitResult($result, $policy->maxAttempts);

@@ -13,10 +13,12 @@ use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\RateLimiter\Fixtures\RateLimiterStoreContract;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Redis as PhpRedis;
 
 use function Hypervel\Coroutine\parallel;
@@ -60,6 +62,84 @@ class RedisStoreTest extends TestCase
     public function testInspectingMissingStateDoesNotCreateAKey(): void
     {
         $policy = Limit::perMinute(10)->by('inspect');
+        $result = $this->limiter()->inspect($policy);
+
+        $this->assertTrue($result->allowed());
+        $this->assertSame(10, $result->remaining());
+        $this->assertSame(0, $result->resetAfter());
+        $this->assertSame(0, $this->redisClient()->exists($this->physicalKey($policy)));
+    }
+
+    public function testSlidingWindowUsesOneHashAndExtendsTtlOnlyOnAcceptedRotation(): void
+    {
+        $limiter = $this->limiter();
+        $policy = SlidingWindow::perSecond(10, 2)->cost(4)->by('sliding');
+
+        $this->assertSame(6, $limiter->consume($policy)->remaining());
+        $physicalKey = $this->physicalKey($policy);
+        $redis = $this->redisClient();
+        $initialTtl = $redis->pttl($physicalKey);
+
+        $this->assertSame([
+            'current' => '4',
+            'previous' => '0',
+        ], $redis->hGetAll($physicalKey));
+
+        $this->assertSame(5, $limiter->consume($policy->cost(1))->remaining());
+        $sameWindowTtl = $redis->pttl($physicalKey);
+        $stateBeforeDenial = $redis->hGetAll($physicalKey);
+
+        $this->assertLessThanOrEqual($initialTtl, $sameWindowTtl);
+        $this->assertGreaterThan($initialTtl - 500, $sameWindowTtl);
+        $this->assertTrue($limiter->consume($policy->cost(6))->denied());
+        $this->assertSame($stateBeforeDenial, $redis->hGetAll($physicalKey));
+        $this->assertLessThanOrEqual($sameWindowTtl, $redis->pttl($physicalKey));
+
+        $this->waitForRateLimiterStoreContract(
+            static fn (): bool => $limiter->inspect($policy)->resetAfter() <= 2,
+            2,
+        );
+
+        $this->assertTrue($limiter->consume($policy->cost(1))->allowed());
+        $this->assertSame([
+            'current' => '1',
+            'previous' => '5',
+        ], $redis->hGetAll($physicalKey));
+        $this->assertGreaterThan(3000, $redis->pttl($physicalKey));
+    }
+
+    public function testRotatedSlidingWindowDenialKeepsStoredStateUnchanged(): void
+    {
+        $policy = SlidingWindow::perSecond(10, 2)
+            ->cost(7)
+            ->by('sliding-rotated-denial');
+        $physicalKey = $this->physicalKey($policy);
+        $redis = $this->redisClient();
+        $redis->hMSet($physicalKey, [
+            'current' => '8',
+            'previous' => '2',
+        ]);
+        $redis->pExpire($physicalKey, 1900);
+
+        $result = $this->limiter()->consume($policy);
+
+        $this->assertTrue($result->denied());
+        $this->assertSame(1, $result->retryAfter());
+        $this->assertSame(2, $result->resetAfter());
+        $this->assertSame([
+            'current' => '8',
+            'previous' => '2',
+        ], $redis->hGetAll($physicalKey));
+
+        $ttl = $redis->pttl($physicalKey);
+
+        $this->assertGreaterThan(1000, $ttl);
+        $this->assertLessThanOrEqual(1900, $ttl);
+    }
+
+    public function testInspectingMissingSlidingWindowStateDoesNotCreateAKey(): void
+    {
+        $policy = SlidingWindow::perMinute(10)->by('inspect-sliding');
         $result = $this->limiter()->inspect($policy);
 
         $this->assertTrue($result->allowed());
@@ -144,6 +224,95 @@ class RedisStoreTest extends TestCase
         $this->limiter()->inspect($backoff);
     }
 
+    #[DataProvider('corruptSlidingWindowStateProvider')]
+    public function testCorruptSlidingWindowStateFailsClosed(
+        string $suffix,
+        array $state,
+        bool $expires,
+    ): void {
+        $policy = SlidingWindow::perMinute(10)->by("corrupt-sliding-{$suffix}");
+        $physicalKey = $this->physicalKey($policy);
+        $redis = $this->redisClient();
+
+        $redis->hMSet($physicalKey, $state);
+
+        if ($expires) {
+            $redis->pExpire($physicalKey, 60_000);
+        }
+
+        $this->expectException(LuaScriptException::class);
+
+        $this->limiter()->inspect($policy);
+    }
+
+    public static function corruptSlidingWindowStateProvider(): array
+    {
+        return [
+            'partial' => ['partial', ['current' => '1'], true],
+            'noncanonical' => ['noncanonical', ['current' => '01', 'previous' => '0'], true],
+            'zero current' => ['zero-current', ['current' => '0', 'previous' => '0'], true],
+            'current above capacity' => ['current-capacity', ['current' => '11', 'previous' => '0'], true],
+            'previous above capacity' => ['previous-capacity', ['current' => '1', 'previous' => '11'], true],
+            'missing expiry' => ['missing-expiry', ['current' => '1', 'previous' => '0'], false],
+        ];
+    }
+
+    public function testSlidingWindowKeepsRawRollbackDurationsWithoutRewritingTtl(): void
+    {
+        $policy = SlidingWindow::perSecond(6)->by('sliding-rollback');
+        $physicalKey = $this->physicalKey($policy);
+        $redis = $this->redisClient();
+        $redis->hMSet($physicalKey, [
+            'current' => '2',
+            'previous' => '4',
+        ]);
+        $redis->pExpire($physicalKey, 3500);
+
+        $result = $this->limiter()->consume($policy);
+
+        $this->assertTrue($result->denied());
+        $this->assertSame(0, $result->remaining());
+        $this->assertSame(2, $result->retryAfter());
+        $this->assertSame(4, $result->resetAfter());
+        $this->assertSame([
+            'current' => '2',
+            'previous' => '4',
+        ], $redis->hGetAll($physicalKey));
+
+        $ttl = $redis->pttl($physicalKey);
+
+        $this->assertGreaterThan(3000, $ttl);
+        $this->assertLessThanOrEqual(3500, $ttl);
+    }
+
+    public function testSlidingWindowClampsRollbackWeightForAdmissionDecision(): void
+    {
+        $policy = SlidingWindow::perSecond(6)->by('sliding-clamp');
+        $physicalKey = $this->physicalKey($policy);
+        $redis = $this->redisClient();
+        $redis->hMSet($physicalKey, [
+            'current' => '1',
+            'previous' => '4',
+        ]);
+        $redis->pExpire($physicalKey, 3000);
+
+        $result = $this->limiter()->consume($policy);
+
+        $this->assertTrue($result->allowed());
+        $this->assertSame(0, $result->remaining());
+        $this->assertSame(0, $result->retryAfter());
+        $this->assertSame(3, $result->resetAfter());
+        $this->assertSame([
+            'current' => '2',
+            'previous' => '4',
+        ], $redis->hGetAll($physicalKey));
+
+        $ttl = $redis->pttl($physicalKey);
+
+        $this->assertGreaterThan(2250, $ttl);
+        $this->assertLessThanOrEqual(3000, $ttl);
+    }
+
     public function testMaximumExactIntegerSurvivesSetAndIncrementArguments(): void
     {
         $policy = Limit::perSecond(AdmissionPolicy::MAX_INTEGER)->by('maximum');
@@ -188,6 +357,7 @@ class RedisStoreTest extends TestCase
         $limiter = $this->limiter();
         $policies = [
             Limit::perMinute(20)->cost(3)->by('concurrent-weighted-fixed'),
+            SlidingWindow::perMinute(20)->cost(3)->by('concurrent-weighted-sliding'),
             LeakyBucket::perMinute(1)->burst(20)->cost(3)->by('concurrent-weighted-leaky'),
         ];
 
@@ -219,6 +389,7 @@ class RedisStoreTest extends TestCase
 
         $limiter = $this->app->make(RateLimiter::class)->store('encoded');
         $fixed = Limit::perMinute(2)->by('encoded-fixed');
+        $sliding = SlidingWindow::perMinute(2)->by('encoded-sliding');
         $leaky = LeakyBucket::perMinute(1)->burst(1)->by('encoded-leaky');
         $backoff = Backoff::exponential(
             after: 1,
@@ -228,6 +399,7 @@ class RedisStoreTest extends TestCase
         )->by('encoded-backoff');
 
         $this->assertSame(1, $limiter->consume($fixed)->remaining());
+        $this->assertSame(1, $limiter->consume($sliding)->remaining());
         $this->assertTrue($limiter->consume($leaky)->allowed());
         $this->assertTrue($limiter->consume($leaky)->denied());
         $this->assertSame(1, $limiter->recordFailure($backoff)->failures());
@@ -236,6 +408,10 @@ class RedisStoreTest extends TestCase
 
         try {
             $this->assertSame('1', $redis->get('rate-limiter-encoded:' . $this->physicalKey($fixed)));
+            $this->assertSame([
+                'current' => '1',
+                'previous' => '0',
+            ], $redis->hGetAll('rate-limiter-encoded:' . $this->physicalKey($sliding)));
             $this->assertMatchesRegularExpression(
                 '/^[1-9][0-9]*$/D',
                 (string) $redis->get('rate-limiter-encoded:' . $this->physicalKey($leaky)),

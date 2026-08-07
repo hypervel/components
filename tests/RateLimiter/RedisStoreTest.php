@@ -9,6 +9,7 @@ use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RedisStore;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
@@ -45,6 +46,24 @@ class RedisStoreTest extends TestCase
         $this->assertSame(['physical-key'], $captured['keys']);
         $this->assertSame(['inspect', '3', '10', '1000000', '20'], $captured['arguments']);
         $this->assertStringContainsString("redis.call('TIME')", $captured['script']);
+    }
+
+    public function testSlidingWindowUsesOneKeyAndTtlDerivedTwoFieldState(): void
+    {
+        $captured = [];
+        $store = $this->store([1, 10, 7, 0, 120_000_000], $captured);
+        $policy = SlidingWindow::perMinute(10)->cost(3);
+
+        $result = $store->consume('physical-key', $policy);
+
+        $this->assertTrue($result->allowed());
+        $this->assertSame(7, $result->remaining());
+        $this->assertSame(['physical-key'], $captured['keys']);
+        $this->assertSame(['consume', '3', '10', '60'], $captured['arguments']);
+        $this->assertStringContainsString("redis.call('HMGET', KEYS[1], 'current', 'previous')", $captured['script']);
+        $this->assertStringContainsString("redis.call('HINCRBY', KEYS[1], 'current', cost)", $captured['script']);
+        $this->assertStringContainsString("redis.call('PTTL', KEYS[1])", $captured['script']);
+        $this->assertStringNotContainsString("redis.call('TIME')", $captured['script']);
     }
 
     public function testBackoffReturnsItsFailureCountAndDelay(): void
