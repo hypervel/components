@@ -62,7 +62,7 @@ trait FormatsMessages
         // messages out of the translator service for this validation rule.
         $key = "validation.{$lowerRule}";
 
-        if ($key !== ($value = $this->translator->get($key))) {
+        if ($key !== ($value = $this->translator->string($key))) {
             return $value;
         }
 
@@ -150,7 +150,7 @@ trait FormatsMessages
     protected function getCustomMessageFromTranslator(array|string $keys): string
     {
         foreach (Arr::wrap($keys) as $key) {
-            if (($message = $this->translator->get($key)) !== $key) {
+            if (($message = $this->translator->string($key)) !== $key) {
                 return $message;
             }
 
@@ -204,7 +204,7 @@ trait FormatsMessages
 
         $key = "validation.{$lowerRule}.{$type}";
 
-        return $this->translator->get($key);
+        return $this->translator->string($key);
     }
 
     /**
@@ -465,7 +465,7 @@ trait FormatsMessages
 
         $key = "validation.values.{$attribute}.{$value}";
 
-        if (($line = $this->translator->get($key)) !== $key) {
+        if (($line = $this->translator->string($key)) !== $key) {
             return $line;
         }
 

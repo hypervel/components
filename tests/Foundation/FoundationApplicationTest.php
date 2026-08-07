@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\FoundationApplicationTest;
 
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
@@ -22,7 +24,6 @@ use JsonException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
-use stdClass;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -41,32 +42,59 @@ class FoundationApplicationTest extends TestCase
         }
     }
 
-    public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent()
+    public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent(): void
     {
-        $trans = m::mock(stdClass::class);
-        $trans->shouldReceive('getLocale')->once()->andReturn('bar');
-        $trans->shouldReceive('setLocale')->once()->with('foo');
-        $events = m::mock(stdClass::class);
-        $events->shouldReceive('dispatch')->once()->with(m::on(function (LocaleUpdated $event) {
+        $translator = m::mock(TranslatorContract::class);
+        $translator->shouldReceive('getLocale')->once()->andReturn('bar')->globally()->ordered();
+        $translator->shouldReceive('setLocale')->once()->with('foo')->globally()->ordered();
+        $events = m::mock(DispatcherContract::class);
+        $events->shouldReceive('hasListeners')->once()->with(LocaleUpdated::class)->andReturn(true)->globally()->ordered();
+        $events->shouldReceive('dispatch')->once()->with(m::on(function (LocaleUpdated $event): bool {
             return $event->locale === 'foo' && $event->previousLocale === 'bar';
-        }));
+        }))->globally()->ordered();
+        $config = new Repository(['app' => ['locale' => 'en']]);
 
         $app = new Application;
-        $app->singleton('translator', fn () => $trans);
+        $app->singleton('translator', fn () => $translator);
+        $app->singleton('events', fn () => $events);
+        $app->instance('config', $config);
+
+        $app->setLocale('foo');
+
+        // REMOVED: Effective current locale is request-local and does not mutate worker-shared config.
+        $this->assertSame('en', $config->string('app.locale'));
+    }
+
+    public function testSetLocaleDoesNotDispatchWhenLocaleEventHasNoListeners(): void
+    {
+        $translator = m::mock(TranslatorContract::class);
+        $translator->shouldReceive('getLocale')->once()->andReturn('bar');
+        $translator->shouldReceive('setLocale')->once()->with('foo');
+        $events = m::mock(DispatcherContract::class);
+        $events->shouldReceive('hasListeners')->once()->with(LocaleUpdated::class)->andReturn(false);
+        $events->shouldReceive('dispatch')->never();
+
+        $app = new Application;
+        $app->singleton('translator', fn () => $translator);
         $app->singleton('events', fn () => $events);
 
         $app->setLocale('foo');
     }
 
-    public function testSetFallbackLocaleSetsTranslatorFallback()
+    public function testSetFallbackLocaleSetsTranslatorFallback(): void
     {
-        $trans = m::mock(stdClass::class);
-        $trans->shouldReceive('setFallback')->once()->with('fr');
+        $translator = m::mock(TranslatorContract::class);
+        $translator->shouldReceive('setFallback')->once()->with('fr');
+        $config = new Repository(['app' => ['fallback_locale' => 'en']]);
 
         $app = new Application;
-        $app->singleton('translator', fn () => $trans);
+        $app->singleton('translator', fn () => $translator);
+        $app->instance('config', $config);
 
         $app->setFallbackLocale('fr');
+
+        // REMOVED: The effective fallback belongs to the worker-shared Translator after boot.
+        $this->assertSame('en', $config->string('app.fallback_locale'));
     }
 
     public function testLoggerInterfaceResolvesAfterFacadesAreRegisteredBeforeConfiguredProviders()
@@ -93,13 +121,24 @@ class FoundationApplicationTest extends TestCase
         $this->assertNotInstanceOf(Log::class, $logger);
     }
 
-    public function testGetFallbackLocaleReadsFromTranslator()
+    public function testGetLocaleReadsFromTranslator(): void
     {
-        $trans = m::mock(stdClass::class);
-        $trans->shouldReceive('getFallback')->once()->andReturn('en');
+        $translator = m::mock(TranslatorContract::class);
+        $translator->shouldReceive('getLocale')->once()->andReturn('en');
 
         $app = new Application;
-        $app->singleton('translator', fn () => $trans);
+        $app->singleton('translator', fn () => $translator);
+
+        $this->assertSame('en', $app->getLocale());
+    }
+
+    public function testGetFallbackLocaleReadsFromTranslator(): void
+    {
+        $translator = m::mock(TranslatorContract::class);
+        $translator->shouldReceive('getFallback')->once()->andReturn('en');
+
+        $app = new Application;
+        $app->singleton('translator', fn () => $translator);
 
         $this->assertSame('en', $app->getFallbackLocale());
     }

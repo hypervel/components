@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middleware;
 
+use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Permission\Contracts\Role;
@@ -39,6 +40,21 @@ class RoleMiddlewareTest extends TestCase
         $this->testUser->assignRole('testRole');
 
         $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, 'testRole'));
+    }
+
+    public function testAuthorizedRequestPreservesJsonResponse(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUser->assignRole('testRole');
+
+        $response = new JsonResponse(['authorized' => true]);
+
+        $this->assertSame($response, $this->roleMiddleware->handle(
+            new Request,
+            fn (): JsonResponse => $response,
+            'testRole',
+        ));
     }
 
     public function testUserCannotAccessRouteWithRoleFromAnotherGuard(): void

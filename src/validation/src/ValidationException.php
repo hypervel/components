@@ -59,7 +59,7 @@ class ValidationException extends Exception
         $messages = $validator->errors()->all();
 
         if (! count($messages)) {
-            return $validator->getTranslator()->get('The given data was invalid.');
+            return $validator->getTranslator()->string('The given data was invalid.');
         }
 
         $message = array_shift($messages);
