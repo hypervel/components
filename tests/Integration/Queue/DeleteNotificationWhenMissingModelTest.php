@@ -28,7 +28,6 @@ class DeleteNotificationWhenMissingModelTest extends QueueTestCase
     {
         parent::defineEnvironment($app);
         $app['config']->set('queue.default', 'database');
-        $this->driver = 'database';
     }
 
     protected function defineDatabaseMigrationsAfterDatabaseRefreshed(): void

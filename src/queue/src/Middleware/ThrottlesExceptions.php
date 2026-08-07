@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Middleware;
 
 use Closure;
-use Hypervel\Cache\RateLimiter;
 use Hypervel\Container\Container;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class ThrottlesExceptions
 {
@@ -56,15 +60,13 @@ class ThrottlesExceptions
 
     /**
      * The prefix of the rate limiter key.
-     *
-     * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
-    protected string $prefix = 'laravel_throttles_exceptions:';
+    protected string $prefix = 'hypervel:queue:throttles-exceptions:';
 
     /**
-     * The rate limiter instance.
+     * The rate limiter store that should be used.
      */
-    protected $limiter;
+    protected ?string $storeName = null;
 
     /**
      * Create a new middleware instance.
@@ -83,23 +85,30 @@ class ThrottlesExceptions
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        $this->limiter = Container::getInstance()
-            ->make(RateLimiter::class);
+        $limiter = Container::getInstance()
+            ->make(RateLimiter::class)
+            ->store($this->storeName);
+        $policy = new Limit(
+            maxAttempts: $this->maxAttempts,
+            decaySeconds: $this->decaySeconds,
+            key: $this->getKey($job),
+        );
+        $result = $limiter->inspect($policy);
 
-        if ($this->limiter->tooManyAttempts($jobKey = $this->getKey($job), $this->maxAttempts)) {
-            return $job->release($this->getTimeUntilNextRetry($jobKey));
+        if ($result->denied()) {
+            return $job->release($result->retryAfter() + 3);
         }
 
         try {
             $next($job);
 
-            $this->limiter->clear($jobKey);
+            $limiter->clear($policy);
         } catch (Throwable $throwable) {
-            if ($this->whenCallback && ! call_user_func($this->whenCallback, $throwable, $this->limiter)) {
+            if ($this->whenCallback && ! call_user_func($this->whenCallback, $throwable, $limiter)) {
                 throw $throwable;
             }
 
-            if ($this->reportCallback && call_user_func($this->reportCallback, $throwable, $this->limiter)) {
+            if ($this->reportCallback && call_user_func($this->reportCallback, $throwable, $limiter)) {
                 report($throwable);
             }
 
@@ -111,9 +120,13 @@ class ThrottlesExceptions
                 return $job->fail($throwable);
             }
 
-            $this->limiter->hit($jobKey, $this->decaySeconds);
+            $result = $limiter->consume($policy);
 
-            return $job->release($this->getTimeUntilNextRetryAfterException($throwable));
+            return $job->release(
+                $result->denied()
+                    ? $result->retryAfter() + 3
+                    : $this->getTimeUntilNextRetryAfterException($throwable),
+            );
         }
 
         return null;
@@ -191,6 +204,18 @@ class ThrottlesExceptions
         return $this;
     }
 
+    // Hypervel selects Redis through the same store API as every other backend
+    // instead of exposing Laravel's Redis-only queue middleware and connection().
+    /**
+     * Specify the rate limiter store that should be used.
+     */
+    public function store(UnitEnum|string $store): static
+    {
+        $this->storeName = (string) enum_value($store);
+
+        return $this;
+    }
+
     /**
      * Specify the number of minutes a job should be delayed when it is released (before it has reached its max exceptions).
      */
@@ -214,7 +239,7 @@ class ThrottlesExceptions
     }
 
     /**
-     * Get the cache key associated for the rate limiter.
+     * Get the key associated with the rate limiter.
      */
     protected function getKey(mixed $job): string
     {
@@ -230,7 +255,7 @@ class ThrottlesExceptions
             ? $job->displayName()
             : get_class($job);
 
-        return $this->prefix . hash('xxh128', $jobName);
+        return $this->prefix . $jobName;
     }
 
     /**
@@ -261,13 +286,5 @@ class ThrottlesExceptions
         $this->reportCallback = $callback ?? fn () => true;
 
         return $this;
-    }
-
-    /**
-     * Get the number of seconds that should elapse before the job is retried.
-     */
-    protected function getTimeUntilNextRetry(string $key): int
-    {
-        return $this->limiter->availableIn($key) + 3;
     }
 }

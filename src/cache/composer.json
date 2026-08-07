@@ -17,7 +17,7 @@
         {
             "name": "Raj Siva-Rajah",
             "homepage": "https://github.com/binaryfire"
-        }        
+        }
     ],
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
@@ -30,20 +30,22 @@
     },
     "require": {
         "php": "^8.4",
-        "laravel/serializable-closure": "^2.0.10",
-        "psr/simple-cache": "^3.0",
+        "ext-swoole": "^6.2",
         "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/core": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/filesystem": "^0.4",
-        "hypervel/core": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/redis": "^0.4",
         "hypervel/support": "^0.4",
+        "laravel/serializable-closure": "^2.0.10",
+        "psr/simple-cache": "^3.0",
         "symfony/console": "^8.1"
     },
     "provide": {

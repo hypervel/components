@@ -106,7 +106,6 @@ class Kernel implements KernelContract
         \Hypervel\Auth\Middleware\UseGuard::class,
         \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequests::class,
-        \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
         \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
         \Hypervel\Routing\Middleware\SubstituteBindings::class,
         \Hypervel\Auth\Middleware\Authorize::class,

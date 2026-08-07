@@ -86,11 +86,6 @@ class Middleware
     protected ?string $apiLimiter = null;
 
     /**
-     * Indicates if Redis throttling should be applied.
-     */
-    protected bool $throttleWithRedis = false;
-
-    /**
      * Indicates if sessions should be authenticated for the "web" middleware group.
      */
     protected bool $authenticatedSessions = false;
@@ -575,26 +570,15 @@ class Middleware
     /**
      * Indicate that the API middleware group's throttling middleware should be enabled.
      */
-    public function throttleApi(string $limiter = 'api', bool $redis = false): static
+    public function throttleApi(string $limiter = 'api'): static
     {
         $this->apiLimiter = $limiter;
 
-        if ($redis) {
-            $this->throttleWithRedis();
-        }
-
         return $this;
     }
 
-    /**
-     * Indicate that Hypervel's throttling middleware should use Redis.
-     */
-    public function throttleWithRedis(): static
-    {
-        $this->throttleWithRedis = true;
-
-        return $this;
-    }
+    // Hypervel selects the rate-limiter store through its config or named
+    // limiter registration, so Laravel's middleware-level Redis switch is omitted.
 
     /**
      * Indicate that sessions should be authenticated for the "web" middleware group.
@@ -630,9 +614,7 @@ class Middleware
             'password.confirm' => \Hypervel\Auth\Middleware\RequirePassword::class,
             'precognitive' => \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
             'signed' => \Hypervel\Routing\Middleware\ValidateSignature::class,
-            'throttle' => $this->throttleWithRedis
-                ? \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class
-                : \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            'throttle' => \Hypervel\Routing\Middleware\ThrottleRequests::class,
             'verified' => \Hypervel\Auth\Middleware\EnsureEmailIsVerified::class,
         ];
     }

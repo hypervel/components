@@ -62,6 +62,7 @@
         "hypervel/macroable": "^0.4",
         "hypervel/prompts": "^0.4",
         "hypervel/queue": "^0.4",
+        "hypervel/rate-limiter": "^0.4",
         "hypervel/reflection": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/server": "^0.4",

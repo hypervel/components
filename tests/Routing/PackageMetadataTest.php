@@ -28,7 +28,7 @@ class PackageMetadataTest extends TestCase
             'ext-hash' => '*',
             'hypervel/auth' => '^0.4',
             'hypervel/prompts' => '^0.4',
-            'hypervel/redis' => '^0.4',
+            'hypervel/rate-limiter' => '^0.4',
             'laravel/serializable-closure' => '^2.0.10',
             'psr/http-message' => '^2.0',
         ] as $dependency => $constraint) {

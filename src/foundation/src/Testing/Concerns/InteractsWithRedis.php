@@ -10,6 +10,7 @@ use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testing\ParallelTesting;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -60,8 +61,7 @@ trait InteractsWithRedis
             );
         }
 
-        // Apply per-worker DB number for parallel isolation (no-op in sequential mode)
-        $this->configureParallelRedisDb();
+        $this->configureRedisDatabases();
 
         $this->flushRedis();
     }
@@ -150,14 +150,6 @@ trait InteractsWithRedis
     }
 
     /**
-     * Get the primary Redis DB number for a parallel testing token.
-     */
-    protected function redisDatabaseForParallelToken(string $token): int
-    {
-        return RedisTestDatabases::databaseForToken($token);
-    }
-
-    /**
      * Get the secondary Redis DB for tests that need to call select().
      *
      * Must always return a DB number different from getParallelRedisDb().
@@ -171,21 +163,29 @@ trait InteractsWithRedis
     }
 
     /**
-     * Configure the Redis DB number for parallel test isolation.
-     *
-     * Sets the database.redis.default.database config to the per-worker DB number.
+     * Configure every Redis connection to use the current test database.
      */
-    private function configureParallelRedisDb(): void
+    private function configureRedisDatabases(): void
     {
-        $token = $this->parallelTestingToken();
+        $config = $this->app->make('config');
+        $database = $this->getParallelRedisDb();
 
-        if ($token === false) {
-            return;
+        foreach ($config->array('database.redis') as $name => $connection) {
+            if (in_array($name, ['client', 'options', 'clusters'], true) || ! is_array($connection)) {
+                continue;
+            }
+
+            $url = $connection['url'] ?? null;
+
+            // A database in the URL is merged after the raw connection options and would override the worker database.
+            if ($url !== null && $url !== '') {
+                throw new RuntimeException(
+                    "Redis connection [{$name}] must use REDIS_HOST and REDIS_PORT during integration tests so each test worker can select an isolated database."
+                );
+            }
+
+            $config->set("database.redis.{$name}.database", $database);
         }
-
-        $database = $this->redisDatabaseForParallelToken($token);
-
-        $this->app->make('config')->set('database.redis.default.database', $database);
     }
 
     /**

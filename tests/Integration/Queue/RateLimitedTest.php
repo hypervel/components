@@ -6,16 +6,13 @@ namespace Hypervel\Tests\Integration\Queue\RateLimitedTest;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\RateLimiting\Limit;
-use Hypervel\Cache\Repository;
-use Hypervel\Container\Container;
-use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\RateLimited;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\SlidingWindow;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -58,44 +55,8 @@ class RateLimitedTest extends TestCase
         $this->assertJobRanSuccessfully(RateLimitedTestJobUsingUnitEnum::class);
     }
 
-    public function testRateLimitedJobsAreNotExecutedOnLimitReached2(): void
-    {
-        $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')->andReturn(0, 1, null);
-        $cache->shouldReceive('add')->andReturn(true, true);
-        $cache->shouldReceive('increment')->andReturn(1);
-        $cache->shouldReceive('has')->andReturn(true);
-        $cache->shouldReceive('getStore')->andReturn(new ArrayStore);
-
-        $rateLimiter = new RateLimiter($cache);
-        $this->app->instance(RateLimiter::class, $rateLimiter);
-        $rateLimiter = $this->app->make(RateLimiter::class);
-
-        $rateLimiter->for('test', function ($job) {
-            return Limit::perHour(1);
-        });
-
-        $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
-
-        // Assert Job was released and released with a delay greater than 0
-        RateLimitedTestJob::$handled = false;
-        $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
-
-        $job = m::mock(Job::class);
-
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->once()->withArgs(function ($delay) {
-            return $delay >= 0;
-        });
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
-
-        $instance->call($job, [
-            'command' => serialize($command = new RateLimitedTestJob),
-        ]);
-
-        $this->assertFalse(RateLimitedTestJob::$handled);
-    }
+    // REMOVED: the cache-specific multi-call fixture is replaced by the atomic
+    // package-store decision exercised by testRateLimitedJobsAreNotExecutedOnLimitReached().
 
     public function testRateLimitedJobsAreNotExecutedOnLimitReached(): void
     {
@@ -107,6 +68,16 @@ class RateLimitedTest extends TestCase
 
         $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
         $this->assertJobWasReleased(RateLimitedTestJob::class);
+    }
+
+    public function testSlidingWindowRetryDelayIsUsedWhenReleasingAJob(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+        $rateLimiter = $this->app->make(RateLimiter::class);
+        $rateLimiter->for('test', fn () => SlidingWindow::perSecond(1, 2));
+
+        $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
+        $this->assertJobWasReleasedAfter(RateLimitedTestJob::class, 6);
     }
 
     public function testRateLimitedJobsCanBeSkippedOnLimitReached(): void
@@ -177,6 +148,7 @@ class RateLimitedTest extends TestCase
 
         $this->assertFalse($restoredRateLimited->shouldRelease);
         $this->assertSame('limiterName', $fetch('limiterName'));
+        $this->assertNull($fetch('storeName'));
         $this->assertInstanceOf(RateLimiter::class, $fetch('limiter'));
     }
 
@@ -279,7 +251,7 @@ class RateLimitedTest extends TestCase
 
     public function testItCanLimitPerMinute(): void
     {
-        Container::getInstance()->instance(RateLimiter::class, $limiter = new RateLimiter(new Repository(new ArrayStore)));
+        $limiter = $this->app->make(RateLimiter::class);
         $limiter->for('test', fn () => Limit::perMinute(3));
         $jobFactory = fn () => new class {
             public $released = false;
@@ -322,7 +294,7 @@ class RateLimitedTest extends TestCase
 
     public function testItCanLimitPerSecond(): void
     {
-        Container::getInstance()->instance(RateLimiter::class, $limiter = new RateLimiter(new Repository(new ArrayStore)));
+        $limiter = $this->app->make(RateLimiter::class);
         $limiter->for('test', fn () => Limit::perSecond(3));
         $jobFactory = fn () => new class {
             public $released = false;

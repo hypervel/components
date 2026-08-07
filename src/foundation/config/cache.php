@@ -20,18 +20,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Rate Limiter Cache Store
-    |--------------------------------------------------------------------------
-    |
-    | This option controls the cache store used by the rate limiter. When
-    | this option is not configured, the default cache store is used.
-    |
-    */
-
-    'limiter' => env('CACHE_LIMITER'),
-
-    /*
-    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |

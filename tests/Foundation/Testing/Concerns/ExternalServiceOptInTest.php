@@ -8,6 +8,8 @@ use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Http\HttpClientInterface;
 use Algolia\AlgoliaSearch\Http\Psr7\Response;
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAlgolia;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithMeilisearch;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
@@ -716,6 +718,23 @@ class RedisOptInHarness
     use InteractsWithRedis;
 
     public int $flushRedisCalls = 0;
+
+    protected Container $app;
+
+    public function __construct()
+    {
+        $this->app = new Container;
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'redis' => [
+                    'default' => [
+                        'url' => null,
+                        'database' => 0,
+                    ],
+                ],
+            ],
+        ]));
+    }
 
     /**
      * Run Redis setup.

@@ -165,6 +165,8 @@ The `max_message_size` option limits the size of each WebSocket message sent by 
 ],
 ```
 
+The `rate_limiting` option limits messages received from each connected client, including Pusher protocol messages such as `pusher:subscribe` and `pusher:ping`. Rate limiting is applied only when `enabled` is `true`. Each connection may send up to `max_attempts` messages during the configured `decay_seconds` period. When this limit is exceeded, Reverb returns error code 4301. Setting `terminate_on_limit` to `true` sends the error and then terminates the connection.
+
 <a name="ssl"></a>
 ### SSL
 

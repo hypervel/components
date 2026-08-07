@@ -5,15 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Closure;
-use DateInterval;
-use DateTimeInterface;
 use Exception;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\NullStore;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\RateLimiting\Limit;
-use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
@@ -30,6 +23,9 @@ use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Session\Store;
@@ -54,6 +50,7 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
+use UnitEnum;
 use WeakReference;
 
 use const UPLOAD_ERR_NO_FILE;
@@ -939,10 +936,13 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertCount(100, $reported);
     }
 
+    // REMOVED: Laravel's hashThrottleKeys extension point; the canonical rate
+    // limiter always hashes the complete policy identity.
+
     public function testItDoesNotThrottleExceptionsWhenNullReturned()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
             }
         };
@@ -963,7 +963,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testItDoesNotThrottleExceptionsWhenUnlimitedLimit()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
                 return Limit::none();
             }
@@ -985,7 +985,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testItCanSampleExceptionsByClass()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
                 return match (true) {
                     $e instanceof RuntimeException => Lottery::odds(2, 10),
@@ -1017,7 +1017,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testItRescuesExceptionsWhileThrottlingAndReports()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
                 throw new RuntimeException('Something went wrong in the throttle method.');
             }
@@ -1038,7 +1038,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testItRescuesExceptionsIfThereIsAnIssueResolvingTheRateLimiter()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
                 return Limit::perDay(1);
             }
@@ -1066,7 +1066,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testItRescuesExceptionsIfThereIsAnIssueWithTheRateLimiter()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
                 return Limit::perDay(1);
             }
@@ -1077,11 +1077,14 @@ class FoundationExceptionsHandlerTest extends TestCase
 
             return false;
         });
-        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new NullStore)) extends RateLimiter {
-            public $attempted = false;
+        $this->container->instance(RateLimiter::class, $limiter = new class($this->container) extends RateLimiter {
+            public bool $attempted = false;
 
-            public function attempt(string $key, int $maxAttempts, Closure $callback, DateInterval|DateTimeInterface|int $decaySeconds = 60): mixed
-            {
+            public function attempt(
+                AdmissionPolicy $policy,
+                Closure $callback,
+                UnitEnum|string|null $limiterName = null,
+            ): mixed {
                 $this->attempted = true;
 
                 throw new Exception('Unable to connect to Redis.');
@@ -1098,7 +1101,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testItCanRateLimitExceptions()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
                 return Limit::perMinute(7);
             }
@@ -1109,14 +1112,17 @@ class FoundationExceptionsHandlerTest extends TestCase
 
             return false;
         });
-        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new ArrayStore)) extends RateLimiter {
-            public $attempted = 0;
+        $this->container->instance(RateLimiter::class, $limiter = new class($this->container) extends RateLimiter {
+            public int $attempted = 0;
 
-            public function attempt(string $key, int $maxAttempts, Closure $callback, DateInterval|DateTimeInterface|int $decaySeconds = 60): mixed
-            {
+            public function attempt(
+                AdmissionPolicy $policy,
+                Closure $callback,
+                UnitEnum|string|null $limiterName = null,
+            ): mixed {
                 ++$this->attempted;
 
-                return parent::attempt(...func_get_args());
+                return $this->store()->attempt($policy, $callback, $limiterName);
             }
         });
         CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay());
@@ -1143,7 +1149,7 @@ class FoundationExceptionsHandlerTest extends TestCase
     public function testRateLimitExpiresOnBoundary()
     {
         $handler = new class($this->container) extends Handler {
-            protected function throttle(Throwable $e): Lottery|Limit|null
+            protected function throttle(Throwable $e): Lottery|AdmissionPolicy|null
             {
                 return Limit::perMinute(1);
             }
@@ -1154,14 +1160,17 @@ class FoundationExceptionsHandlerTest extends TestCase
 
             return false;
         });
-        $this->container->instance(RateLimiter::class, $limiter = new class(new CacheRepository(new ArrayStore)) extends RateLimiter {
-            public $attempted = 0;
+        $this->container->instance(RateLimiter::class, $limiter = new class($this->container) extends RateLimiter {
+            public int $attempted = 0;
 
-            public function attempt(string $key, int $maxAttempts, Closure $callback, DateInterval|DateTimeInterface|int $decaySeconds = 60): mixed
-            {
+            public function attempt(
+                AdmissionPolicy $policy,
+                Closure $callback,
+                UnitEnum|string|null $limiterName = null,
+            ): mixed {
                 ++$this->attempted;
 
-                return parent::attempt(...func_get_args());
+                return $this->store()->attempt($policy, $callback, $limiterName);
             }
         });
 
@@ -1253,6 +1262,13 @@ class FoundationExceptionsHandlerTest extends TestCase
     {
         return new Repository(array_merge([
             'app' => ['url' => 'http://localhost'],
+            'rate-limiter' => [
+                'default' => 'worker-array',
+                'stores' => [
+                    'worker-array' => ['driver' => 'worker-array'],
+                ],
+                'prefix' => 'foundation-exceptions-test',
+            ],
             'view' => ['config' => ['view_path' => 'view_path']],
         ], $config));
     }

@@ -16,9 +16,6 @@ use Swoole\Atomic;
 use Swoole\Process;
 use Throwable;
 
-use function Hypervel\Coroutine\go;
-use function Hypervel\Coroutine\run;
-
 class CacheSwooleStoreConcurrencyTest extends TestCase
 {
     private const FRAME_HEADER_BYTES = 4;
@@ -100,69 +97,6 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
         });
 
         $this->assertCount(1, array_filter($results, fn (array $result): bool => $result['won']));
-    }
-
-    public function testContendedStateLockBacksOffAndAcquiresAfterRelease(): void
-    {
-        $state = $this->createLockState();
-        $state->holdLockFor('key');
-        $called = false;
-
-        run(function () use ($state, &$called): void {
-            go(function () use ($state): void {
-                usleep(5_000);
-                $state->releaseLockFor('key');
-            });
-
-            $state->withRowLock('key', function () use (&$called): void {
-                $called = true;
-            });
-        });
-
-        $this->assertTrue($called);
-    }
-
-    public function testStateLockFailureIsBoundedAndDescriptive(): void
-    {
-        $state = $this->createLockState();
-
-        try {
-            $this->runConcurrentProcesses(
-                $state,
-                1,
-                function (int $id, SwooleStore $store, LockTestSwooleTableState $state): bool {
-                    $state->holdLockFor('key');
-                    $state->withRowLock('key', fn (): bool => true);
-
-                    return true;
-                },
-                timeout: 0.25,
-            );
-
-            $this->fail('The pre-locked stripe should time out.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString(
-                'Timed out acquiring a Swoole table state lock.',
-                $exception->getMessage(),
-            );
-        }
-    }
-
-    public function testAllStripeFailureReleasesEarlierAcquisitions(): void
-    {
-        $state = new FailingAllStripeSwooleTableState(
-            $this->createState()->table(),
-            12345,
-        );
-
-        try {
-            $state->withAllRowLocks(fn (): bool => true);
-            $this->fail('The third stripe acquisition should fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('Synthetic stripe acquisition failure.', $exception->getMessage());
-        }
-
-        $this->assertTrue($state->firstAcquiredStripesAreReleased());
     }
 
     public function testChildExitBeforeReadyFailsWithinTheHarnessDeadline(): void
@@ -521,14 +455,6 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
             ->createState(128, 10240, 0.2, 12345);
     }
 
-    private function createLockState(): LockTestSwooleTableState
-    {
-        return new LockTestSwooleTableState(
-            $this->createState()->table(),
-            12345,
-        );
-    }
-
     private function createStore(SwooleTableState $state): SwooleStore
     {
         return new SwooleStore($state, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05);
@@ -540,40 +466,5 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
         $reflection->setAccessible(true);
 
         return $reflection->invoke($store, $key);
-    }
-}
-
-class LockTestSwooleTableState extends SwooleTableState
-{
-    protected const int LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 50_000_000;
-
-    public function holdLockFor(string $key): void
-    {
-        $this->lockFor($key)->set(1);
-    }
-
-    public function releaseLockFor(string $key): void
-    {
-        $this->lockFor($key)->set(0);
-    }
-}
-
-class FailingAllStripeSwooleTableState extends SwooleTableState
-{
-    private int $acquisitions = 0;
-
-    protected function acquire(Atomic $lock): void
-    {
-        if (++$this->acquisitions === 3) {
-            throw new RuntimeException('Synthetic stripe acquisition failure.');
-        }
-
-        parent::acquire($lock);
-    }
-
-    public function firstAcquiredStripesAreReleased(): bool
-    {
-        return $this->rowLocks[0]->get() === 0
-            && $this->rowLocks[1]->get() === 0;
     }
 }
