@@ -11,8 +11,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RedirectAsIntended implements Responsable
 {
+    /**
+     * Create a new class instance.
+     */
     public function __construct(
-        public readonly string $name,
+        public string $name,
     ) {
     }
 
