@@ -9,7 +9,6 @@ use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\CallQueuedHandler;
-use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Hypervel\Queue\Middleware\WithoutOverlapping;
 use Hypervel\Queue\Worker;
 use Hypervel\Testbench\TestCase;
@@ -53,14 +52,8 @@ class LaravelInteropTest extends TestCase
         );
     }
 
-    public function testThrottlesExceptionsPrefixMatchesLaravel()
-    {
-        $middleware = new ThrottlesExceptions;
-
-        $reflection = new ReflectionProperty($middleware, 'prefix');
-
-        $this->assertSame('laravel_throttles_exceptions:', $reflection->getValue($middleware));
-    }
+    // REMOVED: ThrottlesExceptions now uses the dedicated Hypervel rate-limiter
+    // state format and no longer claims Laravel cache-key interoperability.
 
     public function testUniqueLockDisplayNameKeyMatchesLaravel(): void
     {

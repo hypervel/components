@@ -182,6 +182,24 @@ class ResponseFactoryTest extends TestCase
         ]);
     }
 
+    public function testSharedDataTreatsEmptyAndZeroAsKeys(): void
+    {
+        Inertia::share([
+            '' => 'empty',
+            '0' => 'zero',
+            'foo' => 'bar',
+        ]);
+
+        $this->assertSame('empty', Inertia::getShared(''));
+        $this->assertSame('zero', Inertia::getShared('0'));
+        $this->assertSame('fallback', Inertia::getShared('missing', 'fallback'));
+        $this->assertSame([
+            '' => 'empty',
+            '0' => 'zero',
+            'foo' => 'bar',
+        ], Inertia::getShared());
+    }
+
     public function testDotPropsAreMergedFromShared(): void
     {
         Route::middleware([StartSession::class, ExampleMiddleware::class])->get('/', function () {

@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Routing\Middleware;
 
 use Closure;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\RateLimiting\Unlimited;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\Exceptions\ThrottleRequestsException;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Exceptions\InvalidRateLimitException;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\LimitResult;
+use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Routing\Exceptions\MissingRateLimiterException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
@@ -27,11 +32,6 @@ class ThrottleRequests
      * The rate limiter instance.
      */
     protected RateLimiter $limiter;
-
-    /**
-     * Indicates if the rate limiter keys should be hashed.
-     */
-    protected static bool $shouldHashKeys = true;
 
     /**
      * Create a new request throttler.
@@ -77,14 +77,13 @@ class ThrottleRequests
             $request,
             $next,
             [
-                (object) [
-                    'key' => $prefix . $this->resolveRequestSignature($request),
-                    'maxAttempts' => $this->resolveMaxAttempts($request, $maxAttempts),
-                    'decaySeconds' => 60 * $decayMinutes,
-                    'afterCallback' => null,
-                    'responseCallback' => null,
-                ],
-            ]
+                new Limit(
+                    maxAttempts: $this->resolveMaxAttempts($request, $maxAttempts),
+                    decaySeconds: $this->resolveDecaySeconds($decayMinutes),
+                    key: $prefix . $this->resolveRequestSignature($request),
+                ),
+            ],
+            $this->limiter->store(),
         );
     }
 
@@ -107,56 +106,70 @@ class ThrottleRequests
         return $this->handleRequest(
             $request,
             $next,
-            Collection::wrap($limiterResponse)->map(function ($limit) use ($limiterName) {
-                return (object) [
-                    'key' => $this->limiter->resolveNamedLimiterKey(
-                        $limiterName,
-                        $limit,
-                        self::$shouldHashKeys,
-                    ),
-                    'maxAttempts' => $limit->maxAttempts,
-                    'decaySeconds' => $limit->decaySeconds,
-                    'afterCallback' => $limit->afterCallback,
-                    'responseCallback' => $limit->responseCallback,
-                ];
-            })->all()
+            Collection::wrap($limiterResponse)->all(),
+            $this->limiter->store($this->limiter->limiterStore($limiterName)),
+            $limiterName,
         );
     }
 
     /**
      * Handle an incoming request.
      *
+     * @param array<AdmissionPolicy> $limits
+     *
      * @throws \Hypervel\Http\Exceptions\ThrottleRequestsException
      */
-    protected function handleRequest(Request $request, Closure $next, array $limits): Response
-    {
-        foreach ($limits as $limit) {
-            if ($this->limiter->tooManyAttempts($limit->key, $limit->maxAttempts)) {
-                throw $this->buildException($request, $limit->key, $limit->maxAttempts, $limit->responseCallback);
-            }
-        }
+    protected function handleRequest(
+        Request $request,
+        Closure $next,
+        array $limits,
+        Limiter $limiter,
+        ?string $limiterName = null,
+    ): Response {
+        /** @var list<array{AdmissionPolicy, LimitResult}> $decisions */
+        $decisions = [];
 
+        // Laravel preflights every policy before recording hits. Atomic stores
+        // consume in order, so an earlier accepted decision is never rolled back.
         foreach ($limits as $limit) {
-            if (! $limit->afterCallback) {
-                $this->limiter->hit($limit->key, $limit->decaySeconds);
+            $result = $limit->afterCallback === null
+                ? $limiter->consume($limit, $limiterName)
+                : $limiter->inspect($limit, $limiterName);
+
+            if ($result->denied()) {
+                throw $this->buildException($request, $result, $limit->responseCallback);
             }
+
+            $decisions[] = [$limit, $result];
         }
 
         $response = $next($request);
 
-        foreach ($limits as $limit) {
-            if ($limit->afterCallback && ($limit->afterCallback)($response)) {
-                $this->limiter->hit($limit->key, $limit->decaySeconds);
+        foreach ($decisions as [$limit, $result]) {
+            if ($limit->afterCallback !== null && ($limit->afterCallback)($response)) {
+                $result = $limiter->consume($limit, $limiterName);
             }
 
             $response = $this->addHeaders(
                 $response,
-                $limit->maxAttempts,
-                $this->calculateRemainingAttempts($limit->key, $limit->maxAttempts)
+                $result->limit(),
+                $result->remaining(),
             );
         }
 
         return $response;
+    }
+
+    /**
+     * Resolve the fixed-window duration from the middleware argument.
+     */
+    protected function resolveDecaySeconds(float|int|string $decayMinutes): int
+    {
+        if (! is_numeric($decayMinutes)) {
+            throw new InvalidRateLimitException('The rate limit decay minutes must be numeric.');
+        }
+
+        return (int) ceil((float) $decayMinutes * 60);
     }
 
     /**
@@ -194,10 +207,10 @@ class ThrottleRequests
     protected function resolveRequestSignature(Request $request): string
     {
         if ($user = $request->user()) {
-            return $this->formatIdentifier((string) $user->getAuthIdentifier());
+            return (string) $user->getAuthIdentifier();
         }
         if ($route = $request->route()) {
-            return $this->formatIdentifier($route->getDomain() . '|' . $request->ip());
+            return $route->getDomain() . '|' . $request->ip();
         }
 
         throw new RuntimeException('Unable to generate the request signature. Route unavailable.');
@@ -206,27 +219,19 @@ class ThrottleRequests
     /**
      * Create a 'too many attempts' exception.
      */
-    protected function buildException(Request $request, string $key, int $maxAttempts, ?callable $responseCallback = null): ThrottleRequestsException|HttpResponseException
+    protected function buildException(Request $request, LimitResult $result, ?callable $responseCallback = null): ThrottleRequestsException|HttpResponseException
     {
-        $retryAfter = $this->getTimeUntilNextRetry($key);
-
+        // The atomic decision retains real unused capacity on weighted denials;
+        // Laravel's split retry path reports zero remaining instead.
         $headers = $this->getHeaders(
-            $maxAttempts,
-            $this->calculateRemainingAttempts($key, $maxAttempts, $retryAfter),
-            $retryAfter
+            $result->limit(),
+            $result->remaining(),
+            $result->retryAfter(),
         );
 
         return is_callable($responseCallback)
             ? new HttpResponseException($responseCallback($request, $headers))
             : new ThrottleRequestsException('Too Many Attempts.', null, $headers);
-    }
-
-    /**
-     * Get the number of seconds until the next retry.
-     */
-    protected function getTimeUntilNextRetry(string $key): int
-    {
-        return $this->limiter->availableIn($key);
     }
 
     /**
@@ -265,38 +270,6 @@ class ThrottleRequests
         return $headers;
     }
 
-    /**
-     * Calculate the number of remaining attempts.
-     */
-    protected function calculateRemainingAttempts(string $key, int $maxAttempts, ?int $retryAfter = null): int
-    {
-        return is_null($retryAfter) ? $this->limiter->retriesLeft($key, $maxAttempts) : 0;
-    }
-
-    /**
-     * Format the given identifier based on the configured hashing settings.
-     */
-    private function formatIdentifier(string $value): string
-    {
-        return self::$shouldHashKeys ? hash('xxh128', $value) : $value;
-    }
-
-    /**
-     * Specify whether rate limiter keys should be hashed.
-     *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every subsequent request.
-     */
-    public static function shouldHashKeys(bool $shouldHashKeys = true): void
-    {
-        self::$shouldHashKeys = $shouldHashKeys;
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        self::$shouldHashKeys = true;
-    }
+    // Laravel's formatIdentifier() and shouldHashKeys() opt-out are omitted;
+    // the rate-limiter package always hashes the complete policy identity.
 }

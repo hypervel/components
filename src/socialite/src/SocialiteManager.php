@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Socialite\Contracts\Provider;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
+use Hypervel\Socialite\Two\AbstractProvider as OAuth2Provider;
 use Hypervel\Socialite\Two\BitbucketProvider;
 use Hypervel\Socialite\Two\FacebookProvider;
 use Hypervel\Socialite\Two\GithubProvider;
@@ -21,6 +22,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use SensitiveParameter;
 use UnitEnum;
 
 class SocialiteManager extends Manager implements Contracts\Factory
@@ -28,7 +30,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
     /**
      * Get a driver instance.
      */
-    public function with(string $driver): mixed
+    public function with(string $driver): Provider
     {
         return $this->driver($driver);
     }
@@ -39,7 +41,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
      * Refreshes the request on cached providers so each coroutine
      * gets the current request, not a stale one from first resolution.
      */
-    public function driver(UnitEnum|string|null $driver = null): mixed
+    public function driver(UnitEnum|string|null $driver = null): Provider
     {
         $provider = parent::driver($driver);
 
@@ -141,6 +143,8 @@ class SocialiteManager extends Manager implements Contracts\Factory
         );
     }
 
+    // REMOVED: OAuth 1 and legacy Twitter providers are unsupported; use the X OAuth 2 driver.
+
     /**
      * Create an instance of the specified driver.
      */
@@ -195,8 +199,13 @@ class SocialiteManager extends Manager implements Contracts\Factory
 
     /**
      * Build an OAuth 2 provider instance.
+     *
+     * @template TProvider of OAuth2Provider
+     *
+     * @param class-string<TProvider> $provider
+     * @return TProvider
      */
-    public function buildOAuth2Provider(string $provider, ?array $config): mixed
+    public function buildOAuth2Provider(string $provider, #[SensitiveParameter] ?array $config): OAuth2Provider
     {
         $requiredKeys = ['client_id', 'client_secret', 'redirect'];
 
@@ -216,56 +225,15 @@ class SocialiteManager extends Manager implements Contracts\Factory
     }
 
     /**
-     * Format the server configuration.
-     */
-    public function formatConfig(array $config): array
-    {
-        return array_merge([
-            'identifier' => $config['client_id'],
-            'secret' => $config['client_secret'],
-            'callback_uri' => $this->formatRedirectUrl($config),
-        ], $config);
-    }
-
-    /**
      * Format the callback URL, resolving a relative URI if needed.
      */
-    protected function formatRedirectUrl(array $config): string
+    protected function formatRedirectUrl(#[SensitiveParameter] array $config): string
     {
         $redirect = value($config['redirect']);
 
         return Str::startsWith($redirect ?? '', '/')
             ? $this->container->make('url')->to($redirect)
             : $redirect;
-    }
-
-    /**
-     * Forget all of the resolved driver instances.
-     *
-     * Boot or tests only. Clears the singleton's driver cache; concurrent
-     * coroutines may already hold references that next resolution will not
-     * share.
-     */
-    public function forgetDrivers(): static
-    {
-        $this->drivers = [];
-
-        return $this;
-    }
-
-    /**
-     * Set the container instance used by the manager.
-     *
-     * Tests only. Swaps the singleton's container and config references;
-     * per-request use races across coroutines and breaks every concurrent
-     * socialite resolution.
-     */
-    public function setContainer(Container $container): static
-    {
-        $this->container = $container;
-        $this->config = $container->make('config');
-
-        return $this;
     }
 
     /**

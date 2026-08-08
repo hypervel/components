@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify;
 
-use Hypervel\Cache\RateLimiter;
 use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\Str;
 
 class LoginRateLimiter
@@ -14,7 +15,7 @@ class LoginRateLimiter
      * Create a new login rate limiter instance.
      */
     public function __construct(
-        private readonly RateLimiter $limiter,
+        protected RateLimiter $limiter,
     ) {
     }
 
@@ -23,7 +24,10 @@ class LoginRateLimiter
      */
     public function attempts(Request $request): int
     {
-        return $this->limiter->attempts($this->throttleKey($request));
+        $policy = $this->limit($request);
+        $result = $this->limiter->inspect($policy);
+
+        return $result->limit() - $result->remaining();
     }
 
     /**
@@ -31,7 +35,7 @@ class LoginRateLimiter
      */
     public function tooManyAttempts(Request $request): bool
     {
-        return $this->limiter->tooManyAttempts($this->throttleKey($request), 5);
+        return $this->limiter->inspect($this->limit($request))->denied();
     }
 
     /**
@@ -39,7 +43,7 @@ class LoginRateLimiter
      */
     public function increment(Request $request): void
     {
-        $this->limiter->hit($this->throttleKey($request), 60);
+        $this->limiter->consume($this->limit($request));
     }
 
     /**
@@ -47,7 +51,7 @@ class LoginRateLimiter
      */
     public function availableIn(Request $request): int
     {
-        return $this->limiter->availableIn($this->throttleKey($request));
+        return $this->limiter->inspect($this->limit($request))->resetAfter();
     }
 
     /**
@@ -55,7 +59,15 @@ class LoginRateLimiter
      */
     public function clear(Request $request): void
     {
-        $this->limiter->clear($this->throttleKey($request));
+        $this->limiter->clear($this->limit($request));
+    }
+
+    /**
+     * Build the fixed login rate limit.
+     */
+    private function limit(Request $request): Limit
+    {
+        return Limit::perMinute(5)->by($this->throttleKey($request));
     }
 
     /**
@@ -64,7 +76,7 @@ class LoginRateLimiter
      * Scoped to the current guard so lockouts in one actor silo never
      * block logins in another for the same username and IP.
      */
-    private function throttleKey(Request $request): string
+    protected function throttleKey(Request $request): string
     {
         return Str::transliterate(Fortify::guardName() . '|' . Str::lower((string) $request->input(Fortify::username())) . '|' . $request->ip());
     }

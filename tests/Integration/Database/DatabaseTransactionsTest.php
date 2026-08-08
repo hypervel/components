@@ -136,7 +136,8 @@ class DatabaseTransactionsTest extends DatabaseTestCase
 
             try {
                 DB::connection('second_connection')->transaction(function () use ($thirdObject) {
-                    DB::afterCommit(fn () => $thirdObject->handle());
+                    // Register through the connection that owns this transaction.
+                    DB::connection('second_connection')->afterCommit(fn () => $thirdObject->handle());
 
                     throw new Exception;
                 });
@@ -147,6 +148,99 @@ class DatabaseTransactionsTest extends DatabaseTestCase
         $this->assertTrue($firstObject->ran);
         $this->assertTrue($secondObject->ran);
         $this->assertFalse($thirdObject->ran);
+    }
+
+    public function testAfterCommitCallbacksFollowTheirNamedConnection(): void
+    {
+        $calls = [];
+        $default = DB::connection();
+        $second = DB::connection('second_connection');
+
+        $default->beginTransaction();
+        $second->beginTransaction();
+
+        $default->afterCommit(function () use (&$calls): void {
+            $calls[] = 'default';
+        });
+
+        $second->commit();
+        $this->assertSame([], $calls);
+
+        $default->commit();
+        $this->assertSame(['default'], $calls);
+    }
+
+    public function testAfterCommitCallbacksAreDiscardedWithTheirNamedConnectionRollback(): void
+    {
+        $calls = [];
+        $default = DB::connection();
+        $second = DB::connection('second_connection');
+
+        $default->beginTransaction();
+        $second->beginTransaction();
+
+        $default->afterCommit(function () use (&$calls): void {
+            $calls[] = 'default';
+        });
+
+        $default->rollBack();
+        $second->commit();
+
+        $this->assertSame([], $calls);
+    }
+
+    public function testAfterRollbackCallbacksFollowTheirNamedConnection(): void
+    {
+        $calls = [];
+        $default = DB::connection();
+        $second = DB::connection('second_connection');
+
+        $default->beginTransaction();
+        $second->beginTransaction();
+
+        $default->afterRollBack(function () use (&$calls): void {
+            $calls[] = 'default';
+        });
+
+        $second->rollBack();
+        $this->assertSame([], $calls);
+
+        $default->rollBack();
+        $this->assertSame(['default'], $calls);
+    }
+
+    public function testAfterCommitRunsImmediatelyWhenOnlyAnotherConnectionHasATransaction(): void
+    {
+        $calls = [];
+        $default = DB::connection();
+        $second = DB::connection('second_connection');
+
+        $second->beginTransaction();
+
+        $default->afterCommit(function () use (&$calls): void {
+            $calls[] = 'default';
+        });
+
+        $this->assertSame(['default'], $calls);
+
+        $second->rollBack();
+    }
+
+    public function testAfterRollbackDoesNotFollowAnotherConnectionTransaction(): void
+    {
+        $calls = [];
+        $default = DB::connection();
+        $second = DB::connection('second_connection');
+
+        $second->beginTransaction();
+
+        $default->afterRollBack(function () use (&$calls): void {
+            $calls[] = 'default';
+        });
+
+        $second->rollBack();
+
+        $this->assertSame([], $calls);
     }
 
     public function testSuffixedConnectionsUseBaseNameForTransactionCallbacks(): void

@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Sanctum\Fixtures\TokenAbility;
 use Hypervel\Tests\Sanctum\Fixtures\User;
 
 class ActingAsTest extends TestCase
@@ -81,6 +82,7 @@ class ActingAsTest extends TestCase
         Sanctum::actingAs($user, ['read'], 'api');
 
         $this->assertSame($user, $this->app->make('auth')->guard('api')->user());
+        $this->assertSame('api', $this->app->make('auth')->getDefaultDriver());
     }
 
     public function testActingAsRemovesRecentlyCreatedFlag(): void
@@ -91,5 +93,16 @@ class ActingAsTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->assertFalse($user->wasRecentlyCreated);
+    }
+
+    public function testActingAsNormalizesBackedEnumAbilities(): void
+    {
+        $user = new User;
+
+        Sanctum::actingAs($user, [TokenAbility::PostsRead]);
+
+        $this->assertTrue($user->tokenCan(TokenAbility::PostsRead));
+        $this->assertTrue($user->tokenCan('posts:read'));
+        $this->assertFalse($user->tokenCan(TokenAbility::PostsWrite));
     }
 }

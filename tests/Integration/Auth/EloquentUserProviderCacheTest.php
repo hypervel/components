@@ -28,6 +28,7 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use ReflectionClass;
+use RuntimeException;
 
 #[WithMigration]
 class EloquentUserProviderCacheTest extends TestCase
@@ -97,6 +98,10 @@ class EloquentUserProviderCacheTest extends TestCase
                     'store' => 'auth-file',
                 ],
             ],
+            'database.connections.auth_secondary' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+            ],
         ]);
     }
 
@@ -151,6 +156,165 @@ class EloquentUserProviderCacheTest extends TestCase
         $this->makeCachedProvider();
 
         $user->delete();
+    }
+
+    public function testCacheIsClearedOnlyAfterUserSaveCommits(): void
+    {
+        $user = User::query()->firstOrFail();
+        $repo = $this->stubCache();
+        $repo->shouldReceive('forget')->once()->with($this->buildKey($user->getAuthIdentifier()))->andReturnTrue();
+
+        $this->makeCachedProvider();
+
+        DB::transaction(function () use ($repo, $user): void {
+            $user->name = 'Updated';
+            $user->save();
+
+            $repo->shouldNotHaveReceived('forget');
+        });
+    }
+
+    public function testCacheIsClearedOnlyAfterUserDeleteCommits(): void
+    {
+        $user = User::query()->firstOrFail();
+        $repo = $this->stubCache();
+        $repo->shouldReceive('forget')->once()->with($this->buildKey($user->getAuthIdentifier()))->andReturnTrue();
+
+        $this->makeCachedProvider();
+
+        DB::transaction(function () use ($repo, $user): void {
+            $user->delete();
+
+            $repo->shouldNotHaveReceived('forget');
+        });
+    }
+
+    public function testCacheInvalidationIsDiscardedWhenUserSaveRollsBack(): void
+    {
+        $user = User::query()->firstOrFail();
+        $repo = $this->stubCache();
+        $repo->shouldNotReceive('forget');
+
+        $this->makeCachedProvider();
+
+        try {
+            DB::transaction(function () use ($user): void {
+                $user->name = 'Updated';
+                $user->save();
+
+                throw new RuntimeException('rollback');
+            });
+        } catch (RuntimeException) {
+            // Ignore the expected rollback exception.
+        }
+    }
+
+    public function testCacheInvalidationFollowsTheUserConnectionTransaction(): void
+    {
+        $user = User::query()->firstOrFail();
+        $repo = $this->stubCache();
+        $repo->shouldReceive('forget')->once()->with($this->buildKey($user->getAuthIdentifier()))->andReturnTrue();
+        $default = DB::connection();
+        $secondary = DB::connection('auth_secondary');
+
+        $this->makeCachedProvider();
+
+        $default->beginTransaction();
+        $secondary->beginTransaction();
+
+        try {
+            $this->fireUserEvent('saved', $user);
+
+            $secondary->commit();
+            $repo->shouldNotHaveReceived('forget');
+
+            $default->commit();
+        } finally {
+            if ($secondary->transactionLevel() > 0) {
+                $secondary->rollBack();
+            }
+
+            if ($default->transactionLevel() > 1) {
+                $default->rollBack(1);
+            }
+        }
+    }
+
+    public function testCacheInvalidationRunsImmediatelyWithoutManagerOrTransaction(): void
+    {
+        $user = (new User)->setConnection('auth_secondary');
+        $user->setRawAttributes(['id' => 1], true);
+        $repo = $this->stubCache();
+        $repo->shouldReceive('forget')->once()->with($this->buildKey(1))->andReturnTrue();
+        $connection = DB::connection('auth_secondary');
+        $manager = $connection->getTransactionManager();
+
+        $this->makeCachedProvider();
+        $connection->unsetTransactionManager();
+
+        try {
+            $this->fireUserEvent('saved', $user);
+        } finally {
+            $connection->setTransactionManager($manager);
+        }
+    }
+
+    public function testCacheInvalidationFailsClosedWithoutManagerDuringTransaction(): void
+    {
+        $user = (new User)->setConnection('auth_secondary');
+        $user->setRawAttributes(['id' => 1], true);
+        $this->stubCache()->shouldNotReceive('forget');
+        $connection = DB::connection('auth_secondary');
+        $manager = $connection->getTransactionManager();
+
+        $this->makeCachedProvider();
+        $connection->unsetTransactionManager();
+        $connection->beginTransaction();
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Transactions Manager has not been set.');
+
+            $this->fireUserEvent('saved', $user);
+        } finally {
+            $connection->rollBack();
+            $connection->setTransactionManager($manager);
+        }
+    }
+
+    public function testCacheInvalidationCapturesTheEventKeyAndReadsDescriptorsAtCommit(): void
+    {
+        $user = User::query()->firstOrFail();
+        $scope = 'before';
+        $resolverCalls = 0;
+
+        EloquentUserProvider::resolveUserCacheKeyUsing(function (mixed $identifier) use (&$resolverCalls, &$scope): string {
+            ++$resolverCalls;
+
+            return "{$scope}:{$identifier}";
+        });
+
+        $repo = $this->stubCache();
+        $repo->shouldReceive('forget')
+            ->once()
+            ->with(self::DEFAULT_KEY_PREFIX . ':' . User::class . ':before:' . $user->getAuthIdentifier())
+            ->andReturnTrue();
+        $repo->shouldReceive('forget')
+            ->once()
+            ->with('admin_users:' . User::class . ':before:' . $user->getAuthIdentifier())
+            ->andReturnTrue();
+
+        $this->makeCachedProvider();
+
+        DB::transaction(function () use (&$scope, $user): void {
+            $this->fireUserEvent('saved', $user);
+            $scope = 'after';
+
+            $provider = new EloquentUserProvider($this->app->make('hash'), User::class);
+            $provider->enableCache(null, prefix: 'admin_users');
+        });
+
+        $this->assertSame(1, $resolverCalls);
     }
 
     public function testModelEventInvalidationProvidesProviderModelAndUser(): void
@@ -506,6 +670,11 @@ class EloquentUserProviderCacheTest extends TestCase
         $provider->enableCache(null);
 
         return $provider;
+    }
+
+    protected function fireUserEvent(string $event, User $user): void
+    {
+        $this->app->make('events')->dispatch("eloquent.{$event}: " . User::class, $user);
     }
 
     /**

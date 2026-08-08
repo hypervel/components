@@ -31,7 +31,7 @@ class ModelObserver
     protected const FORCE_SAVING_CONTEXT_KEY = '__scout.force_saving';
 
     /**
-     * Indicates if Scout will dispatch the observer's events after all database transactions have committed.
+     * Indicates if Scout will dispatch the observer's events after the open parent database transactions have committed.
      */
     public bool $afterCommit;
 

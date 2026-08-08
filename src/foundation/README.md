@@ -10,6 +10,8 @@ alias, and priority management surface because framework and package providers
 configure middleware through that contract. Custom HTTP kernels must implement
 the same surface, and its mutators are intended for application boot.
 
+Laravel's real-time facades are intentionally not supported. Define explicit facade classes or inject services from the container instead.
+
 The application locale setters do not change the `app.locale` or `app.fallback_locale` configuration values. `App::setLocale()` applies only to the current request, while `App::setFallbackLocale()` is intended for application boot and changes the fallback shared by the worker.
 
 Laravel's deprecated `Middleware::validateCsrfTokens()` alias is intentionally not ported. Configure request-forgery protection with `preventRequestForgery()`.

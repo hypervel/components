@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
+use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Swoole\Atomic;
 use Swoole\Coroutine\Channel;
-use Swoole\Process;
 use Swoole\Table;
 use Throwable;
 
@@ -20,116 +20,10 @@ class SwooleTableSharedStateLockTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    public function testContendedStripeBacksOffAndAcquiresAfterRelease(): void
-    {
-        $state = $this->createState(LockTestSharedState::class);
-        $state->holdLockFor('key');
-        $called = false;
-
-        run(function () use ($state, &$called): void {
-            go(function () use ($state): void {
-                usleep(5_000);
-                $state->releaseLockFor('key');
-            });
-
-            $state->withLockFor('key', function () use (&$called): void {
-                $called = true;
-            });
-        });
-
-        $this->assertTrue($called);
-    }
-
-    public function testAbandonedStripeFailsWithinTheAcquisitionDeadline(): void
-    {
-        $state = $this->createState(LockTestSharedState::class);
-        $process = new Process(function (Process $process) use ($state): void {
-            try {
-                $state->holdLockFor('key');
-
-                try {
-                    $state->withLockFor('key', fn (): bool => true);
-                    $message = 'lock unexpectedly acquired';
-                } catch (RuntimeException $exception) {
-                    $message = $exception->getMessage();
-                }
-
-                $process->write($message);
-            } finally {
-                // Never run PHPUnit/Testbench shutdown handlers inherited from the parent.
-                posix_kill(getmypid(), SIGKILL);
-            }
-        }, false, SOCK_STREAM);
-
-        $pid = $process->start();
-
-        if ($pid === false) {
-            $this->fail('Unable to start Reverb lock child.');
-        }
-
-        $process->setBlocking(false);
-        $message = '';
-        $reaped = false;
-        $deadline = hrtime(true) + 250_000_000;
-
-        try {
-            while ($message === '' && hrtime(true) < $deadline) {
-                $chunk = $process->read();
-
-                if (is_string($chunk) && $chunk !== '') {
-                    $message .= $chunk;
-                    break;
-                }
-
-                if ($this->reapIfExited($pid)) {
-                    $reaped = true;
-
-                    $chunk = $process->read();
-
-                    if (is_string($chunk) && $chunk !== '') {
-                        $message .= $chunk;
-                    }
-
-                    break;
-                }
-
-                usleep(1_000);
-            }
-        } finally {
-            if (! $reaped && Process::kill($pid, 0)) {
-                Process::kill($pid, SIGKILL);
-            }
-
-            $process->close();
-
-            if (! $reaped) {
-                $reapDeadline = hrtime(true) + 1_000_000_000;
-
-                while (! $this->reapIfExited($pid)) {
-                    if (hrtime(true) >= $reapDeadline) {
-                        throw new RuntimeException("Timed out reaping Reverb lock child [{$pid}].");
-                    }
-
-                    usleep(1_000);
-                }
-            }
-        }
-
-        if ($message === '') {
-            $this->fail($reaped
-                ? "Reverb lock child [{$pid}] exited without reporting a message."
-                : "Timed out after 250ms waiting for Reverb lock child [{$pid}] to report.");
-        }
-
-        $this->assertSame(
-            'Timed out acquiring a Swoole table shared-state lock.',
-            $message,
-        );
-    }
-
     public function testFailedLockRowsAreReportedOnlyAfterTheirStripeIsReleased(): void
     {
-        $state = $this->createState(ReportingProbeSharedState::class);
+        $locks = new ProbeStripedLock;
+        $state = $this->createState(ReportingProbeSharedState::class, $locks);
 
         $this->assertFalse($state->tryCacheMissLock('app', 'channel'));
         $state->setSmoothingPending('app', 'channel', 1_000);
@@ -145,20 +39,21 @@ class SwooleTableSharedStateLockTest extends TestCase
 
     public function testPresenceMutationAcquiresSharedStripeOnlyOnce(): void
     {
-        $state = $this->createState(AtomicPresenceProbeSharedState::class);
+        $locks = new ProbeStripedLock;
+        $state = $this->createState(AtomicPresenceProbeSharedState::class, $locks);
         [$channel, $userId] = $state->presenceIdentityForSharedStripe();
 
         $result = $state->subscribe('app', $channel, $userId);
 
         $this->assertTrue($result->channelOccupied);
         $this->assertTrue($result->memberAdded);
-        $this->assertSame(1, $state->acquisitions);
-        $this->assertSame(1, $state->releases);
+        $this->assertSame(1, $locks->acquisitions);
+        $this->assertSame(1, $locks->releases);
     }
 
     public function testOppositePresenceStripeOrderCannotDeadlock(): void
     {
-        $state = $this->createState(AtomicPresenceProbeSharedState::class);
+        $state = $this->createState(AtomicPresenceProbeSharedState::class, new ProbeStripedLock);
         [$first, $second] = $state->oppositePresenceIdentities();
         $results = new Channel(2);
         $outcomes = [];
@@ -183,44 +78,13 @@ class SwooleTableSharedStateLockTest extends TestCase
     }
 
     /**
-     * Reap the owned child if it has exited.
-     */
-    private function reapIfExited(int $pid): bool
-    {
-        $status = 0;
-        $result = pcntl_waitpid($pid, $status, WNOHANG);
-
-        if ($result === $pid) {
-            return true;
-        }
-
-        if ($result !== -1) {
-            return false;
-        }
-
-        $error = pcntl_get_last_error();
-
-        if ($error === PCNTL_ECHILD) {
-            return true;
-        }
-
-        if ($error === PCNTL_EINTR) {
-            return false;
-        }
-
-        throw new RuntimeException(
-            "Unable to reap Reverb lock child [{$pid}]: " . pcntl_strerror($error),
-        );
-    }
-
-    /**
      * Create a shared-state test double with real Swoole tables.
      *
      * @template T of SwooleTableSharedState
      * @param class-string<T> $class
      * @return T
      */
-    private function createState(string $class): SwooleTableSharedState
+    private function createState(string $class, ProbeStripedLock $locks): SwooleTableSharedState
     {
         $table = new Table(128);
         $table->column('count', Table::TYPE_INT);
@@ -230,34 +94,7 @@ class SwooleTableSharedStateLockTest extends TestCase
         $lockTable->column('locked_at', Table::TYPE_FLOAT);
         $lockTable->create();
 
-        return new $class($table, $lockTable);
-    }
-}
-
-class LockTestSharedState extends SwooleTableSharedState
-{
-    protected const int LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 50_000_000;
-
-    public function holdLockFor(string $key): void
-    {
-        $this->lockFor($key)->set(1);
-    }
-
-    public function releaseLockFor(string $key): void
-    {
-        $this->lockFor($key)->set(0);
-    }
-
-    public function withLockFor(string $key, callable $callback): mixed
-    {
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-
-        try {
-            return $callback();
-        } finally {
-            $this->release($lock);
-        }
+        return new $class($table, $lockTable, $locks);
     }
 }
 
@@ -277,16 +114,12 @@ class ReportingProbeSharedState extends SwooleTableSharedState
     {
         $this->reportedKeys[] = $key;
         $this->reportedWhileLocked = $this->reportedWhileLocked
-            || $this->lockFor($key)->get() !== 0;
+            || $this->locks->isLocked($key);
     }
 }
 
 class AtomicPresenceProbeSharedState extends SwooleTableSharedState
 {
-    public int $acquisitions = 0;
-
-    public int $releases = 0;
-
     /**
      * Find a channel/member identity whose rows share one stripe.
      *
@@ -337,18 +170,6 @@ class AtomicPresenceProbeSharedState extends SwooleTableSharedState
         throw new RuntimeException('Unable to find opposite-order presence identities.');
     }
 
-    protected function acquire(Atomic $lock): void
-    {
-        parent::acquire($lock);
-        ++$this->acquisitions;
-    }
-
-    protected function release(Atomic $lock): void
-    {
-        ++$this->releases;
-        parent::release($lock);
-    }
-
     protected function ensurePresenceRowsExist(string $channelKey, string $userKey): void
     {
         parent::ensurePresenceRowsExist($channelKey, $userKey);
@@ -363,8 +184,37 @@ class AtomicPresenceProbeSharedState extends SwooleTableSharedState
     private function presenceStripePair(string $channel, string $userId): array
     {
         return [
-            $this->lockIndexFor($this->physicalKey(self::SUBSCRIPTION_KEY_TYPE, 'app', $channel)),
-            $this->lockIndexFor($this->physicalKey(self::USER_KEY_TYPE, 'app', $channel, $userId)),
+            $this->locks->stripe($this->physicalKey(self::SUBSCRIPTION_KEY_TYPE, 'app', $channel)),
+            $this->locks->stripe($this->physicalKey(self::USER_KEY_TYPE, 'app', $channel, $userId)),
         ];
+    }
+}
+
+class ProbeStripedLock extends StripedLock
+{
+    public int $acquisitions = 0;
+
+    public int $releases = 0;
+
+    public function stripe(string $key): int
+    {
+        return $this->lockIndexFor($key);
+    }
+
+    public function isLocked(string $key): bool
+    {
+        return $this->lockFor($key)->get() !== 0;
+    }
+
+    protected function acquire(Atomic $lock): void
+    {
+        parent::acquire($lock);
+        ++$this->acquisitions;
+    }
+
+    protected function release(Atomic $lock): void
+    {
+        ++$this->releases;
+        parent::release($lock);
     }
 }

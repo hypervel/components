@@ -22,7 +22,7 @@ class EnsureGetOnRedirect
 
         if ($response->getStatusCode() === 302
             && $request->header(Header::INERTIA)
-            && in_array($request->method(), ['PUT', 'PATCH', 'DELETE'])
+            && in_array($request->method(), ['PUT', 'PATCH', 'DELETE'], true)
         ) {
             $response->setStatusCode(303);
         }

@@ -537,7 +537,9 @@ Redis::throttle('api')
     });
 ```
 
-Unlike `funnel`, a throttle does not return a releasable lease. It records an execution in a sliding window and lets Redis expire that record when it falls out of the configured duration.
+Unlike `funnel`, a throttle does not return a releasable lease. It counts executions in a fixed window that begins with the first execution and resets once the configured duration has elapsed.
+
+For application rate limiting through Redis or another configured store, consult the [rate limiting documentation](/docs/{{version}}/rate-limiting).
 
 <a name="deleting-keys-by-pattern"></a>
 #### Deleting Keys by Pattern

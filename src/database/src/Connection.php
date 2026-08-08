@@ -1658,6 +1658,9 @@ class Connection implements ConnectionInterface
 
     /**
      * Unset the transaction manager for this connection.
+     *
+     * Tests only. A pooled connection keeps the null manager after release, so every
+     * later coroutine that borrows it fails when scheduling after-commit callbacks.
      */
     public function unsetTransactionManager(): void
     {

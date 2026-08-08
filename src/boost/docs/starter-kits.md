@@ -224,7 +224,7 @@ The `confirm` option requires users to verify a code before 2FA is fully enabled
 Rate limiting prevents brute-forcing and repeated login attempts from overwhelming your authentication endpoints. You can customize Fortify's rate limiting behavior in your application's `FortifyServiceProvider`:
 
 ```php
-use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Support\Facades\RateLimiter;
 
 RateLimiter::for('login', function ($request) {

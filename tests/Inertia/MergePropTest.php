@@ -107,6 +107,17 @@ class MergePropTest extends TestCase
         $this->assertSame(['data.id'], $mergeProp->matchesOn());
     }
 
+    public function testNestedMergePathsPreserveAZeroMatchKey(): void
+    {
+        $appended = (new MergeProp([]))->append('data', '0');
+        $prepended = (new MergeProp([]))->prepend('data', '0');
+        $empty = (new MergeProp([]))->append('data', '');
+
+        $this->assertSame(['data.0'], $appended->matchesOn());
+        $this->assertSame(['data.0'], $prepended->matchesOn());
+        $this->assertSame([], $empty->matchesOn());
+    }
+
     public function testAppendWithNestedMergePathsAsArray(): void
     {
         $mergeProp = (new MergeProp([]))->append(['data', 'items']);

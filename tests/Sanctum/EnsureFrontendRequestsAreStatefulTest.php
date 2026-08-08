@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Testbench\TestCase;
 use TypeError;
 
@@ -193,5 +196,36 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
         $this->assertFalse($this->app->make('config')->get('session.http_only'));
         $this->assertSame('strict', $this->app->make('config')->get('session.same_site'));
+    }
+
+    public function testFrontendMiddlewareOnlyOmitsMissingEntriesAndDeduplicatesStrictly(): void
+    {
+        config([
+            'sanctum.middleware' => [
+                'encrypt_cookies' => StartSession::class,
+                'validate_csrf_token' => false,
+                'authenticate_session' => null,
+            ],
+        ]);
+
+        $middleware = (new EnsureFrontendRequestsAreStatefulFixture)->middleware();
+
+        $this->assertInstanceOf(Closure::class, $middleware[0]);
+        $this->assertSame([
+            StartSession::class,
+            AddQueuedCookiesToResponse::class,
+            false,
+        ], array_slice($middleware, 1));
+    }
+}
+
+class EnsureFrontendRequestsAreStatefulFixture extends EnsureFrontendRequestsAreStateful
+{
+    /**
+     * Get the frontend middleware list.
+     */
+    public function middleware(): array
+    {
+        return $this->frontendMiddleware();
     }
 }

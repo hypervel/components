@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use RuntimeException;
-use Swoole\Atomic;
+use Hypervel\Core\Swoole\StripedLock;
 
 /**
  * Coordinates multi-step Swoole table row mutations across workers.
@@ -21,20 +20,7 @@ use Swoole\Atomic;
  */
 class SwooleTableState
 {
-    protected const int STRIPE_COUNT = 64;
-
-    // Late-bound so deterministic test subclasses can shorten the spin phase.
-    protected const int SPINS_BEFORE_BACKOFF = 64;
-
-    // Late-bound so deterministic test subclasses can shorten the timeout.
-    protected const int LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 1_000_000_000;
-
-    /**
-     * Striped locks for row lifecycle operations.
-     *
-     * @var list<Atomic>
-     */
-    protected array $rowLocks;
+    protected StripedLock $locks;
 
     /**
      * Create a new Swoole table state instance.
@@ -44,11 +30,7 @@ class SwooleTableState
         protected int $hashSeed = 0,
     ) {
         $this->hashSeed = $hashSeed ?: random_int(1, PHP_INT_MAX);
-
-        $this->rowLocks = array_map(
-            fn () => new Atomic(0),
-            range(0, self::STRIPE_COUNT - 1),
-        );
+        $this->locks = new StripedLock;
     }
 
     /**
@@ -76,14 +58,7 @@ class SwooleTableState
      */
     public function withRowLock(string $key, callable $callback): mixed
     {
-        $lock = $this->lockFor($key);
-        $this->acquire($lock);
-
-        try {
-            return $callback();
-        } finally {
-            $this->release($lock);
-        }
+        return $this->locks->withLock($key, $callback);
     }
 
     /**
@@ -95,59 +70,6 @@ class SwooleTableState
      */
     public function withAllRowLocks(callable $callback): mixed
     {
-        $acquired = [];
-
-        try {
-            foreach ($this->rowLocks as $lock) {
-                $this->acquire($lock);
-                $acquired[] = $lock;
-            }
-
-            return $callback();
-        } finally {
-            while ($lock = array_pop($acquired)) {
-                $this->release($lock);
-            }
-        }
-    }
-
-    /**
-     * Get the striped lock for a table key.
-     */
-    protected function lockFor(string $key): Atomic
-    {
-        return $this->rowLocks[crc32($key) % self::STRIPE_COUNT];
-    }
-
-    /**
-     * Acquire a striped lock.
-     */
-    protected function acquire(Atomic $lock): void
-    {
-        $deadline = null;
-        $spins = 0;
-
-        while (! $lock->cmpset(0, 1)) {
-            $deadline ??= hrtime(true) + static::LOCK_ACQUIRE_TIMEOUT_NANOSECONDS;
-
-            if (++$spins < static::SPINS_BEFORE_BACKOFF) {
-                continue;
-            }
-
-            if (hrtime(true) >= $deadline) {
-                throw new RuntimeException('Timed out acquiring a Swoole table state lock.');
-            }
-
-            $spins = 0;
-            usleep(1);
-        }
-    }
-
-    /**
-     * Release a striped lock.
-     */
-    protected function release(Atomic $lock): void
-    {
-        $lock->cmpset(1, 0);
+        return $this->locks->withAllLocks($callback);
     }
 }

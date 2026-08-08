@@ -17,9 +17,16 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SimpleViewResponse implements LoginViewResponse, ResetPasswordViewResponse, RegisterViewResponse, RequestPasswordResetLinkViewResponse, TwoFactorChallengeViewResponse, VerifyEmailViewResponse, ConfirmPasswordViewResponse
 {
-    /** @var callable|string */
-    private $view;
+    /**
+     * The name of the view or the callable used to generate the view.
+     *
+     * @var callable|string
+     */
+    protected $view;
 
+    /**
+     * Create a new response instance.
+     */
     public function __construct(
         callable|string $view,
     ) {

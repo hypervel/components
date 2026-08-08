@@ -26,7 +26,7 @@ class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProvider
      */
     public function __construct(
         private readonly ClockInterface $clock,
-        private readonly Repository $cache,
+        protected Repository $cache,
     ) {
     }
 

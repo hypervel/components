@@ -28,10 +28,19 @@ class PruneExpired extends Command
      */
     public function handle(): int
     {
-        $model = Sanctum::$personalAccessTokenModel;
+        $model = Sanctum::personalAccessTokenModel();
 
-        /** @var int $hours */
-        $hours = (int) $this->option('hours');
+        $hours = filter_var(
+            $this->option('hours'),
+            FILTER_VALIDATE_INT,
+            ['options' => ['min_range' => 0]],
+        );
+
+        if ($hours === false) {
+            $this->error('The --hours option must be a non-negative integer.');
+
+            return Command::FAILURE;
+        }
 
         $this->info('Pruning tokens with expired expires_at timestamps...');
 
@@ -49,6 +58,6 @@ class PruneExpired extends Command
 
         $this->info("Tokens expired for more than [{$hours} hours] pruned successfully.");
 
-        return 0;
+        return Command::SUCCESS;
     }
 }

@@ -1782,7 +1782,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Delete the model from the database without raising any events.
      */
-    public function deleteQuietly(): ?bool
+    public function deleteQuietly(): int|bool|null
     {
         return static::withoutEvents(fn () => $this->delete());
     }
@@ -1792,7 +1792,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @throws Throwable
      */
-    public function deleteOrFail(): ?bool
+    public function deleteOrFail(): int|bool|null
     {
         if (! $this->exists) {
             return false;
@@ -1806,7 +1806,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * This method protects developers from running forceDelete when the trait is missing.
      */
-    public function forceDelete(): ?bool
+    public function forceDelete(): int|bool|null
     {
         return $this->delete();
     }

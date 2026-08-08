@@ -8,6 +8,7 @@ use Hypervel\Console\Command as HypervelCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Fortify\Console\InstallCommand;
+use Hypervel\Fortify\Features;
 use Hypervel\Fortify\FortifyServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
@@ -75,6 +76,10 @@ class InstallCommandTest extends TestCase
         $this->artisan('fortify:install')->assertSuccessful();
 
         $this->assertFileExists($this->app->configPath('fortify.php'));
+        $config = require $this->app->configPath('fortify.php');
+
+        $this->assertTrue($config['lowercase_usernames']);
+        $this->assertNotContains(Features::emailVerification(), $config['features']);
 
         foreach ($this->publishedSupportFiles() as $file) {
             $this->assertFileExists($file);

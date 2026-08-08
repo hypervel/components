@@ -20,6 +20,7 @@ When working on Hypervel, start from this frame:
 - Per-request state must live in coroutine-scoped storage (CoroutineContext), not process-global state.
 - Laravel source is the default parity reference, but Laravel internals often assume per-request bootstrap and are not optimized to take advantage of static caching of immutable state.
 - Hyperf source can be useful for Swoole/coroutine behavior, but Hyperf container/config/listener patterns are not the target architecture.
+- Laravel's rate limiter lives under `Illuminate\Cache`; Hypervel's canonical implementation is the dedicated `hypervel/rate-limiter` package under `Hypervel\RateLimiter`. It uses typed policies and dedicated atomic stores and has no `Hypervel\Cache` alias or primitive counter API. Use this package directly when porting rate-limited Laravel code.
 
 ## Repository Layout and Commands
 
@@ -33,7 +34,7 @@ Key paths:
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
 | `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
 | `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
-| `docs/ai/` | Supplementary agent guides, including `porting-hyperf.md` (Hyperf conversion mechanics) and `differences-vs-laravel.md` (user-facing Laravel differences). |
+| `docs/ai/` | Supplementary agent guides, including `porting-hyperf.md` (Hyperf conversion mechanics). |
 | `docs/todo.md` | Tracked gaps and improvements worth doing. |
 
 ### Running tests
@@ -70,7 +71,9 @@ When bringing an existing upstream feature, fix, or API change into Hypervel:
 3. Treat the historical pull-request diffs as discovery and history only. Port the actual source, tests, and documentation from the current checked-out upstream default or development branch. Follow-up fixes and documentation improvements may have changed the final implementation or coverage.
 4. Compare that current upstream surface with the Hypervel implementation and apply the approved Hypervel adaptations under Porting Packages. If the upstream feature has no user-facing documentation, add proportionate Hypervel documentation at its natural public surface.
 
-### Audit what you modify
+### Audit changes during modification and code review
+
+Every audit must explicitly check for overengineering, Laravel-style ergonomics, and avoidable performance or scalability costs, especially repeated hot-path work, excessive database or network round trips (e.g. Redis), inefficient query or index design, unnecessary allocation or serialization, unbounded work, and worker-lifetime memory growth.
 
 Modifying code is an implicit assessment of it. Whenever you edit a method, move code, copy a file, or port from upstream, check what you touch for:
 
@@ -80,7 +83,7 @@ Modifying code is an implicit assessment of it. Whenever you edit a method, move
 - Deprecated APIs or dated patterns
 - Issues in the code right next to what you're changing
 
-Anything found follows When to Stop and Report — "the task didn't ask me to fix that" and "I copied it verbatim" are not reasons to stay silent. The trigger is modification: files read only for context don't need a line-by-line audit.
+Anything found follows When to Stop and Report — "the task didn't ask me to fix that" and "I copied it verbatim" are not reasons to stay silent. The trigger is modification or code review; files read only for context don't need a line-by-line audit.
 
 ### Framework bug fixes
 
@@ -117,6 +120,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 
 ### Working rules
 
+- **Never use subagents without explicit user consent** — Do not spawn or delegate work to subagents unless the user explicitly requests or approves their use.
 - **Avoid bulk modification tools** — tools like `sed` and `replace_all` often have unwanted side effects. Never use bulk modification tools without explicit user approval; prefer manual edits. When approved, run them in multiple passes that each target long, exact, case-sensitive strings to avoid accidental changes.
 - **One file at a time** — never work on multiple files simultaneously. This governs manual editing; package-manager and formatter runs may touch multiple files.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
@@ -162,7 +166,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 
 ### Code conventions
 
-- **New Hypervel-owned code must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements.
+- **New Hypervel-owned code and packages must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements. Apply the requirements under [Audit changes during modification and code review](#audit-changes-during-modification-and-code-review) from initial design onward.
 - **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, and properties are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type). PHP does not allow return types on `__construct()` or `__destruct()`.
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
@@ -197,8 +201,6 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 ## Container
 
 Hypervel's container keeps Laravel's API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. `make()` and `get()` resolve identically; `get()` is just the PSR-compliant exception wrapper. Use `make()`, and use it instead of array access too: `offsetGet()` always returns `mixed`, while `make()` carries class-string generics phpstan can follow, `make()` can take parameters, and `$app[$key] = $value` is a hidden `bind()`. Converting `$app['...']` in ported code to `make()` is an approved modernization (see Policy under Porting Packages). `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
-
-A user-facing summary of these differences lives in `docs/ai/differences-vs-laravel.md` — keep it consistent with this section when container behavior changes.
 
 ### Resolution semantics vs Laravel
 
@@ -329,7 +331,7 @@ Decide where state lives before writing code:
 | Mutable state for one request, operation, or coroutine | `CoroutineContext` or a `scoped()` binding |
 | Fresh mutable object per resolution | `bind()` or contextual parameters |
 
-- **Use `CoroutineContext` for invocation-scoped state** — anything that must not be visible to other concurrent coroutines in the same worker. Static properties and singleton fields leak across coroutines: whatever one coroutine sets becomes visible to all others in the worker. Use the established key-naming convention: `__<package>.<key>` value prefix, `_CONTEXT_KEY` / `_CONTEXT_KEY_PREFIX` constant suffixes, public only when other classes or tests reference the constant.
+- **Use `Hypervel\Context\CoroutineContext` for invocation-scoped state** — anything that must not be visible to other concurrent coroutines in the same worker. Static properties and singleton fields leak across coroutines: whatever one coroutine sets becomes visible to all others in the worker. Use the established key-naming convention: `__<package>.<key>` value prefix, `_CONTEXT_KEY` / `_CONTEXT_KEY_PREFIX` constant suffixes, public only when other classes or tests reference the constant. Do not use `Hypervel\Support\Facades\Context` as the low-level coroutine store; it provides Laravel-style application context instead.
 - **Configure process-global values only during worker boot** — config is a process-global singleton, so `Config::set()` during request handling changes behavior for every concurrent request in the worker. Never mutate config for request-specific behavior; use `CoroutineContext` or middleware instead. Provider boot-time configuration is fine — it runs once per worker.
 - **Name static cache properties for what they store** — not with a `Cache` suffix; static properties in Swoole workers are caches by nature. Exception: matching an existing Laravel-ported pattern in the same class (e.g. `$classCastCache`, `$attributeCastCache` on `HasAttributes`).
 - **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches, singletons or other long-lived state, STOP and report the Swoole persistence impact (memory leaks, cross-request behavior) with a recommendation.
@@ -374,7 +376,7 @@ Test supported public behavior, meaningful branches, verified regressions, and r
 
 ### Directory layout
 
-All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below.
+All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.
 
 Package-specific tests that require one database driver go in `tests/Integration/{PackageName}/Database/{Postgres|MySql|MariaDb|Sqlite}/`. The database workflows discover these directories by convention.
 
@@ -642,6 +644,8 @@ If a test fails with a type error, the source code type may be wrong — not the
 
 Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they need no local service configuration.
 
+Service workflows enumerate their test directories explicitly. Adding a service-specific directory requires adding it to the matching workflow; using the service trait provides isolation and skip behavior but does not make CI discover the test.
+
 #### External service test traits
 
 Integration tests that use an external service must use that service's test trait.
@@ -675,8 +679,8 @@ Each integration group has its own workflow file in `.github/workflows/`:
 | Workflow | Runs | Directory |
 |----------|------|-----------|
 | `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
-| `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database` |
-| `redis.yml` | Redis, Valkey | `tests/Integration/Cache/Redis`, `tests/Redis/Integration` |
+| `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
+| `redis.yml` | Redis, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis` |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
 
 When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must spin up the service container and set the appropriate env vars.

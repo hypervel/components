@@ -58,7 +58,7 @@ abstract class Queue
     protected array $config = [];
 
     /**
-     * Indicates that jobs should be dispatched after all database transactions have committed.
+     * Indicates that jobs should be dispatched after the open parent database transactions have committed.
      */
     protected bool $dispatchAfterCommit = false;
 
@@ -395,7 +395,7 @@ abstract class Queue
     }
 
     /**
-     * Determine if the job should be dispatched after all database transactions have committed.
+     * Determine if the job should be dispatched after the open parent database transactions have committed.
      *
      * @param Closure|object|string $job
      */

@@ -9,6 +9,7 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use Throwable;
 
 class DatabaseTransactionsTest extends TestCase
@@ -18,6 +19,8 @@ class DatabaseTransactionsTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -237,6 +240,52 @@ class DatabaseTransactionsTest extends TestCase
             });
         } catch (Throwable) {
         }
+    }
+
+    public function testAfterCommitRegistersTheCurrentConnectionName(): void
+    {
+        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $callback = static function (): void {
+        };
+
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->with($callback, 'second_connection');
+
+        $this->connection('second_connection')->setTransactionManager($transactionManager);
+        $this->connection('second_connection')->afterCommit($callback);
+    }
+
+    public function testAfterRollbackRegistersTheCurrentConnectionName(): void
+    {
+        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $callback = static function (): void {
+        };
+
+        $transactionManager->shouldReceive('addCallbackForRollback')
+            ->once()
+            ->with($callback, 'second_connection');
+
+        $this->connection('second_connection')->setTransactionManager($transactionManager);
+        $this->connection('second_connection')->afterRollBack($callback);
+    }
+
+    public function testAfterCommitRequiresATransactionManager(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Transactions Manager has not been set.');
+
+        $this->connection()->afterCommit(static function (): void {
+        });
+    }
+
+    public function testAfterRollbackRequiresATransactionManager(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Transactions Manager has not been set.');
+
+        $this->connection()->afterRollBack(static function (): void {
+        });
     }
 
     /**

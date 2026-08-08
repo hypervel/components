@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Closure;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Config\Repository as ConfigRepositoryContract;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Core\Events\AfterWorkerStart;
@@ -19,6 +22,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
+use Hypervel\Sanctum\SanctumGuard;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -121,9 +125,9 @@ class SanctumServiceProviderTest extends TestCase
         $provider->boot();
 
         $this->assertTrue($provider->bootCalled);
-        $this->assertTrue($provider->sanctumGuardRegistered);
-        $this->assertTrue($provider->sessionCookiesConfigured);
-        $this->assertTrue($provider->routesRegistered);
+        $this->assertTrue($provider->routesDefined);
+        $this->assertTrue($provider->guardConfigured);
+        $this->assertTrue($provider->middlewareConfigured);
         $this->assertTrue($provider->publishingRegistered);
         $this->assertTrue($provider->commandsRegistered);
         $this->assertInstanceOf(Closure::class, $bootedCallback);
@@ -266,6 +270,120 @@ class SanctumServiceProviderTest extends TestCase
         );
 
         $resolver();
+    }
+
+    public function testDefineRoutesSkipsRegistrationWhenRoutesAreCached(): void
+    {
+        $application = m::mock(Application::class);
+        $application->shouldReceive('routesAreCached')->once()->andReturnTrue();
+
+        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
+
+        $this->addToAssertionCount(1);
+    }
+
+    #[DataProvider('invalidRouteConfigurationProvider')]
+    public function testDefineRoutesRequiresExactConfigurationTypes(
+        string $key,
+        mixed $value,
+        string $message,
+    ): void {
+        $application = m::mock(Application::class);
+        $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
+        $application->shouldReceive('make')
+            ->once()
+            ->with(ConfigRepositoryContract::class)
+            ->andReturn(new ConfigRepository([$key => $value]));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
+    }
+
+    /**
+     * Provide invalid Sanctum route configuration.
+     */
+    public static function invalidRouteConfigurationProvider(): array
+    {
+        return [
+            'routes must be a boolean' => [
+                'sanctum.routes',
+                'true',
+                'Configuration value for key [sanctum.routes] must be a boolean, string given.',
+            ],
+            'prefix must be a string' => [
+                'sanctum.prefix',
+                false,
+                'Configuration value for key [sanctum.prefix] must be a string, boolean given.',
+            ],
+        ];
+    }
+
+    // REMOVED: Hypervel's Middleware::statefulApi() owns middleware priority before kernel construction.
+
+    public function testCreateGuardRemainsAProtectedExtensionPoint(): void
+    {
+        $application = m::mock(Application::class);
+        $container = m::mock(Container::class);
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'expiration' => null,
+                'last_used_at' => true,
+            ],
+        ]);
+        $container->shouldReceive('bound')->once()->with('events')->andReturnFalse();
+        $container->shouldReceive('make')->twice()->with('config')->andReturn($config);
+        $userProvider = m::mock(UserProvider::class);
+        $authManager = m::mock(AuthManager::class);
+        $authManager->shouldReceive('createUserProvider')->once()->with('users')->andReturn($userProvider);
+
+        $guard = (new SanctumServiceProviderFixture($application))->createGuardUsingParent(
+            $authManager,
+            $container,
+            'sanctum',
+            [
+                'provider' => 'users',
+                'session_guards' => ['web'],
+            ],
+        );
+
+        $this->assertInstanceOf(SanctumGuard::class, $guard);
+    }
+
+    public function testConfiguredGuardResolutionUsesTheProtectedFactoryExtensionPoint(): void
+    {
+        $afterResolving = null;
+        $application = m::mock(Application::class);
+        $application->shouldReceive('afterResolving')
+            ->once()
+            ->with(AuthManager::class, m::on(function (mixed $callback) use (&$afterResolving): bool {
+                $afterResolving = $callback;
+
+                return $callback instanceof Closure;
+            }));
+        $application->shouldReceive('resolved')->once()->with(AuthManager::class)->andReturnFalse();
+
+        $provider = new ResolvingSanctumServiceProviderFixture($application);
+        $provider->guard = m::mock(SanctumGuard::class);
+        $provider->configureGuardUsingParent();
+
+        $this->assertInstanceOf(Closure::class, $afterResolving);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn(new ConfigRepository([
+            'auth' => [
+                'guards' => [
+                    'sanctum' => ['driver' => 'sanctum'],
+                ],
+            ],
+        ]));
+        $authManager = new AuthManager($container);
+
+        $afterResolving($authManager);
+
+        $this->assertSame($provider->guard, $authManager->guard('sanctum'));
+        $this->assertTrue($provider->createGuardCalled);
     }
 
     public function testConfiguredStoreMustBeAStringOrNull(): void
@@ -473,11 +591,11 @@ class SanctumServiceProviderFixture extends SanctumServiceProvider
 {
     public bool $bootCalled = false;
 
-    public bool $sanctumGuardRegistered = false;
+    public bool $routesDefined = false;
 
-    public bool $sessionCookiesConfigured = false;
+    public bool $guardConfigured = false;
 
-    public bool $routesRegistered = false;
+    public bool $middlewareConfigured = false;
 
     public bool $publishingRegistered = false;
 
@@ -494,27 +612,47 @@ class SanctumServiceProviderFixture extends SanctumServiceProvider
     }
 
     /**
-     * Register the Sanctum authentication guard.
+     * Define the Sanctum routes.
      */
-    protected function registerSanctumGuard(): void
+    protected function defineRoutes(): void
     {
-        $this->sanctumGuardRegistered = true;
+        $this->routesDefined = true;
     }
 
     /**
-     * Configure session cookies for stateful frontend requests.
+     * Invoke the parent route definition.
      */
-    protected function configureSessionCookies(): void
+    public function defineRoutesUsingParent(): void
     {
-        $this->sessionCookiesConfigured = true;
+        parent::defineRoutes();
     }
 
     /**
-     * Register the package routes.
+     * Configure the Sanctum authentication guard.
      */
-    protected function registerRoutes(): void
+    protected function configureGuard(): void
     {
-        $this->routesRegistered = true;
+        $this->guardConfigured = true;
+    }
+
+    /**
+     * Configure Sanctum's middleware behavior.
+     */
+    protected function configureMiddleware(): void
+    {
+        $this->middlewareConfigured = true;
+    }
+
+    /**
+     * Invoke the parent guard factory.
+     */
+    public function createGuardUsingParent(
+        AuthManager $authManager,
+        Container $app,
+        string $name,
+        array $config,
+    ): SanctumGuard {
+        return parent::createGuard($authManager, $app, $name, $config);
     }
 
     /**
@@ -531,6 +669,35 @@ class SanctumServiceProviderFixture extends SanctumServiceProvider
     protected function registerCommands(): void
     {
         $this->commandsRegistered = true;
+    }
+}
+
+class ResolvingSanctumServiceProviderFixture extends SanctumServiceProvider
+{
+    public SanctumGuard $guard;
+
+    public bool $createGuardCalled = false;
+
+    /**
+     * Invoke the parent guard configuration.
+     */
+    public function configureGuardUsingParent(): void
+    {
+        parent::configureGuard();
+    }
+
+    /**
+     * Create the test guard instance.
+     */
+    protected function createGuard(
+        AuthManager $authManager,
+        Container $app,
+        string $name,
+        array $config,
+    ): SanctumGuard {
+        $this->createGuardCalled = true;
+
+        return $this->guard;
     }
 }
 

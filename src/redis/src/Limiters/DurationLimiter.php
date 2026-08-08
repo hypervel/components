@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Limiters;
 
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Sleep;
 
@@ -71,14 +72,12 @@ class DurationLimiter
      */
     public function acquire(): bool
     {
-        $results = $this->redis->eval(
-            $this->luaScript(),
-            1,
-            $this->name,
-            microtime(true),
-            time(),
-            $this->decay,
-            $this->maxLocks,
+        $results = $this->redis->withConnection(
+            fn (RedisConnection $connection): mixed => $connection->evalWithShaCache(
+                $this->luaScript(),
+                [$this->name],
+                [microtime(true), time(), $this->decay, $this->maxLocks],
+            ),
         );
 
         $this->decaysAt = (int) $results[1];
@@ -93,14 +92,12 @@ class DurationLimiter
      */
     public function tooManyAttempts(): bool
     {
-        $results = $this->redis->eval(
-            $this->tooManyAttemptsLuaScript(),
-            1,
-            $this->name,
-            microtime(true),
-            time(),
-            $this->decay,
-            $this->maxLocks,
+        $results = $this->redis->withConnection(
+            fn (RedisConnection $connection): mixed => $connection->evalWithShaCache(
+                $this->tooManyAttemptsLuaScript(),
+                [$this->name],
+                [microtime(true), time(), $this->decay, $this->maxLocks],
+            ),
         );
 
         $this->decaysAt = (int) $results[0];
