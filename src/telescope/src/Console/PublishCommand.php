@@ -23,7 +23,7 @@ class PublishCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $this->call('vendor:publish', [
             '--tag' => 'telescope-config',

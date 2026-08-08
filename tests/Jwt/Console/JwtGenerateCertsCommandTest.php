@@ -68,7 +68,13 @@ class JwtGenerateCertsCommandTest extends TestCase
             '--sha' => 256,
             '--dir' => $directory,
             '--passphrase' => 'secret',
-        ])->assertSuccessful();
+        ])
+            ->expectsOutputToContain(
+                'Reload or restart every long-running application process before issuing tokens with the new certificate pair. '
+                . 'You may reload server workers using the [php artisan server:reload] command. '
+                . 'Other long-running processes, such as queue workers and custom server processes, must be restarted separately.'
+            )
+            ->assertSuccessful();
 
         $privateKeyPath = $directory . '/jwt-rsa-2048-private.pem';
         $publicKeyPath = $directory . '/jwt-rsa-2048-public.pem';

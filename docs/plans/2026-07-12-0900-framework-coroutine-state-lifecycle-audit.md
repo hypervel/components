@@ -1038,7 +1038,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `pool-08` | `pool`, `redis` | `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `pool-08` |
 | `database-01` | `database` | `database` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `database-01` |
 | `redis-01` | `redis` | `redis` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `redis-01` |
-| `di-02` | `di` | `foundation` (revalidation complete); later full `sentry` and `telescope` audits | `Correct AOP proxy generation and publication`; finding `di-02` |
+| `di-02` | `di` | `foundation` and `telescope` (revalidation complete); later full `sentry` audit | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` and `filesystem` (revalidation complete) | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption`, `support`, and `filesystem` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
 | `filesystem-04` | `filesystem` | `cache` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-04` |
@@ -1053,7 +1053,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events`, `bus`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia` (revalidation complete), `jwt` (revalidation complete), `log`, `mail`, `notifications` (revalidation complete), `permission` (revalidation complete), `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum` (revalidation complete), `scout`, `session` (revalidation complete), `socialite` (revalidation complete), `telescope`, `testbench`; `translation` (revalidation complete); later full remaining consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia` (revalidation complete), `jwt` (revalidation complete), `log`, `mail`, `notifications` (revalidation complete), `permission` (revalidation complete), `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum` (revalidation complete), `scout`, `session` (revalidation complete), `socialite` (revalidation complete), `telescope` (revalidation complete), `testbench`; `translation` (revalidation complete); later full remaining consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
 | `macroable-03` | `macroable` | `cookie`, `jwt`, `log`, and `notifications` (revalidation complete) | `Complete Macroable callable and test-state handling`; finding `macroable-03` |
 | `auth-01` | `support`, `auth` | `auth` (revalidation complete) | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
@@ -1105,10 +1105,10 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `redis-21` | `redis` | `queue` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-21` |
 | `redis-22` | `redis` | `queue` and `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-22` |
 | `reverb-05` | `reverb` | `redis` and `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `reverb-05` |
-| `redis-15` | `redis` | `telescope` and `sentry` (revalidation complete); later full consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-15` |
+| `redis-15` | `redis` | `telescope` and `sentry` (revalidation complete); later full remaining consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-15` |
 | `horizon-01` | `horizon` | `redis` and `horizon` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `horizon-01` |
-| `telescope-01` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
-| `telescope-02` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
+| `telescope-01` | `telescope` | `redis` and `telescope` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
+| `telescope-02` | `telescope` | `redis` and `telescope` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
 | `sentry-01` | `sentry` | `redis` (revalidation complete); later full `sentry` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
 | `cache-04` | `cache` | `auth`, `sanctum`, and `testbench` (revalidation complete); later full remaining consumer audits | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-04` |
 | `filesystem-12` | `filesystem` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `filesystem-12` |
@@ -1116,13 +1116,13 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `contracts-09` | `contracts` | `foundation` and `broadcasting` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `contracts-09` |
 | `notifications-07` | `contracts` | `notifications` (revalidation complete) | `Harden framework contracts and request-scoped state`; finding `notifications-07` |
 | `notifications-12` | `notifications` | `horizon` and `notifications` (revalidation complete) | `Complete Notifications correctness, Slack parity, and reentrant failure ownership`; finding `notifications-12` |
-| `queue-22` | `queue` | `horizon` (revalidation complete); later full `telescope` audit | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-22` |
+| `queue-22` | `queue` | `horizon` and `telescope` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-22` |
 | `queue-29` | `queue` | `foundation` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-29` |
 | `queue-36` | `queue`, `support` | `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-36` |
 | `queue-37` | `queue`, `support` | `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-37` |
 | `queue-40` | `queue` | `queue` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `queue-40` |
 | `redis-23` | `redis` | `redis` and `horizon` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `redis-23` |
-| `telescope-03` | `telescope` | `telescope` (targeted correction complete); later full `telescope` audit | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `telescope-03` |
+| `telescope-03` | `telescope` | `telescope` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `telescope-03` |
 | `fortify-01` | `fortify` | `fortify` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `fortify-01` |
 | `reverb-06` | `reverb` | `reverb` (revalidation complete) | `Complete Horizon cluster, process, publication, and current Laravel parity`; finding `reverb-06` |
 | `cache-11` | `cache` | `cache` and `reverb` (revalidation complete) | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `cache-11` |
@@ -1198,7 +1198,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `notifications-21` | `notifications` | `notifications` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `notifications-21` |
 | `passkeys-15` | `passkeys` | `passkeys` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `passkeys-15` |
 | `process-11` | `process` | `process` (targeted correction complete); later full `process` audit | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `process-11` |
-| `telescope-04` | `telescope` | `telescope` (targeted correction complete); later full `telescope` audit | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `telescope-04` |
+| `telescope-04` | `telescope` | `telescope` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `telescope-04` |
 | `auth-18` | `auth` | `auth` and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `auth-18` |
 | `api-client-01` | `api-client` | `api-client` (targeted correction complete); later full `api-client` audit | `Complete Pagination correctness, current parity, and query contracts`; finding `api-client-01` |
 | `database-24` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-24` |
@@ -1344,7 +1344,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `permission`
 - [x] `jwt`
 - [x] `scout`
-- [ ] `telescope`
+- [x] `telescope`
 - [ ] `sentry`
 - [ ] `inertia`
 - [x] `nested-set`

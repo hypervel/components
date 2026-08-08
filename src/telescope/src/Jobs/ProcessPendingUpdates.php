@@ -40,7 +40,7 @@ class ProcessPendingUpdates implements ShouldQueue
 
         $delay = config('telescope.queue.delay');
 
-        $repository->update($this->pendingUpdates)->whenNotEmpty(
+        $repository->update($this->pendingUpdates)?->whenNotEmpty(
             fn ($pendingUpdates) => static::dispatchIf(
                 $this->attempt < 3,
                 $pendingUpdates,

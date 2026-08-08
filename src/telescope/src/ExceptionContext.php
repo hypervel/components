@@ -38,7 +38,13 @@ class ExceptionContext
      */
     protected static function getFileContext(Throwable $exception): array
     {
-        return Collection::make(explode("\n", file_get_contents($exception->getFile())))
+        $contents = @file_get_contents($exception->getFile());
+
+        if ($contents === false) {
+            return [];
+        }
+
+        return Collection::make(explode("\n", $contents))
             ->slice($exception->getLine() - 10, 20)
             ->mapWithKeys(function ($value, $key) {
                 return [$key + 1 => $value];

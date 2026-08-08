@@ -444,6 +444,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     {
         $this->callIfExists(\Hypervel\Telescope\Telescope::class, 'flushState');
         $this->callIfExists(\Hypervel\Telescope\Watchers\CacheWatcher::class, 'flushState');
+        $this->callIfExists(\Hypervel\Telescope\Watchers\DumpWatcher::class, 'flushState');
         $this->callIfExists(\Hypervel\Telescope\Watchers\RedisWatcher::class, 'flushState');
     }
 

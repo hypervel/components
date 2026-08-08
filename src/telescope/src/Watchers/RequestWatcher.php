@@ -85,7 +85,8 @@ class RequestWatcher extends Watcher
             strtolower($event->request->method()),
             Collection::make($this->options['ignore_http_methods'] ?? [])->map(function ($method) {
                 return strtolower($method);
-            })->all()
+            })->all(),
+            true,
         );
     }
 
@@ -96,7 +97,8 @@ class RequestWatcher extends Watcher
     {
         return in_array(
             $event->response->getStatusCode(),
-            $this->options['ignore_status_codes'] ?? []
+            $this->options['ignore_status_codes'] ?? [],
+            true,
         );
     }
 
@@ -136,7 +138,7 @@ class RequestWatcher extends Watcher
     protected function hideParameters(array $data, array $hidden): array
     {
         foreach ($hidden as $parameter) {
-            if (Arr::get($data, $parameter)) {
+            if (Arr::has($data, $parameter)) {
                 Arr::set($data, $parameter, '********');
             }
         }
@@ -219,7 +221,7 @@ class RequestWatcher extends Watcher
     {
         $limit = $this->options['size_limit'] ?? 64;
 
-        return intdiv(mb_strlen($content), 1000) <= $limit;
+        return strlen($content) <= $limit * 1024;
     }
 
     /**

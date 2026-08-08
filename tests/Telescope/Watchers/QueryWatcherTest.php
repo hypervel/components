@@ -168,4 +168,29 @@ Data: {
 }
 SQL, $sql);
     }
+
+    public function testQueryWatcherUsesConfiguredPackageAndPathStackFilters(): void
+    {
+        $watcher = new class(['ignore_packages' => true, 'ignore_paths' => ['/custom/path']]) extends QueryWatcher {
+            public function stackTraceIgnoredPaths(): array
+            {
+                return $this->ignoredPaths();
+            }
+        };
+
+        $this->assertSame([
+            base_path('vendor' . DIRECTORY_SEPARATOR),
+            '/custom/path',
+        ], $watcher->stackTraceIgnoredPaths());
+
+        $watcher->setOptions([
+            'ignore_packages' => false,
+            'ignore_paths' => ['/custom/path'],
+        ]);
+
+        $this->assertSame([
+            base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
+            '/custom/path',
+        ], $watcher->stackTraceIgnoredPaths());
+    }
 }

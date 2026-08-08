@@ -83,11 +83,20 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists($this->app->path('Providers/TelescopeServiceProvider.php'));
 
         $providers = require $this->app->getBootstrapProvidersPath();
+        $provider = file_get_contents($this->app->path('Providers/TelescopeServiceProvider.php'));
 
         $this->assertContains('App\Providers\TelescopeServiceProvider', $providers);
         $this->assertStringContainsString(
             'namespace App\Providers;',
-            file_get_contents($this->app->path('Providers/TelescopeServiceProvider.php'))
+            $provider
+        );
+        $this->assertStringContainsString(
+            'use App\Models\User;',
+            $provider
+        );
+        $this->assertStringContainsString(
+            'function (User $user): bool',
+            $provider
         );
         $this->assertCount(1, $this->publishedTelescopeMigrations());
     }

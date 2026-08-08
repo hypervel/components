@@ -53,3 +53,7 @@
 ## Horizon
 
 - Port Laravel's first-party `laravel/vonage-notification-channel` as `hypervel/vonage-notification-channel`, then wire Horizon long-wait SMS notifications through the current `vonage` channel and `VonageMessage`. Keep `Horizon::routeSmsNotificationsTo(...)`, add the package prerequisite and functional mail/Slack/SMS coverage, and do not port deprecated Nexmo aliases or fallbacks.
+
+## Sentinel
+
+- Port `laravel/sentinel` as `hypervel/sentinel`, add direct Horizon and Telescope dependencies, and prepend `SentinelMiddleware:horizon` and `SentinelMiddleware:telescope` while preserving configured middleware. Remove Horizon's temporary `REMOVED:` source comment and cover both dashboards' security integration.

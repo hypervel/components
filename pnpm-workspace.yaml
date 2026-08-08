@@ -7,11 +7,11 @@ packages:
   - '!src/horizon'
   - '!src/telescope'
 
-# Supply-chain defense: require packages to be at least 5 days old before
+# Supply-chain defense: require packages to be at least 7 days old before
 # install. Compromised packages typically get yanked within hours, so this
 # buffer dramatically reduces the chance of pulling a malicious release.
-# Value is in minutes (5 days × 24h × 60min = 7200).
-minimumReleaseAge: 7200
+# Value is in minutes (7 days × 24h × 60min = 10080).
+minimumReleaseAge: 10080
 
 # Allow lifecycle scripts for trusted build-time tools. pnpm 10+ blocks
 # install scripts by default for security; opt-in is explicit.

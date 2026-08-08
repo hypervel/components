@@ -8,6 +8,8 @@
     - [Dashboard Authorization](#dashboard-authorization)
 - [Upgrading Telescope](#upgrading-telescope)
 - [Managing Telescope](#managing-telescope)
+    - [Controlling Recording](#controlling-recording)
+    - [Deferred Storage](#deferred-storage)
 - [Filtering](#filtering)
     - [Entries](#filtering-entries)
     - [Batches](#filtering-batches)
@@ -193,6 +195,29 @@ You may delete all Telescope entries and monitored tags using the `telescope:cle
 ```shell
 php artisan telescope:clear
 ```
+
+<a name="controlling-recording"></a>
+### Controlling Recording
+
+You may use the `shouldListenUsing` method to decide whether Telescope should begin recording a request, command, scheduled task, or queued job. Register the callback in your `TelescopeServiceProvider`; it is evaluated before each recording opportunity:
+
+```php
+use Hypervel\Telescope\Telescope;
+
+public function register(): void
+{
+    Telescope::shouldListenUsing(
+        fn (): bool => ! $this->app->isDownForMaintenance(),
+    );
+}
+```
+
+This callback controls whether recording begins. To choose which collected entries are stored, use Telescope's [entry and batch filters](#filtering).
+
+<a name="deferred-storage"></a>
+### Deferred Storage
+
+By default, Telescope defers storage until the current coroutine finishes. This keeps storage work out of the request, command, or job handler, but it does not move that work to a background process. You may disable this behavior using the `defer` option in your `config/telescope.php` file.
 
 <a name="filtering"></a>
 ## Filtering
@@ -439,7 +464,6 @@ If you would like to record the number of models hydrated during a given request
 'watchers' => [
     Watchers\ModelWatcher::class => [
         'enabled' => env('TELESCOPE_MODEL_WATCHER', true),
-        'events' => ['eloquent.created*', 'eloquent.updated*'],
         'hydrations' => true,
     ],
     // ...
@@ -495,6 +519,8 @@ The Reverb watcher records [Reverb](/docs/{{version}}/reverb) WebSocket events s
 ```
 
 You may also add `message_received` or `message_sent` to the `events` array to record WebSocket message payloads. These events can create a large number of Telescope entries, so they should only be enabled for targeted debugging.
+
+The `message_size_limit` option is measured in kilobytes and limits the payload recorded for each message event. Lower this value when observing high-volume message traffic to reduce Telescope's storage usage.
 
 <a name="request-watcher"></a>
 ### Request Watcher
