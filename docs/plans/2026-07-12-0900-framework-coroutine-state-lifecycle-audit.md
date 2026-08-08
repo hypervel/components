@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `inertia`; correctness and SSR lifecycle maintenance is recorded under `Complete Inertia correctness and SSR lifecycle maintenance`; detail plan `2026-08-07-2018-inertia-correctness-ssr-lifecycle-and-current-parity.md`. Current upstream DevTools is the next Inertia work unit.
-- **Ledger entries required for the active work:** `Complete Inertia correctness and SSR lifecycle maintenance`.
-- **Pending revalidation carried into the active work:** None. Inertia revalidated `support-02`; current upstream DevTools remains separately scoped before the package checklist can be completed.
+- **Active package or work unit:** None. JWT is complete; detail plan `2026-08-08-0426-jwt-correctness-security-and-lifecycle.md`.
+- **Ledger entries required for the active work:** None. Completed JWT work is recorded under `Complete JWT correctness, security, and lifecycle maintenance`.
+- **Pending revalidation carried into the active work:** None. JWT revalidated `support-02` and `macroable-03`. Inertia has separately scoped current-upstream DevTools work outstanding before its checklist can be completed.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1053,8 +1053,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events`, `bus`, `queue`, and `broadcasting` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia` (revalidation complete), `jwt`, `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum` (revalidation complete), `scout`, `session` (revalidation complete), `socialite` (revalidation complete), `telescope`, `testbench`; `translation` (revalidation complete); later full remaining consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
-| `macroable-03` | `macroable` | `cookie`, `log`, and `notifications` (revalidation complete); later full `jwt` audit | `Complete Macroable callable and test-state handling`; finding `macroable-03` |
+| `support-02` | `support` | `auth` (revalidation complete), `broadcasting` (revalidation complete), `bus` (revalidation complete), `cache` (revalidation complete), `concurrency`, `console` (revalidation complete), `container`, `contracts`, `cookie`, `database` (revalidation complete), `events`, `filesystem` (revalidation complete), `foundation` (revalidation complete), `hashing` (revalidation complete), `horizon` (revalidation complete), `inertia` (revalidation complete), `jwt` (revalidation complete), `log`, `mail`, `notifications` (revalidation complete), `permission`, `pipeline`, `queue` (revalidation complete), `redis` (revalidation complete), `reverb` (revalidation complete), `routing` (revalidation complete), `sanctum` (revalidation complete), `scout`, `session` (revalidation complete), `socialite` (revalidation complete), `telescope`, `testbench`; `translation` (revalidation complete); later full remaining consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-0920-framework-enum-identifier-contracts.md` |
+| `macroable-03` | `macroable` | `cookie`, `jwt`, `log`, and `notifications` (revalidation complete) | `Complete Macroable callable and test-state handling`; finding `macroable-03` |
 | `auth-01` | `support`, `auth` | `auth` (revalidation complete) | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, `filesystem`, and `foundation` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption` and `sanctum` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
@@ -1314,7 +1314,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `fortify`
 - [x] `passkeys`
 - [ ] `permission`
-- [ ] `jwt`
+- [x] `jwt`
 - [x] `scout`
 - [ ] `telescope`
 - [ ] `sentry`
