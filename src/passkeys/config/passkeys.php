@@ -34,8 +34,8 @@ return [
     | User Handle Secret
     |--------------------------------------------------------------------------
     |
-    | Secret used to derive a stable WebAuthn user handle from each user model.
-    | Set this explicitly if you rotate your application key.
+    | A nonempty secret used to derive a stable WebAuthn user handle from each
+    | user model. Set this explicitly if you rotate your application key.
     |
     */
 

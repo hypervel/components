@@ -8,6 +8,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
+use Hypervel\Tests\Passkeys\Fixtures\User;
 
 class PasskeysStaticStateTest extends TestCase
 {
@@ -56,6 +57,28 @@ class PasskeysStaticStateTest extends TestCase
 
         $this->assertSame('configured.example.com', Passkeys::relyingPartyId());
         $this->assertSame(['https://configured.example.com'], Passkeys::allowedOrigins());
+    }
+
+    public function testFlushStateResetsLoginAuthorizationCallback(): void
+    {
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $passkey = $user->passkeys()->create([
+            'name' => 'My Passkey',
+            'credential_id' => 'test-credential-id',
+            'credential' => [],
+        ]);
+        $request = Request::create('/');
+
+        Passkeys::authorizeLoginUsing(static fn (): bool => false);
+
+        $this->assertFalse(Passkeys::allowsLogin($request, $passkey));
+
+        Passkeys::flushState();
+
+        $this->assertTrue(Passkeys::allowsLogin($request, $passkey));
     }
 }
 
