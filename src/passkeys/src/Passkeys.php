@@ -88,7 +88,7 @@ class Passkeys
 
         $origins = $request instanceof Request
             ? $callback($request)
-            : self::config()->array('passkeys.allowed_origins', []);
+            : self::config()->array('passkeys.allowed_origins');
 
         $origins = is_array($origins) ? array_values(array_filter(
             $origins,
@@ -136,7 +136,7 @@ class Passkeys
      */
     public static function timeout(): int
     {
-        $timeout = self::config()->integer('passkeys.timeout', 60000);
+        $timeout = self::config()->integer('passkeys.timeout');
 
         if ($timeout < 1) {
             throw new RuntimeException('Passkey timeout must be a positive integer.');
@@ -228,7 +228,7 @@ class Passkeys
             }
         }
 
-        return self::config()->string('passkeys.redirect', '/');
+        return self::config()->string('passkeys.redirect');
     }
 
     /**
@@ -288,7 +288,13 @@ class Passkeys
      */
     public static function userHandleSecret(): string
     {
-        return self::config()->string('passkeys.user_handle_secret');
+        $secret = self::config()->string('passkeys.user_handle_secret');
+
+        if ($secret === '') {
+            throw new RuntimeException('Passkey user handle secret must not be empty.');
+        }
+
+        return $secret;
     }
 
     /**

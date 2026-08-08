@@ -1481,6 +1481,14 @@ class Blueprint
         return $this->table;
     }
 
+    /**
+     * Get the schema grammar used by the blueprint.
+     */
+    public function getGrammar(): Grammar
+    {
+        return $this->grammar;
+    }
+
     // REMOVED: Laravel's deprecated getPrefix() forwarding is omitted;
     // use the connection's getTablePrefix() method.
 

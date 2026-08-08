@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Hypervel\Prompts\DataTablePrompt;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Tests\TestCase;
@@ -12,6 +13,28 @@ use function Hypervel\Prompts\datatable;
 
 class DataTablePromptTest extends TestCase
 {
+    public function testHelperRendersEmptyTableInActiveAndCancelStates(): void
+    {
+        Prompt::fake([Key::CTRL_C]);
+
+        $result = datatable(label: 'No data');
+
+        $this->assertNull($result);
+        $this->assertSame(2, substr_count(Prompt::strippedContent(), 'No rows.'));
+        Prompt::assertOutputContains('Cancelled.');
+    }
+
+    public function testPromptRendersEmptyTableDirectly(): void
+    {
+        Prompt::fake([Key::CTRL_C]);
+
+        $result = (new DataTablePrompt(label: 'No data'))->prompt();
+
+        $this->assertNull($result);
+        Prompt::assertStrippedOutputContains('No rows.');
+        Prompt::assertOutputContains('Cancelled.');
+    }
+
     public function testRendersTableWithHeadersAndSearchLine()
     {
         Prompt::fake([Key::ENTER]);

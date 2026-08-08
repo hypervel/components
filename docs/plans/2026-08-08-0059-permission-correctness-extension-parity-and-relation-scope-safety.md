@@ -486,7 +486,7 @@ Apply the same exact direct-dependency correction to the verified sibling manife
 
 Create focused PackageMetadataTest classes for Permission, Concurrency, DI, Passkeys, Process, and Telescope. Extend the existing Broadcasting, Contracts, and Notifications asserted requirement lists with their newly declared dependencies. Assert exact root parity, not merely key presence. Do not add an import scanner.
 
-Durable findings: permission-09, permission-10, horizon-22, wayfinder-01, broadcasting-17, contracts-12, concurrency-08, di-06, notifications-21, passkeys-01, process-11, telescope-04.
+Durable findings: permission-09, permission-10, horizon-22, wayfinder-01, broadcasting-17, contracts-12, concurrency-08, di-06, notifications-21, passkeys-15, process-11, telescope-04.
 
 ### 8. Port only supported, unique current-upstream coverage
 

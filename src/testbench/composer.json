@@ -25,6 +25,7 @@
     "require": {
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
+        "ext-posix": "*",
         "mockery/mockery": "1.6.x-dev",
         "phpunit/phpunit": "^13.0.3",
         "symfony/console": "^8.1",

@@ -19,6 +19,7 @@ use ParagonIE\ConstantTime\Base64UrlSafe;
 use RuntimeException;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\CredentialRecord;
+use Webauthn\Exception\WebauthnException;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialRequestOptions;
 
@@ -96,6 +97,11 @@ class VerifyPasskey
      */
     public function getPasskey(PublicKeyCredential $credential, bool $lock = false, ?string $ownerType = null): Passkey
     {
+        // Assertion ceremonies do not run CheckCredentialId, so enforce its CTAP2 limit before lookup.
+        if (strlen($credential->rawId) > 1023) {
+            throw InvalidPasskeyException::make('Passkey not recognized. It may have been removed from your account.');
+        }
+
         $credentialId = Base64UrlSafe::encodeUnpadded($credential->rawId);
         $passkeyModel = Passkeys::passkeyModel();
 
@@ -188,14 +194,19 @@ class VerifyPasskey
             json_encode($passkey->credential, JSON_THROW_ON_ERROR),
             CredentialRecord::class
         );
+        $validator = WebAuthn::assertionValidator();
 
-        return WebAuthn::assertionValidator()->check(
-            credentialRecord: $source,
-            authenticatorAssertionResponse: $response,
-            publicKeyCredentialRequestOptions: $options,
-            host: $this->hostFromOptions($options),
-            userHandle: $source->userHandle,
-        );
+        try {
+            return $validator->check(
+                credentialRecord: $source,
+                authenticatorAssertionResponse: $response,
+                publicKeyCredentialRequestOptions: $options,
+                host: $this->hostFromOptions($options),
+                userHandle: $source->userHandle,
+            );
+        } catch (WebauthnException) {
+            throw InvalidPasskeyException::make('Unable to verify passkey. Please try again.');
+        }
     }
 
     /**
