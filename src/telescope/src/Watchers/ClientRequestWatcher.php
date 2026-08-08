@@ -56,7 +56,7 @@ class ClientRequestWatcher extends Watcher
         $request = $proceedingJoinPoint->arguments['keys']['request'];
         $host = $request->getUri()->getHost();
 
-        if (in_array($host, $this->options['ignore_hosts'] ?? [])) {
+        if ($this->shouldIgnoreHost($host)) {
             return $proceedingJoinPoint->process();
         }
 
@@ -124,6 +124,14 @@ class ClientRequestWatcher extends Watcher
 
             return Create::rejectionFor($reason);
         });
+    }
+
+    /**
+     * Determine whether to ignore this request based on its host.
+     */
+    protected function shouldIgnoreHost(string $host): bool
+    {
+        return in_array($host, $this->options['ignore_hosts'] ?? [], true);
     }
 
     /**
@@ -384,7 +392,7 @@ class ClientRequestWatcher extends Watcher
     protected function hideParameters(array $data, array $hidden): array
     {
         foreach ($hidden as $parameter) {
-            if (Arr::get($data, $parameter)) {
+            if (Arr::has($data, $parameter)) {
                 Arr::set($data, $parameter, '********');
             }
         }

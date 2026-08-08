@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\View;
 use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\RequestWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
@@ -103,6 +106,61 @@ class RequestWatchersTest extends FeatureTestCase
         $this->assertSame(EntryType::REQUEST, $entry->type);
         $this->assertSame('POST', $entry->content['method']);
         $this->assertSame('********', $entry->content['headers']['php-auth-pw']);
+    }
+
+    public function testRequestWatcherHidesNestedFalseySecrets(): void
+    {
+        Telescope::hideRequestHeaders(['x-zero']);
+        Telescope::hideRequestParameters(['secret.zero', 'secret.false', 'secret.empty', 'secret.null']);
+        Telescope::hideResponseParameters(['secret.zero', 'secret.false', 'secret.empty', 'secret.null']);
+
+        Route::post('/falsey-secrets', function (Request $request) {
+            $request->session()->put('secret', [
+                'zero' => 0,
+                'false' => false,
+                'empty' => '',
+                'null' => null,
+            ]);
+
+            return response()->json(['secret' => [
+                'zero' => 0,
+                'false' => false,
+                'empty' => '',
+                'null' => null,
+            ]]);
+        })->middleware(StartSession::class);
+
+        $this->post('/falsey-secrets', [
+            'secret' => [
+                'zero' => 0,
+                'false' => false,
+                'empty' => '',
+                'null' => null,
+            ],
+        ], ['x-zero' => '0']);
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $masked = [
+            'zero' => '********',
+            'false' => '********',
+            'empty' => '********',
+            'null' => '********',
+        ];
+
+        $this->assertSame('********', $entry->content['headers']['x-zero']);
+        $this->assertSame($masked, $entry->content['payload']['secret']);
+        $this->assertSame($masked, $entry->content['session']['secret']);
+        $this->assertSame($masked, $entry->content['response']['secret']);
+    }
+
+    public function testRequestWatcherAppliesExactByteLimit(): void
+    {
+        $watcher = new RequestWatcher(['size_limit' => 1]);
+
+        $this->assertTrue($watcher->contentWithinLimits(str_repeat('a', 1024)));
+        $this->assertFalse($watcher->contentWithinLimits(str_repeat('a', 1025)));
+        $this->assertTrue($watcher->contentWithinLimits(str_repeat('é', 512)));
+        $this->assertFalse($watcher->contentWithinLimits(str_repeat('é', 513)));
     }
 
     public function testItStoresAndDisplaysArrayOfRequestAndResponseHeaders()
