@@ -8,7 +8,7 @@ use Hypervel\Inertia\Ssr\BundleDetector;
 
 class BundleDetectorTest extends TestCase
 {
-    public function testDetectCachesResultForWorkerLifetime()
+    public function testDetectCachesResultForWorkerLifetime(): void
     {
         config()->set('inertia.ssr.bundle', __FILE__);
 
@@ -24,7 +24,7 @@ class BundleDetectorTest extends TestCase
         $this->assertSame(__FILE__, $second);
     }
 
-    public function testFlushStateResetsCache()
+    public function testFlushStateResetsCache(): void
     {
         config()->set('inertia.ssr.bundle', __FILE__);
 

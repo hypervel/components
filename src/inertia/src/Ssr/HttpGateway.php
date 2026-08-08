@@ -8,7 +8,6 @@ use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\TransferException;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Http\Request;
 use Hypervel\Inertia\InertiaState;
@@ -25,8 +24,8 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     /**
      * The time until which SSR is considered unavailable for this worker.
      *
-     * Used as a circuit breaker to avoid flooding a dead SSR server
-     * with requests. Reset after the backoff period expires.
+     * Used to avoid flooding an unavailable SSR server with requests.
+     * Cleared as soon as the render transport responds again.
      */
     private static ?float $ssrUnavailableUntil = null;
 
@@ -48,7 +47,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     private function state(): InertiaState
     {
-        return CoroutineContext::getOrSet(InertiaState::CONTEXT_KEY, fn () => new InertiaState);
+        return InertiaState::current();
     }
 
     /**
@@ -105,35 +104,44 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
             ? $this->getHotUrl('/__inertia_ssr')
             : $this->getProductionUrl('/render');
 
+        if ($url === null) {
+            return null;
+        }
+
         try {
             $response = $this->ssrClient()->request('POST', $url, [
                 'json' => $page,
             ]);
+            self::$ssrUnavailableUntil = null;
 
             if ($response->getStatusCode() >= 400) {
                 $decoded = json_decode((string) $response->getBody(), true);
+                $structured = is_array($decoded);
 
-                $this->handleSsrFailure($page, is_array($decoded) ? $decoded : null);
+                if (! $structured) {
+                    $this->armTransportBackoff();
+                }
+
+                $this->handleSsrFailure($page, $structured ? $decoded : null);
 
                 return null;
             }
 
             $data = json_decode((string) $response->getBody(), true);
 
-            if (! $data) {
+            if (! $this->isValidSsrResponse($data)) {
+                $this->armTransportBackoff();
+                $this->handleSsrFailure($page, ['error' => 'Invalid SSR response.']);
+
                 return null;
             }
 
-            // SSR succeeded — clear any previous backoff
-            self::$ssrUnavailableUntil = null;
-
             return new Response(
-                implode("\n", $data['head'] ?? []),
-                $data['body'] ?? ''
+                implode("\n", $data['head']),
+                $data['body'],
             );
-        } catch (SsrException $e) {
-            throw $e;
         } catch (TransferException $e) {
+            $this->armTransportBackoff();
             $this->handleSsrFailure($page, [
                 'error' => $e->getMessage(),
                 'type' => 'connection',
@@ -178,8 +186,6 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     /**
      * Handle an SSR rendering failure.
      *
-     * Sets the circuit breaker backoff and dispatches a failure event.
-     *
      * @param array<string, mixed> $page
      * @param null|array<string, mixed> $error
      *
@@ -187,17 +193,14 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     protected function handleSsrFailure(array $page, ?array $error): void
     {
-        // Activate circuit breaker to avoid pile-up on a dead SSR server
-        self::$ssrUnavailableUntil = microtime(true) + (float) config('inertia.ssr.backoff', 5.0);
-
         $event = new SsrRenderFailed(
             page: $page,
-            error: $error['error'] ?? 'Unknown SSR error',
-            type: SsrErrorType::fromString($error['type'] ?? null),
-            hint: $error['hint'] ?? null,
-            browserApi: $error['browserApi'] ?? null,
-            stack: $error['stack'] ?? null,
-            sourceLocation: $error['sourceLocation'] ?? null,
+            error: $this->stringOrNull($error['error'] ?? null) ?? 'Unknown SSR error',
+            type: SsrErrorType::fromString($this->stringOrNull($error['type'] ?? null)),
+            hint: $this->stringOrNull($error['hint'] ?? null),
+            browserApi: $this->stringOrNull($error['browserApi'] ?? null),
+            stack: $this->stringOrNull($error['stack'] ?? null),
+            sourceLocation: $this->stringOrNull($error['sourceLocation'] ?? null),
         );
 
         // Dispatch the already-built event directly (avoids double construction)
@@ -214,7 +217,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
      */
     protected function ssrIsEnabled(Request $request): bool
     {
-        // Circuit breaker: skip SSR if recently failed
+        // Skip SSR while transport backoff is active.
         if (self::$ssrUnavailableUntil !== null && microtime(true) < self::$ssrUnavailableUntil) {
             return false;
         }
@@ -240,6 +243,22 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
         } catch (TransferException) {
             return false;
         }
+    }
+
+    /**
+     * Shut down the SSR server.
+     *
+     * @throws TransferException
+     */
+    public function shutdown(): bool
+    {
+        $response = $this->ssrClient()->request(
+            'GET',
+            $this->getProductionUrl('/shutdown'),
+        );
+
+        return $response->getStatusCode() >= 200
+            && $response->getStatusCode() < 300;
     }
 
     /**
@@ -272,9 +291,58 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     /**
      * Get the Vite hot SSR URL.
      */
-    protected function getHotUrl(string $path = '/'): string
+    protected function getHotUrl(string $path = '/'): ?string
     {
-        return rtrim(file_get_contents(Vite::hotFile())) . $path;
+        $baseUrl = (string) config('inertia.ssr.hot_url');
+
+        if ($baseUrl === '') {
+            $baseUrl = @file_get_contents(Vite::hotFile());
+
+            if ($baseUrl === false) {
+                return null;
+            }
+        }
+
+        return rtrim(trim($baseUrl), '/') . Str::start($path, '/');
+    }
+
+    /**
+     * Determine if the decoded SSR response has the expected shape.
+     */
+    protected function isValidSsrResponse(mixed $data): bool
+    {
+        if (! is_array($data)
+            || ! isset($data['head'], $data['body'])
+            || ! is_array($data['head'])
+            || ! is_string($data['body'])
+        ) {
+            return false;
+        }
+
+        foreach ($data['head'] as $head) {
+            if (! is_string($head)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Activate SSR transport backoff.
+     */
+    private function armTransportBackoff(): void
+    {
+        self::$ssrUnavailableUntil = microtime(true)
+            + (float) config('inertia.ssr.backoff', 5.0);
+    }
+
+    /**
+     * Return the value when it is a string.
+     */
+    private function stringOrNull(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     /**

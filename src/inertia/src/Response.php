@@ -6,7 +6,6 @@ namespace Hypervel\Inertia;
 
 use BackedEnum;
 use Closure;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
@@ -31,7 +30,7 @@ class Response implements Responsable
     /**
      * The page props.
      *
-     * @var array<string, mixed>
+     * @var array<array-key, mixed|ProvidesInertiaProperties>
      */
     protected array $props;
 
@@ -108,11 +107,10 @@ class Response implements Responsable
     /**
      * Add additional properties to the page.
      *
-     * @param array<string, mixed>|ProvidesInertiaProperties|string $key
-     * @param mixed $value
+     * @param array<array-key, mixed>|int|ProvidesInertiaProperties|string $key
      * @return $this
      */
-    public function with($key, $value = null): self
+    public function with(array|ProvidesInertiaProperties|int|string $key, mixed $value = null): self
     {
         if ($key instanceof ProvidesInertiaProperties) {
             $this->props[] = $key;
@@ -129,10 +127,9 @@ class Response implements Responsable
      * Add additional data to the view.
      *
      * @param array<string, mixed>|string $key
-     * @param mixed $value
      * @return $this
      */
-    public function withViewData($key, $value = null): self
+    public function withViewData(array|string $key, mixed $value = null): self
     {
         if (is_array($key)) {
             $this->viewData = array_merge($this->viewData, $key);
@@ -194,9 +191,9 @@ class Response implements Responsable
             return new JsonResponse($page, 200, [Header::INERTIA => 'true']);
         }
 
-        CoroutineContext::getOrSet(InertiaState::CONTEXT_KEY, fn () => new InertiaState)->page = $page;
+        InertiaState::current()->page = $page;
 
-        return ResponseFactory::view($this->rootView, $this->viewData + ['page' => $page]);
+        return ResponseFactory::view($this->rootView, ['page' => $page] + $this->viewData);
     }
 
     /**

@@ -8,7 +8,7 @@ return [
     | Server Side Rendering
     |--------------------------------------------------------------------------
     |
-    | These options configures if and how Inertia uses Server Side Rendering
+    | These options configure if and how Inertia uses Server Side Rendering
     | to pre-render the initial visits made to your application's pages.
     |
     | You can specify a custom SSR bundle path, or omit it to let Inertia
@@ -28,6 +28,8 @@ return [
         'ensure_runtime_exists' => (bool) env('INERTIA_SSR_ENSURE_RUNTIME_EXISTS', false),
 
         'url' => env('INERTIA_SSR_URL', 'http://127.0.0.1:13714'),
+
+        'hot_url' => env('INERTIA_SSR_HOT_URL'),
 
         'ensure_bundle_exists' => (bool) env('INERTIA_SSR_ENSURE_BUNDLE_EXISTS', true),
 
@@ -52,9 +54,9 @@ return [
         | SSR Backoff
         |--------------------------------------------------------------------------
         |
-        | When SSR fails, the worker will skip SSR for this many seconds before
-        | retrying. This acts as a circuit breaker to prevent flooding a dead
-        | SSR server with requests from every coroutine.
+        | When the SSR server cannot be reached or returns a malformed response,
+        | the worker will skip SSR for this many seconds before retrying. This
+        | prevents every coroutine from flooding an unavailable server.
         |
         */
 

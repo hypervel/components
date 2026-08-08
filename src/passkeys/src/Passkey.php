@@ -24,7 +24,7 @@ use Hypervel\Passkeys\Support\Aaguids;
  * @property ?CarbonInterface $last_used_at
  * @property ?CarbonInterface $created_at
  * @property ?CarbonInterface $updated_at
- * @property-read PasskeyUser $user
+ * @property-read null|PasskeyUser $user
  * @property-read null|string $authenticator
  */
 class Passkey extends Model

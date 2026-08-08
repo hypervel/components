@@ -54,37 +54,39 @@ class FormBuilder
         $index = 0;
         $wasReverted = false;
 
-        while ($index < count($this->steps)) {
-            $step = $this->steps[$index];
+        try {
+            while ($index < count($this->steps)) {
+                $step = $this->steps[$index];
 
-            if ($wasReverted && $index > 0 && $step->shouldIgnoreWhenReverting($this->responses)) {
-                --$index;
+                if ($wasReverted && $index > 0 && $step->shouldIgnoreWhenReverting($this->responses)) {
+                    --$index;
 
-                continue;
-            }
+                    continue;
+                }
 
-            $wasReverted = false;
+                $wasReverted = false;
 
-            $index > 0
-                ? Prompt::revertUsing(function () use (&$wasReverted) {
+                $index > 0
+                    ? Prompt::revertUsing(function () use (&$wasReverted) {
+                        $wasReverted = true;
+                    }) : Prompt::preventReverting();
+
+                try {
+                    $this->responses[$step->name ?? $index] = $step->run(
+                        $this->responses,
+                        $this->responses[$step->name ?? $index] ?? null,
+                    );
+                } catch (FormRevertedException) {
                     $wasReverted = true;
-                }) : Prompt::preventReverting();
+                }
 
-            try {
-                $this->responses[$step->name ?? $index] = $step->run(
-                    $this->responses,
-                    $this->responses[$step->name ?? $index] ?? null,
-                );
-            } catch (FormRevertedException) {
-                $wasReverted = true;
+                $wasReverted ? $index-- : $index++;
             }
 
-            $wasReverted ? $index-- : $index++;
+            return $this->responses;
+        } finally {
+            Prompt::preventReverting();
         }
-
-        Prompt::preventReverting();
-
-        return $this->responses;
     }
 
     /**

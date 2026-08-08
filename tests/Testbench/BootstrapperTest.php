@@ -8,6 +8,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -42,16 +43,6 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
-    public function itToleratesRuntimeDirectoryDeletionRacesWhenTheDirectoryIsGone(): void
-    {
-        $filesystem = new RuntimeDirectoryVanishedFilesystem;
-
-        $this->deleteRuntimeDirectoryWithFilesystem($filesystem);
-
-        $this->assertSame(1, $filesystem->deleteAttempts);
-    }
-
-    #[Test]
     public function itRethrowsRuntimeDirectoryDeletionFailuresWhenTheDirectoryRemains(): void
     {
         $filesystem = new RuntimeDirectoryStillPresentFilesystem;
@@ -62,7 +53,77 @@ class BootstrapperTest extends TestCase
         try {
             $this->deleteRuntimeDirectoryWithFilesystem($filesystem);
         } finally {
-            $this->assertSame(2, $filesystem->deleteAttempts);
+            $this->assertSame(1, $filesystem->deleteAttempts);
+        }
+    }
+
+    #[Test]
+    public function itRefusesToPublishOverAnExistingRuntimePath(): void
+    {
+        $token = 'bootstrapper-existing-runtime-' . getmypid() . '-' . bin2hex(random_bytes(6));
+        $packagePath = $this->temporaryDirectory('existing-runtime-package');
+        $sourcePath = $this->temporaryDirectory('existing-runtime-source');
+        $runtimePath = $this->runtimeDirectory($token, getmypid());
+        $filesystem = new UnremovableRuntimePathFilesystem($runtimePath);
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+        mkdir($runtimePath, 0777, true);
+        file_put_contents($runtimePath . '/stale.txt', 'stale');
+
+        try {
+            // The refusal happens before Bootstrapper replaces the worker's
+            // process-owned runtime identity with this fabricated path.
+            $this->withRuntimeCopyEnvironment($token, false, function () use ($filesystem, $sourcePath, $packagePath, $runtimePath): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath, $runtimePath): void {
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath);
+                        $this->fail('Expected the existing runtime path to be rejected.');
+                    } catch (RuntimeException $exception) {
+                        $this->assertStringContainsString($runtimePath, $exception->getMessage());
+                    }
+
+                    $this->assertFalse($filesystem->copyAttempted);
+                    $this->assertFileExists($runtimePath . '/stale.txt');
+                });
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itPublishesWhenAnUnrelatedStaleRuntimeCannotBeRemoved(): void
+    {
+        $token = 'bootstrapper-unremovable-stale-' . getmypid() . '-' . bin2hex(random_bytes(6));
+        $staleToken = 'bootstrapper-foreign-stale-' . getmypid() . '-' . bin2hex(random_bytes(6));
+        $packagePath = $this->temporaryDirectory('unremovable-stale-package');
+        $sourcePath = $this->temporaryDirectory('unremovable-stale-source');
+        $runtimePath = $this->runtimeDirectory($token, getmypid());
+        $staleRuntimePath = $this->runtimeDirectory($staleToken, getmypid());
+        $filesystem = new UnremovableRuntimePathFilesystem($staleRuntimePath);
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+        mkdir($staleRuntimePath, 0777, true);
+        file_put_contents($sourcePath . '/fresh.txt', 'fresh');
+
+        try {
+            $this->withRuntimeCopyEnvironment($token, false, function () use ($filesystem, $sourcePath, $packagePath, $runtimePath, $staleRuntimePath): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath, $runtimePath, $staleRuntimePath): void {
+                    $this->assertSame($runtimePath, $this->createRuntimeCopy($sourcePath, $packagePath));
+                    $this->assertTrue($filesystem->copyAttempted);
+                    $this->assertFileExists($runtimePath . '/fresh.txt');
+                    $this->assertDirectoryExists($staleRuntimePath);
+                });
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+            $this->deleteDirectory($staleRuntimePath);
         }
     }
 
@@ -296,6 +357,8 @@ class BootstrapperTest extends TestCase
         }
     }
 
+    // Isolation prevents the fabricated runtime identity from exposing the
+    // PHPUnit worker's live runtime copy to the global stale sweep.
     #[PreserveGlobalState(false)]
     #[RunInSeparateProcess]
     #[Test]
@@ -480,8 +543,9 @@ class BootstrapperTest extends TestCase
      */
     private function temporaryDirectory(string $name): string
     {
-        return sys_get_temp_dir() . DIRECTORY_SEPARATOR . "hypervel-bootstrapper-{$name}-"
-            . getmypid() . '-' . bin2hex(random_bytes(6));
+        return ParallelTesting::tempDir(
+            "BootstrapperTest-{$name}-" . bin2hex(random_bytes(6)),
+        );
     }
 
     /**
@@ -545,6 +609,9 @@ class BootstrapperTest extends TestCase
 
     /**
      * Run a callback with isolated runtime-copy environment state.
+     *
+     * A successful copy replaces the PHPUnit worker's runtime identity until
+     * this helper restores it. Callers that sweep again must use process isolation.
      */
     private function withRuntimeCopyEnvironment(string $token, bool $packageTester, callable $callback): void
     {
@@ -723,29 +790,6 @@ class BootstrapperIdentityProbe extends Bootstrapper
     }
 }
 
-class RuntimeDirectoryVanishedFilesystem extends Filesystem
-{
-    public int $deleteAttempts = 0;
-
-    /**
-     * Determine if the directory still exists.
-     */
-    public function isDirectory(string $directory): bool
-    {
-        return $this->deleteAttempts === 0;
-    }
-
-    /**
-     * Simulate losing a concurrent deletion race.
-     */
-    public function deleteDirectory(string $directory, bool $preserve = false): bool
-    {
-        ++$this->deleteAttempts;
-
-        throw new UnexpectedValueException('runtime directory vanished');
-    }
-}
-
 class RuntimeDirectoryStillPresentFilesystem extends Filesystem
 {
     public int $deleteAttempts = 0;
@@ -766,6 +810,35 @@ class RuntimeDirectoryStillPresentFilesystem extends Filesystem
         ++$this->deleteAttempts;
 
         throw new UnexpectedValueException('runtime directory still present');
+    }
+}
+
+class UnremovableRuntimePathFilesystem extends Filesystem
+{
+    public bool $copyAttempted = false;
+
+    public function __construct(protected string $unremovablePath)
+    {
+    }
+
+    /**
+     * Leave the configured runtime path in place.
+     */
+    public function deleteDirectory(string $directory, bool $preserve = false): bool
+    {
+        return $directory === $this->unremovablePath
+            ? false
+            : parent::deleteDirectory($directory, $preserve);
+    }
+
+    /**
+     * Record an attempt to publish the runtime copy.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        $this->copyAttempted = true;
+
+        return parent::copyDirectory($directory, $destination, $options);
     }
 }
 

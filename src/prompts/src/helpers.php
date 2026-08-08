@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use Hypervel\Prompts\Elements\ElementContract;
 use Hypervel\Support\Collection;
 
 if (! function_exists('\Hypervel\Prompts\text')) {
@@ -176,6 +177,18 @@ if (! function_exists('\Hypervel\Prompts\note')) {
     function note(string $message, ?string $type = null): void
     {
         (new Note($message, $type))->display();
+    }
+}
+
+if (! function_exists('\Hypervel\Prompts\callout')) {
+    /**
+     * Display a callout.
+     *
+     * @param array<int, ElementContract|string>|string $content
+     */
+    function callout(string $label, string|array $content, ?string $type = null, string $info = ''): void
+    {
+        (new Callout($label, $content, $type, $info))->display();
     }
 }
 

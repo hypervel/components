@@ -141,7 +141,7 @@ class Middleware
 
         Inertia::setRootView($this->rootView($request));
 
-        if ($urlResolver = $this->urlResolver()) {
+        if (($urlResolver = $this->urlResolver()) !== null) {
             Inertia::resolveUrlUsing($urlResolver);
         }
 
@@ -152,13 +152,14 @@ class Middleware
         }
 
         $response = $next($request);
-        $response->headers->set('Vary', Header::INERTIA);
 
         if ($isRedirect = $response->isRedirect()) {
             $this->reflash($request);
         }
 
         if (! $request->header(Header::INERTIA)) {
+            $this->addInertiaVaryHeader($response);
+
             return $response;
         }
 
@@ -166,11 +167,11 @@ class Middleware
             $response = $this->onVersionChange($request, $response);
         }
 
-        if ($response->isOk() && empty($response->getContent())) {
+        if ($response->isOk() && $response->getContent() === '') {
             $response = $this->onEmptyResponse($request, $response);
         }
 
-        if ($response->getStatusCode() === 302 && in_array($request->method(), ['PUT', 'PATCH', 'DELETE'])) {
+        if ($response->getStatusCode() === 302 && in_array($request->method(), ['PUT', 'PATCH', 'DELETE'], true)) {
             $response->setStatusCode(303);
         }
 
@@ -178,7 +179,23 @@ class Middleware
             $response = $this->onRedirectWithFragment($request, $response);
         }
 
+        $this->addInertiaVaryHeader($response);
+
         return $response;
+    }
+
+    /**
+     * Add the Inertia header to the response's Vary list.
+     */
+    protected function addInertiaVaryHeader(Response $response): void
+    {
+        foreach ($response->getVary() as $header) {
+            if (strcasecmp($header, Header::INERTIA) === 0) {
+                return;
+            }
+        }
+
+        $response->setVary(Header::INERTIA, false);
     }
 
     /**
@@ -228,7 +245,10 @@ class Middleware
             $session->reflash();
         }
 
-        return Inertia::location($request->fullUrl());
+        $response = Inertia::location($request->fullUrl());
+        $response->headers->set(Header::VERSION, Inertia::getVersion());
+
+        return $response;
     }
 
     /**
@@ -248,8 +268,10 @@ class Middleware
                 return $this->withAllErrors ? $errors : $errors[0];
             })->toArray();
         })->pipe(function ($bags) use ($request) {
-            if ($bags->has('default') && $request->header(Header::ERROR_BAG)) {
-                return [$request->header(Header::ERROR_BAG) => $bags->get('default')];
+            $errorBag = $request->header(Header::ERROR_BAG);
+
+            if ($bags->has('default') && $errorBag !== null && $errorBag !== '') {
+                return [$errorBag => $bags->get('default')];
             }
 
             if ($bags->has('default')) {

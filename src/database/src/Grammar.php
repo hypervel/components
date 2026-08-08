@@ -70,6 +70,14 @@ abstract class Grammar
     }
 
     /**
+     * Wrap a single identifier in keyword identifiers.
+     */
+    public function wrapIdentifier(string $value): string
+    {
+        return $this->wrapValue($value);
+    }
+
+    /**
      * Wrap a value in keyword identifiers.
      */
     public function wrap(Expression|string $value): string|int|float

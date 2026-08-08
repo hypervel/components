@@ -15,6 +15,10 @@
   - [Inertia](#inertia)
   - [URL Processing](#url-processing)
 - [Working With Stylesheets](#working-with-stylesheets)
+- [Working With Fonts](#working-with-fonts)
+  - [Font Providers](#font-providers)
+  - [Local Fonts](#local-fonts)
+  - [Font Options](#font-options)
 - [Working With Blade and Routes](#working-with-blade-and-routes)
   - [Processing Static Assets With Vite](#blade-processing-static-assets)
   - [Refreshing on Save](#blade-refreshing-on-save)
@@ -24,6 +28,7 @@
 - [Environment Variables](#environment-variables)
 - [Disabling Vite in Tests](#disabling-vite-in-tests)
 - [Server-Side Rendering (SSR)](#ssr)
+  - [Configuring Inertia SSR](#configuring-inertia-ssr)
 - [Script and Style Tag Attributes](#script-and-style-attributes)
   - [Content Security Policy (CSP) Nonce](#content-security-policy-csp-nonce)
   - [Subresource Integrity (SRI)](#subresource-integrity-sri)
@@ -857,6 +862,21 @@ php artisan inertia:start-ssr
 
 > [!NOTE]
 > Hypervel's [starter kits](/docs/{{version}}/starter-kits) already include the proper Hypervel, Inertia SSR, and Vite configuration. These starter kits offer the fastest way to get started with Hypervel, Inertia SSR, and Vite.
+
+<a name="configuring-inertia-ssr"></a>
+### Configuring Inertia SSR
+
+By default, the `inertia:start-ssr` command uses Node. You may select another runtime, such as Bun, using the `--runtime` option:
+
+```shell
+php artisan inertia:start-ssr --runtime=bun
+```
+
+You may also configure the runtime using the `INERTIA_SSR_RUNTIME` environment variable. Runtime values may be executable names or absolute paths.
+
+The `hot_url` option within your application's `inertia.ssr` configuration may be used to specify the SSR server URL while Vite is running. This option may also be configured using the `INERTIA_SSR_HOT_URL` environment variable. The `connect_timeout` and `timeout` options control how long Hypervel waits for the SSR server, while the `backoff` option determines how long a worker skips SSR after a connection failure or malformed response.
+
+When an SSR render request fails, Hypervel renders the page on the client and dispatches a `Hypervel\Inertia\Ssr\SsrRenderFailed` event. To throw an exception instead, enable the `throw_on_error` option within your application's `inertia.ssr` configuration.
 
 <a name="script-and-style-attributes"></a>
 ## Script and Style Tag Attributes

@@ -63,6 +63,6 @@ class SsrRenderFailed
             'hint' => $this->hint,
             'browser_api' => $this->browserApi,
             'source_location' => $this->sourceLocation,
-        ]);
+        ], fn (mixed $value): bool => $value !== null);
     }
 }
