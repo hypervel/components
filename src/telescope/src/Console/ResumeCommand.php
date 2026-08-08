@@ -24,7 +24,7 @@ class ResumeCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(Cache $cache)
+    public function handle(Cache $cache): void
     {
         if ($cache->get('telescope:pause-recording')) {
             $cache->forget('telescope:pause-recording');

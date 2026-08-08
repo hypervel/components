@@ -24,7 +24,7 @@ class ClearCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(ClearableRepository $storage)
+    public function handle(ClearableRepository $storage): void
     {
         $storage->clear();
 
