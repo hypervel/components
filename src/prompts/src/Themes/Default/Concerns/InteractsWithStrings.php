@@ -311,7 +311,13 @@ trait InteractsWithStrings
                     }
 
                     if (str_starts_with($escapeSequence, "\e]8;")) {
-                        $currentLink = in_array($escapeSequence, ["\e]8;;\x07", "\e]8;;\e\\"], true)
+                        // OSC 8 is "\e]8;<params>;<uri>"; an empty URI closes the hyperlink.
+                        $body = str_ends_with($escapeSequence, "\x07")
+                            ? substr($escapeSequence, 4, -1)
+                            : substr($escapeSequence, 4, -2);
+                        $separator = strpos($body, ';');
+
+                        $currentLink = $separator === false || substr($body, $separator + 1) === ''
                             ? ''
                             : $escapeSequence;
                     }

@@ -110,6 +110,34 @@ class ParseAnsiTextTest extends TestCase
         ], $segments);
     }
 
+    public function testParsesParameterizedHyperlinkClosers(): void
+    {
+        $stSegments = $this->getInstance()->parse("Click \e]8;id=hypervel;https://hypervel.org\e\\here\e]8;id=hypervel;\e\\.");
+        $belSegments = $this->getInstance()->parse("Click \e]8;id=hypervel;https://hypervel.org\x07here\e]8;id=hypervel;\x07.");
+
+        $this->assertSame([
+            ['text' => 'Click ', 'codes' => '', 'link' => ''],
+            ['text' => 'here', 'codes' => '', 'link' => "\e]8;id=hypervel;https://hypervel.org\e\\"],
+            ['text' => '.', 'codes' => '', 'link' => ''],
+        ], $stSegments);
+        $this->assertSame([
+            ['text' => 'Click ', 'codes' => '', 'link' => ''],
+            ['text' => 'here', 'codes' => '', 'link' => "\e]8;id=hypervel;https://hypervel.org\x07"],
+            ['text' => '.', 'codes' => '', 'link' => ''],
+        ], $belSegments);
+    }
+
+    public function testPreservesSemicolonsInHyperlinkUris(): void
+    {
+        $segments = $this->getInstance()->parse("Click \e]8;;https://hypervel.org/?first=1;second=2;\e\\here\e]8;;\e\\.");
+
+        $this->assertSame([
+            ['text' => 'Click ', 'codes' => '', 'link' => ''],
+            ['text' => 'here', 'codes' => '', 'link' => "\e]8;;https://hypervel.org/?first=1;second=2;\e\\"],
+            ['text' => '.', 'codes' => '', 'link' => ''],
+        ], $segments);
+    }
+
     public function testCsiIntermediateBytesDoNotDiscardLaterStyles(): void
     {
         $segments = $this->getInstance()->parse("\e[5 qalpha \e[32mbeta\e[39m");
