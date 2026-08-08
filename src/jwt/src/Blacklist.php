@@ -84,7 +84,12 @@ class Blacklist implements BlacklistContract
     {
         $key = $this->getKey($payload);
 
-        // Rewriting the entry would restart its grace period on every concurrent refresh.
+        // Avoid restarting grace on repeated revocations. Rare overlapping first writes
+        // may shift a non-zero deadline by cache or scheduling latency, normally less
+        // than the timestamp's one-second precision. They cannot remove the entry or
+        // keep extending it after the overlapping writes settle; zero grace remains
+        // immediate. Preventing that bounded shift would require atomic insertion
+        // across every supported store.
         if (! empty($this->storage->get($key))) {
             return true;
         }

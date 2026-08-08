@@ -93,7 +93,7 @@ Storage false-success, absolute blacklist lifetime, and malformed registered-dat
 | `jwt-01` | Defect | Major | High | Treat absent/null expiration as optional but validate timestamp zero; cover direct zero and an external-style JSON string-zero round trip. |
 | `jwt-02` | Defect | Major | High | Delete `blacklist_refresh_ttl`; use nullable `refresh_ttl` as the one refresh and revocation lifetime. Genuinely refreshable tokens with infinite refresh require permanent, grace-aware revocation. |
 | `jwt-03` | Defect | Major | High | Make storage writes/flush truthful booleans, propagate failure, throw from manager invalidation, and make guard logout transactional. |
-| `jwt-04` | Defect | Major | High | Method-inject Filesystem and atomically publish private/public keys at modes `0600`/`0644`; create the directory through the existing `0755` Filesystem boundary. |
+| `jwt-04` | Defect | Major | High | Method-inject Filesystem and atomically publish each private and public key at modes `0600`/`0644`; create the directory through the existing `0755` Filesystem boundary. |
 | `jwt-05` | Defect | Major | High | Include expiration leeway, use one clock snapshot for the terminal decision and positive remaining lifetime, and skip cache I/O only when the unified acceptance boundary has elapsed. |
 | `jwt-06` | Defect (`support-02`) | Major | High | Accept non-empty strings and integers, including zero, as blacklist identifiers; normalize to string and reject every other shape with `TokenInvalidException`. |
 | `jwt-07` | Defect | Major | High | Delete the unused destructive PSR adapter and its split dependency; retain tagged storage plus the custom `StorageContract` extension point. |
@@ -156,7 +156,7 @@ Remove `blacklist_refresh_ttl` and `JWT_BLACKLIST_REFRESH_TTL` everywhere. Chang
 7. If the boundary is no longer future at that snapshot, return true before any cache read or write. When the write path is selected, reuse the snapshot so time passing during the cache lookup cannot produce a nonpositive TTL.
 8. If the key already exists, return true; otherwise return the storage adapter's boolean.
 
-Both automatic permanent branches call a protected `addForeverWithGracePeriod()` helper. It resolves the key, returns early when storage already contains the entry so repeated concurrent refreshes cannot slide the grace window, then stores `['valid_until' => $this->getGraceTimestamp()]` forever. Add one short WHY comment to the guard because rewriting would restart the grace period. `has()` already applies that timestamp before treating the entry as active. The public `addForever()` remains the explicit immediate permanent-revocation API and keeps the `'forever'` sentinel.
+Both automatic permanent branches call a protected `addForeverWithGracePeriod()` helper. It resolves the key, returns early when storage already contains the entry so repeated revocations cannot restart the grace period, then stores `['valid_until' => $this->getGraceTimestamp()]` forever. Add one short WHY comment to the guard because rewriting would restart the grace period. `has()` already applies that timestamp before treating the entry as active. The public `addForever()` remains the explicit immediate permanent-revocation API and keeps the `'forever'` sentinel.
 
 The early skip and lifetime unification must land together. Use a positive `iat !== null` branch and explain that only a present `iat` can extend the boundary because refresh rejects a missing claim before the infinite-refresh return. Add one short WHY comment at the skip stating that the unified boundary covers both expiration acceptance, including leeway, and the refresh window. These comments record the cross-file invariant that makes finite retention and skipped I/O safe.
 
@@ -361,7 +361,7 @@ After the full gate, perform a fresh self-review without trusting this plan. Tra
 - No new cache/network call, retry, lock, registry, context slot, or service resolution is introduced. The blacklist retains one additional immutable boot-configured integer for leeway and no mutable request state.
 - Dead tokens perform fewer cache operations because terminal blacklist writes are skipped.
 - Truthful storage returns inspect results already produced by Cache; no additional I/O occurs.
-- Automatic permanent revocation performs the same existing-entry read as finite revocation so repeated concurrent refreshes cannot slide the grace window. Explicit `addForever()` remains a write-only operation.
+- Automatic permanent revocation performs the same existing-entry read as finite revocation so repeated revocations cannot restart grace. Already-overlapping first writes may shift a non-zero deadline by cache or scheduling latency; this bounded tradeoff avoids cross-store atomic-insertion machinery. Explicit `addForever()` remains a write-only operation.
 - The decode correction changes only the caught throwable type around an existing parser call.
 - Exact key checks and config fallback cleanup add no meaningful hot-path work.
 - Leeway is read once when the worker-lifetime blacklist is constructed; the boundary calculation adds one date modifier and no I/O. Its terminal decision and TTL reuse one clock snapshot, while the grace timestamp keeps its independent write-time clock read.
