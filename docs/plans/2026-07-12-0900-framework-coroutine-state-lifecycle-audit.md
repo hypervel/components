@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** None. `socialite` is complete; detail plan `2026-08-07-1416-socialite-correctness-first-party-extensibility-and-lifecycle.md`.
-- **Ledger entries required for the active work:** None. The completed Socialite work is recorded under `Complete Socialite correctness, first-party extensibility, and lifecycle`, with its cross-package findings recorded at their owning package entries.
-- **Pending revalidation carried into the active work:** None. Socialite revalidated `support-02` and completed `support-34`, `object-pool-04`, and `reverb-40` at their owning boundaries.
+- **Active package or work unit:** None. `passkeys` is complete; detail plan `2026-08-07-2205-passkeys-correctness-security-and-maintenance.md`.
+- **Ledger entries required for the active work:** None. The completed Passkeys work is recorded under `Complete Passkeys correctness, security, and maintenance`.
+- **Pending revalidation carried into the active work:** None. Passkeys revalidated the shared Fortify guide and `fortify.passkeys` bridge under `Complete Fortify correctness, current parity, and configuration contracts`.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1232,7 +1232,7 @@ comm -3 /tmp/hypervel-src-packages /tmp/hypervel-plan-packages
 uniq -d /tmp/hypervel-plan-packages
 ```
 
-The current expected result is `72` lines in each file, with no output from `comm` or `uniq`. Update the expected count when the package set changes.
+The current expected result is `73` lines in each file, with no output from `comm` or `uniq`. Update the expected count when the package set changes.
 
 The order is lower-level first where practical. Hypervel has cross-cutting dependencies and facades, so this is not claimed to be a perfect dependency DAG. The cross-package revalidation rule handles remaining inversions.
 
@@ -1287,6 +1287,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `database`
 - [x] `redis`
 - [x] `cache`
+- [ ] `rate-limiter`
 - [x] `session`
 - [x] `queue`
 - [x] `horizon`
@@ -1309,7 +1310,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `socialite`
 - [x] `sanctum`
 - [x] `fortify`
-- [ ] `passkeys`
+- [x] `passkeys`
 - [ ] `permission`
 - [ ] `jwt`
 - [x] `scout`
