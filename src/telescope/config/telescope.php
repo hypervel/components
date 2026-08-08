@@ -83,7 +83,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | These options determine the queue connection and queue
-    | which will be used to process ProcessPendingUpdate jobs. This can
+    | which will be used to process ProcessPendingUpdates jobs. This can
     | be changed if you would prefer to use a non-default connection.
     |
     */
