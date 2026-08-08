@@ -142,14 +142,14 @@ Use this order, omitting items that do not apply:
 
 1. Package header
 2. Documentation link, when the package has a meaningful user-facing documentation page (`Documentation: https://hypervel.org/docs/{documentation-slug}`)
-3. Approved `Differences From Laravel`, when needed
+3. `Differences From Laravel`, for deliberate differences only
 4. Upstream link, when the package is a port or deliberately tracks an upstream package (`Ported from: https://github.com/{vendor}/{package}`)
 
 Do not add a documentation link merely for completeness. Omit it when there is no meaningful user-facing documentation page for the package.
 
 Do not add upstream links for inspiration or historical lineage. Omit them when the Hypervel package is maintained independently and is not expected to track upstream changes.
 
-`Differences From Laravel` should contain only public API or functionality differences that developers or agents must account for when using the package. Internal implementation details and fixes do not belong there.
+`Differences From Laravel` is only for deliberate, lasting public contract differences that developers must account for. Bug fixes, correctness or safety fixes, performance improvements, and internal implementation differences do not qualify merely because they make Hypervel behave differently from Laravel. Omit the section when none apply.
 
 ### Avoid overengineering
 
