@@ -7,6 +7,7 @@ namespace Hypervel\Prompts;
 use Closure;
 use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 use RuntimeException;
+use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 class Stream extends Prompt
@@ -53,7 +54,7 @@ class Stream extends Prompt
     {
         if ($this->direct) {
             $this->message .= $message;
-            static::output()->write($message);
+            static::output()->write($message, false, OutputInterface::OUTPUT_RAW);
 
             return $this;
         }

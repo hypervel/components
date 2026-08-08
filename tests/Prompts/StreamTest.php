@@ -27,10 +27,12 @@ class StreamTest extends TestCase
 
         $stream->append('Hello, ');
         $stream->append("World!\nDone.");
+        $stream->append(' <info>literal</info> and <fg=red>tagged</>');
+        $expected = "Hello, World!\nDone. <info>literal</info> and <fg=red>tagged</>";
 
-        $this->assertSame("Hello, World!\nDone.", Prompt::content());
-        $this->assertSame("Hello, World!\nDone.", $stream->value());
-        $this->assertSame(['Hello, World!', 'Done.'], $stream->lines());
+        $this->assertSame($expected, Prompt::content());
+        $this->assertSame($expected, $stream->value());
+        $this->assertSame(['Hello, World!', 'Done. <info>literal</info> and <fg=red>tagged</>'], $stream->lines());
 
         $stream->close();
         $content = Prompt::content();
