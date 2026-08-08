@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Http;
 
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Http\Controllers\RecordingController;
 use Hypervel\Telescope\Http\Middleware\Authorize;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -67,6 +70,35 @@ class RouteTest extends FeatureTestCase
         ];
     }
 
+    public function testQueueDetailReturnsTheCompleteRelatedBatch(): void
+    {
+        $batchId = '84674055-d1ae-449b-9f27-a532ad669a84';
+        $entry = EntryModelFactory::new()->create([
+            'type' => EntryType::JOB,
+            'content' => ['updated_batch_id' => $batchId],
+        ]);
+
+        EntryModelFactory::times(51)->create(['batch_id' => $batchId]);
+
+        $response = $this->get("/telescope/telescope-api/jobs/{$entry->uuid}")
+            ->assertSuccessful();
+
+        $this->assertCount(51, $response->json('batch'));
+    }
+
+    public function testRecordingControllerUsesTheCacheRepository(): void
+    {
+        $cache = $this->app->make(Repository::class);
+        $cache->forget('telescope:pause-recording');
+        $controller = $this->app->make(RecordingController::class);
+
+        $this->assertSame(['success' => true], $controller->toggle());
+        $this->assertTrue($cache->get('telescope:pause-recording'));
+
+        $this->assertSame(['success' => true], $controller->toggle());
+        $this->assertNull($cache->get('telescope:pause-recording'));
+    }
+
     private function registerAssertJsonExactFragmentMacro()
     {
         $assertion = function ($expected, $key) {
@@ -91,5 +123,15 @@ class RouteTest extends FeatureTestCase
             url(config('telescope.path')),
             route('telescope')
         );
+    }
+
+    #[WithConfig('telescope.domain', 'telescope.test')]
+    public function testRoutesCanBeLimitedToTheConfiguredDomain(): void
+    {
+        $this->post('http://telescope.test/telescope/telescope-api/mail')
+            ->assertSuccessful();
+
+        $this->post('http://other.test/telescope/telescope-api/mail')
+            ->assertNotFound();
     }
 }

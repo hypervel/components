@@ -70,8 +70,8 @@ return [
     | Telescope Defer
     |--------------------------------------------------------------------------
     |
-    | This configuration options determines if storing of Telescope entries
-    | should be deferred to avoid slowing down the application.
+    | This option determines whether Telescope storage should be deferred
+    | until the current coroutine finishes.
     |
     */
 
@@ -82,15 +82,15 @@ return [
     | Telescope Queue
     |--------------------------------------------------------------------------
     |
-    | This configuration options determines the queue connection and queue
+    | These options determine the queue connection and queue
     | which will be used to process ProcessPendingUpdate jobs. This can
     | be changed if you would prefer to use a non-default connection.
     |
     */
 
     'queue' => [
-        'connection' => env('TELESCOPE_QUEUE_CONNECTION', null),
-        'queue' => env('TELESCOPE_QUEUE', null),
+        'connection' => env('TELESCOPE_QUEUE_CONNECTION'),
+        'queue' => env('TELESCOPE_QUEUE'),
         'delay' => env('TELESCOPE_QUEUE_DELAY', 10),
     ],
 
@@ -238,7 +238,7 @@ return [
 
         Watchers\RequestWatcher::class => [
             'enabled' => env('TELESCOPE_REQUEST_WATCHER', true),
-            'size_limit' => env('TELESCOPE_RESPONSE_SIZE_LIMIT', 64),
+            'size_limit' => env('TELESCOPE_RESPONSE_SIZE_LIMIT', 64), // KB
             'ignore_http_methods' => [],
             'ignore_status_codes' => [],
         ],
