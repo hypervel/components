@@ -151,18 +151,33 @@ class MorphToManyPivotEventsTest extends TestCase
     // Tests for updateExistingPivot()
     // =========================================================================
 
-    public function testUpdateExistingPivotFiresSavingAndSavedEventsWithCustomMorphPivot(): void
+    public function testUpdateExistingPivotUsesGuardedAttributesAndKeepsTheMorphIdentity(): void
     {
-        $post = MorphPivotEventsTestPost::forceCreate(['title' => 'Test Post']);
+        $post = MorphPivotEventsTestPost::forceCreate(['id' => 100, 'title' => 'Test Post']);
+        $video = MorphPivotEventsTestVideo::forceCreate(['id' => 100, 'title' => 'Test Video']);
         $tag = MorphPivotEventsTestTag::forceCreate(['name' => 'PHP']);
-        $post->tagsWithPivot()->attach($tag->id, ['is_primary' => false]);
+
+        $post->tagsWithPivot()->attach($tag->id, ['is_primary' => true]);
+        $video->tagsWithPivot()->attach($tag->id, ['is_primary' => true]);
 
         MorphPivotEventsTestTaggable::$eventsCalled = [];
 
-        $updated = $post->tagsWithPivot()->updateExistingPivot($tag->id, ['is_primary' => true]);
+        $updated = $post->tagsWithPivot()->updateExistingPivot($tag->id, ['is_primary' => false]);
 
         $this->assertSame(1, $updated);
         $this->assertEquals(['saving', 'updating', 'updated', 'saved'], MorphPivotEventsTestTaggable::$eventsCalled);
+        $this->assertDatabaseHas('pivot_events_taggables', [
+            'taggable_id' => $post->id,
+            'taggable_type' => MorphPivotEventsTestPost::class,
+            'tag_id' => $tag->id,
+            'is_primary' => false,
+        ]);
+        $this->assertDatabaseHas('pivot_events_taggables', [
+            'taggable_id' => $video->id,
+            'taggable_type' => MorphPivotEventsTestVideo::class,
+            'tag_id' => $tag->id,
+            'is_primary' => true,
+        ]);
     }
 
     public function testUpdateExistingPivotDoesNotFireEventsWhenNotDirty(): void
@@ -354,6 +369,8 @@ class MorphPivotEventsTestTaggable extends MorphPivot
     protected array $casts = [
         'is_primary' => 'boolean',
     ];
+
+    protected array $guarded = ['is_primary'];
 
     public static array $eventsCalled = [];
 
