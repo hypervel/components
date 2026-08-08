@@ -20,6 +20,7 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
@@ -63,6 +64,57 @@ class TelescopeTest extends FeatureTestCase
         EntryModel::count();
 
         $this->assertCount(1, Telescope::getEntriesQueue());
+    }
+
+    public function testThrowingTagCallbackDoesNotPoisonLaterRecording(): void
+    {
+        Telescope::tag(fn () => throw new RuntimeException('tag failed'));
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'first']));
+            $this->fail('The tag callback exception was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('tag failed', $exception->getMessage());
+        }
+
+        Telescope::$tagUsing = [];
+        Telescope::recordLog(IncomingEntry::make(['message' => 'second']));
+
+        $this->assertSame('second', Telescope::getEntriesQueue()[0]->content['message']);
+    }
+
+    public function testThrowingFilterCallbackDoesNotPoisonLaterRecording(): void
+    {
+        Telescope::filter(fn () => throw new RuntimeException('filter failed'));
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'first']));
+            $this->fail('The filter callback exception was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('filter failed', $exception->getMessage());
+        }
+
+        Telescope::$filterUsing = [];
+        Telescope::recordLog(IncomingEntry::make(['message' => 'second']));
+
+        $this->assertSame('second', Telescope::getEntriesQueue()[0]->content['message']);
+    }
+
+    public function testThrowingAfterRecordingCallbackDoesNotPoisonLaterRecording(): void
+    {
+        Telescope::afterRecording(fn () => throw new RuntimeException('after recording failed'));
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'first']));
+            $this->fail('The after-recording callback exception was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('after recording failed', $exception->getMessage());
+        }
+
+        Telescope::$afterRecordingHook = null;
+        Telescope::recordLog(IncomingEntry::make(['message' => 'second']));
+
+        $this->assertSame('second', Telescope::getEntriesQueue()[1]->content['message']);
     }
 
     public function testRunAfterStoreCallback()
