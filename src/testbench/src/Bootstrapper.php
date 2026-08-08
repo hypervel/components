@@ -12,7 +12,6 @@ use Hypervel\Testbench\Foundation\EnvironmentFile;
 use JsonException;
 use RuntimeException;
 use Throwable;
-use UnexpectedValueException;
 
 class Bootstrapper
 {
@@ -51,10 +50,6 @@ class Bootstrapper
 
         ! defined('BASE_PATH') && define('BASE_PATH', $basePath);
         ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
-
-        if (static::$runtimePath !== null) {
-            static::registerPurgeFiles();
-        }
     }
 
     /**
@@ -137,33 +132,10 @@ class Bootstrapper
 
         $filesystem = static::getFilesystem();
 
-        // Purge stale dirs from previous crashed runs, including copies created
-        // under a different ParaTest token or a reused PID.
-        // A dir is stale when its owning PID is dead, reused by this process
-        // without being the active copy, or orphaned (PPID=1, meaning the test
-        // process that spawned it exited). Orphaned serve processes (confirmed
-        // by PID, command, and process incarnation) are killed before removal.
-        foreach (glob($tempDir . '/hypervel-components-testbench-*') as $staleDir) {
-            if (! $filesystem->isDirectory($staleDir)) {
-                continue;
-            }
+        static::purgeStaleRuntimeCopies($tempDir, $pid);
 
-            if ($staleDir === static::$runtimePath) {
-                continue;
-            }
-
-            $stalePid = (int) substr($staleDir, strrpos($staleDir, '-') + 1);
-
-            if ($stalePid > 0 && $stalePid !== $pid && posix_kill($stalePid, 0)) {
-                // Process is alive — check if it's an orphaned serve process.
-                if (static::isOrphanedServeProcess($stalePid, $staleDir)) {
-                    static::killProcessTree($stalePid);
-                } else {
-                    continue; // Legitimately running — don't delete
-                }
-            }
-
-            static::deleteRuntimeDirectory($staleDir);
+        if ($runtimePath !== static::$runtimePath && $filesystem->exists($runtimePath)) {
+            throw new RuntimeException("Unable to create the Testbench runtime copy because [{$runtimePath}] already exists.");
         }
 
         try {
@@ -209,6 +181,58 @@ class Bootstrapper
         });
 
         return $runtimePath;
+    }
+
+    /**
+     * Purge stale runtime copies left by interrupted test processes.
+     */
+    protected static function purgeStaleRuntimeCopies(string $tempDirectory, int $pid): void
+    {
+        // The lock file must persist: unlinking it could let concurrent sweepers
+        // lock different inodes and enter the critical section together.
+        $lockPath = $tempDirectory . '/.hypervel-testbench-purge-' . posix_getuid() . '.lock';
+        $lock = @fopen($lockPath, 'c');
+
+        if ($lock === false) {
+            throw new RuntimeException("Unable to open the Testbench runtime purge lock at [{$lockPath}].");
+        }
+
+        try {
+            // Concurrent bootstraps would otherwise delete the same stale tree
+            // recursively and fail as sibling directories disappear mid-walk.
+            if (! flock($lock, LOCK_EX)) {
+                throw new RuntimeException("Unable to acquire the Testbench runtime purge lock at [{$lockPath}].");
+            }
+
+            $filesystem = static::getFilesystem();
+
+            // A dir is stale when its owning PID is dead, reused by this process
+            // without being the active copy, or an identity-matched orphaned
+            // serve process whose parent exited.
+            foreach (glob($tempDirectory . '/hypervel-components-testbench-*') ?: [] as $staleDirectory) {
+                if (! $filesystem->isDirectory($staleDirectory)) {
+                    continue;
+                }
+
+                if ($staleDirectory === static::$runtimePath) {
+                    continue;
+                }
+
+                $stalePid = (int) substr($staleDirectory, strrpos($staleDirectory, '-') + 1);
+
+                if ($stalePid > 0 && $stalePid !== $pid && posix_kill($stalePid, 0)) {
+                    if (static::isOrphanedServeProcess($stalePid, $staleDirectory)) {
+                        static::killProcessTree($stalePid);
+                    } else {
+                        continue;
+                    }
+                }
+
+                static::deleteRuntimeDirectory($staleDirectory);
+            }
+        } finally {
+            fclose($lock);
+        }
     }
 
     /**
@@ -269,52 +293,19 @@ class Bootstrapper
     }
 
     /**
-     * Delete a runtime copy while tolerating sibling cleanup races.
+     * Delete a runtime copy on a best-effort basis.
      *
-     * Multiple same-token Testbench children can bootstrap at once and purge
-     * the same stale runtime copy. If another child wins the race, the missing
-     * directory is the desired postcondition; if the directory remains, the
-     * original filesystem failure is still surfaced.
+     * Callers that require the path to be absent must verify that postcondition.
      */
     protected static function deleteRuntimeDirectory(string $directory): void
     {
         $filesystem = static::getFilesystem();
 
-        if (! static::runtimeDirectoryExists($filesystem, $directory)) {
+        if (! $filesystem->isDirectory($directory)) {
             return;
         }
 
-        try {
-            $filesystem->deleteDirectory($directory);
-
-            return;
-        } catch (UnexpectedValueException) {
-            clearstatcache(true, $directory);
-
-            if (! static::runtimeDirectoryExists($filesystem, $directory)) {
-                return;
-            }
-        }
-
-        try {
-            $filesystem->deleteDirectory($directory);
-        } catch (UnexpectedValueException $retryException) {
-            clearstatcache(true, $directory);
-
-            if (static::runtimeDirectoryExists($filesystem, $directory)) {
-                throw $retryException;
-            }
-        }
-    }
-
-    /**
-     * Determine if a runtime directory exists.
-     *
-     * @phpstan-impure
-     */
-    protected static function runtimeDirectoryExists(Filesystem $filesystem, string $directory): bool
-    {
-        return $filesystem->isDirectory($directory);
+        $filesystem->deleteDirectory($directory);
     }
 
     /**
@@ -564,44 +555,6 @@ class Bootstrapper
         }
 
         return $map;
-    }
-
-    /**
-     * Register shutdown handlers to purge configured files and directories.
-     */
-    protected static function registerPurgeFiles(): void
-    {
-        $purge = static::$configuration?->getPurgeAttributes() ?? [];
-        $files = $purge['files'] ?? [];
-        $directories = $purge['directories'] ?? [];
-
-        if (! $files && ! $directories) {
-            return;
-        }
-
-        $pid = getmypid();
-
-        register_shutdown_function(function () use ($files, $directories, $pid): void {
-            // A forked child inherits this callback but owns no purge targets.
-            if (getmypid() !== $pid) {
-                return;
-            }
-
-            $filesystem = static::getFilesystem();
-            foreach ($files as $file) {
-                if (! $filesystem->exists($file = BASE_PATH . "/{$file}")) {
-                    continue;
-                }
-                $filesystem->delete($file);
-            }
-
-            foreach ($directories as $directory) {
-                if (! $filesystem->exists($directory = BASE_PATH . "/{$directory}")) {
-                    continue;
-                }
-                $filesystem->deleteDirectory($directory);
-            }
-        });
     }
 
     /**
