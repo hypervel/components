@@ -28,6 +28,7 @@ class TaskProcessTest extends TestCase
             TaskForkFailureFixture::class => TaskRenderer::class,
             TaskChildFailureFixture::class => TaskRenderer::class,
             TaskSettlementTimeoutFixture::class => TaskRenderer::class,
+            TaskSlowIntervalFixture::class => TaskSlowIntervalRenderer::class,
             TaskTransportFailureFixture::class => TaskRenderer::class,
             TaskInterruptedWaitFixture::class => TaskRenderer::class,
         ]);
@@ -254,6 +255,21 @@ class TaskProcessTest extends TestCase
     }
 
     #[RunInSeparateProcess]
+    public function testSettlementWaitsForTheConfiguredRendererInterval(): void
+    {
+        $task = new TaskSlowIntervalFixture(label: 'Running');
+        $startedAt = microtime(true);
+
+        $result = $task->run(fn (Logger $logger): string => 'done');
+
+        $this->assertSame('done', $result);
+        // One second was the fixed settlement bound this correction replaced.
+        $this->assertGreaterThan(1.0, microtime(true) - $startedAt);
+        $this->assertNotNull($task->forkedPid);
+        $this->assertSame(-1, pcntl_waitpid($task->forkedPid, $status, WNOHANG));
+    }
+
+    #[RunInSeparateProcess]
     public function testLoggerTransportFailureIsReportedAfterCallbackAndChildIsReaped(): void
     {
         $transportFailure = null;
@@ -418,6 +434,26 @@ class TaskSettlementTimeoutFixture extends TaskProcessFixture
 
         exit;
     }
+}
+
+class TaskSlowIntervalFixture extends TaskProcessFixture
+{
+    /**
+     * Delay the first renderer read by one complete configured frame interval.
+     *
+     * @param resource $socket
+     */
+    protected function runRendererProcess($socket): never
+    {
+        usleep($this->interval * 1000);
+
+        parent::runRendererProcess($socket);
+    }
+}
+
+class TaskSlowIntervalRenderer extends TaskRenderer
+{
+    protected int $interval = 1200;
 }
 
 class TaskTransportFailureFixture extends TaskProcessFixture

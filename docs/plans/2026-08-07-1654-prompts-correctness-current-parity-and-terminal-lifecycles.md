@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation, validation, self-review, and independent code review are complete and signed off.
+Implementation, validation, self-review, and independent code review are complete and signed off, including the interval-scaled renderer settlement correction found during pull-request review.
 
 ## Scope
 
@@ -184,9 +184,10 @@ The decorated, non-coroutine process renderer becomes a single transactional ope
 
 - Close the child endpoint immediately and keep the parent endpoint blocking.
 - Apply the named Logger write timeout before invoking the callback.
+- Sample the renderer-selected frame interval in the parent before invoking the callback; this is the cadence inherited by the child and remains authoritative for that operation.
 - Preserve the callback result or exception while completing the reset/settlement protocol.
 - If Logger recorded a transport failure, do not send reset on the corrupted line protocol. Close the socket, terminate the positive owned child, and reap it.
-- Otherwise send reset through the shared checked writer, keep the endpoint open while waiting for child EOF with a named one-second settlement timeout, then close and reap with `waitpid()`.
+- Otherwise send reset through the shared checked writer, keep the endpoint open while waiting for child EOF with a bound of one sampled frame interval plus a named one-second margin, then close and reap with `waitpid()`. Laravel's original blind settlement delay also scaled with the frame interval; the EOF wait preserves that property without delaying a child that settles promptly.
 - Inspect stream metadata: `timed_out` means a wedged child, empty read with `eof` means clean closure, and other read failures remain errors.
 - Inspect the reaped child's exit status; a nonzero or signaled exit is renderer failure.
 - Escalate to a signal when Logger transport failed or settlement/reset times out or fails. Retry a blocking `waitpid()` only when it is interrupted, treat `ECHILD` as already reaped by the kernel when the caller ignores `SIGCHLD`, and require the child's success acknowledgement because no exit status is available. Clear the PID only after that outcome is known.
@@ -247,8 +248,8 @@ The implementation may avoid repeated length calculation and unnecessary copies 
 
 The stream timeout is a no-progress window, not a total payload deadline or a wall-clock bound for one `fwrite()`. PHP may keep one native write running longer while the child continues draining. Use separate named bounds:
 
-- ten seconds for a Logger write to tolerate a temporarily stalled live renderer; this must remain well above Task's default render interval;
-- one second for child settlement after user work has finished.
+- ten seconds for a Logger write to tolerate a temporarily stalled live renderer; this remains fixed because a false timeout would require both a frame interval above ten seconds and a payload large enough to fill the socket buffer, for which no realistic supported use was found;
+- one sampled frame interval plus a one-second margin for child settlement after user work has finished.
 
 `Logger` records only the first transport `RuntimeException`, nulls its socket, and makes later writes no-ops. `Task` retains that Logger and reads `transportFailure()` before attempting reset. A failed newline-framed write makes the stream terminal: the child may hold an incomplete line, so a reset appended later is guaranteed to be parsed as part of the truncated frame. Task therefore skips reset, terminates, and reaps. The getter is simpler than a callback sink and avoids re-entrant Task mutation inside user code.
 
@@ -417,6 +418,7 @@ Use isolated subprocess tests and protected fixture seams to prove:
 - an unrelated handled signal interrupting `waitpid()` is retried until the owned child is reaped; the regression must run red before the fix with `Unable to reap the prompt renderer process.` so its alarm timing is proven non-vacuous;
 - ignored `SIGCHLD` permits a clean operation after the kernel auto-reaps the renderer, without claiming a recoverable exit status;
 - ignored `SIGCHLD` still reports a renderer that fails before acknowledging successful settlement;
+- a custom renderer interval above one second settles successfully after delaying beyond the old fixed bound, returns the callback result, and reaps the exact child;
 - no child remains live or zombie and no nonpositive PID is signaled;
 - callback failure remains primary over renderer/cleanup failure;
 - renderer failure surfaces only after successful user work.
@@ -508,7 +510,7 @@ This order ensures Task fixture subclasses receive a truthful renderer error bef
 - No new work enters normal web request hot paths.
 - Decoration stripping runs once per completed undecorated frame and replaces duplicated regex work.
 - Static/direct undecorated modes remove animation, terminal probes, sleeps, and repeated frames.
-- Task's normal Hypervel coroutine mode is unchanged. The repaired standalone process path replaces a fixed delay with near-zero normal EOF settlement; longer bounds run only when external progress stalls.
+- Task's normal Hypervel coroutine mode is unchanged. The repaired standalone process path replaces a fixed delay with near-zero normal EOF settlement; its upper bound scales with the sampled renderer interval plus a fixed one-second margin and adds no delay when the child settles promptly.
 - Logger's full-write loop adds iterations only when native writes are partial. A stalled renderer consumes at most one ten-second window because Logger disables itself and Task skips reset after transport failure.
 - Testbench adds two PID comparisons at process shutdown only; no test or application hot path changes.
 - Progress adds one signal lookup and WeakReference per operation, not per tick.
@@ -524,6 +526,7 @@ No measured or source-proven hot-path regression is accepted.
 - No cursor reference counting or concurrent-form model for one physical terminal.
 - No animation coroutine joins.
 - No process manager, background reaper, finalizer registry, signal manager, or shutdown registry.
+- No socket-wakeup renderer loop or deadline tracking; waking on every message would break the configured render cadence, while preserving it would add deadline bookkeeping to the child protocol.
 - No writer class, writer registry, retry loop, background drain, configurable timeout, or public transport-control API.
 - No Logger callback sink, ProcessLogger subclass, Task reference inside Logger, or worker/global failure state.
 - No delta `partial()` protocol or child accumulator.

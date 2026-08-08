@@ -26,9 +26,11 @@ class Task extends Prompt
     protected const LOGGER_WRITE_TIMEOUT_SECONDS = 10;
 
     /**
-     * How long the renderer may take to settle after reset.
+     * Scheduling margin added to one complete renderer frame interval.
+     *
+     * Reset can arrive while the renderer is sleeping between frames.
      */
-    protected const RENDERER_SETTLEMENT_TIMEOUT_SECONDS = 1;
+    protected const RENDERER_SETTLEMENT_MARGIN_MILLISECONDS = 1000;
 
     /**
      * The renderer settlement acknowledgement byte.
@@ -517,6 +519,7 @@ class Task extends Prompt
         $this->socket = $sockets[1];
         stream_set_timeout($this->socket, static::LOGGER_WRITE_TIMEOUT_SECONDS);
 
+        $rendererInterval = $this->interval;
         $logger = new Logger($this->identifier, $this->socket);
         $result = null;
         $callbackFailure = null;
@@ -537,7 +540,12 @@ class Task extends Prompt
             try {
                 // A truncated newline-framed message makes a later reset unrecoverable.
                 Utils::writeAll($this->socket, $this->identifier . '_reset:' . ($success ? '1' : '0') . PHP_EOL);
-                stream_set_timeout($this->socket, static::RENDERER_SETTLEMENT_TIMEOUT_SECONDS);
+                $settlementTimeout = $rendererInterval + static::RENDERER_SETTLEMENT_MARGIN_MILLISECONDS;
+                stream_set_timeout(
+                    $this->socket,
+                    intdiv($settlementTimeout, 1000),
+                    ($settlementTimeout % 1000) * 1000,
+                );
                 $rendererAcknowledged = $this->awaitRendererClosure();
             } catch (RuntimeException $exception) {
                 $rendererFailure = $exception;
