@@ -16,6 +16,7 @@ use ParagonIE\ConstantTime\Base64UrlSafe;
 use RuntimeException;
 use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\CredentialRecord;
+use Webauthn\Exception\WebauthnException;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialCreationOptions;
 
@@ -73,11 +74,17 @@ class StorePasskey
         AuthenticatorAttestationResponse $response,
         PublicKeyCredentialCreationOptions $options
     ): CredentialRecord {
-        return WebAuthn::attestationValidator()->check(
-            authenticatorAttestationResponse: $response,
-            publicKeyCredentialCreationOptions: $options,
-            host: $this->hostFromOptions($options),
-        );
+        $validator = WebAuthn::attestationValidator();
+
+        try {
+            return $validator->check(
+                authenticatorAttestationResponse: $response,
+                publicKeyCredentialCreationOptions: $options,
+                host: $this->hostFromOptions($options),
+            );
+        } catch (WebauthnException) {
+            throw InvalidPasskeyException::make('Unable to register passkey. Please try again.');
+        }
     }
 
     /**
@@ -102,6 +109,12 @@ class StorePasskey
         string $name,
         CredentialRecord $source
     ): Passkey {
+        if (! hash_equals($user->getPasskeyUserHandle(), $source->userHandle)) {
+            throw InvalidPasskeyException::make(
+                'Passkey registration options no longer match this account. Please try again.',
+            );
+        }
+
         $credentialId = Base64UrlSafe::encodeUnpadded($source->publicKeyCredentialId);
 
         try {

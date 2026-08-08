@@ -8,6 +8,7 @@ use Hypervel\Passkeys\Actions\StorePasskey;
 use Hypervel\Passkeys\Events\PasskeyRegistered;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
 use Hypervel\Passkeys\Passkey;
+use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
@@ -15,12 +16,18 @@ use Hypervel\Tests\Passkeys\TestCase;
 use Mockery as m;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use RuntimeException;
+use Webauthn\AttestationStatement\AttestationObject;
+use Webauthn\AttestationStatement\AttestationStatement;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\AuthenticatorAttestationResponse;
+use Webauthn\AuthenticatorData;
+use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
+use Webauthn\CollectedClientData;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialCreationOptions;
 use Webauthn\PublicKeyCredentialRpEntity;
 use Webauthn\PublicKeyCredentialUserEntity;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 class StorePasskeyTest extends TestCase
 {
@@ -119,12 +126,82 @@ class StorePasskeyTest extends TestCase
         $source = $this->createCredentialSource($user->getPasskeyUserHandle(), random_bytes(16));
         $action = app(StorePasskey::class);
 
-        $action->createPasskey($user, 'Laptop', $source);
+        $passkey = $action->createPasskey($user, 'Laptop', $source);
+
+        $this->assertTrue($passkey->user->is($user));
 
         $this->expectException(InvalidPasskeyException::class);
         $this->expectExceptionMessage('Unable to register this passkey.');
 
         $action->createPasskey($user, 'Laptop again', $source);
+    }
+
+    public function testItRejectsCredentialRecordGeneratedForAnotherUser(): void
+    {
+        $firstUser = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $secondUser = User::create([
+            'name' => 'Jane Doe',
+            'email' => 'jane@example.com',
+        ]);
+        $source = $this->createCredentialSource($firstUser->getPasskeyUserHandle());
+
+        try {
+            app(StorePasskey::class)->createPasskey($secondUser, 'Laptop', $source);
+            $this->fail('Expected a credential record generated for another user to be rejected.');
+        } catch (InvalidPasskeyException $exception) {
+            $this->assertSame(
+                'Passkey registration options no longer match this account. Please try again.',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(0, $firstUser->passkeys()->count());
+        $this->assertSame(0, $secondUser->passkeys()->count());
+    }
+
+    public function testItConvertsWebAuthnRejectionsIntoInvalidPasskeyException(): void
+    {
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $credential = PublicKeyCredential::create(
+            type: 'public-key',
+            rawId: random_bytes(16),
+            response: $this->createInvalidAttestationResponse(),
+        );
+
+        $this->expectException(InvalidPasskeyException::class);
+        $this->expectExceptionMessage('Unable to register passkey. Please try again.');
+
+        app(StorePasskey::class)($user, 'Laptop', $credential, $this->createRegistrationOptions($user));
+    }
+
+    public function testItDoesNotConvertWebAuthnFactoryFailures(): void
+    {
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $credential = PublicKeyCredential::create(
+            type: 'public-key',
+            rawId: random_bytes(16),
+            response: $this->createInvalidAttestationResponse(),
+        );
+
+        WebAuthn::configureCeremonyStepManagerFactoryUsing(
+            static function (CeremonyStepManagerFactory $factory): never {
+                throw new RuntimeException('Unable to configure the ceremony factory.');
+            },
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to configure the ceremony factory.');
+
+        app(StorePasskey::class)($user, 'Laptop', $credential, $this->createRegistrationOptions($user));
     }
 
     public function testItThrowsExceptionWhenResponseIsNotAnAttestationResponse(): void
@@ -185,6 +262,36 @@ class StorePasskeyTest extends TestCase
         $this->expectExceptionMessage('Passkey registration options must contain a relying party ID.');
 
         (new ExposesStorePasskeyHost)->host($options);
+    }
+
+    /**
+     * Create an attestation response that reaches the WebAuthn rejection boundary.
+     */
+    private function createInvalidAttestationResponse(): AuthenticatorAttestationResponse
+    {
+        $challenge = random_bytes(32);
+        $clientData = [
+            'type' => 'webauthn.create',
+            'challenge' => Base64UrlSafe::encodeUnpadded($challenge),
+            'origin' => 'http://localhost',
+        ];
+        $rawClientData = json_encode($clientData, JSON_THROW_ON_ERROR);
+        $authenticatorData = AuthenticatorData::create(
+            authData: '',
+            rpIdHash: hash('sha256', 'localhost', binary: true),
+            flags: chr(AuthenticatorData::FLAG_UP),
+            signCount: 0,
+        );
+        $attestationStatement = AttestationStatement::createNone(
+            fmt: 'none',
+            attStmt: [],
+            trustPath: EmptyTrustPath::create(),
+        );
+
+        return AuthenticatorAttestationResponse::create(
+            clientDataJSON: CollectedClientData::create($rawClientData, $clientData),
+            attestationObject: AttestationObject::create('', $attestationStatement, $authenticatorData),
+        );
     }
 }
 

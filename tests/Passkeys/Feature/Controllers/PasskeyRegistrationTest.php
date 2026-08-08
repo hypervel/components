@@ -9,13 +9,17 @@ use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\PasskeysServiceProvider;
+use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Passkeys\Fixtures\User;
+use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
 use Mockery as m;
 
 class PasskeyRegistrationTest extends TestCase
 {
+    use WebAuthnFixtures;
+
     public function testItReturnsRegistrationOptionsForAuthenticatedUser(): void
     {
         $user = User::create([
@@ -74,6 +78,31 @@ class PasskeyRegistrationTest extends TestCase
         $this->assertNotNull(session('passkey.registration_options'));
     }
 
+    public function testRegistrationOptionsRemainInSessionWhenTheAuthenticatedUserChanges(): void
+    {
+        $firstUser = User::create([
+            'name' => 'First User',
+            'email' => 'first@example.com',
+        ]);
+        $secondUser = User::create([
+            'name' => 'Second User',
+            'email' => 'second@example.com',
+        ]);
+
+        $this->actingAs($firstUser)
+            ->withSession(['auth.password_confirmed_at_web' => time()])
+            ->getJson('/user/passkeys/options')
+            ->assertOk();
+
+        $registrationOptions = session('passkey.registration_options');
+
+        Passkeys::guard()->logout();
+        Passkeys::guard()->login($secondUser);
+
+        $this->assertTrue(Passkeys::guard()->user()?->is($secondUser));
+        $this->assertSame($registrationOptions, session('passkey.registration_options'));
+    }
+
     public function testItRequiresPasswordConfirmationForRegistrationOptions(): void
     {
         $user = User::create([
@@ -109,7 +138,7 @@ class PasskeyRegistrationTest extends TestCase
             ->assertUnauthorized();
     }
 
-    public function testItReturnsValidationErrorWhenPasskeyCredentialFormatIsInvalid(): void
+    public function testItReturnsValidationErrorWhenPasskeyIsInvalid(): void
     {
         $user = User::create([
             'name' => 'Test User',
@@ -118,12 +147,30 @@ class PasskeyRegistrationTest extends TestCase
 
         $this->instance(StorePasskey::class, m::mock(StorePasskey::class)
             ->shouldReceive('__invoke')
-            ->andThrow(InvalidPasskeyException::make())
+            ->once()
+            ->andThrow(InvalidPasskeyException::make('Unable to register passkey. Please try again.'))
             ->getMock());
 
         $this->actingAs($user)
             ->withSession(['auth.password_confirmed_at_web' => time()])
-            ->withSession(['passkey.registration_options' => 'serialized-options'])
+            ->withSession(['passkey.registration_options' => WebAuthn::toJson($this->createRegistrationOptions($user))])
+            ->postJson('/user/passkeys', [
+                'name' => 'My Passkey',
+                'credential' => $this->createRegistrationCredential(),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['credential' => 'Unable to register passkey. Please try again.']);
+    }
+
+    public function testItReturnsValidationErrorWhenPasskeyCredentialFormatIsInvalid(): void
+    {
+        $user = User::create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->postJson('/user/passkeys', [
                 'name' => 'My Passkey',
                 'credential' => [
@@ -134,7 +181,7 @@ class PasskeyRegistrationTest extends TestCase
                 ],
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['credential']);
+            ->assertJsonValidationErrors(['credential' => 'Invalid credential format.']);
     }
 
     public function testItReturnsValidationErrorWhenSessionHasExpired(): void
@@ -148,15 +195,10 @@ class PasskeyRegistrationTest extends TestCase
             ->withSession(['auth.password_confirmed_at_web' => time()])
             ->postJson('/user/passkeys', [
                 'name' => 'My Passkey',
-                'credential' => [
-                    'id' => 'dGVzdC1pZA',
-                    'rawId' => 'dGVzdC1pZA',
-                    'type' => 'public-key',
-                    'response' => ['test' => 'response'],
-                ],
+                'credential' => $this->createRegistrationCredential(),
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['credential']);
+            ->assertJsonValidationErrors(['credential' => 'Passkey registration session expired. Please try again.']);
     }
 
     public function testItRequiresPasswordConfirmationToStoreAPasskey(): void
