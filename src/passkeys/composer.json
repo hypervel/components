@@ -32,9 +32,11 @@
         "hypervel/session": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/validation": "^0.4",
+        "nesbot/carbon": "^3.13.1",
         "paragonie/constant_time_encoding": "^3.1",
         "symfony/console": "^8.1",
         "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1",
         "symfony/serializer": "^8.1",
         "web-auth/cose-lib": "^4.5",
         "web-auth/webauthn-lib": "^5.3"

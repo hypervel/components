@@ -32,6 +32,7 @@ class PackageMetadataTest extends TestCase
 
         $this->assertSame('^0.4', $composer['require']['hypervel/routing']);
         $this->assertSame('^3.0', $composer['require']['psr/log']);
+        $this->assertSame($rootComposer['require']['symfony/http-kernel'], $composer['require']['symfony/http-kernel']);
         $this->assertArrayNotHasKey('hypervel/auth', $composer['require']);
         $this->assertArrayNotHasKey('hypervel/cache', $composer['require']);
 
