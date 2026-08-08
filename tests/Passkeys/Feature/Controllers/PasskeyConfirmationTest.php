@@ -79,7 +79,8 @@ class PasskeyConfirmationTest extends TestCase
 
         $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
             ->shouldReceive('__invoke')
-            ->andThrow(InvalidPasskeyException::make())
+            ->once()
+            ->andThrow(InvalidPasskeyException::make('Unable to verify passkey. Please try again.'))
             ->getMock());
 
         $this->actingAs($user)
@@ -88,7 +89,7 @@ class PasskeyConfirmationTest extends TestCase
                 'credential' => $this->createAssertionCredential(),
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['credential']);
+            ->assertJsonValidationErrors(['credential' => 'Unable to verify passkey. Please try again.']);
 
         $this->assertAuthenticatedAs($user);
     }

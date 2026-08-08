@@ -41,7 +41,8 @@ class PasskeyLoginTest extends TestCase
     {
         $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
             ->shouldReceive('__invoke')
-            ->andThrow(InvalidPasskeyException::make())
+            ->once()
+            ->andThrow(InvalidPasskeyException::make('Unable to verify passkey. Please try again.'))
             ->getMock());
 
         $this->withSession(['passkey.login_options' => WebAuthn::toJson($this->createRequestOptions())])
@@ -49,7 +50,7 @@ class PasskeyLoginTest extends TestCase
                 'credential' => $this->createAssertionCredential(),
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['credential']);
+            ->assertJsonValidationErrors(['credential' => 'Unable to verify passkey. Please try again.']);
 
         $this->assertGuest();
     }
@@ -66,7 +67,7 @@ class PasskeyLoginTest extends TestCase
                 ],
             ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['credential']);
+            ->assertJsonValidationErrors(['credential' => 'Invalid credential format.']);
 
         $this->assertGuest();
     }
@@ -77,6 +78,6 @@ class PasskeyLoginTest extends TestCase
             'credential' => $this->createAssertionCredential(),
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['credential']);
+            ->assertJsonValidationErrors(['credential' => 'Passkey verification session expired. Please try again.']);
     }
 }

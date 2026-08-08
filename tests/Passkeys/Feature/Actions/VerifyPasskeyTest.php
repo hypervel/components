@@ -14,6 +14,7 @@ use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\Support\WebAuthn;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
@@ -26,7 +27,9 @@ use UnitEnum;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\AuthenticatorResponse;
+use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
 use Webauthn\CredentialRecord;
+use Webauthn\Exception\CounterException;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialDescriptor;
 use Webauthn\PublicKeyCredentialRequestOptions;
@@ -120,6 +123,31 @@ class VerifyPasskeyTest extends TestCase
         app(VerifyPasskey::class)($assertion, $this->createRequestOptions());
     }
 
+    public function testItRejectsOversizedCredentialIdsBeforeQuerying(): void
+    {
+        $response = m::mock(AuthenticatorAssertionResponse::class);
+        $action = app(VerifyPasskey::class);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $action->getPasskey(PublicKeyCredential::create('public-key', str_repeat('a', 1024), $response));
+            $this->fail('Expected an oversized credential ID to be rejected.');
+        } catch (InvalidPasskeyException) {
+        }
+
+        $this->assertSame([], DB::getQueryLog());
+
+        try {
+            $action->getPasskey(PublicKeyCredential::create('public-key', random_bytes(16), $response));
+            $this->fail('Expected a missing credential ID to be rejected.');
+        } catch (InvalidPasskeyException) {
+        }
+
+        $this->assertNotSame([], DB::getQueryLog());
+    }
+
     public function testItThrowsExceptionWhenPasskeyDoesNotBelongToExpectedUser(): void
     {
         $owner = User::create([
@@ -196,6 +224,88 @@ class VerifyPasskeyTest extends TestCase
 
         $this->assertSame($passkey->id, $result->id);
         $this->assertSame($initialUserHandle, Base64UrlSafe::decodeNoPadding($result->refresh()->credential['userHandle']));
+    }
+
+    public function testItConvertsWebAuthnVerificationRejectionsIntoInvalidPasskeyException(): void
+    {
+        [$user, $credentialId] = $this->createStoredPasskeyCredential();
+        $options = $this->createRequestOptions();
+        $credential = PublicKeyCredential::create(
+            type: 'public-key',
+            rawId: $credentialId,
+            response: $this->createSignedAssertionResponse(
+                random_bytes(32),
+                'https://localhost',
+                signCount: 1,
+                rpId: 'localhost',
+            ),
+        );
+
+        $this->expectException(InvalidPasskeyException::class);
+        $this->expectExceptionMessage('Unable to verify passkey. Please try again.');
+
+        app(VerifyPasskey::class)($credential, $options, $user);
+    }
+
+    public function testItConvertsCounterRejectionsIntoInvalidPasskeyException(): void
+    {
+        [$user, $credentialId, $source] = $this->createStoredPasskeyCredential(counter: 5);
+        $options = $this->createRequestOptions();
+        $response = $this->createSignedAssertionResponse(
+            $options->challenge,
+            'https://localhost',
+            signCount: 5,
+            rpId: 'localhost',
+        );
+        $credential = PublicKeyCredential::create(
+            type: 'public-key',
+            rawId: $credentialId,
+            response: $response,
+        );
+
+        try {
+            WebAuthn::assertionValidator()->check(
+                credentialRecord: $source,
+                authenticatorAssertionResponse: $response,
+                publicKeyCredentialRequestOptions: $options,
+                host: 'localhost',
+                userHandle: $source->userHandle,
+            );
+            $this->fail('Expected the unchanged authenticator counter to be rejected.');
+        } catch (CounterException) {
+        }
+
+        $this->expectException(InvalidPasskeyException::class);
+        $this->expectExceptionMessage('Unable to verify passkey. Please try again.');
+
+        app(VerifyPasskey::class)($credential, $options, $user);
+    }
+
+    public function testItDoesNotConvertWebAuthnFactoryFailures(): void
+    {
+        [$user, $credentialId] = $this->createStoredPasskeyCredential();
+        $options = $this->createRequestOptions();
+        $credential = PublicKeyCredential::create(
+            type: 'public-key',
+            rawId: $credentialId,
+            response: $this->createSignedAssertionResponse(
+                $options->challenge,
+                'https://localhost',
+                signCount: 1,
+                rpId: 'localhost',
+            ),
+        );
+
+        WebAuthn::configureCeremonyStepManagerFactoryUsing(
+            static function (CeremonyStepManagerFactory $factory): never {
+                throw new RuntimeException('Unable to configure the ceremony factory.');
+            },
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to configure the ceremony factory.');
+
+        app(VerifyPasskey::class)($credential, $options, $user);
     }
 
     public function testItUsesTheRelyingPartyIdStoredInVerificationOptions(): void
@@ -277,6 +387,32 @@ class VerifyPasskeyTest extends TestCase
 
         $this->assertSame($passkey, $verifier($credential, $options, $user));
         $this->assertTrue($verifier->receivedLockedLookup);
+    }
+
+    /**
+     * Create a stored passkey credential that can reach the WebAuthn validator.
+     *
+     * @return array{User, string, CredentialRecord}
+     */
+    private function createStoredPasskeyCredential(int $counter = 0): array
+    {
+        config()->set('passkeys.allowed_origins', ['https://localhost']);
+        config()->set('passkeys.relying_party_id', 'localhost');
+
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $credentialId = random_bytes(16);
+        $source = $this->createCredentialSource($user->getPasskeyUserHandle(), $credentialId, $counter);
+
+        $user->passkeys()->create([
+            'name' => 'My MacBook',
+            'credential_id' => Base64UrlSafe::encodeUnpadded($credentialId),
+            'credential' => json_decode(WebAuthn::toJson($source), true, flags: JSON_THROW_ON_ERROR),
+        ]);
+
+        return [$user, $credentialId, $source];
     }
 }
 
