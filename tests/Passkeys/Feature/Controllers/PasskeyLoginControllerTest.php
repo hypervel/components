@@ -10,6 +10,7 @@ use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
+use Hypervel\Validation\ValidationException;
 use Mockery as m;
 
 class PasskeyLoginControllerTest extends TestCase
@@ -40,6 +41,39 @@ class PasskeyLoginControllerTest extends TestCase
         $this->withSession(['passkey.login_options' => WebAuthn::toJson($this->createRequestOptions())])
             ->postJson('/passkeys/login', ['credential' => $this->createAssertionCredential()])
             ->assertUnprocessable();
+
+        $this->assertGuest();
+    }
+
+    public function testItReturnsTheCustomSignInAuthorizationValidationMessage(): void
+    {
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+
+        $passkey = $user->passkeys()->create([
+            'name' => 'My MacBook',
+            'credential_id' => 'test-credential-id',
+            'credential' => [],
+        ]);
+
+        $this->instance(VerifyPasskey::class, m::mock(VerifyPasskey::class)
+            ->shouldReceive('__invoke')
+            ->once()
+            ->andReturn($passkey)
+            ->getMock());
+
+        Passkeys::authorizeLoginUsing(static function (): never {
+            throw ValidationException::withMessages([
+                'credential' => ['This account has been suspended.'],
+            ]);
+        });
+
+        $this->withSession(['passkey.login_options' => WebAuthn::toJson($this->createRequestOptions())])
+            ->postJson('/passkeys/login', ['credential' => $this->createAssertionCredential()])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['credential' => 'This account has been suspended.']);
 
         $this->assertGuest();
     }
