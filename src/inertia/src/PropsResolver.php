@@ -150,7 +150,7 @@ class PropsResolver
      *
      * @param array<array-key, mixed|ProvidesInertiaProperties> $shared
      * @param array<array-key, mixed|ProvidesInertiaProperties> $props
-     * @return array{array<string, mixed>, array<string, mixed>}
+     * @return array{array<array-key, mixed>, array<string, mixed>}
      */
     public function resolve(array $shared, array $props): array
     {
@@ -166,7 +166,7 @@ class PropsResolver
      * Resolve shared property providers and collect shared prop keys.
      *
      * @param array<array-key, mixed|ProvidesInertiaProperties> $shared
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     protected function resolveSharedProps(array $shared): array
     {
@@ -191,7 +191,7 @@ class PropsResolver
      * Resolve ProvidesInertiaProperties instances into keyed props.
      *
      * @param array<array-key, mixed> $props
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     protected function resolvePropertyProviders(array $props): array
     {
@@ -237,7 +237,7 @@ class PropsResolver
      * Recursively resolve the props tree, collecting metadata along the way.
      *
      * @param array<array-key, mixed> $props
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     protected function resolveProps(array $props, string $prefix = '', bool $parentWasResolved = false): array
     {
@@ -245,8 +245,11 @@ class PropsResolver
         $result = [];
 
         foreach ($props as $key => $value) {
-            $path = $prefix === '' ? $key : "{$prefix}.{$key}";
-            $prop = $value;
+            $path = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
+
+            // Shared scroll props may outlive a request, and resolution mutates them.
+            // Resolve each prop path through its own copy.
+            $prop = $value instanceof ScrollProp ? clone $value : $value;
 
             // On partial requests, we only include props that match the paths
             // specified in the request headers. AlwaysProp instances and the
@@ -264,7 +267,7 @@ class PropsResolver
 
             $value = $this->resolveValue($prop, $path, $props);
 
-            if (in_array($path, $this->rescuedProps)) {
+            if (in_array($path, $this->rescuedProps, true)) {
                 continue;
             }
 
@@ -272,7 +275,7 @@ class PropsResolver
             // this happens, we unwrap it one more level so the prop type can
             // participate in filtering and metadata collection below.
             if ($value !== $prop && $this->isPropType($value)) {
-                $prop = $value;
+                $prop = $value instanceof ScrollProp ? clone $value : $value;
 
                 // Check again after unwrapping: the resolved prop type may
                 // itself need to be excluded from the initial response.
@@ -412,7 +415,7 @@ class PropsResolver
         return $prop instanceof Onceable
             && $prop->shouldResolveOnce()
             && ! $prop->shouldBeRefreshed()
-            && in_array($prop->getKey() ?? $path, $this->loadedOnceProps);
+            && in_array($prop->getKey() ?? $path, $this->loadedOnceProps, true);
     }
 
     /**
@@ -509,7 +512,7 @@ class PropsResolver
      */
     protected function collectMergeableMetadata(string $path, Mergeable $prop): void
     {
-        if (in_array($path, $this->resetProps)) {
+        if (in_array($path, $this->resetProps, true)) {
             return;
         }
 
@@ -546,7 +549,7 @@ class PropsResolver
     {
         $this->scrollProps[$path] = [
             ...$prop->metadata(),
-            'reset' => in_array($path, $this->resetProps),
+            'reset' => in_array($path, $this->resetProps, true),
         ];
     }
 
@@ -697,6 +700,11 @@ class PropsResolver
      */
     protected function parseHeader(string $key): ?array
     {
-        return array_filter(explode(',', $this->request->header($key, ''))) ?: null;
+        $values = array_filter(
+            explode(',', $this->request->header($key, '')),
+            fn (string $value): bool => $value !== '',
+        );
+
+        return $values === [] ? null : $values;
     }
 }

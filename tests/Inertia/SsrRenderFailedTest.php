@@ -75,4 +75,25 @@ class SsrRenderFailedTest extends TestCase
         $this->assertArrayNotHasKey('browser_api', $array);
         $this->assertArrayNotHasKey('source_location', $array);
     }
+
+    public function testToArrayPreservesEmptyAndZeroDiagnosticValues(): void
+    {
+        $event = new SsrRenderFailed(
+            page: ['component' => '0', 'url' => '0'],
+            error: '0',
+            hint: '',
+            browserApi: '0',
+            sourceLocation: '0',
+        );
+
+        $this->assertSame([
+            'component' => '0',
+            'url' => '0',
+            'error' => '0',
+            'type' => 'unknown',
+            'hint' => '',
+            'browser_api' => '0',
+            'source_location' => '0',
+        ], $event->toArray());
+    }
 }

@@ -13,7 +13,7 @@ class MultiSearchPromptRenderer extends Renderer implements Scrolling
     use Concerns\DrawsScrollbars;
 
     /**
-     * Render the suggest prompt.
+     * Render the multisearch prompt.
      */
     public function __invoke(MultiSearchPrompt $prompt): string
     {

@@ -13,6 +13,7 @@ use Hypervel\Inertia\Response;
 use Hypervel\Inertia\ScrollProp;
 use Hypervel\Inertia\Support\Header;
 use Hypervel\Tests\Inertia\Fixtures\User;
+use RuntimeException;
 
 class ScrollPropTest extends TestCase
 {
@@ -171,6 +172,43 @@ class ScrollPropTest extends TestCase
         $this->assertEquals($value1, $value2);
         $this->assertEquals($value2, $value3);
         $this->assertEquals(['item1', 'item2', 'item3'], $value1);
+    }
+
+    public function testNullScrollPropValueIsResolvedOnlyOnce(): void
+    {
+        $callCount = 0;
+        $scrollProp = new ScrollProp(function () use (&$callCount) {
+            ++$callCount;
+
+            return null;
+        });
+
+        $this->assertNull($scrollProp());
+        $this->assertNull($scrollProp());
+        $this->assertSame(1, $callCount);
+    }
+
+    public function testScrollPropRetriesAfterResolutionFailure(): void
+    {
+        $callCount = 0;
+        $scrollProp = new ScrollProp(function () use (&$callCount) {
+            if (++$callCount === 1) {
+                throw new RuntimeException('Failed to resolve scroll prop.');
+            }
+
+            return ['item1'];
+        });
+
+        try {
+            $scrollProp();
+            $this->fail('The first resolution should fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Failed to resolve scroll prop.', $exception->getMessage());
+        }
+
+        $this->assertSame(['item1'], $scrollProp());
+        $this->assertSame(['item1'], $scrollProp());
+        $this->assertSame(2, $callCount);
     }
 
     public function testStringFunctionNamesAreNotInvoked(): void

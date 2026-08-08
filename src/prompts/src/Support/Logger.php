@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Prompts\Support;
 
+use RuntimeException;
+
 class Logger
 {
+    /**
+     * The first transport failure encountered while writing.
+     */
+    protected ?RuntimeException $transportFailure = null;
+
     /**
      * Create a new Logger instance.
      *
@@ -33,6 +40,10 @@ class Logger
      */
     public function partial(string $chunk): void
     {
+        if ($this->socket === null) {
+            return;
+        }
+
         $this->streamBuffer .= $chunk;
         $this->write($this->streamBuffer, 'partial');
     }
@@ -95,11 +106,23 @@ class Logger
             return;
         }
 
-        if ($type !== null) {
-            fwrite($this->socket, $this->prefix($type, $message) . PHP_EOL);
-        } else {
-            fwrite($this->socket, $message . PHP_EOL);
+        $payload = ($type !== null ? $this->prefix($type, $message) : $message) . PHP_EOL;
+
+        try {
+            // Each protocol frame must be complete because stream writes may be partial.
+            Utils::writeAll($this->socket, $payload);
+        } catch (RuntimeException $exception) {
+            $this->transportFailure ??= $exception;
+            $this->socket = null;
         }
+    }
+
+    /**
+     * Get the first transport failure encountered while writing.
+     */
+    public function transportFailure(): ?RuntimeException
+    {
+        return $this->transportFailure;
     }
 
     /**

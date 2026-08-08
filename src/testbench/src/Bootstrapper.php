@@ -199,7 +199,12 @@ class Bootstrapper
 
         static::$runtimePath = $runtimePath;
 
-        register_shutdown_function(static function () {
+        register_shutdown_function(static function () use ($pid): void {
+            // A forked child inherits this callback but owns no runtime copy.
+            if (getmypid() !== $pid) {
+                return;
+            }
+
             static::deleteRuntimeCopy();
         });
 
@@ -574,7 +579,14 @@ class Bootstrapper
             return;
         }
 
-        register_shutdown_function(function () use ($files, $directories) {
+        $pid = getmypid();
+
+        register_shutdown_function(function () use ($files, $directories, $pid): void {
+            // A forked child inherits this callback but owns no purge targets.
+            if (getmypid() !== $pid) {
+                return;
+            }
+
             $filesystem = static::getFilesystem();
             foreach ($files as $file) {
                 if (! $filesystem->exists($file = BASE_PATH . "/{$file}")) {

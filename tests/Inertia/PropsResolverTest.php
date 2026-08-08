@@ -546,6 +546,38 @@ class PropsResolverTest extends TestCase
         $this->assertArrayNotHasKey('mergeProps', $page);
     }
 
+    public function testPartialAndResetHeadersPreserveAZeroPropPath(): void
+    {
+        $request = $this->makePartialRequest('0');
+        $request->headers->add(['X-Inertia-Reset' => '0']);
+
+        $page = $this->makePage($request, [
+            '0' => new MergeProp([['id' => 1]]),
+            'other' => 'value',
+        ]);
+
+        $this->assertSame([['id' => 1]], $page['props'][0]);
+        $this->assertArrayNotHasKey('other', $page['props']);
+        $this->assertArrayNotHasKey('mergeProps', $page);
+    }
+
+    public function testResetHeaderDoesNotCoerceNumericPropPaths(): void
+    {
+        $request = $this->makePartialRequest('0');
+        $request->headers->add(['X-Inertia-Reset' => '0.0']);
+
+        $page = $this->makePage($request, [
+            '0' => new ScrollProp(
+                ['data' => [['id' => 1]]],
+                'data',
+                $this->makeScrollMetadata(),
+            ),
+        ]);
+
+        $this->assertSame(['0.data'], $page['mergeProps']);
+        $this->assertFalse($page['scrollProps'][0]['reset']);
+    }
+
     public function testNestedOncePropMetadataIsCollected(): void
     {
         $page = $this->makePage(Request::create('/'), [
@@ -584,6 +616,34 @@ class PropsResolverTest extends TestCase
         $this->assertSame('UTC', $page['props']['config']['timezone']);
         $this->assertArrayNotHasKey('locale', $page['props']['config']);
         $this->assertSame(['config.locale' => ['prop' => 'config.locale', 'expiresAt' => null]], $page['onceProps']);
+    }
+
+    public function testOnceHeaderPreservesAZeroCustomKey(): void
+    {
+        $request = Request::create('/');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => '0']);
+
+        $page = $this->makePage($request, [
+            'locale' => Inertia::once(fn () => 'en')->as('0'),
+        ]);
+
+        $this->assertArrayNotHasKey('locale', $page['props']);
+        $this->assertSame(['0' => ['prop' => 'locale', 'expiresAt' => null]], $page['onceProps']);
+    }
+
+    public function testOnceHeaderDoesNotCoerceNumericCustomKeys(): void
+    {
+        $request = Request::create('/');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => '0.0']);
+
+        $page = $this->makePage($request, [
+            'locale' => Inertia::once(fn () => 'en')->as('0'),
+        ]);
+
+        $this->assertSame('en', $page['props']['locale']);
+        $this->assertSame(['0' => ['prop' => 'locale', 'expiresAt' => null]], $page['onceProps']);
     }
 
     public function testNestedOnceMetadataIsCollectedOnExactPartialRequest(): void
@@ -631,6 +691,61 @@ class PropsResolverTest extends TestCase
                 'reset' => false,
             ],
         ], $page['scrollProps']);
+    }
+
+    public function testSharedScrollPropResolvesIndependentlyAtEachPath(): void
+    {
+        $callCount = 0;
+        $scrollProp = new ScrollProp(
+            function () use (&$callCount) {
+                return ['data' => [['id' => ++$callCount]]];
+            },
+            'data',
+            fn () => $this->makeScrollMetadata(),
+        );
+
+        $page = $this->makePage(Request::create('/'), [
+            'first' => $scrollProp,
+            'second' => $scrollProp,
+        ]);
+
+        $this->assertSame(2, $callCount);
+        $this->assertSame([['id' => 1]], $page['props']['first']['data']);
+        $this->assertSame([['id' => 2]], $page['props']['second']['data']);
+        $this->assertSame(['first.data', 'second.data'], $page['mergeProps']);
+        $this->assertSame(['first', 'second'], array_keys($page['scrollProps']));
+    }
+
+    public function testPropertyProviderScrollPropResolvesWithoutMutatingItsSource(): void
+    {
+        $callCount = 0;
+        $scrollProp = new ScrollProp(
+            function () use (&$callCount) {
+                ++$callCount;
+
+                return ['data' => [['id' => 1]]];
+            },
+            'data',
+            fn () => $this->makeScrollMetadata(),
+        );
+
+        $provider = new class($scrollProp) implements ProvidesInertiaProperties {
+            public function __construct(private readonly ScrollProp $scrollProp)
+            {
+            }
+
+            public function toInertiaProperties(RenderContext $context): iterable
+            {
+                return ['feed' => $this->scrollProp];
+            }
+        };
+
+        $page = $this->makePage(Request::create('/'), [$provider]);
+
+        $this->assertSame(1, $callCount);
+        $this->assertSame([['id' => 1]], $page['props']['feed']['data']);
+        $this->assertSame(['feed.data'], $page['mergeProps']);
+        $this->assertSame([], $scrollProp->appendsAtPaths());
     }
 
     public function testNestedDeferredScrollPropIsExcludedFromInitialLoad(): void
@@ -1049,7 +1164,7 @@ class PropsResolverTest extends TestCase
     /**
      * Resolve the given props through the Inertia response and return the page data.
      *
-     * @param array<string, mixed> $props
+     * @param array<array-key, mixed> $props
      * @return array<string, mixed>
      */
     protected function makePage(Request $request, array $props): array
