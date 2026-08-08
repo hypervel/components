@@ -28,6 +28,19 @@ class CspTest extends FeatureTestCase
         $this->assertStringContainsString('<script type="module" nonce="dashboard-nonce">', $js);
     }
 
+    public function testCspNonceIsEscapedForHtmlAttributes(): void
+    {
+        Telescope::cspNonce('dashboard" onload="alert(1)');
+
+        $css = (string) Telescope::css();
+        $js = (string) Telescope::js();
+        $attribute = ' nonce="dashboard&quot; onload=&quot;alert(1)"';
+
+        $this->assertSame(2, substr_count($css, "<style{$attribute}>"));
+        $this->assertStringContainsString("<script type=\"module\"{$attribute}>", $js);
+        $this->assertStringNotContainsString(' onload="alert(1)"', $css . $js);
+    }
+
     public function testCspNonceIsIsolatedBetweenConcurrentCoroutines(): void
     {
         [$first, $second] = parallel([

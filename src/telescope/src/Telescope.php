@@ -841,9 +841,10 @@ class Telescope
      */
     protected static function cspNonceAttribute(): string
     {
+        /** @var null|string $nonce */
         $nonce = CoroutineContext::get(static::CSP_NONCE_CONTEXT_KEY);
 
-        return $nonce === null ? '' : " nonce=\"{$nonce}\"";
+        return $nonce === null ? '' : ' nonce="' . e($nonce) . '"';
     }
 
     /**
