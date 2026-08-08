@@ -33,6 +33,32 @@ class PasskeysTest extends TestCase
         $this->assertSame(30000, Passkeys::timeout());
     }
 
+    public function testItReturnsTheConfiguredUserHandleSecret(): void
+    {
+        config(['passkeys.user_handle_secret' => 'configured-secret']);
+
+        $this->assertSame('configured-secret', Passkeys::userHandleSecret());
+    }
+
+    public function testConfigDefaultsTheUserHandleSecretToTheApplicationKey(): void
+    {
+        config(['app.key' => 'application-key']);
+
+        $config = require dirname(__DIR__, 3) . '/src/passkeys/config/passkeys.php';
+
+        $this->assertSame('application-key', $config['user_handle_secret']);
+    }
+
+    public function testItThrowsWhenTheUserHandleSecretIsEmpty(): void
+    {
+        config(['passkeys.user_handle_secret' => '']);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Passkey user handle secret must not be empty.');
+
+        Passkeys::userHandleSecret();
+    }
+
     public function testItReturnsTheConfiguredRelyingPartyId(): void
     {
         config(['passkeys.relying_party_id' => 'configured.example.com']);

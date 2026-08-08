@@ -19,6 +19,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # The split script reads the public origin anonymously and pushes split repositories over SSH.
+          persist-credentials: false
 
       - name: Setup private key
         run: |

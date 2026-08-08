@@ -16,7 +16,9 @@ return new class extends Migration {
             $table->id();
             $table->morphs('user');
             $table->string('name');
-            $table->string('credential_id')->unique();
+            // CTAP2 permits 1,023 raw bytes, requiring 1,364 unpadded Base64URL characters.
+            // The binary charset keeps MySQL-family uniqueness case-sensitive like PostgreSQL and SQLite.
+            $table->string('credential_id', 1364)->charset('binary')->unique();
             $table->jsonb('credential');
             $table->timestamp('last_used_at')->nullable();
             $table->timestamps();

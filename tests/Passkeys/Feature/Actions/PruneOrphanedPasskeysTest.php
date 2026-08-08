@@ -11,6 +11,7 @@ use Hypervel\Passkeys\Passkey;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
 class PruneOrphanedPasskeysTest extends TestCase
@@ -82,7 +83,7 @@ class PruneOrphanedPasskeysTest extends TestCase
 
         $this->assertSame([], $result);
         $this->assertSame([
-            'Skipping passkeys for unresolved morph alias [passkey-users]. Register the morph map before pruning.',
+            'Skipping passkeys for unresolved owner type [passkey-users]. Register the morph map before pruning.',
         ], $warnings);
         $this->assertDatabaseHas('passkeys', [
             'id' => $passkey->getKey(),
@@ -90,26 +91,77 @@ class PruneOrphanedPasskeysTest extends TestCase
         ]);
     }
 
-    public function testItDeletesPasskeysForMissingOwnerClasses(): void
+    public function testItDeletesOrphansForMappedOwnerAliases(): void
     {
-        $missingOwnerClass = 'Hypervel\Tests\Passkeys\Fixtures\MissingPasskeyOwner';
+        Relation::morphMap([
+            'passkey-users' => User::class,
+        ], false);
 
-        $passkey = new Passkey;
-        $passkey->forceFill([
-            'user_type' => $missingOwnerClass,
-            'user_id' => 1,
-            'name' => 'Laptop',
-            'credential_id' => 'credential-missing-owner-class',
-            'credential' => ['id' => 'credential-missing-owner-class'],
-        ])->save();
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $passkey = $this->createPasskeyForUser($user, 'credential-mapped-orphan');
+
+        // Builder deletion bypasses the model hook so the passkey remains orphaned for pruning.
+        User::query()->whereKey($user->getKey())->delete();
+
+        $this->assertSame(['passkey-users' => 1], (new PruneOrphanedPasskeys)());
+        $this->assertDatabaseMissing('passkeys', ['id' => $passkey->getKey()]);
+    }
+
+    #[DataProvider('unloadableOwnerClasses')]
+    public function testItWarnsAndRetainsPasskeysForMissingOwnerClasses(string $missingOwnerClass): void
+    {
+        $passkey = $this->createPasskeyForOwnerType(
+            $missingOwnerClass,
+            'credential-missing-owner-class-' . hash('xxh128', $missingOwnerClass),
+        );
+        $warnings = [];
+
+        $this->assertSame([], (new PruneOrphanedPasskeys)(
+            warn: static function (string $message) use (&$warnings): void {
+                $warnings[] = $message;
+            },
+        ));
 
         $this->assertSame([
-            $missingOwnerClass => 1,
-        ], (new PruneOrphanedPasskeys)());
-
-        $this->assertDatabaseMissing('passkeys', [
+            "Skipping passkeys for unresolved owner type [{$missingOwnerClass}]. Register the morph map before pruning.",
+        ], $warnings);
+        $this->assertDatabaseHas('passkeys', [
             'id' => $passkey->getKey(),
         ]);
+    }
+
+    /**
+     * Get missing or renamed owner classes.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function unloadableOwnerClasses(): array
+    {
+        return [
+            'missing class' => ['Hypervel\Tests\Passkeys\Fixtures\MissingPasskeyOwner'],
+            'renamed class' => ['App\Models\LegacyPasskeyOwner'],
+        ];
+    }
+
+    public function testItWarnsAndRetainsPasskeysForLoadableNonModelOwnerTypes(): void
+    {
+        $ownerType = NonModelPasskeyOwner::class;
+        $passkey = $this->createPasskeyForOwnerType($ownerType, 'credential-non-model-owner');
+        $warnings = [];
+
+        $this->assertSame([], (new PruneOrphanedPasskeys)(
+            warn: static function (string $message) use (&$warnings): void {
+                $warnings[] = $message;
+            },
+        ));
+
+        $this->assertSame([
+            "Skipping passkeys for owner type [{$ownerType}] because it does not resolve to an Eloquent model.",
+        ], $warnings);
+        $this->assertDatabaseHas('passkeys', ['id' => $passkey->getKey()]);
     }
 
     public function testCommandWarnsAndSkipsUnresolvedMorphAliases(): void
@@ -128,7 +180,7 @@ class PruneOrphanedPasskeysTest extends TestCase
         Relation::morphMap([], false);
 
         $this->artisan('passkeys:prune-orphans')
-            ->expectsOutputToContain('Skipping passkeys for unresolved morph alias [passkey-users]. Register the morph map before pruning.')
+            ->expectsOutputToContain('Skipping passkeys for unresolved owner type [passkey-users]. Register the morph map before pruning.')
             ->expectsOutputToContain('Pruned 0 orphaned passkeys.')
             ->assertExitCode(0);
 
@@ -182,6 +234,27 @@ class PruneOrphanedPasskeysTest extends TestCase
             'credential' => ['id' => $credentialId],
         ]);
     }
+
+    /**
+     * Create a passkey for a raw owner type.
+     */
+    private function createPasskeyForOwnerType(string $ownerType, string $credentialId): Passkey
+    {
+        $passkey = new Passkey;
+        $passkey->forceFill([
+            'user_type' => $ownerType,
+            'user_id' => 1,
+            'name' => 'Laptop',
+            'credential_id' => $credentialId,
+            'credential' => ['id' => $credentialId],
+        ])->save();
+
+        return $passkey;
+    }
+}
+
+class NonModelPasskeyOwner
+{
 }
 
 class ScopedPasskeyUser extends User

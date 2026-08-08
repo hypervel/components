@@ -1312,7 +1312,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `socialite`
 - [x] `sanctum`
 - [x] `fortify`
-- [ ] `passkeys`
+- [x] `passkeys`
 - [ ] `permission`
 - [ ] `jwt`
 - [x] `scout`

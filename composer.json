@@ -304,6 +304,7 @@
         "phpunit/phpunit": "^13.0.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
+        "spomky-labs/cbor-php": "^3.0",
         "swoole/ide-helper": "^6.0.2",
         "symfony/filesystem": "^8.1",
         "symfony/http-client": "^8.1",

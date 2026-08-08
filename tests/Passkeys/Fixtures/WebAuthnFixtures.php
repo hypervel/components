@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Fixtures;
 
+use CBOR\ByteStringObject;
+use CBOR\Encoder;
+use CBOR\MapObject;
 use InvalidArgumentException;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use Symfony\Component\Uid\Uuid;
@@ -156,6 +159,39 @@ PEM;
             challenge: random_bytes(32),
             rpId: 'localhost',
         );
+    }
+
+    /**
+     * Create a structurally valid registration credential array for HTTP tests.
+     *
+     * @return array<string, mixed>
+     */
+    protected function createRegistrationCredential(): array
+    {
+        $rawId = random_bytes(16);
+        $clientDataJson = json_encode([
+            'type' => 'webauthn.create',
+            'challenge' => Base64UrlSafe::encodeUnpadded(random_bytes(32)),
+            'origin' => 'http://localhost',
+        ], JSON_THROW_ON_ERROR);
+        $authenticatorData = hash('sha256', 'localhost', binary: true)
+            . chr(AuthenticatorData::FLAG_UP)
+            . pack('N', 0);
+        $attestationObject = (new Encoder)->encode([
+            'fmt' => 'none',
+            'attStmt' => MapObject::create(),
+            'authData' => ByteStringObject::create($authenticatorData),
+        ]);
+
+        return [
+            'id' => Base64UrlSafe::encodeUnpadded($rawId),
+            'type' => 'public-key',
+            'rawId' => Base64UrlSafe::encodeUnpadded($rawId),
+            'response' => [
+                'clientDataJSON' => Base64UrlSafe::encodeUnpadded($clientDataJson),
+                'attestationObject' => Base64UrlSafe::encodeUnpadded($attestationObject),
+            ],
+        ];
     }
 
     /**
