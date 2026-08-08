@@ -53,16 +53,12 @@ class PruneOrphanedPasskeys
         $ownerClass = Relation::getMorphedModel($userType);
 
         if ($ownerClass === null) {
-            if (! str_contains($userType, '\\')) {
+            if (! class_exists($userType)) {
                 if ($warn !== null) {
-                    $warn("Skipping passkeys for unresolved morph alias [{$userType}]. Register the morph map before pruning.");
+                    $warn("Skipping passkeys for unresolved owner type [{$userType}]. Register the morph map before pruning.");
                 }
 
                 return 0;
-            }
-
-            if (! class_exists($userType)) {
-                return $this->deleteOwnerType($passkeyModel, $userType, $dryRun);
             }
 
             $ownerClass = $userType;
@@ -92,23 +88,6 @@ class PruneOrphanedPasskeys
             });
 
         return $deleted;
-    }
-
-    /**
-     * Delete every passkey for an owner type that no longer exists.
-     *
-     * @param class-string<Passkey> $passkeyModel
-     */
-    private function deleteOwnerType(string $passkeyModel, string $userType, bool $dryRun): int
-    {
-        $query = $passkeyModel::query()->where('user_type', $userType);
-        $count = $query->count();
-
-        if (! $dryRun) {
-            $query->delete();
-        }
-
-        return $count;
     }
 
     /**
