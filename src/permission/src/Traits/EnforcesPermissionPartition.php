@@ -29,6 +29,14 @@ trait EnforcesPermissionPartition
     }
 
     /**
+     * Get the relation's captured permission context.
+     */
+    public function getPermissionRelationContext(): PermissionRelationContext
+    {
+        return $this->permissionRelationContext;
+    }
+
+    /**
      * Format an attachment record without allowing partition overrides.
      */
     protected function formatAttachRecord(
