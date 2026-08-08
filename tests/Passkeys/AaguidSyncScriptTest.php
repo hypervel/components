@@ -66,22 +66,24 @@ class AaguidSyncScriptTest extends TestCase
         $this->assertSame([], glob($this->tempDirectory . '/.aaguids-*'));
     }
 
-    public function testTheSynchronizationWorkflowTargetsTheSupportedBranch(): void
+    public function testTheSynchronizationWorkflowTargetsTheDefaultBranch(): void
     {
         $workflow = Yaml::parseFile(
             dirname(__DIR__, 2) . '/.github/workflows/sync-passkeys-aaguids.yml',
         );
         $steps = array_column($workflow['jobs']['synchronize']['steps'], null, 'name');
+        $defaultBranch = '${{ github.event.repository.default_branch }}';
         $script = 'src/passkeys/scripts/sync-aaguids.php';
 
         $this->assertArrayHasKey('schedule', $workflow['on']);
         $this->assertArrayHasKey('workflow_dispatch', $workflow['on']);
         $this->assertSame(['contents' => 'write', 'pull-requests' => 'write'], $workflow['permissions']);
         $this->assertStringContainsString('apt-get install -y -qq git', $steps['Install Git']['run']);
-        $this->assertSame('0.4', $steps['Checkout 0.4']['with']['ref']);
+        $this->assertSame($defaultBranch, $steps['Checkout default branch']['with']['ref']);
+        $this->assertFalse($steps['Checkout default branch']['with']['persist-credentials']);
         $this->assertSame('git config --global --add safe.directory "$GITHUB_WORKSPACE"', $steps['Trust checkout directory']['run']);
         $this->assertSame("php {$script}", $steps['Synchronize Passkeys AAGUIDs']['run']);
         $this->assertFileExists(dirname(__DIR__, 2) . '/' . $script);
-        $this->assertSame('0.4', $steps['Open update pull request']['with']['base']);
+        $this->assertSame($defaultBranch, $steps['Open update pull request']['with']['base']);
     }
 }

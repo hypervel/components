@@ -136,6 +136,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `passkeys-11` | Worker-state regression | Minor | Pin login-authorization callback cleanup through public behavior. |
 | `passkeys-12` | Destructive orphan pruning | Major | Warn and retain ambiguous/unloadable owner types instead of bulk deleting them. |
 | `passkeys-13` | Assertion lookup boundary | Minor | Reject raw credential IDs over 1,023 bytes before the assertion lookup and prove no query runs. |
+| `passkeys-14` | Workflow credentials | Minor | Do not persist checkout credentials in workflows that do not push through their origin remote. |
 
 The owner approved `passkeys-10` with this plan. No finding changes a Laravel public signature or
 configuration structure. The corrected rejection paths reject inputs that were already invalid or
@@ -477,13 +478,14 @@ $this->assertTrue(Passkeys::allowsLogin($request, $passkey));
 Use a real owned fixture so the result discriminates the callback from missing ownership. Do not
 inspect private properties or add a public callback getter/static-slot registry.
 
-### 12. Automate safe AAGUID refreshes (`passkeys-10`)
+### 12. Automate safe AAGUID refreshes (`passkeys-10`, `passkeys-14`)
 
 Add `.github/workflows/sync-passkeys-aaguids.yml` with weekly Monday and manual triggers. Use the
 repository's normal major action tags and `phpswoole/swoole:6.2.0-php8.4` job container. The script
 uses only core PHP/JSON functions already present in that image, so do not install Composer
-dependencies or run the test workflow's extension setup. Check out `0.4` explicitly so a manual
-dispatch from another ref cannot generate a mismatched update:
+dependencies or run the test workflow's extension setup. Resolve the repository default branch
+from the event for both checkout and pull-request base so manual dispatches cannot target another
+branch and future default-branch changes need no workflow edit:
 
 ```yaml
 - name: Install Git
@@ -491,10 +493,11 @@ dispatch from another ref cannot generate a mismatched update:
     apt-get update -qq
     apt-get install -y -qq git > /dev/null
 
-- name: Checkout 0.4
+- name: Checkout default branch
   uses: actions/checkout@v6
   with:
-    ref: "0.4"
+    persist-credentials: false
+    ref: ${{ github.event.repository.default_branch }}
 
 - name: Trust checkout directory
   run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -505,7 +508,7 @@ dispatch from another ref cannot generate a mismatched update:
 - name: Open update pull request
   uses: peter-evans/create-pull-request@v8
   with:
-    base: "0.4"
+    base: ${{ github.event.repository.default_branch }}
     branch: sync-passkeys-aaguids
     delete-branch: true
     commit-message: "passkeys: synchronize AAGUID catalogue"
@@ -513,9 +516,12 @@ dispatch from another ref cannot generate a mismatched update:
 ```
 
 The container does not include Git, so install it before checkout and mark the checkout as safe for
-the pull-request action's branch, commit, and push operations. Give the job only `contents: write`
-and `pull-requests: write`. Keep the pull-request body focused on the upstream catalogue source. A
-pull request created with the default `GITHUB_TOKEN` does not trigger the repository's test or
+the pull-request action's branch, commit, and push operations. The pull-request action configures
+its own token, so the checkout does not persist credentials. Apply the same setting to every
+repository checkout that does not push through its origin remote; the release workflow explicitly
+retains credentials for its version commit and tag pushes. Give this job only `contents: write` and
+`pull-requests: write`. Keep the pull-request body focused on the upstream catalogue source. A pull
+request created with the default `GITHUB_TOKEN` does not trigger the repository's test or
 static-analysis workflows; its safety therefore comes from the script's checked atomic publication
 and review of the generated diff. Deliberately do not use a personal access token merely to
 retrigger CI: that would add secret management and a broader-privilege credential for this
@@ -578,7 +584,7 @@ After implementation and review:
 | Handle secret | Normal/default secrets work and an explicit empty value fails before HMAC generation. |
 | Owner typing/pruning | Known missing owners are deleted; every ambiguous/unloadable type is warned and retained. |
 | Static lifecycle | `authorizeLoginUsing()` affects behavior before flush and cannot leak after flush. |
-| AAGUID workflow | Git setup, syntax, script path, permissions, checkout ref, and base branch are pinned. |
+| AAGUID workflow | Git setup, syntax, script path, permissions, non-persisted checkout credentials, and default-branch checkout/PR targeting are pinned. |
 | Documentation | Fresh review checks the canonical Fortify guide against the final public APIs, configuration, and extension surfaces; no brittle Markdown-structure test is added. |
 
 Run each changed test file immediately. Run all Passkeys tests after the coherent package slice.
@@ -624,6 +630,9 @@ parallel suite before that checkpoint.
   ambiguous stored string authoritative.
 - Runtime AAGUID fetching, retries, scheduler integration, backup protocols, or generic filesystem
   services: no application consumer or runtime need.
+- One-off action SHA or container digest pins: immutable workflow dependencies require a coherent
+  repository-wide update policy; selectively pinning this workflow would add maintenance burden
+  while more privileged workflows retain mutable version tags.
 - A second Passkeys documentation page, README duplication, or historical upgrade prose: creates
   drift instead of documenting the current API once.
 

@@ -22,10 +22,11 @@ jobs:
           apt-get update -qq
           apt-get install -y -qq git > /dev/null
 
-      - name: Checkout 0.4
+      - name: Checkout default branch
         uses: actions/checkout@v6
         with:
-          ref: "0.4"
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -36,7 +37,7 @@ jobs:
       - name: Open update pull request
         uses: peter-evans/create-pull-request@v8
         with:
-          base: "0.4"
+          base: ${{ github.event.repository.default_branch }}
           branch: sync-passkeys-aaguids
           delete-branch: true
           commit-message: "passkeys: synchronize AAGUID catalogue"
