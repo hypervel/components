@@ -634,7 +634,7 @@ $name = suggest('What is your name?', ['Taylor', 'Dayle']);
 
 The `options` argument may be an array or a `Hypervel\Support\Collection` instance. A dynamic options closure may also return either type.
 
-Alternatively, you may pass a closure as the second argument to the `suggest` function. The closure will be called each time the user types an input character. The closure should accept a string parameter containing the user's input so far and return an array of options for auto-completion:
+Alternatively, you may pass a closure as the second argument to the `suggest` function. The closure will be called each time the user types an input character. The closure should accept a string parameter containing the user's input so far and return an array or a `Hypervel\Support\Collection` instance containing options for auto-completion:
 
 ```php
 $name = suggest(
@@ -984,7 +984,7 @@ $name = autocomplete(
 <a name="autocomplete-closure"></a>
 #### Dynamic Options
 
-You may also pass a closure to dynamically generate options based on the user's input. The closure will be called each time the user types a character and should return an array of options for auto-completion:
+You may also pass a closure to dynamically generate options based on the user's input. The closure will be called each time the user types a character and should return an array or a `Hypervel\Support\Collection` instance containing options for auto-completion:
 
 ```php
 $file = autocomplete(
