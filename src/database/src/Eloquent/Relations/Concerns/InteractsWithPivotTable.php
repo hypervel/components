@@ -276,7 +276,7 @@ trait InteractsWithPivotTable
     {
         $pivot = $this->getCurrentlyAttachedPivotsForIds($id)->first();
 
-        $updated = $pivot ? $pivot->fill($attributes)->isDirty() : false;
+        $updated = $pivot ? $pivot->forceFill($attributes)->isDirty() : false;
 
         if ($updated) {
             $pivot->save();
@@ -520,15 +520,7 @@ trait InteractsWithPivotTable
                 $this->parseIds($ids)
             ))
             ->get()
-            ->map(function ($record) {
-                $class = $this->using ?: Pivot::class;
-
-                $pivot = $class::fromRawAttributes($this->parent, (array) $record, $this->getTable(), true);
-
-                return $pivot
-                    ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
-                    ->setRelatedModel($this->related);
-            });
+            ->map(fn ($record) => $this->newExistingPivot((array) $record));
     }
 
     /**
@@ -538,6 +530,7 @@ trait InteractsWithPivotTable
     {
         $attributes = array_merge(array_column($this->pivotValues, 'value', 'column'), $attributes);
 
+        /** @var Pivot $pivot */
         $pivot = $this->related->newPivot(
             $this->parent,
             $attributes,
@@ -546,9 +539,20 @@ trait InteractsWithPivotTable
             $this->using
         );
 
-        return $pivot
-            ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey) // @phpstan-ignore method.notFound (AsPivot trait provides setPivotKeys)
+        $pivot = $pivot
+            ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
             ->setRelatedModel($this->related);
+
+        if ($this->hasPivotConstraints()) {
+            $pivot->setPivotConstraints(
+                wheres: $this->pivotWheres,
+                whereIns: $this->pivotWhereIns,
+                whereNulls: $this->pivotWhereNulls,
+                whereBetweens: $this->pivotWhereBetweens,
+            );
+        }
+
+        return $pivot;
     }
 
     /**
@@ -582,19 +586,38 @@ trait InteractsWithPivotTable
     {
         $query = $this->newPivotStatement();
 
-        foreach ($this->pivotWheres as $arguments) {
-            $query->where(...$arguments);
-        }
+        if ($this->hasPivotConstraints()) {
+            $query->where(function (QueryBuilder $query): void {
+                foreach ($this->pivotWheres as $arguments) {
+                    $query->where(...$arguments);
+                }
 
-        foreach ($this->pivotWhereIns as $arguments) {
-            $query->whereIn(...$arguments);
-        }
+                foreach ($this->pivotWhereIns as $arguments) {
+                    $query->whereIn(...$arguments);
+                }
 
-        foreach ($this->pivotWhereNulls as $arguments) {
-            $query->whereNull(...$arguments);
+                foreach ($this->pivotWhereNulls as $arguments) {
+                    $query->whereNull(...$arguments);
+                }
+
+                foreach ($this->pivotWhereBetweens as $arguments) {
+                    $query->whereBetween(...$arguments);
+                }
+            });
         }
 
         return $query->where($this->getQualifiedForeignPivotKeyName(), $this->parent->{$this->parentKey});
+    }
+
+    /**
+     * Determine whether the relation has pivot constraints.
+     */
+    protected function hasPivotConstraints(): bool
+    {
+        return $this->pivotWheres !== []
+            || $this->pivotWhereIns !== []
+            || $this->pivotWhereNulls !== []
+            || $this->pivotWhereBetweens !== [];
     }
 
     /**
@@ -669,7 +692,7 @@ trait InteractsWithPivotTable
     protected function castAttributes(array $attributes): array
     {
         return $this->using
-            ? $this->newPivot()->fill($attributes)->getAttributes()
+            ? $this->newPivot()->forceFill($attributes)->getAttributes()
             : $attributes;
     }
 

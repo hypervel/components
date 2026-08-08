@@ -49,6 +49,7 @@
     - [File Storage](/docs/{{version}}/filesystem)
     - [Helpers](/docs/{{version}}/helpers)
     - [HTTP Client](/docs/{{version}}/http-client)
+    - [JSON Schema](/docs/{{version}}/json-schema)
     - [Localization](/docs/{{version}}/localization)
     - [Mail](/docs/{{version}}/mail)
     - [Notifications](/docs/{{version}}/notifications)

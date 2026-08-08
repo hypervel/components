@@ -200,10 +200,6 @@ class PermissionServiceProvider extends ServiceProvider
      */
     protected function registerAbout(): void
     {
-        if (! class_exists(InstalledVersions::class) || ! class_exists(AboutCommand::class)) {
-            return;
-        }
-
         $features = [
             'Teams' => 'teams',
             'Wildcard Permissions' => 'enable_wildcard_permission',

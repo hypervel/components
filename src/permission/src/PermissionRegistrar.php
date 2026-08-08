@@ -16,6 +16,7 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\PermissionsTeamResolver;
@@ -87,6 +88,11 @@ class PermissionRegistrar
     protected string $modelCacheTokenKey;
 
     protected ?string $cacheStoreName = null;
+
+    /**
+     * @var array<class-string<Model>, array<string, class-string<Pivot>>>
+     */
+    protected array $assignmentPivotClasses = [];
 
     /**
      * @var WeakMap<Model, array<string, array{collection: WeakReference, context: PermissionRelationContext}>>
@@ -259,6 +265,7 @@ class PermissionRegistrar
         $cacheStore = $this->config->string('permission.cache.store', 'default');
         $this->cacheStoreName = $cacheStore === 'default' ? null : $cacheStore;
 
+        $this->assignmentPivotClasses = [];
         $this->clearAllPermissionRuntimeState();
         $this->validateModelClasses();
         $this->validateCacheColumnExclusions();
@@ -1317,6 +1324,25 @@ class PermissionRegistrar
     }
 
     /**
+     * Get the pivot class selected by a model's public assignment relation.
+     *
+     * @return class-string<Pivot>
+     */
+    public function getAssignmentPivotClass(Model $model, string $relation): string
+    {
+        $modelClass = $model::class;
+
+        if (isset($this->assignmentPivotClasses[$modelClass][$relation])) {
+            return $this->assignmentPivotClasses[$modelClass][$relation];
+        }
+
+        /** @var BelongsToMany $assignmentRelation */
+        $assignmentRelation = $model->{$relation}();
+
+        return $this->assignmentPivotClasses[$modelClass][$relation] = $assignmentRelation->getPivotClass();
+    }
+
+    /**
      * Set the team model class.
      *
      * Boot or tests only. The model class is stored on the singleton registrar
@@ -1464,7 +1490,12 @@ class PermissionRegistrar
         return Collection::make(array_map(
             function (array $item) use ($permissionInstance, $rolesByKey, $context): Model {
                 $permission = (clone $permissionInstance)->setRawAttributes((array) $item['attributes'], true);
-                $roles = $this->getHydratedPermissionRoleCollection((array) $item['roles'], $permission, $rolesByKey);
+                $roles = $this->getHydratedPermissionRoleCollection(
+                    (array) $item['roles'],
+                    $permission,
+                    $rolesByKey,
+                    $context,
+                );
 
                 $permission->setRelation('roles', $roles);
                 $this->markLoadedRelation($permission, 'roles', $roles, $context);
@@ -1548,9 +1579,13 @@ class PermissionRegistrar
      *
      * @param array<int, array<string, mixed>> $roles
      */
-    private function getHydratedPermissionRoleCollection(array $roles, Model $permission, Collection $roleCatalog): Collection
-    {
-        return Collection::make(array_values(array_filter(array_map(function (array $item) use ($permission, $roleCatalog): ?Model {
+    private function getHydratedPermissionRoleCollection(
+        array $roles,
+        Model $permission,
+        Collection $roleCatalog,
+        PermissionRelationContext $context,
+    ): Collection {
+        return Collection::make(array_values(array_filter(array_map(function (array $item) use ($permission, $roleCatalog, $context): ?Model {
             $roleKey = $item['pivot'][$this->pivotRole] ?? null;
             $role = $roleKey === null ? null : $roleCatalog->get((string) $roleKey);
 
@@ -1559,12 +1594,29 @@ class PermissionRegistrar
             }
 
             $role = clone $role;
-            $role->setRelation('pivot', Pivot::fromRawAttributes(
+            $pivot = Pivot::fromRawAttributes(
                 $permission,
                 (array) $item['pivot'],
                 $this->config->string('permission.table_names.role_has_permissions'),
                 true,
-            ));
+            );
+            $pivot->setPivotKeys($this->pivotPermission, $this->pivotRole)
+                ->setRelatedModel($role);
+
+            if ($context->partition) {
+                $pivot->setPivotConstraints(
+                    wheres: [[
+                        $context->partition->column,
+                        '=',
+                        $context->partition->value,
+                    ]],
+                    whereIns: [],
+                    whereNulls: [],
+                    whereBetweens: [],
+                );
+            }
+
+            $role->setRelation('pivot', $pivot);
 
             return $role;
         }, $roles))));

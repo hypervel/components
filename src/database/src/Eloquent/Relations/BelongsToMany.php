@@ -90,6 +90,11 @@ class BelongsToMany extends Relation
     protected array $pivotWhereNulls = [];
 
     /**
+     * Any pivot table restrictions for whereBetween clauses.
+     */
+    protected array $pivotWhereBetweens = [];
+
+    /**
      * The default values for the pivot columns.
      */
     protected array $pivotValues = [];
@@ -357,6 +362,8 @@ class BelongsToMany extends Relation
      */
     public function wherePivotBetween(mixed $column, array $values, string $boolean = 'and', bool $not = false): static
     {
+        $this->pivotWhereBetweens[] = func_get_args();
+
         return $this->whereBetween($this->qualifyPivotColumn($column), $values, $boolean, $not);
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\JsonSchema;
 
+use InvalidArgumentException;
 use RuntimeException;
 
 class Serializer
@@ -13,19 +14,39 @@ class Serializer
      *
      * @var array<int, string>
      */
-    protected static array $ignore = ['required', 'nullable'];
+    protected static array $ignore = ['required', 'nullable', 'hasDefault'];
 
     /**
      * Serialize the given property to an array.
      *
      * @return array<string, mixed>
      *
+     * @throws InvalidArgumentException
      * @throws RuntimeException
      */
     public static function serialize(Types\Type $type): array
     {
         /** @var array<string, mixed> $attributes */
         $attributes = (fn () => get_object_vars($type))->call($type);
+
+        if ($type instanceof Types\AnyOfType) {
+            $attributes['anyOf'] = array_map(
+                static fn (Types\Type $schema) => static::serialize($schema),
+                $attributes['schemas'],
+            );
+
+            unset($attributes['schemas']);
+
+            if (static::isNullable($type)) {
+                $attributes['anyOf'][] = ['type' => 'null'];
+            }
+
+            if ($attributes['anyOf'] === []) {
+                throw new InvalidArgumentException('A JSON Schema anyOf must contain at least one schema.');
+            }
+
+            return static::filterAttributes($attributes);
+        }
 
         $attributes['type'] = match (get_class($type)) {
             Types\ArrayType::class => 'array',
@@ -34,40 +55,54 @@ class Serializer
             Types\NumberType::class => 'number',
             Types\ObjectType::class => 'object',
             Types\StringType::class => 'string',
+            Types\UnionType::class => $attributes['types'],
             default => throw new RuntimeException('Unsupported [' . get_class($type) . '] type.'),
         };
+
+        unset($attributes['types']);
 
         $nullable = static::isNullable($type);
 
         if ($nullable) {
-            $attributes['type'] = [$attributes['type'], 'null'];
+            $attributes['type'] = is_array($attributes['type'])
+                ? [...$attributes['type'], 'null']
+                : [$attributes['type'], 'null'];
         }
 
-        $attributes = array_filter($attributes, static function (mixed $value, string $key) {
-            if (in_array($key, static::$ignore, true)) {
-                return false;
-            }
+        if ($attributes['type'] === []) {
+            throw new InvalidArgumentException('A JSON Schema union must contain at least one type.');
+        }
 
-            return $value !== null;
-        }, ARRAY_FILTER_USE_BOTH);
+        $attributes = static::filterAttributes($attributes);
 
         if ($type instanceof Types\ObjectType) {
+            if (isset($attributes['default']) && is_array($attributes['default']) && array_is_list($attributes['default'])) {
+                $attributes['default'] = (object) $attributes['default'];
+            }
+
             if (count($attributes['properties']) === 0) {
                 unset($attributes['properties']);
             } else {
-                $required = array_keys(array_filter(
-                    $attributes['properties'],
-                    static fn (Types\Type $property) => static::isRequired($property),
-                ));
+                $required = array_map(
+                    'strval',
+                    array_keys(array_filter(
+                        $attributes['properties'],
+                        static fn (Types\Type $property) => static::isRequired($property),
+                    ))
+                );
 
-                if (count($required) > 0) {
+                if ($required !== []) {
                     $attributes['required'] = $required;
                 }
 
-                $attributes['properties'] = array_map(
+                $properties = array_map(
                     static fn (Types\Type $property) => static::serialize($property),
                     $attributes['properties'],
                 );
+
+                $attributes['properties'] = array_is_list($properties)
+                    ? (object) $properties
+                    : $properties;
             }
         }
 
@@ -78,6 +113,25 @@ class Serializer
         }
 
         return $attributes;
+    }
+
+    /**
+     * Remove internal and unset attributes before publication.
+     *
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    protected static function filterAttributes(array $attributes): array
+    {
+        $hasDefault = $attributes['hasDefault'];
+
+        return array_filter($attributes, static function (mixed $value, string $key) use ($hasDefault): bool {
+            if (in_array($key, static::$ignore, true)) {
+                return false;
+            }
+
+            return $value !== null || ($key === 'default' && $hasDefault);
+        }, ARRAY_FILTER_USE_BOTH);
     }
 
     /**

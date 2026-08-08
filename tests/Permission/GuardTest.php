@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
+use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Guard;
@@ -13,10 +14,48 @@ use Hypervel\Support\Facades\Auth;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\Fixtures\PassportGuard;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class GuardTest extends TestCase
 {
+    public function testItReturnsNullForAGuardWithoutAProvider(): void
+    {
+        $this->app->make('config')->set('auth.guards.no-provider-guard', []);
+
+        $this->assertNull(Guard::getModelForGuard('no-provider-guard'));
+    }
+
+    public function testItResolvesTheModelForAnLdapProvider(): void
+    {
+        $this->app->make('config')->set([
+            'auth.guards.ldap-guard' => ['provider' => 'ldap-provider'],
+            'auth.providers.ldap-provider' => [
+                'driver' => 'ldap',
+                'database' => ['model' => User::class],
+            ],
+        ]);
+
+        $this->assertSame(User::class, Guard::getModelForGuard('ldap-guard'));
+    }
+
+    public function testItReturnsNullWhenNoPassportGuardIsConfigured(): void
+    {
+        $this->assertNull(Guard::getPassportClient('web'));
+    }
+
+    public function testItReturnsNullWhenThePassportGuardHasNoClientSurface(): void
+    {
+        $this->app->make('config')->set(
+            'auth.guards.fake-passport',
+            ['driver' => 'passport', 'provider' => 'users'],
+        );
+
+        Auth::shouldReceive('guard')->once()->with('fake-passport')->andReturn(m::mock(GuardContract::class));
+
+        $this->assertNull(Guard::getPassportClient('web'));
+    }
+
     public function testZeroGuardNamesRemainStringIdentifiers(): void
     {
         $user = new User;

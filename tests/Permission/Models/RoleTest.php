@@ -291,6 +291,13 @@ class RoleTest extends TestCase
         ];
     }
 
+    public function testItThrowsAnExceptionWhenARoleWithTheGivenIdDoesNotExist(): void
+    {
+        $this->expectException(RoleDoesNotExist::class);
+
+        $this->app->make(Role::class)::findById(456789, 'web');
+    }
+
     public function testItBelongsToAGuard(): void
     {
         $role = $this->app->make(Role::class)->create(['name' => 'admin', 'guard_name' => 'admin']);

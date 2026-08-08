@@ -24,6 +24,19 @@ class TeamHasAssignedModelsTest extends HasAssignedModelsTest
         $this->setUpTeams();
     }
 
+    public function testItAppliesTheCurrentTeamIdWhenAssigningModels(): void
+    {
+        $user = User::create(['email' => 'team-user@test.com']);
+
+        $this->testUserRole->assignToModels($user);
+
+        $pivot = DB::table(Config::modelHasRolesTable())
+            ->where(Config::morphKey(), $user->getKey())
+            ->first();
+
+        $this->assertSame(1, (int) $pivot->team_test_id);
+    }
+
     public function testItAssignsModelsInCurrentTeamWhenModelAlreadyHasRoleInAnotherTeam(): void
     {
         $user = User::create(['email' => 'user1@test.com']);

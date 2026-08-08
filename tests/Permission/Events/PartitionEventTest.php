@@ -123,7 +123,10 @@ class PartitionEventTest extends PartitionTestCase
             return $event->model->is($user)
                 && $event->permissionsOrIds === [$edit->getKey(), $publish->getKey()];
         });
-        Event::assertNotDispatched(PermissionDetachedEvent::class);
+        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event) use ($user, $edit): bool {
+            return $event->model->is($user)
+                && $event->permissionsOrIds->modelKeys() === [$edit->getKey()];
+        });
     }
 
     /**

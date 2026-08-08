@@ -15,6 +15,11 @@ use Hypervel\Permission\PermissionRegistrar;
 
 class Config
 {
+    // Eloquent derives the morph-type column from the relation name.
+    public const MORPH_NAME = 'model';
+
+    public const MORPH_TYPE = self::MORPH_NAME . '_type';
+
     /**
      * Get the config repository.
      */

@@ -31,8 +31,10 @@ class AssignRoleCommand extends Command
         $userId = (string) $this->argument('userId');
         $guardName = $this->argument('guard');
         $userModelClass = $this->argument('userModelNamespace');
+        $teamId = $this->option('team-id');
+        $hasTeamId = $teamId !== null && $teamId !== '';
 
-        if (! $permissionRegistrar->teams && $this->option('team-id')) {
+        if (! $permissionRegistrar->teams && $hasTeamId) {
             $this->warn('Teams feature disabled, argument --team-id has no effect. Either enable it in permissions config file or remove --team-id parameter');
 
             return self::SUCCESS;
@@ -65,7 +67,7 @@ class AssignRoleCommand extends Command
         }
 
         $teamIdAux = getPermissionsTeamId();
-        setPermissionsTeamId($this->option('team-id') ?: null);
+        setPermissionsTeamId($hasTeamId ? $teamId : null);
 
         $roleClass = $permissionRegistrar->getRoleClass();
 

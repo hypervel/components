@@ -32,6 +32,18 @@ trait AsPivot
     protected string $relatedKey;
 
     /**
+     * The relation-owned predicates that identify this pivot row.
+     *
+     * @var null|array{
+     *     wheres: array<int, array<int, mixed>>,
+     *     whereIns: array<int, array<int, mixed>>,
+     *     whereNulls: array<int, array<int, mixed>>,
+     *     whereBetweens: array<int, array<int, mixed>>
+     * }
+     */
+    protected ?array $pivotConstraints = null;
+
+    /**
      * Create a new pivot model instance.
      */
     public static function fromAttributes(Model $parent, array $attributes, string $table, bool $exists = false): static
@@ -89,7 +101,9 @@ trait AsPivot
 
         $query->where($this->foreignKey, $this->getPivotKeyForQuery($this->foreignKey));
 
-        return $query->where($this->relatedKey, $this->getPivotKeyForQuery($this->relatedKey));
+        $query->where($this->relatedKey, $this->getPivotKeyForQuery($this->relatedKey));
+
+        return $this->applyPivotConstraints($query);
     }
 
     /**
@@ -135,10 +149,43 @@ trait AsPivot
      */
     protected function getDeleteQuery(): Builder
     {
-        return $this->newQueryWithoutRelationships()->where([
+        $query = $this->newQueryWithoutRelationships()->where([
             $this->foreignKey => $this->getPivotKeyForQuery($this->foreignKey),
             $this->relatedKey => $this->getPivotKeyForQuery($this->relatedKey),
         ]);
+
+        return $this->applyPivotConstraints($query);
+    }
+
+    /**
+     * Apply the relation-owned predicates to a pivot identity query.
+     *
+     * @param \Hypervel\Database\Eloquent\Builder<static> $query
+     * @return \Hypervel\Database\Eloquent\Builder<static>
+     */
+    protected function applyPivotConstraints(Builder $query): Builder
+    {
+        if ($this->pivotConstraints === null) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $query): void {
+            foreach ($this->pivotConstraints['wheres'] as $arguments) {
+                $query->where(...$arguments);
+            }
+
+            foreach ($this->pivotConstraints['whereIns'] as $arguments) {
+                $query->whereIn(...$arguments);
+            }
+
+            foreach ($this->pivotConstraints['whereNulls'] as $arguments) {
+                $query->whereNull(...$arguments);
+            }
+
+            foreach ($this->pivotConstraints['whereBetweens'] as $arguments) {
+                $query->whereBetween(...$arguments);
+            }
+        });
     }
 
     /**
@@ -207,6 +254,26 @@ trait AsPivot
         $this->foreignKey = $foreignKey;
 
         $this->relatedKey = $relatedKey;
+
+        return $this;
+    }
+
+    /**
+     * Set the relation-owned predicates for the pivot model.
+     *
+     * @param array<int, array<int, mixed>> $wheres
+     * @param array<int, array<int, mixed>> $whereIns
+     * @param array<int, array<int, mixed>> $whereNulls
+     * @param array<int, array<int, mixed>> $whereBetweens
+     * @return $this
+     */
+    public function setPivotConstraints(
+        array $wheres,
+        array $whereIns,
+        array $whereNulls,
+        array $whereBetweens,
+    ): static {
+        $this->pivotConstraints = compact('wheres', 'whereIns', 'whereNulls', 'whereBetweens');
 
         return $this;
     }

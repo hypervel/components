@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
 use Hypervel\Permission\Exceptions\WildcardPermissionInvalidArgument;
+use Hypervel\Permission\Exceptions\WildcardPermissionNotImplementsContract;
 use Hypervel\Permission\Exceptions\WildcardPermissionNotProperlyFormatted;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
@@ -206,6 +207,26 @@ class WildcardHasPermissionsTest extends TestCase
 
         $this->expectException(WildcardPermissionNotProperlyFormatted::class);
         $user->hasPermissionTo('invoices.*');
+    }
+
+    public function testItThrowsExceptionWhenWildcardPermissionClassDoesNotImplementContract(): void
+    {
+        $this->app->make('config')->set('permission.wildcard_permission', User::class);
+        $this->flushPermissionState();
+
+        $user = User::create(['email' => 'user1@test.com']);
+
+        $this->expectException(WildcardPermissionNotImplementsContract::class);
+        $user->hasPermissionTo('posts.create');
+    }
+
+    public function testItThrowsExceptionWhenACommaSeparatedWildcardSubpartIsBlank(): void
+    {
+        $user = User::create(['email' => 'user1@test.com']);
+        $user->givePermissionTo(Permission::create(['name' => 'articles,,edit']));
+
+        $this->expectException(WildcardPermissionNotProperlyFormatted::class);
+        $user->hasPermissionTo('articles.edit');
     }
 
     public function testItCanVerifyPermissionInstancesNotAssignedToUser(): void

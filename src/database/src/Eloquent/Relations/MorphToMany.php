@@ -115,21 +115,6 @@ class MorphToMany extends BelongsToMany
     }
 
     /**
-     * Get the pivot models that are currently attached, filtered by related model keys.
-     *
-     * @return \Hypervel\Support\Collection<int, TPivotModel>
-     */
-    protected function getCurrentlyAttachedPivotsForIds(mixed $ids = null): Collection
-    {
-        return parent::getCurrentlyAttachedPivotsForIds($ids)->map(function ($record) {
-            return $record instanceof MorphPivot
-                ? $record->setMorphType($this->morphType)
-                    ->setMorphClass($this->morphClass)
-                : $record;
-        });
-    }
-
-    /**
      * Create a new query builder for the pivot table.
      */
     public function newPivotQuery(): QueryBuilder
@@ -156,6 +141,15 @@ class MorphToMany extends BelongsToMany
             ->setRelatedModel($this->related)
             ->setMorphType($this->morphType)
             ->setMorphClass($this->morphClass);
+
+        if ($this->hasPivotConstraints()) {
+            $pivot->setPivotConstraints(
+                wheres: $this->pivotWheres,
+                whereIns: $this->pivotWhereIns,
+                whereNulls: $this->pivotWhereNulls,
+                whereBetweens: $this->pivotWhereBetweens,
+            );
+        }
 
         return $pivot;
     }

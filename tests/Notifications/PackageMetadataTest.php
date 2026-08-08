@@ -31,6 +31,7 @@ class PackageMetadataTest extends TestCase
         );
 
         $this->assertSame('*', $composer['require']['ext-mbstring']);
+        $this->assertSame($rootComposer['require']['nesbot/carbon'], $composer['require']['nesbot/carbon']);
 
         foreach (['symfony/console', 'hypervel/conditionable', 'hypervel/macroable'] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['require']);
