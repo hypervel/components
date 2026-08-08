@@ -9,6 +9,7 @@
     - [Configuring the Guard](#configuring-the-guard)
     - [User Models](#user-models)
     - [Signing Keys and Algorithms](#signing-keys-and-algorithms)
+    - [Custom Drivers](#custom-drivers)
     - [Token Lifetime](#token-lifetime)
     - [Subject Locking](#subject-locking)
     - [Token Sources](#token-sources)
@@ -22,7 +23,7 @@
     - [Logging Out and Invalidating Tokens](#logging-out-and-invalidating-tokens)
 - [Guard Methods](#guard-methods)
 - [Exceptions](#exceptions)
-- [Differences From "php-open-source-saver/jwt-auth"](#differences-from-php-open-source-saver-jwt-auth)
+- [Differences From php-open-source-saver/jwt-auth](#differences-from-php-open-source-saver-jwt-auth)
 
 <a name="introduction"></a>
 ## Introduction
@@ -90,6 +91,8 @@ php artisan jwt:generate-certs --force --algo=rsa --bits=4096 --sha=512
 
 php artisan jwt:generate-certs --force --algo=ec --curve=prime256v1 --sha=256
 ```
+
+RSA keys must be at least 2048 bits.
 
 You may change the output directory using `--dir`. The directory may be absolute or relative to your application's base path.
 
@@ -186,7 +189,30 @@ For RSA and EC algorithms, configure `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `J
 ],
 ```
 
-The key values may be key contents or `file://` paths.
+The key values may be key contents or a `file://` URI.
+
+<a name="custom-drivers"></a>
+### Custom Drivers
+
+Custom JWT providers must implement the `Hypervel\Jwt\Contracts\ProviderContract` contract, which defines the `encode` and `decode` methods.
+
+You may register a custom JWT provider using the `extend` method. This is typically done in the `boot` method of a service provider:
+
+```php
+use App\Jwt\CustomJwtProvider;
+use Hypervel\Support\Facades\Jwt;
+
+public function boot(): void
+{
+    Jwt::extend('custom', fn ($app) => $app->make(CustomJwtProvider::class));
+}
+```
+
+After registering the driver, you may select it using the `driver` configuration option:
+
+```php
+'driver' => 'custom',
+```
 
 <a name="token-lifetime"></a>
 ### Token Lifetime
@@ -338,6 +364,8 @@ The blacklist uses the configured storage provider:
 
 The default tagged-cache storage requires your default cache store to support tags. Both all-mode and any-mode tagged stores are supported. When using any-mode tags, blacklist entries are written through tags but read and removed by a private plain-key prefix.
 
+If your cache store does not support tags, implement `Hypervel\Jwt\Contracts\StorageContract` and configure your implementation using `jwt.providers.storage`.
+
 If the blacklist store uses a cache stack or any node-local tier, a revoked token may still validate on another node until that node's local cache entry expires. Keep the upper-tier TTL short, or use a fully shared store such as Redis when revocation must be visible immediately across all nodes.
 
 You may configure a grace period for concurrent requests that are using the same token while a refresh is in progress:
@@ -346,10 +374,10 @@ You may configure a grace period for concurrent requests that are using the same
 'blacklist_grace_period' => env('JWT_BLACKLIST_GRACE_PERIOD', 0),
 ```
 
-The `blacklist_refresh_ttl` option keeps blacklist entries long enough to cover the token's refresh window:
+The `refresh_ttl` option also controls how long blacklist entries are retained. When the refresh lifetime is `null`, revocations for refreshable tokens are retained forever:
 
 ```php
-'blacklist_refresh_ttl' => env('JWT_BLACKLIST_REFRESH_TTL', 20160),
+'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
 ```
 
 <a name="authenticating-requests"></a>
@@ -436,13 +464,15 @@ $newToken = Auth::guard('api')->refresh();
 Expose refresh through a dedicated endpoint:
 
 ```php
-use Hypervel\Jwt\Exceptions\JwtException;
+use Hypervel\Jwt\Exceptions\TokenBlacklistedException;
+use Hypervel\Jwt\Exceptions\TokenExpiredException;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Support\Facades\Auth;
 
 Route::post('/token/refresh', function () {
     try {
         $token = Auth::guard('api')->refresh();
-    } catch (JwtException) {
+    } catch (TokenInvalidException|TokenExpiredException|TokenBlacklistedException) {
         abort(401, 'Token cannot be refreshed.');
     }
 
@@ -491,11 +521,13 @@ Managed claims such as `nbf`, `exp`, `iss`, and `jti` are rebuilt by the package
 <a name="logging-out-and-invalidating-tokens"></a>
 ### Logging Out and Invalidating Tokens
 
-The `logout` method clears the current guard user and token. If blacklist is enabled, it also invalidates the current token:
+The `logout` method clears the guard's user, token, and decoded payload. When blacklisting is enabled, it invalidates the current token first:
 
 ```php
 Auth::guard('api')->logout();
 ```
+
+If the blacklist write fails, a `JwtException` is thrown. The guard keeps its current state and does not dispatch the `Logout` event.
 
 To invalidate a token directly, enable the blacklist and call `invalidate`:
 
@@ -503,7 +535,7 @@ To invalidate a token directly, enable the blacklist and call `invalidate`:
 Auth::guard('api')->invalidate();
 ```
 
-You may pass `true` to blacklist the token forever:
+You may pass `true` to blacklist the token forever. This also bypasses the configured grace period, so the revocation takes effect immediately:
 
 ```php
 Auth::guard('api')->invalidate(true);
@@ -556,7 +588,7 @@ Common exceptions include:
 </div>
 
 <a name="differences-from-php-open-source-saver-jwt-auth"></a>
-## Differences From "php-open-source-saver/jwt-auth"
+## Differences From php-open-source-saver/jwt-auth
 
 Hypervel JWT is based on `php-open-source-saver/jwt-auth`, but its internals are adapted for Hypervel:
 
@@ -564,7 +596,6 @@ Hypervel JWT is based on `php-open-source-saver/jwt-auth`, but its internals are
 
 - Hypervel uses array payloads instead of upstream `Payload`, `Token`, and claim DTO objects.
 - Hypervel keeps the `Jwt` facade mapped to the array-based `JwtManager`, but does not include upstream `JwtAuth`, `JwtFactory`, or `JwtProvider` facades.
-- The parser chain is stateless. Request instances are passed to the parser for each parse so coroutine requests cannot leak through singleton services.
 - Cookie token parsing is available but not enabled by default.
 - Upstream route-parameter and Lumen parser shortcuts are not included.
 - Upstream sliding refresh middleware is not included; use an explicit refresh endpoint that calls `Auth::guard(...)->refresh()`.

@@ -101,7 +101,7 @@ class CommandMutexTest extends TestCase
 
         $acquiredMutex->shouldReceive('create')->once()->with($this->command)->andReturnTrue();
         $acquiredMutex->shouldReceive('forget')->once()->with($this->command)->andReturnTrue();
-        $unusedMutex->shouldNotReceive('create', 'forget');
+        $unusedMutex->shouldReceive('create', 'forget')->never();
 
         $this->app->bind(CommandMutex::class, function () use ($acquiredMutex, $unusedMutex, &$resolutions) {
             return $resolutions++ === 0 ? $acquiredMutex : $unusedMutex;

@@ -192,7 +192,7 @@ class DatabaseTransactionsTest extends TestCase
         $transactionManager = m::mock(new DatabaseTransactionsManager);
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('rollback')->once()->with('default', 0);
-        $transactionManager->shouldNotReceive('commit', 1, 0);
+        $transactionManager->shouldNotReceive('commit');
 
         $this->connection()->setTransactionManager($transactionManager);
 

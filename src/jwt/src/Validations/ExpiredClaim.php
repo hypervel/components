@@ -12,7 +12,9 @@ class ExpiredClaim extends AbstractValidation implements TemporalValidation
 {
     public function validate(array $payload): void
     {
-        if (! $exp = ($payload['exp'] ?? null)) {
+        $exp = $payload['exp'] ?? null;
+
+        if ($exp === null) {
             return;
         }
 

@@ -9,9 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class ProviderTest extends TestCase
 {
-    protected $provider;
-
-    public function testSetTheAlgo()
+    public function testSetTheAlgo(): void
     {
         $provider = new ProviderStub('secret', 'HS256', []);
 
@@ -20,7 +18,7 @@ class ProviderTest extends TestCase
         $this->assertSame('HS512', $provider->getAlgo());
     }
 
-    public function testSetTheSecret()
+    public function testSetTheSecret(): void
     {
         $provider = new ProviderStub('secret', 'HS256', []);
 
@@ -29,7 +27,7 @@ class ProviderTest extends TestCase
         $this->assertSame('foo', $provider->getSecret());
     }
 
-    public function testSetTheKeys()
+    public function testSetTheKeys(): void
     {
         $provider = new ProviderStub('secret', 'HS256', []);
 

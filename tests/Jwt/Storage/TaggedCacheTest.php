@@ -25,36 +25,36 @@ class TaggedCacheTest extends TestCase
     {
         $this->useStoreMode(TagMode::All);
         $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('put')->with('foo', 'bar', 10 * 60)->once();
+        $this->cache->shouldReceive('put')->with('foo', 'bar', 10 * 60)->once()->andReturnFalse();
 
-        $this->storage->add('foo', 'bar', 10);
+        $this->assertFalse($this->storage->add('foo', 'bar', 10));
     }
 
     public function testAddTheItemToAnyModeTaggedStorageWithDirectKeyPrefix(): void
     {
         $this->useStoreMode(TagMode::Any);
         $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('put')->with('jwt_blacklist:foo', 'bar', 10 * 60)->once();
+        $this->cache->shouldReceive('put')->with('jwt_blacklist:foo', 'bar', 10 * 60)->once()->andReturnTrue();
 
-        $this->storage->add('foo', 'bar', 10);
+        $this->assertTrue($this->storage->add('foo', 'bar', 10));
     }
 
     public function testAddTheItemToAllModeTaggedStorageForever(): void
     {
         $this->useStoreMode(TagMode::All);
         $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('forever')->with('foo', 'bar')->once();
+        $this->cache->shouldReceive('forever')->with('foo', 'bar')->once()->andReturnFalse();
 
-        $this->storage->forever('foo', 'bar');
+        $this->assertFalse($this->storage->forever('foo', 'bar'));
     }
 
     public function testAddTheItemToAnyModeTaggedStorageForeverWithDirectKeyPrefix(): void
     {
         $this->useStoreMode(TagMode::Any);
         $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('forever')->with('jwt_blacklist:foo', 'bar')->once();
+        $this->cache->shouldReceive('forever')->with('jwt_blacklist:foo', 'bar')->once()->andReturnTrue();
 
-        $this->storage->forever('foo', 'bar');
+        $this->assertTrue($this->storage->forever('foo', 'bar'));
     }
 
     public function testGetAnItemFromAllModeTaggedStorage(): void
@@ -97,18 +97,18 @@ class TaggedCacheTest extends TestCase
     {
         $this->useStoreMode(TagMode::All);
         $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('flush')->withNoArgs()->once();
+        $this->cache->shouldReceive('flush')->withNoArgs()->once()->andReturnFalse();
 
-        $this->storage->flush();
+        $this->assertFalse($this->storage->flush());
     }
 
     public function testRemoveAllAnyModeTaggedItemsFromStorageUsesUnprefixedTagName(): void
     {
         $this->useStoreMode(TagMode::Any);
         $this->cache->shouldReceive('tags')->with(['jwt_blacklist'])->once()->andReturnSelf();
-        $this->cache->shouldReceive('flush')->withNoArgs()->once();
+        $this->cache->shouldReceive('flush')->withNoArgs()->once()->andReturnTrue();
 
-        $this->storage->flush();
+        $this->assertTrue($this->storage->flush());
     }
 
     public function testConstructorDoesNotReadTagModeWhenStoreDoesNotSupportTags(): void

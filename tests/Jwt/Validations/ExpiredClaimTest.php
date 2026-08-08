@@ -21,8 +21,19 @@ class ExpiredClaimTest extends TestCase
         $validation = new ExpiredClaim(['leeway' => 3600]);
 
         $validation->validate([]);
+        $validation->validate(['exp' => null]);
         $validation->validate(['exp' => Date::now()->timestamp + 3600]);
         $validation->validate(['exp' => Date::now()->timestamp - 3600]);
+    }
+
+    public function testEpochZeroIsExpired(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
+
+        $this->expectException(TokenExpiredException::class);
+        $this->expectExceptionMessage('Token has expired');
+
+        (new ExpiredClaim)->validate(['exp' => 0]);
     }
 
     public function testInvalid(): void

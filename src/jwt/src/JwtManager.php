@@ -12,6 +12,7 @@ use Hypervel\Jwt\Contracts\ValidationContract;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\TokenBlacklistedException;
 use Hypervel\Jwt\Exceptions\TokenExpiredException;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Manager;
@@ -35,7 +36,7 @@ class JwtManager extends Manager implements ManagerContract
     ) {
         parent::__construct($container);
 
-        $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled', false);
+        $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled');
         $this->blacklist = $this->blacklistEnabled
             ? $container->make(BlacklistContract::class)
             : null;
@@ -64,7 +65,7 @@ class JwtManager extends Manager implements ManagerContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->string('jwt.driver', 'lcobucci');
+        return $this->config->string('jwt.driver');
     }
 
     /**
@@ -99,7 +100,7 @@ class JwtManager extends Manager implements ManagerContract
 
     protected function validatePayload(array $payload, bool $refresh = false): void
     {
-        foreach ($this->config->array('jwt.validations', []) as $validation) {
+        foreach ($this->config->array('jwt.validations') as $validation) {
             $validation = $this->getValidation($validation);
 
             if ($refresh && $validation instanceof TemporalValidation) {
@@ -134,15 +135,15 @@ class JwtManager extends Manager implements ManagerContract
 
         if ($ttl === false) {
             /** @var null|int $ttl */
-            $ttl = $this->config->get('jwt.ttl', 120);
+            $ttl = $this->config->get('jwt.ttl');
         }
 
         $claims = $this->claimFactory->refresh(
             payload: $payload,
             ttl: $ttl,
-            refreshIssuedAt: $this->config->boolean('jwt.refresh_iat', false),
+            refreshIssuedAt: $this->config->boolean('jwt.refresh_iat'),
             resetClaims: $resetClaims,
-            persistentClaims: $this->config->array('jwt.persistent_claims', []),
+            persistentClaims: $this->config->array('jwt.persistent_claims'),
             customClaims: $customClaims,
         );
 
@@ -180,10 +181,16 @@ class JwtManager extends Manager implements ManagerContract
             throw new JwtException('You must have the blacklist enabled to invalidate a token.');
         }
 
-        return call_user_func(
-            [$this->blacklist(), $forceForever ? 'addForever' : 'add'],
-            $this->decode($token, false, false)
-        );
+        $payload = $this->decode($token, false, false);
+        $persisted = $forceForever
+            ? $this->blacklist()->addForever($payload)
+            : $this->blacklist()->add($payload);
+
+        if (! $persisted) {
+            throw new JwtException('Unable to invalidate token because the blacklist write failed.');
+        }
+
+        return true;
     }
 
     /**
@@ -191,14 +198,22 @@ class JwtManager extends Manager implements ManagerContract
      */
     protected function validateRefreshWindow(array $payload): void
     {
+        $issuedAt = $payload['iat'] ?? null;
+
+        // Blacklist retention for missing iat payloads depends on this rejection
+        // preceding the infinite-refresh return.
+        if ($issuedAt === null) {
+            throw new TokenInvalidException('Issued At (iat) claim is required to refresh a token.');
+        }
+
         /** @var null|int $refreshTtl */
-        $refreshTtl = $this->config->get('jwt.refresh_ttl', 20160);
+        $refreshTtl = $this->config->get('jwt.refresh_ttl');
 
         if ($refreshTtl === null) {
             return;
         }
 
-        if (Date::now() > Date::createFromTimestamp($payload['iat'])->addMinutes($refreshTtl)) {
+        if (Date::now() > Date::createFromTimestamp($issuedAt)->addMinutes($refreshTtl)) {
             throw new TokenExpiredException('Token has expired and can no longer be refreshed');
         }
     }
