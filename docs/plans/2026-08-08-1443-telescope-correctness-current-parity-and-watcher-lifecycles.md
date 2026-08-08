@@ -138,7 +138,7 @@ The final ledger IDs continue after existing `telescope-01` through `telescope-0
 | `telescope-09` | `audit-05` | Request bounds | Apply the configured KB limit as an exact byte bound. |
 | `telescope-10` | `audit-06` | UUID queries | Apply nullable explicit UUID filters, including the empty-set case. |
 | `telescope-11` | `audit-07` | Falsey queries | Preserve tag `"0"` and `beforeSequence=0` with explicit absence checks. |
-| `telescope-12` | `audit-08` | Event telemetry | Correct framework prefixes and remove unreachable object-event handling. |
+| `telescope-12` | `audit-08` | Event telemetry | Correct framework prefixes, payload extraction, and listener metadata handling. |
 | `telescope-13` | `audit-09` | Dashboard domain | Apply `telescope.domain` as route metadata and delete obsolete request-domain helpers. |
 | `telescope-14` | `audit-10` | Deletion ordering | Port current deterministic sequence/tag ordering without locks or retries. |
 | `telescope-15` | `audit-11` | Job telemetry | Clear stale exception/failed-tag state after successful processing. |
@@ -320,14 +320,20 @@ return Str::startsWith($eventName, [
 Keep `Str::is()` for user-configured wildcard ignore patterns. `Hypervel\\` already covers Scout;
 do not add redundant package prefixes.
 
-Keep `Factory::observeRendering()`. Capture the concrete event `Dispatcher` once during watcher
-registration because listener introspection is not part of the Events contract, just as rendering
-observation is not part of the View Factory contract beside it. Then use current upstream's
-composer/creator reflection and `FormatsClosure` during an actually recorded view. Guard the
-nullable event scope and check it against `Hypervel\Contracts\View\Factory`. Do not resolve the
-container per view and do not cache reflection output. Cover direct/wildcard composer, creator, and
-no-scope/global cases. Move the modified test fixture path from system temp and `uniqid()` to
-`ParallelTesting::tempDir()`.
+Capture the concrete event `Dispatcher` once during both EventWatcher and ViewWatcher registration
+because listener introspection is not part of the Events contract. EventWatcher must confirm the
+class part of a `Class@method` string exists before calling `class_implements()`; formatted Closure
+paths may validly contain `@`. This removes its per-event container resolution and local PHPStan
+suppression.
+
+Keep `Factory::observeRendering()`, just as rendering observation is not part of the View Factory
+contract. Use current upstream's composer/creator reflection and `FormatsClosure` during an
+actually recorded view. Guard the nullable event scope and check it against
+`Hypervel\Contracts\View\Factory`. Do not resolve the container per view and do not cache reflection
+output. Reflect only Dispatcher wrappers whose captured listener is a Closure; direct string and
+array event listeners are not View Factory composer metadata. Cover direct/wildcard composer,
+creator, no-scope/global, and direct class-array listener cases. Move the modified test fixture
+path from system temp and `uniqid()` to `ParallelTesting::tempDir()`.
 
 Remove `ReflectionProperty::setAccessible()` and PHP 7.4 compatibility guards unsupported by this
 repository. Port the current BatchWatcher parameter wording only; do not add runtime behavior.
@@ -564,11 +570,12 @@ Place the protected key with Telescope's existing context constants; nothing out
 references it. Place `cspNonce()` after `scriptVariables()` and before `flushState()`, matching
 upstream's final method order. Adapt return construction to the existing static API shape if current
 source uses a different fluent implementation. Render ` nonce="..."` on both dashboard style and
-module-script tags from the current coroutine only. Do not clear the context key from
-`Telescope::flushState()`; the authoritative `CoroutineContext::flush()` cleanup owns coroutine and
-non-coroutine context after the test coroutine ends. Concurrent `parallel()` tasks with an
-interleaving `usleep()` must prove isolation. The Laravel-facing method API is preserved; only
-unsafe process-static ownership is adapted.
+module-script tags from the current coroutine only, escaping the nonce with `e()` at the HTML
+attribute sink. Do not clear the context key from `Telescope::flushState()`; the authoritative
+`CoroutineContext::flush()` cleanup owns coroutine and non-coroutine context after the test
+coroutine ends. Concurrent `parallel()` tasks with an interleaving `usleep()` must prove isolation,
+and a quote-bearing nonce must prove attribute escaping. The Laravel-facing method API is preserved;
+only unsafe process-static ownership is adapted.
 
 ### 11. Add uninstall lifecycle support (`telescope-17`)
 
@@ -682,7 +689,7 @@ After implementation and review:
 | Repository queries | Explicit UUIDs/empty UUIDs, tag `"0"`, and sequence zero produce exact result sets. |
 | Recording lifecycle | Each throwing callback releases recursion protection and preserves exception propagation. |
 | Redaction and bounds | Nested falsey secrets are masked; request/Reverb byte boundaries and UTF-8 are exact. |
-| Event/view metadata | Every corrected prefix and composer/creator scope is observed through real watcher callbacks. |
+| Event/view metadata | Corrected prefixes, Closure paths containing `@`, and each composer/creator scope are observed through real callbacks; direct class-array listeners cannot break rendering. |
 | Dashboard routes/details | Configured host restricts matching and queue detail returns beyond the default page limit. |
 | Schedule watcher/UI | Success/failure/overlap/filter/listener/background-fork cases produce the intended single-row payload and display. |
 | Dump ownership | Every ownership/delegation/reset branch is pinned, including labels and a dead prior application. |
@@ -715,11 +722,13 @@ run the full parallel suite during implementation.
 - Globally disabled Telescope installs less Redis/cache/Guzzle instrumentation. Individual watcher
   checks remain boot-time.
 - Event prefix matching uses one direct prefix check instead of wildcard matching for framework
-  prefixes. User wildcard configuration retains `Str::is()`.
+  prefixes. User wildcard configuration retains `Str::is()`, and EventWatcher no longer resolves
+  the event dispatcher per recorded event.
 - View reflection occurs only for an enabled, recorded view and uses the dispatcher captured once
   at registration; no per-view container lookup or cache is added.
 - JSON flags, null checks, strict comparisons, cleanup `finally`, and failure containment add no
   meaningful successful-path overhead or retained memory.
+- CSP escaping runs only while rendering dashboard assets with an explicitly configured nonce.
 - Frontend, metadata, documentation, config/stub, uninstall, and maintenance-record work adds no
   application runtime cost.
 
@@ -762,3 +771,9 @@ run the full parallel suite during implementation.
   so catalogs would break standalone Horizon/Telescope installs and a shared lock would remove
   their reproducible asset-build contract. Keep their npm locks and local policy. Do not add split
   generation machinery, `shamefullyHoist`, or a speculative `publicHoistPattern`.
+- **Partial dashboard query validation:** the shipped client supplies the typed filter shapes and
+  every public setter already fails fast on malformed input. Do not add guards for only two of the
+  five raw filter fields without a complete public validation contract.
+- **Schedule reconciliation context clearing:** supported tasks run in finite child coroutines and
+  remain retained by the Schedule, so task object IDs cannot recycle during reconciliation. The
+  context is destroyed with its task coroutine; do not add redundant mutations to every event.
