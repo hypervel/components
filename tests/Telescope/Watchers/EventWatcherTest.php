@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Closure;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -140,16 +143,19 @@ class EventWatcherTest extends FeatureTestCase
     }
 
     #[DataProvider('formatListenersProvider')]
-    public function testFormatListeners($listener, $formatted)
+    public function testFormatListeners(mixed $listener, string $formatted): void
     {
         Event::listen(DummyEvent::class, $listener);
 
         $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');
 
-        $this->assertSame($formatted, $method->invoke(new EventWatcher, DummyEvent::class)[0]['name']);
+        $this->assertSame(
+            $formatted,
+            $method->invoke($this->app->make(EventWatcher::class), DummyEvent::class)[0]['name'],
+        );
     }
 
-    public static function formatListenersProvider()
+    public static function formatListenersProvider(): array
     {
         return [
             'class string' => [
@@ -186,6 +192,34 @@ class EventWatcherTest extends FeatureTestCase
                 sprintf('Closure at %s[%s:%s]', __FILE__, __LINE__ - 2, __LINE__ - 1),
             ],
         ];
+    }
+
+    public function testClosureListenerPathContainingAtIsNotTreatedAsAClass(): void
+    {
+        $directory = ParallelTesting::tempDir('TelescopeEventWatcherTest@listener');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+
+        try {
+            $path = $directory . '/listener.php';
+            file_put_contents($path, '<?php return static function (): void {};');
+
+            /** @var Closure $listener */
+            $listener = require $path;
+            Event::listen(DummyEvent::class, $listener);
+
+            $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');
+            $formatted = $method->invoke(
+                $this->app->make(EventWatcher::class),
+                DummyEvent::class,
+            )[0];
+
+            $this->assertStringContainsString('@listener', $formatted['name']);
+            $this->assertFalse($formatted['queued']);
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
     }
 }
 

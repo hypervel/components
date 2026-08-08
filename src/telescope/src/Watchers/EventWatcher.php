@@ -6,9 +6,9 @@ namespace Hypervel\Telescope\Watchers;
 
 use Closure;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\ExtractProperties;
@@ -22,12 +22,18 @@ class EventWatcher extends Watcher
     use FormatsClosure;
 
     /**
+     * The event dispatcher.
+     */
+    protected Dispatcher $events;
+
+    /**
      * Register the watcher.
      */
     public function register(Application $app): void
     {
-        $app->make(Dispatcher::class)
-            ->observe('*', [$this, 'recordEvent']);
+        $this->events = $app->make(Dispatcher::class);
+
+        $this->events->observe('*', [$this, 'recordEvent']);
     }
 
     /**
@@ -73,8 +79,7 @@ class EventWatcher extends Watcher
      */
     protected function formatListeners(string $eventName): array
     {
-        /* @phpstan-ignore-next-line */
-        return Collection::make(app(Dispatcher::class)->getListeners($eventName))
+        return Collection::make($this->events->getListeners($eventName))
             ->map(function ($listener) {
                 $listener = (new ReflectionFunction($listener))
                     ->getStaticVariables()['listener'];
@@ -96,8 +101,9 @@ class EventWatcher extends Watcher
             })->reject(function ($listener) {
                 return str_starts_with($listener, 'Hypervel\Telescope');
             })->map(function ($listener) {
-                if (Str::contains($listener, '@')) {
-                    $queued = in_array(ShouldQueue::class, class_implements(Str::beforeLast($listener, '@')), true);
+                if (Str::contains($listener, '@')
+                    && class_exists($class = Str::beforeLast($listener, '@'))) {
+                    $queued = in_array(ShouldQueue::class, class_implements($class), true);
                 }
 
                 return [

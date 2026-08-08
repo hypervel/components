@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Telescope\EntryType;
@@ -144,6 +145,22 @@ class ViewWatcherTest extends FeatureTestCase
 
         $this->assertCount(1, $composers);
         $this->assertStringStartsWith('Closure at ', $composers[0]['name']);
+    }
+
+    public function testViewWatcherIgnoresDirectClassArrayEventListeners(): void
+    {
+        file_put_contents($this->viewDir . '/direct-listener.blade.php', 'Direct listener');
+        $this->app->make(Dispatcher::class)->listen(
+            'composing: test::direct-listener',
+            [ViewWatcherComposer::class, 'compose'],
+        );
+
+        $this->app->make(Factory::class)->make('test::direct-listener')->render();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertContains('composed', $entry->content['data']);
+        $this->assertArrayNotHasKey('composers', $entry->content);
     }
 }
 

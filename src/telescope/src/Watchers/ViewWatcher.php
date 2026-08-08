@@ -105,16 +105,10 @@ class ViewWatcher extends Watcher
             ->map(function ($listener) {
                 return (new ReflectionFunction($listener))->getStaticVariables();
             })->reject(function ($variables) {
-                if (is_array($variables['listener'])) {
-                    return Str::contains(get_class($variables['listener'][0]), 'Hypervel\Telescope');
-                }
-
+                // The dispatcher wraps every listener in a Closure. Only wrappers that captured a
+                // Closure hold composer metadata; string and array listeners hold none.
                 return ! $variables['listener'] instanceof Closure;
             })->map(function ($variables) {
-                if (is_array($variables['listener'])) {
-                    return null;
-                }
-
                 $closure = new ReflectionFunction($listener = $variables['listener']);
 
                 if ($this->isWildcardViewComposer($variables, $closure)) {
@@ -126,7 +120,7 @@ class ViewWatcher extends Watcher
                 }
 
                 return $this->formatClosureListener($listener);
-            })->filter();
+            });
     }
 
     /**
