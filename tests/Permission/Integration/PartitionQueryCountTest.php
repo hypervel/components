@@ -106,7 +106,7 @@ class PartitionQueryCountTest extends PartitionTestCase
         $this->assertSame([], $discoveryQueries);
     }
 
-    public function testRoleSyncUsesOneDeleteAndOneBulkInsertWithoutListeners(): void
+    public function testRoleSyncUsesOnePivotReadAndOneBulkInsertWithoutListeners(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'roles@example.com']);
         $firstRole = PartitionedRole::create(['name' => 'editor']);
@@ -125,12 +125,16 @@ class PartitionQueryCountTest extends PartitionTestCase
             $this->assertContains(self::PARTITION_A, $query['bindings']);
         }
 
-        $this->assertStringContainsString('delete from', strtolower($queries[0]['query']));
-        $this->assertStringContainsString('model_has_roles', $queries[0]['query']);
+        $pivotRead = strtolower($queries[0]['query']);
+
+        $this->assertStringContainsString('select', $pivotRead);
+        $this->assertStringContainsString('model_has_roles', $pivotRead);
+        $this->assertStringContainsString('role_test_id', $pivotRead);
+        $this->assertStringNotContainsString(' join ', $pivotRead);
         $this->assertStringContainsString('insert into', strtolower($queries[1]['query']));
     }
 
-    public function testRoleSyncAddsOnePivotOnlyReadForTheDetachedEventPayload(): void
+    public function testRoleSyncReusesPivotReadForDetachedEventPayload(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'role-events@example.com']);
         $currentRole = PartitionedRole::create(['name' => 'editor']);
@@ -178,6 +182,7 @@ class PartitionQueryCountTest extends PartitionTestCase
 
         $pivotRead = strtolower($queries[0]['query']);
 
+        $this->assertStringContainsString('select', $pivotRead);
         $this->assertStringContainsString('model_has_permissions', $pivotRead);
         $this->assertStringContainsString('permission_test_id', $pivotRead);
         $this->assertStringNotContainsString(' join ', $pivotRead);
