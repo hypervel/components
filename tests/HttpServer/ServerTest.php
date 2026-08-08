@@ -466,7 +466,7 @@ class ServerTest extends TestCase
         $this->setServerName($server, 'http');
 
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldNotReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end');
+        $swooleResponse->shouldReceive('status', 'header', 'cookie', 'rawcookie', 'write', 'sendfile', 'end')->never();
 
         try {
             wait(fn () => $server->onRequest($this->createSwooleRequest(), $swooleResponse));

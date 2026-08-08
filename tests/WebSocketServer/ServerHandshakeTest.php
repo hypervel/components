@@ -136,7 +136,7 @@ class ServerHandshakeTest extends TestCase
         $nativeServer->shouldNotReceive('isEstablished');
 
         $response = m::mock(SwooleResponse::class);
-        $response->shouldNotReceive('status', 'header', 'end');
+        $response->shouldReceive('status', 'header', 'end')->never();
 
         try {
             (new HandshakeLifecycleServer($container, $router, $nativeServer))
