@@ -22,6 +22,7 @@
 - [Passkeys](#passkeys)
     - [Frontend Package](#frontend-package)
     - [Request And Response Contracts](#request-and-response-contracts)
+    - [Customizing Passkeys](#customizing-passkeys)
     - [Passkey Models](#passkey-models)
     - [Passkey Cleanup](#passkey-cleanup)
     - [Standalone Passkeys](#standalone-passkeys)
@@ -478,7 +479,7 @@ These callbacks take priority over the static config values when a request is av
 
 The resolved relying party ID must be a registrable-domain suffix of the resolved origins. Otherwise, browsers will reject the WebAuthn ceremony before the server can verify it.
 
-`user_handle_secret` is a long-lived secret used to derive stable WebAuthn user handles. It defaults to the app key for convenience, but production applications should set a dedicated value before registering passkeys. Changing it changes generated user handles.
+`user_handle_secret` is a long-lived, nonempty secret used to derive stable WebAuthn user handles. It defaults to the app key for convenience, but production applications should set a dedicated value before registering passkeys. Changing it changes generated user handles.
 
 <a name="frontend-package"></a>
 ### Frontend Package
@@ -528,6 +529,110 @@ Custom passkey frontends should use JSON requests and preserve the normal Hyperv
 
 </div>
 
+<a name="customizing-passkeys"></a>
+### Customizing Passkeys
+
+You may prevent a valid passkey from signing in by registering a callback during boot. Return `false` to stop authentication, or throw a `ValidationException` when you need a custom message:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Passkeys\Contracts\PasskeyUser;
+use Hypervel\Passkeys\Passkey;
+use Hypervel\Passkeys\Passkeys;
+use Hypervel\Validation\ValidationException;
+
+Passkeys::authorizeLoginUsing(function (Request $request, PasskeyUser $user, Passkey $passkey): bool {
+    if ($user->is_suspended) {
+        throw ValidationException::withMessages([
+            'credential' => ['This account has been suspended.'],
+        ]);
+    }
+
+    return true;
+});
+```
+
+For confirmation or another user-bound flow, generate options for the authenticated user and pass that same user to the verifier. This limits the browser options and enforces ownership again during verification:
+
+```php
+use Hypervel\Passkeys\Actions\GenerateVerificationOptions;
+use Hypervel\Passkeys\Actions\VerifyPasskey;
+
+$options = app(GenerateVerificationOptions::class)($request->user());
+
+$passkey = app(VerifyPasskey::class)(
+    $request->credential(),
+    $options,
+    $request->user(),
+);
+```
+
+The five core actions may be extended and rebound in your service provider: `GenerateRegistrationOptions`, `StorePasskey`, `GenerateVerificationOptions`, `VerifyPasskey`, and `DeletePasskey`. Extending `GenerateRegistrationOptions::authenticatorSelection()` lets an application restrict registration to platform or roaming authenticators:
+
+```php
+use App\Actions\StorePasskey as CustomStorePasskey;
+use Hypervel\Passkeys\Actions\StorePasskey;
+
+public function register(): void
+{
+    $this->app->singleton(StorePasskey::class, CustomStorePasskey::class);
+}
+```
+
+The package actions are stateless and normally live for the worker lifetime. Use a `bind` or `scoped` binding instead only when your custom action deliberately owns fresh or request-scoped state.
+
+To change lower-level WebAuthn ceremony steps or algorithms, configure the ceremony factory during boot. For example, the following configuration accepts only ES256 credentials:
+
+```php
+use Cose\Algorithm\Manager;
+use Cose\Algorithm\Signature\ECDSA\ES256;
+use Hypervel\Passkeys\Support\WebAuthn;
+use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
+
+WebAuthn::configureCeremonyStepManagerFactoryUsing(
+    static function (CeremonyStepManagerFactory $factory): CeremonyStepManagerFactory {
+        $factory->setAlgorithmManager(Manager::create()->add(ES256::create()));
+
+        return $factory;
+    },
+);
+```
+
+Passkey responses are also container contracts. Registration responses are transient because each response receives its new passkey; login, confirmation, and deletion responses are singleton bindings:
+
+```php
+use App\Http\Responses\PasskeyConfirmationResponse as ConfirmationResponse;
+use App\Http\Responses\PasskeyDeletedResponse as DeletedResponse;
+use App\Http\Responses\PasskeyLoginResponse as LoginResponse;
+use App\Http\Responses\PasskeyRegistrationResponse as RegistrationResponse;
+use Hypervel\Passkeys\Contracts\PasskeyConfirmationResponse;
+use Hypervel\Passkeys\Contracts\PasskeyDeletedResponse;
+use Hypervel\Passkeys\Contracts\PasskeyLoginResponse;
+use Hypervel\Passkeys\Contracts\PasskeyRegistrationResponse;
+
+public function register(): void
+{
+    $this->app->bind(PasskeyRegistrationResponse::class, RegistrationResponse::class);
+    $this->app->singleton(PasskeyLoginResponse::class, LoginResponse::class);
+    $this->app->singleton(PasskeyConfirmationResponse::class, ConfirmationResponse::class);
+    $this->app->singleton(PasskeyDeletedResponse::class, DeletedResponse::class);
+}
+```
+
+The orphan-pruning command resolves `PruneOrphanedPasskeys` from the container, so applications with a custom ownership strategy may extend and register that action separately:
+
+```php
+use App\Actions\PruneOrphanedPasskeys as CustomPruner;
+use Hypervel\Passkeys\Actions\PruneOrphanedPasskeys;
+
+public function register(): void
+{
+    $this->app->singleton(PruneOrphanedPasskeys::class, CustomPruner::class);
+}
+```
+
+Passkeys dispatches `PasskeyRegistered`, `PasskeyVerified`, and `PasskeyDeleted` after their corresponding operation succeeds. You may listen for these events using Hypervel's normal event listener conventions.
+
 <a name="passkey-models"></a>
 ### Passkey Models
 
@@ -541,14 +646,35 @@ use Hypervel\Passkeys\PasskeyAuthenticatable;
 class User extends Authenticatable implements PasskeyUser
 {
     use PasskeyAuthenticatable;
+
+    public function getPasskeyDisplayName(): string
+    {
+        return $this->name;
+    }
+
+    public function getPasskeyUsername(): string
+    {
+        return $this->email;
+    }
 }
 ```
+
+The display name is shown prominently by authenticators, while the username identifies the account. The trait defaults to common `name` and `email` attributes and then falls back to the model's authentication identifier.
 
 Passkeys use a polymorphic `user` relation by default, backed by `user_type` and `user_id` columns. This lets one application store passkeys for multiple authenticatable model classes in the same `passkeys` table.
 
 Passwordless passkey login is scoped to the selected guard provider's Eloquent model. A passkey registered to an `Admin` model cannot authenticate a `User` guard, even if the credential ID exists.
 
-The default migration uses Hypervel's configured morph key type. Applications using UUID or ULID owner keys should configure the framework morph key type before running the passkeys migration. Applications that mix owner key storage types should publish and customize the migration while keeping the `user_type` / `user_id` column names.
+The default migration uses Hypervel's configured morph key type. Applications using UUID or ULID owner keys should configure the framework morph key type before running the passkeys migration. Applications that mix owner key storage types should publish and customize the migration while keeping the `user_type` / `user_id` column names. A custom migration must store at least 1,364 case-sensitive characters in `credential_id` and preserve its unique index.
+
+To customize the passkey record itself, extend the package model and select it during boot:
+
+```php
+use App\Models\Passkey;
+use Hypervel\Passkeys\Passkeys;
+
+Passkeys::usePasskeyModel(Passkey::class);
+```
 
 <a name="passkey-cleanup"></a>
 ### Passkey Cleanup
@@ -575,7 +701,7 @@ php artisan passkeys:prune-orphans --chunk=500
 
 Applications that delete owners outside Eloquent instance deletes should run this command on a schedule or delete passkeys explicitly in the same maintenance job.
 
-If your application stores morph aliases in `user_type`, register the morph map before pruning. Passkeys for unresolved morph aliases are skipped so the command does not delete live credentials whose owner type cannot be resolved.
+If your application stores morph aliases in `user_type`, register the morph map before pruning. The command skips any owner type it cannot resolve to an Eloquent model, whether that is an unregistered alias, a renamed or deleted class, or a class that is not a model. It reports each skipped type as a warning and never deletes credentials whose owner it cannot verify.
 
 <a name="standalone-passkeys"></a>
 ### Standalone Passkeys
@@ -589,6 +715,14 @@ php artisan migrate
 ```
 
 Standalone routes use `passkeys.guard`, `passkeys.middleware`, `passkeys.management_middleware`, `passkeys.throttle`, and `passkeys.redirect`.
+
+Call `Passkeys::ignoreRoutes()` during boot before registering your own endpoints:
+
+```php
+use Hypervel\Passkeys\Passkeys;
+
+Passkeys::ignoreRoutes();
+```
 
 <a name="swoole-and-worker-state"></a>
 ## Swoole And Worker State
