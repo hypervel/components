@@ -12,7 +12,7 @@ use Mockery as m;
 
 class ProcessPendingUpdatesTest extends FeatureTestCase
 {
-    public function testPendingUpdates()
+    public function testPendingUpdates(): void
     {
         Bus::fake();
 
@@ -35,7 +35,7 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
         Bus::assertNothingDispatched();
     }
 
-    public function testPendingUpdatesMayStayPending()
+    public function testPendingUpdatesMayStayPending(): void
     {
         Bus::fake();
 
@@ -58,11 +58,11 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
         (new ProcessPendingUpdates($pendingUpdates))->handle($repository);
 
         Bus::assertDispatched(ProcessPendingUpdates::class, function ($job) {
-            return $job->attempt == 1 && $job->pendingUpdates->toArray() == [['id' => 2, 'content' => 'bar']];
+            return $job->attempt === 1 && $job->pendingUpdates->toArray() === [['id' => 2, 'content' => 'bar']];
         });
     }
 
-    public function testPendingUpdatesMayStayPendingOnlyThreeTimes()
+    public function testPendingUpdatesMayStayPendingOnlyThreeTimes(): void
     {
         Bus::fake();
 
@@ -83,6 +83,25 @@ class ProcessPendingUpdatesTest extends FeatureTestCase
             ->andReturn($failedUpdates);
 
         (new ProcessPendingUpdates($pendingUpdates, 2))->handle($repository);
+
+        Bus::assertNothingDispatched();
+    }
+
+    public function testNullableCustomRepositoryResultDoesNotDispatchAnotherUpdate(): void
+    {
+        Bus::fake();
+
+        $pendingUpdates = collect([
+            ['id' => 1, 'content' => 'foo'],
+        ]);
+
+        $repository = m::mock(EntriesRepository::class);
+        $repository->shouldReceive('update')
+            ->once()
+            ->with($pendingUpdates)
+            ->andReturnNull();
+
+        (new ProcessPendingUpdates($pendingUpdates))->handle($repository);
 
         Bus::assertNothingDispatched();
     }
