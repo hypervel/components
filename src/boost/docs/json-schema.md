@@ -239,9 +239,13 @@ Only local references are supported. An `InvalidArgumentException` will be throw
 
 The `fromArray` method can reconstruct schemas that use the same types, metadata, and constraints available through the fluent builder. It also accepts schemas whose only allowed type is `null`, whether the type is written as a string or as an array.
 
+When the `type` keyword is omitted, Hypervel infers it whenever the supported keywords identify one type unambiguously. For example, `['minLength' => 1]` is reconstructed as a string schema and therefore no longer accepts numbers or `null`. An `InvalidArgumentException` is thrown when no single type can be determined.
+
 When working with schemas represented as PHP arrays, setting `items` to `true` or `[]` is treated the same as omitting the item constraint. Likewise, setting `additionalProperties` to `true` or `[]` preserves the default behavior of allowing additional properties.
 
-A `oneOf` schema may only be reconstructed when it contains one schema and a branch whose only keyword is `"type": "null"`. In this case, the schema is reconstructed as nullable.
+A `oneOf` schema may only be reconstructed as nullable when it contains exactly one branch whose only keyword is `"type": "null"` and one other branch whose `type` excludes `null`. This preserves the requirement that exactly one branch must match.
+
+When a nullable `anyOf` keeps an enum only on its non-null branch, the composition is preserved instead of moving the enum outside the branch. The same form cannot be reconstructed as nullable for `oneOf`; include `null` in the enum or use an equivalent `anyOf` composition instead.
 
 Annotations and vendor extensions that are not represented by the builder are ignored.
 

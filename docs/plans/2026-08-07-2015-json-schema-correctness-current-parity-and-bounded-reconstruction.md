@@ -91,9 +91,10 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `json-schema-08` | Documentation defect / Minor | Describe `nullable()` as permitting null, not making a property optional. |
 | `json-schema-09` | Approved API improvement | Widen each concrete default setter with `null` while preserving its existing non-null domain. |
 | `json-schema-10` | Approved API improvement | Add fluent `default(mixed)` to union and any-of without validating annotation values against branches. |
-| `json-schema-11` | Upstream reconstruction defect / Major | Reject unsupported JSON Schema 2020-12 assertions instead of silently weakening them; only a bare null branch may collapse into nullability. |
+| `json-schema-11` | Upstream reconstruction defect / Major | Reject unsupported JSON Schema 2020-12 assertions instead of silently weakening them; allow only bare null branches to collapse and preserve `oneOf`'s exact-match cardinality. |
 | `json-schema-12` | Upstream reconstruction defect / Major | Reject recognized keyword values that would be coerced, dropped, or deferred; preserve permissive `items: true`; reject surviving nested compositions and empty input compositions. |
 | `json-schema-13` | Upstream builder defect / Major | Reject non-string direct union members instead of coercing them, warning, or raising an undocumented PHP `Error`. |
+| `json-schema-14` | Upstream reconstruction defect / Major | Preserve branch-local enum ownership in nullable `anyOf`; reject the equivalent unrepresentable `oneOf` form. |
 
 No accepted item adds request hot-path work. Builder serialization gains constant-time state checks and one property/default shape test. Deserialization work occurs only when `fromArray()` is explicitly called and is bounded more tightly than upstream.
 
@@ -292,7 +293,7 @@ protected const TYPE_SPECIFIC_KEYWORDS = [
 ];
 ```
 
-The multi-type union guard uses this constant. In `buildAnyOfComposition()`, first identify and remove null branches. Preserve the existing nullable-single-schema path by returning `null` before applying the general-composition guard; `normalizeUnions()` owns those collapsed forms and must continue accepting their type-specific siblings. Only the path that will construct a real `AnyOfType` rejects the constant's keys plus `type` and `oneOf`. After nullable collapse, reject any `anyOf` or `oneOf` keyword still present in the merged fragment so siblings, inline branches, and resolved references cannot silently replace one another. Continue preserving `title`, `description`, `enum`, `default`, and nullability. Continue ignoring unknown annotations such as `$schema`, `$comment`, `readOnly`, and `contentEncoding`; this package is not a general validator.
+The multi-type union guard uses this constant. In `buildAnyOfComposition()`, first identify and remove null branches. Preserve the existing nullable-single-schema path by returning `null` before applying the general-composition guard, except when only the surviving branch owns an array-form enum that excludes null. That form must remain a real `AnyOfType`; an outer sibling enum or a branch enum that includes null may still collapse. `normalizeUnions()` owns the collapsed forms and must continue accepting their type-specific siblings. Only the path that constructs a real `AnyOfType` rejects the constant's keys plus `type` and `oneOf`. After nullable collapse, reject any `anyOf` or `oneOf` keyword still present in the merged fragment so siblings, inline branches, and resolved references cannot silently replace one another. Continue preserving `title`, `description`, `enum`, `default`, and nullability. Continue ignoring unknown annotations such as `$schema`, `$comment`, `readOnly`, and `contentEncoding`; this package is not a general validator.
 
 #### Enum shape
 
@@ -304,7 +305,7 @@ Reject unsupported standard assertions before they can be dropped. Keep one prot
 
 The presence-based guard is deliberately conservative: value-level no-ops such as a bare `if` or empty `patternProperties` also throw. Do not add keyword-specific evaluation or a general validator. Standalone `then`, `else`, `minContains`, and `maxContains` remain ignored because they have no effect without the guarded owning assertion. Standard annotations and vendor extensions remain ignored.
 
-Only a branch whose sole key is `type` with value `"null"` or `["null"]` may collapse into outer nullability. A non-bare null branch in `anyOf` remains a real branch so supported assertions and annotations are preserved; the equivalent general `oneOf` is rejected because there is no `OneOfType`. The strict classifier and assertion guard must land together: otherwise a constrained null branch is discarded before the guard can see it. This intentionally rejects type-specific keywords on a null branch, even though those keywords are no-ops for null, for consistency with the existing null-only union constraint boundary.
+Only a branch whose sole key is `type` with value `"null"` or `["null"]` may collapse into outer nullability. A non-bare null branch in `anyOf` remains a real branch so supported assertions and annotations are preserved; the equivalent general `oneOf` is rejected because there is no `OneOfType`. A collapsed `oneOf` must contain exactly one bare null branch, and its surviving branch must declare a type that excludes null. A branch-local enum that excludes null cannot be hoisted from `oneOf`; reject it with the alternatives of including null in the enum or using the equivalent `anyOf` composition. Enum is the only supported cross-type assertion requiring this ownership rule; `const` is unsupported. The strict classifier and assertion guard must land together: otherwise a constrained null branch is discarded before the guard can see it. This intentionally rejects type-specific keywords on a null branch, even though those keywords are no-ops for null, for consistency with the existing null-only union constraint boundary.
 
 ### 5. Preserve valid composition semantics
 
@@ -371,11 +372,9 @@ Update `src/json-schema/README.md` in repository order:
 3. a concise `Differences From Laravel` section;
 4. `Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/JsonSchema`.
 
-Group the public differences, rather than writing a changelog:
+Record only the public API difference, not internal bug fixes:
 
-- Hypervel accepts explicit null defaults and provides fluent defaults on union and any-of schemas;
-- invalid JSON values raise `JsonException`, and finally-empty compositions throw instead of producing unusable output;
-- `fromArray()` rejects malformed or unsupported 2020-12 assertions it cannot preserve, accepts scalar and array-form null-only schemas and permissive `items: true`, and bounds active-reference depth as well as total expansion.
+- Hypervel accepts explicit null defaults and provides fluent defaults on union and any-of schemas.
 
 Add `src/boost/docs/json-schema.md` in Laravel-docs prose and link it under **Digging Deeper**, between HTTP Client and Localization. Cover practical primitive, object, and array construction; `required()` versus `nullable()`; metadata and constraints; `unique()`, `union()`, and `anyOf()`; array/string output; `fromArray()`; local references; and the supported-subset failure boundary. State only user-actionable behavior, not serializer/deserializer internals.
 
@@ -409,7 +408,7 @@ Run each changed or new test file immediately. The final package suite must cove
 11. direct and reconstructed `enum([])` preservation without Opis validation, with one short comment explaining that Opis's non-empty rule is stricter than JSON Schema 2020-12.
 12. every unsupported 2020-12 assertion keyword rejected, while standalone `then`, `else`, `minContains`, `maxContains`, standard annotations, and vendor extensions remain accepted.
 13. PHP integer endpoints preserved; out-of-range integral floats, fractional/nonnumeric count and length values, and malformed recognized keyword types rejected while numeric strings remain accepted.
-14. permissive `items: true` and `items: []`; rejected `items: false`; eager empty-input composition rejection; boolean `oneOf` branch rejection; and every sibling/branch/ref path that could leave a second composition after nullable collapse.
+14. permissive `items: true` and `items: []`; rejected `items: false`; eager empty-input composition rejection; boolean `oneOf` branch rejection; exact nullable-`oneOf` cardinality with corresponding `anyOf` exemption controls; branch-local enum ownership through inline and referenced branches; safe outer/nullable enums; preserved annotations; structural-sibling rejection; and every path that could leave a second composition after nullable collapse.
 15. explicit null `type` and direct or reference-revealed non-string `$ref` values rejected at their owning boundaries rather than inferred or dropped.
 16. direct union construction rejects every non-string member without warnings or PHP errors; null-valued inferred keywords reach their owning guards; range failures have an exact diagnostic; and unsupported assertions or surviving same-keyword compositions are rejected inside composition branches.
 
@@ -430,6 +429,7 @@ After focused files pass, run the complete `tests/JsonSchema` suite, targeted so
 - No serializer cycle registry: a direct self-cycle is developer-created, fails during development, and cannot be constructed through `fromArray()`, whose circular refs already throw.
 - No subtype dispatch redesign: exact-class serialization truthfully rejects unknown types and there is no documented subtype contract.
 - No `NullType`: null-only output is representable through the existing union/any-of nullability model.
+- No `OneOfType` or general composition abstraction: the supported nullable subset is handled by bounded semantic guards.
 - No recursive object-default shape conversion: only the top-level object intent is known.
 - No rejection or Opis validation of empty enums: the 2020-12 contract permits them.
 - No runtime dependency change: Opis remains test-only.
@@ -441,7 +441,7 @@ After implementation, validation, self-review, and code-review sign-off:
 - add the final JSON Schema work unit to the companion audit ledger, including the upstream-shared defects, worker-fatal reference risk, accepted API widenings, and rejected machinery;
 - set the core audit routing index to the active/completed JSON Schema work unit, add only genuine cross-package dependency rows if implementation discovers one, and check `json-schema` complete;
 - record the Laravel-facing result: current APIs restored; explicit-null and sum-type defaults intentionally widened; malformed or unsupported lossy reconstruction and final-invalid output rejected; no useful Laravel API removed;
-- name the unchanged Laravel 13.x defects in the owner summary so the owner can decide whether to upstream them: direct union-member coercion, unbounded recursive reference following, lossy reconstruction (including scalar null, constrained null branches, unsupported 2020-12 assertions, coerced/dropped keyword values, nested composition loss, and boolean `oneOf` branches), over-rejection of representable `items: true`, numeric object-map encoding, blank-string JSON failures, and invalid empty compositions;
+- name the unchanged Laravel 13.x defects in the owner summary so the owner can decide whether to upstream them: direct union-member coercion, unbounded recursive reference following, lossy reconstruction (including scalar null, constrained null branches, nullable `oneOf` overlap, branch-local enum hoisting, unsupported 2020-12 assertions, coerced/dropped keyword values, nested composition loss, and boolean `oneOf` branches), over-rejection of representable `items: true`, numeric object-map encoding, blank-string JSON failures, and invalid empty compositions;
 - leave no TODO or deferred accepted finding.
 
 Then provide the owner with the complete pre-commit summary required by the core audit workflow and wait for explicit approval. Do not create any source, test, documentation, ledger, or bookkeeping commit before that approval.

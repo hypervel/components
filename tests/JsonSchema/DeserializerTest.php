@@ -937,6 +937,291 @@ class DeserializerTest extends TestCase
         }
     }
 
+    public function testItRejectsDuplicateBareNullBranchesInOneOf(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'A nullable "oneOf" must contain exactly one bare "null" branch.'
+        ));
+
+        JsonSchema::fromArray([
+            'oneOf' => [
+                ['type' => 'string'],
+                ['type' => 'null'],
+                ['type' => ['null']],
+            ],
+        ]);
+    }
+
+    public function testAnyOfMayContainDuplicateBareNullBranches(): void
+    {
+        $type = JsonSchema::fromArray([
+            'anyOf' => [
+                ['type' => 'string'],
+                ['type' => 'null'],
+                ['type' => ['null']],
+            ],
+        ]);
+
+        $this->assertSame(['type' => ['string', 'null']], $type->toArray());
+    }
+
+    public function testItRejectsDuplicateBareNullBranchesResolvedThroughReferencesInOneOf(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'A nullable "oneOf" must contain exactly one bare "null" branch.'
+        ));
+
+        JsonSchema::fromArray([
+            'oneOf' => [
+                ['type' => 'string'],
+                ['$ref' => '#/$defs/nothing'],
+                ['$ref' => '#/$defs/nothing'],
+            ],
+            '$defs' => [
+                'nothing' => ['type' => 'null'],
+            ],
+        ]);
+    }
+
+    #[DataProvider('overlappingNullableOneOfProvider')]
+    public function testItRejectsNullableOneOfBranchesThatMayAcceptNull(array $branch): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'A nullable "oneOf" schema branch must declare a type that excludes "null".'
+        ));
+
+        JsonSchema::fromArray([
+            'oneOf' => [
+                $branch,
+                ['type' => 'null'],
+            ],
+        ]);
+    }
+
+    public static function overlappingNullableOneOfProvider(): array
+    {
+        return [
+            'declared nullable type' => [['type' => ['string', 'null']]],
+            'annotated null type' => [['type' => 'null', 'title' => 'No value']],
+            'typeless string constraint' => [['minLength' => 2]],
+            'typeless object constraint' => [['properties' => ['name' => ['type' => 'string']]]],
+        ];
+    }
+
+    public function testItRejectsANullAcceptingOneOfBranchResolvedThroughAReference(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'A nullable "oneOf" schema branch must declare a type that excludes "null".'
+        ));
+
+        JsonSchema::fromArray([
+            'oneOf' => [
+                ['$ref' => '#/$defs/maybe'],
+                ['type' => 'null'],
+            ],
+            '$defs' => [
+                'maybe' => ['type' => ['string', 'null']],
+            ],
+        ]);
+    }
+
+    #[DataProvider('overlappingNullableAnyOfProvider')]
+    public function testNullableAnyOfMayContainBranchesThatAlsoAcceptNull(array $branch, array $expected): void
+    {
+        $type = JsonSchema::fromArray([
+            'anyOf' => [
+                $branch,
+                ['type' => 'null'],
+            ],
+        ]);
+
+        $this->assertSame($expected, $type->toArray());
+    }
+
+    public static function overlappingNullableAnyOfProvider(): array
+    {
+        return [
+            'declared nullable type' => [
+                ['type' => ['string', 'null']],
+                ['type' => ['string', 'null']],
+            ],
+            'annotated null type' => [
+                ['type' => 'null', 'title' => 'No value'],
+                ['title' => 'No value', 'type' => ['null']],
+            ],
+            'typeless string constraint' => [
+                ['minLength' => 2],
+                ['minLength' => 2, 'type' => ['string', 'null']],
+            ],
+            'typeless object constraint' => [
+                ['properties' => ['name' => ['type' => 'string']]],
+                [
+                    'properties' => ['name' => ['type' => 'string']],
+                    'type' => ['object', 'null'],
+                ],
+            ],
+        ];
+    }
+
+    #[DataProvider('branchOnlyEnumAnyOfProvider')]
+    public function testItPreservesABranchOnlyEnumInNullableAnyOf(array $schema): void
+    {
+        $type = JsonSchema::fromArray($schema);
+
+        $this->assertInstanceOf(AnyOfType::class, $type);
+        $this->assertSame([
+            'anyOf' => [
+                ['enum' => ['draft', 'published'], 'type' => 'string'],
+                ['type' => 'null'],
+            ],
+        ], $type->toArray());
+    }
+
+    public static function branchOnlyEnumAnyOfProvider(): array
+    {
+        return [
+            'inline branch' => [[
+                'anyOf' => [
+                    ['type' => 'string', 'enum' => ['draft', 'published']],
+                    ['type' => 'null'],
+                ],
+            ]],
+            'referenced branch' => [[
+                'anyOf' => [
+                    ['$ref' => '#/$defs/status'],
+                    ['type' => 'null'],
+                ],
+                '$defs' => [
+                    'status' => ['type' => 'string', 'enum' => ['draft', 'published']],
+                ],
+            ]],
+        ];
+    }
+
+    #[DataProvider('collapsibleNullableEnumProvider')]
+    public function testItCollapsesNullableCompositionsWhenEnumOwnershipIsPreserved(array $schema, array $expected): void
+    {
+        $this->assertSame($expected, JsonSchema::fromArray($schema)->toArray());
+    }
+
+    public static function collapsibleNullableEnumProvider(): array
+    {
+        return [
+            'outer enum' => [[
+                'enum' => ['draft', 'published'],
+                'anyOf' => [
+                    ['type' => 'string'],
+                    ['type' => 'null'],
+                ],
+            ], [
+                'enum' => ['draft', 'published'],
+                'type' => ['string', 'null'],
+            ]],
+            'equal branch and outer enums' => [[
+                'enum' => ['draft', 'published'],
+                'anyOf' => [
+                    ['type' => 'string', 'enum' => ['draft', 'published']],
+                    ['type' => 'null'],
+                ],
+            ], [
+                'enum' => ['draft', 'published'],
+                'type' => ['string', 'null'],
+            ]],
+            'equal branch and outer enums in oneOf' => [[
+                'enum' => ['draft', 'published'],
+                'oneOf' => [
+                    ['type' => 'string', 'enum' => ['draft', 'published']],
+                    ['type' => 'null'],
+                ],
+            ], [
+                'enum' => ['draft', 'published'],
+                'type' => ['string', 'null'],
+            ]],
+            'branch enum includes null' => [[
+                'anyOf' => [
+                    ['type' => 'string', 'enum' => ['draft', null]],
+                    ['type' => 'null'],
+                ],
+            ], [
+                'enum' => ['draft', null],
+                'type' => ['string', 'null'],
+            ]],
+            'oneOf branch enum includes null' => [[
+                'oneOf' => [
+                    ['type' => 'string', 'enum' => ['draft', null]],
+                    ['type' => 'null'],
+                ],
+            ], [
+                'enum' => ['draft', null],
+                'type' => ['string', 'null'],
+            ]],
+        ];
+    }
+
+    public function testItRejectsConflictingBranchAndOuterEnums(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'Conflicting [enum] between a "anyOf" branch and its sibling keys.'
+        ));
+
+        JsonSchema::fromArray([
+            'enum' => ['archived'],
+            'anyOf' => [
+                ['type' => 'string', 'enum' => ['draft', 'published']],
+                ['type' => 'null'],
+            ],
+        ]);
+    }
+
+    public function testItRejectsABranchOnlyEnumInNullableOneOf(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'A branch-local [enum] that excludes null cannot be collapsed from a nullable "oneOf"; '
+            . 'include null in the enum or use an equivalent "anyOf" composition.'
+        ));
+
+        JsonSchema::fromArray([
+            'oneOf' => [
+                ['type' => 'string', 'enum' => ['draft', 'published']],
+                ['type' => 'null'],
+            ],
+        ]);
+    }
+
+    public function testItRejectsStructuralSiblingsWhenPreservingABranchOnlyEnumAnyOf(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException(
+            'Structural keywords [minLength] are not supported alongside a general JSON Schema anyOf.'
+        ));
+
+        JsonSchema::fromArray([
+            'minLength' => 2,
+            'anyOf' => [
+                ['type' => 'string', 'enum' => ['draft', 'published']],
+                ['type' => 'null'],
+            ],
+        ]);
+    }
+
+    public function testItPreservesAnnotationsWhenPreservingABranchOnlyEnumAnyOf(): void
+    {
+        $type = JsonSchema::fromArray([
+            'title' => 'Status',
+            'anyOf' => [
+                ['type' => 'string', 'enum' => ['draft', 'published']],
+                ['type' => 'null'],
+            ],
+        ]);
+
+        $this->assertSame([
+            'title' => 'Status',
+            'anyOf' => [
+                ['enum' => ['draft', 'published'], 'type' => 'string'],
+                ['type' => 'null'],
+            ],
+        ], $type->toArray());
+    }
+
     #[DataProvider('emptyInputCompositionProvider')]
     public function testItRejectsEmptyInputCompositions(string $keyword): void
     {

@@ -167,7 +167,9 @@ class Deserializer
             }
         }
 
-        if ($nullable && count($branches) === 1) {
+        if ($nullable
+            && count($branches) === 1
+            && ! $this->hasBranchOnlyEnumExcludingNull($schema, $branches[0][0])) {
             return null;
         }
 
@@ -650,7 +652,7 @@ class Deserializer
                 throw new InvalidArgumentException("The JSON Schema [{$key}] keyword must be a non-empty array.");
             }
 
-            $nullable = false;
+            $nullBranches = 0;
             $branches = [];
 
             foreach ($schema[$key] as $branch) {
@@ -663,19 +665,40 @@ class Deserializer
                 [$branch, $branchRefs] = $this->resolveRef($branch, $refs);
 
                 if ($this->isNullBranch($branch)) {
-                    $nullable = true;
+                    ++$nullBranches;
                 } else {
                     $branches[] = [$branch, $branchRefs];
                 }
             }
 
-            if (! $nullable || count($branches) !== 1) {
+            // "oneOf" accepts an instance only when exactly one branch matches, so its nullable
+            // collapse must not allow a second null match.
+            if ($key === 'oneOf' && $nullBranches > 1) {
+                throw new InvalidArgumentException(
+                    'A nullable "oneOf" must contain exactly one bare "null" branch.'
+                );
+            }
+
+            if ($nullBranches === 0 || count($branches) !== 1) {
                 throw new InvalidArgumentException(
                     "Only a nullable \"{$key}\" (a single schema plus a bare \"null\" branch) is supported."
                 );
             }
 
             [$branch, $branchRefs] = $branches[0];
+
+            if ($key === 'oneOf' && $this->mayAcceptNull($branch)) {
+                throw new InvalidArgumentException(
+                    'A nullable "oneOf" schema branch must declare a type that excludes "null".'
+                );
+            }
+
+            if ($key === 'oneOf' && $this->hasBranchOnlyEnumExcludingNull($schema, $branch)) {
+                throw new InvalidArgumentException(
+                    'A branch-local [enum] that excludes null cannot be collapsed from a nullable "oneOf"; '
+                    . 'include null in the enum or use an equivalent "anyOf" composition.'
+                );
+            }
 
             $siblings = $schema;
             unset($siblings[$key]);
@@ -715,9 +738,41 @@ class Deserializer
             return false;
         }
 
-        $type = $branch['type'] ?? null;
+        $type = $branch['type'];
 
         return $type === 'null' || $type === ['null'];
+    }
+
+    /**
+     * Determine if the schema branch may accept null.
+     *
+     * @param array<string, mixed> $branch
+     */
+    protected function mayAcceptNull(array $branch): bool
+    {
+        if (! array_key_exists('type', $branch)) {
+            // Without "type", the branch places no constraint on the instance type and matches null.
+            return true;
+        }
+
+        $type = $branch['type'];
+
+        return $type === 'null'
+            || (is_array($type) && in_array('null', $type, true));
+    }
+
+    /**
+     * Determine if the branch alone constrains an enum that excludes null.
+     *
+     * @param array<string, mixed> $schema
+     * @param array<string, mixed> $branch
+     */
+    protected function hasBranchOnlyEnumExcludingNull(array $schema, array $branch): bool
+    {
+        return ! array_key_exists('enum', $schema)
+            && array_key_exists('enum', $branch)
+            && is_array($branch['enum'])
+            && ! in_array(null, $branch['enum'], true);
     }
 
     /**
