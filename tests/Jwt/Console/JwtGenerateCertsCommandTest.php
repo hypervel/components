@@ -64,17 +64,22 @@ class JwtGenerateCertsCommandTest extends TestCase
         $this->artisan('jwt:generate-certs', [
             '--force' => true,
             '--algo' => 'rsa',
-            '--bits' => 512,
+            '--bits' => 2048,
             '--sha' => 256,
             '--dir' => $directory,
             '--passphrase' => 'secret',
         ])->assertSuccessful();
 
-        $privateKeyPath = $directory . '/jwt-rsa-512-private.pem';
-        $publicKeyPath = $directory . '/jwt-rsa-512-public.pem';
+        $privateKeyPath = $directory . '/jwt-rsa-2048-private.pem';
+        $publicKeyPath = $directory . '/jwt-rsa-2048-public.pem';
 
+        $this->assertDirectoryExists($directory);
         $this->assertFileExists($privateKeyPath);
         $this->assertFileExists($publicKeyPath);
+        $this->assertStringContainsString('-----BEGIN ENCRYPTED PRIVATE KEY-----', file_get_contents($privateKeyPath));
+        $this->assertStringContainsString('-----BEGIN PUBLIC KEY-----', file_get_contents($publicKeyPath));
+        $this->assertSame('0600', substr(sprintf('%o', fileperms($privateKeyPath)), -4));
+        $this->assertSame('0644', substr(sprintf('%o', fileperms($publicKeyPath)), -4));
 
         $contents = file_get_contents($this->app->environmentFilePath());
 
@@ -90,13 +95,13 @@ class JwtGenerateCertsCommandTest extends TestCase
 
         $this->artisan('jwt:generate-certs', [
             '--force' => true,
-            '--algo' => 'rsa',
-            '--bits' => 512,
+            '--algo' => 'ec',
             '--sha' => 256,
             '--dir' => $directory,
+            '--curve' => 'prime256v1',
         ])->assertSuccessful();
 
-        $privateKey = file_get_contents($directory . '/jwt-rsa-512-private.pem');
+        $privateKey = file_get_contents($directory . '/jwt-ec-prime256v1-private.pem');
 
         $this->assertStringContainsString('-----BEGIN PRIVATE KEY-----', $privateKey);
         $this->assertStringNotContainsString('-----BEGIN ENCRYPTED PRIVATE KEY-----', $privateKey);
@@ -109,7 +114,6 @@ class JwtGenerateCertsCommandTest extends TestCase
         $this->artisan('jwt:generate-certs', [
             '--force' => true,
             '--algo' => 'ec',
-            '--bits' => 256,
             '--sha' => 256,
             '--dir' => $directory,
             '--curve' => 'prime256v1',
@@ -175,6 +179,51 @@ class JwtGenerateCertsCommandTest extends TestCase
         ]);
     }
 
+    public function testRejectsRsaKeysBelow2048BitsBeforeGeneration(): void
+    {
+        $directory = $this->temporaryDirectory('weak-rsa');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('JWT RSA certificates must use at least 2048 bits.');
+
+        try {
+            $this->artisan('jwt:generate-certs', [
+                '--force' => true,
+                '--algo' => 'rsa',
+                '--bits' => 1024,
+                '--sha' => 256,
+                '--dir' => $directory,
+            ]);
+        } finally {
+            $this->assertDirectoryDoesNotExist($directory);
+        }
+    }
+
+    public function testInteractivePassphrasePreservesStringZero(): void
+    {
+        $directory = $this->temporaryDirectory('zero-passphrase');
+
+        $this->artisan('jwt:generate-certs', [
+            '--force' => true,
+            '--algo' => 'ec',
+            '--sha' => 256,
+            '--dir' => $directory,
+            '--curve' => 'prime256v1',
+            '--ask-passphrase' => true,
+        ])
+            ->expectsQuestion('Passphrase', '0')
+            ->assertSuccessful();
+
+        $this->assertStringContainsString(
+            'JWT_PASSPHRASE=0',
+            file_get_contents($this->app->environmentFilePath()),
+        );
+        $this->assertStringContainsString(
+            '-----BEGIN ENCRYPTED PRIVATE KEY-----',
+            file_get_contents($directory . '/jwt-ec-prime256v1-private.pem'),
+        );
+    }
+
     public function testRefusesToOverwriteExistingCertificatesWithoutForce(): void
     {
         $directory = $this->temporaryDirectory('existing');
@@ -182,18 +231,18 @@ class JwtGenerateCertsCommandTest extends TestCase
         if (! is_dir($directory)) {
             mkdir($directory, 0777, true);
         }
-        file_put_contents($directory . '/jwt-rsa-512-private.pem', 'existing');
+        file_put_contents($directory . '/jwt-ec-prime256v1-private.pem', 'existing');
 
         $this->artisan('jwt:generate-certs', [
-            '--algo' => 'rsa',
-            '--bits' => 512,
+            '--algo' => 'ec',
             '--sha' => 256,
             '--dir' => $directory,
+            '--curve' => 'prime256v1',
         ])
             ->expectsOutputToContain('JWT certificates already exist. Use --force to overwrite them.')
             ->assertExitCode(Command::FAILURE);
 
-        $this->assertSame('existing', file_get_contents($directory . '/jwt-rsa-512-private.pem'));
+        $this->assertSame('existing', file_get_contents($directory . '/jwt-ec-prime256v1-private.pem'));
     }
 
     public function testFailsWhenEnvironmentFileIsMissing(): void
@@ -205,10 +254,10 @@ class JwtGenerateCertsCommandTest extends TestCase
 
         $this->artisan('jwt:generate-certs', [
             '--force' => true,
-            '--algo' => 'rsa',
-            '--bits' => 512,
+            '--algo' => 'ec',
             '--sha' => 256,
             '--dir' => $directory,
+            '--curve' => 'prime256v1',
         ])
             ->expectsOutputToContain("The file [{$environmentFile}] does not exist.")
             ->assertExitCode(Command::FAILURE);
