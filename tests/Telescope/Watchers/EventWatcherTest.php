@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Support\Facades\Event;
 use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
@@ -116,6 +117,26 @@ class EventWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNull($entry);
+    }
+
+    #[DataProvider('frameworkEventProvider')]
+    public function testEventWatcherIgnoresFrameworkEventPrefixes(string $eventName): void
+    {
+        $this->app->make(EventWatcher::class)->recordEvent($eventName, []);
+
+        $this->assertSame([], Telescope::getEntriesQueue());
+    }
+
+    public static function frameworkEventProvider(): array
+    {
+        return [
+            ['Hypervel\Database\Events\QueryExecuted'],
+            ['eloquent.created: App\Models\User'],
+            ['bootstrapped: Hypervel\Foundation\Bootstrap\BootProviders'],
+            ['bootstrapping: Hypervel\Foundation\Bootstrap\BootProviders'],
+            ['creating: Hypervel\Log\Logger'],
+            ['composing: dashboard'],
+        ];
     }
 
     #[DataProvider('formatListenersProvider')]

@@ -35,36 +35,28 @@ class EventWatcher extends Watcher
      */
     public function recordEvent(string $event, array $payload): void
     {
-        $eventName = $event;
-        if (! Telescope::isRecording() || $this->shouldIgnore($eventName)) {
+        if (! Telescope::isRecording() || $this->shouldIgnore($event)) {
             return;
         }
 
         $formattedPayload = $this->extractPayload($event, $payload);
 
         Telescope::recordEvent(IncomingEntry::make([
-            'name' => $eventName,
+            'name' => $event,
             'payload' => empty($formattedPayload) ? null : $formattedPayload,
-            'listeners' => $this->formatListeners($eventName),
-            'broadcast' => class_exists($eventName)
-                ? in_array(ShouldBroadcast::class, (array) class_implements($eventName))
+            'listeners' => $this->formatListeners($event),
+            'broadcast' => class_exists($event)
+                ? in_array(ShouldBroadcast::class, (array) class_implements($event), true)
                 : false,
-        ])->tags(class_exists($eventName) && isset($payload[0]) ? ExtractTags::from($payload[0]) : []));
+        ])->tags(class_exists($event) && isset($payload[0]) ? ExtractTags::from($payload[0]) : []));
     }
 
     /**
      * Extract the payload and tags from the event.
      */
-    protected function extractPayload(object|string $event, array $payload): array
+    protected function extractPayload(string $event, array $payload): array
     {
-        // For object events: the event object itself contains the payload properties
-        // Wildcard listeners receive (eventName, eventObject) so check payload[0]
-        if (is_object($event) && empty($payload)) {
-            return ExtractProperties::from($event);
-        }
-
-        // For wildcard listeners with object events, the event object is in payload[0]
-        if (is_string($event) && count($payload) === 1 && is_object($payload[0])) {
+        if (class_exists($event) && isset($payload[0]) && is_object($payload[0])) {
             return ExtractProperties::from($payload[0]);
         }
 
@@ -105,7 +97,7 @@ class EventWatcher extends Watcher
                 return str_starts_with($listener, 'Hypervel\Telescope');
             })->map(function ($listener) {
                 if (Str::contains($listener, '@')) {
-                    $queued = in_array(ShouldQueue::class, class_implements(Str::beforeLast($listener, '@')));
+                    $queued = in_array(ShouldQueue::class, class_implements(Str::beforeLast($listener, '@')), true);
                 }
 
                 return [
@@ -129,21 +121,9 @@ class EventWatcher extends Watcher
      */
     protected function eventIsFiredByTheFramework(string $eventName): bool
     {
-        $prefixes = [
-            'eloquent.', // Model events (e.g., "eloquent.created: App\Models\User")
-            'Hypervel',
-            'Hypervel',
-            'bootstrapped',
-            'bootstrapping',
-        ];
-
-        foreach ($prefixes as $prefix) {
-            if (str_starts_with($eventName, $prefix)) {
-                return true;
-            }
-        }
-
-        return false;
+        return Str::startsWith($eventName, [
+            'Hypervel\\', 'eloquent', 'bootstrapped', 'bootstrapping', 'creating', 'composing',
+        ]);
     }
 
     /**
