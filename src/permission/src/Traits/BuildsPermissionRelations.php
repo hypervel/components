@@ -95,7 +95,7 @@ trait BuildsPermissionRelations
         $relation = new PartitionedMorphToMany(
             $query,
             $this,
-            'model',
+            Config::MORPH_NAME,
             $table,
             $foreignPivotKey,
             $relatedPivotKey,

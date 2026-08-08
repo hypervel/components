@@ -48,7 +48,8 @@
         "hypervel/macroable": "^0.4",
         "hypervel/mail": "^0.4",
         "hypervel/queue": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "nesbot/carbon": "^3.13.1"
     },
     "config": {
         "sort-packages": true

@@ -10,7 +10,7 @@ use RuntimeException;
 
 class SerializerTest extends TestCase
 {
-    public function testItDoesNotKnowHowToSerializeUnknownTypes()
+    public function testItDoesNotKnowHowToSerializeUnknownTypes(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Unsupported [Hypervel\JsonSchema\Types\Type@anonymous');

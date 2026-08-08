@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Events\RoleAttachedEvent;
@@ -31,7 +32,7 @@ trait HasRoles
     private ?string $roleClass = null;
 
     /**
-     * @var array<string, array{roles: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}>
+     * @var array<string, array{roles: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}>
      */
     private array $queuedRoleAssignments = [];
 
@@ -144,10 +145,7 @@ trait HasRoles
         $registrar = $this->permissionRegistrar();
         $context = $this->roleAssignmentContext($registrar);
 
-        if ($model->relationLoaded('roles')
-            && ! $registrar->loadedRelationIsCurrent($model, 'roles')) {
-            $model->unsetRelation('roles');
-        }
+        $this->forgetStalePermissionRelation($registrar, 'roles');
 
         if ($this instanceof Permission || ! $model->exists || $this->relationLoaded('roles')) {
             return $this->relationCollection($this, 'roles');
@@ -287,7 +285,7 @@ trait HasRoles
             function ($subQuery) use ($pivotTable, $morphKey, $query, $teamsKey, $teamIds, $partition) {
                 $subQuery->from($pivotTable)
                     ->whereColumn($morphKey, $query->getModel()->getQualifiedKeyName())
-                    ->where('model_type', $query->getModel()->getMorphClass())
+                    ->where(Config::MORPH_TYPE, $query->getModel()->getMorphClass())
                     ->whereIn($teamsKey, $teamIds);
 
                 if ($partition) {
@@ -355,10 +353,13 @@ trait HasRoles
             return $this;
         }
 
-        $pivot = $this->roleAssignmentPivot($context);
-
         if (! $this->exists) {
-            $this->queueRoleAssignments($roles, $pivot, $context);
+            $this->queueRoleAssignments(
+                $roles,
+                $this->roleAssignmentPivot($context),
+                $context,
+                $registrar->getAssignmentPivotClass($this, 'roles'),
+            );
             $this->dispatchRoleAttachedEvent($roles);
 
             return $this;
@@ -366,8 +367,15 @@ trait HasRoles
 
         $this->requireModelKey($this);
 
-        $currentRoles = $this->getCachedRoles()
-            ->map(fn (Model $role): int|string => $role->getKey())
+        $relation = $this->roles();
+        $context = $this->permissionRelationContext($relation);
+        $relatedPivotKey = $relation->getRelatedPivotKeyName();
+
+        $currentRoles = $this->readCurrentAssignmentPivots($relation, [$relatedPivotKey], $roles)
+            ->map(fn (object $pivot): int|string => $this->normalizeRelatedPivotId(
+                $relation,
+                $pivot->{$relatedPivotKey},
+            ))
             ->all();
         $attachedRoles = array_values(array_filter(
             $roles,
@@ -380,7 +388,7 @@ trait HasRoles
             return $this;
         }
 
-        $this->roleAssignmentRelation($context)->attach($attachedRoles, $pivot);
+        $relation->attach($attachedRoles, $this->roleAssignmentPivot($context));
         $this->unsetRelation('roles');
 
         if ($this instanceof Permission) {
@@ -403,13 +411,15 @@ trait HasRoles
      *
      * @param array<int, int|string> $roles
      * @param array<string, mixed> $pivot
+     * @param class-string<Pivot> $pivotClass
      */
     protected function queueRoleAssignments(
         array $roles,
         array $pivot,
         PermissionRelationContext $context,
+        string $pivotClass,
     ): void {
-        $identity = $context->identity();
+        $identity = $context->identity() . ':' . PermissionPartition::encodeCacheSegment($pivotClass);
         $queuedRoles = $this->queuedRoleAssignments[$identity]['roles'] ?? [];
 
         foreach ($roles as $role) {
@@ -422,6 +432,7 @@ trait HasRoles
             'roles' => $queuedRoles,
             'pivot' => $pivot,
             'context' => $context,
+            'pivotClass' => $pivotClass,
         ];
     }
 
@@ -430,55 +441,46 @@ trait HasRoles
      *
      * @param array<int, int|string> $roles
      * @param array<string, mixed> $pivot
+     * @param class-string<Pivot> $pivotClass
      */
     protected function replaceQueuedRoleAssignments(
         array $roles,
         array $pivot,
         PermissionRelationContext $context,
-    ): bool {
-        $identity = $context->identity();
+        string $pivotClass,
+    ): void {
+        $identity = $context->identity() . ':' . PermissionPartition::encodeCacheSegment($pivotClass);
 
         if ($roles === []) {
-            if (! isset($this->queuedRoleAssignments[$identity])) {
-                return false;
-            }
-
             unset($this->queuedRoleAssignments[$identity]);
 
-            return true;
-        }
-
-        $current = $this->queuedRoleAssignments[$identity] ?? null;
-
-        if ($current !== null
-            && $current['roles'] === $roles
-            && $current['pivot'] === $pivot) {
-            return false;
+            return;
         }
 
         $this->queuedRoleAssignments[$identity] = [
             'roles' => $roles,
             'pivot' => $pivot,
             'context' => $context,
+            'pivotClass' => $pivotClass,
         ];
-
-        return true;
     }
 
     /**
      * Remove role assignments queued for a captured context.
      *
      * @param array<int, int|string> $roles
+     * @param class-string<Pivot> $pivotClass
      */
     protected function removeQueuedRoleAssignments(
         array $roles,
         PermissionRelationContext $context,
-    ): bool {
-        $identity = $context->identity();
+        string $pivotClass,
+    ): void {
+        $identity = $context->identity() . ':' . PermissionPartition::encodeCacheSegment($pivotClass);
         $assignment = $this->queuedRoleAssignments[$identity] ?? null;
 
         if ($assignment === null) {
-            return false;
+            return;
         }
 
         $remainingRoles = array_values(array_filter(
@@ -487,19 +489,17 @@ trait HasRoles
         ));
 
         if ($remainingRoles === $assignment['roles']) {
-            return false;
+            return;
         }
 
         if ($remainingRoles === []) {
             unset($this->queuedRoleAssignments[$identity]);
 
-            return true;
+            return;
         }
 
         $assignment['roles'] = $remainingRoles;
         $this->queuedRoleAssignments[$identity] = $assignment;
-
-        return true;
     }
 
     /**
@@ -516,8 +516,13 @@ trait HasRoles
 
         $this->getConnection()->transaction(function () use ($roleAssignments, $permissionAssignments): void {
             foreach ($roleAssignments as $assignment) {
-                $this->roleAssignmentRelation($assignment['context'])
-                    ->attach($assignment['roles'], $assignment['pivot']);
+                $relation = $this->roleAssignmentRelation($assignment['context']);
+
+                if ($assignment['pivotClass'] !== Pivot::class) {
+                    $relation->using($assignment['pivotClass']);
+                }
+
+                $relation->attach($assignment['roles'], $assignment['pivot']);
             }
 
             $this->attachQueuedPermissionAssignmentBatches($permissionAssignments);
@@ -597,7 +602,11 @@ trait HasRoles
         }
 
         if (! $this->exists) {
-            $this->removeQueuedRoleAssignments($roles, $context);
+            $this->removeQueuedRoleAssignments(
+                $roles,
+                $context,
+                $registrar->getAssignmentPivotClass($this, 'roles'),
+            );
             $this->dispatchRoleDetachedEvent($roles);
 
             return $this;
@@ -605,7 +614,8 @@ trait HasRoles
 
         $this->requireModelKey($this);
 
-        $relation = $this->roleAssignmentRelation($context);
+        $relation = $this->roles();
+        $context = $this->permissionRelationContext($relation);
         $detached = $relation->detach($roles);
 
         if ($detached > 0) {
@@ -663,10 +673,13 @@ trait HasRoles
         $roles = $this->collectRoles($roles, $context->partition);
 
         if (! $this->exists) {
+            $pivotClass = $registrar->getAssignmentPivotClass($this, 'roles');
+
             $this->replaceQueuedRoleAssignments(
                 $roles,
                 $this->roleAssignmentPivot($context),
                 $context,
+                $pivotClass,
             );
             $this->dispatchRoleAttachedEvent($roles);
 
@@ -675,46 +688,49 @@ trait HasRoles
 
         $this->requireModelKey($this);
 
-        $relation = $this->roleAssignmentRelation($context);
-        $detachedRoles = [];
+        $relation = $this->roles();
+        $context = $this->permissionRelationContext($relation);
+        $relatedPivotKey = $relation->getRelatedPivotKeyName();
+        $currentRoles = $this->readCurrentAssignmentPivots($relation, [$relatedPivotKey])
+            ->map(fn (object $pivot): int|string => $this->normalizeRelatedPivotId(
+                $relation,
+                $pivot->{$relatedPivotKey},
+            ))
+            ->all();
+        $currentRolesByIdentity = $this->indexAssignmentIds($currentRoles);
+        $desiredRolesByIdentity = $this->indexAssignmentIds($roles);
+        $rolesToDetach = array_values(array_diff_key($currentRolesByIdentity, $desiredRolesByIdentity));
+        $rolesToAttach = array_values(array_diff_key($desiredRolesByIdentity, $currentRolesByIdentity));
+        $detachedEventRoles = $this->roleDetachedEventIsListenedFor() ? $currentRoles : [];
 
-        if ($this->roleDetachedEventIsListenedFor()) {
-            $relatedPivotKey = $relation->getRelatedPivotKeyName();
+        if ($rolesToDetach !== [] || $rolesToAttach !== []) {
+            $this->getConnection()->transaction(function () use ($context, $relation, $rolesToAttach, $rolesToDetach): void {
+                if ($rolesToDetach !== []) {
+                    $relation->detach($rolesToDetach, false);
+                }
 
-            foreach ($this->readCurrentAssignmentPivots($relation, [$relatedPivotKey]) as $pivot) {
-                $detachedRoles[] = $this->normalizeRelatedPivotId(
-                    $relation,
-                    $pivot->{$relatedPivotKey},
+                if ($rolesToAttach !== []) {
+                    $relation->attach($rolesToAttach, $this->roleAssignmentPivot($context), false);
+                }
+
+                $relation->touchIfTouching();
+            });
+
+            $this->unsetRelation('roles');
+
+            if ($this instanceof Permission) {
+                $registrar->forgetCachedPermissionsFor($context->partition);
+            } else {
+                $registrar->forgetModelRoleCacheFor(
+                    $this,
+                    $context->partition,
+                    $context->team,
                 );
             }
         }
 
-        $pivot = $this->roleAssignmentPivot($context);
-
-        $this->getConnection()->transaction(function () use ($pivot, $relation, $roles): void {
-            $relation->detach(null, false);
-
-            if ($roles !== []) {
-                $relation->attach($roles, $pivot, false);
-            }
-
-            $relation->touchIfTouching();
-        });
-
-        $this->unsetRelation('roles');
-
-        if ($this instanceof Permission) {
-            $registrar->forgetCachedPermissionsFor($context->partition);
-        } else {
-            $registrar->forgetModelRoleCacheFor(
-                $this,
-                $context->partition,
-                $context->team,
-            );
-        }
-
-        if ($detachedRoles !== []) {
-            $this->dispatchRoleDetachedEvent($detachedRoles);
+        if ($detachedEventRoles !== []) {
+            $this->dispatchRoleDetachedEvent($detachedEventRoles);
         }
 
         $this->dispatchRoleAttachedEvent($roles);
@@ -878,7 +894,9 @@ trait HasRoles
      */
     public function getDirectPermissions(): Collection
     {
-        return $this->allowedDirectPermissions();
+        return $this->directPermissionsForModelResult()
+            ->reject(fn (Model $permission): bool => $this->pivotIsDenied($permission))
+            ->values();
     }
 
     /**

@@ -332,7 +332,7 @@ class EventTest extends TestCase
         });
     }
 
-    public function testPermissionSyncDispatchesRequestedAttachedPayloadOnly(): void
+    public function testPermissionSyncDispatchesCurrentDetachedAndRequestedAttachedPayloads(): void
     {
         $this->testUser->givePermissionTo('edit-articles');
         $permission = $this->app->make(PermissionContract::class)::findByName('edit-news');
@@ -346,7 +346,111 @@ class EventTest extends TestCase
             return $event->model->is($this->testUser)
                 && $event->permissionsOrIds === [$this->testUserPermission->getKey(), $permission->getKey()];
         });
-        Event::assertNotDispatched(PermissionDetachedEvent::class);
+        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds->modelKeys() === [$this->testUserPermission->getKey()];
+        });
+    }
+
+    public function testPermissionSyncReportsSameSetAndEmptyReplacements(): void
+    {
+        $this->testUser->givePermissionTo('edit-articles');
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        Event::fake([PermissionAttachedEvent::class, PermissionDetachedEvent::class]);
+
+        $this->testUser->syncPermissions('edit-articles');
+
+        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds->modelKeys() === [$this->testUserPermission->getKey()];
+        });
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
+        });
+
+        Event::fake([PermissionAttachedEvent::class, PermissionDetachedEvent::class]);
+
+        $this->testUser->syncPermissions();
+
+        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds->modelKeys() === [$this->testUserPermission->getKey()];
+        });
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds === [];
+        });
+    }
+
+    public function testRolePermissionSyncReportsTheCurrentPermissionCollection(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $permission = $this->app->make(PermissionContract::class)::findByName('edit-news');
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        Event::fake([PermissionAttachedEvent::class, PermissionDetachedEvent::class]);
+
+        $this->testUserRole->syncPermissions('edit-news');
+
+        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
+            return $event->model->is($this->testUserRole)
+                && $event->permissionsOrIds->modelKeys() === [$this->testUserPermission->getKey()];
+        });
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($permission): bool {
+            return $event->model->is($this->testUserRole)
+                && $event->permissionsOrIds === [$permission->getKey()];
+        });
+    }
+
+    public function testPermissionEffectSyncReportsThePreOperationCollection(): void
+    {
+        $this->testUser->givePermissionTo('edit-articles');
+        $permission = $this->app->make(PermissionContract::class)::findByName('edit-news');
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        Event::fake([PermissionAttachedEvent::class, PermissionDetachedEvent::class]);
+
+        $this->testUser->syncPermissionEffects(
+            allowed: ['edit-news'],
+            denied: ['edit-articles'],
+        );
+
+        Event::assertDispatched(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds->modelKeys() === [$this->testUserPermission->getKey()];
+        });
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($permission): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds === [$permission->getKey(), $this->testUserPermission->getKey()];
+        });
+        $this->assertTrue($this->testUser->hasDirectPermission($permission));
+        $this->assertTrue($this->testUser->hasDeniedPermission($this->testUserPermission));
+    }
+
+    public function testPermissionSyncDispatchesAfterCommitAndCacheInvalidationInReplacementOrder(): void
+    {
+        $this->testUser->givePermissionTo('edit-articles');
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        $events = [];
+
+        Event::listen(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event) use (&$events): void {
+            $events[] = 'detached';
+            $this->assertSame(['edit-articles'], $event->permissionsOrIds->pluck('name')->all());
+            $this->assertFalse($event->model->hasDirectPermission('edit-articles'));
+            $this->assertTrue($event->model->hasDirectPermission('edit-news'));
+        });
+        Event::listen(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use (&$events): void {
+            $events[] = 'attached';
+            $this->assertFalse($event->model->hasDirectPermission('edit-articles'));
+            $this->assertTrue($event->model->hasDirectPermission('edit-news'));
+        });
+
+        $this->testUser->syncPermissions('edit-news');
+
+        $this->assertSame(['detached', 'attached'], $events);
     }
 
     public function testPermissionEffectUpdateDispatchesTheChangedPermission(): void

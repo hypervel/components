@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Composer;
 
+use Hypervel\Support\DefaultProviders;
 use Hypervel\Tests\TestCase;
 use JsonException;
 
@@ -47,6 +48,30 @@ class PackageManifestConsistencyTest extends TestCase
                     $this->assertNotNull($rootConstraint, "{$message}, but it is absent from the root manifest.");
                     $this->assertSame($constraint, $rootConstraint, "{$message} with a different root constraint.");
                 }
+            }
+        }
+    }
+
+    /**
+     * Ensure split package providers remain discoverable from the root package.
+     *
+     * @throws JsonException
+     */
+    public function testSplitPackageProvidersAreDiscoverableFromRootPackage(): void
+    {
+        $rootComposer = $this->decodeManifest(__DIR__ . '/../../composer.json');
+        $rootProviders = $rootComposer['extra']['hypervel']['providers'] ?? [];
+        $defaultProviders = (new DefaultProviders)->toArray();
+
+        foreach ($this->splitManifests() as $manifest) {
+            $composer = $this->decodeManifest($manifest);
+
+            foreach ($composer['extra']['hypervel']['providers'] ?? [] as $provider) {
+                $this->assertTrue(
+                    in_array($provider, $rootProviders, true)
+                        || in_array($provider, $defaultProviders, true),
+                    "Split package [{$composer['name']}] provider [{$provider}] is not discoverable from the root package.",
+                );
             }
         }
     }

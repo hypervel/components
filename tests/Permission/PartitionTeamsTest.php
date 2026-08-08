@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionPermissionsOnlyUser;
@@ -83,6 +85,81 @@ class PartitionTeamsTest extends PartitionTestCase
             'workspace_id' => self::PARTITION_B,
             'team_test_id' => $teamB->getKey(),
             'role_test_id' => $roleB->getKey(),
+        ]);
+    }
+
+    public function testWarmPermissionPivotRetainsItsPartitionAndTeamIdentity(): void
+    {
+        $teamA1 = PartitionWorkspaceTeam::create(['workspace_id' => self::PARTITION_A, 'name' => 'A One']);
+        $teamA2 = PartitionWorkspaceTeam::create(['workspace_id' => self::PARTITION_A, 'name' => 'A Two']);
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $permissionA = PartitionedPermission::create(['name' => 'articles.edit']);
+
+        setPermissionsTeamId($teamA1);
+        $user->givePermissionTo($permissionA);
+
+        $warmPermission = $user->getDirectPermissions()->sole();
+        $warmPivot = $warmPermission->getRelation('pivot');
+        $relationPivot = $user->permissions()->firstOrFail()->getRelation('pivot');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $this->assertInstanceOf(MorphPivot::class, $warmPivot);
+        $this->assertInstanceOf(MorphPivot::class, $relationPivot);
+        $this->assertSame(Config::morphKey(), $warmPivot->getForeignKey());
+        $this->assertSame($registrar->pivotPermission, $warmPivot->getRelatedKey());
+        $this->assertSame(Config::MORPH_TYPE, $warmPivot->getMorphType());
+
+        $warmQuery = (new ClassInvoker($warmPivot))->getDeleteQuery();
+        $relationQuery = (new ClassInvoker($relationPivot))->getDeleteQuery();
+
+        $this->assertSame($relationQuery->toSql(), $warmQuery->toSql());
+        $this->assertSame($relationQuery->getBindings(), $warmQuery->getBindings());
+
+        setPermissionsTeamId($teamA2);
+        $user->givePermissionTo($permissionA);
+
+        $this->setPartition(self::PARTITION_B);
+        $teamB = PartitionWorkspaceTeam::create(['workspace_id' => self::PARTITION_B, 'name' => 'B One']);
+        $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
+        setPermissionsTeamId($teamB);
+        $user->givePermissionTo($permissionB);
+
+        $warmPivot->setAttribute('is_denied', true);
+        $this->assertTrue($warmPivot->save());
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'team_test_id' => $teamA1->getKey(),
+            'permission_test_id' => $permissionA->getKey(),
+            'is_denied' => true,
+        ]);
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'team_test_id' => $teamA2->getKey(),
+            'permission_test_id' => $permissionA->getKey(),
+            'is_denied' => false,
+        ]);
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_B,
+            'team_test_id' => $teamB->getKey(),
+            'permission_test_id' => $permissionB->getKey(),
+            'is_denied' => false,
+        ]);
+
+        $this->assertSame(1, $warmPivot->delete());
+        $this->assertDatabaseMissing(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'team_test_id' => $teamA1->getKey(),
+            'permission_test_id' => $permissionA->getKey(),
+        ]);
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'team_test_id' => $teamA2->getKey(),
+            'permission_test_id' => $permissionA->getKey(),
+        ]);
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_B,
+            'team_test_id' => $teamB->getKey(),
+            'permission_test_id' => $permissionB->getKey(),
         ]);
     }
 

@@ -129,7 +129,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
 - **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
-- **Use `composer require` for root dependencies** — the root `composer.json` has a lockfile, so dependency entries go through Composer, never hand-edits. Direct edits are fine for metadata sections no command can write (`autoload`, `replace`, `extra`, `scripts`) and for the sub-package `src/{package}/composer.json` files, which have no lockfile.
+- **Check dependency versions before adding them** — Before adding a package dependency to the root `composer.json`, check Packagist for the latest compatible stable version. The root `composer.lock` is intentionally untracked; run `composer update` after adding or merging dependency changes, do not treat an outdated local lock as a repository defect, and never commit it.
 
 ### Documentation
 
@@ -142,14 +142,14 @@ Use this order, omitting items that do not apply:
 
 1. Package header
 2. Documentation link, when the package has a meaningful user-facing documentation page (`Documentation: https://hypervel.org/docs/{documentation-slug}`)
-3. Approved `Differences From Laravel`, when needed
+3. `Differences From Laravel`, for deliberate differences only
 4. Upstream link, when the package is a port or deliberately tracks an upstream package (`Ported from: https://github.com/{vendor}/{package}`)
 
 Do not add a documentation link merely for completeness. Omit it when there is no meaningful user-facing documentation page for the package.
 
 Do not add upstream links for inspiration or historical lineage. Omit them when the Hypervel package is maintained independently and is not expected to track upstream changes.
 
-`Differences From Laravel` should contain only public API or functionality differences that developers or agents must account for when using the package. Internal implementation details and fixes do not belong there.
+`Differences From Laravel` is only for deliberate, lasting public contract differences that developers must account for. Bug fixes, correctness or safety fixes, performance improvements, and internal implementation differences do not qualify merely because they make Hypervel behave differently from Laravel. Omit the section when none apply.
 
 ### Avoid overengineering
 

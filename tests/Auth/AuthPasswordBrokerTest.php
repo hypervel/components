@@ -107,7 +107,7 @@ class AuthPasswordBrokerTest extends TestCase
     {
         $mocks = $this->getMocks();
         $originalEvents = m::mock(Dispatcher::class);
-        $originalEvents->shouldNotReceive('hasListeners', 'dispatch');
+        $originalEvents->shouldReceive('hasListeners', 'dispatch')->never();
         $replacementEvents = m::mock(Dispatcher::class);
         $replacementEvents->shouldReceive('hasListeners')->once()->with(PasswordResetLinkSent::class)->andReturnTrue();
         $replacementEvents->shouldReceive('dispatch')

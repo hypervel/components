@@ -6,12 +6,16 @@ namespace Hypervel\Tests\Jwt\Providers;
 
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
+use Hypervel\Jwt\Exceptions\TokenExpiredException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Jwt\Providers\Provider;
+use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use TypeError;
 
 class LcobucciTest extends TestCase
 {
@@ -162,6 +166,44 @@ class LcobucciTest extends TestCase
         $this->expectExceptionMessage('Could not decode token:');
 
         $this->getProvider('secret', Provider::ALGO_HS256)->decode('foo.bar.baz');
+    }
+
+    #[DataProvider('malformedRegisteredDateProvider')]
+    public function testMalformedRegisteredDatesAreReportedAsInvalidTokens(string $claim, mixed $value): void
+    {
+        $provider = $this->getProvider('secret', Provider::ALGO_HS256);
+
+        try {
+            $provider->decode($this->encodeExternalToken([$claim => $value], 'different-secret'));
+
+            $this->fail('Expected the malformed registered date to be rejected.');
+        } catch (TokenInvalidException $exception) {
+            $this->assertStringStartsWith('Could not decode token:', $exception->getMessage());
+            $this->assertInstanceOf(TypeError::class, $exception->getPrevious());
+        }
+    }
+
+    public static function malformedRegisteredDateProvider(): array
+    {
+        return [
+            'null expiration' => ['exp', null],
+            'boolean not-before' => ['nbf', true],
+            'array issued-at' => ['iat', []],
+            'object expiration' => ['exp', (object) ['timestamp' => 0]],
+        ];
+    }
+
+    public function testExternalStringZeroExpirationIsRejected(): void
+    {
+        $secret = str_repeat('s', 64);
+        $payload = $this->getProvider($secret, Provider::ALGO_HS256)
+            ->decode($this->encodeExternalToken(['exp' => '0'], $secret));
+
+        $this->assertSame(0, $payload['exp']);
+
+        $this->expectException(TokenExpiredException::class);
+
+        (new ExpiredClaim)->validate($payload);
     }
 
     public function testShouldThrowAnExceptionWhenTheAlgorithmPassedIsInvalid(): void
@@ -323,6 +365,23 @@ class LcobucciTest extends TestCase
         }
 
         return $randomString;
+    }
+
+    private function encodeExternalToken(array $payload, string $secret): string
+    {
+        $segments = [
+            $this->base64UrlEncode(json_encode(['typ' => 'JWT', 'alg' => Provider::ALGO_HS256], JSON_THROW_ON_ERROR)),
+            $this->base64UrlEncode(json_encode($payload, JSON_THROW_ON_ERROR)),
+        ];
+
+        $segments[] = $this->base64UrlEncode(hash_hmac('sha256', implode('.', $segments), $secret, true));
+
+        return implode('.', $segments);
+    }
+
+    private function base64UrlEncode(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 
     private function getDummyPrivateKey(): string

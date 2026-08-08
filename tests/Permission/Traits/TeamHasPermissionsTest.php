@@ -5,7 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Permission\Events\PermissionAttachedEvent;
+use Hypervel\Permission\Events\PermissionDetachedEvent;
+use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\Support\Config;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 
 class TeamHasPermissionsTest extends HasPermissionsTest
@@ -328,5 +336,85 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertFalse(User::permission('edit-articles')->get()->contains(
             fn (User $user): bool => $user->is($this->testUser),
         ));
+    }
+
+    public function testPermissionReplacementEventsStayInsideTheCurrentTeam(): void
+    {
+        setPermissionsTeamId(1);
+        $this->testUser->givePermissionTo('edit-articles');
+
+        setPermissionsTeamId(2);
+        $this->testUser->givePermissionTo('edit-articles');
+
+        setPermissionsTeamId(1);
+        $this->app->make('config')->set('permission.events_enabled', true);
+        $events = [];
+
+        Event::listen(PermissionDetachedEvent::class, function (PermissionDetachedEvent $event) use (&$events): void {
+            $events[] = 'detached';
+            $this->assertSame(['edit-articles'], $event->permissionsOrIds->pluck('name')->all());
+            $this->assertFalse($event->model->hasDirectPermission('edit-articles'));
+            $this->assertTrue($event->model->hasDirectPermission('edit-news'));
+        });
+        Event::listen(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use (&$events): void {
+            $events[] = 'attached';
+            $this->assertFalse($event->model->hasDirectPermission('edit-articles'));
+            $this->assertTrue($event->model->hasDirectPermission('edit-news'));
+        });
+
+        $this->testUser->syncPermissions('edit-news');
+
+        $this->assertSame(['detached', 'attached'], $events);
+
+        setPermissionsTeamId(2);
+        $this->assertTrue($this->testUser->hasDirectPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasDirectPermission('edit-news'));
+    }
+
+    public function testWarmPermissionPivotMatchesTheCapturedTeamConstraint(): void
+    {
+        setPermissionsTeamId(1);
+
+        $this->assertWarmPermissionPivotMatchesRelationPivot(
+            $this->testUser,
+            $this->testUserPermission,
+        );
+    }
+
+    public function testWarmPermissionPivotMatchesTheCapturedGlobalTeamConstraint(): void
+    {
+        setPermissionsTeamId(null);
+
+        $this->assertWarmPermissionPivotMatchesRelationPivot(
+            $this->testUser,
+            $this->testUserPermission,
+        );
+    }
+
+    /**
+     * Assert a compact-cache pivot retains the selected relation's identity constraints.
+     */
+    private function assertWarmPermissionPivotMatchesRelationPivot(Model $user, Model $permission): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $registrar->rememberModelPermissionAssignments($user, fn (): array => [[
+            $permission->getKeyName() => $permission->getKey(),
+            'is_denied' => false,
+        ]]);
+
+        $warmPermission = $user->getDirectPermissions()->sole();
+        $warmPivot = $warmPermission->getRelation('pivot');
+
+        $this->assertInstanceOf(MorphPivot::class, $warmPivot);
+        $this->assertSame(Config::morphKey(), $warmPivot->getForeignKey());
+        $this->assertSame($registrar->pivotPermission, $warmPivot->getRelatedKey());
+        $this->assertSame(Config::MORPH_TYPE, $warmPivot->getMorphType());
+
+        $relationPivot = $user->permissions()->newExistingPivot($warmPivot->getAttributes());
+        $warmQuery = (new ClassInvoker($warmPivot))->getDeleteQuery();
+        $relationQuery = (new ClassInvoker($relationPivot))->getDeleteQuery();
+
+        $this->assertSame($relationQuery->toSql(), $warmQuery->toSql());
+        $this->assertSame($relationQuery->getBindings(), $warmQuery->getBindings());
     }
 }

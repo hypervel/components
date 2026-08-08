@@ -33,6 +33,7 @@
     },
     "require": {
         "php": "^8.4",
+        "composer-runtime-api": "^2.2",
         "hypervel/auth": "^0.4",
         "hypervel/broadcasting": "^0.4",
         "hypervel/cache": "^0.4",
@@ -49,8 +50,10 @@
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/view": "^0.4",
+        "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1",
-        "symfony/http-foundation": "^8.1"
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1"
     },
     "config": {
         "sort-packages": true
