@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class IntegerTypeTest extends TestCase
 {
-    public function testItMaySetMinValue()
+    public function testItMaySetMinValue(): void
     {
         $type = JsonSchema::integer()->title('Age')->min(5);
 
@@ -20,7 +20,7 @@ class IntegerTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMaxValue()
+    public function testItMaySetMaxValue(): void
     {
         $type = JsonSchema::integer()->description('Max age')->max(10);
 
@@ -31,7 +31,7 @@ class IntegerTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetDefaultValue()
+    public function testItMaySetDefaultValue(): void
     {
         $type = JsonSchema::integer()->default(18);
 
@@ -41,7 +41,16 @@ class IntegerTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMultipleOf()
+    public function testItDistinguishesAnExplicitNullDefaultFromAnUnsetDefault(): void
+    {
+        $this->assertArrayNotHasKey('default', JsonSchema::integer()->toArray());
+        $this->assertSame([
+            'default' => null,
+            'type' => 'integer',
+        ], JsonSchema::integer()->default(null)->toArray());
+    }
+
+    public function testItMaySetMultipleOf(): void
     {
         $type = JsonSchema::integer()->multipleOf(5);
 
@@ -51,7 +60,7 @@ class IntegerTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMayCombineMultipleOfWithMinAndMax()
+    public function testItMayCombineMultipleOfWithMinAndMax(): void
     {
         $type = JsonSchema::integer()->min(0)->max(100)->multipleOf(10);
 
@@ -63,7 +72,7 @@ class IntegerTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetEnum()
+    public function testItMaySetEnum(): void
     {
         $type = JsonSchema::integer()->enum([1, 2, 3]);
 

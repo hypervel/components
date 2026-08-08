@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class StringTypeTest extends TestCase
 {
-    public function testItSetsMinLength()
+    public function testItSetsMinLength(): void
     {
         $type = (new StringType)->min(5);
 
@@ -19,7 +19,7 @@ class StringTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItSetsMaxLength()
+    public function testItSetsMaxLength(): void
     {
         $type = (new StringType)->description('User handle')->max(10);
 
@@ -30,7 +30,7 @@ class StringTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItSetsPattern()
+    public function testItSetsPattern(): void
     {
         $type = (new StringType)->default('foo')->pattern('^foo.*$');
 
@@ -41,7 +41,7 @@ class StringTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItSetsFormat()
+    public function testItSetsFormat(): void
     {
         $type = (new StringType)->default('foo')->format('date');
 
@@ -52,7 +52,16 @@ class StringTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItSetsEnum()
+    public function testItDistinguishesAnExplicitNullDefaultFromAnUnsetDefault(): void
+    {
+        $this->assertArrayNotHasKey('default', (new StringType)->toArray());
+        $this->assertSame([
+            'default' => null,
+            'type' => 'string',
+        ], (new StringType)->default(null)->toArray());
+    }
+
+    public function testItSetsEnum(): void
     {
         $type = (new StringType)->enum(['draft', 'published']);
 
