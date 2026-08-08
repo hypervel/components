@@ -15,7 +15,8 @@ class Blacklist implements BlacklistContract
     public function __construct(
         protected StorageContract $storage,
         protected int $gracePeriod = 0,
-        protected int $refreshTTL = 20160,
+        protected ?int $refreshTTL = 20160,
+        protected int $leeway = 0,
         protected string $key = 'jti'
     ) {
     }
@@ -25,42 +26,47 @@ class Blacklist implements BlacklistContract
      */
     public function add(array $payload): bool
     {
-        // if there is no exp claim then add the jwt to
-        // the blacklist indefinitely
-        if (! array_key_exists('exp', $payload)) {
-            return $this->addForever($payload);
+        $expiration = $payload['exp'] ?? null;
+
+        if ($expiration === null) {
+            return $this->addForeverWithGracePeriod($payload);
         }
 
-        // if we have already added this token to the blacklist
-        if (! empty($this->storage->get($this->getKey($payload)))) {
+        $expiresAt = $this->timestamp($expiration)->addSeconds($this->leeway);
+        $issuedAt = $payload['iat'] ?? null;
+
+        // Only a present iat can extend the boundary. Refresh rejects a missing iat
+        // before reaching the infinite-refresh return, so expiration alone bounds acceptance.
+        if ($issuedAt !== null) {
+            if ($this->refreshTTL === null) {
+                return $this->addForeverWithGracePeriod($payload);
+            }
+
+            $expiresAt = $expiresAt->max(
+                $this->timestamp($issuedAt)->addMinutes($this->refreshTTL)
+            );
+        }
+
+        $expiresAt = $expiresAt->addMinute();
+        $now = Date::now();
+
+        // The unified boundary covers expiration acceptance, including leeway, and
+        // the refresh window, so terminal tokens need no cache I/O.
+        if ($expiresAt <= $now) {
             return true;
         }
 
-        $this->storage->add(
-            $this->getKey($payload),
+        $key = $this->getKey($payload);
+
+        if (! empty($this->storage->get($key))) {
+            return true;
+        }
+
+        return $this->storage->add(
+            $key,
             ['valid_until' => $this->getGraceTimestamp()],
-            $this->getMinutesUntilExpired($payload)
+            (int) ceil($now->diffInMinutes($expiresAt)),
         );
-
-        return true;
-    }
-
-    /**
-     * Get the number of minutes until the token expiry.
-     */
-    protected function getMinutesUntilExpired(array $payload): int
-    {
-        $exp = $this->timestamp($payload['exp']);
-        $iat = $this->timestamp($payload['iat']);
-
-        // get the latter of the two expiration dates and find
-        // the number of minutes until the expiration date,
-        // plus 1 minute to avoid overlap
-        return (int) ceil(abs(
-            $exp->max($iat->addMinutes($this->refreshTTL))
-                ->addMinute()
-                ->diffInMinutes()
-        ));
     }
 
     /**
@@ -68,9 +74,22 @@ class Blacklist implements BlacklistContract
      */
     public function addForever(array $payload): bool
     {
-        $this->storage->forever($this->getKey($payload), 'forever');
+        return $this->storage->forever($this->getKey($payload), 'forever');
+    }
 
-        return true;
+    /**
+     * Add the token to the blacklist indefinitely after its grace period.
+     */
+    protected function addForeverWithGracePeriod(array $payload): bool
+    {
+        $key = $this->getKey($payload);
+
+        // Rewriting the entry would restart its grace period on every concurrent refresh.
+        if (! empty($this->storage->get($key))) {
+            return true;
+        }
+
+        return $this->storage->forever($key, ['valid_until' => $this->getGraceTimestamp()]);
     }
 
     /**
@@ -105,9 +124,7 @@ class Blacklist implements BlacklistContract
      */
     public function clear(): bool
     {
-        $this->storage->flush();
-
-        return true;
+        return $this->storage->flush();
     }
 
     /**
@@ -129,7 +146,7 @@ class Blacklist implements BlacklistContract
      */
     public function setGracePeriod(int $gracePeriod): static
     {
-        $this->gracePeriod = (int) $gracePeriod;
+        $this->gracePeriod = $gracePeriod;
 
         return $this;
     }
@@ -145,13 +162,19 @@ class Blacklist implements BlacklistContract
     /**
      * Get the unique key held within the blacklist.
      */
-    public function getKey(array $payload): mixed
+    public function getKey(array $payload): string
     {
-        if (! $key = ($payload[$this->key] ?? null)) {
-            throw new TokenInvalidException("Claim `{$this->key}` is missing in payload for blacklist");
+        $key = $payload[$this->key] ?? null;
+
+        if (is_string($key) && $key !== '') {
+            return $key;
         }
 
-        return $key;
+        if (is_int($key)) {
+            return (string) $key;
+        }
+
+        throw new TokenInvalidException("Claim `{$this->key}` is missing or invalid in payload for blacklist");
     }
 
     /**
@@ -177,9 +200,9 @@ class Blacklist implements BlacklistContract
      *
      * @return $this
      */
-    public function setRefreshTTL(int $ttl): static
+    public function setRefreshTTL(?int $ttl): static
     {
-        $this->refreshTTL = (int) $ttl;
+        $this->refreshTTL = $ttl;
 
         return $this;
     }
@@ -187,7 +210,7 @@ class Blacklist implements BlacklistContract
     /**
      * Get the refresh time limit.
      */
-    public function getRefreshTTL(): int
+    public function getRefreshTTL(): ?int
     {
         return $this->refreshTTL;
     }

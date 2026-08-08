@@ -6,13 +6,13 @@ namespace Hypervel\Jwt\Contracts;
 
 interface StorageContract
 {
-    public function add(string $key, mixed $value, int $minutes): void;
+    public function add(string $key, mixed $value, int $minutes): bool;
 
-    public function forever(string $key, mixed $value): void;
+    public function forever(string $key, mixed $value): bool;
 
     public function get(string $key): mixed;
 
     public function destroy(string $key): bool;
 
-    public function flush(): void;
+    public function flush(): bool;
 }

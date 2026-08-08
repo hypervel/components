@@ -46,19 +46,19 @@ class TaggedCache implements StorageContract
     /**
      * Add a new item into storage.
      */
-    public function add(string $key, mixed $value, int $minutes): void
+    public function add(string $key, mixed $value, int $minutes): bool
     {
         /* @phpstan-ignore-next-line */
-        $this->cache->tags([$this->tag])->put($this->storageKey($key), $value, $minutes * 60);
+        return $this->cache->tags([$this->tag])->put($this->storageKey($key), $value, $minutes * 60);
     }
 
     /**
      * Add a new item into storage forever.
      */
-    public function forever(string $key, mixed $value): void
+    public function forever(string $key, mixed $value): bool
     {
         /* @phpstan-ignore-next-line */
-        $this->cache->tags([$this->tag])->forever($this->storageKey($key), $value);
+        return $this->cache->tags([$this->tag])->forever($this->storageKey($key), $value);
     }
 
     /**
@@ -90,10 +90,10 @@ class TaggedCache implements StorageContract
     /**
      * Remove all items associated with the tag.
      */
-    public function flush(): void
+    public function flush(): bool
     {
         /* @phpstan-ignore-next-line */
-        $this->cache->tags([$this->tag])->flush();
+        return $this->cache->tags([$this->tag])->flush();
     }
 
     /**

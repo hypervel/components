@@ -10,7 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Jwt\Console\JwtGenerateCertsCommand;
 use Hypervel\Jwt\Console\JwtSecretCommand;
 use Hypervel\Jwt\Contracts\BlacklistContract;
-use Hypervel\Jwt\Http\Parser\AuthHeaders;
+use Hypervel\Jwt\Contracts\StorageContract;
 use Hypervel\Jwt\Http\Parser\Cookie;
 use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
@@ -37,14 +37,14 @@ class JwtServiceProvider extends ServiceProvider
 
         $this->app->singleton(Parser::class, function ($app) {
             $config = $app->make('config');
-            $tokenKey = $config->string('jwt.token', 'token');
+            $tokenKey = $config->string('jwt.token');
 
             $chain = array_map(
                 fn (string $extractor) => match ($extractor) {
                     InputSource::class, Cookie::class => new $extractor($tokenKey),
                     default => $app->make($extractor),
                 },
-                $config->array('jwt.parser', [AuthHeaders::class]),
+                $config->array('jwt.parser'),
             );
 
             // The parser chain is stateless; request instances are passed per parse so
@@ -55,19 +55,23 @@ class JwtServiceProvider extends ServiceProvider
         $this->app->singleton(BlacklistContract::class, function ($app) {
             $config = $app->make('config');
 
-            $storageClass = $config->string('jwt.providers.storage');
+            $storageClass = $config->string('jwt.providers.storage', TaggedCache::class);
             $storage = match ($storageClass) {
                 TaggedCache::class => new TaggedCache($this->cacheStoreForJwtBlacklist(
                     $app,
-                    $config->boolean('jwt.blacklist_enabled', false)
+                    $config->boolean('jwt.blacklist_enabled')
                 )),
                 default => $app->make($storageClass),
             };
 
+            /** @var null|int $refreshTtl */
+            $refreshTtl = $config->get('jwt.refresh_ttl');
+
             return new Blacklist(
-                $storage,
-                $config->integer('jwt.blacklist_grace_period', 0),
-                $config->integer('jwt.blacklist_refresh_ttl', 20160)
+                storage: $storage,
+                gracePeriod: $config->integer('jwt.blacklist_grace_period'),
+                refreshTTL: $refreshTtl,
+                leeway: $config->integer('jwt.leeway'),
             );
         });
 
@@ -105,7 +109,7 @@ class JwtServiceProvider extends ServiceProvider
                 /** @var null|int $ttl */
                 $ttl = array_key_exists('ttl', $config)
                     ? $config['ttl']
-                    : $app->make('config')->get('jwt.ttl', 120);
+                    : $app->make('config')->get('jwt.ttl');
 
                 $guard = new JwtGuard(
                     name: $name,
@@ -135,7 +139,8 @@ class JwtServiceProvider extends ServiceProvider
         if ($blacklistEnabled && ! $repository->supportsTags()) {
             throw new RuntimeException(
                 'The JWT blacklist requires a taggable cache store (all-mode or any-mode). '
-                . 'Use a taggable store or set a custom jwt.providers.storage.'
+                . 'Use a taggable store or configure a custom ' . StorageContract::class
+                . ' implementation in jwt.providers.storage.'
             );
         }
 

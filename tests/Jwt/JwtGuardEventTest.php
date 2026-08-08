@@ -18,6 +18,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\ManagerContract;
+use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Http\Parser\AuthHeaders;
 use Hypervel\Jwt\Http\Parser\InputSource;
 use Hypervel\Jwt\Http\Parser\Parser;
@@ -141,6 +142,33 @@ class JwtGuardEventTest extends TestCase
         $guard->setUser($user);
         $guard->setDispatcher($events);
         $guard->logout();
+    }
+
+    public function testLogoutEventIsNotDispatchedWhenInvalidationFails(): void
+    {
+        $user = $this->user(1);
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
+        $jwtManager->shouldReceive('invalidate')
+            ->with('token', false)
+            ->once()
+            ->andThrow(new JwtException('blacklist write failed'));
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners', 'dispatch')->never();
+
+        $guard = $this->createGuard(jwtManager: $jwtManager, request: $this->requestWithToken('token'));
+        $guard->setUser($user);
+        $guard->setDispatcher($events);
+
+        try {
+            $guard->logout();
+
+            $this->fail('Expected logout to fail when token invalidation fails.');
+        } catch (JwtException $exception) {
+            $this->assertSame('blacklist write failed', $exception->getMessage());
+        }
     }
 
     public function testAttemptingRegistersListener(): void
