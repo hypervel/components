@@ -89,9 +89,14 @@ class BlueprintState
         $this->indexes = $indexes->all();
         $this->primaryKey = $primary->first();
 
+        // Introspection returns already-prefixed physical table names. Quote them here and
+        // keep them as expressions so the grammar neither reapplies the prefix nor emits
+        // the identifier unquoted.
         $this->foreignKeys = (new Collection($schema->getForeignKeys($table)))->map(fn ($foreignKey) => new ForeignKeyDefinition([
             'columns' => $foreignKey['columns'],
-            'on' => new Expression($foreignKey['foreign_table']),
+            'on' => new Expression(
+                $blueprint->getGrammar()->wrapIdentifier($foreignKey['foreign_table']),
+            ),
             'references' => $foreignKey['foreign_columns'],
             'onUpdate' => $foreignKey['on_update'],
             'onDelete' => $foreignKey['on_delete'],
