@@ -1357,7 +1357,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `prompts`
 - [ ] `tinker`
 - [ ] `boost`
-- [ ] `facade-documenter`
+- [x] `facade-documenter`
 - [ ] `wayfinder`
 
 ## Plan maintenance and audit completion
