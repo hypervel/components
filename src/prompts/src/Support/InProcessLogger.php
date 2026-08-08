@@ -7,17 +7,15 @@ namespace Hypervel\Prompts\Support;
 use Hypervel\Prompts\Task;
 
 /**
- * Logger implementation for coroutine-based Task execution.
+ * Logger implementation for in-process Task execution.
  *
- * Instead of writing to a socket for IPC (which requires pcntl_fork),
- * this logger writes directly to the Task instance's shared state.
- * This is safe because Swoole coroutines are cooperatively scheduled
- * within the same thread and share memory.
+ * This logger writes directly to the Task instance instead of crossing a
+ * process boundary. It is used by static and coroutine task renderers.
  */
-class CoroutineLogger extends Logger
+class InProcessLogger extends Logger
 {
     /**
-     * Create a new CoroutineLogger instance.
+     * Create a new InProcessLogger instance.
      */
     public function __construct(private Task $task)
     {

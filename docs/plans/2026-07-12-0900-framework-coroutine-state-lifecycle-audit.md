@@ -1216,6 +1216,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `support-34` | `support` | `support` and `socialite` (revalidation complete) | `Complete Socialite correctness, first-party extensibility, and lifecycle`; finding `support-34` |
 | `object-pool-04` | `object-pool` | `object-pool` (targeted correction complete) | `Complete Socialite correctness, first-party extensibility, and lifecycle`; finding `object-pool-04` |
 | `reverb-40` | `reverb` | `reverb` (targeted correction complete) | `Complete Socialite correctness, first-party extensibility, and lifecycle`; finding `reverb-40` |
+| `queue-42` | `queue` | `queue` (targeted correction complete) | `Complete Prompts correctness, current parity, and terminal lifecycles`; finding `queue-42` |
+| `testbench-04` | `testbench` | `testbench` (targeted correction complete) and `prompts` (revalidation complete); later full `testbench` audit | `Complete Prompts correctness, current parity, and terminal lifecycles`; finding `testbench-04` |
 
 ## Package checklist
 
@@ -1232,7 +1234,7 @@ comm -3 /tmp/hypervel-src-packages /tmp/hypervel-plan-packages
 uniq -d /tmp/hypervel-plan-packages
 ```
 
-The current expected result is `72` lines in each file, with no output from `comm` or `uniq`. Update the expected count when the package set changes.
+The current expected result is `73` lines in each file, with no output from `comm` or `uniq`. Update the expected count when the package set changes.
 
 The order is lower-level first where practical. Hypervel has cross-cutting dependencies and facades, so this is not claimed to be a perfect dependency DAG. The cross-package revalidation rule handles remaining inversions.
 
@@ -1287,6 +1289,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `database`
 - [x] `redis`
 - [x] `cache`
+- [x] `rate-limiter`
 - [x] `session`
 - [x] `queue`
 - [x] `horizon`
@@ -1323,7 +1326,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 - [ ] `testing`
 - [ ] `testbench`
-- [ ] `prompts`
+- [x] `prompts`
 - [ ] `tinker`
 - [ ] `boost`
 - [ ] `facade-documenter`

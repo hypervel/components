@@ -10,7 +10,7 @@ use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SelectPrompt;
-use Hypervel\Prompts\Support\CoroutineLogger;
+use Hypervel\Prompts\Support\InProcessLogger;
 use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Task;
 use Hypervel\Prompts\Terminal;
@@ -203,7 +203,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testSpinnerAnimationCoroutineInheritsPromptContext()
     {
-        $output = new BufferedConsoleOutput;
+        $output = new BufferedConsoleOutput(decorated: true);
 
         Prompt::setOutput($output);
         Prompt::fake();
@@ -222,7 +222,7 @@ class CoroutineSafetyTest extends TestCase
 
     public function testTaskAnimationCoroutineInheritsPromptContext()
     {
-        $output = new BufferedConsoleOutput;
+        $output = new BufferedConsoleOutput(decorated: true);
 
         Prompt::setOutput($output);
         Prompt::fake();
@@ -248,8 +248,8 @@ class CoroutineSafetyTest extends TestCase
 
         $taskA = new Task(label: 'Task A');
         $taskB = new Task(label: 'Task B');
-        $loggerA = new CoroutineLogger($taskA);
-        $loggerB = new CoroutineLogger($taskB);
+        $loggerA = new InProcessLogger($taskA);
+        $loggerB = new InProcessLogger($taskB);
         $channel = new Channel(2);
 
         go(function () use ($loggerA, $taskA, $taskB, $channel) {
@@ -290,20 +290,21 @@ class CoroutineSafetyTest extends TestCase
         $this->assertNull($backgroundColor->getValue());
     }
 
-    public function testPromptFlushStateResetsTerminalCaches()
+    public function testPromptFlushStateResetsPromptCallbacks(): void
     {
-        $trueColorSupport = new ReflectionProperty(Terminal::class, 'trueColorSupport');
-        $foregroundColor = new ReflectionProperty(Terminal::class, 'foregroundColor');
-        $backgroundColor = new ReflectionProperty(Terminal::class, 'backgroundColor');
+        $cancelUsing = new ReflectionProperty(Prompt::class, 'cancelUsing');
+        $revertUsing = new ReflectionProperty(Prompt::class, 'revertUsing');
+        $validateUsing = new ReflectionProperty(Prompt::class, 'validateUsing');
 
-        $trueColorSupport->setValue(null, true);
-        $foregroundColor->setValue(null, [1, 2, 3]);
-        $backgroundColor->setValue(null, [4, 5, 6]);
+        Prompt::cancelUsing(static fn (): null => null);
+        Prompt::revertUsing(static fn (): null => null);
+        // validateUsing() is coroutine-scoped in this test, so set the static slot directly.
+        $validateUsing->setValue(null, static fn (): null => null);
 
         Prompt::flushState();
 
-        $this->assertNull($trueColorSupport->getValue());
-        $this->assertNull($foregroundColor->getValue());
-        $this->assertNull($backgroundColor->getValue());
+        $this->assertNull($cancelUsing->getValue());
+        $this->assertNull($revertUsing->getValue());
+        $this->assertNull($validateUsing->getValue());
     }
 }

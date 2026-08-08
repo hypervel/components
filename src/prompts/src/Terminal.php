@@ -13,7 +13,7 @@ class Terminal
     /**
      * The initial TTY mode.
      */
-    protected ?string $initialTtyMode;
+    protected ?string $initialTtyMode = null;
 
     /**
      * Whether the terminal supports true color.
@@ -52,9 +52,17 @@ class Terminal
      */
     public function read(): string
     {
-        $input = fread(STDIN, 1024);
+        $input = @fread(STDIN, 1024);
 
-        return $input !== false ? $input : '';
+        if ($input === false) {
+            throw new RuntimeException('Unable to read input from the terminal.');
+        }
+
+        if ($input === '' && feof(STDIN)) {
+            throw new RuntimeException('The terminal input stream has closed.');
+        }
+
+        return $input;
     }
 
     /**
@@ -118,17 +126,35 @@ class Terminal
      */
     protected function exec(string $command): string
     {
-        $process = proc_open($command, [
+        return $this->execWithInput($command);
+    }
+
+    /**
+     * Execute the given command with an optional input stream.
+     *
+     * @param null|resource $input
+     */
+    protected function execWithInput(string $command, $input = null): string
+    {
+        $descriptors = [
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
-        ], $pipes);
+        ];
 
-        if (! $process) {
+        if ($input !== null) {
+            $descriptors[0] = $input;
+        }
+
+        $process = proc_open($command, $descriptors, $pipes);
+
+        if (! is_resource($process)) {
             throw new RuntimeException('Failed to create process.');
         }
 
         $stdout = stream_get_contents($pipes[1]);
         $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
         $code = proc_close($process);
 
         if ($code !== 0 || $stdout === false) {
@@ -143,7 +169,7 @@ class Terminal
      */
     public function supportsTrueColor(): bool
     {
-        return static::$trueColorSupport ??= in_array(getenv('COLORTERM'), ['truecolor', '24bit']);
+        return static::$trueColorSupport ??= in_array(getenv('COLORTERM'), ['truecolor', '24bit'], true);
     }
 
     /**
@@ -179,30 +205,45 @@ class Terminal
      */
     protected function queryColors(): void
     {
-        $savedStty = trim((string) shell_exec('stty -g < /dev/tty'));
+        $tty = $this->openTty();
 
-        shell_exec('stty raw -echo min 0 time 1 < /dev/tty');
-
-        fwrite(STDOUT, "\e]10;?\e\\\e]11;?\e\\");
-        fflush(STDOUT);
-
-        $ttyIn = fopen('/dev/tty', 'r');
-
-        if ($ttyIn === false) {
-            shell_exec("stty {$savedStty} < /dev/tty");
-
+        if ($tty === false) {
             static::$foregroundColor = [204, 204, 204];
             static::$backgroundColor = [0, 0, 0];
 
             return;
         }
 
-        $response = fread($ttyIn, 200);
-        fclose($ttyIn);
+        $savedTtyMode = null;
+        $response = '';
 
-        shell_exec("stty {$savedStty} < /dev/tty");
+        try {
+            $savedTtyMode = trim($this->execWithInput('stty -g', $tty));
+            $this->execWithInput('stty raw -echo min 0 time 1', $tty);
 
-        preg_match_all('/rgb:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)/i', $response ?: '', $matches, PREG_SET_ORDER);
+            $query = "\e]10;?\e\\\e]11;?\e\\";
+            $written = @fwrite($tty, $query);
+
+            if ($written !== strlen($query) || ! fflush($tty)) {
+                throw new RuntimeException('Unable to query terminal colors.');
+            }
+
+            $response = @fread($tty, 200);
+
+            if ($response === false) {
+                throw new RuntimeException('Unable to read terminal colors.');
+            }
+        } finally {
+            try {
+                if ($savedTtyMode !== null) {
+                    $this->execWithInput("stty {$savedTtyMode}", $tty);
+                }
+            } finally {
+                fclose($tty);
+            }
+        }
+
+        preg_match_all('/rgb:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)/i', $response, $matches, PREG_SET_ORDER);
 
         $parse = fn (array $m) => [
             (int) (hexdec($m[1]) / (strlen($m[1]) === 4 ? 257 : 1)),
@@ -212,6 +253,16 @@ class Terminal
 
         static::$foregroundColor = isset($matches[0]) ? $parse($matches[0]) : [204, 204, 204];
         static::$backgroundColor = isset($matches[1]) ? $parse($matches[1]) : [0, 0, 0];
+    }
+
+    /**
+     * Open the controlling terminal.
+     *
+     * @return false|resource
+     */
+    protected function openTty()
+    {
+        return @fopen('/dev/tty', 'r+');
     }
 
     /**
