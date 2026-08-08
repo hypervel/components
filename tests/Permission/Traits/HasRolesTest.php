@@ -185,6 +185,14 @@ class HasRolesTest extends TestCase
         $this->assertFalse($this->testUser->hasRole('"admin|editor'));
     }
 
+    public function testItCanCheckExactRolesUsingAPipeDelimitedString(): void
+    {
+        $this->testUser->assignRole('testRole', 'testRole2');
+
+        $this->assertTrue($this->testUser->hasExactRoles('testRole|testRole2'));
+        $this->assertFalse($this->testUser->hasExactRoles('testRole|testRole2|testRole3'));
+    }
+
     public function testItCanAssignAndRemoveMultipleRolesAtOnce(): void
     {
         $this->testUser->assignRole($this->testUserRole->getKey(), 'testRole2');
