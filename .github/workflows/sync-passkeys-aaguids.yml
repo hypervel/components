@@ -1,0 +1,44 @@
+name: synchronize Passkeys AAGUIDs
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+
+    container:
+      image: phpswoole/swoole:6.2.0-php8.4
+
+    steps:
+      - name: Install Git
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq git > /dev/null
+
+      - name: Checkout 0.4
+        uses: actions/checkout@v6
+        with:
+          ref: "0.4"
+
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Synchronize Passkeys AAGUIDs
+        run: php src/passkeys/scripts/sync-aaguids.php
+
+      - name: Open update pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          base: "0.4"
+          branch: sync-passkeys-aaguids
+          delete-branch: true
+          commit-message: "passkeys: synchronize AAGUID catalogue"
+          title: "passkeys: synchronize AAGUID catalogue"
+          body: "Automated synchronization from [passkey-authenticator-aaguids](https://github.com/passkeydeveloper/passkey-authenticator-aaguids)."
