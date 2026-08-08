@@ -176,6 +176,7 @@ The decorated, non-coroutine process renderer becomes a single transactional ope
 - On reset, use the transmitted callback-success bit to decide whether a completion line is valid.
 - Keep Laravel's `receiveMessages($socket): void` and `resetTerminal(bool $originalAsync, bool $success = true): void` extension points. A reset delegates to `resetTerminal()`, and the child loop observes the existing `finished` flag.
 - Complete the final render, close the endpoint, and `exit` on every normal path.
+- Send a checked one-byte success acknowledgement after final rendering. Protected renderer overrides must do the same so automatic child reaping cannot hide settlement failure.
 - On `Throwable`, close the endpoint and exit nonzero so the parent can report renderer failure. Never return into the caller's application after a fork.
 - On EOF, discard any incomplete buffered frame rather than rendering truncated protocol content.
 
@@ -188,7 +189,7 @@ The decorated, non-coroutine process renderer becomes a single transactional ope
 - Otherwise send reset through the shared checked writer, keep the endpoint open while waiting for child EOF with a named one-second settlement timeout, then close and reap with `waitpid()`.
 - Inspect stream metadata: `timed_out` means a wedged child, empty read with `eof` means clean closure, and other read failures remain errors.
 - Inspect the reaped child's exit status; a nonzero or signaled exit is renderer failure.
-- Escalate to a signal when Logger transport failed or settlement/reset times out or fails. Retry a blocking `waitpid()` only when it is interrupted, treat `ECHILD` as already reaped by the kernel when the caller ignores `SIGCHLD`, and clear the PID only after that outcome is known. Exit status is unavailable in the `ECHILD` case by definition.
+- Escalate to a signal when Logger transport failed or settlement/reset times out or fails. Retry a blocking `waitpid()` only when it is interrupted, treat `ECHILD` as already reaped by the kernel when the caller ignores `SIGCHLD`, and require the child's success acknowledgement because no exit status is available. Clear the PID only after that outcome is known.
 - Restore the exact prior SIGINT handler, async mode, cursor, socket state, and terminal state through exhaustive cleanup.
 
 Exception precedence is fixed:
@@ -205,7 +206,7 @@ The new non-isolated Logger fork regressions exposed that a forked child inherit
 
 `Task::renderInProcess()` may capture its signal state before entering the guarded terminal/fork block because the fixed valid SIGINT and handler calls at that boundary do not throw. Do not add rollback machinery around this non-throwing acquisition.
 
-A Logger transport failure can leave the child's last rendered process frame on screen because reset never becomes a valid frame and the parent does not know the child copy's rendered line count. Cursor, signal, socket, and process cleanup remain complete. Do not add erase acknowledgements or replicated child-frame bookkeeping to correct cosmetic residue on this failure path.
+A Logger transport failure can leave the child's last rendered process frame on screen because reset never becomes a valid frame and the parent does not know the child copy's rendered line count. Cursor, signal, socket, and process cleanup remain complete. Do not add per-frame erase acknowledgements or replicated child-frame bookkeeping to correct cosmetic residue on this failure path.
 
 ### 5. Complete and observable process-socket writes
 
@@ -415,6 +416,7 @@ Use isolated subprocess tests and protected fixture seams to prove:
 - successful callback, callback exception, child-renderer exception, reset failure, timeout, and destructor fallback all terminate and reap the owned child;
 - an unrelated handled signal interrupting `waitpid()` is retried until the owned child is reaped; the regression must run red before the fix with `Unable to reap the prompt renderer process.` so its alarm timing is proven non-vacuous;
 - ignored `SIGCHLD` permits a clean operation after the kernel auto-reaps the renderer, without claiming a recoverable exit status;
+- ignored `SIGCHLD` still reports a renderer that fails before acknowledging successful settlement;
 - no child remains live or zombie and no nonpositive PID is signaled;
 - callback failure remains primary over renderer/cleanup failure;
 - renderer failure surfaces only after successful user work.

@@ -102,6 +102,30 @@ class TaskProcessTest extends TestCase
     }
 
     #[RunInSeparateProcess]
+    public function testKernelAutoReapingStillReportsRendererFailure(): void
+    {
+        pcntl_signal(SIGCHLD, SIG_IGN);
+
+        $callbackRan = false;
+        $task = new TaskChildFailureFixture(label: 'Running');
+
+        try {
+            $task->run(function (Logger $logger) use (&$callbackRan): void {
+                $callbackRan = true;
+            });
+
+            $this->fail('Expected the child renderer to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('The prompt renderer process failed.', $exception->getMessage());
+        }
+
+        $this->assertTrue($callbackRan);
+        $this->assertNotNull($task->forkedPid);
+        $this->assertSame(-1, pcntl_waitpid($task->forkedPid, $status, WNOHANG));
+        $this->assertSame(PCNTL_ECHILD, pcntl_get_last_error());
+    }
+
+    #[RunInSeparateProcess]
     public function testSocketPairFailureFallsBackBeforeRunningCallback(): void
     {
         $callbackRuns = 0;
@@ -424,7 +448,9 @@ class TaskTransportFailureFixture extends TaskProcessFixture
 class TaskInterruptedWaitFixture extends TaskProcessFixture
 {
     /**
-     * Run the child process renderer.
+     * Exit successfully without acknowledging settlement.
+     *
+     * This proves an available exit status remains authoritative.
      *
      * @param resource $socket
      */

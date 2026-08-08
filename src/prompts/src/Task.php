@@ -31,6 +31,11 @@ class Task extends Prompt
     protected const RENDERER_SETTLEMENT_TIMEOUT_SECONDS = 1;
 
     /**
+     * The renderer settlement acknowledgement byte.
+     */
+    protected const RENDERER_ACKNOWLEDGEMENT = "\x06";
+
+    /**
      * The minimum width for the longest line calculation.
      */
     protected int $minWidth = 0;
@@ -516,6 +521,7 @@ class Task extends Prompt
         $result = null;
         $callbackFailure = null;
         $rendererFailure = null;
+        $rendererAcknowledged = false;
         $success = false;
 
         try {
@@ -532,7 +538,7 @@ class Task extends Prompt
                 // A truncated newline-framed message makes a later reset unrecoverable.
                 Utils::writeAll($this->socket, $this->identifier . '_reset:' . ($success ? '1' : '0') . PHP_EOL);
                 stream_set_timeout($this->socket, static::RENDERER_SETTLEMENT_TIMEOUT_SECONDS);
-                $this->awaitRendererClosure();
+                $rendererAcknowledged = $this->awaitRendererClosure();
             } catch (RuntimeException $exception) {
                 $rendererFailure = $exception;
             }
@@ -544,7 +550,7 @@ class Task extends Prompt
             $this->terminateRenderer();
         }
 
-        $reapFailure = $this->reapRenderer($rendererFailure === null);
+        $reapFailure = $this->reapRenderer($rendererFailure === null, $rendererAcknowledged);
         $rendererFailure ??= $reapFailure;
 
         $rendererFailure = $this->restoreProcessState($rendererFailure);
@@ -581,6 +587,11 @@ class Task extends Prompt
     /**
      * Run the child process renderer.
      *
+     * When the caller ignores SIGCHLD or sets SA_NOCLDWAIT, the parent cannot
+     * obtain an exit status. Subclasses that complete settlement must write
+     * static::RENDERER_ACKNOWLEDGEMENT before closing their socket or the
+     * renderer will be reported as failed in that configuration.
+     *
      * @param resource $socket
      */
     protected function runRendererProcess($socket): never
@@ -608,6 +619,9 @@ class Task extends Prompt
                 ++$this->count;
                 usleep($this->interval * 1000);
             }
+
+            stream_set_blocking($socket, true);
+            Utils::writeAll($socket, static::RENDERER_ACKNOWLEDGEMENT);
         } catch (Throwable) {
             $exitCode = 1;
         }
@@ -675,8 +689,10 @@ class Task extends Prompt
     /**
      * Wait for the child renderer to close its socket.
      */
-    protected function awaitRendererClosure(): void
+    protected function awaitRendererClosure(): bool
     {
+        $acknowledged = false;
+
         while (true) {
             $data = @fread($this->socket, 1);
             $metadata = stream_get_meta_data($this->socket);
@@ -686,12 +702,14 @@ class Task extends Prompt
             }
 
             if ($data === '' && $metadata['eof']) {
-                return;
+                return $acknowledged;
             }
 
             if ($data === false || $data === '') {
                 throw new RuntimeException('Unable to confirm that the prompt renderer settled.');
             }
+
+            $acknowledged = $acknowledged || $data === static::RENDERER_ACKNOWLEDGEMENT;
         }
     }
 
@@ -719,7 +737,7 @@ class Task extends Prompt
     /**
      * Reap the owned child renderer.
      */
-    protected function reapRenderer(bool $requireSuccess): ?RuntimeException
+    protected function reapRenderer(bool $requireSuccess, bool $acknowledged = false): ?RuntimeException
     {
         if ($this->pid === null || $this->pid <= 0) {
             return null;
@@ -736,8 +754,10 @@ class Task extends Prompt
         $this->pid = null;
 
         if ($reaped === -1 && $error === PCNTL_ECHILD) {
-            // Ignored SIGCHLD lets the kernel reap the child without retaining its exit status.
-            return null;
+            // Automatic reaping discards the exit status, so only the child's acknowledgement can prove success.
+            return $requireSuccess && ! $acknowledged
+                ? new RuntimeException('The prompt renderer process failed.')
+                : null;
         }
 
         if ($reaped !== $pid) {
