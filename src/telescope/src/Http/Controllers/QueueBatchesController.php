@@ -41,7 +41,7 @@ class QueueBatchesController extends EntryController
             new EntryUpdate(
                 (string) $id,
                 EntryType::BATCH,
-                $batch->toArray()
+                $batch?->toArray() ?: []
             ),
         ]));
 
