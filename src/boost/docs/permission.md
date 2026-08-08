@@ -49,6 +49,7 @@
 - [Wildcard Permissions](#wildcard-permissions)
 - [Polymorphic Models](#polymorphic-models)
 - [Custom Models](#custom-models)
+    - [Custom Pivot Models](#custom-pivot-models)
 - [UUID and ULID Keys](#uuid-and-ulid-keys)
 - [Caching](#caching)
 - [Testing and Seeding](#testing-and-seeding)
@@ -60,7 +61,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel's permission package provides role-based access control for Eloquent models. You may create roles and permissions, assign them to users or other models, and check access by role, direct permission, or permission inherited through a role.
+Hypervel's permission package provides role-based access control for Eloquent models. A permission represents one ability, such as `edit articles`. A role is a named group of permissions, such as `editor`. You may assign roles and permissions to users or other models, then check access by role, direct permission, or permission inherited through a role.
 
 The package is based on Spatie's `laravel-permission` package and adapted for Hypervel. It also supports denied permissions, which explicitly reject an ability even when the model receives the same permission directly or through a role.
 
@@ -578,7 +579,7 @@ You may remove permissions from a model:
 ```php
 $user->revokePermissionTo('edit articles');
 
-$user->revokePermissionTo('edit articles', 'delete articles');
+$user->revokePermissionTo(['edit articles', 'delete articles']);
 ```
 
 This removes the assignment edge whether it is currently allowed or denied.
@@ -846,7 +847,9 @@ Hypervel\Permission\Events\PermissionDetachedEvent::class;
 
 Events are only dispatched when events are enabled and the event dispatcher has listeners for the event class.
 
-Assignment events preserve Spatie's request-oriented payloads. Role attach/detach and Permission attach events contain the collected requested IDs, including already-satisfied or empty requests. `PermissionDetachedEvent` receives the stored Permission model or collection. Role synchronization reports the pre-operation current Role IDs through its detached event and the requested replacement IDs through its attached event; Permission synchronization emits only its requested attached event.
+Assignment events preserve Spatie's request-oriented payloads. Role attach and detach events, as well as permission attach events, contain the requested IDs, including already-satisfied or empty requests. A direct permission removal passes the stored Permission model or collection to `PermissionDetachedEvent`.
+
+Saved permission replacement operations dispatch a complete replacement pair. `PermissionDetachedEvent` receives the direct Permission collection as it existed before the operation, including permissions retained by the replacement. `PermissionAttachedEvent` then receives the requested replacement IDs. A same-set replacement therefore dispatches both events. The detached event is dispatched first, after the transaction succeeds and any affected permission cache has been cleared. A failed transaction dispatches neither event. Unsaved models have no stored collection to detach, so their queued replacement dispatches only the attached event.
 
 Assignments made before a subject model is saved are queued on that model and written atomically after save. Their events dispatch synchronously when the assignment method is called, in the caller's established context. The saved callback does not dispatch a duplicate event.
 
@@ -1265,6 +1268,41 @@ After creating custom models, update the permission configuration:
 ],
 ```
 
+<a name="custom-pivot-models"></a>
+### Custom Pivot Models
+
+You may use a custom pivot model when permission or role assignments need additional casts, timestamps, events, or other model behavior. Alias the package relationship, then apply your pivot model using Eloquent's `using` method:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Permission\Traits\HasPermissions;
+
+class User extends Authenticatable
+{
+    use HasPermissions {
+        permissions as traitPermissions;
+    }
+
+    public function permissions(): BelongsToMany
+    {
+        return $this->traitPermissions()->using(CustomPermissionPivot::class);
+    }
+}
+```
+
+You may customize role assignments in the same way by aliasing the `roles` relationship and applying your custom role pivot model.
+
+When a custom permission pivot is configured, `getDirectPermissions()` and `getAllPermissions()` load the model's relationship so the returned Permission models include your pivot class. Normal authorization checks and `getPermissionNames()` continue using the compact permission cache.
+
+The reverse `assignToModels`, `removeFromModels`, and `syncModels` methods do not use the assigned model's relationship override. When your custom pivot behavior is required, perform the assignment through the model's `givePermissionTo`, `revokePermissionTo`, `syncPermissions`, `assignRole`, `removeRole`, or `syncRoles` methods.
+
 In an unpartitioned application, models that replace rather than extend the package bases must implement `Hypervel\Permission\Contracts\Role` or `Hypervel\Permission\Contracts\Permission`. Partition-enabled Role and Permission models must extend the package bases so every unscoped Eloquent lifecycle path remains protected.
 
 The package's default role and permission models do not use soft deletes, and soft deletes are not recommended for permission models. Roles and permissions are access-control records; deleting one should normally remove its assignments, not leave them waiting to become active again later.
@@ -1426,6 +1464,8 @@ Prefer policies and Gate checks when authorization depends on both the user and 
 Permission checks use cached role and permission data after the first lookup. Model role assignments and direct permission assignments have their own cache keys. Those keys include the model type, model key, active partition when enabled, active team when team-scoped, and the partition-specific assignment token.
 
 Warm authorization checks execute no database queries. A cold catalog uses three queries. Enabling row partitioning does not add queries: it adds one bound, indexed predicate to existing SQL and one value to pivot inserts. The partition resolver is an in-memory Context lookup. Exact subject mutations forget exact cache identities, while catalog-wide changes advance only the affected partition's assignment token so older entries expire naturally through the configured TTL.
+
+Saved permission replacements perform one additional relationship query only when assignment events are enabled and a listener is registered for `PermissionDetachedEvent`. When a custom pivot is configured, methods that return Permission models load the relationship once for the model in the current coroutine and reuse it on later calls. Authorization and permission-name checks remain query-free after the permission cache is warm.
 
 If you need to display a model's roles or permissions, eager load the relationships you will render:
 

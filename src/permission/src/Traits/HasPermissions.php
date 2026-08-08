@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
@@ -23,6 +24,8 @@ use Hypervel\Permission\Exceptions\WildcardPermissionInvalidArgument;
 use Hypervel\Permission\Exceptions\WildcardPermissionNotImplementsContract;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\Relations\PartitionedBelongsToMany;
+use Hypervel\Permission\Relations\PartitionedMorphToMany;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Permission\Support\PermissionPartition;
 use Hypervel\Permission\Support\PermissionRelationContext;
@@ -42,7 +45,7 @@ trait HasPermissions
     private ?string $wildcardClass = null;
 
     /**
-     * @var array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}>
+     * @var array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}>
      */
     private array $queuedPermissionAssignments = [];
 
@@ -136,7 +139,7 @@ trait HasPermissions
         if ($partitionColumn === null && ! $registrar->teams) {
             $connection->table($table)
                 ->where($morphKey, $modelKey)
-                ->where('model_type', $morphType)
+                ->where(Config::MORPH_TYPE, $morphType)
                 ->delete();
 
             return null;
@@ -164,7 +167,7 @@ trait HasPermissions
             $scopes = $connection->table($table)
                 ->select($columns)
                 ->where($morphKey, $modelKey)
-                ->where('model_type', $morphType)
+                ->where(Config::MORPH_TYPE, $morphType)
                 ->distinct()
                 ->get();
             $contexts = [];
@@ -205,7 +208,7 @@ trait HasPermissions
 
             $connection->table($table)
                 ->where($morphKey, $modelKey)
-                ->where('model_type', $morphType)
+                ->where(Config::MORPH_TYPE, $morphType)
                 ->delete();
 
             return $contexts;
@@ -332,6 +335,26 @@ trait HasPermissions
     }
 
     /**
+     * Get the immutable context captured by a permission assignment relation.
+     */
+    protected function permissionRelationContext(BelongsToMany $relation): PermissionRelationContext
+    {
+        /** @var PartitionedBelongsToMany|PartitionedMorphToMany $relation */
+        return $relation->getPermissionRelationContext();
+    }
+
+    /**
+     * Forget an assignment relation loaded for an earlier context.
+     */
+    protected function forgetStalePermissionRelation(PermissionRegistrar $registrar, string $relation): void
+    {
+        if ($this->relationLoaded($relation)
+            && ! $registrar->loadedRelationIsCurrent($this, $relation)) {
+            $this->unsetRelation($relation);
+        }
+    }
+
+    /**
      * Get cached direct permission assignments for this model.
      */
     protected function getCachedDirectPermissions(): Collection
@@ -340,10 +363,7 @@ trait HasPermissions
         $registrar = $this->permissionRegistrar();
         $context = $this->permissionAssignmentContext($registrar);
 
-        if ($model->relationLoaded('permissions')
-            && ! $registrar->loadedRelationIsCurrent($model, 'permissions')) {
-            $model->unsetRelation('permissions');
-        }
+        $this->forgetStalePermissionRelation($registrar, 'permissions');
 
         if ($this instanceof Role || $this instanceof Permission || ! $model->exists || $this->relationLoaded('permissions')) {
             return $this->relationCollection($this, 'permissions');
@@ -379,7 +399,7 @@ trait HasPermissions
                 $pivot = [
                     $registrar->pivotPermission => $permission->getKey(),
                     Config::morphKey() => $model->getKey(),
-                    'model_type' => $model->getMorphClass(),
+                    Config::MORPH_TYPE => $model->getMorphClass(),
                     'is_denied' => (bool) $assignment['is_denied'],
                 ];
 
@@ -392,17 +412,70 @@ trait HasPermissions
                 }
 
                 $permission = clone $permission;
-                $permission->setRelation('pivot', Pivot::fromRawAttributes(
+                $morphPivot = MorphPivot::fromRawAttributes(
                     $model,
                     $pivot,
                     Config::modelHasPermissionsTable(),
                     true,
-                ));
+                );
+                $morphPivot
+                    ->setPivotKeys(Config::morphKey(), $registrar->pivotPermission)
+                    ->setRelatedModel($permission)
+                    ->setMorphType(Config::MORPH_TYPE)
+                    ->setMorphClass($model->getMorphClass());
+
+                $pivotWheres = [];
+                $pivotWhereNulls = [];
+
+                if ($context->partition) {
+                    $pivotWheres[] = [
+                        $context->partition->column,
+                        '=',
+                        $context->partition->value,
+                    ];
+                }
+
+                if ($context->teamScoped) {
+                    if ($context->team === null) {
+                        $pivotWhereNulls[] = [$registrar->teamsKey];
+                    } else {
+                        $pivotWheres[] = [$registrar->teamsKey, '=', $context->team];
+                    }
+                }
+
+                if ($pivotWheres !== [] || $pivotWhereNulls !== []) {
+                    $morphPivot->setPivotConstraints(
+                        wheres: $pivotWheres,
+                        whereIns: [],
+                        whereNulls: $pivotWhereNulls,
+                        whereBetweens: [],
+                    );
+                }
+
+                $permission->setRelation('pivot', $morphPivot);
 
                 return $permission;
             })
             ->filter()
             ->values();
+    }
+
+    /**
+     * Get direct permissions for a model-returning public API.
+     */
+    protected function directPermissionsForModelResult(): Collection
+    {
+        if (! $this->exists) {
+            return $this->getCachedDirectPermissions();
+        }
+
+        $registrar = $this->permissionRegistrar();
+
+        if ($registrar->getAssignmentPivotClass($this, 'permissions') === Pivot::class) {
+            return $this->getCachedDirectPermissions();
+        }
+
+        return $this->relationCollection($this, 'permissions');
     }
 
     /**
@@ -762,7 +835,7 @@ trait HasPermissions
      */
     public function getAllPermissions(): Collection
     {
-        $directPermissions = $this->getCachedDirectPermissions();
+        $directPermissions = $this->directPermissionsForModelResult();
         $viaRolePermissions = $this instanceof Permission
             ? collect()
             : $this->getPermissionsViaRolesWithPivots();
@@ -860,10 +933,13 @@ trait HasPermissions
             return $this;
         }
 
-        $pivot = $this->permissionAssignmentPivot($isDenied, $context);
-
         if (! $model->exists) {
-            $this->queuePermissionAssignments($permissions, $pivot, $context);
+            $this->queuePermissionAssignments(
+                $permissions,
+                $this->permissionAssignmentPivot($isDenied, $context),
+                $context,
+                $registrar->getAssignmentPivotClass($this, 'permissions'),
+            );
             $this->dispatchPermissionAttachedEvent($permissions);
 
             return $this;
@@ -871,9 +947,13 @@ trait HasPermissions
 
         $this->requireModelKey($model);
 
+        $relation = $this->permissions();
+        $context = $this->permissionRelationContext($relation);
+
         $changes = $this->synchronizePermissionAssignments(
             $isDenied ? [] : $permissions,
             $isDenied ? $permissions : [],
+            $relation,
             $context,
             false,
         );
@@ -989,6 +1069,7 @@ trait HasPermissions
     private function synchronizePermissionAssignments(
         array $allowed,
         array $denied,
+        BelongsToMany $relation,
         PermissionRelationContext $context,
         bool $detaching,
     ): array {
@@ -1008,8 +1089,7 @@ trait HasPermissions
             ];
         }
 
-        return $this->getConnection()->transaction(function () use ($context, $desired, $detaching): array {
-            $relation = $this->permissionAssignmentRelation($context);
+        return $this->getConnection()->transaction(function () use ($context, $desired, $detaching, $relation): array {
             $relatedPivotKey = $relation->getRelatedPivotKeyName();
             $pivots = $this->readCurrentAssignmentPivots(
                 $relation,
@@ -1090,18 +1170,29 @@ trait HasPermissions
                 );
             }
 
-            // Permission assignment pivots have no timestamps or custom pivot class,
-            // so effect changes can be written in two scoped batches.
             if ($updateAllowed !== []) {
-                $relation->newPivotQuery()
-                    ->whereIn($relatedPivotKey, $updateAllowed)
-                    ->update(['is_denied' => false]);
+                // Stock pivots update in bulk; custom pivots retain their casts and model events.
+                if ($relation->getPivotClass() === Pivot::class) {
+                    $relation->newPivotQuery()
+                        ->whereIn($relatedPivotKey, $updateAllowed)
+                        ->update(['is_denied' => false]);
+                } else {
+                    foreach ($updateAllowed as $id) {
+                        $relation->updateExistingPivot($id, ['is_denied' => false], false);
+                    }
+                }
             }
 
             if ($updateDenied !== []) {
-                $relation->newPivotQuery()
-                    ->whereIn($relatedPivotKey, $updateDenied)
-                    ->update(['is_denied' => true]);
+                if ($relation->getPivotClass() === Pivot::class) {
+                    $relation->newPivotQuery()
+                        ->whereIn($relatedPivotKey, $updateDenied)
+                        ->update(['is_denied' => true]);
+                } else {
+                    foreach ($updateDenied as $id) {
+                        $relation->updateExistingPivot($id, ['is_denied' => true], false);
+                    }
+                }
             }
 
             if ($changes['attached'] !== []
@@ -1119,17 +1210,23 @@ trait HasPermissions
      *
      * @param array<int, int|string> $permissions
      * @param array<string, mixed> $pivot
+     * @param class-string<Pivot> $pivotClass
      */
     protected function attachPermissionAssignments(
         array $permissions,
         array $pivot,
-        ?PermissionRelationContext $context = null,
+        ?PermissionRelationContext $context,
+        string $pivotClass,
     ): void {
         if ($permissions === []) {
             return;
         }
 
         $relation = $this->permissionAssignmentRelation($context);
+
+        if ($pivotClass !== Pivot::class) {
+            $relation->using($pivotClass);
+        }
 
         $relation->attach($permissions, $pivot, false);
         $relation->touchIfTouching();
@@ -1140,54 +1237,32 @@ trait HasPermissions
      *
      * @param array<int, int|string> $permissions
      * @param array<string, mixed> $pivot
+     * @param class-string<Pivot> $pivotClass
      */
     protected function queuePermissionAssignments(
         array $permissions,
         array $pivot,
         PermissionRelationContext $context,
+        string $pivotClass,
     ): void {
         $this->queuedPermissionAssignments[] = [
             'permissions' => $permissions,
             'pivot' => $pivot,
             'context' => $context,
+            'pivotClass' => $pivotClass,
         ];
     }
 
     /**
      * Replace queued permission assignments for the given scope.
      *
-     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}> $assignments
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}> $assignments
      */
     private function replaceQueuedPermissionAssignments(
         array $assignments,
         PermissionRelationContext $context,
-    ): bool {
+    ): void {
         $scopeKey = $context->identity();
-        $current = [];
-
-        foreach ($this->queuedPermissionAssignments as $assignment) {
-            if ($assignment['context']->identity() === $scopeKey) {
-                $current[] = [
-                    'permissions' => $assignment['permissions'],
-                    'pivot' => $assignment['pivot'],
-                ];
-            }
-        }
-
-        $replacement = [];
-
-        foreach ($assignments as $assignment) {
-            if ($assignment['permissions'] !== []) {
-                $replacement[] = [
-                    'permissions' => $assignment['permissions'],
-                    'pivot' => $assignment['pivot'],
-                ];
-            }
-        }
-
-        if ($current === $replacement) {
-            return false;
-        }
 
         $this->queuedPermissionAssignments = array_values(array_filter(
             $this->queuedPermissionAssignments,
@@ -1203,10 +1278,9 @@ trait HasPermissions
                 $assignment['permissions'],
                 $assignment['pivot'],
                 $assignment['context'],
+                $assignment['pivotClass'],
             );
         }
-
-        return true;
     }
 
     /**
@@ -1217,9 +1291,8 @@ trait HasPermissions
     protected function removeQueuedPermissionAssignments(
         array $permissions,
         PermissionRelationContext $context,
-    ): bool {
+    ): void {
         $identity = $context->identity();
-        $changed = false;
         $assignments = [];
 
         foreach ($this->queuedPermissionAssignments as $assignment) {
@@ -1238,19 +1311,13 @@ trait HasPermissions
                 continue;
             }
 
-            $changed = true;
-
             if ($remainingPermissions !== []) {
                 $assignment['permissions'] = $remainingPermissions;
                 $assignments[] = $assignment;
             }
         }
 
-        if ($changed) {
-            $this->queuedPermissionAssignments = $assignments;
-        }
-
-        return $changed;
+        $this->queuedPermissionAssignments = $assignments;
     }
 
     /**
@@ -1276,7 +1343,7 @@ trait HasPermissions
     /**
      * Attach collapsed queued permission assignment batches.
      *
-     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}> $assignments
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}> $assignments
      */
     protected function attachQueuedPermissionAssignmentBatches(array $assignments): void
     {
@@ -1285,6 +1352,7 @@ trait HasPermissions
                 $assignment['permissions'],
                 $assignment['pivot'],
                 $assignment['context'],
+                $assignment['pivotClass'],
             );
         }
     }
@@ -1300,7 +1368,7 @@ trait HasPermissions
     /**
      * Invalidate the captured contexts of committed permission assignments.
      *
-     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}> $assignments
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}> $assignments
      */
     protected function invalidateQueuedPermissionAssignmentContexts(array $assignments): void
     {
@@ -1327,7 +1395,7 @@ trait HasPermissions
     /**
      * Collapse queued permission assignments to their final edge state.
      *
-     * @return array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}>
+     * @return array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext, pivotClass: class-string<Pivot>}>
      */
     protected function collapseQueuedPermissionAssignments(): array
     {
@@ -1343,6 +1411,7 @@ trait HasPermissions
                     'permission' => $permission,
                     'pivot' => $assignment['pivot'],
                     'context' => $assignment['context'],
+                    'pivotClass' => $assignment['pivotClass'],
                 ];
             }
         }
@@ -1353,12 +1422,14 @@ trait HasPermissions
         foreach ($collapsed as $assignment) {
             $pivot = $assignment['pivot'];
             $batchKey = $assignment['context']->identity() . ':'
-                . ((bool) $pivot['is_denied'] ? 'denied' : 'allowed');
+                . ((bool) $pivot['is_denied'] ? 'denied' : 'allowed') . ':'
+                . PermissionPartition::encodeCacheSegment($assignment['pivotClass']);
 
             $batches[$batchKey] ??= [
                 'permissions' => [],
                 'pivot' => $pivot,
                 'context' => $assignment['context'],
+                'pivotClass' => $assignment['pivotClass'],
             ];
             $batches[$batchKey]['permissions'][] = $assignment['permission'];
         }
@@ -1409,15 +1480,15 @@ trait HasPermissions
         $registrar = $this->permissionRegistrar();
         $context = $this->permissionAssignmentContext($registrar);
         $permissions = $this->collectPermissions($permissions, $context->partition);
-        $pivot = $this->permissionAssignmentPivot(false, $context);
 
         if (! $this->exists) {
             $this->replaceQueuedPermissionAssignments(
                 [
                     [
                         'permissions' => $permissions,
-                        'pivot' => $pivot,
+                        'pivot' => $this->permissionAssignmentPivot(false, $context),
                         'context' => $context,
+                        'pivotClass' => $registrar->getAssignmentPivotClass($this, 'permissions'),
                     ],
                 ],
                 $context,
@@ -1429,31 +1500,38 @@ trait HasPermissions
 
         $this->requireModelKey($this);
 
+        $relation = $this->permissions();
+        $context = $this->permissionRelationContext($relation);
+        $detachedPermissions = $this->permissionDetachedEventIsListenedFor()
+            ? $relation->get()
+            : new Collection;
+
         $changes = $this->synchronizePermissionAssignments(
             $permissions,
             [],
+            $relation,
             $context,
             true,
         );
 
-        if ($changes['attached'] === []
-            && $changes['detached'] === []
-            && $changes['updated'] === []) {
-            $this->dispatchPermissionAttachedEvent($permissions);
+        if ($changes['attached'] !== []
+            || $changes['detached'] !== []
+            || $changes['updated'] !== []) {
+            $this->unsetRelation('permissions');
 
-            return $this;
+            if ($this instanceof Role) {
+                $registrar->forgetCachedPermissionsFor($context->partition);
+            } else {
+                $registrar->forgetModelPermissionCacheFor(
+                    $this,
+                    $context->partition,
+                    $context->team,
+                );
+            }
         }
 
-        $this->unsetRelation('permissions');
-
-        if ($this instanceof Role) {
-            $registrar->forgetCachedPermissionsFor($context->partition);
-        } else {
-            $registrar->forgetModelPermissionCacheFor(
-                $this,
-                $context->partition,
-                $context->team,
-            );
+        if ($detachedPermissions->isNotEmpty()) {
+            $this->dispatchPermissionDetachedEvent($detachedPermissions);
         }
 
         $this->dispatchPermissionAttachedEvent($permissions);
@@ -1483,21 +1561,23 @@ trait HasPermissions
             fn (int|string $allowedId): bool => ! in_array($allowedId, $deniedIds, true),
         ));
         $permissions = array_merge($allowedIds, $deniedIds);
-        $allowedPivot = $this->permissionAssignmentPivot(false, $context);
-        $deniedPivot = $this->permissionAssignmentPivot(true, $context);
 
         if (! $this->exists) {
+            $pivotClass = $registrar->getAssignmentPivotClass($this, 'permissions');
+
             $this->replaceQueuedPermissionAssignments(
                 [
                     [
                         'permissions' => $allowedIds,
-                        'pivot' => $allowedPivot,
+                        'pivot' => $this->permissionAssignmentPivot(false, $context),
                         'context' => $context,
+                        'pivotClass' => $pivotClass,
                     ],
                     [
                         'permissions' => $deniedIds,
-                        'pivot' => $deniedPivot,
+                        'pivot' => $this->permissionAssignmentPivot(true, $context),
                         'context' => $context,
+                        'pivotClass' => $pivotClass,
                     ],
                 ],
                 $context,
@@ -1509,31 +1589,38 @@ trait HasPermissions
 
         $this->requireModelKey($this);
 
+        $relation = $this->permissions();
+        $context = $this->permissionRelationContext($relation);
+        $detachedPermissions = $this->permissionDetachedEventIsListenedFor()
+            ? $relation->get()
+            : new Collection;
+
         $changes = $this->synchronizePermissionAssignments(
             $allowedIds,
             $deniedIds,
+            $relation,
             $context,
             true,
         );
 
-        if ($changes['attached'] === []
-            && $changes['detached'] === []
-            && $changes['updated'] === []) {
-            $this->dispatchPermissionAttachedEvent($permissions);
+        if ($changes['attached'] !== []
+            || $changes['detached'] !== []
+            || $changes['updated'] !== []) {
+            $this->unsetRelation('permissions');
 
-            return $changes;
+            if ($this instanceof Role) {
+                $registrar->forgetCachedPermissionsFor($context->partition);
+            } else {
+                $registrar->forgetModelPermissionCacheFor(
+                    $this,
+                    $context->partition,
+                    $context->team,
+                );
+            }
         }
 
-        $this->unsetRelation('permissions');
-
-        if ($this instanceof Role) {
-            $registrar->forgetCachedPermissionsFor($context->partition);
-        } else {
-            $registrar->forgetModelPermissionCacheFor(
-                $this,
-                $context->partition,
-                $context->team,
-            );
+        if ($detachedPermissions->isNotEmpty()) {
+            $this->dispatchPermissionDetachedEvent($detachedPermissions);
         }
 
         $this->dispatchPermissionAttachedEvent($permissions);
@@ -1568,7 +1655,8 @@ trait HasPermissions
 
         $this->requireModelKey($this);
 
-        $relation = $this->permissionAssignmentRelation($context);
+        $relation = $this->permissions();
+        $context = $this->permissionRelationContext($relation);
         $detached = $relation->detach($storedPermission);
 
         if ($detached > 0) {
@@ -1701,13 +1789,20 @@ trait HasPermissions
         }
 
         $roleIds = array_flip($roles->map(fn (Model $role): string => (string) $role->getKey())->all());
+        $registrar = $this->permissionRegistrar();
+        $partition = $registrar->resolvePartition();
 
-        return $this->permissionRegistrar()
+        return $registrar
             ->getPermissions([], false, $this->getPermissionClass())
             ->flatMap(
                 fn (Model $permission): Collection => $this->relationCollection($permission, 'roles')
                     ->filter(fn (Model $role): bool => isset($roleIds[(string) $role->getKey()]))
-                    ->map(fn (Model $role): Model => $this->permissionWithRolePivot($permission, $role))
+                    ->map(fn (Model $role): Model => $this->permissionWithRolePivot(
+                        $permission,
+                        $role,
+                        $registrar,
+                        $partition,
+                    ))
             );
     }
 
@@ -1772,10 +1867,34 @@ trait HasPermissions
     /**
      * Clone a permission with the matching role-permission pivot.
      */
-    protected function permissionWithRolePivot(Model $permission, Model $role): Model
-    {
+    protected function permissionWithRolePivot(
+        Model $permission,
+        Model $role,
+        PermissionRegistrar $registrar,
+        ?PermissionPartition $partition,
+    ): Model {
         $permission = clone $permission;
-        $permission->setRelation('pivot', $role->getRelation('pivot'));
+        /** @var Pivot $cachedPivot */
+        $cachedPivot = $role->getRelation('pivot');
+        $pivot = Pivot::fromRawAttributes(
+            $role,
+            $cachedPivot->getAttributes(),
+            Config::roleHasPermissionsTable(),
+            true,
+        );
+        $pivot->setPivotKeys($registrar->pivotRole, $registrar->pivotPermission)
+            ->setRelatedModel($permission);
+
+        if ($partition) {
+            $pivot->setPivotConstraints(
+                wheres: [[$partition->column, '=', $partition->value]],
+                whereIns: [],
+                whereNulls: [],
+                whereBetweens: [],
+            );
+        }
+
+        $permission->setRelation('pivot', $pivot);
 
         return $permission;
     }

@@ -41,7 +41,8 @@
         "hypervel/queue": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
-        "psr/log": "^3.0"
+        "psr/log": "^3.0",
+        "symfony/http-kernel": "^8.1"
     },
     "suggest": {
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",

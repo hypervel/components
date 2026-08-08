@@ -51,14 +51,16 @@ class UpgradeForTeamsCommand extends Command
 
         $this->line('Creating migration');
 
-        if ($this->createMigration()) {
-            $this->info('Migration created successfully.');
-        } else {
+        if (! $this->createMigration()) {
             $this->error(
                 "Couldn't create migration.\n"
                 . 'Check the write permissions within the database/migrations directory.'
             );
+
+            return self::FAILURE;
         }
+
+        $this->info('Migration created successfully.');
 
         $this->line('');
 
@@ -72,11 +74,10 @@ class UpgradeForTeamsCommand extends Command
     {
         try {
             $migrationStub = __DIR__ . "/../../database/migrations/{$this->migrationSuffix}.stub";
-            copy($migrationStub, $this->getMigrationPath());
 
-            return true;
-        } catch (Throwable $e) {
-            $this->error($e->getMessage());
+            return copy($migrationStub, $this->getMigrationPath());
+        } catch (Throwable $throwable) {
+            $this->error($throwable->getMessage());
 
             return false;
         }

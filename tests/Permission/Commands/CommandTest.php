@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Commands;
 
-use Composer\InstalledVersions;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use Hypervel\Permission\PermissionRegistrar;
@@ -156,12 +154,15 @@ class CommandTest extends TestCase
         }
     }
 
+    public function testSetupTeamsFailsWhenTeamsAreDisabled(): void
+    {
+        $this->artisan('permission:setup-teams')
+            ->expectsOutputToContain('Teams feature is disabled')
+            ->assertFailed();
+    }
+
     public function testItCanRespondToAboutCommandWithDefaultFeatures(): void
     {
-        if (! class_exists(InstalledVersions::class) || ! method_exists(AboutCommand::class, 'flushState')) {
-            $this->markTestSkipped('About command package metadata is unavailable in this environment.');
-        }
-
         $this->app->make(PermissionRegistrar::class)->initializeCache();
 
         Artisan::call('about');
@@ -172,10 +173,6 @@ class CommandTest extends TestCase
 
     public function testItCanRespondToAboutCommandWithTeams(): void
     {
-        if (! class_exists(InstalledVersions::class) || ! method_exists(AboutCommand::class, 'flushState')) {
-            $this->markTestSkipped('About command package metadata is unavailable in this environment.');
-        }
-
         $this->app->make('config')->set('permission.teams', true);
         $this->app->make(PermissionRegistrar::class)->initializeCache();
 
@@ -249,9 +246,20 @@ class CommandTest extends TestCase
             'name' => 'testRole',
             'userId' => (string) $user->id,
             'userModelNamespace' => User::class,
-            '--team-id' => 1,
+            '--team-id' => '0',
         ]);
 
         $this->assertStringContainsString('Teams feature disabled', Artisan::output());
+    }
+
+    public function testItWarnsWhenCreatingRoleWithTeamIdButTeamsDisabled(): void
+    {
+        Artisan::call('permission:create-role', [
+            'name' => 'zero-team-role',
+            '--team-id' => '0',
+        ]);
+
+        $this->assertStringContainsString('Teams feature disabled', Artisan::output());
+        $this->assertDatabaseMissing('roles', ['name' => 'zero-team-role']);
     }
 }
