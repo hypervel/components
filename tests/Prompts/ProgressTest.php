@@ -140,6 +140,24 @@ class ProgressTest extends TestCase
     }
 
     #[RunInSeparateProcess]
+    public function testRepeatedStartRestoresTheApplicationSignalState(): void
+    {
+        Prompt::fake();
+        $previousHandler = static function (): void {
+        };
+        pcntl_signal(SIGINT, $previousHandler);
+        pcntl_async_signals(false);
+
+        $progress = new Progress('Working', 1);
+        $progress->start();
+        $progress->start();
+        $progress->finish();
+
+        $this->assertSame($previousHandler, pcntl_signal_get_handler(SIGINT));
+        $this->assertFalse(pcntl_async_signals());
+    }
+
+    #[RunInSeparateProcess]
     public function testStartFailureRestoresExactSignalAndTerminalState(): void
     {
         Prompt::fake();

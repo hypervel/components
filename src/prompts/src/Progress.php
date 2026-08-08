@@ -114,6 +114,9 @@ class Progress extends Prompt
      */
     public function start(): void
     {
+        // Settle a prior manual start before capturing process-global signal state again.
+        $this->resetSignals();
+
         $this->progress = 0;
         $this->state = 'initial';
         $this->prevFrame = '';
