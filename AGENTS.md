@@ -700,6 +700,8 @@ The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
 Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
+`phpstan.types.neon.dist` validates only the committed `types/` fixtures. Never pass source or test paths to it.
+
 **When fixing phpstan errors:**
 
 1. **Investigate before coding.** For each error: read the code, check the Laravel equivalent's types (native and docblock), trace through callers and dependents. Report findings with the single, most correct fix.
