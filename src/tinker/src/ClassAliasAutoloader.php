@@ -50,8 +50,10 @@ class ClassAliasAutoloader
         array $excludedAliases = [],
     ) {
         $this->vendorPath = dirname(dirname($classMapPath));
-        $this->includedAliases = collect($includedAliases);
-        $this->excludedAliases = collect($excludedAliases);
+        $this->includedAliases = collect($includedAliases)
+            ->map(static fn (string $alias): string => trim($alias, '\\'));
+        $this->excludedAliases = collect($excludedAliases)
+            ->map(static fn (string $alias): string => trim($alias, '\\'));
 
         $classes = require $classMapPath;
 
@@ -111,22 +113,30 @@ class ClassAliasAutoloader
             return false;
         }
 
-        if ($this->includedAliases->contains(function ($alias) use ($class) {
-            return Str::startsWith($class, $alias);
-        })) {
+        if ($this->includedAliases->contains(
+            static fn (string $alias): bool => self::matchesAlias($class, $alias)
+        )) {
             return true;
         }
 
-        if (Str::startsWith($path, $this->vendorPath)) {
+        if (Str::startsWith($path, $this->vendorPath . DIRECTORY_SEPARATOR)) {
             return false;
         }
 
-        if ($this->excludedAliases->contains(function ($alias) use ($class) {
-            return Str::startsWith($class, $alias);
-        })) {
+        if ($this->excludedAliases->contains(
+            static fn (string $alias): bool => self::matchesAlias($class, $alias)
+        )) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Determine whether a class matches an alias boundary.
+     */
+    private static function matchesAlias(string $class, string $alias): bool
+    {
+        return $class === $alias || Str::startsWith($class, $alias . '\\');
     }
 }
