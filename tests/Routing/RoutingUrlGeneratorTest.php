@@ -13,6 +13,7 @@ use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\UrlGenerator;
+use Hypervel\Support\Str;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\RouteDomainEnum;
 use Hypervel\Tests\Routing\Fixtures\RouteNameEnum;
@@ -1181,6 +1182,55 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
             'http://www.foo.com/foo?filter%5B0%5D=people&filter%5B1%5D=fruits',
             $url->route('foo', ['filter' => [CategoryBackedEnum::People, CategoryBackedEnum::Fruits]]),
         );
+    }
+
+    public function testRouteParameterDelimitersRemainEncodedAsData(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], '/keys/{key}', ['as' => 'keys.show']));
+        $routes->add(
+            (new Route(['GET'], '/keys/{key}', ['as' => 'tenant.keys.show']))
+                ->domain('{tenant}.example.com')
+        );
+        $routes->add(new Route(['GET'], '/dashboard', ['as' => 'root.dashboard']));
+
+        $this->assertSame(
+            'http://www.foo.com/keys/report%3Fv2%23final%252F.pdf?q=1',
+            $url->route('keys.show', ['key' => 'report?v2#final%2F.pdf', 'q' => 1]),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/report%7Bdraft%7D.pdf',
+            $url->route('keys.show', ['key' => 'report{draft}.pdf']),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/a%7Bx%7Db?extra',
+            $url->route('keys.show', ['key' => 'a{x}b', 'extra']),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/positional%3Fvalue',
+            $url->route('keys.show', ['positional?value']),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/stringable%23value',
+            $url->route('keys.show', Str::of('stringable#value')),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/pend%3Fing',
+            $url->route('keys.show', DelimitedRouteParameter::Pending),
+        );
+        $this->assertSame(
+            'http://tenant%3Fvalue.example.com/keys/key',
+            $url->route('tenant.keys.show', ['tenant' => 'tenant?value', 'key' => 'key']),
+        );
+
+        $url->useOrigin('http://{tenant}.example.com');
+        $url->defaults(['tenant' => '100%']);
+
+        $this->assertSame('http://100%25.example.com/dashboard', $url->route('root.dashboard'));
     }
 
     public function testSignedUrlWithKeyResolver()
@@ -2809,4 +2859,9 @@ class InvokableActionStub
 class RoutingUrlGeneratorTestUser extends Model
 {
     protected array $fillable = ['uuid'];
+}
+
+enum DelimitedRouteParameter: string
+{
+    case Pending = 'pend?ing';
 }

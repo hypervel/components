@@ -13,6 +13,21 @@ use Hypervel\Support\Collection;
 class RouteUrlGenerator
 {
     /**
+     * Characters that must remain encoded within route parameter values.
+     *
+     * The final URI pass restores only the outer percent escape around these values;
+     * the $dontEncode map still owns structural URL syntax outside parameters. Brace
+     * escapes keep substituted data from being rescanned as route placeholders.
+     */
+    protected const array PARAMETER_ESCAPES = [
+        '%' => '%25',
+        '?' => '%3F',
+        '#' => '%23',
+        '{' => '%7B',
+        '}' => '%7D',
+    ];
+
+    /**
      * The URL generator instance.
      */
     protected UrlGenerator $url;
@@ -358,7 +373,7 @@ class RouteUrlGenerator
 
             return (! isset($parameters[0]) && ! str_ends_with($match[0], '?}'))
                 ? $match[0]
-                : Arr::pull($parameters, 0);
+                : $this->escapeParameterValue(Arr::pull($parameters, 0));
         }, $path);
 
         return trim(preg_replace('/\{.*?\?\}/', '', $path), '/');
@@ -374,12 +389,12 @@ class RouteUrlGenerator
     ): string {
         return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $rootDefaultParameters) {
             if (isset($parameters[$m[1]]) && $parameters[$m[1]] !== '') {
-                return Arr::pull($parameters, $m[1]);
+                return $this->escapeParameterValue(Arr::pull($parameters, $m[1]));
             }
             if (isset($rootDefaultParameters[$m[1]])) {
                 Arr::pull($parameters, $m[1]);
 
-                return $rootDefaultParameters[$m[1]];
+                return $this->escapeParameterValue($rootDefaultParameters[$m[1]]);
             }
             if (isset($parameters[$m[1]])) {
                 Arr::pull($parameters, $m[1]);
@@ -387,6 +402,14 @@ class RouteUrlGenerator
 
             return $m[0];
         }, $path);
+    }
+
+    /**
+     * Escape delimiters while the value is still known to be parameter data.
+     */
+    protected function escapeParameterValue(mixed $value): string
+    {
+        return strtr((string) $value, self::PARAMETER_ESCAPES);
     }
 
     /**
