@@ -733,7 +733,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function url(string $path): string
     {
         if (isset($this->config['prefix'])) {
-            $path = $this->concatPathToUrl($this->config['prefix'], $path);
+            $path = rtrim($this->config['prefix'], '/') . '/' . ltrim($path, '/');
         }
 
         $adapter = $this->adapter;
@@ -760,7 +760,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     {
         return isset($this->config['url'])
             ? $this->concatPathToUrl($this->config['url'], $path)
-            : $path;
+            : $this->encodeUrlPath($path);
     }
 
     /**
@@ -775,7 +775,7 @@ class FilesystemAdapter implements CloudFilesystemContract
             return $this->concatPathToUrl($this->config['url'], $path);
         }
 
-        $path = '/storage/' . $path;
+        $path = '/storage/' . ltrim($this->encodeUrlPath($path), '/');
 
         // If the path contains "storage/public", it probably means the developer is using
         // the default disk to generate the path instead of the "public" disk like they
@@ -848,11 +848,19 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
-     * Concatenate a path to a URL.
+     * Encode a path for use in a URL.
+     */
+    protected function encodeUrlPath(string $path): string
+    {
+        return str_replace('%2F', '/', rawurlencode($path));
+    }
+
+    /**
+     * Encode and concatenate a path to a URL.
      */
     protected function concatPathToUrl(string $url, string $path): string
     {
-        return rtrim($url, '/') . '/' . ltrim($path, '/');
+        return rtrim($url, '/') . '/' . ltrim($this->encodeUrlPath($path), '/');
     }
 
     /**
