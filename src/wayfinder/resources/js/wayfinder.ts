@@ -49,10 +49,7 @@ const routeCharacters: Record<string, string> = {
     "%3D": "=",
     "%2B": "+",
     "%7C": "|",
-    "%3F": "?",
     "%26": "&",
-    "%23": "#",
-    "%25": "%",
 };
 
 export const formatRouteParameter = (
@@ -73,7 +70,7 @@ export const formatRouteParameter = (
     );
 
     return encoded.replace(
-        /%(?:2F|40|3A|3B|2C|3D|2B|7C|3F|26|23|25)/g,
+        /%(?:2F|40|3A|3B|2C|3D|2B|7C|26)/g,
         (sequence) => routeCharacters[sequence],
     );
 };
@@ -169,7 +166,7 @@ export const addUrlDefault = (
 
 export const applyUrlDefaults = <T extends UrlDefaults | null | undefined>(
     existing: T,
-): T => {
+): [T] extends [null | undefined] ? UrlDefaults : T => {
     const existingParams = { ...(existing ?? ({} as UrlDefaults)) };
     const defaultParams = urlDefaults();
 
@@ -183,7 +180,7 @@ export const applyUrlDefaults = <T extends UrlDefaults | null | undefined>(
         }
     }
 
-    return existingParams as T;
+    return existingParams as [T] extends [null | undefined] ? UrlDefaults : T;
 };
 
 export const validateParameters = (

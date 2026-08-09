@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, expectTypeOf, test } from "vitest";
 import {
     defaultParametersDomain,
     dynamicParametersDomain,
@@ -69,6 +69,12 @@ test("it requires dynamic backend domain defaults at runtime", () => {
     expect(dynamicParametersDomain.url({ param: "foo" })).toBe(
         "//tenant%20name.test/dynamic-parameters-domain/foo",
     );
+
+    setUrlDefaults({ dynamic: "tenant?name#final%2F" });
+
+    expect(dynamicParametersDomain.url({ param: "foo" })).toBe(
+        "//tenant%3Fname%23final%252F.test/dynamic-parameters-domain/foo",
+    );
 });
 
 test("it preserves dynamic URL defaults when adding runtime defaults", () => {
@@ -94,4 +100,24 @@ test("it preserves dynamic URL defaults when adding runtime defaults", () => {
     });
 
     expect(callCount).toBe(2);
+});
+
+test("applyUrlDefaults returns an object for exact nullish inputs without widening unions", () => {
+    type OptionalDefaults =
+        | { locale?: string }
+        | null
+        | undefined;
+
+    expectTypeOf(applyUrlDefaults(undefined)).toEqualTypeOf<
+        Record<string, unknown>
+    >();
+    expectTypeOf(applyUrlDefaults(null)).toEqualTypeOf<
+        Record<string, unknown>
+    >();
+    expectTypeOf(
+        applyUrlDefaults<OptionalDefaults>(undefined),
+    ).toEqualTypeOf<OptionalDefaults>();
+
+    expect(applyUrlDefaults(undefined)).toEqual({});
+    expect(applyUrlDefaults(null)).toEqual({});
 });

@@ -24,14 +24,13 @@ class UrlDefaultsMiddleware
             10 => 'numeric-key',
         ]);
 
+        // The defaults parser must not harvest a neighboring array assignment.
         $unrelated = ['neighbor' => 'not-a-default'];
 
         URL::defaults([
             'secondary' => 'second',
             'computed' => strtoupper('computed'),
         ]);
-
-        unset($unrelated);
 
         return $next($request);
     }

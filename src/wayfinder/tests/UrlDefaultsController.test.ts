@@ -57,10 +57,19 @@ describe("parsedDefaults", () => {
                 parsedDefaults.url({
                     literalNull: "literal-null",
                     unsupported: "unsupported-array",
+                    neighbor: "neighbor",
                 }),
             ).toBe(
-                "/parsed-defaults/en/-12/1.5/1/0/UTC/second/runtime/literal-null/unsupported-array",
+                "/parsed-defaults/en/-12/1.5/1/0/UTC/second/runtime/literal-null/unsupported-array/neighbor",
             );
+
+            expect(() =>
+                // @ts-expect-error Intentionally omit the neighboring-array decoy parameter.
+                parsedDefaults.url({
+                    literalNull: "literal-null",
+                    unsupported: "unsupported-array",
+                }),
+            ).toThrow("Missing required route parameter: neighbor.");
 
             // @ts-expect-error Intentionally bypass the generated type to verify runtime validation.
             expect(() => parsedDefaults.url()).toThrow(
@@ -79,6 +88,7 @@ describe("parsedDefaults", () => {
                 parsedDefaults.url({
                     literalNull: "literal-null",
                     unsupported: "unsupported-array",
+                    neighbor: "neighbor",
                 }),
             ).toThrow("Missing required route parameter: computed.");
 
@@ -89,6 +99,7 @@ describe("parsedDefaults", () => {
                     locale: "",
                     literalNull: "literal-null",
                     unsupported: "unsupported-array",
+                    neighbor: "neighbor",
                 }),
             ).toThrow("Missing required route parameter: locale.");
         } finally {

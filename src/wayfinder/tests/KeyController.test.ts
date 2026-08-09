@@ -24,7 +24,13 @@ test("route parameters use backend-equivalent encoding", () => {
         "/keys/hello%20world/%C3%BCnicode%27%28%29",
     );
     expect(show.url("@foo:bar;,=+!|?&#%*")).toBe(
-        "/keys/@foo:bar;,=+!|?&#%*",
+        "/keys/@foo:bar;,=+!|%3F&%23%25*",
+    );
+    expect(show.url("report?v2#final%2F.pdf")).toBe(
+        "/keys/report%3Fv2%23final%252F.pdf",
+    );
+    expect(show.url("report{draft}.pdf")).toBe(
+        "/keys/report%7Bdraft%7D.pdf",
     );
 });
 
