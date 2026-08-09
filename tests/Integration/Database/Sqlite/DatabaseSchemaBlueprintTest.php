@@ -10,6 +10,7 @@ use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use RuntimeException;
 
 class DatabaseSchemaBlueprintTest extends SqliteTestCase
@@ -568,10 +569,11 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
             $table->text('name')->change();
         });
 
-        $this->assertSame(
-            1,
-            (int) $connection->scalar("select wr from pragma_table_list where name = 'contacts'"),
+        $tableSql = $connection->scalar(
+            "select sql from sqlite_master where type = 'table' and name = 'contacts'"
         );
+        $this->assertIsString($tableSql);
+        $this->assertMatchesRegularExpression('/\bwithout\s+rowid\s*$/i', $tableSql);
 
         try {
             $connection->statement("insert into contacts (email, name) values (null, 'One')");
@@ -580,6 +582,7 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
         }
     }
 
+    #[RequiresDatabase('sqlite', '>=3.37.0')]
     public function testRebuildPreservesStrictTables(): void
     {
         $connection = DB::connection();
@@ -992,6 +995,23 @@ SQL);
     public function testSQLiteDoubleQuotedStringFallbackChangesUniqueIndexSemantics(): void
     {
         $connection = DB::connection();
+
+        $connection->statement('create table dqs_probe (label varchar not null)');
+
+        try {
+            $connection->statement(
+                'create index dqs_probe_index on dqs_probe ("missing") where "gone" is not null'
+            );
+        } catch (QueryException $exception) {
+            if (! str_contains($exception->getMessage(), 'no such column:')) {
+                throw $exception;
+            }
+
+            $this->markTestSkipped('SQLite double-quoted string fallback is disabled for DDL.');
+        } finally {
+            $connection->statement('drop table dqs_probe');
+        }
+
         $connection->statement('create table expression_case (label varchar not null, active integer not null)');
         $connection->statement(
             'create unique index expression_case_unique on expression_case ("name") where "active" = 1'
