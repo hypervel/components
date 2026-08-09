@@ -28,6 +28,7 @@
     - [Views](/docs/{{version}}/views)
     - [Blade Templates](/docs/{{version}}/blade)
     - [Asset Bundling](/docs/{{version}}/vite)
+    - [Wayfinder](/docs/{{version}}/wayfinder)
     - [URL Generation](/docs/{{version}}/urls)
     - [Session](/docs/{{version}}/session)
     - [Validation](/docs/{{version}}/validation)
