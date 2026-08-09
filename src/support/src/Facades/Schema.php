@@ -48,6 +48,7 @@ namespace Hypervel\Support\Facades;
  * @method static mixed withoutForeignKeyConstraints(\Closure $callback)
  * @method static void ensureVectorExtensionExists(string|null $schema = null)
  * @method static void ensureExtensionExists(string $name, string|null $schema = null)
+ * @method static void executeBlueprint(\Hypervel\Database\Schema\Blueprint $blueprint)
  * @method static null|string[] getCurrentSchemaListing()
  * @method static string|null getCurrentSchemaName()
  * @method static array parseSchemaAndTable(string $reference, string|bool|null $withDefaultSchema = null)

@@ -606,6 +606,50 @@ class PooledConnectionTest extends DatabaseTestCase
         }
     }
 
+    public function testLeakedForeignKeySuppressionScopeReconnectsANormalPoolWithoutAConfigurator(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-suppression-reconnect');
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $databasePath = $directory . '/database.sqlite';
+        touch($databasePath);
+        $this->app->make('config')->set('database.connections.suppression_reconnect_test', [
+            'driver' => 'sqlite',
+            'database' => $databasePath,
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+        $pool = new DbPool($this->app, 'suppression_reconnect_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+            $oldPdo = $connection->getPdo();
+            $connection->beginForeignKeyConstraintSuppression();
+            $firstPooledConnection = $pooledConnection;
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $newPdo = $pooledConnection->getConnection()->getPdo();
+
+            $this->assertSame($firstPooledConnection, $pooledConnection);
+            $this->assertNotSame($oldPdo, $newPdo);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
     public function testFailedRefreshPreservesTheCurrentGenerationAndMarksItInvalid(): void
     {
         $filesystem = new Filesystem;
@@ -676,10 +720,8 @@ class PooledConnectionTest extends DatabaseTestCase
         }
     }
 
-    public function testSharedInMemorySqliteUnknownRecoveryIsBoundedAndFailsClosed(): void
+    public function testSharedInMemorySqliteUnknownSessionFailsClosedWithoutDiscardingTheDatabase(): void
     {
-        $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -688,22 +730,15 @@ class PooledConnectionTest extends DatabaseTestCase
         try {
             $connection = $pooledConnection->getConnection();
             $sharedPdo = $connection->getPdo();
-            $configurator->desiredState = 'fail';
-            $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
-
-            try {
-                $connection->getPdo();
-                $this->fail('Expected configuration exception was not thrown.');
-            } catch (Exception) {
-            }
+            $sharedPdo->exec('create table records (id integer primary key)');
+            $sharedPdo->exec('insert into records (id) values (1)');
+            $connection->beginForeignKeyConstraintSuppression();
 
             $pooledConnection->release();
             $pooledConnection = null;
-            $configurator->applyCallback = null;
 
             /** @var PooledConnection $pooledConnection */
             $pooledConnection = $pool->get();
-            $replacementConnection = $pooledConnection->getConnection();
             $connectionEstablished = 0;
             $this->app->make(Dispatcher::class)->listen(
                 ConnectionEstablished::class,
@@ -713,15 +748,18 @@ class PooledConnectionTest extends DatabaseTestCase
             );
 
             try {
-                $replacementConnection->getPdo();
+                $pooledConnection->getConnection();
                 $this->fail('Expected unknown session exception was not thrown.');
             } catch (RuntimeException $exception) {
-                $this->assertSame('Database session state remains unknown after reconnecting.', $exception->getMessage());
+                $this->assertSame(
+                    'The shared in-memory SQLite database session is unknown and its sole connection cannot be replaced without discarding the database.',
+                    $exception->getMessage()
+                );
             }
 
-            $this->assertSame($sharedPdo, $replacementConnection->getRawPdo());
-            $this->assertSame(1, $connectionEstablished);
-            $this->assertSame(2, $configurator->applyCalls);
+            $this->assertSame($sharedPdo, $pool->getSharedInMemorySqlitePdo());
+            $this->assertSame(1, (int) $sharedPdo->query('select count(*) from records')->fetchColumn());
+            $this->assertSame(0, $connectionEstablished);
         } finally {
             $pooledConnection?->release();
             $pool->close();

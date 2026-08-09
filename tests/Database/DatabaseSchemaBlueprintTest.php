@@ -23,13 +23,15 @@ class DatabaseSchemaBlueprintTest extends TestCase
         parent::tearDown();
     }
 
-    public function testToSqlRunsCommandsFromBlueprint()
+    public function testBuildDelegatesToTheConnectionOwnedBuilder(): void
     {
-        $conn = $this->getConnection();
-        $conn->shouldReceive('statement')->once()->with('foo');
-        $conn->shouldReceive('statement')->once()->with('bar');
-        $blueprint = $this->getMockBuilder(Blueprint::class)->onlyMethods(['toSql'])->setConstructorArgs([$conn, 'users'])->getMock();
-        $blueprint->expects($this->once())->method('toSql')->willReturn(['foo', 'bar']);
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new MySqlGrammar($connection));
+        $builder = m::mock(Builder::class);
+        $blueprint = new Blueprint($connection, 'users');
+
+        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($builder);
+        $builder->shouldReceive('executeBlueprint')->once()->with($blueprint);
 
         $blueprint->build();
     }

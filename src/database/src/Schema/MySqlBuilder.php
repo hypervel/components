@@ -23,15 +23,11 @@ class MySqlBuilder extends Builder
             return;
         }
 
-        $this->disableForeignKeyConstraints();
-
-        try {
+        $this->withoutForeignKeyConstraints(function () use ($tables): void {
             $this->connection->statement(
                 $this->grammar->compileDropAllTables($tables)
             );
-        } finally {
-            $this->enableForeignKeyConstraints();
-        }
+        });
     }
 
     /**
@@ -49,6 +45,15 @@ class MySqlBuilder extends Builder
         $this->connection->statement(
             $this->grammar->compileDropAllViews($views)
         );
+    }
+
+    /**
+     * Determine whether foreign key constraints are enabled.
+     */
+    #[Override]
+    protected function foreignKeyConstraintsAreEnabled(): bool
+    {
+        return (bool) $this->connection->scalar('select @@foreign_key_checks');
     }
 
     /**
