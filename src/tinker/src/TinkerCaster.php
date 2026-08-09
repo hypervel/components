@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tinker;
 
-use Exception;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Application;
 use Hypervel\Process\ProcessResult;
@@ -12,6 +11,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Stringable;
 use Symfony\Component\VarDumper\Caster\Caster;
+use Throwable;
 
 class TinkerCaster
 {
@@ -45,12 +45,13 @@ class TinkerCaster
 
         foreach (self::$appProperties as $property) {
             try {
-                $val = $app->{$property}();
+                $value = $app->{$property}();
 
-                if (! is_null($val)) {
-                    $results[Caster::PREFIX_VIRTUAL . $property] = $val;
+                if ($value !== null) {
+                    $results[Caster::PREFIX_VIRTUAL . $property] = $value;
                 }
-            } catch (Exception $e) {
+            } catch (Throwable) {
+                // An unavailable presentation value should not hide the remaining properties.
             }
         }
 
