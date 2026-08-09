@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `permission`; targeted correctness, custom-pivot, relation-scope, and metadata maintenance is recorded under `Complete Permission correctness, custom pivots, and relation scope safety`; detail plan `2026-08-08-0059-permission-correctness-extension-parity-and-relation-scope-safety.md`. The later fresh Permission audit remains open.
-- **Ledger entries required for the active work:** `Complete Permission correctness, custom pivots, and relation scope safety`.
-- **Pending revalidation carried into the active work:** None. Permission revalidated `support-02`; Database and every corrected metadata sibling were revalidated in the same work unit.
+- **Active package or work unit:** `sentry`; the complete correctness, coroutine-ownership, parity, and performance audit is recorded under `Complete Sentry correctness, coroutine ownership, and performance`; detail plan `2026-08-08-1711-sentry-correctness-coroutine-ownership-and-performance.md`.
+- **Ledger entries required for the active work:** `Complete Sentry correctness, coroutine ownership, and performance`; `Make coroutine creation and copied context failure-safe`; `Harden Core lifecycle callbacks and stdout logging`; `Isolate object-pool maintenance and remove false dependencies`; `Harden filesystem I/O, streaming, and response teardown`; `Complete Cache parity, cleanup, permanence, and tagged ownership`; `Complete Notifications correctness, Slack parity, and reentrant failure ownership`; `Complete Queue pooling, payload durability, and current Laravel parity`; `Correct AOP proxy generation and publication`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; and `Harden Server startup, reload, and process lifecycles`.
+- **Pending revalidation carried into the active work:** Telescope must retain captured fork values under `coroutine-08`; Sentry and every other named consumer are revalidated in this work unit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1038,7 +1038,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `pool-08` | `pool`, `redis` | `redis` (revalidation complete) | `Bound pool resources and connection progress deterministically`; finding `pool-08` |
 | `database-01` | `database` | `database` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `database-01` |
 | `redis-01` | `redis` | `redis` (revalidation complete) | `Release cleared coordinator timers deterministically`; finding `redis-01` |
-| `di-02` | `di` | `foundation` (revalidation complete); later full `sentry` and `telescope` audits | `Correct AOP proxy generation and publication`; finding `di-02` |
+| `di-02` | `di` | `foundation` and `sentry` (revalidation complete); later full `telescope` audit | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` and `filesystem` (revalidation complete) | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption`, `support`, and `filesystem` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
 | `filesystem-04` | `filesystem` | `cache` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-04` |
@@ -1105,11 +1105,11 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `redis-21` | `redis` | `queue` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-21` |
 | `redis-22` | `redis` | `queue` and `support` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `redis-22` |
 | `reverb-05` | `reverb` | `redis` and `reverb` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `reverb-05` |
-| `redis-15` | `redis` | `telescope` and `sentry` (revalidation complete); later full consumer audits | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-15` |
+| `redis-15` | `redis` | `sentry` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `redis-15` |
 | `horizon-01` | `horizon` | `redis` and `horizon` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `horizon-01` |
 | `telescope-01` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-01` |
 | `telescope-02` | `telescope` | `redis` (revalidation complete); later full `telescope` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `telescope-02` |
-| `sentry-01` | `sentry` | `redis` (revalidation complete); later full `sentry` audit | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
+| `sentry-01` | `sentry` | `redis` and `sentry` (revalidation complete) | `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; finding `sentry-01` |
 | `cache-04` | `cache` | `auth`, `sanctum`, and `testbench` (revalidation complete); later full remaining consumer audits | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-04` |
 | `filesystem-12` | `filesystem` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `filesystem-12` |
 | `session-23` | `cache` | `session` (revalidation complete) | `Complete Session lifecycles, persistence, and current Laravel parity`; finding `session-23` |
@@ -1246,6 +1246,19 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `reverb-40` | `reverb` | `reverb` (targeted correction complete) | `Complete Socialite correctness, first-party extensibility, and lifecycle`; finding `reverb-40` |
 | `queue-42` | `queue` | `queue` (targeted correction complete) | `Complete Prompts correctness, current parity, and terminal lifecycles`; finding `queue-42` |
 | `testbench-04` | `testbench` | `testbench` (targeted correction complete) and `prompts` (revalidation complete); later full `testbench` audit | `Complete Prompts correctness, current parity, and terminal lifecycles`; finding `testbench-04` |
+| `coroutine-08` | `coroutine` | `sentry` (revalidation complete); later full `telescope` audit | `Make coroutine creation and copied context failure-safe`; finding `coroutine-08` |
+| `core-09` | `core` | `sentry` (revalidation complete), `server` (unchanged callback wiring revalidated) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-09` |
+| `object-pool-05` | `object-pool` | `filesystem` and `sentry` (revalidation complete) | `Isolate object-pool maintenance and remove false dependencies`; finding `object-pool-05` |
+| `object-pool-06` | `object-pool` | `filesystem` and `sentry` (revalidation complete) | `Isolate object-pool maintenance and remove false dependencies`; finding `object-pool-06` |
+| `filesystem-15` | `filesystem` | `object-pool` and `sentry` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-15` |
+| `filesystem-16` | `filesystem` | `sentry` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-16` |
+| `cache-21` | `cache` | `sentry` (revalidation complete) | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-21` |
+| `cache-22` | `cache` | `sentry` (revalidation complete) | `Complete Cache parity, cleanup, permanence, and tagged ownership`; finding `cache-22` |
+| `notifications-22` | `notifications` | `sentry` (revalidation complete) | `Complete Notifications correctness, Slack parity, and reentrant failure ownership`; finding `notifications-22` |
+| `notifications-23` | `notifications` | `sentry` (revalidation complete) | `Complete Notifications correctness, Slack parity, and reentrant failure ownership`; finding `notifications-23` |
+| `queue-43` | `queue` | `sentry` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-43` |
+| `queue-44` | `queue` | `sentry` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-44` |
+| `queue-45` | `queue` | `sentry` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-45` |
 
 ## Package checklist
 
@@ -1345,7 +1358,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `jwt`
 - [x] `scout`
 - [ ] `telescope`
-- [ ] `sentry`
+- [x] `sentry`
 - [ ] `inertia`
 - [x] `nested-set`
 - [x] `json-schema`
