@@ -279,6 +279,8 @@ class DatabaseSchemaBlueprintTest extends TestCase
             ],
             array_column($blueprint->getCommands(), 'name'),
         );
+        $this->assertSame($blueprint->generatedUniqueCommand, $blueprint->getCommands()[1]);
+        $this->assertSame('preserved', $blueprint->getCommands()[1]->testMetadata);
     }
 
     public function testCreateKeepsTargetsAlreadyBeforeTheFirstForeignKeyInPlace(): void
