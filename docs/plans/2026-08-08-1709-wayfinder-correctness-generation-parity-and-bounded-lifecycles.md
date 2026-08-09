@@ -8,17 +8,21 @@ Routing behavior. Preserve Laravel's public Wayfinder shapes and Hypervel's requ
 origin, command cloning, worker-cached binding metadata, and static generated-fixture layout.
 
 This is generation/tooling work, not a PHP request-path redesign. The PHP request-path changes
-are confined to Routing URL generation: boolean normalization, binding-aware defaults remaining
-authoritative for explicit null input, raw defaults being limited to non-domain roots, consumed
-root fallbacks no longer leaking into the query, and forced-root/route placeholder collisions
-failing instead of emitting contradictory URLs. Boolean normalization adds one primitive branch
-per supplied URL parameter; the other corrections replace existing lookup/removal behavior and
-add no I/O. Generated calls gain only the encoding and validation required for correct URLs. The
-shared Filesystem correction changes atomic replacement's omitted-mode default from executable
-to the ordinary file mode already produced by `put()`. The Foundation and Testbench lifecycle
-corrections restore the documented in-memory configuration and route caches across successive
-application boots without compiling routes before Testbench has defined them. They add no
-production request-path work beyond honoring an explicitly bound route-cache marker.
+are confined to Routing URL generation: boolean normalization, route-parameter delimiter
+escaping, binding-aware defaults remaining authoritative for explicit null input, raw defaults
+being limited to non-domain roots, consumed root fallbacks no longer leaking into the query, and
+forced-root/route placeholder collisions failing instead of emitting contradictory URLs. Boolean
+normalization adds one primitive branch per supplied URL parameter; delimiter integrity adds one
+native linear `strtr()` per substituted parameter value; the other corrections replace existing
+lookup/removal behavior and add no I/O. Generated calls gain only the encoding and validation
+required for correct URLs. The shared Filesystem correction changes atomic replacement's
+omitted-mode default from executable to the ordinary file mode already produced by `put()`.
+Filesystem URL construction now encodes raw storage keys at Hypervel-owned URL boundaries,
+while temporary local URLs rely on Routing's shared parameter encoder instead of retaining a
+duplicate encoding layer. The Foundation and Testbench lifecycle corrections restore the
+documented in-memory configuration and route caches across successive application boots without
+compiling routes before Testbench has defined them. They add no production request-path work
+beyond honoring an explicitly bound route-cache marker.
 
 ## Evidence baseline
 
@@ -116,12 +120,14 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `wayfinder-03` | Middleware parsing | Major | Replace the unsafe first-token reader with a bounded linear parser for every `URL::defaults()` array call. |
 | `wayfinder-04` | Generated URL fidelity | Major | Use one backend-equivalent path/domain scalar formatter and make booleans reachable through every generated call shape. |
 | `routing-27` | Routing URL defaults | Major | With owner approval for the expanded public scope, normalize booleans, make binding-aware route defaults authoritative, confine raw defaults to non-domain roots, prevent consumed root defaults from leaking into queries, and reject forced-root/route placeholder collisions. |
+| `routing-28` | Route delimiter integrity | Major | Escape literal `%`, `?`, `#`, `{`, and `}` while values are still known to be route-parameter data so they cannot become URL or placeholder syntax after substitution. |
 | `wayfinder-05` | Identifier allocation | Major | Derive actual barrel scopes from flat manifests, preserve and merge leaf/namespace pairs, allocate deterministic declaration names without inspecting output, retain raw controller method keys, and retain camel-normalized barrel keys with raw fallback only for normalization collisions. |
 | `wayfinder-22` | Output path collision | Major | Reject a controller module whose path collides with its scope's `index.ts` barrel on case-insensitive filesystems. |
 | `wayfinder-06` | Same-URI verbs | Major | Coalesce compatible same-action/same-URI routes into one stable multi-verb definition; reject incompatible default metadata. |
 | `wayfinder-07` | Query arrays | Minor | Permit boolean array members and serialize them through the existing scalar normalizer. |
 | `wayfinder-08` | Publication/pruning | Major | Preserve no-op writes, atomically replace changed files, and fail truthfully when stale files remain. |
 | `filesystem-17` | Atomic file mode | Minor | With owner approval, make mode-less atomic replacement create ordinary non-executable files instead of setting every executable bit allowed by the umask. |
+| `filesystem-18` | Public file URLs | Major | Encode raw storage keys wherever Hypervel constructs `Storage::url()` output; keep delegated adapters and native S3 ownership unchanged. |
 | `wayfinder-09` | View state | Minor | Replace the namespace instead of appending it on every command; retain idempotent extension registration. |
 | `wayfinder-10` | Verification gates | Major | Add bounded TypeScript, normal/cached Vitest, and CI gates without putting Node into Composer workflows. |
 | `wayfinder-11` | Current parity | Minor | Port current multi-route JSDoc and document the URI-keyed dictionary. |
@@ -135,6 +141,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `wayfinder-19` | Tuple contract | Major | Emit optional labels only for the contiguous optional suffix supported by index-based tuple unpacking. |
 | `wayfinder-20` | TypeScript cleanup | Major | Scope syntax spacing rules to syntax fragments and anchor line rules so developer literals are never rewritten. |
 | `wayfinder-21` | Null omission | Major | Type optional null values consistently and prevent bound-parameter shorthand and member extraction from dereferencing null. |
+| `wayfinder-23` | Route delimiter integrity | Major | Keep literal `%`, `?`, `#`, `{`, and `}` encoded in generated route-parameter values while retaining valid path delimiters and backend parity. |
 | `foundation-19` | Cached test state | Major | Re-arm cached configuration and routes before each opted-in application boot across Foundation and Testbench, and restore the route marker read. |
 | `testbench-05` | Cached route lifecycle | Major | Register the standard route provider and define Testbench routes immediately after application creation so cached-route callbacks are consumed and capture the complete collection. |
 | `testbench-06` | Mixed route fixtures | Major | Keep uncached route synchronization independent from provider-owned cached files so a cached route followed by a stash route retains both. |
@@ -291,6 +298,32 @@ machinery. Boolean normalization is already approved; the binding/default/root c
 change observable behavior on Laravel's public URL-generation surface and require the owner's
 approval with this expanded plan.
 
+Escape parameter data before inserting it into a path, domain, or configured-root placeholder.
+The final whole-URI encoder must keep its existing restore map because it also owns real query
+and fragment syntax. Use one fixed internal map and one helper for the named, root-default, and
+positional substitution returns:
+
+```php
+protected const array PARAMETER_ESCAPES = [
+    '%' => '%25',
+    '?' => '%3F',
+    '#' => '%23',
+    '{' => '%7B',
+    '}' => '%7D',
+];
+
+protected function escapeParameterValue(mixed $value): string
+{
+    return strtr((string) $value, self::PARAMETER_ESCAPES);
+}
+```
+
+The cast preserves existing integer, float, `Stringable`, and enum-backed route values; enum
+values are unwrapped before substitution. Do not move this into `UrlGenerator::formatParameters()`:
+parameters left for the query string would be escaped twice. Keep `&` and `/` unchanged because
+they are valid path data under the existing Routing contract. This is a verified Laravel-inherited
+correctness defect, not coroutine machinery or a configurable encoding policy.
+
 ### 3. Format generated route scalars once
 
 Widen the route scalar domain to `string | number | boolean` at each real early return in
@@ -345,7 +378,7 @@ export const formatRouteParameter = (
         (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
     );
 
-    return encoded.replace(/%(?:2F|40|3A|3B|2C|3D|2B|7C|3F|26|23|25)/g,
+    return encoded.replace(/%(?:2F|40|3A|3B|2C|3D|2B|7C|26)/g,
         (sequence) => routeCharacters[sequence],
     );
 };
@@ -358,12 +391,16 @@ The restore map is explicit and typed; `%21` and `%2A` are absent because
 const routeCharacters: Record<string, string> = {
     "%2F": "/", "%40": "@", "%3A": ":", "%3B": ";",
     "%2C": ",", "%3D": "=", "%2B": "+", "%7C": "|",
-    "%3F": "?", "%26": "&", "%23": "#", "%25": "%",
+    "%26": "&",
 };
 ```
 
+Literal `%`, `?`, `#`, `{`, and `}` remain encoded because they are data inside the substituted
+value; restoring them would turn the value into a percent escape, URL delimiter, or route
+placeholder.
+
 Use it for path and domain placeholders through replacement callbacks, not replacement strings;
-this also prevents JavaScript `$&`, `$\``, `$'`, and `$$` replacement-token corruption. Static
+this also prevents JavaScript `$&`, `` $` ``, `$'`, and `$$` replacement-token corruption. Static
 URI segments remain unchanged; no literal-segment encoder is added.
 Export and import `formatRouteParameter` beside `applyUrlDefaults` for every parameterized
 generated file, and reserve its name from generated declarations. Emit the parameter name as
@@ -384,9 +421,12 @@ Make that omission contract truthful in generated TypeScript. When a parameter i
 append `| null` to its object-member value, tuple value, and direct single-parameter scalar value.
 Do not widen binding-object members such as `{ id: null }`: that supplies an invalid binding key
 rather than omitting the parameter. Let `applyUrlDefaults()` accept null in its existing generic
-input shape. Guard the raw single-binding shorthand against null before `key in args`, and guard a
-null parameter member before bracket access. Required null values must reach the named missing
-route parameter error rather than a JavaScript `TypeError`.
+input shape. Its runtime always returns an object, so use a non-distributive conditional return
+type, `[T] extends [null | undefined] ? UrlDefaults : T`; this corrects exact nullish calls without
+widening the generated `Args | null | undefined` union. Guard the raw single-binding shorthand
+against null before `key in args`, and guard a null parameter member before bracket access.
+Required null values must reach the named missing route parameter error rather than a JavaScript
+`TypeError`.
 
 ### 4. Make tuple types match positional runtime behavior
 
@@ -623,6 +663,33 @@ resets its mode, but resets it to the ordinary file default. Callers that need p
 passing the existing mode explicitly. Because this changes observable behavior on Laravel's
 public `Filesystem::replace()` API, implementation requires the owner's approval with this plan.
 
+Routing now owns delimiter escaping for temporary local file routes. Remove the superseded
+`rawurlencode()` / `%2F` restoration from both `LocalFilesystemAdapter` route-parameter calls and
+pass the raw storage path. The generated signed URL remains encoded, signature verification uses
+the same non-decoded request path, and `Request::decodedPath()` performs the one decode needed by
+`ServeFile` and `ReceiveFile`.
+
+Encode raw storage keys when Hypervel constructs ordinary `Storage::url()` output. Keep the
+initial `config['prefix']` key join raw because delegated third-party adapters own their URL
+encoding. Add one protected helper and use it from the URL join, default local URL, and bare
+FTP/SFTP path:
+
+```php
+protected function encodeUrlPath(string $path): string
+{
+    return str_replace('%2F', '/', rawurlencode($path));
+}
+```
+
+This also corrects configured local, FTP/SFTP, and S3 URLs plus default/configured GCS URLs
+through `concatPathToUrl()`. Native S3 already encodes keys and remains delegated; scoped cloud
+filesystems delegate to their inner disk. Apparent `%HH` input remains literal filename data, so
+`report%2F.pdf` becomes `report%252F.pdf`. Ordinary and temporary URLs may represent valid path
+characters such as `+` differently, but both decode to the same key; do not add normalization or
+encoded-input detection. The default local branch trims leading separators after encoding so it
+matches `concatPathToUrl()` and applies the existing `/storage/public/` correction consistently.
+Remove the stale public warning that local URLs are not encoded without adding bug-fix narration.
+
 Use strict `in_array(..., true)` for buffered fragments. On stale deletion, throw when
 `delete()` is false and the path still exists; a concurrently disappeared path is success.
 Keep empty-directory pruning best effort.
@@ -763,9 +830,11 @@ The route provider now owns loading disk-cached routes. Delete the duplicate cac
 from `HandlesRoutes`; do not leave a collection-type guard around dead work. Rename the remaining
 internal seam and flag to `syncTestbenchRoutes()` / `$syncTestbenchRoutesHasRun`, remove their
 unused arguments, and call the seam only after Closure normalization has forced `$cached = false`.
-Narrow `$this->app` to the application contract inside its after-created callback. This leaves
-uncached route files synchronized exactly once while allowing a prior cached route call followed
-by a stash route call to perform the synchronization it needs. Keep the upstream-owned
+Narrow `$this->app` to the application contract inside its after-created callback. Keep the flag
+to coalesce calls made before setup into one callback. Each application reload clears that callback
+registry, so reset the flag in the reload `finally` before an uncached call registers its replacement.
+This keeps every accumulated uncached route file synchronized after successive reloads while
+avoiding duplicate pre-setup callbacks. Keep the upstream-owned
 `SyncTestbenchCachedRoutes` class name because the CLI skeleton still uses it.
 
 Add a separate non-matrix Wayfinder job to `.github/workflows/tests.yml`; do not repeat Node work
@@ -871,9 +940,12 @@ run from finishing last.
 - Routing: explicit/positional/path/domain/default true/false; bound default with explicit null;
   plain-only default for `{team:slug}` throws; forced-root omitted/null/empty/value without query
   leak; route-domain defaults; root/route placeholder collision throws.
-- Formatting: spaces, Unicode, quotes, parentheses, Routing-restored characters, `$&`, `$\``,
+- Formatting: spaces, Unicode, quotes, parentheses, Routing-restored characters, `$&`, `` $` ``,
   `$'`, `$$`, named required-parameter errors, optional omission, exported/imported helper
-  wiring, and backend-equivalent substituted path/domain output.
+  wiring, and backend-equivalent substituted path/domain output. Pin `%`, `?`, `#`, `{`, and `}`
+  as encoded route data for named, positional, root-default, domain, `Stringable`, and enum-backed
+  values; retain `&` and `/`; and prove real query data remains structural rather than being
+  consumed by placeholder-like parameter content.
 - Booleans: direct scalar, object, tuple, optional before a later optional, compile-time default,
   domain, and PHPDoc-resolved bound boolean.
 - Tuple types: short trailing optionals, all-optional mixed cause, and existing interleaved
@@ -906,7 +978,11 @@ run from finishing last.
   under the active umask, explicit modes applied unchanged, false write/delete, concurrent
   disappearance, environment encryption using the same deterministic ordinary-file mode, two
   command invocations without hint growth, inside/outside/sibling controller paths, explicit
-  empty path before writes.
+  empty path before writes. Pin exact raw filenames through temporary local downloads/uploads,
+  nested separators, literal `%2F` filenames, and expired signatures. For ordinary URLs, cover
+  default/configured local, raw prefixes with and without configured URLs, leading separators,
+  direct/configured FTP, default/configured GCS, and configured/native S3 output with delimiter,
+  space, nested-path, and literal `%2F` keys.
 - Binding: cast precedence, decimal cast/schema, bare bigint, nonincrementing string key type
   without a cast remaining schema-driven, field-specific PHPDoc fallback and unions, boolean
   docblock, enum-valued binding fields, and flush of every cache.
@@ -923,8 +999,8 @@ run from finishing last.
 - Foundation and Testbench regressions boot successive applications with `WithCachedConfig` and
   `WithCachedRoutes`, prove the first cache includes Testbench-defined routes, prove the second
   boot uses the retained arrays without redefining routes, and prove lookup refresh leaves the
-  `CompiledRouteCollection` intact. Exercise `defineCacheRoutes(Closure, false)` so a reloaded
-  application defines and dispatches its uncached route, and run every existing mid-test
+  `CompiledRouteCollection` intact. Exercise two successive `defineCacheRoutes(Closure, false)`
+  calls and dispatch both accumulated routes after the second reload, and run every existing mid-test
   `refreshApplication()` consumer. Pin that cached mode leaves the uncached-sync flag false,
   uncached mode sets it true, a cached route followed by a stash route keeps both dispatchable,
   provider-owned cached-file loading works, the provider remains removable through Testbench's
@@ -950,14 +1026,16 @@ change can affect it.
 ## Records and completion
 
 - Amend `docs/plans/2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md` with
-  the complete Wayfinder entry, `wayfinder-02`–`wayfinder-22`, revalidated `wayfinder-01`, and
-  cross-package `routing-27` and `filesystem-17`.
+  the complete Wayfinder entry, `wayfinder-02`–`wayfinder-23`, revalidated `wayfinder-01`, and
+  cross-package `routing-27`, `routing-28`, `filesystem-17`, and `filesystem-18`.
 - Amend the core plan dependency index for `routing-27`, `filesystem-17`, `foundation-19`,
   `testbench-05`, `testbench-06`, `rate-limiter-01`, `testing-17`, and the Wayfinder findings. Record `routing` as owner and `wayfinder` as
-  affected by `routing-27`, and add the revalidation note to Routing's completed ledger entry.
+  affected by `routing-27` and `routing-28`, and add the revalidation notes to Routing's completed ledger entry.
   Record `filesystem` as owner and `view`,
   `di`, `database`, `foundation`, `testbench`, and `wayfinder` as affected by `filesystem-17`, and
-  add the corresponding revalidation notes to their completed ledger entries. Record `foundation`
+  add the corresponding revalidation notes to their completed ledger entries. Record
+  `filesystem-18` under Filesystem and revalidate local, FTP/SFTP, S3, GCS, scoped delegation,
+  temporary file routes, and the Filesystem guide. Record `foundation`
   as owner and `testbench` as affected by `foundation-19`. Record `testbench` as owner and
   `wayfinder` as affected by `testbench-05` and `testbench-06`. Record `rate-limiter` as owner of
   `rate-limiter-01`. Record `testing` as owner of `testing-17`, and revalidate Wayfinder under
@@ -983,3 +1061,4 @@ change can affect it.
 - Components-side Vite scheduling or shell compatibility shims;
 - ParaTest downgrades, warning suppression, vendor patches, Composer patch layers, or forks;
 - documenting internal query encoding or claiming byte-identical complete URLs.
+- preserving or detecting pre-encoded route/storage parameters instead of treating them as raw data.
