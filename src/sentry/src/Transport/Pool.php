@@ -6,8 +6,8 @@ namespace Hypervel\Sentry\Transport;
 
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\Sentry\HttpClient\HttpClient;
-use Sentry\Client as SentryClient;
+use Hypervel\Sentry\Version;
+use Sentry\HttpClient\HttpClient;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Options;
 use Sentry\Serializer\PayloadSerializer;
@@ -37,6 +37,6 @@ class Pool extends ObjectPool
 
     protected function getHttpClient(): HttpClientInterface
     {
-        return new HttpClient(SentryClient::SDK_IDENTIFIER, SentryClient::SDK_VERSION);
+        return new HttpClient(Version::getSdkIdentifier(), Version::getSdkVersion());
     }
 }
