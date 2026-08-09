@@ -4,17 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
-class KeyController
+class Index
 {
     public function show(): void
-    {
-    }
-
-    public function edit(): void
-    {
-    }
-
-    public function external(): void
     {
     }
 }

@@ -1,5 +1,7 @@
 import { expect, it } from "vitest";
-import InvokablePlusController from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/InvokablePlusController";
+import InvokablePlusController, {
+    InvokablePlusControllerForm2,
+} from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/InvokablePlusController";
 
 it("exports default and methods for invokable controllers", () => {
     expect(InvokablePlusController.url()).toBe("/invokable-plus-controller");
@@ -15,4 +17,11 @@ it("exports default and methods for invokable controllers", () => {
         url: "/invokable-plus-controller",
         method: "post",
     });
+
+    expect(InvokablePlusControllerForm2.url()).toBe(
+        "/invokable-plus-controller/form-name",
+    );
+    expect(InvokablePlusController.InvokablePlusControllerForm).toBe(
+        InvokablePlusControllerForm2,
+    );
 });

@@ -4,17 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
-class KeyController
+class BarrelCollisionController
 {
     public function show(): void
-    {
-    }
-
-    public function edit(): void
-    {
-    }
-
-    public function external(): void
     {
     }
 }
