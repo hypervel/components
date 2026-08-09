@@ -66,6 +66,24 @@ class ModelViolationReportersTest extends SentryTestCase
         $this->assertTrue($callbackCalled);
     }
 
+    public function testViolationReporterNormalizesNonClosureCallables(): void
+    {
+        $callback = new class {
+            public bool $called = false;
+
+            public function __invoke(): void
+            {
+                $this->called = true;
+            }
+        };
+
+        $reporter = Integration::missingAttributeViolationReporter($callback, false, false);
+
+        $reporter(new ViolationReporterTestModel, 'attribute');
+
+        $this->assertTrue($callback->called);
+    }
+
     public function testViolationReporterIsNotReportingDuplicateEvents(): void
     {
         $reporter = Integration::missingAttributeViolationReporter(null, true, false);

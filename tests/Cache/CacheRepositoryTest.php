@@ -14,6 +14,7 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\ManyKeysRetrievalFailed;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
@@ -36,6 +37,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use stdClass;
 
 class CacheRepositoryTest extends TestCase
@@ -275,6 +277,48 @@ class CacheRepositoryTest extends TestCase
         $repo->many(['foo', 'bar']);
 
         $this->assertSame([['foo', 'stdClass']], $handled);
+    }
+
+    public function testManyEmitsOneFailureWithoutPartialSuccessWhenIncompleteClassHandlerThrows(): void
+    {
+        $failure = new RuntimeException('Unable to handle cached class.');
+        $handled = 0;
+        Repository::handleUnserializableClassUsing(function () use (&$handled, $failure): void {
+            if (++$handled === 2) {
+                throw $failure;
+            }
+        });
+
+        $incomplete = unserialize(serialize(new stdClass), ['allowed_classes' => false]);
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('many')->once()->with(['foo', 'bar'])->andReturn([
+            'foo' => $incomplete,
+            'bar' => $incomplete,
+        ]);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')->andReturnUsing(function ($event) use (&$captured): void {
+            $captured[] = $event;
+        });
+        $repo->setEventDispatcher($events);
+
+        try {
+            $repo->many(['foo', 'bar']);
+            $this->fail('Expected the incomplete class handler to throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertCount(2, $captured);
+        $this->assertInstanceOf(RetrievingManyKeys::class, $captured[0]);
+        $this->assertInstanceOf(ManyKeysRetrievalFailed::class, $captured[1]);
+        $this->assertSame($failure, $captured[1]->exception);
+        $this->assertEmpty(array_filter(
+            $captured,
+            fn ($event): bool => $event instanceof CacheHit || $event instanceof CacheMissed,
+        ));
     }
 
     public function testRememberNullableStoresAndReturnsNonNullValue()
@@ -618,6 +662,18 @@ class CacheRepositoryTest extends TestCase
         $repo->getStore()->shouldReceive('putMany')->once()->with(['foo' => 'bar', 'bar' => 'baz'], 1);
         $repo->put(['foo' => 'bar', 'bar' => 'baz'], 1);
         $this->assertTrue(true);
+    }
+
+    public function testEmptyPutManyReturnsTrueWithoutStoreOrEvents(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldNotReceive('putMany');
+        $events = m::mock(Dispatcher::class);
+        $events->shouldNotReceive('hasListeners');
+        $events->shouldNotReceive('dispatch');
+        $repo->setEventDispatcher($events);
+
+        $this->assertTrue($repo->putMany([], 60));
     }
 
     public function testSettingMultipleItemsInCacheArray()

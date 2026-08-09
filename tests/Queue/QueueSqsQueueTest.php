@@ -18,6 +18,7 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\SqsQueue;
@@ -1345,11 +1346,12 @@ class QueueSqsQueueTest extends TestCase
         );
     }
 
-    public function testBulkRaisesQueuedEventsOnlyForSuccessfulEntries(): void
+    public function testBulkRaisesExactEventsForSuccessfulAndRejectedEntries(): void
     {
         $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue();
         $dispatched = [];
         $events->shouldReceive('dispatch')->andReturnUsing(
             function (object $event) use (&$dispatched): object {
@@ -1376,19 +1378,28 @@ class QueueSqsQueueTest extends TestCase
             'Failed' => [['Id' => '1', 'Code' => 'InternalError', 'Message' => 'failed']],
         ]));
 
+        $exception = null;
+
         try {
             $queue->bulk(['a', 'b'], 'data', $this->queueName);
             $this->fail('The partial batch failure was not thrown.');
-        } catch (SqsException $exception) {
-            $this->assertSame('InternalError', $exception->getAwsErrorCode());
+        } catch (SqsException $actual) {
+            $exception = $actual;
+            $this->assertSame('InternalError', $actual->getAwsErrorCode());
         }
 
         $queueing = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueing));
         $queued = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueued));
+        $failed = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueingFailed));
 
         $this->assertCount(2, $queueing);
         $this->assertCount(1, $queued);
+        $this->assertCount(1, $failed);
         $this->assertSame('successful-id', $queued[0]->id);
+        $this->assertSame('p1', $queued[0]->payload);
+        $this->assertSame('b', $failed[0]->job);
+        $this->assertSame('p2', $failed[0]->payload);
+        $this->assertSame($exception, $failed[0]->exception);
     }
 
     public function testBulkCleansOnlyRejectedOverflowPointers(): void
@@ -1453,8 +1464,21 @@ class QueueSqsQueueTest extends TestCase
         $cache = m::mock(CacheFactory::class);
         $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
 
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue();
+        $dispatched = [];
+        $events->shouldReceive('dispatch')->andReturnUsing(
+            static function (object $event) use (&$dispatched): object {
+                $dispatched[] = $event;
+
+                return $event;
+            }
+        );
+
         $container = new Container;
         $container->instance('cache', $cache);
+        $container->instance('events', $events);
 
         $queue = $this->getMockBuilder(SqsQueue::class)
             ->onlyMethods(['getQueue', 'createPayload'])
@@ -1468,6 +1492,7 @@ class QueueSqsQueueTest extends TestCase
             ])
             ->getMock();
         $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
         $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
         $queue->expects($this->exactly(2))->method('createPayload')->willReturnOnConsecutiveCalls(
             $firstPayload,
@@ -1476,10 +1501,19 @@ class QueueSqsQueueTest extends TestCase
 
         $this->sqs->shouldNotReceive('sendMessageBatch');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to store the SQS overflow payload');
+        try {
+            $queue->bulk(['a', 'b'], 'data', $this->queueName);
+            $this->fail('Expected overflow storage to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Unable to store the SQS overflow payload', $exception->getMessage());
+        }
 
-        $queue->bulk(['a', 'b'], 'data', $this->queueName);
+        $queueing = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueing));
+        $failed = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueingFailed));
+
+        $this->assertSame(['a', 'b'], array_column($queueing, 'job'));
+        $this->assertSame(['a', 'b'], array_column($failed, 'job'));
+        $this->assertSame($failed[0]->exception, $failed[1]->exception);
     }
 
     public function testBulkRetainsAmbiguousChunkPointersAndNeverWritesLaterChunks(): void
@@ -1491,8 +1525,21 @@ class QueueSqsQueueTest extends TestCase
         $cache = m::mock(CacheFactory::class);
         $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
 
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue();
+        $dispatched = [];
+        $events->shouldReceive('dispatch')->andReturnUsing(
+            static function (object $event) use (&$dispatched): object {
+                $dispatched[] = $event;
+
+                return $event;
+            }
+        );
+
         $container = new Container;
         $container->instance('cache', $cache);
+        $container->instance('events', $events);
 
         $queue = $this->getMockBuilder(SqsQueue::class)
             ->onlyMethods(['getQueue', 'createPayload'])
@@ -1506,6 +1553,7 @@ class QueueSqsQueueTest extends TestCase
             ])
             ->getMock();
         $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
         $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
         $queue->method('createPayload')->willReturnCallback(
             static fn ($job): string => json_encode(['uuid' => "job-{$job}"], JSON_THROW_ON_ERROR)
@@ -1513,10 +1561,19 @@ class QueueSqsQueueTest extends TestCase
 
         $this->sqs->shouldReceive('sendMessageBatch')->once()->andThrow(new RuntimeException('transport failed'));
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('transport failed');
+        try {
+            $queue->bulk(array_map('strval', range(1, 11)), 'data', $this->queueName);
+            $this->fail('Expected the SQS request to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('transport failed', $exception->getMessage());
+        }
 
-        $queue->bulk(array_map('strval', range(1, 11)), 'data', $this->queueName);
+        $queueing = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueing));
+        $failed = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueingFailed));
+
+        $this->assertSame(array_map('strval', range(1, 10)), array_column($queueing, 'job'));
+        $this->assertSame(array_map('strval', range(1, 10)), array_column($failed, 'job'));
+        $this->assertSame($failed[0]->exception, $failed[9]->exception);
     }
 
     public function testBulkDefersOnePreparedBatchUntilTheTransactionCommits(): void

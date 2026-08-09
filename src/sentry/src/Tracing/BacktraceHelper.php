@@ -76,12 +76,17 @@ class BacktraceHelper
             return null;
         }
 
-        // If for some reason the file does not exists, skip resolving
-        if (! file_exists($frame->getAbsoluteFilePath())) {
+        $absoluteFilePath = $frame->getAbsoluteFilePath();
+
+        if ($absoluteFilePath === null) {
             return null;
         }
 
-        $viewFileContents = file_get_contents($frame->getAbsoluteFilePath());
+        $viewFileContents = @file_get_contents($absoluteFilePath);
+
+        if ($viewFileContents === false) {
+            return null;
+        }
 
         preg_match('/PATH (?<originalPath>.*?) ENDPATH/', $viewFileContents, $matches);
 

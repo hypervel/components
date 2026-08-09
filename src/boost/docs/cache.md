@@ -1131,24 +1131,26 @@ To execute code on every cache operation, you may listen for various [events](/d
 
 | Event Name                                      |
 |-------------------------------------------------|
-| `Hypervel\Cache\Events\CacheFailedOver`       |
-| `Hypervel\Cache\Events\CacheFlushed`          |
-| `Hypervel\Cache\Events\CacheFlushing`         |
-| `Hypervel\Cache\Events\CacheFlushFailed`      |
-| `Hypervel\Cache\Events\CacheLocksFlushed`     |
-| `Hypervel\Cache\Events\CacheLocksFlushing`    |
-| `Hypervel\Cache\Events\CacheLocksFlushFailed` |
-| `Hypervel\Cache\Events\CacheHit`              |
-| `Hypervel\Cache\Events\CacheMissed`           |
-| `Hypervel\Cache\Events\ForgettingKey`         |
-| `Hypervel\Cache\Events\KeyForgetFailed`       |
-| `Hypervel\Cache\Events\KeyForgotten`          |
-| `Hypervel\Cache\Events\KeyWriteFailed`        |
-| `Hypervel\Cache\Events\KeyWritten`            |
-| `Hypervel\Cache\Events\RetrievingKey`         |
-| `Hypervel\Cache\Events\RetrievingManyKeys`    |
-| `Hypervel\Cache\Events\WritingKey`            |
-| `Hypervel\Cache\Events\WritingManyKeys`       |
+| `Hypervel\Cache\Events\CacheFailedOver`         |
+| `Hypervel\Cache\Events\CacheFlushed`            |
+| `Hypervel\Cache\Events\CacheFlushing`           |
+| `Hypervel\Cache\Events\CacheFlushFailed`        |
+| `Hypervel\Cache\Events\CacheLocksFlushed`       |
+| `Hypervel\Cache\Events\CacheLocksFlushing`      |
+| `Hypervel\Cache\Events\CacheLocksFlushFailed`   |
+| `Hypervel\Cache\Events\CacheHit`                |
+| `Hypervel\Cache\Events\CacheMissed`             |
+| `Hypervel\Cache\Events\ForgettingKey`           |
+| `Hypervel\Cache\Events\KeyForgetFailed`         |
+| `Hypervel\Cache\Events\KeyForgotten`            |
+| `Hypervel\Cache\Events\KeyRetrievalFailed`      |
+| `Hypervel\Cache\Events\KeyWriteFailed`          |
+| `Hypervel\Cache\Events\KeyWritten`              |
+| `Hypervel\Cache\Events\ManyKeysRetrievalFailed` |
+| `Hypervel\Cache\Events\RetrievingKey`           |
+| `Hypervel\Cache\Events\RetrievingManyKeys`      |
+| `Hypervel\Cache\Events\WritingKey`              |
+| `Hypervel\Cache\Events\WritingManyKeys`         |
 
 </div>
 

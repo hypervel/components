@@ -12,6 +12,7 @@ use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
@@ -134,12 +135,18 @@ class FilesystemManager implements FactoryContract
     /**
      * Build an on-demand disk.
      */
-    public function build(array|string $config): Filesystem
+    public function build(array|string $config, ?string $name = null): Filesystem
     {
-        return $this->resolve(self::ON_DEMAND_DISK_NAME, is_array($config) ? $config : [
+        $config = is_array($config) ? $config : [
             'driver' => 'local',
             'root' => $config,
-        ]);
+        ];
+
+        return $this->resolveWithLogicalName(
+            $name ?? self::ON_DEMAND_DISK_NAME,
+            $config,
+            $name,
+        );
     }
 
     /**
@@ -157,6 +164,17 @@ class FilesystemManager implements FactoryContract
      */
     protected function resolve(string $name, ?array $config = null): Filesystem
     {
+        return $this->resolveWithLogicalName($name, $config, $name);
+    }
+
+    /**
+     * Resolve the given disk while preserving its logical construction name.
+     *
+     * The configured disk name "ondemand" is valid, so build() enters this
+     * method directly to carry anonymous construction as a separate value.
+     */
+    private function resolveWithLogicalName(string $name, ?array $config, ?string $logicalName): Filesystem
+    {
         $config ??= $this->getConfig($name);
 
         if (empty($config['driver'])) {
@@ -172,10 +190,10 @@ class FilesystemManager implements FactoryContract
                 ? $this->createDriverPooledDisk(
                     $driver,
                     $config,
-                    null,
-                    fn () => $this->callCustomCreator($constructionConfig),
+                    $logicalName,
+                    fn () => $this->callCustomCreator($constructionConfig, $logicalName),
                 )
-                : $this->callCustomCreator($constructionConfig);
+                : $this->callCustomCreator($constructionConfig, $logicalName);
         }
 
         if ($hasPool && ($driver === 's3' || $driver === 'gcs')) {
@@ -203,9 +221,9 @@ class FilesystemManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): Filesystem
+    protected function callCustomCreator(array $config, ?string $name = null): Filesystem
     {
-        $filesystem = $this->customCreators[$config['driver']]($this->app, $config);
+        $filesystem = $this->customCreators[$config['driver']]($this->app, $config, $name);
 
         if (! $filesystem instanceof Filesystem) {
             throw new InvalidArgumentException(
@@ -278,7 +296,7 @@ class FilesystemManager implements FactoryContract
             $driver === 'gcs' => $this->gcsClientConfig($config),
             default => [
                 'config' => Arr::except($config, ['pool']),
-                'name' => isset($this->customCreators[$driver]) ? null : $name,
+                'name' => $name,
             ],
         };
 
@@ -557,9 +575,9 @@ class FilesystemManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    public function createScopedDriver(array $config): Filesystem
+    public function createScopedDriver(array $config, ?string $name = null): Filesystem
     {
-        return $this->build($this->expandScopedConfig($config));
+        return $this->build($this->expandScopedConfig($config), $name);
     }
 
     /**
@@ -730,25 +748,16 @@ class FilesystemManager implements FactoryContract
         $disk = $this->disks[$name] ?? null;
         unset($this->disks[$name]);
 
-        if ($disk instanceof ClientPooledFilesystem || $disk instanceof FilesystemPoolProxy) {
+        if ($disk === null) {
+            $config = $this->getConfig($name);
+
+            if (! empty($config['driver'])) {
+                $disk = $this->resolve($name, $config);
+            }
+        }
+
+        if ($disk instanceof InvalidatesPool) {
             $disk->invalidatePool();
-
-            return;
-        }
-
-        $config = $this->getConfig($name);
-
-        if (($config['driver'] ?? null) === 'scoped') {
-            // Scoped disks resolve their expanded parent through build(). Use
-            // that same logical name because whole-driver fingerprints include it.
-            $config = $this->expandScopedConfig($config);
-            $name = self::ON_DEMAND_DISK_NAME;
-        }
-
-        $driver = $config['driver'] ?? null;
-
-        if (is_string($driver) && in_array($driver, $this->poolables, true)) {
-            $this->poolFactory()->remove($this->diskPoolDefinition($driver, $config, $name)->identity);
         }
     }
 

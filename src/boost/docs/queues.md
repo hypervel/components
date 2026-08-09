@@ -3715,6 +3715,8 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
+Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
+
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 
 ```php
@@ -3740,3 +3742,5 @@ Event::listen(function (WorkerIdle $event) {
     // $event->workerOptions
 });
 ```
+
+Queue workers also dispatch a `WorkerStopping` event before they stop. Its `terminatesImmediately` property is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.

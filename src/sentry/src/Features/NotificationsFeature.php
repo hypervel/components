@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Notifications\Events\NotificationDelivered;
+use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Integration;
 use Sentry\Breadcrumb;
@@ -31,6 +34,11 @@ class NotificationsFeature extends Feature
         $dispatcher = $this->container->make('events');
         if ($this->isTracingFeatureEnabled(self::FEATURE_KEY)) {
             $dispatcher->listen(NotificationSending::class, [$this, 'handleNotificationSending']);
+            $dispatcher->listen([
+                NotificationDelivered::class,
+                NotificationFailed::class,
+                NotificationSkipped::class,
+            ], [$this, 'handleNotificationTerminal']);
         }
 
         $dispatcher->listen(NotificationSent::class, [$this, 'handleNotificationSent']);
@@ -61,8 +69,6 @@ class NotificationsFeature extends Feature
 
     public function handleNotificationSent(NotificationSent $event): void
     {
-        $this->maybeFinishSpan(SpanStatus::ok());
-
         if ($this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
             Integration::addBreadcrumb(
                 new Breadcrumb(
@@ -78,6 +84,14 @@ class NotificationsFeature extends Feature
                 )
             );
         }
+    }
+
+    public function handleNotificationTerminal(
+        NotificationDelivered|NotificationFailed|NotificationSkipped $event
+    ): void {
+        $this->maybeFinishSpan(
+            $event instanceof NotificationFailed ? SpanStatus::internalError() : SpanStatus::ok()
+        );
     }
 
     private function formatNotifiable($notifiable): string

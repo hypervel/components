@@ -21,8 +21,10 @@ use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\ForgettingKey;
 use Hypervel\Cache\Events\KeyForgetFailed;
 use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\ManyKeysRetrievalFailed;
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
@@ -40,6 +42,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\defer;
@@ -330,7 +333,17 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
         );
 
-        $result = $this->store->put($this->itemKey($key), $value, $seconds);
+        try {
+            $result = $this->store->put($this->itemKey($key), $value, $seconds);
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
+
+            throw $exception;
+        }
+
         if ($result) {
             $this->event(
                 KeyWritten::class,
@@ -359,6 +372,10 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
+        if ($values === []) {
+            return true;
+        }
+
         if ($ttl === null) {
             return $this->putManyForever($values);
         }
@@ -379,7 +396,18 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             )
         );
 
-        $result = $this->store->putMany($values, $seconds);
+        try {
+            $result = $this->store->putMany($values, $seconds);
+        } catch (Throwable $exception) {
+            foreach ($values as $key => $value) {
+                $this->event(
+                    KeyWriteFailed::class,
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                );
+            }
+
+            throw $exception;
+        }
 
         foreach ($values as $key => $value) {
             if ($result) {
@@ -470,7 +498,16 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value)));
 
-        $result = $this->store->forever($this->itemKey($key), $value);
+        try {
+            $result = $this->store->forever($this->itemKey($key), $value);
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value)));
@@ -767,16 +804,27 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $this->event(ForgettingKey::class, fn (): ForgettingKey => new ForgettingKey($this->getName(), $key));
 
-        return tap($this->store->forget($this->itemKey($key)), function ($result) use ($key) {
-            if ($result) {
-                $this->event(KeyForgotten::class, fn (): KeyForgotten => new KeyForgotten($this->getName(), $key));
-            } else {
-                $this->event(
-                    KeyForgetFailed::class,
-                    fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
-                );
-            }
-        });
+        try {
+            $result = $this->store->forget($this->itemKey($key));
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyForgetFailed::class,
+                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
+            );
+
+            throw $exception;
+        }
+
+        if ($result) {
+            $this->event(KeyForgotten::class, fn (): KeyForgotten => new KeyForgotten($this->getName(), $key));
+        } else {
+            $this->event(
+                KeyForgetFailed::class,
+                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
+            );
+        }
+
+        return $result;
     }
 
     public function delete(UnitEnum|string $key): bool
@@ -1133,14 +1181,23 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
 
-        // Raw-readable wrappers already passed the value through an inner Repository.
-        if ($this->store instanceof RawReadable) {
-            $value = $this->store->getRaw($this->itemKey($key));
-        } else {
-            $value = $this->handleIncompleteClass(
-                $key,
-                $this->store->get($this->itemKey($key))
+        try {
+            // Raw-readable wrappers already passed the value through an inner Repository.
+            if ($this->store instanceof RawReadable) {
+                $value = $this->store->getRaw($this->itemKey($key));
+            } else {
+                $value = $this->handleIncompleteClass(
+                    $key,
+                    $this->store->get($this->itemKey($key))
+                );
+            }
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyRetrievalFailed::class,
+                fn (): KeyRetrievalFailed => new KeyRetrievalFailed($this->getName(), $key, $exception)
             );
+
+            throw $exception;
         }
 
         if (is_null($value)) {
@@ -1170,7 +1227,9 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * invariant that reads through tags are rejected.
      *
      * Fires RetrievingManyKeys + per-key CacheHit/CacheMissed events, matching
-     * the event shape of public many() calls.
+     * the event shape of public many() calls. Store-read and incomplete-class
+     * handler failures emit ManyKeysRetrievalFailed; success-listener failures
+     * occur after retrieval has completed and are not relabeled as read failures.
      *
      * Delegates to $this->store->manyRaw() when the underlying store implements
      * RawReadable (MemoizedStore / FailoverStore). Otherwise calls
@@ -1194,21 +1253,34 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         $itemKeys = array_map(fn (string $key): string => $this->itemKey($key), $keys);
 
         $rawReadable = $this->store instanceof RawReadable;
-        $storeValues = $rawReadable
-            ? $this->store->manyRaw($itemKeys)
-            : $this->store->many($itemKeys);
 
-        $result = [];
-        foreach ($keys as $i => $key) {
-            $value = $storeValues[$itemKeys[$i]] ?? null;
+        try {
+            $storeValues = $rawReadable
+                ? $this->store->manyRaw($itemKeys)
+                : $this->store->many($itemKeys);
 
-            // Raw-readable wrappers already passed the value through an inner Repository.
-            if (! $rawReadable) {
-                $value = $this->handleIncompleteClass($key, $value);
+            $result = [];
+            foreach ($keys as $index => $key) {
+                $value = $storeValues[$itemKeys[$index]] ?? null;
+
+                // Raw-readable wrappers already passed the value through an inner Repository.
+                if (! $rawReadable) {
+                    $value = $this->handleIncompleteClass($key, $value);
+                }
+
+                $result[$key] = $value;
             }
+        } catch (Throwable $exception) {
+            $this->event(
+                ManyKeysRetrievalFailed::class,
+                fn (): ManyKeysRetrievalFailed => new ManyKeysRetrievalFailed($this->getName(), $keys, $exception)
+            );
 
-            $result[$key] = $value;
+            throw $exception;
+        }
 
+        // Defer terminals until every value is normalized so handler failure cannot follow partial success.
+        foreach ($result as $key => $value) {
             if (is_null($value)) {
                 $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
             } else {

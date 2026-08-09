@@ -103,6 +103,7 @@
     - [Reverb](/docs/{{version}}/reverb)
     - [Sanctum](/docs/{{version}}/sanctum)
     - [Scout](/docs/{{version}}/scout)
+    - [Sentry](/docs/{{version}}/sentry)
     - [Socialite](/docs/{{version}}/socialite)
     - [Telescope](/docs/{{version}}/telescope)
     - [Testbench](/docs/{{version}}/testbench)
