@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
@@ -14,6 +15,10 @@ class DefineCacheRoutesTest extends TestCase
 {
     public function testCompiledRouteCollectionIsInstalledAfterDefineCacheRoutes(): void
     {
+        $this->assertInstanceOf(
+            RouteServiceProvider::class,
+            $this->app->getProvider(RouteServiceProvider::class)
+        );
         $this->assertInstanceOf(
             RouteCollection::class,
             $this->app['router']->getRoutes()
@@ -75,9 +80,9 @@ PHP);
         $this->assertSame('named', $routes->getByName('test.named')->uri());
     }
 
-    public function testDefineCacheRoutesHasRunFlagIsSet(): void
+    public function testCachedRoutesDoNotRegisterTestbenchRouteSynchronization(): void
     {
-        $this->assertFalse($this->requireApplicationCachedRoutesHasRun);
+        $this->assertFalse($this->syncTestbenchRoutesHasRun);
 
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -85,7 +90,35 @@ use Hypervel\Support\Facades\Route;
 Route::get('/flag-check', fn () => 'ok');
 PHP);
 
-        $this->assertTrue($this->requireApplicationCachedRoutesHasRun);
+        $this->assertFalse($this->syncTestbenchRoutesHasRun);
+    }
+
+    public function testUncachedRoutesRegisterTestbenchRouteSynchronization(): void
+    {
+        $this->assertFalse($this->syncTestbenchRoutesHasRun);
+
+        $this->defineCacheRoutes(static function (Router $router): void {
+            $router->get('/sync-flag-check', static fn (): string => 'ok');
+        });
+
+        $this->assertTrue($this->syncTestbenchRoutesHasRun);
+        $this->get('/sync-flag-check')->assertOk();
+    }
+
+    public function testStashRoutesRemainAvailableAfterCachedRoutes(): void
+    {
+        $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Route;
+Route::get('/cached-before-stash', fn () => 'cached');
+PHP);
+
+        $this->defineStashRoutes(static function (Router $router): void {
+            $router->get('/stash-after-cached', static fn (): string => 'stash');
+        });
+
+        $this->get('/cached-before-stash')->assertOk()->assertSee('cached');
+        $this->get('/stash-after-cached')->assertOk()->assertSee('stash');
     }
 
     public function testDefineCacheRoutesTracksOwnedRouteFile(): void

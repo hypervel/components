@@ -29,9 +29,9 @@ trait HandlesRoutes
     use InteractsWithTestCase;
 
     /**
-     * Whether cached routes have been loaded for this test.
+     * Whether Testbench routes have been synchronized for this test.
      */
-    protected bool $requireApplicationCachedRoutesHasRun = false;
+    protected bool $syncTestbenchRoutesHasRun = false;
 
     /**
      * Whether route file cleanup has been registered for this test.
@@ -70,7 +70,7 @@ trait HandlesRoutes
                 $router->middleware('web')
                     ->group(fn ($router) => $this->defineWebRoutes($router));
             },
-            attribute: fn () => $this->parseTestMethodAttributes($this->app, DefineRoute::class),
+            attribute: fn () => $this->parseTestMethodAttributes($app, DefineRoute::class),
             pest: function () use ($router) {
                 $this->defineRoutesUsingPest($router); /* @phpstan-ignore method.notFound */
 
@@ -173,33 +173,30 @@ trait HandlesRoutes
             }
         }
 
-        $this->requireApplicationCachedRoutes($files, $cached);
+        if ($cached === false) {
+            $this->syncTestbenchRoutes();
+        }
     }
 
     /**
-     * Require application cached routes.
+     * Synchronize Testbench routes.
      *
      * @internal
      */
-    protected function requireApplicationCachedRoutes(Filesystem $files, bool $cached): void
+    protected function syncTestbenchRoutes(): void
     {
-        if ($this->requireApplicationCachedRoutesHasRun === true) {
+        if ($this->syncTestbenchRoutesHasRun === true) {
             return;
         }
 
-        $this->afterApplicationCreated(function () use ($cached): void {
+        $this->afterApplicationCreated(function (): void {
+            /** @var ApplicationContract $app */
             $app = $this->app;
 
-            if ($app instanceof HypervelApplication) {
-                if ($cached === true) {
-                    require $app->getCachedRoutesPath();
-                } else {
-                    (new SyncTestbenchCachedRoutes)->bootstrap($app);
-                }
-            }
+            (new SyncTestbenchCachedRoutes)->bootstrap($app);
         });
 
-        $this->requireApplicationCachedRoutesHasRun = true;
+        $this->syncTestbenchRoutesHasRun = true;
     }
 
     /**
