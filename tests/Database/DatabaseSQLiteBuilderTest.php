@@ -311,7 +311,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $blueprint->shouldReceive('getTable')->twice()->andReturn('users');
         $connection->shouldReceive('scalar')
             ->once()
-            ->with('select exists (select 1 from "users" limit 1)')
+            ->with('select exists (select 1 from "users" limit 1)', [], false)
             ->andReturn(1);
         $connection->shouldReceive('transaction')->never();
         $connection->shouldReceive('statement')->never();
@@ -340,7 +340,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $blueprint->shouldReceive('getTable')->once()->andReturn('users');
         $connection->shouldReceive('scalar')
             ->once()
-            ->with('select exists (select 1 from "users" limit 1)')
+            ->with('select exists (select 1 from "users" limit 1)', [], false)
             ->andReturn(0);
         $connection->shouldReceive('transaction')
             ->once()
@@ -410,6 +410,52 @@ class DatabaseSQLiteBuilderTest extends TestCase
         );
 
         (new SQLiteBuilder($connection))->disableForeignKeyConstraints();
+    }
+
+    public function testPragmaReadsStateFromTheWriteConnection(): void
+    {
+        $connection = $this->sqliteConnection();
+        $readPdo = new PDO('sqlite::memory:');
+        $connection->getPdo()->exec('pragma foreign_keys = 1');
+        $readPdo->exec('pragma foreign_keys = 0');
+        $connection->setReadPdo($readPdo);
+
+        try {
+            $this->assertSame(1, $connection->getSchemaBuilder()->pragma('foreign_keys'));
+        } finally {
+            $connection->disconnect();
+        }
+    }
+
+    public function testSchemaStateReadsStoredTableDefinitionFromTheWriteConnection(): void
+    {
+        $connection = $this->sqliteConnection();
+        $readPdo = new PDO('sqlite::memory:');
+        $connection->statement('create table contacts (email varchar primary key) without rowid');
+        $readPdo->exec('create table contacts (email varchar primary key)');
+        $connection->setReadPdo($readPdo);
+
+        try {
+            $state = $connection->getSchemaBuilder()->getColumnsForSchemaState('contacts');
+
+            $this->assertMatchesRegularExpression('/\bwithout\s+rowid\s*$/i', $state['sql']);
+        } finally {
+            $connection->disconnect();
+        }
+    }
+
+    public function testHasTableReadsStateFromTheWriteConnection(): void
+    {
+        $connection = $this->sqliteConnection();
+        $readPdo = new PDO('sqlite::memory:');
+        $connection->statement('create table write_only (id integer primary key)');
+        $connection->setReadPdo($readPdo);
+
+        try {
+            $this->assertTrue($connection->getSchemaBuilder()->hasTable('write_only'));
+        } finally {
+            $connection->disconnect();
+        }
     }
 
     public function testWithoutForeignKeyConstraintsPreservesEnabledStateAcrossNestedBuilders(): void
@@ -499,7 +545,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0)->ordered();
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema')->andReturn(0)->ordered();
+        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0)->ordered();
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0')->ordered();
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
@@ -526,7 +572,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0)->ordered();
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema')->andReturn(1)->ordered();
+        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(1)->ordered();
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0')->ordered();
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $connection->shouldReceive('statement')
@@ -553,7 +599,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema')->andReturn(0);
+        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
@@ -581,7 +627,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema')->andReturn(0);
+        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.36.0');
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
@@ -612,7 +658,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema')->andReturn(0);
+        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
@@ -643,7 +689,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema')->andReturn(0);
+        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(0);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $pdo->shouldReceive('exec')->once()->with('pragma writable_schema = 1')->andReturn(0)->ordered();
@@ -670,7 +716,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
 
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema')->andReturn(1);
+        $connection->shouldReceive('scalar')->once()->with('pragma writable_schema', [], false)->andReturn(1);
         $connection->shouldReceive('getServerVersion')->once()->andReturn('3.45.0');
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $connection->shouldReceive('statement')
@@ -727,7 +773,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
         $connection->shouldReceive('getDatabaseName')->once()->andReturn('file:database.sqlite?mode=rwc');
-        $connection->shouldReceive('scalar')->once()->with('pragma journal_mode')->andReturn('delete');
+        $connection->shouldReceive('scalar')->once()->with('pragma journal_mode', [], false)->andReturn('delete');
 
         $builder = m::mock(SQLiteBuilder::class, [$connection])->makePartial();
         $builder->shouldReceive('getSchemas')->once()->andReturn([
@@ -745,7 +791,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
         $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
         $connection->shouldReceive('getDatabaseName')->once()->andReturn('/database.sqlite');
-        $connection->shouldReceive('scalar')->once()->with('pragma journal_mode')->andReturn('wal');
+        $connection->shouldReceive('scalar')->once()->with('pragma journal_mode', [], false)->andReturn('wal');
         $connection->shouldReceive('selectFromWriteConnection')->never();
         File::shouldReceive('put')->never();
 

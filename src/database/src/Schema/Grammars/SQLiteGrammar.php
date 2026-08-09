@@ -373,7 +373,8 @@ class SQLiteGrammar extends Grammar
         $table = $this->wrapTable($blueprint);
         $columnNames = implode(', ', $columnNames);
 
-        $foreignKeyConstraintsEnabled = $this->connection->scalar($this->pragma('foreign_keys'));
+        // Rebuild guards must inspect foreign-key state on the write PDO they govern.
+        $foreignKeyConstraintsEnabled = $this->connection->scalar($this->pragma('foreign_keys'), [], false);
 
         return array_filter(array_merge([
             $foreignKeyConstraintsEnabled ? $this->compileDisableForeignKeyConstraints() : null,

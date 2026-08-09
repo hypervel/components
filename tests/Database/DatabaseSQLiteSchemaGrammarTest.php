@@ -1130,7 +1130,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             ->getMock();
 
         $connection = $this->getConnection(builder: $builder);
-        $connection->shouldReceive('scalar')->with('pragma foreign_keys')->andReturn(false);
+        $connection->shouldReceive('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->renameColumn('name', 'first_name');
@@ -1161,7 +1161,7 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
             ->getMock();
 
         $connection = $this->getConnection(builder: $builder);
-        $connection->shouldReceive('scalar')->with('pragma foreign_keys')->andReturn(false);
+        $connection->shouldReceive('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
 
         $blueprint = new Blueprint($connection, 'my_schema.users');
         $blueprint->renameColumn('name', 'first_name');

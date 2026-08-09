@@ -171,7 +171,8 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         if ($sql = $this->grammar->compileTableExists($schema, $table)) {
-            return (bool) $this->connection->scalar($sql);
+            // Schema existence must be read from the same write connection that migrations mutate.
+            return (bool) $this->connection->scalar($sql, [], false);
         }
 
         foreach ($this->getTables($schema ?? $this->getCurrentSchemaName()) as $value) {

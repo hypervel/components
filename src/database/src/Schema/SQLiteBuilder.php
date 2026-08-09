@@ -112,6 +112,7 @@ class SQLiteBuilder extends Builder
     public function getTables(array|string|null $schema = null): array
     {
         try {
+            // Compile options are SQLite library metadata shared by every PDO in the process.
             $withSize = (bool) $this->connection->scalar($this->grammar->compileDbstatExists());
         } catch (QueryException) {
             $withSize = false;
@@ -172,7 +173,8 @@ class SQLiteBuilder extends Builder
 
         $table = $this->connection->getTablePrefix() . $table;
         $columns = $this->connection->selectFromWriteConnection($this->grammar->compileColumns($schema, $table));
-        $sql = $this->connection->scalar($this->grammar->compileSqlCreateStatement($schema, $table)) ?? '';
+        // Rebuild guards must inspect the stored definition on the same write PDO as the columns.
+        $sql = $this->connection->scalar($this->grammar->compileSqlCreateStatement($schema, $table), [], false) ?? '';
 
         return [
             'columns' => $this->connection->getPostProcessor()->processColumns(
@@ -274,8 +276,9 @@ class SQLiteBuilder extends Builder
      */
     public function pragma(string $key, mixed $value = null): mixed
     {
+        // Pragmas may be connection-local state, so getters must inspect the write PDO that setters mutate.
         return is_null($value)
-            ? $this->connection->scalar($this->grammar->pragma($key))
+            ? $this->connection->scalar($this->grammar->pragma($key), [], false)
             : $this->connection->statement($this->grammar->pragma($key, $value));
     }
 
@@ -415,7 +418,9 @@ class SQLiteBuilder extends Builder
     protected function tableHasRows(Blueprint $blueprint): bool
     {
         return (bool) $this->connection->scalar(
-            'select exists (select 1 from ' . $this->grammar->wrapTable($blueprint) . ' limit 1)'
+            'select exists (select 1 from ' . $this->grammar->wrapTable($blueprint) . ' limit 1)',
+            [],
+            false,
         );
     }
 

@@ -74,9 +74,9 @@ class PostgresBuilder extends Builder
             return;
         }
 
-        $this->connection->statement(
-            $this->grammar->compileDropAllTables($tables)
-        );
+        $this->executeStatements([
+            $this->grammar->compileDropAllTables($tables),
+        ]);
     }
 
     /**
@@ -91,9 +91,9 @@ class PostgresBuilder extends Builder
             return;
         }
 
-        $this->connection->statement(
-            $this->grammar->compileDropAllViews($views)
-        );
+        $this->executeStatements([
+            $this->grammar->compileDropAllViews($views),
+        ]);
     }
 
     /**
@@ -116,11 +116,15 @@ class PostgresBuilder extends Builder
         }
 
         if (! empty($types)) {
-            $this->connection->statement($this->grammar->compileDropAllTypes($types));
+            $this->executeStatements([
+                $this->grammar->compileDropAllTypes($types),
+            ]);
         }
 
         if (! empty($domains)) {
-            $this->connection->statement($this->grammar->compileDropAllDomains($domains));
+            $this->executeStatements([
+                $this->grammar->compileDropAllDomains($domains),
+            ]);
         }
     }
 
