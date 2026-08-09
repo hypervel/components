@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use JsonException;
 
@@ -22,6 +23,10 @@ class PackageMetadataTest extends TestCase
             512,
             JSON_THROW_ON_ERROR
         );
+        $internalConstraint = '^' . Str::before(
+            $composer['extra']['branch-alias']['dev-main'],
+            '-dev',
+        );
 
         foreach ([
             'hypervel/cache',
@@ -30,7 +35,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/events',
         ] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['require']);
-            $this->assertSame('^0.4', $composer['require'][$dependency]);
+            $this->assertSame($internalConstraint, $composer['require'][$dependency]);
         }
     }
 }
