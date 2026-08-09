@@ -211,6 +211,10 @@ Hypervel does not provide a generic magic proxy for object pools. A proxy cannot
 
 Framework managers for filesystems, mail, and queues build definitions from the actual construction input, expose normalized `pool` configuration, and distinguish cache-only forgetting from pool-invalidating purge operations. Broadcasting does the same only for drivers explicitly marked as poolable. Prefer those manager APIs when using a framework resource instead of creating definitions directly.
 
+Filesystem client pools and whole-driver pools use different construction input. S3 and Google Cloud Storage pools contain only the SDK client, so the logical disk name does not affect their fingerprint. Whole-driver pools contain the complete disk, so built-in and custom drivers include the logical name in their fingerprint.
+
+If two custom whole-driver disks may safely share a pool despite having different names, configure the same `pool.fingerprint` for both disks. You may also configure the same `pool.name` when you want to choose the shared identity, but the fingerprint must still match. Never declare matching fingerprints when a differing value changes how the pooled object is constructed.
+
 <a name="connection-pools"></a>
 ## Connection Pools
 
