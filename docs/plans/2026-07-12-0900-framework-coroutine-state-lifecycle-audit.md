@@ -1190,7 +1190,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `database-32` | `database` | `database` and `permission` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `database-32` |
 | `database-33` | `database` | `database` and `permission` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `database-33` |
 | `horizon-22` | `horizon` | `horizon` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `horizon-22` |
-| `wayfinder-01` | `wayfinder` | `wayfinder` (targeted correction complete); later full `wayfinder` audit | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `wayfinder-01` |
+| `wayfinder-01` | `wayfinder` | `wayfinder` (revalidation complete) | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `wayfinder-01` |
 | `broadcasting-17` | `broadcasting` | `broadcasting` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `broadcasting-17` |
 | `contracts-12` | `contracts` | `contracts` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `contracts-12` |
 | `concurrency-08` | `concurrency` | `concurrency` (targeted correction complete); later full `concurrency` audit | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `concurrency-08` |
@@ -1273,6 +1273,15 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `testing-14` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-14` |
 | `testing-15` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-15` |
 | `testing-16` | `testing` | `auth`, `broadcasting`, `encryption`, `filesystem`, `fortify`, `horizon`, `passkeys`, `routing`, `sanctum`, `socialite`, `telescope`, and `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-16` |
+| `wayfinder-02`–`wayfinder-23` | `wayfinder` | `wayfinder` (revalidation complete) | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; findings `wayfinder-02`–`wayfinder-23` |
+| `routing-27` | `routing` | `routing` and `wayfinder` (revalidation complete) | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `routing-27` |
+| `routing-28` | `routing` | `routing` and `wayfinder` (revalidation complete) | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `routing-28` |
+| `filesystem-17` | `filesystem` | `filesystem`, `view`, `di`, `database`, `foundation`, `testbench`, and `wayfinder` (revalidation complete) | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `filesystem-17` |
+| `filesystem-18` | `filesystem` | `filesystem` (targeted correction complete); local temporary routes, scoped delegation, S3, and GCS revalidated | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `filesystem-18` |
+| `foundation-19` | `foundation` | `foundation` and `testbench` (revalidation complete) | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `foundation-19` |
+| `testbench-05`–`testbench-06` | `testbench` | `testbench` and `wayfinder` (targeted correction complete); later full `testbench` audit | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; findings `testbench-05`–`testbench-06` |
+| `rate-limiter-01` | `rate-limiter` | `rate-limiter` (targeted correction complete); later full `rate-limiter` audit | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `rate-limiter-01` |
+| `testing-17` | `testing` | `testing` (targeted correction complete) | `Complete Wayfinder correctness, generation parity, and bounded lifecycles`; finding `testing-17` |
 
 ## Package checklist
 
@@ -1385,7 +1394,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `tinker`
 - [ ] `boost`
 - [x] `facade-documenter`
-- [ ] `wayfinder`
+- [x] `wayfinder`
 
 ## Plan maintenance and audit completion
 

@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
 class InvokablePlusController
 {
-    public function __invoke()
+    public function __invoke(): void
     {
     }
 
-    public function store()
+    public function store(): void
+    {
+    }
+
+    public function InvokablePlusControllerForm(): void
     {
     }
 }

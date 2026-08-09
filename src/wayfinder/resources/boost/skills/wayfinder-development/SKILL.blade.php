@@ -55,7 +55,7 @@ destroy.delete(1)
 store.form() // { action: "/posts", method: "post" }
 
 // Query parameters...
-show(1, { query: { page: 1 } }) // "/posts/1?page=1"
+show.url(1, { query: { page: 1 } }) // "/posts/1?page=1"
 @endboostsnippet
 
 @if($assist->roster->uses(\Hypervel\Roster\Enums\Packages::INERTIA_HYPERVEL) || $assist->roster->uses(\Hypervel\Roster\Enums\Packages::INERTIA_REACT) || $assist->roster->uses(\Hypervel\Roster\Enums\Packages::INERTIA_VUE) || $assist->roster->uses(\Hypervel\Roster\Enums\Packages::INERTIA_SVELTE))

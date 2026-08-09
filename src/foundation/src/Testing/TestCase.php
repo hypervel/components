@@ -48,6 +48,13 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use WithFaker;
 
     /**
+     * The traits used by the test case, including inherited traits.
+     *
+     * @var array<string, string>
+     */
+    protected array $traitsUsedByTest;
+
+    /**
      * Memoized result of the withoutBootingFramework check.
      */
     protected ?bool $withoutBootingFramework = null;
@@ -77,11 +84,30 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function createApplication(): ApplicationContract
     {
+        /** @var ApplicationContract $app */
         $app = require Application::inferBasePath() . '/bootstrap/app.php';
+
+        $this->prepareApplicationForCachedState($app);
 
         $app->make(KernelContract::class)->bootstrap();
 
         return $app;
+    }
+
+    /**
+     * Prepare the application to reuse cached test state.
+     */
+    protected function prepareApplicationForCachedState(ApplicationContract $app): void
+    {
+        $this->traitsUsedByTest ??= class_uses_recursive(static::class);
+
+        if (isset(CachedState::$cachedConfig, $this->traitsUsedByTest[WithCachedConfig::class])) {
+            $this->markConfigCached($app); // @phpstan-ignore method.notFound
+        }
+
+        if (isset(CachedState::$cachedRoutes, $this->traitsUsedByTest[WithCachedRoutes::class])) {
+            $this->markRoutesCached($app); // @phpstan-ignore method.notFound
+        }
     }
 
     /**

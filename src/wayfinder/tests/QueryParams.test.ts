@@ -32,6 +32,19 @@ it("can convert array params", () => {
     });
 });
 
+it("can convert boolean array params", () => {
+    expect(
+        index({
+            query: {
+                flags: [true, false],
+            },
+        }),
+    ).toEqual({
+        url: "/posts?flags%5B%5D=1&flags%5B%5D=0",
+        method: "get",
+    });
+});
+
 it("can convert object params", () => {
     expect(
         index({

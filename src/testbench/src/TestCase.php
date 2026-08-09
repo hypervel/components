@@ -67,9 +67,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             Timer::clearAll();
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
             CoordinatorManager::clear(Constants::WORKER_EXIT);
-
-            // Setup routes after application is created (providers are booted)
-            $this->setUpApplicationRoutes($this->app);
         });
 
         /* @phpstan-ignore class.notFound */
@@ -164,6 +161,9 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     protected function refreshApplication(): void
     {
         $this->app = $this->createApplication();
+
+        // Setup routes after application is created (providers are booted).
+        $this->setUpApplicationRoutes($this->app);
     }
 
     /**

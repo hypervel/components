@@ -12,7 +12,11 @@
 
 ## Boost
 
-- Implement Hypervel Boost's installation flow and revisit the Boost section of `installation.md` once the implementation is complete. The current docs describe the intended `composer require hypervel/boost --dev` and `php artisan boost:install` workflow, but `src/boost` currently contains the documentation package only. Correct fix: add the interactive installer command and supporting tools, then update the installation docs for any differences from Laravel Boost.
+- Implement Hypervel Boost's installation flow and revisit the Boost section of `installation.md` once the implementation is complete. The current docs describe the intended `composer require hypervel/boost --dev` and `php artisan boost:install` workflow, but `src/boost` currently contains the documentation package only. Correct fix: add the interactive installer command and supporting tools, consume the existing Wayfinder and Horizon skill templates, then update the installation docs for any differences from Laravel Boost.
+
+## Wayfinder
+
+- Fix `@laravel/vite-plugin-wayfinder` generation scheduling upstream. Each plugin instance should capture its own hook context, normalize Windows path separators, parse a documented multiword command into an argument vector without shell expansion, serialize its own runs, collapse a burst into one follow-up run, recover after failure, and remain isolated from other plugin instances. Components should not carry a scheduler or shell workaround for plugin-owned behavior.
 
 ## Framework-wide
 

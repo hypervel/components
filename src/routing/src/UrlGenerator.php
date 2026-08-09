@@ -529,9 +529,12 @@ class UrlGenerator implements UrlGeneratorContract
         $parameters = Arr::wrap($parameters);
 
         foreach ($parameters as $key => $parameter) {
-            if ($parameter instanceof UrlRoutable) {
-                $parameters[$key] = $parameter->getRouteKey();
-            }
+            $parameters[$key] = match (true) {
+                $parameter instanceof UrlRoutable => $parameter->getRouteKey(),
+                $parameter === true => '1',
+                $parameter === false => '0',
+                default => $parameter,
+            };
         }
 
         return $parameters;

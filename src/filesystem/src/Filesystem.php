@@ -237,7 +237,7 @@ class Filesystem
             }
 
             // Keep the temporary file private until its complete contents are written.
-            if (! @chmod($tempPath, $mode ?? 0777 - umask())) {
+            if (! @chmod($tempPath, $mode ?? 0666 & ~umask())) {
                 throw new RuntimeException("Unable to set permissions on the replacement file for [{$path}].");
             }
 
