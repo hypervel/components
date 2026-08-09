@@ -40,7 +40,7 @@ Implementation and verification are complete. The remaining work is final review
 - Direct SQLite foreign-key enable/disable calls fail before issuing their ineffective pragma when a transaction is active.
 - Internal foreign-key state changes and restoration use the raw PDO outside pretend mode, matching transaction cleanup: application `beforeExecuting` callbacks cannot veto session restoration, and internal cleanup does not pollute query logs. Pretend mode never reaches raw session mutation.
 - Pretend mode compiles/logs without state mutation or transaction effects.
-- All SQLite multi-statement Blueprint failures roll back completely. Preserve caller command order: alteration followed by rename remains valid; rename followed by an old-table alteration fails with the original schema intact. MySQL/MariaDB cannot provide that rollback guarantee because their DDL is non-transactional.
+- SQLite statement and transaction failures before commit roll back the complete Blueprint. If foreign-key restoration fails after commit, the schema changes remain committed, the error propagates, and the physical session is marked unknown so it can be invalidated before reuse. Preserve caller command order: alteration followed by rename remains valid; rename followed by an old-table alteration fails with the original schema intact. MySQL/MariaDB cannot provide the same transactional rollback guarantee because their DDL is non-transactional.
 
 ### Exact SQLite index round-trip
 

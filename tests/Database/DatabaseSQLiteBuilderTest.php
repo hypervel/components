@@ -266,33 +266,52 @@ class DatabaseSQLiteBuilderTest extends TestCase
         (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
     }
 
-    public function testExecuteBlueprintMarksTheSessionUnknownWhenForeignKeyRestorationFails(): void
+    public function testExecuteBlueprintCommitsSchemaBeforeForeignKeyRestorationFailureMarksSessionUnknown(): void
     {
-        $connection = m::mock(Connection::class);
-        $grammar = new SQLiteGrammar($connection);
+        $pdo = new SQLiteBuilderFailingForeignKeyRestorePdo('sqlite::memory:');
+        $connection = new SQLiteConnection(
+            $pdo,
+            ':memory:',
+            '',
+            ['name' => 'test', 'driver' => 'sqlite'],
+        );
+        $connection->useDefaultQueryGrammar();
+        $connection->useDefaultPostProcessor();
+        $connection->useDefaultSchemaGrammar();
+        $pdo->exec('pragma foreign_keys = 1');
+
         $blueprint = $this->executionBlueprint(
-            ['pragma foreign_keys = 0', 'statement', 'pragma foreign_keys = 1'],
+            [
+                'pragma foreign_keys = 0',
+                'create table committed_schema_change (id integer primary key)',
+                'pragma foreign_keys = 1',
+            ],
             [new Fluent(['name' => 'alter'])],
         );
-        $pdo = m::mock(PDO::class);
+        $pdo->failForeignKeyRestoration = true;
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
-        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
-        $pdo->shouldReceive('exec')->once()->with('pragma foreign_keys = 0')->andReturn(0)->ordered();
-        $connection->shouldReceive('transaction')
-            ->once()
-            ->andReturnUsing(static fn (Closure $callback) => $callback())
-            ->ordered();
-        $connection->shouldReceive('statement')->once()->with('statement')->andReturnTrue()->ordered();
-        $pdo->shouldReceive('exec')->once()->with('pragma foreign_keys = 1')->andReturnFalse()->ordered();
-        $connection->shouldReceive('markCurrentSessionStateUnknown')->once();
+        try {
+            try {
+                (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
+                $this->fail('Expected foreign-key restoration to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame(
+                    'Failed to execute schema statement [pragma foreign_keys = 1].',
+                    $exception->getMessage(),
+                );
+            }
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Failed to execute schema statement [pragma foreign_keys = 1].');
-
-        (new SQLiteBuilder($connection))->executeBlueprint($blueprint);
+            $this->assertTrue($connection->hasUnknownSessionState());
+            $this->assertSame(0, (int) $pdo->query('pragma foreign_keys')->fetchColumn());
+            $this->assertSame(
+                1,
+                (int) $pdo->query(
+                    "select exists (select 1 from sqlite_master where type = 'table' and name = 'committed_schema_change')"
+                )->fetchColumn(),
+            );
+        } finally {
+            $connection->disconnect();
+        }
     }
 
     public function testExecuteBlueprintRejectsAPopulatedRebuildInsideATransactionWithForeignKeysEnabled(): void
@@ -908,6 +927,24 @@ class DatabaseSQLiteBuilderTest extends TestCase
         $connection->useDefaultSchemaGrammar();
 
         return $connection;
+    }
+}
+
+class SQLiteBuilderFailingForeignKeyRestorePdo extends PDO
+{
+    public bool $failForeignKeyRestoration = false;
+
+    /**
+     * Execute an SQL statement and return the number of affected rows.
+     */
+    #[Override]
+    public function exec(string $statement): int|false
+    {
+        if ($this->failForeignKeyRestoration && trim($statement) === 'pragma foreign_keys = 1') {
+            return false;
+        }
+
+        return parent::exec($statement);
     }
 }
 
