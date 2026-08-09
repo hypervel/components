@@ -7,6 +7,7 @@ namespace Hypervel\Testing;
 use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Str;
+use Throwable;
 
 class ParallelTesting
 {
@@ -199,11 +200,9 @@ class ParallelTesting
     public function callTearDownProcessCallbacks(): void
     {
         $this->whenRunningInParallel(function () {
-            foreach ($this->tearDownProcessCallbacks as $callback) {
-                $this->container->call($callback, [
-                    'token' => $this->token(),
-                ]);
-            }
+            $this->callTearDownCallbacks($this->tearDownProcessCallbacks, [
+                'token' => $this->token(),
+            ]);
         });
     }
 
@@ -213,13 +212,34 @@ class ParallelTesting
     public function callTearDownTestCaseCallbacks(mixed $testCase): void
     {
         $this->whenRunningInParallel(function () use ($testCase) {
-            foreach ($this->tearDownTestCaseCallbacks as $callback) {
-                $this->container->call($callback, [
-                    'testCase' => $testCase,
-                    'token' => $this->token(),
-                ]);
-            }
+            $this->callTearDownCallbacks($this->tearDownTestCaseCallbacks, [
+                'testCase' => $testCase,
+                'token' => $this->token(),
+            ]);
         });
+    }
+
+    /**
+     * Call every teardown callback and preserve the first failure.
+     *
+     * @param list<callable> $callbacks
+     * @param array<string, mixed> $parameters
+     */
+    private function callTearDownCallbacks(array $callbacks, array $parameters): void
+    {
+        $exception = null;
+
+        foreach ($callbacks as $callback) {
+            try {
+                $this->container->call($callback, $parameters);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
