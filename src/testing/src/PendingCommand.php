@@ -348,39 +348,61 @@ class PendingCommand
         $mock = $this->mockConsoleOutput();
 
         try {
-            $exitCode = $this->app
-                ->make(KernelContract::class)
-                ->call($this->command, $this->parameters, $mock);
-        } catch (NoMatchingExpectationException $e) {
-            if ($e->getMethodName() === 'askQuestion') {
-                $this->test->fail('Unexpected question "' . $e->getActualArguments()[0]->getQuestion() . '" was asked.');
+            try {
+                $exitCode = $this->app
+                    ->make(KernelContract::class)
+                    ->call($this->command, $this->parameters, $mock);
+            } catch (NoMatchingExpectationException $e) {
+                if ($e->getMethodName() === 'askQuestion') {
+                    $this->test->fail('Unexpected question "' . $e->getActualArguments()[0]->getQuestion() . '" was asked.');
+                }
+
+                throw $e;
+            } catch (PromptValidationException) {
+                $exitCode = Command::FAILURE;
             }
 
-            throw $e;
-        } catch (PromptValidationException) {
-            $exitCode = Command::FAILURE;
+            if ($this->expectedExitCode !== null) {
+                $this->test->assertEquals(
+                    $this->expectedExitCode,
+                    $exitCode,
+                    "Expected status code {$this->expectedExitCode} but received {$exitCode}."
+                );
+            } elseif ($this->unexpectedExitCode !== null) {
+                $this->test->assertNotEquals(
+                    $this->unexpectedExitCode,
+                    $exitCode,
+                    "Unexpected status code {$this->unexpectedExitCode} was received."
+                );
+            }
+
+            $this->verifyExpectations();
+
+            return $exitCode;
+        } finally {
+            $this->flushExpectations();
+
+            $this->app->offsetUnset(OutputStyle::class);
         }
+    }
 
-        if ($this->expectedExitCode !== null) {
-            $this->test->assertEquals(
-                $this->expectedExitCode,
-                $exitCode,
-                "Expected status code {$this->expectedExitCode} but received {$exitCode}."
-            );
-        } elseif (! is_null($this->unexpectedExitCode)) {
-            $this->test->assertNotEquals(
-                $this->unexpectedExitCode,
-                $exitCode,
-                "Unexpected status code {$this->unexpectedExitCode} was received."
-            );
-        }
+    /**
+     * Debug the command.
+     */
+    public function dd(): never
+    {
+        $this->hasExecuted = true;
 
-        $this->verifyExpectations();
-        $this->flushExpectations();
+        $output = new BufferedOutput;
+        $consoleOutput = new OutputStyle(new ArrayInput($this->parameters), $output);
+        $exitCode = $this->app
+            ->make(KernelContract::class)
+            ->call($this->command, $this->parameters, $consoleOutput);
 
-        $this->app->offsetUnset(OutputStyle::class);
-
-        return $exitCode;
+        dd([
+            'exitCode' => $exitCode,
+            'output' => $output->fetch(),
+        ]);
     }
 
     /**
@@ -412,11 +434,11 @@ class PendingCommand
             $this->test->fail('Output does not contain "' . array_first($this->test->expectedOutputSubstrings) . '".');
         }
 
-        if ($output = array_search(true, $this->test->unexpectedOutput)) {
+        if (($output = array_search(true, $this->test->unexpectedOutput)) !== false) {
             $this->test->fail('Output "' . $output . '" was printed.');
         }
 
-        if ($output = array_search(true, $this->test->unexpectedOutputSubstrings)) {
+        if (($output = array_search(true, $this->test->unexpectedOutputSubstrings)) !== false) {
             $this->test->fail('Output "' . $output . '" was printed.');
         }
     }
@@ -444,7 +466,7 @@ class PendingCommand
                             : $argument->getAutocompleterValues();
                     }
 
-                    return $argument->getQuestion() == $question[0];
+                    return $argument->getQuestion() === $question[0];
                 }))
                 ->andReturnUsing(function () use ($question, $i) {
                     unset($this->test->expectedQuestions[$i]);
@@ -508,7 +530,10 @@ class PendingCommand
                 });
         }
 
+        // PHP converts canonical numeric-string array keys to integers, so restore the public string contract before matching.
         foreach ($this->test->unexpectedOutput as $output => $displayed) {
+            $output = (string) $output;
+
             /** @var \Mockery\Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->atLeast()
@@ -521,6 +546,8 @@ class PendingCommand
         }
 
         foreach ($this->test->unexpectedOutputSubstrings as $text => $displayed) {
+            $text = (string) $text;
+
             /** @var \Mockery\Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->atLeast()
@@ -539,11 +566,11 @@ class PendingCommand
      */
     protected function flushExpectations(): void
     {
+        $this->test->expectsOutput = null;
         $this->test->expectedOutput = [];
         $this->test->expectedOutputSubstrings = [];
         $this->test->unexpectedOutput = [];
         $this->test->unexpectedOutputSubstrings = [];
-        $this->test->expectedTables = [];
         $this->test->expectedQuestions = [];
         $this->test->expectedChoices = [];
     }
