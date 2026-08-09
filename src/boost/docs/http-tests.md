@@ -996,7 +996,9 @@ class ExampleTest extends TestCase
 }
 ```
 
-The `TestView` class provides the following assertion methods: `assertSee`, `assertSeeInOrder`, `assertSeeText`, `assertSeeTextInOrder`, `assertDontSee`, `assertDontSeeText`, `assertViewHas`, `assertViewHasAll`, `assertViewMissing`, and `assertViewEmpty`.
+The `TestView` class provides the following assertion methods: `assertSee`, `assertSeeHtml`, `assertSeeInOrder`, `assertSeeHtmlInOrder`, `assertSeeText`, `assertSeeTextInOrder`, `assertDontSee`, `assertDontSeeHtml`, `assertDontSeeText`, `assertViewHas`, `assertViewHasAll`, `assertViewMissing`, and `assertViewEmpty`.
+
+The `assertSeeText`, `assertSeeTextInOrder`, and `assertDontSeeText` methods compare visible text. HTML tags are removed, entities are decoded, and consecutive whitespace is treated as a single space.
 
 If needed, you may get the raw, rendered view contents by casting the `TestView` instance to a string:
 
@@ -1038,6 +1040,8 @@ $view = $this->component(Profile::class, ['name' => 'Taylor']);
 
 $view->assertSee('Taylor');
 ```
+
+The `TestComponent` class provides the following assertion methods: `assertSee`, `assertSeeHtml`, `assertSeeInOrder`, `assertSeeHtmlInOrder`, `assertSeeText`, `assertSeeTextInOrder`, `assertDontSee`, `assertDontSeeHtml`, and `assertDontSeeText`.
 
 <a name="caching-routes"></a>
 ## Caching Routes
@@ -1140,8 +1144,11 @@ Hypervel's `Hypervel\Testing\TestResponse` class provides a variety of custom as
 [assertJsonMissingExact](#assert-json-missing-exact)
 [assertJsonMissingValidationErrors](#assert-json-missing-validation-errors)
 [assertJsonPath](#assert-json-path)
+[assertJsonPaths](#assert-json-paths)
 [assertJsonPathCanonicalizing](#assert-json-path-canonicalizing)
+[assertJsonPathsCanonicalizing](#assert-json-paths-canonicalizing)
 [assertJsonMissingPath](#assert-json-missing-path)
+[assertJsonMissingPaths](#assert-json-missing-paths)
 [assertJsonStructure](#assert-json-structure)
 [assertOnlyJsonValidationErrors](#assert-only-json-validation-errors)
 [assertJsonValidationErrors](#assert-json-validation-errors)
@@ -1182,6 +1189,7 @@ Hypervel's `Hypervel\Testing\TestResponse` class provides a variety of custom as
 [assertSimilarJson](#assert-similar-json)
 [assertSessionHas](#assert-session-has)
 [assertSessionHasInput](#assert-session-has-input)
+[assertSessionMissingInput](#assert-session-missing-input)
 [assertSessionHasAll](#assert-session-has-all)
 [assertSessionHasErrors](#assert-session-has-errors)
 [assertSessionHasErrorsIn](#assert-session-has-errors-in)
@@ -1307,7 +1315,7 @@ $response->assertDontSeeHtml($value);
 <a name="assert-dont-see-text"></a>
 #### assertDontSeeText
 
-Assert that the given string is not contained within the response text. This assertion will automatically escape the given string unless you pass a second argument of `false`. This method will pass the response content to the `strip_tags` PHP function before making the assertion:
+Assert that the given string or array of strings is not contained within the response's visible text. This assertion will automatically escape each string unless you pass a second argument of `false`. HTML tags are removed, entities are decoded, and consecutive whitespace is treated as a single space before the assertion is made:
 
 ```php
 $response->assertDontSeeText($value, $escape = true);
@@ -1544,6 +1552,18 @@ You may assert that the `name` property of the `user` object matches a given val
 $response->assertJsonPath('user.name', 'Steve Schoger');
 ```
 
+<a name="assert-json-paths"></a>
+#### assertJsonPaths
+
+Assert that the response contains the given data at each specified path:
+
+```php
+$response->assertJsonPaths([
+    'user.name' => 'Steve Schoger',
+    'user.email' => 'steve@example.com',
+]);
+```
+
 <a name="assert-json-path-canonicalizing"></a>
 #### assertJsonPathCanonicalizing
 
@@ -1551,6 +1571,18 @@ Assert that the given path in the response contains all of the expected values w
 
 ```php
 $response->assertJsonPathCanonicalizing($path, array $expectedValue);
+```
+
+<a name="assert-json-paths-canonicalizing"></a>
+#### assertJsonPathsCanonicalizing
+
+Assert that each given path contains all of its expected values without considering order:
+
+```php
+$response->assertJsonPathsCanonicalizing([
+    'user.roles' => ['editor', 'administrator'],
+    'user.teams' => ['Product', 'Support'],
+]);
 ```
 
 <a name="assert-json-missing-path"></a>
@@ -1576,6 +1608,15 @@ You may assert that it does not contain the `email` property of the `user` objec
 
 ```php
 $response->assertJsonMissingPath('user.email');
+```
+
+<a name="assert-json-missing-paths"></a>
+#### assertJsonMissingPaths
+
+Assert that the response does not contain any of the given paths:
+
+```php
+$response->assertJsonMissingPaths(['user.email', 'user.phone']);
 ```
 
 <a name="assert-json-structure"></a>
@@ -1936,7 +1977,7 @@ $response->assertSeeInOrder(array $values, $escape = true);
 <a name="assert-see-text"></a>
 #### assertSeeText
 
-Assert that the given string is contained within the response text. This assertion will automatically escape the given string unless you pass a second argument of `false`. The response content will be passed to the `strip_tags` PHP function before the assertion is made:
+Assert that the given string or array of strings is contained within the response's visible text. This assertion will automatically escape each string unless you pass a second argument of `false`. HTML tags are removed, entities are decoded, and consecutive whitespace is treated as a single space before the assertion is made:
 
 ```php
 $response->assertSeeText($value, $escape = true);
@@ -1945,7 +1986,7 @@ $response->assertSeeText($value, $escape = true);
 <a name="assert-see-text-in-order"></a>
 #### assertSeeTextInOrder
 
-Assert that the given strings are contained in order within the response text. This assertion will automatically escape the given strings unless you pass a second argument of `false`. The response content will be passed to the `strip_tags` PHP function before the assertion is made:
+Assert that the given strings are contained in order within the response's visible text. This assertion will automatically escape the given strings unless you pass a second argument of `false`. HTML tags are removed, entities are decoded, and consecutive whitespace is treated as a single space before the assertion is made:
 
 ```php
 $response->assertSeeTextInOrder(array $values, $escape = true);
@@ -2012,6 +2053,17 @@ use Hypervel\Support\Facades\Crypt;
 $response->assertSessionHasInput($key, function (string $value) {
     return Crypt::decryptString($value) === 'secret';
 });
+```
+
+<a name="assert-session-missing-input"></a>
+#### assertSessionMissingInput
+
+Assert that the session is missing one or more keys from the [flashed input array](/docs/{{version}}/responses#redirecting-with-flashed-session-data):
+
+```php
+$response->assertSessionMissingInput($key);
+
+$response->assertSessionMissingInput(['name', 'email']);
 ```
 
 <a name="assert-session-has-all"></a>
