@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Wayfinder;
 
+use BackedEnum;
 use Closure;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Routing\Route as BaseRoute;
@@ -25,13 +26,23 @@ class Route
     private ?array $parsedRoot = null;
 
     /**
+     * The normalized URL defaults keyed by route parameter name.
+     *
+     * @var Collection<string, null|bool|float|int|string>
+     */
+    private Collection $paramDefaults;
+
+    /**
      * Create a new Wayfinder route wrapper.
+     *
+     * @param Collection<string, mixed> $paramDefaults
      */
     public function __construct(
         private BaseRoute $base,
-        private Collection $paramDefaults,
+        Collection $paramDefaults,
         private ?string $forcedScheme
     ) {
+        $this->paramDefaults = $this->resolveParameterDefaults($paramDefaults);
     }
 
     /**
@@ -111,17 +122,63 @@ class Route
      */
     public function parameters(): Collection
     {
-        $optionalParameters = collect($this->base->toSymfonyRoute()->getDefaults());
+        $routeOptionalParameters = collect($this->base->toSymfonyRoute()->getDefaults());
 
         $signatureParams = collect($this->base->signatureParameters(UrlRoutable::class));
 
-        return collect($this->base->parameterNames())->map(fn (string $name) => new Parameter(
-            $name,
-            $optionalParameters->has($name) || $this->paramDefaults->has($name),
-            $this->base->bindingFieldFor($name),
-            $this->paramDefaults->get($name),
-            $signatureParams->first(fn (ReflectionParameter $p) => Str::snake($p->getName()) === Str::snake($name)),
-        ));
+        return collect($this->base->parameterNames())->map(function (string $name) use ($routeOptionalParameters, $signatureParams): Parameter {
+            $routeOptional = $routeOptionalParameters->has($name);
+
+            return new Parameter(
+                $name,
+                $routeOptional || $this->paramDefaults->has($name),
+                $routeOptional,
+                $this->base->bindingFieldFor($name),
+                $this->paramDefaults->get($name),
+                $signatureParams->first(fn (ReflectionParameter $parameter) => Str::snake($parameter->getName()) === Str::snake($name)),
+            );
+        });
+    }
+
+    /**
+     * Resolve URL defaults against this route's binding fields.
+     *
+     * @param Collection<string, mixed> $rawDefaults
+     * @return Collection<string, null|bool|float|int|string>
+     */
+    private function resolveParameterDefaults(Collection $rawDefaults): Collection
+    {
+        $defaults = collect();
+
+        foreach ($this->base->parameterNames() as $name) {
+            $field = $this->base->bindingFieldFor($name);
+            $lookup = $field === null ? $name : "{$name}:{$field}";
+
+            if (! $rawDefaults->has($lookup)) {
+                continue;
+            }
+
+            $value = $rawDefaults->get($lookup);
+            $value = match (true) {
+                $value instanceof UrlRoutable && $field !== null => $value->{$field},
+                $value instanceof UrlRoutable => $value->getRouteKey(),
+                $value instanceof BackedEnum => $value->value,
+                default => $value,
+            };
+
+            // Routing unwraps enum-valued binding fields before final URL formatting.
+            if ($field !== null && $value instanceof BackedEnum) {
+                $value = $value->value;
+            }
+
+            if ($value !== null && ! is_scalar($value)) {
+                continue;
+            }
+
+            $defaults->put($name, $value);
+        }
+
+        return $defaults;
     }
 
     /**
@@ -309,7 +366,12 @@ class Route
      */
     private function relativePath(string $path): string
     {
-        return str($path)->replace(base_path(), '')->ltrim(DIRECTORY_SEPARATOR)->replace(DIRECTORY_SEPARATOR, '/')->toString();
+        $path = str_replace(DIRECTORY_SEPARATOR, '/', $path);
+        $base = rtrim(str_replace(DIRECTORY_SEPARATOR, '/', base_path()), '/');
+
+        return str_starts_with($path, $base . '/')
+            ? substr($path, strlen($base) + 1)
+            : $path;
     }
 
     /**

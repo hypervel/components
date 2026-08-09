@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
 class DomainController
 {
-    public function fixedDomain()
+    public function fixedDomain(): void
     {
     }
 
-    public function defaultParametersDomain()
+    public function defaultParametersDomain(): void
+    {
+    }
+
+    public function dynamicParametersDomain(): void
     {
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hypervel\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 
 trait WithCachedConfig

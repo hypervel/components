@@ -46,15 +46,15 @@ class HandlesRoutesTest extends TestCase
 
     public function testSetUpApplicationRoutesCallsDefineRoutes(): void
     {
-        // setUpApplicationRoutes is called automatically in setUp via afterApplicationCreated
-        // so defineRoutesCalled should already be true
+        // setUpApplicationRoutes is called automatically when the application is refreshed,
+        // so defineRoutesCalled should already be true.
         $this->assertTrue($this->defineRoutesCalled);
     }
 
     public function testSetUpApplicationRoutesCallsDefineWebRoutes(): void
     {
-        // setUpApplicationRoutes is called automatically in setUp via afterApplicationCreated
-        // so defineWebRoutesCalled should already be true
+        // setUpApplicationRoutes is called automatically when the application is refreshed,
+        // so defineWebRoutesCalled should already be true.
         $this->assertTrue($this->defineWebRoutesCalled);
     }
 

@@ -22,6 +22,12 @@ class PackageMetadataTest extends TestCase
             512,
             JSON_THROW_ON_ERROR
         );
+        $rootComposer = json_decode(
+            file_get_contents(__DIR__ . '/../../composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
 
         foreach ([
             'guzzlehttp/guzzle',
@@ -47,8 +53,9 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
-        $this->assertSame('^7.15.1', $composer['require']['guzzlehttp/guzzle']);
-        $this->assertSame('^2.0', $composer['require']['psr/http-message']);
+        foreach (['guzzlehttp/guzzle', 'psr/http-message'] as $dependency) {
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        }
 
         foreach ([
             'algolia/algoliasearch-client-php',

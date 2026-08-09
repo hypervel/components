@@ -103,9 +103,7 @@ class Blueprint
      */
     public function build(): void
     {
-        foreach ($this->toSql() as $statement) {
-            $this->connection->statement($statement);
-        }
+        $this->connection->getSchemaBuilder()->executeBlueprint($this);
     }
 
     /**

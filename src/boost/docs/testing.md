@@ -269,7 +269,7 @@ php artisan test --parallel --processes=4
 ```
 
 > [!WARNING]
-> When running tests in parallel, some PHPUnit options (such as `--do-not-cache-result`) may not be available.
+> When running tests in parallel, some PHPUnit options (such as `--do-not-record-test-run-history`) may not be available.
 
 <a name="parallel-testing-and-databases"></a>
 #### Parallel Testing and Databases

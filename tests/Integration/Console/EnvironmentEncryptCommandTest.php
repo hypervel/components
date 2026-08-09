@@ -562,6 +562,7 @@ ENV;
         $encryptedFile = $environmentFile . '.encrypted';
         $files->put($environmentFile, 'APP_NAME=Hypervel');
         File::swap($files);
+        $umask = umask(0027);
 
         try {
             $this->artisan('env:encrypt', [
@@ -569,8 +570,9 @@ ENV;
             ])->assertSuccessful();
 
             $this->assertFileExists($encryptedFile);
-            $this->assertSame(0777 - umask(), fileperms($encryptedFile) & 0777);
+            $this->assertSame(0640, fileperms($encryptedFile) & 0777);
         } finally {
+            umask($umask);
             $files->deleteDirectory($tempDir);
         }
     }

@@ -10,6 +10,9 @@ use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use ReflectionProperty;
+use RuntimeException;
 
 class DatabaseConnectionResolverTest extends TestCase
 {
@@ -81,6 +84,71 @@ class DatabaseConnectionResolverTest extends TestCase
 
         $this->assertSame($connection, $cachedConnection);
         $this->assertSame('Taylor', $cachedConnection->selectOne('select name from users')->name);
+    }
+
+    public function testResetCachedConnectionsDiscardsALeakedForeignKeySuppressionScope(): void
+    {
+        $resolver = $this->app->make(DatabaseConnectionResolver::class);
+        $connection = $resolver->connection();
+        $connection->beginForeignKeyConstraintSuppression();
+
+        DatabaseConnectionResolver::resetCachedConnections();
+
+        $this->assertNull($connection->getRawPdo());
+        $this->assertSame(
+            [],
+            (new ReflectionProperty(DatabaseConnectionResolver::class, 'connections'))->getValue()
+        );
+        $this->assertSame(
+            [],
+            (new ReflectionProperty(DatabaseConnectionResolver::class, 'pooledConnections'))->getValue()
+        );
+    }
+
+    public function testResetCachedConnectionsCompletesEveryDiscardBeforeRethrowing(): void
+    {
+        DatabaseConnectionResolver::flushCachedConnections();
+
+        $firstConnection = m::mock(Connection::class);
+        $firstConnection->shouldReceive('resetForPool')->once();
+        $firstConnection->shouldReceive('hasUnknownSessionState')->once()->andReturnTrue();
+        $secondConnection = m::mock(Connection::class);
+        $secondConnection->shouldReceive('resetForPool')->once();
+        $secondConnection->shouldReceive('hasUnknownSessionState')->once()->andReturnTrue();
+        $failure = new RuntimeException('discard failed');
+        $firstPooledConnection = m::mock(PooledConnection::class);
+        $firstPooledConnection->shouldReceive('discard')->once()->andThrow($failure);
+        $secondPooledConnection = m::mock(PooledConnection::class);
+        $secondPooledConnection->shouldReceive('discard')->once();
+
+        (new ReflectionProperty(DatabaseConnectionResolver::class, 'connections'))->setValue([
+            'first' => $firstConnection,
+            'second' => $secondConnection,
+        ]);
+        (new ReflectionProperty(DatabaseConnectionResolver::class, 'pooledConnections'))->setValue([
+            'first' => $firstPooledConnection,
+            'second' => $secondPooledConnection,
+        ]);
+        (new ReflectionProperty(DatabaseConnectionResolver::class, 'containerId'))->setValue(
+            spl_object_id(Container::getInstance())
+        );
+        (new ReflectionProperty(DatabaseConnectionResolver::class, 'rebindingRegistered'))->setValue(true);
+
+        try {
+            DatabaseConnectionResolver::resetCachedConnections();
+            $this->fail('Expected the first discard failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(
+            [],
+            (new ReflectionProperty(DatabaseConnectionResolver::class, 'connections'))->getValue()
+        );
+        $this->assertSame(
+            [],
+            (new ReflectionProperty(DatabaseConnectionResolver::class, 'pooledConnections'))->getValue()
+        );
     }
 
     public function testSharedInMemorySqliteAliasesReuseAndFlushOneCachedOwner(): void

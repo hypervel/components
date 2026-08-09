@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ConfigPublishCommand;
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Attributes\UsesFrameworkConfiguration;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
@@ -56,7 +57,11 @@ class ConfigPublishCommandWithoutMergedConfigurationTest extends TestCase
             $this->assertSame(file_get_contents($source), file_get_contents(config_path("{$name}.php")));
         }
 
-        $this->assertSame(config('app.providers'), ServiceProvider::defaultProviders()->toArray());
+        // Testbench appends the application route provider so cached-route tests have a consumer.
+        $this->assertSame(
+            [...ServiceProvider::defaultProviders()->toArray(), RouteServiceProvider::class],
+            config('app.providers'),
+        );
     }
 
     /**

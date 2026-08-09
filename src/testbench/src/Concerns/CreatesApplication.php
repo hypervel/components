@@ -17,8 +17,10 @@ use Hypervel\Foundation\Bootstrap\HandleExceptions as FoundationHandleExceptions
 use Hypervel\Foundation\Bootstrap\LoadConfiguration as FoundationLoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -182,6 +184,10 @@ trait CreatesApplication
         $this->configureParallelCachePaths();
 
         $app = $this->resolveApplication();
+
+        if ($this instanceof FoundationTestCase) {
+            $this->prepareApplicationForCachedState($app);
+        }
 
         $this->resolveApplicationBindings($app);
         $this->resolveApplicationExceptionHandler($app);
@@ -455,6 +461,7 @@ trait CreatesApplication
         $providers = (new Collection(TestbenchRegisterProviders::mergeAdditionalProvidersForTestbench(
             $this->getApplicationProviders($app)
         )))
+            ->push(RouteServiceProvider::class)
             ->merge($this->getPackageProviders($app));
 
         $overrides = $this->overrideApplicationProviders($app);
