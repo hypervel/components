@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Processors\PostgresProcessor;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
+use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use Override;
 
 class DatabasePostgresBuilderTest extends TestCase
 {
@@ -42,6 +46,136 @@ class DatabasePostgresBuilderTest extends TestCase
         $builder = $this->getBuilder($connection);
 
         $builder->dropDatabaseIfExists('my_database_a');
+    }
+
+    public function testExecuteBlueprintWrapsKnownMultiStatementCommandsInATransaction(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['first statement', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(static fn (Closure $callback) => $callback());
+        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotNestAnExistingTransaction(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['first statement', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotWrapASingleStatement(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->never();
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('statement')->andReturnTrue();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotWrapOnlineCommands(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['create index concurrently', 'attach constraint'],
+            [new Fluent(['name' => 'unique', 'online' => true])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('create index concurrently')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('attach constraint')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotWrapCommandsAddedByAnExtensionGrammar(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['extension statement one', 'extension statement two'],
+            [new Fluent(['name' => 'extensionCommand'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('extension statement one')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('extension statement two')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintWrapsFrameworkCommandsOverriddenByAnExtensionGrammar(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresBuilderExtensionGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['overridden create', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(static fn (Closure $callback) => $callback());
+        $connection->shouldReceive('statement')->once()->with('overridden create')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintHonorsTheRuntimeGrammarTransactionFlag(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(PostgresGrammar::class, [$connection])->makePartial();
+        $blueprint = $this->executionBlueprint(
+            ['first statement', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $grammar->shouldReceive('supportsSchemaTransactions')->once()->andReturnFalse();
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
     }
 
     public function testHasTableWhenSchemaUnqualifiedAndSearchPathMissing()
@@ -328,8 +462,35 @@ class DatabasePostgresBuilderTest extends TestCase
         return m::mock(Connection::class);
     }
 
+    /**
+     * Create a Blueprint double for execution-boundary tests.
+     *
+     * @param list<string> $statements
+     * @param list<Fluent> $commands
+     */
+    protected function executionBlueprint(array $statements, array $commands): Blueprint
+    {
+        $blueprint = m::mock(Blueprint::class);
+        $blueprint->shouldReceive('toSql')->once()->andReturn($statements);
+        $blueprint->shouldReceive('getCommands')->andReturn($commands);
+
+        return $blueprint;
+    }
+
     protected function getBuilder($connection)
     {
         return new PostgresBuilder($connection);
+    }
+}
+
+class PostgresBuilderExtensionGrammar extends PostgresGrammar
+{
+    /**
+     * Compile a create table command.
+     */
+    #[Override]
+    public function compileCreate(Blueprint $blueprint, Fluent $command): string
+    {
+        return 'overridden create';
     }
 }
