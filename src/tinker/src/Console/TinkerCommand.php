@@ -7,7 +7,9 @@ namespace Hypervel\Tinker\Console;
 use Hypervel\Console\Command;
 use Hypervel\Support\Env;
 use Hypervel\Tinker\ClassAliasAutoloader;
+use Hypervel\Tinker\ExecuteShell;
 use Psy\Configuration;
+use Psy\Exception\BreakException;
 use Psy\Shell;
 use Psy\VersionUpdater\Checker;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -40,8 +42,6 @@ class TinkerCommand extends Command
      */
     public function handle(): int
     {
-        $this->getApplication()->setCatchExceptions(false);
-
         $config = Configuration::fromInput($this->input);
         $config->setUpdateCheck(Checker::NEVER);
 
@@ -57,11 +57,17 @@ class TinkerCommand extends Command
             $this->getCasters()
         );
 
-        if ($this->option('execute')) {
+        /** @var ?string $code */
+        $code = $this->option('execute');
+
+        if ($code !== null) {
             $config->setRawOutput(true);
         }
 
-        $shell = new Shell($config);
+        $shell = $code !== null
+            ? new ExecuteShell($config)
+            : new Shell($config);
+
         $shell->addCommands($this->getCommands());
         $shell->setIncludes($this->argument('include'));
 
@@ -72,14 +78,17 @@ class TinkerCommand extends Command
         $loader = ClassAliasAutoloader::register(
             $shell,
             $path,
-            $appConfig->get('tinker.alias', []),
-            $appConfig->get('tinker.dont_alias', [])
+            $appConfig->array('tinker.alias', []),
+            $appConfig->array('tinker.dont_alias', [])
         );
 
-        if ($code = $this->option('execute')) {
+        if ($code !== null) {
             try {
                 $shell->setOutput($this->output);
+                $shell->boot();
                 $shell->execute($code, true);
+            } catch (BreakException $e) {
+                return $e->getCode();
             } catch (Throwable $e) {
                 $shell->writeException($e);
 
@@ -114,9 +123,11 @@ class TinkerCommand extends Command
         $config = $this->getHypervel()->make('config');
 
         foreach ($config->array('tinker.commands', []) as $command) {
-            $commands[] = $this->getApplication()->addCommand(
+            if (($command = $this->getApplication()->addCommand(
                 $this->getHypervel()->make($command)
-            );
+            )) !== null) {
+                $commands[] = $command;
+            }
         }
 
         return $commands;
@@ -141,9 +152,7 @@ class TinkerCommand extends Command
             $casters['Hypervel\Process\ProcessResult'] = 'Hypervel\Tinker\TinkerCaster::castProcessResult';
         }
 
-        if (class_exists('Hypervel\Foundation\Application')) {
-            $casters['Hypervel\Foundation\Application'] = 'Hypervel\Tinker\TinkerCaster::castApplication';
-        }
+        $casters['Hypervel\Foundation\Application'] = 'Hypervel\Tinker\TinkerCaster::castApplication';
 
         $config = $this->getHypervel()->make('config');
 
