@@ -30,7 +30,6 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-json": "*",
         "firebase/php-jwt": "^7.0",
         "guzzlehttp/guzzle": "^7.15.1",
         "hypervel/collections": "^0.4",

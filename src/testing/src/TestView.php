@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Testing\Assert as PHPUnit;
+use Hypervel\Testing\Constraints\SeeInHtml;
 use Hypervel\Testing\Constraints\SeeInOrder;
 use Hypervel\View\View;
 use Stringable;
@@ -117,22 +118,39 @@ class TestView implements Stringable
     }
 
     /**
-     * Assert that the given string is contained within the view.
+     * Assert that the given string or array of strings are contained within the view.
      *
+     * @param list<string>|string $value
      * @return $this
      */
-    public function assertSee(string $value, bool $escape = true): static
+    public function assertSee(array|string $value, bool $escape = true): static
     {
-        $value = $escape ? e($value) : $value;
+        $value = Arr::wrap($value);
 
-        PHPUnit::assertStringContainsString((string) $value, $this->rendered);
+        $values = $escape ? array_map(e(...), $value) : $value;
+
+        foreach ($values as $value) {
+            PHPUnit::assertStringContainsString((string) $value, $this->rendered);
+        }
 
         return $this;
     }
 
     /**
+     * Assert that the given HTML string or array of HTML strings are contained within the view.
+     *
+     * @param list<string>|string $value
+     * @return $this
+     */
+    public function assertSeeHtml(array|string $value): static
+    {
+        return $this->assertSee($value, false);
+    }
+
+    /**
      * Assert that the given strings are contained in order within the view.
      *
+     * @param list<string> $values
      * @return $this
      */
     public function assertSeeInOrder(array $values, bool $escape = true): static
@@ -145,15 +163,29 @@ class TestView implements Stringable
     }
 
     /**
-     * Assert that the given string is contained within the view text.
+     * Assert that the given HTML strings are contained in order within the view.
      *
+     * @param list<string> $values
      * @return $this
      */
-    public function assertSeeText(string $value, bool $escape = true): static
+    public function assertSeeHtmlInOrder(array $values): static
     {
-        $value = $escape ? e($value) : $value;
+        return $this->assertSeeInOrder($values, false);
+    }
 
-        PHPUnit::assertStringContainsString((string) $value, strip_tags($this->rendered));
+    /**
+     * Assert that the given string or array of strings are contained within the view text.
+     *
+     * @param list<string>|string $value
+     * @return $this
+     */
+    public function assertSeeText(array|string $value, bool $escape = true): static
+    {
+        $value = Arr::wrap($value);
+
+        $values = $escape ? array_map(e(...), $value) : $value;
+
+        PHPUnit::assertThat($values, new SeeInHtml($this->rendered));
 
         return $this;
     }
@@ -161,41 +193,61 @@ class TestView implements Stringable
     /**
      * Assert that the given strings are contained in order within the view text.
      *
+     * @param list<string> $values
      * @return $this
      */
     public function assertSeeTextInOrder(array $values, bool $escape = true): static
     {
         $values = $escape ? array_map(e(...), $values) : $values;
 
-        PHPUnit::assertThat($values, new SeeInOrder(strip_tags($this->rendered)));
+        PHPUnit::assertThat($values, new SeeInHtml($this->rendered, true));
 
         return $this;
     }
 
     /**
-     * Assert that the given string is not contained within the view.
+     * Assert that the given string or array of strings are not contained within the view.
      *
+     * @param list<string>|string $value
      * @return $this
      */
-    public function assertDontSee(string $value, bool $escape = true): static
+    public function assertDontSee(array|string $value, bool $escape = true): static
     {
-        $value = $escape ? e($value) : $value;
+        $value = Arr::wrap($value);
 
-        PHPUnit::assertStringNotContainsString((string) $value, $this->rendered);
+        $values = $escape ? array_map(e(...), $value) : $value;
+
+        foreach ($values as $value) {
+            PHPUnit::assertStringNotContainsString((string) $value, $this->rendered);
+        }
 
         return $this;
     }
 
     /**
-     * Assert that the given string is not contained within the view text.
+     * Assert that the given HTML string or array of HTML strings are not contained within the view.
      *
+     * @param list<string>|string $value
      * @return $this
      */
-    public function assertDontSeeText(string $value, bool $escape = true): static
+    public function assertDontSeeHtml(array|string $value): static
     {
-        $value = $escape ? e($value) : $value;
+        return $this->assertDontSee($value, false);
+    }
 
-        PHPUnit::assertStringNotContainsString((string) $value, strip_tags($this->rendered));
+    /**
+     * Assert that the given string or array of strings are not contained within the view text.
+     *
+     * @param list<string>|string $value
+     * @return $this
+     */
+    public function assertDontSeeText(array|string $value, bool $escape = true): static
+    {
+        $value = Arr::wrap($value);
+
+        $values = $escape ? array_map(e(...), $value) : $value;
+
+        PHPUnit::assertThat($values, new SeeInHtml($this->rendered, negate: true));
 
         return $this;
     }

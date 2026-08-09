@@ -371,7 +371,6 @@ The `hypervel/queue` dependency is intentional for both packages if their ported
     "keywords": ["php", "hypervel", "passkeys", "webauthn", "passwordless", "swoole"],
     "require": {
         "php": "^8.4",
-        "ext-json": "*",
         "hypervel/auth": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
@@ -422,7 +421,6 @@ The `hypervel/queue` dependency is intentional for both packages if their ported
     "keywords": ["php", "hypervel", "fortify", "auth", "swoole"],
     "require": {
         "php": "^8.4",
-        "ext-json": "*",
         "bacon/bacon-qr-code": "^3.1",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",

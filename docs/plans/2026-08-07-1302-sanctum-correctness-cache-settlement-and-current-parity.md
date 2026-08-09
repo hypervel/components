@@ -486,7 +486,7 @@ No config validation subsystem or second JSON pass is added.
 
 ### 10. Complete metadata, public docs, and provenance
 
-In the split manifest add direct runtime dependencies: `ext-ctype`, `ext-filter`, `ext-json`,
+In the split manifest add direct runtime dependencies: `ext-ctype`, `ext-filter`,
 `hypervel/cookie`, `hypervel/foundation`, `hypervel/session`, and
 `symfony/http-foundation`. `symfony/console` already exists. Add Sanctum's provider to root package
 discovery, not `DefaultProviders`. Add executable root/split metadata coverage.

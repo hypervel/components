@@ -47,6 +47,13 @@ $this->artisan('example:failing-command')->assertFailed();
 
 The `assertOk` method is also available as an alias of the `assertSuccessful` method.
 
+While debugging a console command test, you may use the `dd` method to execute the command and
+dump its exit code and captured output:
+
+```php
+$this->artisan('users:all')->dd();
+```
+
 <a name="input-output-expectations"></a>
 ## Input / Output Expectations
 

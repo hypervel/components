@@ -470,7 +470,6 @@ Add one human-facing sentence to `src/boost/docs/verification.md`: links expire 
 Add the remaining direct runtime dependencies to `src/auth/composer.json`, sorted under the existing package convention:
 
 ```json
-"ext-hash": "*",
 "hypervel/console": "^0.4",
 "hypervel/notifications": "^0.4",
 "hypervel/queue": "^0.4",

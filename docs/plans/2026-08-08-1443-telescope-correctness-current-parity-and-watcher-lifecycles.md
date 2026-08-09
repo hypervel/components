@@ -515,7 +515,6 @@ This is a boot/runtime performance improvement, not added overhead.
 Declare direct split-package requirements:
 
 ```json
-"ext-json": "*",
 "ext-mbstring": "*",
 "ext-pdo": "*",
 "guzzlehttp/guzzle": "^7.15.1",

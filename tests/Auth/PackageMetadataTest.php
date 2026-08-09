@@ -35,7 +35,6 @@ class PackageMetadataTest extends TestCase
         );
 
         foreach ([
-            'ext-hash',
             'nesbot/carbon',
             'hypervel/cache',
             'hypervel/collections',

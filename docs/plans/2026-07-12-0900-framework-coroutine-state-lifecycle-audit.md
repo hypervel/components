@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `sentry`; the complete correctness, coroutine-ownership, parity, and performance audit is recorded under `Complete Sentry correctness, coroutine ownership, and performance`; detail plan `2026-08-08-1711-sentry-correctness-coroutine-ownership-and-performance.md`.
-- **Ledger entries required for the active work:** `Complete Sentry correctness, coroutine ownership, and performance`; `Make coroutine creation and copied context failure-safe`; `Harden Core lifecycle callbacks and stdout logging`; `Isolate object-pool maintenance and remove false dependencies`; `Harden filesystem I/O, streaming, and response teardown`; `Complete Cache parity, cleanup, permanence, and tagged ownership`; `Complete Notifications correctness, Slack parity, and reentrant failure ownership`; `Complete Queue pooling, payload durability, and current Laravel parity`; `Correct AOP proxy generation and publication`; `Complete Redis pooling, subscriber transport, topology, parity, and lifecycle safety`; and `Harden Server startup, reload, and process lifecycles`.
-- **Pending revalidation carried into the active work:** Telescope must retain captured fork values under `coroutine-08`; Sentry and every other named consumer are revalidated in this work unit.
+- **Active package or work unit:** `testing`; the complete correctness, parallel-ownership, parity, and metadata audit is recorded under `Complete Testing correctness, parallel ownership, and current parity`; detail plan `2026-08-08-2225-testing-correctness-parallel-ownership-and-current-parity.md`.
+- **Ledger entries required for the active work:** `Complete Testing correctness, parallel ownership, and current parity`; `Complete Mail correctness, current parity, and package boundaries`; `Complete Macroable callable and test-state handling`; `Consolidate reflection metadata and correct callable inference`; `Preserve configuration identity across worker reloads`; `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; `Unify HTTP response emission and harden native server boundaries`; `Complete Database persistence lifecycles and current Laravel parity`; `Complete Nested Set invariants, performance, and modern APIs`; `Harden Eloquent identity and partial-projection safety`; and `Complete View correctness, lifecycle, and current parity`.
+- **Pending revalidation carried into the active work:** Telescope must retain captured fork values under `coroutine-08`; Testing introduces no additional pending revalidation.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1008,13 +1008,13 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-01` | `queue` | `contracts` and `queue` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
 | `contracts-05` | `contracts` | `http`, `foundation`, `console`, `database`, and `routing` (revalidation complete) | `Harden framework contracts and request-scoped state`; finding `contracts-05` |
 | `testbench-01` | `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
-| `http-01` | `http` | `macroable` and `http` (revalidation complete), `testing`; later full `testing` audit | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
+| `http-01` | `http` | `macroable`, `http`, and `testing` (revalidation complete) | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
 | `console-01` | `console` | `contracts` and `console` (revalidation complete) | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
 | `reflection-01` | `reflection` | `events` and `foundation` (revalidation complete) | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
 | `reflection-02` | `reflection` | `foundation`, `console`, `routing`, and `view` (revalidation complete) | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
-| `reflection-04` | `reflection` | `di` and `queue` (revalidation complete), `support`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
+| `reflection-04` | `reflection` | `di`, `queue`, `support`, and `testing` (revalidation complete) | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 | `config-01` | `config` | `foundation` (revalidation complete) | `Preserve configuration identity across worker reloads`; finding `config-01` |
-| `config-02` | `foundation` | `reverb` (revalidation complete), `testing`; later full `testing` audit | `Preserve configuration identity across worker reloads`; finding `config-02` |
+| `config-02` | `foundation` | `reverb` and `testing` (revalidation complete) | `Preserve configuration identity across worker reloads`; finding `config-02` |
 | `container-05` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
 | `container-06` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
 | `container-08` | `container` | `auth`, `cache`, `log`, `support`; `routing` (revalidation complete); later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
@@ -1064,13 +1064,13 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `server-11` | `foundation`, `server` | `server-process` and `reverb` (revalidation complete) | `Complete Signal handler reliability, public APIs, and deployment guidance`; finding `server-11` |
 | `bus-03` | `bus`, `contracts`, `foundation` | `foundation` and `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-03` |
 | `bus-10` | `bus`, `queue` | `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-10` |
-| `bus-17` | `bus`, `foundation`, `queue`, `testing` | `log`, `foundation`, and `queue` (revalidation complete); later full `testing` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-17` |
+| `bus-17` | `bus`, `foundation`, `queue`, `testing` | `log`, `foundation`, `queue`, and `testing` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-17` |
 | `bus-18` | `foundation`, `queue` | `foundation` and `queue` (revalidation complete) | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-18` |
 | `core-01` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-01` |
 | `core-05` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-05` |
 | `core-06` | `core`, `server` | `server` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
-| `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, `http`, and `testing` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
-| `http-server-05` | `testing` | `http-server` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-05` |
+| `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, `http`, and `testing` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
+| `http-server-05` | `testing` | `http-server` and `testing` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-05` |
 | `http-server-06` | `http-server` | `reverb`, `websocket-server`, and `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
 | `http-server-07` | `http-server` | `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
 | `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete) | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
@@ -1088,7 +1088,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `watcher-10` | `support` | `watcher`, `foundation`, and `horizon` (revalidation complete) | `Make Watcher drivers and managed processes lifecycle-safe`; finding `watcher-10` |
 | `database-05` | `core`, `database` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-05`; sibling finding `redis-03` |
 | `database-06` | `core`, `server`, `database` | `server` and `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-06`; sibling finding `redis-05` |
-| `database-08` | `database` | `foundation`, `testing`, and `testbench` (revalidation complete); later full `testing` and `testbench` audits | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-08` |
+| `database-08` | `database` | `foundation`, `testing`, and `testbench` (revalidation complete); later full `testbench` audit | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-08` |
 | `database-10` | `database` | `scout` and `nested-set` (revalidation complete); later full consumer audits | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-10` |
 | `database-14` | `database` | `queue` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `database-14` |
 | `redis-03` | `redis` | `redis` (revalidation complete) | `Complete Database persistence lifecycles and current Laravel parity`; finding `redis-03` |
@@ -1134,8 +1134,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `websocket-server-13` | `websocket-server` | `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `websocket-server-13` |
 | `testbench-02` | `testbench` | `testbench` (targeted correction complete); later full `testbench` audit | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `testbench-02` |
 | `support-27` | `support` | `support` and `websocket-server` (revalidation complete); Reverb path confirmed unaffected | `Complete Reverb connection, shared-state, and current Laravel parity lifecycles`; finding `support-27` |
-| `nested-set-13` | `nested-set` | `testing` (revalidation complete); later full `testing` audit | `Complete Nested Set invariants, performance, and modern APIs`; finding `nested-set-13` |
-| `database-15` | `database` | `database` and `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `database-15` |
+| `nested-set-13` | `nested-set` | `testing` (revalidation complete) | `Complete Nested Set invariants, performance, and modern APIs`; finding `nested-set-13` |
+| `database-15` | `database` | `database` (targeted correction complete), `testing` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-15` |
 | `database-16` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-16` |
 | `database-17` | `database` | `database` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-17` |
 | `database-18` | `database` | `database` and `queue` (targeted correction complete) | `Harden Eloquent identity and partial-projection safety`; finding `database-18` |
@@ -1212,14 +1212,14 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `http-04` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-04` |
 | `http-05` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-05` |
 | `http-06` | `http` | `http` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `http-06` |
-| `testing-01` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-01` |
-| `testing-02` | `testing` | `testing` (targeted correction complete); later full `testing` audit | `Harden Eloquent identity and partial-projection safety`; finding `testing-02` |
+| `testing-01` | `testing` | `testing` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `testing-01` |
+| `testing-02` | `testing` | `testing` (revalidation complete) | `Harden Eloquent identity and partial-projection safety`; finding `testing-02` |
 | `routing-01` | `contracts`, `foundation`, `routing`, `support` | `contracts`, `foundation`, `routing`, `support`, and `http` (revalidation complete) | `Complete HTTP correctness, JSON:API, and current Laravel parity`; finding `routing-01` |
 | `testbench-03` | `testbench` | `http` (revalidation complete); later full `testbench` audit | `Complete HTTP correctness, JSON:API, and current Laravel parity`; finding `testbench-03` |
 | `database-21` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-21` |
 | `database-22` | `database` | `database` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-22` |
 | `database-23` | `database` | `database` and `scout` (revalidation complete) | `Complete Scout current parity, queue, and search lifecycles`; finding `database-23` |
-| `mail-17` | `mail` | `mail` and `support` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `mail-17` |
+| `mail-17` | `mail` | `mail`, `support`, and `testing` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; findings `mail-17` and `testing-06` |
 | `support-28` | `support` | `support` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-28` |
 | `support-29` | `support` | `support`, `mail`, and `validation` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `support-29` |
 | `contracts-10` | `contracts` | `contracts` and `mail` (revalidation complete) | `Complete Mail correctness, current parity, and package boundaries`; finding `contracts-10` |
@@ -1233,7 +1233,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `validation-18` | `validation` | `validation` and `support` (revalidation complete) | `Complete Validation correctness, parity, and compiled lifecycles`; finding `validation-18` |
 | `view-09` | `foundation` | `foundation` and `view` (revalidation complete) | `Complete View correctness, lifecycle, and current parity`; finding `view-09` |
 | `view-24` | `foundation` | `foundation` and `view` (revalidation complete) | `Complete View correctness, lifecycle, and current parity`; finding `view-24` |
-| `view-37` | `view` | `view` (revalidation complete), `foundation`, `testbench`, and `testing` (targeted corrections complete); later full `testbench` and `testing` audits | `Complete View correctness, lifecycle, and current parity`; finding `view-37` |
+| `view-37` | `view` | `view` and `testing` (revalidation complete), `foundation` and `testbench` (targeted correction complete); later full `testbench` audit | `Complete View correctness, lifecycle, and current parity`; finding `view-37` |
 | `view-38` | `view` | `view` (revalidation complete), `boost` (targeted correction complete); later full `boost` audit | `Complete View correctness, lifecycle, and current parity`; finding `view-38` |
 | `translation-10` | `translation` | `translation` and `view` (sibling revalidation complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `translation-10` |
 | `translation-02` | `contracts`, `translation` | `auth`, `foundation`, `support`, `translation`, and `validation` (revalidation complete) | `Complete Translation correctness, current parity, and worker lifecycles`; finding `translation-02` |
@@ -1259,6 +1259,20 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-43` | `queue` | `sentry` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-43` |
 | `queue-44` | `queue` | `sentry` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-44` |
 | `queue-45` | `queue` | `sentry` (revalidation complete) | `Complete Queue pooling, payload durability, and current Laravel parity`; finding `queue-45` |
+| `testing-03` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-03` |
+| `testing-04` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-04` |
+| `testing-05` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-05` |
+| `testing-06` | `testing` | `testing` and `mail` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-06` |
+| `testing-07` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-07` |
+| `testing-08` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-08` |
+| `testing-09` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-09` |
+| `testing-10` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-10` |
+| `testing-11` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-11` |
+| `testing-12` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-12` |
+| `testing-13` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-13` |
+| `testing-14` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-14` |
+| `testing-15` | `testing` | `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-15` |
+| `testing-16` | `testing` | `auth`, `broadcasting`, `encryption`, `filesystem`, `fortify`, `horizon`, `passkeys`, `routing`, `sanctum`, `socialite`, `telescope`, and `testing` (revalidation complete) | `Complete Testing correctness, parallel ownership, and current parity`; finding `testing-16` |
 
 ## Package checklist
 
@@ -1365,7 +1379,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 ### Tooling and developer surfaces
 
-- [ ] `testing`
+- [x] `testing`
 - [ ] `testbench`
 - [x] `prompts`
 - [ ] `tinker`

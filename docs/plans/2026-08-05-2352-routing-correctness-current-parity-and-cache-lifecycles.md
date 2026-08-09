@@ -639,7 +639,6 @@ Declare only the proven Routing split dependencies:
 {
   "require": {
     "ext-filter": "*",
-    "ext-hash": "*",
     "hypervel/auth": "^0.4",
     "hypervel/prompts": "^0.4",
     "hypervel/redis": "^0.4",

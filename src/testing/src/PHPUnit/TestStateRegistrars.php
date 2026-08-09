@@ -130,9 +130,9 @@ class TestStateRegistrars
             );
         }
 
-        if (! method_exists($class, 'register')) {
+        if (! method_exists($class, 'register') || ! is_callable($class . '::register')) {
             throw new RuntimeException(
-                "Test-state registrar [{$class}] declared by [{$source}] must define a register method."
+                "Test-state registrar [{$class}] declared by [{$source}] must define a public static register method."
             );
         }
 

@@ -56,7 +56,7 @@ class TestDatabasesTest extends TestCase
         parent::tearDown();
     }
 
-    public function testSwitchToDatabaseWithoutUrl()
+    public function testSwitchToDatabaseWithoutUrl(): void
     {
         $container = Container::getInstance();
 
@@ -78,7 +78,7 @@ class TestDatabasesTest extends TestCase
     }
 
     #[DataProvider('databaseUrls')]
-    public function testSwitchToDatabaseWithUrl(string $testDatabase, string $url, string $testUrl)
+    public function testSwitchToDatabaseWithUrl(string $testDatabase, string $url, string $testUrl): void
     {
         $container = Container::getInstance();
 
@@ -120,7 +120,7 @@ class TestDatabasesTest extends TestCase
         ];
     }
 
-    public function testDatabaseNameDoesNotReuseCustomNameFromPreviousCall()
+    public function testDatabaseNameDoesNotReuseCustomNameFromPreviousCall(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
 
@@ -128,7 +128,7 @@ class TestDatabasesTest extends TestCase
         $this->assertSame('my_database_test_1', $this->testDatabase('my_database'));
     }
 
-    public function testDatabaseNameDoesNotDoubleAppendToken()
+    public function testDatabaseNameDoesNotDoubleAppendToken(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
 

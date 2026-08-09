@@ -31,8 +31,10 @@
     "require": {
         "php": "^8.4",
         "ext-dom": "*",
+        "ext-mbstring": "*",
         "composer-runtime-api": "^2.2",
         "mockery/mockery": "1.6.x-dev",
+        "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1",
         "symfony/http-foundation": "^8.1",
         "symfony/process": "^8.1",
@@ -44,6 +46,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/cookie": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/di": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
@@ -53,7 +56,8 @@
         "hypervel/view": "^0.4"
     },
     "suggest": {
-        "phpunit/phpunit": "Required to use Hypervel\\Testing\\PHPUnit\\AfterEachTestExtension (^13.0)."
+        "brianium/paratest": "Required to run tests in parallel (^7.24).",
+        "phpunit/phpunit": "Required to use Hypervel's testing assertions and PHPUnit integration (^13.0.3)."
     },
     "config": {
         "sort-packages": true

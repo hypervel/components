@@ -57,14 +57,14 @@ class TestViewsTest extends TestCase
         parent::tearDown();
     }
 
-    public function testCompiledViewPathAppendsToken()
+    public function testCompiledViewPathAppendsToken(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '5');
 
         $this->assertSame('/path/to/compiled/views/test_5', $this->getCompiledViewPath());
     }
 
-    public function testCompiledViewPathTrimsTrailingSlash()
+    public function testCompiledViewPathTrimsTrailingSlash(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '3');
 
@@ -73,7 +73,7 @@ class TestViewsTest extends TestCase
         $this->assertSame('/path/to/compiled/views/test_3', $this->getCompiledViewPath());
     }
 
-    public function testCompiledViewPathWithDifferentToken()
+    public function testCompiledViewPathWithDifferentToken(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '42');
 
@@ -82,7 +82,7 @@ class TestViewsTest extends TestCase
         $this->assertSame('/var/www/storage/views/test_42', $this->getCompiledViewPath());
     }
 
-    public function testCompiledViewPathDoesNotReuseCustomPathFromPreviousCall()
+    public function testCompiledViewPathDoesNotReuseCustomPathFromPreviousCall(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
 
@@ -95,7 +95,7 @@ class TestViewsTest extends TestCase
         $this->assertSame('/path/to/compiled/views/test_1', $this->getCompiledViewPath());
     }
 
-    public function testCompiledViewPathDoesNotDoubleAppendToken()
+    public function testCompiledViewPathDoesNotDoubleAppendToken(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
         Container::getInstance()['config']->set('view.compiled', '/path/to/compiled/views/test_1');
@@ -103,21 +103,21 @@ class TestViewsTest extends TestCase
         $this->assertSame('/path/to/compiled/views/test_1', $this->getCompiledViewPath());
     }
 
-    public function testCompiledViewPathReturnsNullWhenEmpty()
+    public function testCompiledViewPathReturnsNullWhenEmpty(): void
     {
         Container::getInstance()['config']->set('view.compiled', '');
 
         $this->assertNull($this->getCompiledViewPath());
     }
 
-    public function testSwitchToCompiledViewPathUpdatesConfig()
+    public function testSwitchToCompiledViewPathUpdatesConfig(): void
     {
         $this->switchToCompiledViewPath('/new/compiled/path');
 
         $this->assertSame('/new/compiled/path', Container::getInstance()['config']->get('view.compiled'));
     }
 
-    public function testSwitchToCompiledViewPathUpdatesCompilerCachePath()
+    public function testSwitchToCompiledViewPathUpdatesCompilerCachePath(): void
     {
         $container = Container::getInstance();
         $compiler = new BladeCompiler(m::mock(Filesystem::class), '/original/path');
@@ -130,7 +130,7 @@ class TestViewsTest extends TestCase
         $this->assertSame('/new/compiled/path', (new ReflectionProperty($compiler, 'cachePath'))->getValue($compiler));
     }
 
-    public function testTearDownProcessDeletesCompiledViewDirectory()
+    public function testTearDownProcessDeletesCompiledViewDirectory(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '7');
 

@@ -23,6 +23,7 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Process\Exception\ProcessSignaledException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 abstract class TestCommandBase extends Command
 {
@@ -84,39 +85,37 @@ abstract class TestCommandBase extends Command
         $this->clearEnv();
 
         $parallel = (bool) $this->option('parallel');
-
-        if ($this->option('profile')) {
-            $this->ensureProfileDirectoryExists($this->profileDirectory());
-        }
-
-        $process = (new Process(
-            command: array_merge(
-                $this->binary(),
-                $parallel ? $this->paratestArguments($options) : $this->phpunitArguments($options),
-            ),
-            env: $parallel ? $this->paratestEnvironmentVariables() : $this->phpunitEnvironmentVariables(),
-        ))->setTimeout(null);
-
-        try {
-            $process->setTty(! $this->option('without-tty'));
-        } catch (RuntimeException) {
-        }
-
+        $exception = null;
         $exitCode = self::FAILURE;
 
         try {
-            $exitCode = $process->run(function (string $type, string $line): void {
-                $this->output->write($line);
-            });
-        } catch (ProcessSignaledException $exception) {
-            if (extension_loaded('pcntl') && $exception->getSignal() !== SIGINT) {
-                throw $exception;
+            if ($this->option('profile')) {
+                $this->ensureProfileDirectoryExists($this->profileDirectory());
             }
-        } finally {
-            $this->cleanupTemporaryConfigurationFile();
-        }
 
-        try {
+            $process = (new Process(
+                command: array_merge(
+                    $this->binary(),
+                    $parallel ? $this->paratestArguments($options) : $this->phpunitArguments($options),
+                ),
+                env: $parallel ? $this->paratestEnvironmentVariables() : $this->phpunitEnvironmentVariables(),
+            ))->setTimeout(null);
+
+            try {
+                $process->setTty(! $this->option('without-tty'));
+            } catch (RuntimeException) {
+            }
+
+            try {
+                $exitCode = $process->run(function (string $type, string $line): void {
+                    $this->output->write($line);
+                });
+            } catch (ProcessSignaledException $processSignaledException) {
+                if (extension_loaded('pcntl') && $processSignaledException->getSignal() !== SIGINT) {
+                    throw $processSignaledException;
+                }
+            }
+
             if ($this->option('profile')) {
                 $this->reportProfile();
             }
@@ -141,9 +140,30 @@ abstract class TestCommandBase extends Command
                     ));
                 }
             }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         } finally {
-            $this->coverage?->cleanup();
-            $this->cleanupProfileDirectory();
+            try {
+                $this->cleanupTemporaryConfigurationFile();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            try {
+                $this->coverage?->cleanup();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            try {
+                $this->cleanupProfileDirectory();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
 
         return $exitCode;
@@ -526,7 +546,14 @@ abstract class TestCommandBase extends Command
         $this->temporaryConfigurationFile = dirname($file) . DIRECTORY_SEPARATOR . '.hypervel-phpunit-profile-'
             . getmypid() . '-' . bin2hex(random_bytes(6)) . '.xml';
 
-        $document->save($this->temporaryConfigurationFile);
+        $written = @$document->save($this->temporaryConfigurationFile);
+
+        if ($written === false) {
+            throw new RuntimeException(sprintf(
+                'Unable to write temporary PHPUnit configuration [%s].',
+                $this->temporaryConfigurationFile,
+            ));
+        }
 
         return $this->temporaryConfigurationFile;
     }

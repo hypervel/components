@@ -434,7 +434,7 @@ PHPUnit loads test files directly (not via autoloading), so the namespace doesn'
 
 ### Temp directories for file I/O
 
-Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, delete any leftover copy and create it fresh in `setUp`, then delete it again via `Filesystem::deleteDirectory()` in `tearDown`. Use `sys_get_temp_dir()` directly only when the system temporary path itself is the behavior under test. See `FoundationViteTest` or `OptionTest` for the pattern.
+Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For any test that only needs an isolated scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, delete any leftover copy and create it fresh in `setUp`, then delete it again via `Filesystem::deleteDirectory()` in `tearDown`. Use `sys_get_temp_dir()` directly only when the system temporary path itself is the behavior under test. See `FoundationViteTest` or `OptionTest` for the pattern.
 
 The Testbench skeleton clone is shared for the whole worker, so tests that write under `BASE_PATH` must restore or delete the exact files they touch in `tearDown()`. For `.env` files, prefer `useEnvironmentPath()` with an isolated `ParallelTesting::tempDir()` directory.
 
@@ -699,6 +699,8 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
 Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
+
+`phpstan.types.neon.dist` validates only the committed `types/` fixtures. Never pass source or test paths to it.
 
 **When fixing phpstan errors:**
 
