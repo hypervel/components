@@ -1514,7 +1514,7 @@ When using PostgreSQL, chaining `index` onto a `vector` column definition will c
 By default, creating an index on a large table can lock the table and block reads or writes while the index is being built. When using PostgreSQL, you may chain the `online` method onto an index definition to create the index without locking the table, allowing your application to continue reading and writing data during index creation:
 
 ```php
-$table->string('email')->unique()->online();
+$table->unique('email')->online();
 ```
 
 When using PostgreSQL, this adds the `CONCURRENTLY` option to the index creation statement.
