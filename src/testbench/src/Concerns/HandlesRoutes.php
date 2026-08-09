@@ -167,6 +167,7 @@ trait HandlesRoutes
                 $this->reloadApplication();
             } finally {
                 $this->reloadingApplicationForCachedRoutes = false;
+                $this->syncTestbenchRoutesHasRun = false;
 
                 $this->testbenchRouteCleanupRegistered = false;
                 $this->registerTestbenchRouteCleanup($files);

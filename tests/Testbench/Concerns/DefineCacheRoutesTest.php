@@ -105,6 +105,20 @@ PHP);
         $this->get('/sync-flag-check')->assertOk();
     }
 
+    public function testSuccessiveUncachedRouteDefinitionsRemainAvailable(): void
+    {
+        $this->defineStashRoutes(static function (Router $router): void {
+            $router->get('/first-stash', static fn (): string => 'first');
+        });
+
+        $this->defineStashRoutes(static function (Router $router): void {
+            $router->get('/second-stash', static fn (): string => 'second');
+        });
+
+        $this->get('/first-stash')->assertOk()->assertSee('first');
+        $this->get('/second-stash')->assertOk()->assertSee('second');
+    }
+
     public function testStashRoutesRemainAvailableAfterCachedRoutes(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
