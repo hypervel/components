@@ -33,7 +33,7 @@ class InteractsWithDeprecationHandlingTest extends TestCase
         parent::tearDown();
     }
 
-    public function testWithDeprecationHandling()
+    public function testWithDeprecationHandling(): void
     {
         $this->withDeprecationHandling();
 
@@ -42,7 +42,7 @@ class InteractsWithDeprecationHandlingTest extends TestCase
         $this->assertTrue($this->deprecationsFound);
     }
 
-    public function testWithoutDeprecationHandling()
+    public function testWithoutDeprecationHandling(): void
     {
         $this->withoutDeprecationHandling();
 
