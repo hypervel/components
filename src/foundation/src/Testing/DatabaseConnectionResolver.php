@@ -80,13 +80,27 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
             static::$rebindingRegistered = false;
         }
 
-        foreach (static::$connections as $connection) {
+        $exception = null;
+
+        foreach (static::$connections as $cacheKey => $connection) {
             if ($connection instanceof Connection) {
                 $connection->resetForPool();
+
+                if ($connection->hasUnknownSessionState()) {
+                    try {
+                        static::discardCachedConnection($cacheKey);
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
+                    }
+                }
             }
         }
 
         static::registerDispatcherRebinding($container);
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -156,6 +170,14 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
     {
         $cacheKey = $this->connectionCacheKey($name);
 
+        static::discardCachedConnection($cacheKey);
+    }
+
+    /**
+     * Discard one cached connection and its owning pooled wrapper.
+     */
+    protected static function discardCachedConnection(string $cacheKey): void
+    {
         try {
             if (isset(static::$pooledConnections[$cacheKey])) {
                 static::$pooledConnections[$cacheKey]->discard();
