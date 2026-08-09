@@ -68,11 +68,9 @@ class RouteUrlGenerator
         // First we will construct the entire URI including the root and query string. Once it
         // has been constructed, we'll make sure we don't have any missing parameters or we
         // will need to throw the exception to let the developers know one was not given.
-        $uri = $this->addQueryString($this->url->format(
-            $root = $this->replaceRootParameters($route, $domain, $parameters, $defaultParameters),
-            $this->replaceRouteParameters($route->uri(), $parameters, $defaultParameters),
-            $route
-        ), $parameters);
+        $root = $this->replaceRootParameters($route, $domain, $parameters, $defaultParameters);
+        $uri = $this->replaceRouteParameters($route->uri(), $parameters, []);
+        $uri = $this->addQueryString($this->url->format($root, $uri, $route), $parameters);
 
         if (preg_match_all('/{(.*?)}/', $uri, $matchedMissingParameters)) {
             throw UrlGenerationException::forMissingParameters($route, $matchedMissingParameters[1]);
@@ -186,6 +184,9 @@ class RouteUrlGenerator
 
                 continue;
             }
+            $namedParameters[$name] = '';
+            unset($parameters[$name]);
+
             $bindingField = $route->bindingFieldFor($name);
             $defaultParameterKey = $bindingField ? "{$name}:{$bindingField}" : $name;
 
@@ -193,8 +194,6 @@ class RouteUrlGenerator
                 // No named parameter or default value for a required parameter, try to match to positional parameter below...
                 array_push($requiredRouteParametersWithoutDefaultsOrNamedParameters, $name);
             }
-
-            $namedParameters[$name] = '';
         }
 
         // Named parameters that don't have route parameters will be used for query string...
@@ -315,7 +314,12 @@ class RouteUrlGenerator
             $root = $this->replacePortInRoot($root, $route);
         }
 
-        return $this->replaceRouteParameters($root, $parameters, $defaultParameters);
+        // Raw defaults belong only to placeholders in a configured root, not route domains.
+        return $this->replaceRouteParameters(
+            $root,
+            $parameters,
+            $domain === null ? $defaultParameters : [],
+        );
     }
 
     /**
@@ -344,9 +348,9 @@ class RouteUrlGenerator
     protected function replaceRouteParameters(
         string $path,
         array &$parameters,
-        array $defaultParameters,
+        array $rootDefaultParameters,
     ): string {
-        $path = $this->replaceNamedParameters($path, $parameters, $defaultParameters);
+        $path = $this->replaceNamedParameters($path, $parameters, $rootDefaultParameters);
 
         $path = preg_replace_callback('/\{.*?\}/', function ($match) use (&$parameters) {
             // Reset only the numeric keys...
@@ -366,14 +370,16 @@ class RouteUrlGenerator
     protected function replaceNamedParameters(
         string $path,
         array &$parameters,
-        array $defaultParameters,
+        array $rootDefaultParameters,
     ): string {
-        return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $defaultParameters) {
+        return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $rootDefaultParameters) {
             if (isset($parameters[$m[1]]) && $parameters[$m[1]] !== '') {
                 return Arr::pull($parameters, $m[1]);
             }
-            if (isset($defaultParameters[$m[1]])) {
-                return $defaultParameters[$m[1]];
+            if (isset($rootDefaultParameters[$m[1]])) {
+                Arr::pull($parameters, $m[1]);
+
+                return $rootDefaultParameters[$m[1]];
             }
             if (isset($parameters[$m[1]])) {
                 Arr::pull($parameters, $m[1]);

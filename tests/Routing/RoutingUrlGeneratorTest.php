@@ -1308,6 +1308,112 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         );
     }
 
+    public function testBooleanRouteParametersUseRoutingScalarFormat(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], 'features/{enabled}/{disabled}', ['as' => 'features', fn () => '']));
+        $routes->add(
+            (new Route(['GET'], 'features/{enabled}', ['as' => 'domain-features', fn () => '']))
+                ->domain('{tenant}.example.com')
+        );
+
+        $this->assertSame(
+            'https://www.foo.com/features/1/0',
+            $url->route('features', ['enabled' => true, 'disabled' => false])
+        );
+        $this->assertSame(
+            'https://1.example.com/features/0',
+            $url->route('domain-features', ['tenant' => true, 'enabled' => false])
+        );
+    }
+
+    public function testBindingFieldDefaultRemainsAuthoritativeForExplicitNull(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults([
+            'team' => 'plain-team',
+            'team:slug' => 'bound-team',
+        ]);
+        $routes->add(new Route(['GET'], 'teams/{team:slug}', ['as' => 'teams.show', fn () => '']));
+
+        $this->assertSame(
+            'https://www.foo.com/teams/bound-team',
+            $url->route('teams.show', ['team' => null])
+        );
+    }
+
+    public function testPlainDefaultDoesNotSatisfyBoundRouteParameter(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['team' => 'plain-team']);
+        $routes->add(new Route(['GET'], 'teams/{team:slug}', ['as' => 'teams.show', fn () => '']));
+
+        $this->expectException(UrlGenerationException::class);
+
+        $url->route('teams.show');
+    }
+
+    public function testBindingAwareDefaultSuppliesRouteDomainParameter(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['team:slug' => 'bound-team']);
+        $routes->add(
+            (new Route(['GET'], 'dashboard', ['as' => 'domain-dashboard', fn () => '']))
+                ->domain('{team:slug}.example.com')
+        );
+
+        $this->assertSame('https://bound-team.example.com/dashboard', $url->route('domain-dashboard'));
+    }
+
+    public function testConsumedRootDefaultsDoNotLeakIntoTheQueryString(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->useOrigin('https://{tenant}.example.com');
+        $url->defaults(['tenant' => 'default-tenant']);
+        $routes->add(new Route(['GET'], 'dashboard', ['as' => 'root-dashboard', fn () => '']));
+
+        $this->assertSame('https://default-tenant.example.com/dashboard', $url->route('root-dashboard'));
+        $this->assertSame('https://default-tenant.example.com/dashboard', $url->route('root-dashboard', ['tenant' => null]));
+        $this->assertSame('https://default-tenant.example.com/dashboard', $url->route('root-dashboard', ['tenant' => '']));
+        $this->assertSame('https://explicit.example.com/dashboard', $url->route('root-dashboard', ['tenant' => 'explicit']));
+    }
+
+    public function testForcedRootAndRouteParameterCollisionThrows(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->useOrigin('https://{tenant}.example.com');
+        $url->defaults(['tenant' => 'default-tenant']);
+        $routes->add(new Route(['GET'], 'dashboard/{tenant}', ['as' => 'tenant-dashboard', fn () => '']));
+
+        $this->expectException(UrlGenerationException::class);
+
+        $url->route('tenant-dashboard', ['tenant' => 'explicit']);
+    }
+
     public function testDefaultResolverPrecedence(): void
     {
         $url = new UrlGenerator(
