@@ -1133,6 +1133,7 @@ class Worker
             $this->jobsProcessed,
             $this->lastJobProcessedAt,
             $this->currentMemoryUsage(),
+            terminatesImmediately: false,
         ));
 
         return $status;
@@ -1153,6 +1154,7 @@ class Worker
             $this->jobsProcessed,
             $this->lastJobProcessedAt,
             $this->currentMemoryUsage(),
+            terminatesImmediately: true,
         ));
 
         $this->terminateProcess($status);

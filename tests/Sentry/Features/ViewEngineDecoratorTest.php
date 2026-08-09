@@ -15,6 +15,10 @@ use function Hypervel\Coroutine\parallel;
 
 class ViewEngineDecoratorTest extends SentryTestCase
 {
+    protected array $defaultSetupConfig = [
+        'sentry.traces_sample_rate' => 1.0,
+    ];
+
     public function testViewEngineIsDecorated(): void
     {
         /** @var EngineResolver $engineResolver */

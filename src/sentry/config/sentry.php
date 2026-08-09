@@ -9,6 +9,7 @@ use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Sentry\Features\NotificationsFeature;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Sentry\Features\RedisFeature;
+use Hypervel\Sentry\Features\Storage\Integration as StorageIntegration;
 use Hypervel\Validation\ValidationException;
 use Sentry\Integration\EnvironmentIntegration;
 use Sentry\Integration\FrameContextifierIntegration;
@@ -21,10 +22,10 @@ use Sentry\Integration\TransactionIntegration;
  */
 return [
     // @see https://docs.sentry.io/concepts/key-terms/dsn-explainer/
-    'dsn' => env('SENTRY_HYPERVEL_DSN'),
+    'dsn' => env('SENTRY_HYPERVEL_DSN', env('SENTRY_DSN')),
 
     // @see https://spotlightjs.com/
-    // 'spotlight' => env('SENTRY_SPOTLIGHT', false),
+    'spotlight' => env('SENTRY_SPOTLIGHT', false),
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#logger
     // 'logger' => Sentry\Logger\DebugFileLogger::class, // By default this will log to `storage_path('logs/sentry.log')`
@@ -54,6 +55,9 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#enable_logs
     'enable_logs' => env('SENTRY_ENABLE_LOGS', false),
 
+    // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#enable_metrics
+    'enable_metrics' => env('SENTRY_ENABLE_METRICS', true),
+
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#log_flush_threshold
     'log_flush_threshold' => env('SENTRY_LOG_FLUSH_THRESHOLD') === null ? null : (int) env('SENTRY_LOG_FLUSH_THRESHOLD'),
 
@@ -67,7 +71,10 @@ return [
     // 'ignore_exceptions' => [],
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#ignore_transactions
-    'ignore_transactions' => [],
+    'ignore_transactions' => [
+        // Ignore the conventional health route path
+        '/up',
+    ],
 
     // Breadcrumb specific configuration
     'breadcrumbs' => [
@@ -140,8 +147,8 @@ return [
         // Enable tracing for requests without a matching route (404's)
         'missing_routes' => env('SENTRY_TRACE_MISSING_ROUTES_ENABLED', false),
 
-        // Enable the tracing integrations supplied by Sentry (recommended)
-        'default_integrations' => env('SENTRY_TRACE_DEFAULT_INTEGRATIONS_ENABLED', true),
+        // Continue the trace through after-response work before finishing the transaction
+        'continue_after_response' => env('SENTRY_TRACE_CONTINUE_AFTER_RESPONSE', true),
     ],
 
     /*
@@ -171,6 +178,7 @@ return [
         ConsoleIntegration::class,
         ConsoleSchedulingFeature::class,
         RedisFeature::class,
+        StorageIntegration::class,
     ],
 
     // Exceptions that should not be reported to Sentry

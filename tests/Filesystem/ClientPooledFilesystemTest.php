@@ -16,6 +16,7 @@ use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
@@ -321,6 +322,7 @@ class ClientPooledFilesystemTest extends TestCase
         $stackCreations = 0;
         $disk = $this->disk($clientCreations, $stackCreations);
 
+        $this->assertInstanceOf(InvalidatesPool::class, $disk);
         $this->assertTrue($disk->exists('file.txt'));
         $this->assertTrue($disk->invalidatePool());
         $this->assertFalse($disk->invalidatePool());

@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
+use Error;
 use Exception;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
+use Hypervel\Contracts\Session\Session;
+use Hypervel\Http\Request;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
@@ -97,6 +101,7 @@ class RedisIntegrationTest extends SentryTestCase
         $this->assertEquals('GET test-key', $spanData['db.statement']);
         $this->assertEquals('default', $spanData['db.redis.connection']);
         $this->assertEquals(0.005, $spanData['duration']);
+        $this->assertArrayNotHasKey('db.redis.parameters', $spanData);
     }
 
     public function testRedisCommandWithSessionKeyReplacesWithPlaceholder(): void
@@ -117,6 +122,96 @@ class RedisIntegrationTest extends SentryTestCase
 
         $this->assertEquals('GET {sessionKey}', $redisSpan->getDescription());
         $this->assertEquals('GET {sessionKey}', $redisSpan->getData()['db.statement']);
+    }
+
+    public function testRedisParametersRequirePiiConsentAndRedactSessionKey(): void
+    {
+        $this->resetApplicationWithConfig(['sentry.send_default_pii' => true]);
+        $this->app->make(RedisFeature::class)->detectSessionKeyOnConsole = true;
+        $this->setupMocks();
+        $this->startSession();
+        $sessionId = $this->app['session']->getId();
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $dispatcher->dispatch(new CommandExecuted('SET', [$sessionId, 'value'], 0.005, $connection));
+
+        $redisSpan = $transaction->getSpanRecorder()->getSpans()[1];
+
+        $this->assertSame(['{sessionKey}', 'value'], $redisSpan->getData()['db.redis.parameters']);
+    }
+
+    public function testRedisKeyZeroIsPreservedInDescription(): void
+    {
+        $this->setupMocks();
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $dispatcher->dispatch(new CommandExecuted('GET', ['0'], 0.005, $connection));
+
+        $redisSpan = $transaction->getSpanRecorder()->getSpans()[1];
+
+        $this->assertSame('GET 0', $redisSpan->getDescription());
+        $this->assertSame('GET 0', $redisSpan->getData()['db.statement']);
+    }
+
+    public function testRedisSessionKeyUsesCurrentRequestCookieBeforeResolvingStore(): void
+    {
+        $this->setupMocks();
+        $this->assertFalse($this->app->resolved('session.store'));
+        $cookieName = $this->app->make('config')->string('session.cookie');
+        $request = Request::create('/');
+        $request->cookies->set($cookieName, 'cookie-session');
+        RequestContext::set($request);
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $dispatcher->dispatch(new CommandExecuted('GET', ['cookie-session'], 0.005, $connection));
+
+        $redisSpan = $transaction->getSpanRecorder()->getSpans()[1];
+
+        $this->assertSame('GET {sessionKey}', $redisSpan->getDescription());
+        $this->assertFalse($this->app->resolved('session.store'));
+    }
+
+    public function testRedisSessionKeyFallbackIsReentrySafe(): void
+    {
+        $this->setupMocks();
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $session = m::mock(Session::class);
+        $session->shouldReceive('getId')->once()->andReturn('outer-key');
+        $this->app->bind('session.store', function () use ($dispatcher, $connection, $session): Session {
+            $dispatcher->dispatch(new CommandExecuted('GET', ['inner-key'], 0.005, $connection));
+
+            return $session;
+        });
+        $transaction = $this->startTransaction();
+
+        $dispatcher->dispatch(new CommandExecuted('GET', ['outer-key'], 0.005, $connection));
+
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(3, $spans);
+        $this->assertSame('GET inner-key', $spans[1]->getDescription());
+        $this->assertSame('GET {sessionKey}', $spans[2]->getDescription());
+    }
+
+    public function testRedisSessionResolutionThrowableDoesNotBreakCommandTracing(): void
+    {
+        $this->setupMocks();
+        $this->app->bind('session.store', static fn (): never => throw new Error('Session resolution failed.'));
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $dispatcher->dispatch(new CommandExecuted('GET', ['test-key'], 0.005, $connection));
+
+        $redisSpan = $transaction->getSpanRecorder()->getSpans()[1];
+
+        $this->assertSame('GET test-key', $redisSpan->getDescription());
     }
 
     public function testRedisCommandWithoutParentSpanDoesNotCreateSpan(): void

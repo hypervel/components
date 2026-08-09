@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Sentry\SdkCapabilities;
 use Sentry\SentrySdk;
-use Throwable;
 
 /**
  * @internal
@@ -26,6 +26,10 @@ abstract class Feature
      * @var array<string, bool>
      */
     private array $isBreadcrumbFeatureEnabled = [];
+
+    private ?bool $canRecordSpans = null;
+
+    private ?bool $canRecordBreadcrumbs = null;
 
     /**
      * Create a new feature instance.
@@ -69,11 +73,7 @@ abstract class Feature
     public function boot(): void
     {
         if ($this->isApplicable()) {
-            try {
-                $this->onBoot();
-            } catch (Throwable) {
-                // If the feature setup fails, we don't want to prevent the rest of the SDK from working.
-            }
+            $this->onBoot();
         }
     }
 
@@ -83,11 +83,7 @@ abstract class Feature
     public function bootInactive(): void
     {
         if ($this->isApplicable()) {
-            try {
-                $this->onBootInactive();
-            } catch (Throwable) {
-                // If the feature setup fails, we don't want to prevent the rest of the SDK from working.
-            }
+            $this->onBootInactive();
         }
     }
 
@@ -119,7 +115,8 @@ abstract class Feature
     protected function isTracingFeatureEnabled(string $feature, bool $default = true): bool
     {
         if (! array_key_exists($feature, $this->isTracingFeatureEnabled)) {
-            $this->isTracingFeatureEnabled[$feature] = $this->isFeatureEnabled('tracing', $feature, $default);
+            $this->isTracingFeatureEnabled[$feature] = $this->canRecordSpans()
+                && $this->isFeatureEnabled('tracing', $feature, $default);
         }
 
         return $this->isTracingFeatureEnabled[$feature];
@@ -131,7 +128,8 @@ abstract class Feature
     protected function isBreadcrumbFeatureEnabled(string $feature, bool $default = true): bool
     {
         if (! array_key_exists($feature, $this->isBreadcrumbFeatureEnabled)) {
-            $this->isBreadcrumbFeatureEnabled[$feature] = $this->isFeatureEnabled('breadcrumbs', $feature, $default);
+            $this->isBreadcrumbFeatureEnabled[$feature] = $this->canRecordBreadcrumbs()
+                && $this->isFeatureEnabled('breadcrumbs', $feature, $default);
         }
 
         return $this->isBreadcrumbFeatureEnabled[$feature];
@@ -145,5 +143,33 @@ abstract class Feature
         $config = $this->getUserConfig()[$category] ?? [];
 
         return ($config[$feature] ?? $default) === true;
+    }
+
+    /**
+     * Determine if the active SDK client can record spans.
+     */
+    protected function canRecordSpans(): bool
+    {
+        if ($this->canRecordSpans !== null) {
+            return $this->canRecordSpans;
+        }
+
+        return $this->canRecordSpans = $this->container
+            ->make(SdkCapabilities::class)
+            ->canRecordSpans();
+    }
+
+    /**
+     * Determine if the active SDK client can record breadcrumbs.
+     */
+    protected function canRecordBreadcrumbs(): bool
+    {
+        if ($this->canRecordBreadcrumbs !== null) {
+            return $this->canRecordBreadcrumbs;
+        }
+
+        return $this->canRecordBreadcrumbs = $this->container
+            ->make(SdkCapabilities::class)
+            ->canRecordBreadcrumbs();
     }
 }

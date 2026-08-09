@@ -11,6 +11,7 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Jobs\DatabaseJob;
@@ -263,26 +264,125 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 
     /**
      * Push an array of jobs onto the queue.
+     *
+     * Immediate and after-commit jobs use one bulk insert per attempted group.
+     * Deferred groups reacquire the queue through the after-commit dispatcher,
+     * and the return value remains null when every job is deferred.
      */
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
-        $queue = $this->getQueue($queue);
+        $jobs = array_values($jobs);
 
-        $now = $this->availableAt();
+        if ($jobs === []) {
+            return null;
+        }
 
-        return $this->getDatabase()->table($this->table)->insert(Collection::make((array) $jobs)->map(
-            function ($job) use ($queue, $data, $now) {
+        $transactions = null;
+
+        if ($this->container->has('db.transactions')) {
+            /** @var DatabaseTransactionsManager $transactions */
+            $transactions = $this->container->make('db.transactions');
+        }
+
+        [$afterCommit, $immediate] = $this->partitionJobsByAfterCommit($jobs, $transactions);
+
+        $result = null;
+
+        if ($immediate !== []) {
+            $result = $this->enqueueBatch($this->prepareBatchJobs($immediate, $data, $queue), $queue);
+        }
+
+        if ($afterCommit === []) {
+            return $result;
+        }
+
+        $preparedJobs = $this->prepareBatchJobs($afterCommit, $data, $queue);
+
+        // A non-empty deferred group means partitionJobsByAfterCommit() resolved a transactions manager.
+        foreach ($afterCommit as $job) {
+            /** @var DatabaseTransactionsManager $transactions */
+            $this->addUniqueJobRollbackCallback($transactions, $job);
+            $this->addDebouncedJobRollbackCallback($transactions, $job);
+        }
+
+        if ($this->afterCommitDispatcher !== null) {
+            $dispatcher = $this->afterCommitDispatcher;
+
+            $transactions->addCallback(
+                static fn () => $dispatcher(
+                    static function (Queue $owner) use ($preparedJobs, $queue): mixed {
+                        /** @var DatabaseQueue $owner */
+                        return $owner->enqueueBatch($preparedJobs, $queue);
+                    }
+                )
+            );
+
+            return $result;
+        }
+
+        $transactions->addCallback(
+            fn () => $this->enqueueBatch($preparedJobs, $queue)
+        );
+
+        return $result;
+    }
+
+    /**
+     * Prepare the payload and delay for each of the given jobs.
+     *
+     * @return array<int, array{job: object|string, delay: null|DateInterval|DateTimeInterface|int, payload: string}>
+     */
+    protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
+    {
+        return Collection::make($jobs)
+            ->map(function (object|string $job) use ($data, $queue): array {
                 $delay = is_object($job)
                     ? $this->getAttributeValue($job, Delay::class, 'delay')
                     : null;
 
-                return $this->buildDatabaseRecord(
-                    $queue,
-                    $this->createPayload($job, $this->getQueue($queue), $data),
-                    $delay !== null ? $this->availableAt($delay) : $now,
-                );
+                return [
+                    'job' => $job,
+                    'delay' => $delay,
+                    'payload' => $this->createPayload($job, $this->getQueue($queue), $data, $delay),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * Insert a prepared batch and raise its queue lifecycle events.
+     */
+    protected function enqueueBatch(array $jobs, ?string $queue): mixed
+    {
+        foreach ($jobs as $job) {
+            $this->raiseJobQueueingEvent($queue, $job['job'], $job['payload'], $job['delay']);
+        }
+
+        try {
+            $now = $this->availableAt();
+
+            $result = $this->getDatabase()->table($this->table)->insert(
+                Collection::make($jobs)
+                    ->map(fn (array $job): array => $this->buildDatabaseRecord(
+                        $this->getQueue($queue),
+                        $job['payload'],
+                        $job['delay'] !== null ? $this->availableAt($job['delay']) : $now,
+                    ))
+                    ->all()
+            );
+        } catch (Throwable $exception) {
+            foreach ($jobs as $job) {
+                $this->raiseJobQueueingFailedEvent($queue, $job['job'], $job['payload'], $job['delay'], $exception);
             }
-        )->all());
+
+            throw $exception;
+        }
+
+        foreach ($jobs as $job) {
+            $this->raiseJobQueuedEvent($queue, null, $job['job'], $job['payload'], $job['delay']);
+        }
+
+        return $result;
     }
 
     /**

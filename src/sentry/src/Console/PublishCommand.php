@@ -7,9 +7,11 @@ namespace Hypervel\Sentry\Console;
 use Exception;
 use Hypervel\Console\Command;
 use Hypervel\Sentry\SentryServiceProvider;
+use Hypervel\Support\Env;
 use Hypervel\Support\Str;
 use Sentry\Dsn;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Throwable;
 
 #[AsCommand(name: 'sentry:publish')]
 class PublishCommand extends Command
@@ -93,36 +95,16 @@ COMMAND;
     {
         $envFilePath = app()->environmentFilePath();
 
-        $envFileContents = file_get_contents($envFilePath);
-
-        if (! $envFileContents) {
-            $this->error('Could not read `.env` file!');
+        try {
+            Env::writeVariables($values, $envFilePath, overwrite: true);
+        } catch (Throwable $exception) {
+            $this->error("Updating the `.env` file failed: {$exception->getMessage()}");
 
             return false;
         }
 
-        if (count($values) > 0) {
-            foreach ($values as $envKey => $envValue) {
-                if ($this->isEnvKeySet($envKey, $envFileContents)) {
-                    $envFileContents = preg_replace($this->getEnvKeyPattern($envKey), "{$envKey}={$envValue}\n", $envFileContents);
-
-                    $this->info("Updated {$envKey} with new value in your `.env` file.");
-                } else {
-                    // Ensure there is a newline before writing env variables
-                    if (! str_ends_with($envFileContents, "\n")) {
-                        $envFileContents .= "\n";
-                    }
-                    $envFileContents .= "{$envKey}={$envValue}\n";
-
-                    $this->info("Added {$envKey} to your `.env` file.");
-                }
-            }
-        }
-
-        if (! file_put_contents($envFilePath, $envFileContents)) {
-            $this->error('Updating the `.env` file failed!');
-
-            return false;
+        foreach (array_keys($values) as $envKey) {
+            $this->info("Set {$envKey} in your `.env` file.");
         }
 
         return true;

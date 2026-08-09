@@ -112,7 +112,7 @@ class FilesystemServiceProvider extends ServiceProvider
      */
     protected function shouldServeFiles(array $config): bool
     {
-        return $config['driver'] === 'local' && ($config['serve'] ?? false);
+        return ($config['serve'] ?? false) === true;
     }
 
     /**

@@ -12,6 +12,8 @@ use Swoole\Server;
 
 class WorkerExitCallback
 {
+    protected bool $dispatched = false;
+
     public function __construct(protected Dispatcher $dispatcher)
     {
     }
@@ -21,6 +23,12 @@ class WorkerExitCallback
      */
     public function onWorkerExit(Server $server, int $workerId): void
     {
+        if ($this->dispatched) {
+            return;
+        }
+
+        $this->dispatched = true;
+
         try {
             $this->dispatcher->dispatch(new OnWorkerExit($server, $workerId));
         } finally {
