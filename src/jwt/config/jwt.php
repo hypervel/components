@@ -57,7 +57,7 @@ return [
         | Public Key
         |--------------------------------------------------------------------------
         |
-        | A path or resource to your public key.
+        | The public key contents or a file:// URI.
         |
         | E.g. 'file://path/to/public/key'
         |
@@ -70,7 +70,7 @@ return [
         | Private Key
         |--------------------------------------------------------------------------
         |
-        | A path or resource to your private key.
+        | The private key contents or a file:// URI.
         |
         | E.g. 'file://path/to/private/key'
         |
@@ -117,6 +117,9 @@ return [
     | within. I.E. The user can refresh their token within a 2 week window of
     | the original token being created until they must re-authenticate.
     | Defaults to 2 weeks.
+    |
+    | This value also determines how long blacklist entries for refreshable
+    | tokens are retained. A null value retains those entries forever.
     |
     | You can also set this to null, to yield an infinite refresh time.
     | Some may want this instead of never expiring tokens for e.g. a mobile app.
@@ -286,17 +289,6 @@ return [
     */
 
     'blacklist_grace_period' => (int) env('JWT_BLACKLIST_GRACE_PERIOD', 0),
-
-    /*
-    | -------------------------------------------------------------------------
-    | Refresh time to live of blacklist
-    | -------------------------------------------------------------------------
-    |
-    | Number of minutes from issue date in which a JWT can be refreshed.
-    |
-    */
-
-    'blacklist_refresh_ttl' => (int) env('JWT_BLACKLIST_REFRESH_TTL', 20160),
 
     /*
     |--------------------------------------------------------------------------

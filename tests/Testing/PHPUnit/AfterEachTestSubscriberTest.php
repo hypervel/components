@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testing\PHPUnit;
 
 use Carbon\CarbonInterface;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
@@ -24,6 +26,7 @@ use Hypervel\Process\InvokedProcess;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
+use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
 use Hypervel\Tests\TestCase;
@@ -36,6 +39,7 @@ use Override;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
+use Symfony\Component\VarDumper\VarDumper;
 
 class AfterEachTestSubscriberTest extends TestCase
 {
@@ -239,6 +243,29 @@ class AfterEachTestSubscriberTest extends TestCase
         } finally {
             NestedSet::flushState();
         }
+    }
+
+    public function testTelescopeCleanupReleasesTheDumpHandler(): void
+    {
+        DumpWatcher::flushState();
+        VarDumper::setHandler(static function (): void {
+        });
+        (new DumpWatcher(m::mock(CacheFactory::class), ['always' => true]))
+            ->register(m::mock(ApplicationContract::class));
+
+        $handler = new ReflectionProperty(VarDumper::class, 'handler');
+        $this->assertNotNull($handler->getValue());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushTelescopeStateForTest(): void
+            {
+                $this->flushTelescopeState();
+            }
+        };
+
+        $subscriber->flushTelescopeStateForTest();
+
+        $this->assertNull($handler->getValue());
     }
 
     public function testFlushStateAfterTestRunsCustomCallbacksBeforeFrameworkCleanup(): void

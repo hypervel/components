@@ -313,6 +313,31 @@ class GateWatcherTest extends FeatureTestCase
         $this->assertSame([[]], $entry->content['arguments']);
         $this->assertSame('this action is denied', $entry->content['message']);
     }
+
+    public function testGateWatcherUsesConfiguredPackageAndPathStackFilters(): void
+    {
+        $watcher = new class(['ignore_packages' => true, 'ignore_paths' => ['/custom/path']]) extends GateWatcher {
+            public function stackTraceIgnoredPaths(): array
+            {
+                return $this->ignoredPaths();
+            }
+        };
+
+        $this->assertSame([
+            base_path('vendor' . DIRECTORY_SEPARATOR),
+            '/custom/path',
+        ], $watcher->stackTraceIgnoredPaths());
+
+        $watcher->setOptions([
+            'ignore_packages' => false,
+            'ignore_paths' => ['/custom/path'],
+        ]);
+
+        $this->assertSame([
+            base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
+            '/custom/path',
+        ], $watcher->stackTraceIgnoredPaths());
+    }
 }
 
 class User implements Authenticatable

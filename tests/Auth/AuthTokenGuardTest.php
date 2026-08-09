@@ -284,7 +284,7 @@ class AuthTokenGuardTest extends TestCase
         $provider = m::mock(UserProvider::class);
         $request = m::mock(Request::class)->makePartial();
         $request->shouldReceive('query')->once()->with('api_token')->andReturn('query-token');
-        $request->shouldNotReceive('input', 'bearerToken', 'getPassword');
+        $request->shouldReceive('input', 'bearerToken', 'getPassword')->never();
 
         $guard = $this->createGuard($provider, $request);
 
@@ -310,7 +310,7 @@ class AuthTokenGuardTest extends TestCase
         $provider = m::mock(UserProvider::class);
         $request = m::mock(Request::class)->makePartial();
         $request->shouldReceive('query')->once()->with('api_token')->andReturn('0');
-        $request->shouldNotReceive('input', 'bearerToken', 'getPassword');
+        $request->shouldReceive('input', 'bearerToken', 'getPassword')->never();
 
         $guard = $this->createGuard($provider, $request);
 

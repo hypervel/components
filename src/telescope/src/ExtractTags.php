@@ -114,8 +114,6 @@ class ExtractTags
     {
         return Collection::make($targets)->map(function ($target) {
             return Collection::make((new ReflectionClass($target))->getProperties())->map(function ($property) use ($target) {
-                $property->setAccessible(true);
-
                 if (! is_object($target) || $property->isInitialized($target)) {
                     return static::resolveValue($property->getValue($target));
                 }

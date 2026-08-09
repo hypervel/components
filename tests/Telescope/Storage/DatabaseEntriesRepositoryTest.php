@@ -13,11 +13,12 @@ use Hypervel\Telescope\EntryUpdate;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\IncomingExceptionEntry;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
+use Hypervel\Telescope\Storage\EntryQueryOptions;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
 class DatabaseEntriesRepositoryTest extends FeatureTestCase
 {
-    public function testFindEntryByUuid()
+    public function testFindEntryByUuid(): void
     {
         $entry = EntryModelFactory::new()->create();
 
@@ -34,7 +35,7 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
         $this->assertNull($result['sequence']);
     }
 
-    public function testUpdate()
+    public function testUpdate(): void
     {
         $entry = EntryModelFactory::new()->create();
 
@@ -53,7 +54,123 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
         $this->assertSame('missing-id', $failedUpdates->first()->uuid);
     }
 
-    public function testStoreBinaryContent()
+    public function testUpdateSubstitutesInvalidUtf8(): void
+    {
+        $entry = EntryModelFactory::new()->create(['content' => ['existing' => true]]);
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $repository->update(collect([
+            new EntryUpdate($entry->uuid, $entry->type, ['nested' => ['value' => "\xB1\x31"]]),
+        ]));
+
+        $content = json_decode(
+            DB::table('telescope_entries')->where('uuid', $entry->uuid)->value('content'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertTrue($content['existing']);
+        $this->assertSame("\u{FFFD}1", $content['nested']['value']);
+    }
+
+    public function testGetAppliesExplicitUuidFilters(): void
+    {
+        $requested = EntryModelFactory::new()->create();
+        EntryModelFactory::new()->create();
+
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $entries = $repository->get(null, (new EntryQueryOptions)->uuids([$requested->uuid])->limit(-1));
+
+        $this->assertSame([$requested->uuid], $entries->pluck('id')->all());
+        $this->assertTrue($repository->get(null, (new EntryQueryOptions)->uuids([])->limit(-1))->isEmpty());
+    }
+
+    public function testGetPreservesFalseyTagAndSequenceFilters(): void
+    {
+        $tagged = EntryModelFactory::new()->create();
+        EntryModelFactory::new()->create();
+
+        DB::table('telescope_entries_tags')->insert([
+            'entry_uuid' => $tagged->uuid,
+            'tag' => '0',
+        ]);
+
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $taggedEntries = $repository->get(null, (new EntryQueryOptions)->tag('0')->limit(-1));
+
+        $this->assertSame([$tagged->uuid], $taggedEntries->pluck('id')->all());
+        $this->assertTrue($repository->get(null, (new EntryQueryOptions)->beforeSequence(0)->limit(-1))->isEmpty());
+        $this->assertCount(2, $repository->get(null, (new EntryQueryOptions)->tag('')->limit(-1)));
+        $this->assertCount(2, $repository->get(null, (new EntryQueryOptions)->beforeSequence('')->limit(-1)));
+    }
+
+    public function testMonitorStoresEveryUniqueNewTag(): void
+    {
+        DB::table('telescope_monitoring')->insert(['tag' => 'existing']);
+
+        $this->app->make(DatabaseEntriesRepository::class)->monitor([
+            'existing',
+            'first',
+            'second',
+            'first',
+        ]);
+
+        $this->assertSame(
+            ['existing', 'first', 'second'],
+            DB::table('telescope_monitoring')->orderBy('tag')->pluck('tag')->all(),
+        );
+    }
+
+    public function testPruneOrdersDeletesToAvoidDeadlocks(): void
+    {
+        EntryModelFactory::new()->create(['created_at' => now()->subDays(2)]);
+
+        $deletes = [];
+
+        DB::listen(function ($query) use (&$deletes): void {
+            if (str_starts_with($query->sql, 'delete')) {
+                $deletes[] = $query->sql;
+            }
+        });
+
+        $this->app->make(DatabaseEntriesRepository::class)->prune(now()->subDay(), false);
+
+        $this->assertNotEmpty($deletes);
+
+        foreach ($deletes as $sql) {
+            $this->assertStringContainsString('order by', $sql);
+        }
+    }
+
+    public function testClearOrdersDeletesToAvoidDeadlocks(): void
+    {
+        EntryModelFactory::new()->create();
+
+        DB::table('telescope_monitoring')->insert([
+            ['tag' => 'one'],
+            ['tag' => 'two'],
+        ]);
+
+        $deletes = [];
+
+        DB::listen(function ($query) use (&$deletes): void {
+            if (str_starts_with($query->sql, 'delete')) {
+                $deletes[] = $query->sql;
+            }
+        });
+
+        $this->app->make(DatabaseEntriesRepository::class)->clear();
+
+        $this->assertNotEmpty($deletes);
+
+        foreach ($deletes as $sql) {
+            $this->assertStringContainsString('order by', $sql);
+        }
+    }
+
+    public function testStoreBinaryContent(): void
     {
         $batchId = (string) Str::uuid();
         $exception = new Exception('message');
@@ -79,42 +196,40 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
         });
     }
 
-    public function testStoreExceptionsOnlyUpdatesVisibleRows()
+    public function testStoreExceptionsAggregatesFamiliesWithinEachChunk(): void
     {
-        $exception = new Exception('repeated error');
         $batchId = (string) Str::uuid();
-
-        $makeEntry = fn () => (new IncomingExceptionEntry($exception, [
-            'file' => $exception->getFile(),
-            'line' => $exception->getLine(),
-            'message' => $exception->getMessage(),
-        ]))->batchId($batchId)->type(EntryType::EXCEPTION);
-
         $repository = $this->app->make(DatabaseEntriesRepository::class);
 
-        // Store the first occurrence.
-        $repository->store(collect([$makeEntry()]));
+        $makeEntry = fn (string $file, int $line) => (new IncomingExceptionEntry(new Exception('error'), [
+            'file' => $file,
+            'line' => $line,
+            'message' => 'error',
+        ]))->batchId($batchId)->type(EntryType::EXCEPTION);
 
-        // Store a second occurrence — should hide the first.
-        $repository->store(collect([$makeEntry()]));
+        $persisted = $makeEntry('first.php', 10);
+        $repository->store(collect([$persisted]));
 
-        $entries = DB::table('telescope_entries')
-            ->where('type', EntryType::EXCEPTION)
-            ->get();
+        $first = $makeEntry('first.php', 10);
+        $other = $makeEntry('other.php', 20);
+        $last = $makeEntry('first.php', 10);
 
-        $this->assertCount(2, $entries);
-        $this->assertCount(1, $entries->where('should_display_on_index', true));
-        $this->assertCount(1, $entries->where('should_display_on_index', false));
-
-        // Store a third occurrence — should only update the one visible row, not both hidden ones.
-        $repository->store(collect([$makeEntry()]));
+        $repository->store(collect([$first, $other, $last]));
 
         $entries = DB::table('telescope_entries')
             ->where('type', EntryType::EXCEPTION)
-            ->get();
+            ->get()
+            ->keyBy('uuid');
 
-        $this->assertCount(3, $entries);
-        $this->assertCount(1, $entries->where('should_display_on_index', true));
-        $this->assertCount(2, $entries->where('should_display_on_index', false));
+        $this->assertCount(4, $entries);
+        $this->assertFalse((bool) $entries[$persisted->uuid]->should_display_on_index);
+        $this->assertFalse((bool) $entries[$first->uuid]->should_display_on_index);
+        $this->assertTrue((bool) $entries[$other->uuid]->should_display_on_index);
+        $this->assertTrue((bool) $entries[$last->uuid]->should_display_on_index);
+
+        $this->assertSame(1, json_decode($entries[$persisted->uuid]->content, true)['occurrences']);
+        $this->assertSame(2, json_decode($entries[$first->uuid]->content, true)['occurrences']);
+        $this->assertSame(1, json_decode($entries[$other->uuid]->content, true)['occurrences']);
+        $this->assertSame(3, json_decode($entries[$last->uuid]->content, true)['occurrences']);
     }
 }

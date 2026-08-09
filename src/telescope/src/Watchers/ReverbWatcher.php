@@ -6,7 +6,6 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
@@ -141,9 +140,13 @@ class ReverbWatcher extends Watcher
      */
     protected function truncateMessage(string $message): string
     {
-        $limit = $this->options['message_size_limit'] ?? 64;
+        $limit = ($this->options['message_size_limit'] ?? 64) * 1024;
 
-        return Str::limit($message, $limit * 1024);
+        if (strlen($message) <= $limit) {
+            return $message;
+        }
+
+        return mb_strcut($message, 0, $limit, 'UTF-8') . '...';
     }
 
     /**

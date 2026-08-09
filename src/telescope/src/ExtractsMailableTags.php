@@ -12,7 +12,7 @@ trait ExtractsMailableTags
     /**
      * Register a callback to extract mailable tags.
      */
-    protected static function registerMailableTagExtractor()
+    protected static function registerMailableTagExtractor(): void
     {
         $existingCallback = Mailable::$viewDataCallback;
 
@@ -22,7 +22,7 @@ trait ExtractsMailableTags
             return array_merge($existingData, [
                 '__telescope' => ExtractTags::from($mailable),
                 '__telescope_mailable' => get_class($mailable),
-                '__telescope_queued' => in_array(ShouldQueue::class, class_implements($mailable)),
+                '__telescope_queued' => in_array(ShouldQueue::class, class_implements($mailable), true),
             ]);
         });
     }

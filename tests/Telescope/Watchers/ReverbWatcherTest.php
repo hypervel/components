@@ -294,6 +294,41 @@ class ReverbWatcherTest extends FeatureTestCase
         $this->assertLessThanOrEqual(1024 + 3, strlen($entry->content['message'])); // 1KB + "..."
     }
 
+    public function testMessageSizeLimitUsesUtf8SafeByteBoundaries(): void
+    {
+        $this->registerWatcherWithEvents(
+            ['message_received'],
+            ['message_size_limit' => 1],
+        );
+
+        $connection = new FakeConnection;
+        $message = str_repeat('é', 513);
+
+        event(new MessageReceived($connection, $message));
+
+        $entry = $this->loadTelescopeEntries()->where('type', EntryType::REVERB)->first();
+
+        $this->assertSame(str_repeat('é', 512) . '...', $entry->content['message']);
+        $this->assertTrue(mb_check_encoding($entry->content['message'], 'UTF-8'));
+    }
+
+    public function testMessageAtExactByteLimitIsNotTruncated(): void
+    {
+        $this->registerWatcherWithEvents(
+            ['message_received'],
+            ['message_size_limit' => 1],
+        );
+
+        $connection = new FakeConnection;
+        $message = str_repeat('x', 1024);
+
+        event(new MessageReceived($connection, $message));
+
+        $entry = $this->loadTelescopeEntries()->where('type', EntryType::REVERB)->first();
+
+        $this->assertSame($message, $entry->content['message']);
+    }
+
     public function testDoesNotRecordWhenTelescopePaused()
     {
         // Clear the recording state set by FeatureTestCase::setUp() so the

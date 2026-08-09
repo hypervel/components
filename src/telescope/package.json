@@ -5,9 +5,15 @@
         "build": "vite build",
         "watch": "vite build --watch"
     },
+    "devEngines": {
+        "packageManager": {
+            "name": "npm",
+            "version": ">=11.10.0"
+        }
+    },
     "devDependencies": {
         "@vitejs/plugin-vue2": "^2.3.3",
-        "axios": "^1.9",
+        "axios": "^1.18",
         "bootstrap": "^4.5.0",
         "highlight.js": "^11.3.1",
         "jquery": "^3.5",

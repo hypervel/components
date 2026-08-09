@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class JwtGuardStaticStateTest extends TestCase
 {
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         JwtGuard::macro('testMacro', function () {
             return 'test';

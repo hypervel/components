@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ViewWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use Hypervel\View\Factory;
 use Throwable;
 
 #[WithConfig('telescope.watchers', [
@@ -21,19 +27,17 @@ class ViewWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->viewDir = sys_get_temp_dir() . '/viewwatcher_test_' . uniqid();
-        mkdir($this->viewDir);
+        $this->viewDir = ParallelTesting::tempDir('TelescopeViewWatcherTest');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($this->viewDir);
+        $filesystem->ensureDirectoryExists($this->viewDir);
 
-        $this->app->make('view')->addNamespace('test', $this->viewDir);
+        $this->app->make(Factory::class)->addNamespace('test', $this->viewDir);
     }
 
     protected function tearDown(): void
     {
-        $files = glob($this->viewDir . '/*');
-        foreach ($files as $file) {
-            unlink($file);
-        }
-        rmdir($this->viewDir);
+        (new Filesystem)->deleteDirectory($this->viewDir);
 
         parent::tearDown();
     }
@@ -95,4 +99,82 @@ class ViewWatcherTest extends FeatureTestCase
         $names = $viewEntries->pluck('content')->pluck('name')->sort()->values()->toArray();
         $this->assertSame(['test::child', 'test::parent'], $names);
     }
+
+    public function testViewWatcherCapturesClassComposer(): void
+    {
+        file_put_contents($this->viewDir . '/composed.blade.php', 'Composed');
+        $this->app->make(Factory::class)->composer('test::composed', ViewWatcherComposer::class);
+
+        $this->app->make(Factory::class)->make('test::composed')->render();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame([
+            ['name' => ViewWatcherComposer::class . '@compose', 'type' => 'composer'],
+        ], $entry->content['composers']);
+    }
+
+    public function testViewWatcherCapturesClosureComposerAndWildcardCreator(): void
+    {
+        file_put_contents($this->viewDir . '/metadata.blade.php', 'Metadata');
+        $factory = $this->app->make(Factory::class);
+        $factory->composer('test::metadata', function (ViewContract $view): void {
+            $view->with('composed', true);
+        });
+        $factory->creator('test::*', function (ViewContract $view): void {
+            $view->with('created', true);
+        });
+
+        $factory->make('test::metadata')->render();
+
+        $composers = $this->loadTelescopeEntries()->first()->content['composers'];
+
+        $this->assertSame(['composer', 'creator'], array_column($composers, 'type'));
+        $this->assertStringStartsWith('Closure at ', $composers[0]['name']);
+        $this->assertStringStartsWith('Closure at ', $composers[1]['name']);
+    }
+
+    public function testViewWatcherFormatsComposerWithoutAClassScope(): void
+    {
+        file_put_contents($this->viewDir . '/global.blade.php', 'Global');
+        $this->app->make(Factory::class)->composer('test::global', telescopeGlobalViewComposer());
+
+        $this->app->make(Factory::class)->make('test::global')->render();
+
+        $composers = $this->loadTelescopeEntries()->first()->content['composers'];
+
+        $this->assertCount(1, $composers);
+        $this->assertStringStartsWith('Closure at ', $composers[0]['name']);
+    }
+
+    public function testViewWatcherIgnoresDirectClassArrayEventListeners(): void
+    {
+        file_put_contents($this->viewDir . '/direct-listener.blade.php', 'Direct listener');
+        $this->app->make(Dispatcher::class)->listen(
+            'composing: test::direct-listener',
+            [ViewWatcherComposer::class, 'compose'],
+        );
+
+        $this->app->make(Factory::class)->make('test::direct-listener')->render();
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertContains('composed', $entry->content['data']);
+        $this->assertArrayNotHasKey('composers', $entry->content);
+    }
+}
+
+class ViewWatcherComposer
+{
+    public function compose(ViewContract $view): void
+    {
+        $view->with('composed', true);
+    }
+}
+
+function telescopeGlobalViewComposer(): Closure
+{
+    return function (ViewContract $view): void {
+        $view->with('composed', true);
+    };
 }

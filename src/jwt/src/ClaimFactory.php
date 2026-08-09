@@ -38,7 +38,7 @@ class ClaimFactory
         $issuer = $config->get('jwt.issuer');
 
         $this->issuer = ($issuer === null || $issuer === '') ? null : $issuer;
-        $this->lockSubject = $config->boolean('jwt.lock_subject', true);
+        $this->lockSubject = $config->boolean('jwt.lock_subject');
     }
 
     /**
