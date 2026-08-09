@@ -36,7 +36,11 @@ class ExecutionFinishedSubscriber implements ExecutionFinishedSubscriberContract
 
         $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
         $path = $this->directory . DIRECTORY_SEPARATOR . 'profile-' . $token . '-' . getmypid() . '.json';
+        $encoded = json_encode($slowTests, JSON_THROW_ON_ERROR);
+        $written = @file_put_contents($path, $encoded);
 
-        file_put_contents($path, json_encode($slowTests, JSON_THROW_ON_ERROR));
+        if ($written !== strlen($encoded)) {
+            throw new RuntimeException(sprintf('Unable to write test profile [%s].', $path));
+        }
     }
 }
