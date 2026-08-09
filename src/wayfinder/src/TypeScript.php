@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Wayfinder;
 
+use Hypervel\Support\Js;
 use Hypervel\Support\Stringable;
 
 class TypeScript
 {
     public const array RESERVED_KEYWORDS = [
+        'arguments',
         'await',
         'break',
         'case',
@@ -24,6 +26,7 @@ class TypeScript
         'enum',
         'export',
         'extends',
+        'eval',
         'false',
         'finally',
         'for',
@@ -68,61 +71,62 @@ class TypeScript
             $method = $method->camel();
         }
 
+        $method = $method->toString();
         $suffix = strtolower($suffix);
 
-        if (in_array($method, self::RESERVED_KEYWORDS)) {
-            return $method->append(ucfirst($suffix))->toString();
+        if (in_array($method, self::RESERVED_KEYWORDS, true)) {
+            return $method . ucfirst($suffix);
         }
 
-        if ($method->match('/^[a-zA-Z_$]/')->isEmpty()) {
-            return $method->prepend($suffix)->toString();
+        if (! preg_match('/^[a-zA-Z_$]/', $method)) {
+            return $suffix . $method;
         }
 
-        return $method->toString();
+        return $method;
     }
 
     /**
-     * Wrap an identifier in double quotes when it starts with a digit.
+     * Quote a value that is not a valid TypeScript object key identifier.
      */
     public static function quoteIfNeeded(string $name): string
     {
-        if (is_numeric($name)) {
+        if (preg_match('/^[\p{L}_$][\p{L}\p{Nd}_$]*$/u', $name)) {
             return $name;
         }
 
-        if (is_numeric($name[0])) {
-            return '"' . $name . '"';
-        }
-
-        return $name;
+        return Js::from($name)->toHtml();
     }
 
     /**
-     * Normalise whitespace, indentation, and spacing in generated TypeScript.
+     * Normalize whitespace, indentation, and spacing in generated TypeScript.
      */
     public static function cleanUp(string $view): string
     {
         $replacements = [
-            ' ,' => ',',
-            '[ ' => '[',
-            ', }' => ' }',
-            '} )' => '})',
-            ' )' => ')',
-            '( ' => '(',
             PHP_EOL . ' +' => ' +',
             '})' . PHP_EOL . '/**' => '})' . PHP_EOL . PHP_EOL . '/**',
             '}' . PHP_EOL . '/**' => '}' . PHP_EOL . PHP_EOL . '/**',
         ];
 
+        $argumentReplacements = [
+            ' ,' => ',',
+            '[ ' => '[',
+            ' ]' => ']',
+            ', }' => ' }',
+            '} )' => '})',
+            ' )' => ')',
+            '( ' => '(',
+        ];
+
         $regexReplacements = [
             '/\=\> \{\n{2,}/' => '=> {' . PHP_EOL,
-            '/\s+\.replace/' => sprintf('%s%s.replace', PHP_EOL, str_repeat(' ', 12)),
-            '/\s+\+ queryParams\(options\)/' => ' + queryParams(options)',
+            '/\n\s*\.replace/' => PHP_EOL . str_repeat(' ', 12) . '.replace',
+            '/\n\s*\+ queryParams\(options\)/' => ' + queryParams(options)',
             '/\n{3,}/' => "\n\n",
         ];
 
         return str($view)
-            ->pipe(function (Stringable $str): Stringable {
+            ->pipe(function (Stringable $str) use ($argumentReplacements): Stringable {
                 // Clean up function arguments
                 $matches = $str->matchAll('/ = \(([^)]+\))/')
                     ->concat($str->matchAll('/\.url\(\s*args,\s+\{/'))
@@ -132,7 +136,9 @@ class TypeScript
                     ->concat($str->matchAll('/\}\s+\)/'));
 
                 foreach ($matches as $match) {
-                    $str = $str->replaceFirst($match, preg_replace('/\s+/', ' ', $match));
+                    $clean = preg_replace('/\s+/', ' ', $match);
+                    $clean = str_replace(array_keys($argumentReplacements), array_values($argumentReplacements), $clean);
+                    $str = $str->replaceFirst($match, $clean);
                 }
 
                 return $str;

@@ -25,18 +25,20 @@ class GoogleCloudStorageAdapterTest extends TestCase
     public function testUrlUsesTheConfiguredApiUriOrBucketEndpoint(): void
     {
         $client = m::mock(StorageClient::class);
+        $path = 'nested/report%2F v?x#y+z.txt';
+        $encodedPath = 'nested/report%252F%20v%3Fx%23y%2Bz.txt';
 
         $this->assertSame(
-            'https://storage.googleapis.com/bucket/tenant/file.txt',
-            $this->adapter($client, ['bucket' => 'bucket', 'root' => 'tenant'])->url('file.txt'),
+            'https://storage.googleapis.com/bucket/tenant/' . $encodedPath,
+            $this->adapter($client, ['bucket' => 'bucket', 'root' => 'tenant'])->url($path),
         );
         $this->assertSame(
-            'https://cdn.example.com/storage/tenant/file.txt',
+            'https://cdn.example.com/storage/tenant/' . $encodedPath,
             $this->adapter($client, [
                 'bucket' => 'bucket',
                 'root' => 'tenant',
                 'storageApiUri' => 'https://cdn.example.com/storage',
-            ])->url('file.txt'),
+            ])->url($path),
         );
     }
 

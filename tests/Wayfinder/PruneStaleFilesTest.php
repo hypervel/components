@@ -8,7 +8,9 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Wayfinder\WayfinderServiceProvider;
+use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
 
@@ -16,7 +18,7 @@ class PruneStaleFilesTest extends TestCase
 {
     private string $tempPath;
 
-    private Filesystem $files;
+    private RecordingWayfinderFilesystem $files;
 
     protected function getPackageProviders(ApplicationContract $app): array
     {
@@ -27,8 +29,10 @@ class PruneStaleFilesTest extends TestCase
     {
         parent::setUp();
 
-        $this->files = new Filesystem;
-        $this->tempPath = join_paths(sys_get_temp_dir(), 'wayfinder-prune-' . uniqid());
+        $this->files = new RecordingWayfinderFilesystem;
+        $this->tempPath = ParallelTesting::tempDir('wayfinder-prune');
+        $this->files->deleteDirectory($this->tempPath);
+        $this->app->instance(Filesystem::class, $this->files);
 
         Route::get('/prune-test/alpha', fn () => '')->name('prune.test.alpha');
         Route::get('/prune-test/beta', fn () => '')->name('prune.test.beta');
@@ -49,7 +53,7 @@ class PruneStaleFilesTest extends TestCase
         ])->assertSuccessful();
     }
 
-    public function testGeneratedFilesExistAfterGenerate()
+    public function testGeneratedFilesExistAfterGenerate(): void
     {
         $this->generate();
 
@@ -60,7 +64,7 @@ class PruneStaleFilesTest extends TestCase
         $this->assertFileExists(join_paths($routes, 'prune', 'test', 'index.ts'));
     }
 
-    public function testStaleFilesAreRemovedWhileCurrentFilesAreKept()
+    public function testStaleFilesAreRemovedWhileCurrentFilesAreKept(): void
     {
         $this->generate();
 
@@ -79,7 +83,35 @@ class PruneStaleFilesTest extends TestCase
         $current->each(fn ($path) => $this->assertFileExists($path));
     }
 
-    public function testEmptyDirectoriesArePruned()
+    public function testStaleDeleteFailureIsReported(): void
+    {
+        $this->generate();
+
+        $stale = join_paths($this->tempPath, 'routes', 'stale.ts');
+        $this->files->put($stale, '// stale');
+        $this->files->failDeletes = true;
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to delete stale generated file [{$stale}].");
+
+        $this->generate();
+    }
+
+    public function testConcurrentlyDisappearedStaleFileIsAccepted(): void
+    {
+        $this->generate();
+
+        $stale = join_paths($this->tempPath, 'routes', 'stale.ts');
+        $this->files->put($stale, '// stale');
+        $this->files->failDeletes = true;
+        $this->files->removeBeforeDeleteFailure = true;
+
+        $this->generate();
+
+        $this->assertFileDoesNotExist($stale);
+    }
+
+    public function testEmptyDirectoriesArePruned(): void
     {
         $this->generate();
 
@@ -96,14 +128,14 @@ class PruneStaleFilesTest extends TestCase
         $this->assertFileExists($sibling);
     }
 
-    public function testRuntimeIndexIsWrittenBeforeActionsAndRoutes()
+    public function testRuntimeIndexIsWrittenBeforeActionsAndRoutes(): void
     {
         $this->artisan('wayfinder:generate', ['--path' => $this->tempPath])->assertSuccessful();
 
         $this->assertFileExists(join_paths($this->tempPath, 'wayfinder', 'index.ts'));
     }
 
-    public function testRuntimeIndexIsSkippedWhenContentsMatch()
+    public function testRuntimeIndexIsSkippedWhenContentsMatch(): void
     {
         $this->artisan('wayfinder:generate', ['--path' => $this->tempPath])->assertSuccessful();
 
@@ -118,7 +150,7 @@ class PruneStaleFilesTest extends TestCase
         $this->assertSame($backdate, filemtime($destination));
     }
 
-    public function testUnchangedGeneratedFilesAreNotRewritten()
+    public function testUnchangedGeneratedFilesAreNotRewritten(): void
     {
         $this->generate();
 
@@ -133,5 +165,62 @@ class PruneStaleFilesTest extends TestCase
 
         clearstatcache(true, $target);
         $this->assertSame($backdate, filemtime($target));
+    }
+
+    public function testChangedGeneratedFilesUseAtomicReplacement(): void
+    {
+        $this->generate();
+
+        $this->files->replacements = [];
+        Route::get('/prune-test/gamma', fn () => '')->name('prune.test.gamma');
+
+        $this->generate();
+
+        $target = join_paths($this->tempPath, 'routes', 'prune', 'test', 'index.ts');
+
+        $this->assertContains($target, $this->files->replacements);
+    }
+
+    public function testGeneratedFilesUseOrdinaryFilePermissions(): void
+    {
+        $this->generate();
+
+        $target = join_paths($this->tempPath, 'routes', 'prune', 'test', 'index.ts');
+        $currentUmask = umask();
+        umask($currentUmask);
+
+        $this->assertSame(
+            sprintf('%04o', 0666 & ~$currentUmask),
+            $this->files->chmod($target),
+        );
+    }
+}
+
+class RecordingWayfinderFilesystem extends Filesystem
+{
+    public array $replacements = [];
+
+    public bool $failDeletes = false;
+
+    public bool $removeBeforeDeleteFailure = false;
+
+    public function replace(string $path, string $content, ?int $mode = null): void
+    {
+        $this->replacements[] = $path;
+
+        parent::replace($path, $content, $mode);
+    }
+
+    public function delete(array|string $paths): bool
+    {
+        if (! $this->failDeletes) {
+            return parent::delete($paths);
+        }
+
+        if ($this->removeBeforeDeleteFailure) {
+            parent::delete($paths);
+        }
+
+        return false;
     }
 }

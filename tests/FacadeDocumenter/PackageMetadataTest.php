@@ -36,4 +36,23 @@ class PackageMetadataTest extends TestCase
 
         $this->assertSame($expectedDependencies, $dependencies);
     }
+
+    /**
+     * Ensure the root production bin keeps its parser dependency at runtime.
+     *
+     * @throws JsonException
+     */
+    public function testRootProductionBinKeepsParserDependencyAtRuntime(): void
+    {
+        $composer = json_decode(
+            file_get_contents(__DIR__ . '/../../composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertContains('src/facade-documenter/facade.php', $composer['bin']);
+        $this->assertArrayHasKey('phpstan/phpdoc-parser', $composer['require']);
+        $this->assertArrayNotHasKey('phpstan/phpdoc-parser', $composer['require-dev']);
+    }
 }

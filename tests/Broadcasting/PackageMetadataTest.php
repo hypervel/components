@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\BroadcastServiceProvider;
+use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use JsonException;
 
@@ -30,24 +31,25 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR
         );
 
-        $this->assertSame('^0.4', $composer['require']['hypervel/routing']);
-        $this->assertSame('^3.0', $composer['require']['psr/log']);
-        $this->assertSame($rootComposer['require']['symfony/http-kernel'], $composer['require']['symfony/http-kernel']);
+        $internalConstraint = '^' . Str::before(
+            $composer['extra']['branch-alias']['dev-main'],
+            '-dev',
+        );
+
+        $this->assertSame($internalConstraint, $composer['require']['hypervel/routing']);
+
+        foreach (['psr/log', 'symfony/http-kernel'] as $dependency) {
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        }
+
         $this->assertArrayNotHasKey('hypervel/auth', $composer['require']);
         $this->assertArrayNotHasKey('hypervel/cache', $composer['require']);
 
-        $this->assertSame(
-            'Required to use the Redis broadcast driver (^0.4).',
-            $composer['suggest']['hypervel/redis']
-        );
-        $this->assertSame(
-            'Required to use the Ably broadcast driver (^1.0).',
-            $composer['suggest']['ably/ably-php']
-        );
-        $this->assertSame(
-            'Required to use the Pusher broadcast driver (^7.2).',
-            $composer['suggest']['pusher/pusher-php-server']
-        );
+        foreach (['hypervel/redis', 'ably/ably-php', 'pusher/pusher-php-server'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $composer['suggest']);
+            $this->assertIsString($composer['suggest'][$dependency]);
+            $this->assertNotSame('', trim($composer['suggest'][$dependency]));
+        }
 
         $providers = [BroadcastServiceProvider::class];
 

@@ -15,6 +15,7 @@ use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter as FlysystemLocalAdapter;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
+#[RequiresOperatingSystem('Linux|Darwin')]
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ServeFileTest extends TestCase
 {
@@ -29,6 +30,7 @@ class ServeFileTest extends TestCase
 
             Storage::put('serve-file-test.txt', 'Hello World');
             Storage::put('serve-file-test.txt?pad=x', 'Hello Question');
+            Storage::put('serve-file-test%2F.txt', 'Hello Percent Escape');
             Storage::put('nested/folder/serve-file-test.txt', 'Hello Nested');
             Storage::disk('served-test')->put('serve-file-test.txt', 'Hello Custom Driver');
         });
@@ -37,6 +39,7 @@ class ServeFileTest extends TestCase
             Storage::delete([
                 'serve-file-test.txt',
                 'serve-file-test.txt?pad=x',
+                'serve-file-test%2F.txt',
                 'nested/folder/serve-file-test.txt',
             ]);
             Storage::disk('served-test')->delete('serve-file-test.txt');
@@ -129,7 +132,6 @@ class ServeFileTest extends TestCase
         $response->assertForbidden();
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testItCanServeAFileWithUriDelimitersInThePath(): void
     {
         $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->addMinutes(1));
@@ -139,7 +141,15 @@ class ServeFileTest extends TestCase
         $this->assertSame('Hello Question', $response->streamedContent());
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testItCanServeAFileWithAnEncodedSeparatorInItsName(): void
+    {
+        $url = Storage::temporaryUrl('serve-file-test%2F.txt', now()->addMinutes(1));
+
+        $response = $this->get($url);
+
+        $this->assertSame('Hello Percent Escape', $response->streamedContent());
+    }
+
     public function testTemporaryUrlPreservesPathSeparatorsInNestedPaths(): void
     {
         $url = Storage::temporaryUrl('nested/folder/serve-file-test.txt', now()->addMinutes(1));
@@ -151,7 +161,6 @@ class ServeFileTest extends TestCase
         $this->assertSame('Hello Nested', $response->streamedContent());
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testUriDelimitersInThePathCannotHideAnExpiredUrl(): void
     {
         $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->subMinutes(1));

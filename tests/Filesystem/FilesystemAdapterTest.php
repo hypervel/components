@@ -1116,6 +1116,69 @@ class FilesystemAdapterTest extends TestCase
         $this->assertEquals('https://example.org/images/picture.jpeg', $filesystemAdapter->url('picture.jpeg'));
     }
 
+    public function testLocalUrlsEncodeRawPathsAndPreservePrefixes(): void
+    {
+        $path = 'nested/report%2F v?x#y+z.txt';
+        $encodedPath = 'nested/report%252F%20v%3Fx%23y%2Bz.txt';
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $this->assertSame('/storage/' . $encodedPath, $filesystemAdapter->url($path));
+        $this->assertSame('/storage/leading.txt', $filesystemAdapter->url('/leading.txt'));
+        $this->assertSame('/storage/foo.txt', $filesystemAdapter->url('/public/foo.txt'));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
+            'prefix' => 'my images',
+        ]);
+        $this->assertSame(
+            '/storage/my%20images/' . $encodedPath,
+            $filesystemAdapter->url($path),
+        );
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
+            'url' => 'https://example.org/storage/',
+            'prefix' => 'images',
+        ]);
+        $this->assertSame(
+            'https://example.org/storage/images/' . $encodedPath,
+            $filesystemAdapter->url($path),
+        );
+        $this->assertSame(
+            'https://example.org/storage/images/leading.txt',
+            $filesystemAdapter->url('/leading.txt'),
+        );
+    }
+
+    public function testFtpUrlsEncodeRawPathsWithAndWithoutAConfiguredBaseUrl(): void
+    {
+        $path = 'nested/report%2F v?x#y+z.txt';
+        $encodedPath = 'nested/report%252F%20v%3Fx%23y%2Bz.txt';
+
+        $filesystemAdapter = new class($this->filesystem, $this->adapter) extends FilesystemAdapter {
+            /**
+             * Get the FTP URL for the given path.
+             */
+            public function ftpUrl(string $path): string
+            {
+                return $this->getFtpUrl($path);
+            }
+        };
+        $this->assertSame($encodedPath, $filesystemAdapter->ftpUrl($path));
+
+        $filesystemAdapter = new class($this->filesystem, $this->adapter, ['url' => 'https://ftp.example.com/files']) extends FilesystemAdapter {
+            /**
+             * Get the FTP URL for the given path.
+             */
+            public function ftpUrl(string $path): string
+            {
+                return $this->getFtpUrl($path);
+            }
+        };
+        $this->assertSame(
+            'https://ftp.example.com/files/' . $encodedPath,
+            $filesystemAdapter->ftpUrl($path),
+        );
+    }
+
     public function testGetChecksum()
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);

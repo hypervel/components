@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
+use Hypervel\Routing\Router;
 use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
@@ -73,6 +75,20 @@ class WithWorkbenchTest extends TestCase
         $loadedProviders = collect($this->app->getLoadedProviders())->keys()->all();
 
         $this->assertContains('Workbench\App\Providers\AppServiceProvider', $loadedProviders);
+    }
+
+    #[Test]
+    public function itRegistersTheRouteProviderAndWorkbenchRoutesOnce(): void
+    {
+        $this->assertCount(1, $this->app->getProviders(RouteServiceProvider::class));
+
+        $routes = $this->app->make(Router::class)->getRoutes()->getRoutes();
+        $testbenchRoutes = array_filter(
+            $routes,
+            static fn ($route): bool => $route->uri() === 'testbench'
+        );
+
+        $this->assertCount(1, $testbenchRoutes);
     }
 
     #[Test]

@@ -92,6 +92,26 @@ class FilesystemTest extends TestCase
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testReplaceUsesOrdinaryFilePermissionsByDefault(): void
+    {
+        $path = $this->tempDir . '/ordinary.txt';
+        $originalUmask = umask(0027);
+
+        try {
+            (new Filesystem)->replace($path, 'created');
+
+            $this->assertSame(0640, $this->getFilePermissions($path));
+
+            chmod($path, 0755);
+            (new Filesystem)->replace($path, 'replaced');
+
+            $this->assertSame(0640, $this->getFilePermissions($path));
+        } finally {
+            umask($originalUmask);
+        }
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testReplaceWritesContentsBeforeApplyingARestrictiveMode(): void
     {
         $path = $this->tempDir . '/read-only.txt';
@@ -201,27 +221,29 @@ class FilesystemTest extends TestCase
         $umask = 0131;
         $originalUmask = umask($umask);
 
-        $filesystem = new Filesystem;
+        try {
+            $filesystem = new Filesystem;
 
-        // Test replacing non-existent file.
-        $filesystem->replace($tempFile, 'Hello World');
-        $this->assertStringEqualsFile($tempFile, 'Hello World');
-        $this->assertEquals($umask, 0777 - $this->getFilePermissions($tempFile));
+            // Test replacing non-existent file.
+            $filesystem->replace($tempFile, 'Hello World');
+            $this->assertStringEqualsFile($tempFile, 'Hello World');
+            $this->assertSame(0666 & ~$umask, $this->getFilePermissions($tempFile));
 
-        // Test replacing existing file.
-        $filesystem->replace($tempFile, 'Something Else');
-        $this->assertStringEqualsFile($tempFile, 'Something Else');
-        $this->assertEquals($umask, 0777 - $this->getFilePermissions($tempFile));
+            // Test replacing existing file.
+            $filesystem->replace($tempFile, 'Something Else');
+            $this->assertStringEqualsFile($tempFile, 'Something Else');
+            $this->assertSame(0666 & ~$umask, $this->getFilePermissions($tempFile));
 
-        // Test replacing symlinked file.
-        $filesystem->replace($symlink, 'Yet Something Else Again');
-        $this->assertStringEqualsFile($tempFile, 'Yet Something Else Again');
-        $this->assertEquals($umask, 0777 - $this->getFilePermissions($tempFile));
+            // Test replacing symlinked file.
+            $filesystem->replace($symlink, 'Yet Something Else Again');
+            $this->assertStringEqualsFile($tempFile, 'Yet Something Else Again');
+            $this->assertSame(0666 & ~$umask, $this->getFilePermissions($tempFile));
+        } finally {
+            umask($originalUmask);
 
-        umask($originalUmask);
-
-        // Reset changes to symlink_dir
-        chmod($symlinkDir, 0777 - $originalUmask);
+            // Reset changes to symlink_dir
+            chmod($symlinkDir, 0777 - $originalUmask);
+        }
     }
 
     public function testSetChmod()
