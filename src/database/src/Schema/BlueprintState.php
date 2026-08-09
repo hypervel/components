@@ -30,6 +30,11 @@ class BlueprintState
     private array $columns;
 
     /**
+     * The stored table definition.
+     */
+    private string $tableSql;
+
+    /**
      * The primary key.
      */
     private Fluent|IndexDefinition|null $primaryKey;
@@ -56,10 +61,13 @@ class BlueprintState
         $this->blueprint = $blueprint;
         $this->connection = $connection;
 
+        /** @var SQLiteBuilder $schema */
         $schema = $connection->getSchemaBuilder();
         $table = $blueprint->getTable();
+        $columnState = $schema->getColumnsForSchemaState($table);
+        $this->tableSql = $columnState['sql'];
 
-        $this->columns = (new Collection($schema->getColumns($table)))->map(fn ($column) => new ColumnDefinition([
+        $this->columns = (new Collection($columnState['columns']))->map(fn ($column) => new ColumnDefinition([
             'name' => $column['name'],
             'type' => $column['type_name'],
             'full_type_definition' => $column['type'],
@@ -76,15 +84,36 @@ class BlueprintState
                 : null,
         ]))->all();
 
-        [$primary, $indexes] = (new Collection($schema->getIndexes($table)))->map(fn ($index) => new IndexDefinition([
-            'name' => match (true) {
-                $index['primary'] => 'primary',
-                $index['unique'] => 'unique',
-                default => 'index',
-            },
-            'index' => $index['name'],
-            'columns' => $index['columns'],
-        ]))->partition(fn ($index) => $index->name === 'primary');
+        $columnCollations = [];
+
+        foreach ($this->columns as $column) {
+            $columnCollations[$column->name] = $column->collation ?? 'BINARY';
+        }
+
+        [$primary, $indexes] = (new Collection($schema->getIndexesForSchemaState($table)))->map(
+            fn ($index) => new IndexDefinition([
+                'name' => match (true) {
+                    $index['primary'] => 'primary',
+                    $index['unique'] => 'unique',
+                    default => 'index',
+                },
+                'index' => $index['physical_name'],
+                'columns' => $index['columns'],
+                'existing' => true,
+                'origin' => $index['origin'],
+                'storedSql' => $index['sql'],
+                'reconstructible' => $index['reconstructible'],
+                'collations' => $index['collations'],
+                'columnCollations' => array_map(
+                    static fn (string $column): ?string => $columnCollations[$column] ?? null,
+                    $index['columns'],
+                ),
+                'descending' => $index['descending'],
+                'renamed' => false,
+                'columnRenamed' => false,
+                'columnDropped' => false,
+            ])
+        )->partition(fn ($index) => $index->name === 'primary');
 
         $this->indexes = $indexes->all();
         $this->primaryKey = $primary->first();
@@ -119,6 +148,14 @@ class BlueprintState
     public function getColumns(): array
     {
         return $this->columns;
+    }
+
+    /**
+     * Get the stored table definition.
+     */
+    public function getTableSql(): string
+    {
+        return $this->tableSql;
     }
 
     /**
@@ -171,21 +208,34 @@ class BlueprintState
                 }
 
                 if ($this->primaryKey) {
-                    $this->primaryKey->columns = str_replace($command->from, $command->to, $this->primaryKey->columns);
+                    $this->primaryKey->columns = $this->replaceColumn(
+                        $this->primaryKey->columns,
+                        $command->from,
+                        $command->to,
+                    );
                 }
 
                 foreach ($this->indexes as $index) {
-                    $index->columns = str_replace($command->from, $command->to, $index->columns);
+                    $index->columnRenamed = true;
+                    $index->columns = $this->replaceColumn($index->columns, $command->from, $command->to);
                 }
 
                 foreach ($this->foreignKeys as $foreignKey) {
-                    $foreignKey->columns = str_replace($command->from, $command->to, $foreignKey->columns);
+                    $foreignKey->columns = $this->replaceColumn(
+                        $foreignKey->columns,
+                        $command->from,
+                        $command->to,
+                    );
                 }
 
                 break;
             case 'dropColumn':
+                foreach ($this->indexes as $index) {
+                    $index->columnDropped = true;
+                }
+
                 $this->columns = array_values(
-                    array_filter($this->columns, fn ($column) => ! in_array($column->name, $command->columns))
+                    array_filter($this->columns, fn ($column) => ! in_array($column->name, $command->columns, true))
                 );
 
                 break;
@@ -194,13 +244,28 @@ class BlueprintState
                 break;
             case 'unique':
             case 'index':
+                $command->existing = false;
+                $command->origin = null;
+                $command->storedSql = null;
+                $command->reconstructible = array_all(
+                    $command->columns,
+                    static fn (mixed $column): bool => is_string($column),
+                );
+                $command->collations = null;
+                $command->columnCollations = null;
+                $command->descending = null;
+                $command->renamed = false;
+                $command->columnRenamed = false;
+                $command->columnDropped = false;
+
                 // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as IndexDefinition)
                 $this->indexes[] = $command;
                 break;
             case 'renameIndex':
                 foreach ($this->indexes as $index) {
-                    if ($index->index === $command->from) {
+                    if (strcasecmp($index->index, $command->from) === 0) {
                         $index->index = $command->to;
+                        $index->renamed = true;
                         break;
                     }
                 }
@@ -216,7 +281,7 @@ class BlueprintState
             case 'dropIndex':
             case 'dropUnique':
                 $this->indexes = array_values(
-                    array_filter($this->indexes, fn ($index) => $index->index !== $command->index)
+                    array_filter($this->indexes, fn ($index) => strcasecmp($index->index, $command->index) !== 0)
                 );
 
                 break;
@@ -227,5 +292,19 @@ class BlueprintState
 
                 break;
         }
+    }
+
+    /**
+     * Replace an exact column name in a projection.
+     *
+     * @param list<Expression|string> $columns
+     * @return list<Expression|string>
+     */
+    protected function replaceColumn(array $columns, string $from, string $to): array
+    {
+        return array_map(
+            static fn (Expression|string $column): Expression|string => $column === $from ? $to : $column,
+            $columns,
+        );
     }
 }

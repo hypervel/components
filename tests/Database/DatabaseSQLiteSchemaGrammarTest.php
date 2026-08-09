@@ -1118,11 +1118,14 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         $builder = mock(SQLiteBuilder::class)
             ->makePartial()
-            ->shouldReceive('getColumns')->andReturn([
-                ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+            ->shouldReceive('getColumnsForSchemaState')->andReturn([
+                'columns' => [
+                    ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                    ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                ],
+                'sql' => 'CREATE TABLE users (name varchar, age varchar)',
             ])
-            ->shouldReceive('getIndexes')->andReturn([])
+            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
             ->shouldReceive('getForeignKeys')->andReturn([])
             ->getMock();
 
@@ -1146,11 +1149,14 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         $builder = mock(SQLiteBuilder::class)
             ->makePartial()
-            ->shouldReceive('getColumns')->andReturn([
-                ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+            ->shouldReceive('getColumnsForSchemaState')->andReturn([
+                'columns' => [
+                    ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                    ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                ],
+                'sql' => 'CREATE TABLE users (name varchar, age varchar)',
             ])
-            ->shouldReceive('getIndexes')->andReturn([])
+            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
             ->shouldReceive('getForeignKeys')->andReturn([])
             ->getMock();
 
@@ -1197,8 +1203,11 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         return mock(SQLiteBuilder::class)
             ->makePartial()
-            ->shouldReceive('getColumns')->andReturn([])
-            ->shouldReceive('getIndexes')->andReturn([])
+            ->shouldReceive('getColumnsForSchemaState')->andReturn([
+                'columns' => [],
+                'sql' => 'CREATE TABLE users ()',
+            ])
+            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
             ->shouldReceive('getForeignKeys')->andReturn([])
             ->getMock();
     }
