@@ -1661,7 +1661,7 @@ Schema::withoutForeignKeyConstraints(function () {
 > Hypervel's default SQLite connection enables foreign key constraints. Custom SQLite connections may control this behavior using the `foreign_key_constraints` configuration option.
 
 > [!WARNING]
-> SQLite cannot enable or disable foreign key constraints while a transaction is active. Call these methods before beginning the transaction. PostgreSQL only defers constraint checks within a transaction; calling these methods outside a transaction does not disable constraints.
+> SQLite cannot enable or disable foreign key constraints while a transaction is active, so call these methods before beginning the transaction. On PostgreSQL, they defer only foreign keys created with `deferrable()`, and only within a transaction. Other foreign keys stay enforced, and on PostgreSQL calling them outside a transaction has no effect.
 
 <a name="events"></a>
 ## Events
