@@ -24,9 +24,9 @@ class MySqlBuilder extends Builder
         }
 
         $this->withoutForeignKeyConstraints(function () use ($tables): void {
-            $this->connection->statement(
-                $this->grammar->compileDropAllTables($tables)
-            );
+            $this->executeStatements([
+                $this->grammar->compileDropAllTables($tables),
+            ]);
         });
     }
 
@@ -42,9 +42,9 @@ class MySqlBuilder extends Builder
             return;
         }
 
-        $this->connection->statement(
-            $this->grammar->compileDropAllViews($views)
-        );
+        $this->executeStatements([
+            $this->grammar->compileDropAllViews($views),
+        ]);
     }
 
     /**
@@ -53,7 +53,8 @@ class MySqlBuilder extends Builder
     #[Override]
     protected function foreignKeyConstraintsAreEnabled(): bool
     {
-        return (bool) $this->connection->scalar('select @@foreign_key_checks');
+        // Foreign-key checks are session state, so inspect the write PDO that schema changes use.
+        return (bool) $this->connection->scalar('select @@foreign_key_checks', [], false);
     }
 
     /**

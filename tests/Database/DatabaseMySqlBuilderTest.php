@@ -10,6 +10,7 @@ use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
+use RuntimeException;
 
 class DatabaseMySqlBuilderTest extends TestCase
 {
@@ -56,7 +57,7 @@ class DatabaseMySqlBuilderTest extends TestCase
         $builder->shouldReceive('getTableListing')->once()->with(['database'])->andReturn(['users']);
         $connection->shouldReceive('beginForeignKeyConstraintSuppression')->once()->andReturnTrue();
         $connection->shouldReceive('pretending')->times(3)->andReturnFalse();
-        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks')->andReturn(1);
+        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks', [], false)->andReturn(1);
         $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
         $pdo->shouldReceive('exec')->once()->with('SET FOREIGN_KEY_CHECKS=0;')->andReturn(0)->ordered();
         $connection->shouldReceive('statement')
@@ -81,7 +82,7 @@ class DatabaseMySqlBuilderTest extends TestCase
         $builder->shouldReceive('getTableListing')->once()->with(['database'])->andReturn(['users']);
         $connection->shouldReceive('beginForeignKeyConstraintSuppression')->once()->andReturnTrue();
         $connection->shouldReceive('pretending')->once()->andReturnFalse();
-        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks')->andReturn(0);
+        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks', [], false)->andReturn(0);
         $connection->shouldReceive('getPdo')->never();
         $connection->shouldReceive('statement')
             ->once()
@@ -90,5 +91,51 @@ class DatabaseMySqlBuilderTest extends TestCase
         $connection->shouldReceive('endForeignKeyConstraintSuppression')->once();
 
         $builder->dropAllTables();
+    }
+
+    public function testDropAllTablesPropagatesAFalseStatementResultAfterRestoringConstraints(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new MySqlGrammar($connection);
+        $pdo = m::mock(PDO::class);
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $builder = m::mock(MySqlBuilder::class, [$connection])->makePartial();
+        $connection->shouldReceive('getDatabaseName')->once()->andReturn('database');
+        $builder->shouldReceive('getTableListing')->once()->with(['database'])->andReturn(['users']);
+        $connection->shouldReceive('beginForeignKeyConstraintSuppression')->once()->andReturnTrue();
+        $connection->shouldReceive('pretending')->times(3)->andReturnFalse();
+        $connection->shouldReceive('scalar')->once()->with('select @@foreign_key_checks', [], false)->andReturn(1);
+        $connection->shouldReceive('getPdo')->twice()->andReturn($pdo);
+        $pdo->shouldReceive('exec')->once()->with('SET FOREIGN_KEY_CHECKS=0;')->andReturn(0)->ordered();
+        $statement = $grammar->compileDropAllTables(['users']);
+        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse()->ordered();
+        $pdo->shouldReceive('exec')->once()->with('SET FOREIGN_KEY_CHECKS=1;')->andReturn(0)->ordered();
+        $connection->shouldReceive('endForeignKeyConstraintSuppression')->once();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+
+        $builder->dropAllTables();
+    }
+
+    public function testDropAllViewsPropagatesAFalseStatementResult(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new MySqlGrammar($connection);
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $builder = m::mock(MySqlBuilder::class, [$connection])->makePartial();
+        $builder->shouldReceive('getCurrentSchemaListing')->once()->andReturn(['database']);
+        $builder->shouldReceive('getViews')->once()->with(['database'])->andReturn([
+            ['schema_qualified_name' => 'active_users'],
+        ]);
+        $statement = $grammar->compileDropAllViews(['active_users']);
+        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+
+        $builder->dropAllViews();
     }
 }
