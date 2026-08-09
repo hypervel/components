@@ -46,6 +46,41 @@ export default {
                     {{ slotProps.entry.content.timezone || '-' }}
                 </td>
             </tr>
+
+            <tr>
+                <td class="table-fit text-muted">Status</td>
+                <td>
+                    <span
+                        class="badge"
+                        :class="slotProps.entry.content.status === 'finished' ? 'badge-success' : 'badge-danger'"
+                    >
+                        {{ slotProps.entry.content.status }}
+                    </span>
+                </td>
+            </tr>
+
+            <tr>
+                <td class="table-fit text-muted">Exit Code</td>
+                <td>
+                    {{ slotProps.entry.content.exit_code === undefined || slotProps.entry.content.exit_code === null
+                        ? '-'
+                        : slotProps.entry.content.exit_code }}
+                </td>
+            </tr>
+
+            <tr v-if="slotProps.entry.content.exception">
+                <td class="table-fit text-muted">Exception</td>
+                <td>
+                    <code>{{ slotProps.entry.content.exception.class }}</code>
+                </td>
+            </tr>
+
+            <tr v-if="slotProps.entry.content.exception">
+                <td class="table-fit text-muted">Exception Message</td>
+                <td>
+                    {{ slotProps.entry.content.exception.message }}
+                </td>
+            </tr>
         </template>
 
         <div slot="after-attributes-card" slot-scope="slotProps" v-if="slotProps.entry.content.output">

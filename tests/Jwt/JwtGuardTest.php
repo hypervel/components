@@ -545,6 +545,36 @@ class JwtGuardTest extends TestCase
         $this->assertFalse($guard->hasUser());
     }
 
+    public function testLogoutRetainsContextWhenTokenInvalidationFails(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('decode')->with('valid-token')->once()->andReturn(['sub' => 1]);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnTrue();
+        $jwtManager->shouldReceive('invalidate')
+            ->with('valid-token', false)
+            ->once()
+            ->andThrow(new JwtException('blacklist write failed'));
+
+        $guard = $this->createGuard(jwtManager: $jwtManager, request: null)
+            ->setToken('valid-token')
+            ->setUser($user);
+
+        $this->assertSame(['sub' => 1], $guard->getPayload());
+
+        try {
+            $guard->logout();
+
+            $this->fail('Expected logout to fail when token invalidation fails.');
+        } catch (JwtException $exception) {
+            $this->assertSame('blacklist write failed', $exception->getMessage());
+        }
+
+        $this->assertSame('valid-token', $guard->getToken());
+        $this->assertTrue($guard->hasUser());
+        $this->assertSame(['sub' => 1], $guard->getPayload());
+    }
+
     public function testLogoutClearsDecodedPayloadCache(): void
     {
         $jwtManager = m::mock(ManagerContract::class);

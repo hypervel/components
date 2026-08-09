@@ -13,6 +13,7 @@
     - [Sharing Data With All Views](#sharing-data-with-all-views)
 - [View Composers](#view-composers)
     - [View Creators](#view-creators)
+- [Testing Views](#testing-views)
 - [Optimizing Views](#optimizing-views)
 
 <a name="introduction"></a>
@@ -347,6 +348,11 @@ use Hypervel\Support\Facades\View;
 
 View::creator('profile', ProfileCreator::class);
 ```
+
+<a name="testing-views"></a>
+## Testing Views
+
+Hypervel's test helpers can render views, Blade strings, and components without making an HTTP request. The resulting `TestView` and `TestComponent` instances provide assertions for raw HTML, escaped content, visible text, ordering, and view data. See the [HTTP testing documentation](/docs/{{version}}/http-tests#testing-views) for examples and the complete assertion API.
 
 <a name="optimizing-views"></a>
 ## Optimizing Views

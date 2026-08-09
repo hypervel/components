@@ -387,6 +387,14 @@ $disk = Storage::build([
 $disk->put('image.jpg', $content);
 ```
 
+You may also pass a logical disk name as the second argument:
+
+```php
+$disk = Storage::build($configuration, 'tenant-uploads');
+```
+
+Hypervel uses this name as part of the pool identity for drivers that pool the complete filesystem instance. Local drivers also use it when generating signed serving URLs, so the name should match a configured served disk when the build must target that disk's registered route. S3 and Google Cloud Storage client pools continue to use the client configuration rather than the logical disk name.
+
 <a name="retrieving-files"></a>
 ## Retrieving Files
 
@@ -491,10 +499,10 @@ $url = Storage::temporaryUrl(
 );
 ```
 
-<a name="enabling-local-temporary-urls"></a>
-#### Enabling Local Temporary URLs
+<a name="serving-files-from-configured-disks"></a>
+#### Serving Files From Configured Disks
 
-To generate temporary URLs for files stored using the `local` driver, add the `serve` option to your `local` disk's configuration array within the `config/filesystems.php` configuration file:
+To enable Hypervel's signed download and upload routes for a disk, add the `serve` option to the disk's configuration array within the `config/filesystems.php` configuration file. This option is most commonly used to generate temporary URLs for files stored using the `local` driver:
 
 ```php
 'local' => [
@@ -504,6 +512,8 @@ To generate temporary URLs for files stored using the `local` driver, add the `s
     'throw' => false,
 ],
 ```
+
+Any configured disk may enable these routes. Custom filesystem drivers that enable the `serve` option must provide the filesystem response methods used to serve and receive files.
 
 <a name="s3-request-parameters"></a>
 #### S3 Request Parameters
@@ -1073,8 +1083,18 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-The first argument of the `extend` method is the name of the driver and the second is a closure that receives the `$app` and `$config` variables. The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk.
+The first argument of the `extend` method is the name of the driver and the second is a closure that receives the `$app` and `$config` variables. The closure may also accept the disk's logical name as a third argument. This value is `null` for an anonymous on-demand disk:
+
+```php
+Storage::extend('dropbox', function (Application $app, array $config, ?string $name) {
+    // ...
+});
+```
+
+The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk. You may omit the third argument when your driver does not need the disk name.
 
 The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients.
+
+Custom whole-driver pools include the logical disk name in their construction fingerprint. If the name does not affect your custom driver and several named disks may safely share one pool, configure the same `pool.fingerprint` for each disk. A shared `pool.name` may also choose the pool's identity, but it does not replace the shared fingerprint.
 
 Once you have created and registered the extension's service provider, you may use the `dropbox` driver in your `config/filesystems.php` configuration file.

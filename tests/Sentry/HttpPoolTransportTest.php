@@ -47,7 +47,7 @@ class HttpPoolTransportTest extends TestCase
         $this->assertSame(ResultStatus::skipped(), $result->getStatus());
     }
 
-    public function testSingleSendThenCloseReleasesTransport(): void
+    public function testAcceptedSendReturnsItsEventAndReleasesTransportAfterCompletion(): void
     {
         $httpTransport = m::mock(HttpTransport::class);
         $httpTransport->shouldReceive('send')
@@ -64,8 +64,12 @@ class HttpPoolTransportTest extends TestCase
 
         $transport = new HttpPoolTransport($pool);
 
-        $transport->send(Event::createEvent());
-        $transport->close();
+        $event = Event::createEvent();
+        $result = $transport->send($event);
+
+        $this->assertSame(ResultStatus::success(), $result->getStatus());
+        $this->assertSame($event, $result->getEvent());
+        $this->assertSame(ResultStatus::success(), $transport->close()->getStatus());
     }
 
     public function testMultipleSendsThenCloseReleasesAllTransports(): void
@@ -126,7 +130,7 @@ class HttpPoolTransportTest extends TestCase
         $transport->close();
     }
 
-    public function testSendExceptionDiscardsTransportImmediately(): void
+    public function testUnexpectedChildFailureDiscardsTransport(): void
     {
         $httpTransport = m::mock(HttpTransport::class);
         $httpTransport->shouldReceive('send')
@@ -137,18 +141,18 @@ class HttpPoolTransportTest extends TestCase
         $pool->shouldReceive('get')
             ->once()
             ->andReturn($httpTransport);
-        // Discarded immediately on exception, not tracked for close().
         $pool->shouldReceive('discard')
             ->once()
             ->with($httpTransport);
 
         $transport = new HttpPoolTransport($pool);
 
-        $result = $transport->send(Event::createEvent());
+        $event = Event::createEvent();
+        $result = $transport->send($event);
 
-        $this->assertSame(ResultStatus::failed(), $result->getStatus());
+        $this->assertSame(ResultStatus::success(), $result->getStatus());
+        $this->assertSame($event, $result->getEvent());
 
-        // close() should not try to finalize again — already discarded.
         $transport->close();
     }
 
@@ -166,7 +170,7 @@ class HttpPoolTransportTest extends TestCase
         $pool->shouldReceive('release')->once()->with($replacement);
         $transport = new HttpPoolTransport($pool);
 
-        $this->assertSame(ResultStatus::failed(), $transport->send(Event::createEvent())->getStatus());
+        $this->assertSame(ResultStatus::success(), $transport->send(Event::createEvent())->getStatus());
         $this->assertSame(ResultStatus::success(), $transport->send(Event::createEvent())->getStatus());
         $transport->close();
     }
@@ -196,7 +200,6 @@ class HttpPoolTransportTest extends TestCase
         $pool->shouldReceive('discard')
             ->once()
             ->with($httpTransport2);
-        // transport1 and transport3 released on close()
         $pool->shouldReceive('release')
             ->once()
             ->with($httpTransport1);
@@ -212,10 +215,87 @@ class HttpPoolTransportTest extends TestCase
         $transport->close();
     }
 
+    public function testPositiveCloseWaitsOnlyForItsCapturedGeneration(): void
+    {
+        $firstStarted = new Channel(1);
+        $secondStarted = new Channel(1);
+        $releaseFirst = new Channel(1);
+        $releaseSecond = new Channel(1);
+        $drainResult = new Channel(1);
+
+        $first = m::mock(HttpTransport::class);
+        $first->shouldReceive('send')->once()->andReturnUsing(
+            static function () use ($firstStarted, $releaseFirst): Result {
+                $firstStarted->push(true);
+                $releaseFirst->pop();
+
+                return new Result(ResultStatus::success());
+            }
+        );
+        $second = m::mock(HttpTransport::class);
+        $second->shouldReceive('send')->once()->andReturnUsing(
+            static function () use ($secondStarted, $releaseSecond): Result {
+                $secondStarted->push(true);
+                $releaseSecond->pop();
+
+                return new Result(ResultStatus::success());
+            }
+        );
+
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('get')->twice()->andReturn($first, $second);
+        $pool->shouldReceive('release')->once()->with($first);
+        $pool->shouldReceive('release')->once()->with($second);
+
+        $transport = new HttpPoolTransport($pool);
+        $transport->send(Event::createEvent());
+        $this->assertTrue($firstStarted->pop(1.0));
+
+        Coroutine::create(static function () use ($drainResult, $transport): void {
+            $drainResult->push($transport->close(1));
+        });
+
+        $transport->send(Event::createEvent());
+        $this->assertTrue($secondStarted->pop(1.0));
+
+        $releaseFirst->push(true);
+        $firstResult = $drainResult->pop(1.0);
+
+        $this->assertInstanceOf(Result::class, $firstResult);
+        $this->assertSame(ResultStatus::success(), $firstResult->getStatus());
+        $this->assertSame(ResultStatus::unknown(), $transport->close()->getStatus());
+
+        $releaseSecond->push(true);
+        $this->assertSame(ResultStatus::success(), $transport->close(1)->getStatus());
+    }
+
+    public function testCoroutineCreationFailureBalancesTheGenerationAndReleasesTheTransport(): void
+    {
+        $httpTransport = m::mock(HttpTransport::class);
+        $httpTransport->shouldNotReceive('send');
+
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('get')->once()->andReturn($httpTransport);
+        $pool->shouldReceive('release')->once()->with($httpTransport);
+
+        $transport = new FailingCoroutineHttpPoolTransport($pool);
+        $result = $transport->send(Event::createEvent());
+
+        $this->assertSame(ResultStatus::failed(), $result->getStatus());
+        $this->assertSame(ResultStatus::success(), $transport->close()->getStatus());
+    }
+
+    public function testShutdownClosesThePool(): void
+    {
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('close')->once();
+
+        (new HttpPoolTransport($pool))->shutdown();
+    }
+
     public function testCloseWithNoSendsDoesNothing(): void
     {
         $pool = m::mock(Pool::class);
-        // release should never be called
         $pool->shouldNotReceive('release');
 
         $transport = new HttpPoolTransport($pool);
@@ -225,7 +305,7 @@ class HttpPoolTransportTest extends TestCase
         $this->assertSame(ResultStatus::success(), $result->getStatus());
     }
 
-    public function testCloseAfterCloseDoesNotDoubleRelease(): void
+    public function testRepeatedCloseDoesNotReleaseACompletedSendAgain(): void
     {
         $httpTransport = m::mock(HttpTransport::class);
         $httpTransport->shouldReceive('send')
@@ -236,7 +316,6 @@ class HttpPoolTransportTest extends TestCase
         $pool->shouldReceive('get')
             ->once()
             ->andReturn($httpTransport);
-        // Should only be released once across both close() calls
         $pool->shouldReceive('release')
             ->once()
             ->with($httpTransport);
@@ -245,10 +324,10 @@ class HttpPoolTransportTest extends TestCase
 
         $transport->send(Event::createEvent());
         $transport->close();
-        $transport->close(); // Second close should be a no-op
+        $transport->close();
     }
 
-    public function testTransportsAreReleasedWhenCoroutineDiesWithoutClose(): void
+    public function testChildReleasesTransportWithoutARequestClose(): void
     {
         $httpTransport = m::mock(HttpTransport::class);
         $httpTransport->shouldReceive('send')
@@ -270,19 +349,16 @@ class HttpPoolTransportTest extends TestCase
 
         $transport = new HttpPoolTransport($pool);
 
-        // Run send() in a child coroutine that exits WITHOUT calling close()
         Coroutine::create(function () use ($transport): void {
             $transport->send(Event::createEvent());
-            // Coroutine ends here — no close() called
         });
 
-        // Wait for the deferred release to fire (with timeout)
         $wasReleased = $released->pop(1.0);
 
-        $this->assertTrue($wasReleased, 'Transport should be released via defer when coroutine exits without close()');
+        $this->assertTrue($wasReleased);
     }
 
-    public function testDeferDoesNotDoubleReleaseWhenCloseAlreadyCalled(): void
+    public function testCloseDoesNotReleaseAnAlreadyCompletedSendAgain(): void
     {
         $httpTransport = m::mock(HttpTransport::class);
         $httpTransport->shouldReceive('send')
@@ -305,18 +381,22 @@ class HttpPoolTransportTest extends TestCase
 
         $done = new Channel(1);
 
-        // Run send() + close() in a child coroutine — defer should be a no-op
         Coroutine::create(function () use ($transport, $done): void {
             $transport->send(Event::createEvent());
             $transport->close();
-            // Coroutine ends — defer fires but list is empty
             $done->push(true);
         });
 
         $done->pop(1.0);
-        // Give defer a moment to fire
-        usleep(10_000);
 
-        $this->assertSame(1, $releaseCount, 'Transport should be released exactly once — by close(), not again by defer');
+        $this->assertSame(1, $releaseCount);
+    }
+}
+
+class FailingCoroutineHttpPoolTransport extends HttpPoolTransport
+{
+    protected function createCoroutine(callable $callback): void
+    {
+        throw new RuntimeException('Unable to create coroutine.');
     }
 }

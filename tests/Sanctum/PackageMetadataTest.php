@@ -33,7 +33,6 @@ class PackageMetadataTest extends TestCase
         foreach ([
             'ext-ctype',
             'ext-filter',
-            'ext-json',
             'hypervel/cookie',
             'hypervel/foundation',
             'hypervel/session',

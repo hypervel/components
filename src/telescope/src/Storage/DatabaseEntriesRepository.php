@@ -6,6 +6,7 @@ namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
@@ -140,19 +141,30 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     protected function storeExceptions(Collection $exceptions): void
     {
         $exceptions->chunk($this->chunkSize)->each(function ($chunked) {
-            $this->table('telescope_entries')->insert($chunked->map(function ($exception) {
-                $occurrences = $this->countExceptionOccurences($exception);
+            $occurrences = [];
+            $lastUuids = [];
 
-                $this->table('telescope_entries')
-                    ->where('type', EntryType::EXCEPTION)
-                    ->where('family_hash', $exception->familyHash())
-                    ->where('should_display_on_index', true)
-                    ->update(['should_display_on_index' => false]);
+            $chunked->groupBy(fn ($exception) => $exception->familyHash())
+                ->each(function ($family, $familyHash) use (&$occurrences, &$lastUuids): void {
+                    $occurrences[$familyHash] = $this->countExceptionOccurences($family->first());
+                    $lastUuids[$familyHash] = $family->last()->uuid;
+
+                    $this->table('telescope_entries')
+                        ->where('type', EntryType::EXCEPTION)
+                        ->where('family_hash', $familyHash)
+                        ->where('should_display_on_index', true)
+                        ->update(['should_display_on_index' => false]);
+                });
+
+            $this->table('telescope_entries')->insert($chunked->map(function ($exception) use (&$occurrences, $lastUuids) {
+                $familyHash = $exception->familyHash();
+                ++$occurrences[$familyHash];
 
                 return array_merge($exception->toArray(), [
-                    'family_hash' => $exception->familyHash(),
+                    'family_hash' => $familyHash,
+                    'should_display_on_index' => $exception->uuid === $lastUuids[$familyHash],
                     'content' => json_encode(
-                        array_merge($exception->content, ['occurrences' => $occurrences + 1]),
+                        array_merge($exception->content, ['occurrences' => $occurrences[$familyHash]]),
                         JSON_INVALID_UTF8_SUBSTITUTE
                     ),
                 ]);
@@ -203,7 +215,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * Store the given entry updates and return the failed updates.
      */
-    public function update(Collection $updates): ?Collection
+    public function update(Collection $updates): Collection
     {
         $failedUpdates = [];
 
@@ -219,10 +231,10 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
                 continue;
             }
 
-            $content = json_encode(array_merge(
-                json_decode($entry->content ?? $entry['content'] ?? [], true) ?: [],
-                $update->changes
-            ));
+            $content = json_encode(
+                array_merge(json_decode($entry->content, true) ?: [], $update->changes),
+                JSON_INVALID_UTF8_SUBSTITUTE,
+            );
 
             $this->table('telescope_entries')
                 ->where('uuid', $update->uuid)
@@ -316,17 +328,15 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function monitor(array $tags): void
     {
-        $tags = array_diff($tags, $this->monitoring());
+        $tags = array_values(array_diff(array_unique($tags), $this->monitoring()));
 
         if (empty($tags)) {
             return;
         }
 
-        $this->table('telescope_monitoring')
-            ->insert(Collection::make($tags)
-                ->mapWithKeys(function ($tag) {
-                    return ['tag' => $tag];
-                })->all());
+        $this->table('telescope_monitoring')->insert(
+            array_map(static fn (string $tag): array => ['tag' => $tag], $tags),
+        );
     }
 
     /**
@@ -345,7 +355,8 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     public function prune(DateTimeInterface $before, bool $keepExceptions): int
     {
         $query = $this->table('telescope_entries')
-            ->where('created_at', '<', $before);
+            ->where('created_at', '<', $before)
+            ->orderBy('sequence');
 
         if ($keepExceptions) {
             $query->where('type', '!=', 'exception');
@@ -368,11 +379,11 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     public function clear(): void
     {
         do {
-            $deleted = $this->table('telescope_entries')->take($this->chunkSize)->delete();
+            $deleted = $this->table('telescope_entries')->orderBy('sequence')->take($this->chunkSize)->delete();
         } while ($deleted !== 0);
 
         do {
-            $deleted = $this->table('telescope_monitoring')->take($this->chunkSize)->delete();
+            $deleted = $this->table('telescope_monitoring')->orderBy('tag')->take($this->chunkSize)->delete();
         } while ($deleted !== 0);
     }
 
@@ -387,7 +398,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * Get a query builder instance for the given table.
      */
-    protected function table(string $table)
+    protected function table(string $table): Builder
     {
         return DB::connection($this->connection)->table($table);
     }

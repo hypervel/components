@@ -32,8 +32,6 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'php',
-            'ext-hash',
-            'ext-json',
             'hypervel/auth',
             'hypervel/collections',
             'hypervel/config',
@@ -65,8 +63,6 @@ class PackageMetadataTest extends TestCase
         }
 
         foreach ([
-            'ext-hash',
-            'ext-json',
             'nesbot/carbon',
             'paragonie/constant_time_encoding',
             'symfony/console',

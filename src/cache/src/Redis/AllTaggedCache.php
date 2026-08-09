@@ -17,6 +17,7 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -101,12 +102,21 @@ class AllTaggedCache extends NamespacedTaggedCache
             fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
         );
 
-        $result = $this->store->allTagOps()->put()->execute(
-            $this->itemKey($key),
-            $value,
-            $seconds,
-            $this->tags->tagIds()
-        );
+        try {
+            $result = $this->store->allTagOps()->put()->execute(
+                $this->itemKey($key),
+                $value,
+                $seconds,
+                $this->tags->tagIds()
+            );
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(
@@ -128,6 +138,10 @@ class AllTaggedCache extends NamespacedTaggedCache
      */
     public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
+        if ($values === []) {
+            return true;
+        }
+
         if ($ttl === null) {
             return $this->putManyForever($values);
         }
@@ -148,12 +162,23 @@ class AllTaggedCache extends NamespacedTaggedCache
             )
         );
 
-        $result = $this->store->allTagOps()->putMany()->execute(
-            $values,
-            $seconds,
-            $this->tags->tagIds(),
-            $this->taggedItemKeyPrefix()
-        );
+        try {
+            $result = $this->store->allTagOps()->putMany()->execute(
+                $values,
+                $seconds,
+                $this->tags->tagIds(),
+                $this->taggedItemKeyPrefix()
+            );
+        } catch (Throwable $exception) {
+            foreach ($values as $key => $value) {
+                $this->event(
+                    KeyWriteFailed::class,
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                );
+            }
+
+            throw $exception;
+        }
 
         foreach ($values as $key => $value) {
             if ($result) {
@@ -236,11 +261,20 @@ class AllTaggedCache extends NamespacedTaggedCache
             NullSentinel::unwrap($value)
         ));
 
-        $result = $this->store->allTagOps()->forever()->execute(
-            $this->itemKey($key),
-            $value,
-            $this->tags->tagIds()
-        );
+        try {
+            $result = $this->store->allTagOps()->forever()->execute(
+                $this->itemKey($key),
+                $value,
+                $this->tags->tagIds()
+            );
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(

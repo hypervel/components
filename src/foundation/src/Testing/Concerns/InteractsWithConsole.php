@@ -40,11 +40,6 @@ trait InteractsWithConsole
     public array $unexpectedOutputSubstrings = [];
 
     /**
-     * All of the expected output tables.
-     */
-    public array $expectedTables = [];
-
-    /**
      * All of the expected questions.
      */
     public array $expectedQuestions = [];

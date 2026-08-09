@@ -10,6 +10,7 @@ use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Contracts\Cache\Store;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -71,10 +72,19 @@ class StackTaggedCache extends AnyModeTaggedCache
             fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
         );
 
-        $result = $this->store->putRecordTagged($this->tags->getNames(), $key, [
-            'value' => $value,
-            'ttl' => $seconds,
-        ]);
+        try {
+            $result = $this->store->putRecordTagged($this->tags->getNames(), $key, [
+                'value' => $value,
+                'ttl' => $seconds,
+            ]);
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(
@@ -118,7 +128,16 @@ class StackTaggedCache extends AnyModeTaggedCache
             NullSentinel::unwrap($value)
         ));
 
-        $result = $this->store->putRecordTagged($this->tags->getNames(), $key, ['value' => $value]);
+        try {
+            $result = $this->store->putRecordTagged($this->tags->getNames(), $key, ['value' => $value]);
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(

@@ -201,7 +201,6 @@ source-verifiable.
 Add these direct requirements to `src/passkeys/composer.json`:
 
 ```json
-"ext-hash": "*",
 "hypervel/context": "^0.4",
 "nesbot/carbon": "^3.13.1",
 "symfony/http-kernel": "^8.1"

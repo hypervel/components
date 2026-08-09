@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use DateTimeZone;
 use Hypervel\Bus\Queueable;
+use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -73,6 +74,21 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
 
         $this->assertNotNull($finishCheckInEvent->getCheckIn());
         $this->assertEquals($expectedTimezone, $finishCheckInEvent->getCheckIn()->getMonitorConfig()->getTimezone());
+    }
+
+    public function testScheduleMacroCanOverrideTheMonitorExpression(): void
+    {
+        $scheduledEvent = $this->getScheduler()
+            ->call(static function (): void {
+            })
+            ->daily()
+            ->sentryMonitor('custom-schedule-monitor', schedule: '*/5 * * * *');
+
+        $scheduledEvent->run($this->app);
+
+        $monitorConfig = $this->getLastSentryEvent()->getCheckIn()->getMonitorConfig();
+
+        $this->assertSame('*/5 * * * *', $monitorConfig->getSchedule()->getValue());
     }
 
     public function testScheduleMacroAutomaticSlugForCommand(): void
@@ -146,6 +162,33 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
     public function testScheduleMacroIsRegistered(): void
     {
         $this->assertTrue(Event::hasMacro('sentryMonitor'));
+    }
+
+    public function testMonitorCheckInsRemainWithoutScheduledTracingListeners(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.traces_sample_rate' => null,
+            'sentry.features' => [
+                ConsoleSchedulingFeature::class,
+            ],
+        ]);
+        $listeners = $this->app->make('events')->getRawListeners()[ScheduledTaskStarting::class] ?? [];
+
+        foreach ($listeners as $listener) {
+            $this->assertFalse(
+                is_array($listener) && ($listener[0] ?? null) instanceof ConsoleSchedulingFeature,
+            );
+        }
+
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->call(static function (): void {
+            })
+            ->sentryMonitor('check-ins-without-tracing');
+
+        $scheduledEvent->run($this->app);
+
+        $this->assertSentryCheckInCount(2);
     }
 
     public function testScheduleMacroIsRegisteredWithoutDsnSet(): void

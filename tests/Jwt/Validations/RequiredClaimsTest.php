@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class RequiredClaimsTest extends TestCase
 {
-    public function testValid()
+    public function testValid(): void
     {
         $this->expectNotToPerformAssertions();
 
@@ -18,7 +18,7 @@ class RequiredClaimsTest extends TestCase
         (new RequiredClaims(['required_claims' => ['sub']]))->validate(['sub' => 'foo']);
     }
 
-    public function testInvalid()
+    public function testInvalid(): void
     {
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessage('Claims are missing: ["sub"]');

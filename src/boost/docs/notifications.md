@@ -1803,6 +1803,51 @@ public function handle(NotificationSending $event): void
 }
 ```
 
+<a name="notification-skipped-event"></a>
+#### Notification Skipped Event
+
+When a notification's `shouldSend` method returns `false`, or a `NotificationSending` listener stops delivery, the `Hypervel\Notifications\Events\NotificationSkipped` event is dispatched. The event provides the `notifiable`, `notification`, and `channel` properties:
+
+```php
+use Hypervel\Notifications\Events\NotificationSkipped;
+
+class LogSkippedNotification
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(NotificationSkipped $event): void
+    {
+        // $event->channel
+        // $event->notifiable
+        // $event->notification
+    }
+}
+```
+
+<a name="notification-delivered-event"></a>
+#### Notification Delivered Event
+
+After the notification channel returns, the `Hypervel\Notifications\Events\NotificationDelivered` event is dispatched before the notification's `afterSending` method and the `NotificationSent` event. This event provides the channel response in addition to the `notifiable`, `notification`, and `channel` properties:
+
+```php
+use Hypervel\Notifications\Events\NotificationDelivered;
+
+class RecordNotificationDelivery
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(NotificationDelivered $event): void
+    {
+        // $event->channel
+        // $event->notifiable
+        // $event->notification
+        // $event->response
+    }
+}
+```
+
 <a name="notification-sent-event"></a>
 #### Notification Sent Event
 

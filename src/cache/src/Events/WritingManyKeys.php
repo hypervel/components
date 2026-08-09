@@ -8,6 +8,8 @@ class WritingManyKeys extends CacheEvent
 {
     /**
      * The keys that are being written.
+     *
+     * @var list<string>
      */
     public array $keys;
 
@@ -23,6 +25,8 @@ class WritingManyKeys extends CacheEvent
 
     /**
      * Create a new event instance.
+     *
+     * @param list<string> $keys
      */
     public function __construct(?string $storeName, array $keys, array $values, ?int $seconds = null, array $tags = [])
     {

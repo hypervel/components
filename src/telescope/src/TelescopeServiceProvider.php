@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Telescope\Actions\UninstallAction;
 use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Watchers\CacheWatcher;
+use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 
 class TelescopeServiceProvider extends ServiceProvider
@@ -55,7 +58,8 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(): void
     {
-        Route::middleware(config('telescope.middleware', []))
+        Route::domain(config('telescope.domain'))
+            ->middleware(config('telescope.middleware', []))
             ->prefix(config('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
             ->group(__DIR__ . '/../routes/web.php');
@@ -112,11 +116,16 @@ class TelescopeServiceProvider extends ServiceProvider
             'telescope'
         );
 
+        $this->registerPrePackageUninstallListener();
         $this->registerStorageDriver();
+
+        if (! config('telescope.enabled')) {
+            return;
+        }
+
         $this->registerRedisEvents();
         $this->registerCacheEvents();
-
-        $this->aspects(GuzzleHttpClientAspect::class);
+        $this->registerGuzzleHttpClientAspect();
     }
 
     /**
@@ -124,9 +133,7 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerRedisEvents(): void
     {
-        $config = config('telescope.watchers.' . RedisWatcher::class, false);
-
-        if (! $config || (is_array($config) && ! ($config['enabled'] ?? true))) {
+        if (! $this->watcherIsEnabled(RedisWatcher::class)) {
             return;
         }
 
@@ -138,13 +145,33 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerCacheEvents(): void
     {
-        $config = config('telescope.watchers.' . CacheWatcher::class, false);
-
-        if (! $config || (is_array($config) && ! ($config['enabled'] ?? true))) {
+        if (! $this->watcherIsEnabled(CacheWatcher::class)) {
             return;
         }
 
         CacheWatcher::enableCacheEvents($this->app);
+    }
+
+    /**
+     * Register the Guzzle HTTP client aspect if the watcher is enabled.
+     */
+    protected function registerGuzzleHttpClientAspect(): void
+    {
+        if (! $this->watcherIsEnabled(ClientRequestWatcher::class)) {
+            return;
+        }
+
+        $this->aspects(GuzzleHttpClientAspect::class);
+    }
+
+    /**
+     * Determine if the given watcher is enabled.
+     */
+    protected function watcherIsEnabled(string $watcher): bool
+    {
+        $config = config('telescope.watchers.' . $watcher, false);
+
+        return (bool) $config && (! is_array($config) || ($config['enabled'] ?? true));
     }
 
     /**
@@ -186,5 +213,15 @@ class TelescopeServiceProvider extends ServiceProvider
         $this->app->when(DatabaseEntriesRepository::class)
             ->needs('$chunkSize')
             ->give(fn () => config('telescope.storage.database.chunk'));
+    }
+
+    /**
+     * Register a pre-package uninstallation listener.
+     */
+    protected function registerPrePackageUninstallListener(): void
+    {
+        $this->app->make(Dispatcher::class)->listen('composer_package.hypervel/telescope:pre_uninstall', function (): void {
+            $this->app->make(UninstallAction::class)->handle();
+        });
     }
 }

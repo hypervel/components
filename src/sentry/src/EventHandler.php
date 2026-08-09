@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Exception;
 use Hypervel\Auth\Events as AuthEvents;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events as DatabaseEvents;
 use Hypervel\Http\Request;
@@ -17,9 +17,13 @@ use Hypervel\Log\Events as LogEvents;
 use Hypervel\Routing\Events as RoutingEvents;
 use Hypervel\Sanctum\Events as Sanctum;
 use Hypervel\Sentry\Tracing\Middleware;
+use Hypervel\Sentry\Transport\HttpPoolTransport;
 use RuntimeException;
 use Sentry\Breadcrumb;
+use Sentry\Client;
+use Sentry\SentrySdk;
 use Sentry\State\Scope;
+use Throwable;
 
 class EventHandler
 {
@@ -32,6 +36,7 @@ class EventHandler
         LogEvents\MessageLogged::class => 'messageLogged',
         RoutingEvents\RouteMatched::class => 'routeMatched',
         DatabaseEvents\QueryExecuted::class => 'queryExecuted',
+        OnWorkerExit::class => 'workerExit',
     ];
 
     /**
@@ -112,7 +117,7 @@ class EventHandler
 
         try {
             $this->{$handlerMethod}(...$arguments);
-        } catch (Exception) {
+        } catch (Throwable) {
             // Ignore
         }
     }
@@ -190,6 +195,26 @@ class EventHandler
     }
 
     /**
+     * Flush buffered telemetry and stop accepting new transport work.
+     */
+    protected function workerExitHandler(OnWorkerExit $event): void
+    {
+        try {
+            Integration::flushEvents();
+        } finally {
+            $client = SentrySdk::getCurrentHub()->getClient();
+
+            if ($client instanceof Client) {
+                $transport = $client->getTransport();
+
+                if ($transport instanceof HttpPoolTransport) {
+                    $transport->shutdown();
+                }
+            }
+        }
+    }
+
+    /**
      * Handle an authenticated event.
      */
     protected function authenticatedHandler(AuthEvents\Authenticated $event): void
@@ -230,9 +255,15 @@ class EventHandler
                 }
             }
 
-            $username = $this->modelHasAttribute($authUser, 'username')
-                ? (string) $authUser->getAttribute('username')
-                : null;
+            $username = null;
+
+            if ($this->modelHasAttribute($authUser, 'username')) {
+                $username = $authUser->getAttribute('username');
+
+                if ($username !== null) {
+                    $username = (string) $username;
+                }
+            }
 
             $userData = [
                 'id' => $authUser instanceof Authenticatable
@@ -255,7 +286,10 @@ class EventHandler
         }
 
         Integration::configureScope(static function (Scope $scope) use ($userData): void {
-            $scope->setUser(array_filter($userData));
+            $scope->setUser(array_filter(
+                $userData,
+                static fn (mixed $value): bool => $value !== null,
+            ));
         });
     }
 

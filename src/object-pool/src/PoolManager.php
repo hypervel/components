@@ -66,7 +66,8 @@ class PoolManager implements FactoryContract
                     throw new RuntimeException(
                         "Pool [{$identity}] already exists with a different construction fingerprint "
                         . "[{$current->fingerprint}] (requested [{$definition->fingerprint}]). "
-                        . 'Purge the pool or use a distinct explicit pool name.'
+                        . 'Use a distinct explicit pool name, or declare a matching explicit fingerprint '
+                        . 'only when the differing input does not affect construction.'
                     );
                 }
 

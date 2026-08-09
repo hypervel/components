@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Jwt\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Env;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -42,7 +43,7 @@ class JwtGenerateCertsCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(Filesystem $files): int
     {
         $directory = $this->resolvePath((string) $this->option('dir'));
         $algorithm = strtolower((string) $this->option('algo'));
@@ -65,6 +66,10 @@ class JwtGenerateCertsCommand extends Command
             'ec' => [OPENSSL_KEYTYPE_EC, sprintf('ES%d', $sha)],
             default => throw new RuntimeException('Unknown JWT certificate algorithm.'),
         };
+
+        if ($keyType === OPENSSL_KEYTYPE_RSA && $bits < 2048) {
+            throw new RuntimeException('JWT RSA certificates must use at least 2048 bits.');
+        }
 
         if ($keyType === OPENSSL_KEYTYPE_EC) {
             $this->validateEcCurve($sha, $curve);
@@ -104,26 +109,15 @@ class JwtGenerateCertsCommand extends Command
         }
 
         $details = openssl_pkey_get_details($key);
+        $publicKey = $details === false ? null : ($details['key'] ?? null);
 
-        if ($details === false || ! is_string($details['key'] ?? null)) {
+        if (! is_string($publicKey)) {
             throw new RuntimeException('Unable to export JWT public key.');
         }
 
-        if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
-            throw new RuntimeException("Unable to create directory [{$directory}].");
-        }
-
-        if (file_put_contents($privateKeyPath, $privateKey) === false) {
-            throw new RuntimeException("Unable to write private key to [{$privateKeyPath}].");
-        }
-
-        if (! chmod($privateKeyPath, 0600)) {
-            throw new RuntimeException("Unable to secure private key [{$privateKeyPath}].");
-        }
-
-        if (file_put_contents($publicKeyPath, $details['key']) === false) {
-            throw new RuntimeException("Unable to write public key to [{$publicKeyPath}].");
-        }
+        $files->ensureDirectoryExists($directory);
+        $files->replace($privateKeyPath, $privateKey, 0600);
+        $files->replace($publicKeyPath, $publicKey, 0644);
 
         Env::writeVariables([
             'JWT_ALGO' => $algorithmIdentifier,
@@ -133,6 +127,11 @@ class JwtGenerateCertsCommand extends Command
         ], $environmentFile, overwrite: true);
 
         $this->components->info('JWT certificates generated successfully.');
+        $this->components->warn(
+            'Reload or restart every long-running application process before issuing tokens with the new certificate pair. '
+            . 'You may reload server workers using the [php artisan server:reload] command. '
+            . 'Other long-running processes, such as queue workers and custom server processes, must be restarted separately.'
+        );
 
         return self::SUCCESS;
     }
@@ -165,7 +164,9 @@ class JwtGenerateCertsCommand extends Command
     protected function resolvePassphrase(): ?string
     {
         if ($this->option('ask-passphrase')) {
-            return $this->secret('Passphrase') ?: null;
+            $passphrase = $this->secret('Passphrase');
+
+            return $passphrase !== null && $passphrase !== '' ? $passphrase : null;
         }
 
         $passphrase = $this->option('passphrase');

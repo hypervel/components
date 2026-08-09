@@ -31,23 +31,17 @@ trait FetchesStackTrace
      */
     protected function ignoredPaths(): array
     {
-        $ignoredPaths = $this->shouldIgnoredVendorPath()
-            ? [
-                base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
-            ]
-            : [];
-
         return array_merge(
-            $ignoredPaths,
+            [base_path('vendor' . DIRECTORY_SEPARATOR . $this->ignoredVendorPath())],
             $this->options['ignore_paths'] ?? []
         );
     }
 
     /**
-     * Indicates if to ignore ignore Telescope / Hypervel packages.
+     * Choose the frame outside of either Telescope / Hypervel or all packages.
      */
-    protected function shouldIgnoredVendorPath(): bool
+    protected function ignoredVendorPath(): ?string
     {
-        return $this->options['ignore_packages'] ?? true;
+        return ($this->options['ignore_packages'] ?? true) ? null : 'hypervel';
     }
 }

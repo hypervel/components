@@ -8,10 +8,12 @@ use Error;
 use ErrorException;
 use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use ParseError;
 
@@ -103,6 +105,34 @@ class ExceptionWatcherTest extends FeatureTestCase
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertArrayNotHasKey('extra', $entry->content);
+    }
+
+    public function testExceptionWatcherHandlesADeletedSourceFile(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('TelescopeExceptionWatcherTest');
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $file = $directory . '/throws.php';
+        $filesystem->put($file, '<?php throw new \Exception("deleted source");');
+
+        try {
+            require $file;
+            $this->fail('The fixture was expected to throw.');
+        } catch (Exception $exception) {
+            $filesystem->delete($file);
+        }
+
+        try {
+            $this->app->make(ExceptionHandler::class)->report($exception);
+
+            $entry = $this->loadTelescopeEntries()->first();
+
+            $this->assertSame('deleted source', $entry->content['message']);
+            $this->assertSame([], $entry->content['line_preview']);
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
     }
 }
 

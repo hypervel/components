@@ -146,17 +146,47 @@ class TestStateRegistrarsTest extends TestCase
         $this->makeRegistrars()->register();
     }
 
-    public function testDeclaredRegistrarWithoutRegisterMethodThrows(): void
+    #[DataProvider('nonCallableRegistrarClasses')]
+    public function testDeclaredRegistrarWithoutCallablePublicStaticRegisterThrows(string $class): void
     {
         $this->writeRootComposer();
         $this->writeInstalledPackages([
-            $this->package('vendor/package', [RegistrarWithoutRegisterMethod::class]),
+            $this->package('vendor/package', [$class]),
         ]);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Test-state registrar [' . RegistrarWithoutRegisterMethod::class . '] declared by [vendor/package] must define a register method.');
+        $this->expectExceptionMessage('Test-state registrar [' . $class . '] declared by [vendor/package] must define a public static register method.');
 
         $this->makeRegistrars()->register();
+    }
+
+    /**
+     * Provide registrar classes without a callable public static register method.
+     *
+     * @return array<string, array{class-string}>
+     */
+    public static function nonCallableRegistrarClasses(): array
+    {
+        return [
+            'missing method' => [RegistrarWithoutRegisterMethod::class],
+            'public instance method' => [RegistrarWithPublicInstanceRegisterMethod::class],
+            'protected static method' => [RegistrarWithProtectedStaticRegisterMethod::class],
+            'private static method' => [RegistrarWithPrivateStaticRegisterMethod::class],
+            'abstract static method' => [RegistrarWithAbstractStaticRegisterMethod::class],
+            'magic static method' => [RegistrarWithMagicStaticRegisterMethod::class],
+        ];
+    }
+
+    public function testInheritedPublicStaticRegisterMethodIsCallable(): void
+    {
+        $this->writeRootComposer();
+        $this->writeInstalledPackages([
+            $this->package('vendor/package', [InheritedTestStateRegistrar::class]),
+        ]);
+
+        $this->makeRegistrars()->register();
+
+        $this->assertSame(['inherited'], TestStateRegistrarRecorder::$calls);
     }
 
     public function testNonStringDeclaredRegistrarThrows(): void
@@ -351,6 +381,69 @@ class RootTestStateRegistrar
 }
 
 class RegistrarWithoutRegisterMethod
+{
+}
+
+class RegistrarWithPublicInstanceRegisterMethod
+{
+    /**
+     * Register test state.
+     */
+    public function register(): void
+    {
+    }
+}
+
+class RegistrarWithProtectedStaticRegisterMethod
+{
+    /**
+     * Register test state.
+     */
+    protected static function register(): void
+    {
+    }
+}
+
+class RegistrarWithPrivateStaticRegisterMethod
+{
+    /**
+     * Register test state.
+     */
+    private static function register(): void
+    {
+    }
+}
+
+abstract class RegistrarWithAbstractStaticRegisterMethod
+{
+    /**
+     * Register test state.
+     */
+    abstract public static function register(): void;
+}
+
+class RegistrarWithMagicStaticRegisterMethod
+{
+    /**
+     * Handle dynamic static method calls.
+     */
+    public static function __callStatic(string $name, array $arguments): void
+    {
+    }
+}
+
+class ParentTestStateRegistrar
+{
+    /**
+     * Register test state.
+     */
+    public static function register(): void
+    {
+        TestStateRegistrarRecorder::$calls[] = 'inherited';
+    }
+}
+
+class InheritedTestStateRegistrar extends ParentTestStateRegistrar
 {
 }
 

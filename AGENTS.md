@@ -130,6 +130,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
 - **Check dependency versions before adding them** — Before adding a package dependency to the root `composer.json`, check Packagist for the latest compatible stable version. The root `composer.lock` is intentionally untracked; run `composer update` after adding or merging dependency changes, do not treat an outdated local lock as a repository defect, and never commit it.
+- **Keep Composer metadata functional** — Declare an `ext-*` requirement only when the extension is not guaranteed by Hypervel's minimum PHP version. Add a `suggest` entry only when installing that package enables a concrete, documented feature; conditional interoperability, class-string references, tests, or metadata completeness do not qualify.
 
 ### Documentation
 
@@ -433,7 +434,7 @@ PHPUnit loads test files directly (not via autoloading), so the namespace doesn'
 
 ### Temp directories for file I/O
 
-Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, delete any leftover copy and create it fresh in `setUp`, then delete it again via `Filesystem::deleteDirectory()` in `tearDown`. Use `sys_get_temp_dir()` directly only when the system temporary path itself is the behavior under test. See `FoundationViteTest` or `OptionTest` for the pattern.
+Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For any test that only needs an isolated scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, delete any leftover copy and create it fresh in `setUp`, then delete it again via `Filesystem::deleteDirectory()` in `tearDown`. Use `sys_get_temp_dir()` directly only when the system temporary path itself is the behavior under test. See `FoundationViteTest` or `OptionTest` for the pattern.
 
 The Testbench skeleton clone is shared for the whole worker, so tests that write under `BASE_PATH` must restore or delete the exact files they touch in `tearDown()`. For `.env` files, prefer `useEnvironmentPath()` with an isolated `ParallelTesting::tempDir()` directory.
 
@@ -698,6 +699,8 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
 Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
+
+`phpstan.types.neon.dist` validates only the committed `types/` fixtures. Never pass source or test paths to it.
 
 **When fixing phpstan errors:**
 

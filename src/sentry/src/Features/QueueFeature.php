@@ -11,8 +11,10 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Queue;
+use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Integration;
 use Hypervel\Support\Str;
@@ -43,64 +45,56 @@ class QueueFeature extends Feature
 
     private const QUEUE_PAYLOAD_PUBLISH_TIME = 'sentry_publish_time';
 
+    private const QUEUE_PAYLOAD_DESTINATION_NAME = 'sentry_destination_name';
+
     public function isApplicable(): bool
     {
-        if (! $this->container->bound('queue')) {
-            return false;
-        }
-
-        return $this->isBreadcrumbFeatureEnabled('queue_info')
-            || $this->isTracingFeatureEnabled('queue_jobs')
-            || $this->isTracingFeatureEnabled('queue_job_transactions');
+        return $this->container->bound('queue');
     }
 
     public function onBoot(): void
     {
         $dispatcher = $this->container->make('events');
-        $dispatcher->listen(JobQueueing::class, [$this, 'handleJobQueueingEvent']);
-        $dispatcher->listen(JobQueued::class, [$this, 'handleJobQueuedEvent']);
+        $recordSpans = $this->isTracingFeatureEnabled('queue_jobs')
+            || $this->isTracingFeatureEnabled('queue_job_transactions');
+        $recordBreadcrumbs = $this->isBreadcrumbFeatureEnabled('queue_info');
 
-        $dispatcher->listen(JobProcessed::class, [$this, 'handleJobProcessedQueueEvent']);
-        $dispatcher->listen(JobProcessing::class, [$this, 'handleJobProcessingQueueEvent']);
-        $dispatcher->listen(JobFailed::class, [$this, 'handleJobFailedEvent']);
+        if ($recordSpans) {
+            $dispatcher->listen(JobQueueing::class, [$this, 'handleJobQueueingEvent']);
+            $dispatcher->listen(JobQueued::class, [$this, 'handleJobQueuedEvent']);
+            $dispatcher->listen(JobQueueingFailed::class, [$this, 'handleJobQueueingFailedEvent']);
+        }
+
+        if ($recordSpans || $recordBreadcrumbs) {
+            $dispatcher->listen(JobProcessed::class, [$this, 'handleJobProcessedQueueEvent']);
+            $dispatcher->listen(JobProcessing::class, [$this, 'handleJobProcessingQueueEvent']);
+            $dispatcher->listen(JobFailed::class, [$this, 'handleJobFailedEvent']);
+        }
+
         $dispatcher->listen(WorkerStopping::class, [$this, 'handleWorkerStoppingQueueEvent']);
         $dispatcher->listen(JobExceptionOccurred::class, [$this, 'handleJobExceptionOccurredQueueEvent']);
 
-        if ($this->isTracingFeatureEnabled('queue_jobs') || $this->isTracingFeatureEnabled('queue_job_transactions')) {
-            Queue::createPayloadUsing(function (?string $connection, ?string $queue, ?array $payload): ?array {
-                $parentSpan = SentrySdk::getCurrentHub()->getSpan();
+        Queue::createPayloadUsing(function (?string $connection, ?string $queue, ?array $payload) use ($recordSpans): ?array {
+            if ($payload !== null) {
+                $payload[self::QUEUE_PAYLOAD_BAGGAGE_DATA] = getBaggage();
+                $payload[self::QUEUE_PAYLOAD_TRACE_PARENT_DATA] = getTraceparent();
+                $payload[self::QUEUE_PAYLOAD_PUBLISH_TIME] = microtime(true);
 
-                if ($parentSpan !== null && $parentSpan->getSampled()) {
-                    $context = (new SpanContext)
-                        ->setOp(self::QUEUE_SPAN_OP_QUEUE_PUBLISH)
-                        ->setData([
-                            'messaging.system' => 'hypervel',
-                            'messaging.message.id' => $payload['uuid'] ?? null,
-                            'messaging.destination.name' => $this->normalizeQueueName($queue),
-                            'messaging.destination.connection' => $connection,
-                        ])
-                        ->setDescription($queue);
-
-                    $this->pushSpan($parentSpan->startChild($context));
+                if ($recordSpans) {
+                    $payload[self::QUEUE_PAYLOAD_DESTINATION_NAME] = $queue;
                 }
+            }
 
-                if ($payload !== null) {
-                    $payload[self::QUEUE_PAYLOAD_BAGGAGE_DATA] = getBaggage();
-                    $payload[self::QUEUE_PAYLOAD_TRACE_PARENT_DATA] = getTraceparent();
-                    $payload[self::QUEUE_PAYLOAD_PUBLISH_TIME] = microtime(true);
-                }
-
-                return $payload;
-            });
-        }
+            return $payload;
+        });
     }
 
     public function handleJobQueueingEvent(JobQueueing $event): void
     {
-        $currentSpan = SentrySdk::getCurrentHub()->getSpan();
+        $parentSpan = SentrySdk::getCurrentHub()->getSpan();
 
         // If there is no tracing span active there is no need to handle the event
-        if ($currentSpan === null || $currentSpan->getOp() !== self::QUEUE_SPAN_OP_QUEUE_PUBLISH) {
+        if ($parentSpan === null || ! $parentSpan->getSampled()) {
             return;
         }
 
@@ -112,13 +106,34 @@ class QueueFeature extends Feature
             $jobName = get_class($jobName);
         }
 
-        $currentSpan
+        $payload = $event->payload();
+        $destination = $payload[self::QUEUE_PAYLOAD_DESTINATION_NAME] ?? null;
+
+        if (! is_string($destination)) {
+            $destination = $event->queue;
+        }
+
+        $context = (new SpanContext)
+            ->setOp(self::QUEUE_SPAN_OP_QUEUE_PUBLISH)
+            ->setData([
+                'messaging.system' => 'hypervel',
+                'messaging.message.id' => $payload['uuid'] ?? null,
+                'messaging.destination.name' => $this->normalizeQueueName($destination),
+                'messaging.destination.connection' => $event->connectionName,
+            ])
             ->setDescription($jobName);
+
+        $this->trackLocalSpan($event->payload, $parentSpan->startChild($context));
     }
 
     public function handleJobQueuedEvent(JobQueued $event): void
     {
-        $this->maybeFinishSpan();
+        $this->maybeFinishLocalSpan($event->payload, SpanStatus::ok());
+    }
+
+    public function handleJobQueueingFailedEvent(JobQueueingFailed $event): void
+    {
+        $this->maybeFinishLocalSpan($event->payload, SpanStatus::internalError());
     }
 
     public function handleJobProcessedQueueEvent(JobProcessed $event): void
@@ -181,6 +196,7 @@ class QueueFeature extends Feature
         $resolvedJobName = $event->job->resolveName();
 
         $jobPublishedAt = $jobPayload[self::QUEUE_PAYLOAD_PUBLISH_TIME] ?? null;
+        $jobData = json_encode($jobPayload['data'] ?? []);
 
         $job = [
             'messaging.system' => 'hypervel',
@@ -190,7 +206,7 @@ class QueueFeature extends Feature
 
             'messaging.message.id' => $jobPayload['uuid'] ?? null,
             'messaging.message.envelope.size' => strlen($event->job->getRawBody()),
-            'messaging.message.body.size' => strlen(json_encode($jobPayload['data'] ?? [])),
+            'messaging.message.body.size' => $jobData === false ? null : strlen($jobData),
             'messaging.message.retry.count' => $event->job->attempts() - 1,
             'messaging.message.receive.latency' => $jobPublishedAt !== null ? microtime(true) - $jobPublishedAt : null,
         ];
@@ -230,7 +246,11 @@ class QueueFeature extends Feature
 
     public function handleWorkerStoppingQueueEvent(WorkerStopping $event): void
     {
-        Integration::flushEvents();
+        if ($event->terminatesImmediately || $event->reason === WorkerStopReason::MaxMemoryExceeded) {
+            return;
+        }
+
+        Integration::drainEvents();
     }
 
     public function handleJobExceptionOccurredQueueEvent(JobExceptionOccurred $event): void

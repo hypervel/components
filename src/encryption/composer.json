@@ -30,7 +30,6 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-hash": "*",
         "ext-mbstring": "*",
         "ext-openssl": "*",
         "hypervel/config": "^0.4",

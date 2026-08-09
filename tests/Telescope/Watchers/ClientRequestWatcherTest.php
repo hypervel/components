@@ -59,6 +59,41 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(['foo' => 'bar'], $entry->content['response']);
     }
 
+    public function testClientRequestWatcherHidesNestedFalseySecrets(): void
+    {
+        Telescope::hideRequestHeaders(['x-zero']);
+        Telescope::hideRequestParameters(['secret.zero', 'secret.false', 'secret.empty', 'secret.null']);
+        Telescope::hideResponseParameters(['secret.zero', 'secret.false', 'secret.empty', 'secret.null']);
+
+        $payload = ['secret' => [
+            'zero' => 0,
+            'false' => false,
+            'empty' => '',
+            'null' => null,
+        ]];
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'application/json'], json_encode($payload)),
+        ]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org', ['X-Zero' => '0'], json_encode($payload)),
+            ['hypervel_data' => $payload],
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $masked = [
+            'zero' => '********',
+            'false' => '********',
+            'empty' => '********',
+            'null' => '********',
+        ];
+
+        $this->assertSame('********', $entry->content['headers']['x-zero']);
+        $this->assertSame($masked, $entry->content['payload']['secret']);
+        $this->assertSame($masked, $entry->content['response']['secret']);
+    }
+
     public function testClientRequestWatcherRegistersRedirectResponse()
     {
         $client = $this->makeClient([
@@ -385,6 +420,24 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
         $this->assertCount(1, $entries);
         $this->assertSame('https://recorded.example.com/api/data', $entries->first()->content['uri']);
+    }
+
+    public function testClientRequestWatcherHostIgnoreCanBeExtended(): void
+    {
+        $watcher = new class extends ClientRequestWatcher {
+            public function ignores(string $host): bool
+            {
+                return $this->shouldIgnoreHost($host);
+            }
+
+            protected function shouldIgnoreHost(string $host): bool
+            {
+                return str_ends_with($host, '.internal');
+            }
+        };
+
+        $this->assertTrue($watcher->ignores('api.internal'));
+        $this->assertFalse($watcher->ignores('hypervel.org'));
     }
 
     #[WithConfig('telescope.watchers', [

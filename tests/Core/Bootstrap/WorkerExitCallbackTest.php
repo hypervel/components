@@ -31,11 +31,11 @@ class WorkerExitCallbackTest extends TestCase
                 ->once()
                 ->with(m::type(OnWorkerExit::class));
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
+            $callback = new WorkerExitCallback($dispatcher);
+            $server = m::mock(Server::class);
 
-            (new WorkerExitCallback($dispatcher))->onWorkerExit(
-                m::mock(Server::class),
-                3,
-            );
+            $callback->onWorkerExit($server, 3);
+            $callback->onWorkerExit($server, 3);
 
             $this->assertTrue($coordinator->isClosing());
             $this->assertSame(1, SwooleCoroutine::stats()['coroutine_num']);
@@ -50,16 +50,17 @@ class WorkerExitCallbackTest extends TestCase
             $dispatcher = m::mock(Dispatcher::class);
             $dispatcher->shouldReceive('dispatch')->once()->andThrow($failure);
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
+            $callback = new WorkerExitCallback($dispatcher);
+            $server = m::mock(Server::class);
 
             try {
-                (new WorkerExitCallback($dispatcher))->onWorkerExit(
-                    m::mock(Server::class),
-                    3,
-                );
+                $callback->onWorkerExit($server, 3);
                 $this->fail('The listener failure should propagate.');
             } catch (RuntimeException $exception) {
                 $this->assertSame($failure, $exception);
             }
+
+            $callback->onWorkerExit($server, 3);
 
             $this->assertTrue($coordinator->isClosing());
         });

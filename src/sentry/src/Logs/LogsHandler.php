@@ -19,7 +19,7 @@ class LogsHandler extends AbstractProcessingHandler
     /**
      * The formatter to use for the logs generated via handleBatch().
      */
-    protected ?FormatterInterface $batchFormatter;
+    protected ?FormatterInterface $batchFormatter = null;
 
     public function handleBatch(array $records): void
     {

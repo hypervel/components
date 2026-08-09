@@ -12,6 +12,7 @@ use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
@@ -22,6 +23,7 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Override;
+use RuntimeException;
 use Symfony\Component\Uid\Uuid;
 
 class QueueRedisQueueTest extends TestCase
@@ -156,6 +158,58 @@ class QueueRedisQueueTest extends TestCase
 
         $id = $queue->push('foo', ['data']);
         $this->assertSame('foo', $id);
+    }
+
+    public function testPushRaisesFailedEventWhenRedisThrows(): void
+    {
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
+        $uuid = $this->mockUuid();
+        $exception = new RuntimeException('Redis unavailable.');
+
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
+        $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
+        $queue->setContainer($container = m::mock(Container::class));
+        $queue->setConnectionName('default');
+
+        $redisProxy = m::mock(RedisProxy::class);
+        $redisProxy->shouldReceive('isCluster')->once()->andReturnFalse();
+        $redisProxy->shouldReceive('eval')->once()->andThrow($exception);
+        $redis->shouldReceive('connection')->twice()->andReturn($redisProxy);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue()->once();
+        $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue()->once();
+        $events->shouldReceive('dispatch')
+            ->withArgs(function (JobQueueing $event) use ($uuid, $now): bool {
+                $this->assertSame('foo', $event->job);
+                $this->assertSame('default', $event->connectionName);
+                $this->assertNull($event->queue);
+                $this->assertSame(['uuid' => (string) $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null], $event->payload());
+
+                return true;
+            })
+            ->ordered()
+            ->once();
+        $events->shouldReceive('dispatch')
+            ->withArgs(function (JobQueueingFailed $event) use ($exception): bool {
+                $this->assertSame('foo', $event->job);
+                $this->assertSame('default', $event->connectionName);
+                $this->assertNull($event->queue);
+                $this->assertNull($event->delay);
+                $this->assertSame($exception, $event->exception);
+
+                return true;
+            })
+            ->ordered()
+            ->once();
+
+        $container->shouldReceive('bound')->with('events')->andReturnTrue()->twice();
+        $container->shouldReceive('make')->with('events')->andReturn($events)->twice();
+
+        $this->expectExceptionObject($exception);
+
+        $queue->push('foo', ['data']);
     }
 
     public function testPushProperlyPushesJobOntoRedisWithTwoCustomPayloadHook(): void

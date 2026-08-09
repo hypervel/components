@@ -15,10 +15,13 @@ use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\WritingKey;
+use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
+use Hypervel\Cache\Redis\Operations\AnyTag\Forever;
 use Hypervel\Cache\Redis\Operations\AnyTag\Put;
+use Hypervel\Cache\Redis\Operations\AnyTag\PutMany;
 use Hypervel\Cache\Redis\Operations\AnyTagOperations;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
@@ -791,6 +794,99 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         }
     }
 
+    public function testPutDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
+    {
+        $exception = new RuntimeException('write failed');
+        $put = m::mock(Put::class);
+        $put->shouldReceive('execute')
+            ->once()
+            ->with('mykey', 'myvalue', 60, ['users'])
+            ->andThrow($exception);
+
+        $operations = m::mock(AnyTagOperations::class);
+        $operations->shouldReceive('put')->once()->andReturn($put);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->put('mykey', 'myvalue', 60);
+            $this->fail('Expected the tagged cache write exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
+        $this->assertSame(['users'], $captured[1]->tags);
+    }
+
+    public function testPutManyDispatchesRepositoryFailureEventsWhenTheOperationThrows(): void
+    {
+        $exception = new RuntimeException('batch write failed');
+        $values = ['first' => 'one', 'second' => 'two'];
+        $putMany = m::mock(PutMany::class);
+        $putMany->shouldReceive('execute')
+            ->once()
+            ->with($values, 60, ['users'])
+            ->andThrow($exception);
+
+        $operations = m::mock(AnyTagOperations::class);
+        $operations->shouldReceive('putMany')->once()->andReturn($putMany);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->putMany($values, 60);
+            $this->fail('Expected the tagged cache batch write exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(
+            [WritingManyKeys::class, KeyWriteFailed::class, KeyWriteFailed::class],
+            array_map(get_class(...), $captured),
+        );
+        $this->assertSame(['first', 'second'], array_map(static fn (KeyWriteFailed $event): string => $event->key, array_slice($captured, 1)));
+    }
+
+    public function testEmptyPutManyReturnsTrueWithoutOperationOrEvents(): void
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldNotReceive('anyTagOps');
+        $tags = m::mock(AnyTagSet::class);
+        $events = m::mock(Dispatcher::class);
+        $events->shouldNotReceive('hasListeners');
+        $events->shouldNotReceive('dispatch');
+        $tagged = new AnyTaggedCache($store, $tags);
+        $tagged->setEventDispatcher($events);
+
+        $this->assertTrue($tagged->putMany([], 60));
+    }
+
+    public function testForeverDispatchesTheRepositoryFailureEventWhenTheOperationThrows(): void
+    {
+        $exception = new RuntimeException('forever write failed');
+        $forever = m::mock(Forever::class);
+        $forever->shouldReceive('execute')
+            ->once()
+            ->with('mykey', 'myvalue', ['users'])
+            ->andThrow($exception);
+
+        $operations = m::mock(AnyTagOperations::class);
+        $operations->shouldReceive('forever')->once()->andReturn($forever);
+        $captured = [];
+        $tagged = $this->taggedCacheWithOperations($operations, $captured);
+
+        try {
+            $tagged->forever('mykey', 'myvalue');
+            $this->fail('Expected the tagged forever exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
+        $this->assertNull($captured[1]->seconds);
+    }
+
     public function testRememberNullableStoresAndReturnsNonNullValue(): void
     {
         $connection = $this->mockConnection();
@@ -1232,6 +1328,29 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $this->expectExceptionMessage('Cannot get items via tags in any mode');
 
         $cache->flexibleNullable('mykey', [60, 120], fn () => 'v');
+    }
+
+    private function taggedCacheWithOperations(AnyTagOperations $operations, array &$captured): AnyTaggedCache
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('anyTagOps')->once()->andReturn($operations);
+
+        $tags = m::mock(AnyTagSet::class);
+        $tags->shouldReceive('getNames')->andReturn(['users']);
+
+        $cache = new AnyTaggedCache($store, $tags);
+        $store->shouldReceive('tags')->once()->with(['users'])->andReturn($cache);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
+        $events->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$captured): void {
+            $captured[] = $event;
+        });
+
+        $tagged = (new Repository($store, ['store' => 'redis']))->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        return $tagged;
     }
 }
 

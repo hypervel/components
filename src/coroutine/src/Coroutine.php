@@ -93,23 +93,7 @@ class Coroutine
      */
     public static function create(callable $callable): int
     {
-        $coroutine = Co::create(static function () use ($callable) {
-            try {
-                // Execute afterCreated callbacks.
-                foreach (static::$afterCreatedCallbacks as $callback) {
-                    try {
-                        $callback();
-                    } catch (Throwable $throwable) {
-                        static::printLog($throwable);
-                    }
-                }
-                $callable();
-            } catch (Throwable $throwable) {
-                static::printLog($throwable);
-            }
-        });
-
-        return $coroutine->getId();
+        return self::createWithContext($callable, []);
     }
 
     /**
@@ -120,12 +104,34 @@ class Coroutine
     public static function fork(callable $callable, array $keys = []): int
     {
         $context = CoroutineContext::captureFrom($keys);
-        $callable = static function () use ($callable, $context) {
-            CoroutineContext::setMany($context);
-            $callable();
-        };
 
-        return static::create($callable);
+        return self::createWithContext($callable, $context);
+    }
+
+    /**
+     * Create a coroutine after installing its initial context.
+     */
+    private static function createWithContext(callable $callable, array $context): int
+    {
+        $coroutine = Co::create(static function () use ($callable, $context): void {
+            try {
+                CoroutineContext::setMany($context);
+
+                foreach (static::$afterCreatedCallbacks as $callback) {
+                    try {
+                        $callback();
+                    } catch (Throwable $throwable) {
+                        static::printLog($throwable);
+                    }
+                }
+
+                $callable();
+            } catch (Throwable $throwable) {
+                static::printLog($throwable);
+            }
+        });
+
+        return $coroutine->getId();
     }
 
     /**

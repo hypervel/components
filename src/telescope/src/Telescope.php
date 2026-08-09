@@ -56,6 +56,8 @@ class Telescope
 
     public const BATCH_ID_CONTEXT_KEY = '__telescope.batch_id';
 
+    protected const CSP_NONCE_CONTEXT_KEY = '__telescope.csp_nonce';
+
     /**
      * The callbacks that filter the entries that should be recorded.
      */
@@ -163,28 +165,6 @@ class Telescope
             ], config('telescope.ignore_commands', [])),
             true
         );
-    }
-
-    /**
-     * Determine if the application is handling an approved request.
-     */
-    protected static function handlingApprovedRequest(Application $app): bool
-    {
-        if ($app->runningInConsole()) {
-            return false;
-        }
-
-        return static::requestIsToApprovedDomain($app['request'])
-            && static::requestIsToApprovedUri($app['request']);
-    }
-
-    /**
-     * Determine if the request is to an approved domain.
-     */
-    protected static function requestIsToApprovedDomain(Request $request): bool
-    {
-        return is_null(config('telescope.domain'))
-            || config('telescope.domain') !== $request->getHost();
     }
 
     /**
@@ -301,30 +281,32 @@ class Telescope
         CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, true);
 
         try {
-            if (Auth::hasUser()) {
-                $entry->user(Auth::user());
+            try {
+                if (Auth::hasUser()) {
+                    $entry->user(Auth::user());
+                }
+            } catch (Throwable $e) {
+                // Do nothing.
             }
-        } catch (Throwable $e) {
-            // Do nothing.
+
+            $entry->type($type)->tags(Arr::collapse(array_map(function ($tagCallback) use ($entry) {
+                return $tagCallback($entry);
+            }, static::$tagUsing)));
+
+            static::withoutRecording(function () use ($entry) {
+                if (Collection::make(static::$filterUsing)->every->__invoke($entry)) {
+                    CoroutineContext::override(static::ENTRIES_QUEUE_CONTEXT_KEY, function ($entries) use ($entry) {
+                        return array_merge($entries ?? [], [$entry]);
+                    });
+                }
+
+                if (static::$afterRecordingHook) {
+                    call_user_func(static::$afterRecordingHook, new static, $entry);
+                }
+            });
+        } finally {
+            CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, false);
         }
-
-        $entry->type($type)->tags(Arr::collapse(array_map(function ($tagCallback) use ($entry) {
-            return $tagCallback($entry);
-        }, static::$tagUsing)));
-
-        static::withoutRecording(function () use ($entry) {
-            if (Collection::make(static::$filterUsing)->every->__invoke($entry)) {
-                CoroutineContext::override(static::ENTRIES_QUEUE_CONTEXT_KEY, function ($entries) use ($entry) {
-                    return array_merge($entries ?? [], [$entry]);
-                });
-            }
-
-            if (static::$afterRecordingHook) {
-                call_user_func(static::$afterRecordingHook, new static, $entry);
-            }
-        });
-
-        CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, false);
     }
 
     /**
@@ -804,9 +786,11 @@ class Telescope
             throw new RuntimeException('Unable to load the ' . (static::$useDarkTheme ? 'dark' : 'light') . ' Telescope dashboard styles.');
         }
 
+        $nonceAttribute = static::cspNonceAttribute();
+
         return new HtmlString(<<<HTML
-            <style>{$app}</style>
-            <style>{$styles}</style>
+            <style{$nonceAttribute}>{$app}</style>
+            <style{$nonceAttribute}>{$styles}</style>
         HTML);
     }
 
@@ -820,9 +804,10 @@ class Telescope
         }
 
         $telescope = Js::from(static::scriptVariables());
+        $nonceAttribute = static::cspNonceAttribute();
 
         return new HtmlString(<<<HTML
-            <script type="module">
+            <script type="module"{$nonceAttribute}>
                 window.Telescope = {$telescope};
                 {$js}
             </script>
@@ -839,6 +824,27 @@ class Telescope
             'timezone' => config('app.timezone'),
             'recording' => ! cache('telescope:pause-recording'),
         ];
+    }
+
+    /**
+     * Set the CSP nonce to use for style and script tags.
+     */
+    public static function cspNonce(string $nonce): static
+    {
+        CoroutineContext::set(static::CSP_NONCE_CONTEXT_KEY, $nonce);
+
+        return new static;
+    }
+
+    /**
+     * Get the current CSP nonce attribute.
+     */
+    protected static function cspNonceAttribute(): string
+    {
+        /** @var null|string $nonce */
+        $nonce = CoroutineContext::get(static::CSP_NONCE_CONTEXT_KEY);
+
+        return $nonce === null ? '' : ' nonce="' . e($nonce) . '"';
     }
 
     /**
