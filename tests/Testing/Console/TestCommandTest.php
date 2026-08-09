@@ -24,16 +24,19 @@ use function Hypervel\Testbench\package_path;
 class TestCommandTest extends TestCase
 {
     /** @var array<string, array{bool, null|string}> */
-    private array $originalConfigurationFiles;
+    private array $originalConfigurationFiles = [];
 
     /** @var array{bool, mixed} */
     private array $originalArguments;
 
     protected function setUp(): void
     {
-        parent::setUp();
+        $this->originalArguments = [
+            array_key_exists('argv', $_SERVER),
+            $_SERVER['argv'] ?? null,
+        ];
 
-        $this->originalConfigurationFiles = [];
+        parent::setUp();
 
         foreach (['phpunit.xml', 'custom-phpunit.xml'] as $file) {
             $path = $this->app->basePath($file);
@@ -42,24 +45,36 @@ class TestCommandTest extends TestCase
                 is_file($path) ? (string) file_get_contents($path) : null,
             ];
         }
-
-        $this->originalArguments = [
-            array_key_exists('argv', $_SERVER),
-            $_SERVER['argv'] ?? null,
-        ];
     }
 
     protected function tearDown(): void
     {
-        foreach (glob($this->app->basePath('.hypervel-phpunit-profile-*.xml')) ?: [] as $path) {
-            unlink($path);
+        $exception = null;
+
+        try {
+            $profileFiles = glob($this->app->basePath('.hypervel-phpunit-profile-*.xml')) ?: [];
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+            $profileFiles = [];
+        }
+
+        foreach ($profileFiles as $path) {
+            try {
+                unlink($path);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
         }
 
         foreach ($this->originalConfigurationFiles as $path => [$existed, $contents]) {
-            if ($existed) {
-                file_put_contents($path, $contents);
-            } elseif (is_file($path)) {
-                unlink($path);
+            try {
+                if ($existed) {
+                    file_put_contents($path, $contents);
+                } elseif (is_file($path)) {
+                    unlink($path);
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
             }
         }
 
@@ -69,7 +84,15 @@ class TestCommandTest extends TestCase
             unset($_SERVER['argv']);
         }
 
-        parent::tearDown();
+        try {
+            parent::tearDown();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     #[Test]
@@ -358,7 +381,7 @@ XML);
         $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-profile-config-'
             . getmypid() . '-' . bin2hex(random_bytes(6));
 
-        mkdir($basePath, 0777, true);
+        mkdir($basePath, 0700, true);
         file_put_contents($basePath . DIRECTORY_SEPARATOR . 'phpunit.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit bootstrap="vendor/autoload.php"/>
@@ -377,7 +400,7 @@ XML);
                 $exception->getMessage(),
             );
         } finally {
-            chmod($basePath, 0777);
+            chmod($basePath, 0700);
             $this->removeDirectory($basePath);
         }
     }

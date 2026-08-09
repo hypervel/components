@@ -450,10 +450,12 @@ class ArtisanCommandTest extends TestCase
         try {
             $process->run();
 
-            $this->assertSame(1, $process->getExitCode());
-            $this->assertStringContainsString('fixture output', $process->getOutput());
-            $this->assertStringContainsString('"exitCode" => 7', $process->getOutput());
-            $this->assertSame('1', file_get_contents($counter));
+            $failure = $process->getErrorOutput();
+
+            $this->assertSame(1, $process->getExitCode(), $failure);
+            $this->assertStringContainsString('fixture output', $process->getOutput(), $failure);
+            $this->assertStringContainsString('"exitCode" => 7', $process->getOutput(), $failure);
+            $this->assertSame('1', file_get_contents($counter), $failure);
         } finally {
             $filesystem->deleteDirectory($directory);
         }

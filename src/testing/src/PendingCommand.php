@@ -434,11 +434,11 @@ class PendingCommand
             $this->test->fail('Output does not contain "' . array_first($this->test->expectedOutputSubstrings) . '".');
         }
 
-        if (($output = array_search(true, $this->test->unexpectedOutput)) !== false) {
+        if (($output = array_search(true, $this->test->unexpectedOutput, true)) !== false) {
             $this->test->fail('Output "' . $output . '" was printed.');
         }
 
-        if (($output = array_search(true, $this->test->unexpectedOutputSubstrings)) !== false) {
+        if (($output = array_search(true, $this->test->unexpectedOutputSubstrings, true)) !== false) {
             $this->test->fail('Output "' . $output . '" was printed.');
         }
     }
