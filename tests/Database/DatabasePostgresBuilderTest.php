@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Processors\PostgresProcessor;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
+use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use Override;
+use RuntimeException;
 
 class DatabasePostgresBuilderTest extends TestCase
 {
@@ -44,6 +49,136 @@ class DatabasePostgresBuilderTest extends TestCase
         $builder->dropDatabaseIfExists('my_database_a');
     }
 
+    public function testExecuteBlueprintWrapsKnownMultiStatementCommandsInATransaction(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['first statement', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(static fn (Closure $callback) => $callback());
+        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotNestAnExistingTransaction(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['first statement', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(1);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotWrapASingleStatement(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->never();
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('statement')->andReturnTrue();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotWrapOnlineCommands(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['create index concurrently', 'attach constraint'],
+            [new Fluent(['name' => 'unique', 'online' => true])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('create index concurrently')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('attach constraint')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintDoesNotWrapCommandsAddedByAnExtensionGrammar(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['extension statement one', 'extension statement two'],
+            [new Fluent(['name' => 'extensionCommand'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('extension statement one')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('extension statement two')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintWrapsFrameworkCommandsOverriddenByAnExtensionGrammar(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = new PostgresBuilderExtensionGrammar($connection);
+        $blueprint = $this->executionBlueprint(
+            ['overridden create', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')
+            ->once()
+            ->andReturnUsing(static fn (Closure $callback) => $callback());
+        $connection->shouldReceive('statement')->once()->with('overridden create')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
+    public function testExecuteBlueprintHonorsTheRuntimeGrammarTransactionFlag(): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(PostgresGrammar::class, [$connection])->makePartial();
+        $blueprint = $this->executionBlueprint(
+            ['first statement', 'second statement'],
+            [new Fluent(['name' => 'create'])],
+        );
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $grammar->shouldReceive('supportsSchemaTransactions')->once()->andReturnFalse();
+        $connection->shouldReceive('transactionLevel')->once()->andReturn(0);
+        $connection->shouldReceive('transaction')->never();
+        $connection->shouldReceive('statement')->once()->with('first statement')->andReturnTrue()->ordered();
+        $connection->shouldReceive('statement')->once()->with('second statement')->andReturnTrue()->ordered();
+
+        (new PostgresBuilder($connection))->executeBlueprint($blueprint);
+    }
+
     public function testHasTableWhenSchemaUnqualifiedAndSearchPathMissing()
     {
         $connection = $this->getConnection();
@@ -52,7 +187,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql')->andReturn(1);
+        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -67,7 +202,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql')->andReturn(1);
+        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -83,7 +218,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql')->andReturn(1);
+        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -99,7 +234,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql')->andReturn(1);
+        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -114,7 +249,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql')->andReturn(1);
+        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -272,7 +407,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $processor->shouldReceive('processTables')->once()->andReturn([['name' => 'users', 'schema' => 'public', 'schema_qualified_name' => 'public.users']]);
         $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'users', 'schema' => 'public', 'schema_qualified_name' => 'public.users']]);
         $grammar->shouldReceive('compileDropAllTables')->with(['public.users'])->andReturn('drop table "public"."users" cascade');
-        $connection->shouldReceive('statement')->with('drop table "public"."users" cascade');
+        $connection->shouldReceive('statement')->with('drop table "public"."users" cascade')->andReturnTrue();
         $builder = $this->getBuilder($connection);
 
         $builder->dropAllTables();
@@ -292,7 +427,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar->shouldReceive('compileTables')->andReturn('sql');
         $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users']]);
         $grammar->shouldReceive('compileDropAllTables')->with(['foouser.users'])->andReturn('drop table "foouser"."users" cascade');
-        $connection->shouldReceive('statement')->with('drop table "foouser"."users" cascade');
+        $connection->shouldReceive('statement')->with('drop table "foouser"."users" cascade')->andReturnTrue();
         $builder = $this->getBuilder($connection);
 
         $builder->dropAllTables();
@@ -317,10 +452,91 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar->shouldReceive('compileTables')->andReturn('sql');
         $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'users', 'schema' => 'foouser', 'schema_qualified_name' => 'foouser.users']]);
         $grammar->shouldReceive('compileDropAllTables')->with(['foouser.users'])->andReturn('drop table "foouser"."users" cascade');
-        $connection->shouldReceive('statement')->with('drop table "foouser"."users" cascade');
+        $connection->shouldReceive('statement')->with('drop table "foouser"."users" cascade')->andReturnTrue();
         $builder = $this->getBuilder($connection);
 
         $builder->dropAllTables();
+    }
+
+    public function testDropAllTablesPropagatesAFalseStatementResult(): void
+    {
+        $connection = $this->getConnection();
+        $grammar = new PostgresGrammar($connection);
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('getConfig')->once()->with('dont_drop')->andReturn([]);
+        $builder = m::mock(PostgresBuilder::class, [$connection])->makePartial();
+        $builder->shouldReceive('getCurrentSchemaListing')->once()->andReturn(['public']);
+        $builder->shouldReceive('getTables')->once()->with(['public'])->andReturn([
+            ['name' => 'users', 'schema_qualified_name' => 'public.users'],
+        ]);
+        $statement = $grammar->compileDropAllTables(['public.users']);
+        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+
+        $builder->dropAllTables();
+    }
+
+    public function testDropAllViewsPropagatesAFalseStatementResult(): void
+    {
+        $connection = $this->getConnection();
+        $grammar = new PostgresGrammar($connection);
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $builder = m::mock(PostgresBuilder::class, [$connection])->makePartial();
+        $builder->shouldReceive('getCurrentSchemaListing')->once()->andReturn(['public']);
+        $builder->shouldReceive('getViews')->once()->with(['public'])->andReturn([
+            ['schema_qualified_name' => 'public.active_users'],
+        ]);
+        $statement = $grammar->compileDropAllViews(['public.active_users']);
+        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+
+        $builder->dropAllViews();
+    }
+
+    public function testDropAllTypesPropagatesAFalseStatementResult(): void
+    {
+        $connection = $this->getConnection();
+        $grammar = new PostgresGrammar($connection);
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $builder = m::mock(PostgresBuilder::class, [$connection])->makePartial();
+        $builder->shouldReceive('getCurrentSchemaListing')->once()->andReturn(['public']);
+        $builder->shouldReceive('getTypes')->once()->with(['public'])->andReturn([
+            ['implicit' => false, 'type' => 'enum', 'schema_qualified_name' => 'public.status'],
+        ]);
+        $statement = $grammar->compileDropAllTypes(['public.status']);
+        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+
+        $builder->dropAllTypes();
+    }
+
+    public function testDropAllDomainsPropagatesAFalseStatementResult(): void
+    {
+        $connection = $this->getConnection();
+        $grammar = new PostgresGrammar($connection);
+
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
+        $builder = m::mock(PostgresBuilder::class, [$connection])->makePartial();
+        $builder->shouldReceive('getCurrentSchemaListing')->once()->andReturn(['public']);
+        $builder->shouldReceive('getTypes')->once()->with(['public'])->andReturn([
+            ['implicit' => false, 'type' => 'domain', 'schema_qualified_name' => 'public.email'],
+        ]);
+        $statement = $grammar->compileDropAllDomains(['public.email']);
+        $connection->shouldReceive('statement')->once()->with($statement)->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to execute schema statement [{$statement}].");
+
+        $builder->dropAllTypes();
     }
 
     protected function getConnection()
@@ -328,8 +544,35 @@ class DatabasePostgresBuilderTest extends TestCase
         return m::mock(Connection::class);
     }
 
+    /**
+     * Create a Blueprint double for execution-boundary tests.
+     *
+     * @param list<string> $statements
+     * @param list<Fluent> $commands
+     */
+    protected function executionBlueprint(array $statements, array $commands): Blueprint
+    {
+        $blueprint = m::mock(Blueprint::class);
+        $blueprint->shouldReceive('toSql')->once()->andReturn($statements);
+        $blueprint->shouldReceive('getCommands')->andReturn($commands);
+
+        return $blueprint;
+    }
+
     protected function getBuilder($connection)
     {
         return new PostgresBuilder($connection);
+    }
+}
+
+class PostgresBuilderExtensionGrammar extends PostgresGrammar
+{
+    /**
+     * Compile a create table command.
+     */
+    #[Override]
+    public function compileCreate(Blueprint $blueprint, Fluent $command): string
+    {
+        return 'overridden create';
     }
 }

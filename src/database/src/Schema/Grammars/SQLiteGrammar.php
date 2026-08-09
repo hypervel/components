@@ -7,6 +7,7 @@ namespace Hypervel\Database\Schema\Grammars;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\IndexDefinition;
+use Hypervel\Database\Schema\SQLiteBuilder;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
@@ -161,17 +162,27 @@ class SQLiteGrammar extends Grammar
      */
     public function compileIndexes(?string $schema, string $table): string
     {
+        $schema ??= 'main';
+        $quotedTable = $this->quoteString($table);
+        $quotedSchema = $this->quoteString($schema);
+
         return sprintf(
-            'select \'primary\' as name, group_concat(col) as columns, 1 as "unique", 1 as "primary" '
+            'select \'primary\' as name, group_concat(hex(col)) as columns, 1 as "unique", 1 as "primary", null as sql, \'pk\' as origin, 1 as reconstructible, null as collations, null as "descending" '
             . 'from (select name as col from pragma_table_xinfo(%s, %s) where pk > 0 order by pk, cid) group by name '
-            . 'union select name, group_concat(col) as columns, "unique", origin = \'pk\' as "primary" '
-            . 'from (select il.*, ii.name as col from pragma_index_list(%s, %s) il, pragma_index_info(il.name, %s) ii order by il.seq, ii.seqno) '
-            . 'group by name, "unique", "primary"',
-            $table = $this->quoteString($table),
-            $schema = $this->quoteString($schema ?? 'main'),
-            $table,
-            $schema,
-            $schema
+            . 'union all select name, case when count(*) = count(col) then group_concat(col) end as columns, "unique", origin = \'pk\' as "primary", sql, origin, not partial and min(simple) as reconstructible, '
+            . 'case when count(*) = count(col) then group_concat(collation) end as collations, '
+            . 'case when count(*) = count(col) then group_concat("descending") end as "descending" '
+            . 'from (select il.*, case when ii.name is not null then hex(ii.name) end as col, hex(ii.coll) as collation, ii."desc" as "descending", '
+            . 'ii.name is not null and ii."desc" = 0 and lower(ii.coll) = \'binary\' as simple, '
+            . '(select sql from %s.sqlite_master where type = \'index\' and name = il.name) as sql '
+            . 'from pragma_index_list(%s, %s) il left join pragma_index_xinfo(il.name, %s) ii on ii.key = 1 order by il.seq, ii.seqno) '
+            . 'group by name, "unique", "primary", sql, origin, partial',
+            $quotedTable,
+            $quotedSchema,
+            $this->wrapValue($schema),
+            $quotedTable,
+            $quotedSchema,
+            $quotedSchema
         );
     }
 
@@ -256,10 +267,33 @@ class SQLiteGrammar extends Grammar
     protected function addPrimaryKeys(?Fluent $primary): ?string
     {
         if (! is_null($primary)) {
-            return ", primary key ({$this->columnize($primary->columns)})";
+            return ", primary key ({$this->columnizeIndexedColumns($primary)})";
         }
 
         return null;
+    }
+
+    /**
+     * Convert indexed columns and their SQLite attributes to SQL.
+     */
+    protected function columnizeIndexedColumns(Fluent $index): string
+    {
+        return implode(', ', array_map(function (mixed $column, int $offset) use ($index): string {
+            $sql = $this->wrap($column);
+            $collation = $index->collations[$offset] ?? null;
+            $columnCollation = $index->columnCollations[$offset] ?? null;
+
+            if (is_string($collation)
+                && (! is_string($columnCollation) || strcasecmp($collation, $columnCollation) !== 0)) {
+                $sql .= ' collate ' . $this->wrapValue($collation);
+            }
+
+            if (($index->descending[$offset] ?? false) === true) {
+                $sql .= ' desc';
+            }
+
+            return $sql;
+        }, $index->columns, array_keys($index->columns)));
     }
 
     /**
@@ -281,10 +315,15 @@ class SQLiteGrammar extends Grammar
      */
     public function compileAlter(Blueprint $blueprint, Fluent $command): array
     {
+        $scannableTableSql = $this->tableSqlForScanning($blueprint->getState()->getTableSql());
+        $this->ensureTableCanBeRebuilt($blueprint, $scannableTableSql);
+        $tableOptions = $this->compileTableOptions($scannableTableSql);
+        $stateColumns = $blueprint->getState()->getColumns();
+        $definedColumnNames = array_map(fn (Fluent $column) => $column->name, $stateColumns);
         $columnNames = [];
         $autoIncrementColumn = null;
 
-        $columns = (new Collection($blueprint->getState()->getColumns()))
+        $columns = (new Collection($stateColumns))
             ->map(function ($column) use ($blueprint, &$columnNames, &$autoIncrementColumn) {
                 $name = $this->wrap($column);
 
@@ -302,9 +341,31 @@ class SQLiteGrammar extends Grammar
                 );
             })->all();
 
+        $inlineUniqueConstraints = [];
+
         $indexes = (new Collection($blueprint->getState()->getIndexes()))
-            ->reject(fn ($index) => str_starts_with('sqlite_', $index->index))
-            ->map(fn ($index) => $this->{'compile' . ucfirst($index->name)}($blueprint, $index))
+            ->map(function (Fluent $index) use ($blueprint, $definedColumnNames, &$inlineUniqueConstraints) {
+                $projectedColumns = array_filter(
+                    $index->columns,
+                    static fn (mixed $column): bool => is_string($column),
+                );
+
+                if (! empty(array_diff($projectedColumns, $definedColumnNames))) {
+                    throw new RuntimeException(
+                        "Cannot rebuild table [{$blueprint->getTable()}] because index [{$index->index}] references a dropped column."
+                    );
+                }
+
+                if ($index->existing && $index->origin === 'u' && is_null($index->storedSql)) {
+                    $inlineUniqueConstraints[] = 'unique (' . $this->columnizeIndexedColumns($index) . ')';
+
+                    return null;
+                }
+
+                return $this->compileRebuiltIndex($blueprint, $index);
+            })
+            ->filter(fn (?string $sql) => ! is_null($sql))
+            ->values()
             ->all();
 
         [, $tableName] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
@@ -312,21 +373,158 @@ class SQLiteGrammar extends Grammar
         $table = $this->wrapTable($blueprint);
         $columnNames = implode(', ', $columnNames);
 
-        $foreignKeyConstraintsEnabled = $this->connection->scalar($this->pragma('foreign_keys'));
+        // Rebuild guards must inspect foreign-key state on the write PDO they govern.
+        $foreignKeyConstraintsEnabled = $this->connection->scalar($this->pragma('foreign_keys'), [], false);
 
         return array_filter(array_merge([
             $foreignKeyConstraintsEnabled ? $this->compileDisableForeignKeyConstraints() : null,
             sprintf(
-                'create table %s (%s%s%s)',
+                'create table %s (%s%s%s)%s',
                 $tempTable,
-                implode(', ', $columns),
+                implode(', ', array_merge($columns, $inlineUniqueConstraints)),
                 $this->addForeignKeys($blueprint->getState()->getForeignKeys()),
-                $autoIncrementColumn ? '' : $this->addPrimaryKeys($blueprint->getState()->getPrimaryKey())
+                $autoIncrementColumn ? '' : $this->addPrimaryKeys($blueprint->getState()->getPrimaryKey()),
+                $tableOptions,
             ),
             sprintf('insert into %s (%s) select %s from %s', $tempTable, $columnNames, $columnNames, $table),
             sprintf('drop table %s', $table),
             sprintf('alter table %s rename to %s', $tempTable, $this->wrapTable($tableName)),
         ], $indexes, [$foreignKeyConstraintsEnabled ? $this->compileEnableForeignKeyConstraints() : null]));
+    }
+
+    /**
+     * Remove quoted values, identifiers, and comments before scanning stored table SQL.
+     */
+    protected function tableSqlForScanning(string $sql): string
+    {
+        /** @var string $scannableSql */
+        $scannableSql = preg_replace(
+            '~\'(?:\'\'|[^\'])*\'|"(?:""|[^"])*"|`(?:``|[^`])*`|\[(?:\]\]|[^\]])*\]|--[^\r\n]*|/\*.*?(?:\*/|\z)~s',
+            ' ',
+            $sql,
+        );
+
+        return $scannableSql;
+    }
+
+    /**
+     * Ensure the stored table definition can be reconstructed without semantic loss.
+     */
+    protected function ensureTableCanBeRebuilt(Blueprint $blueprint, string $sql): void
+    {
+        $unsupportedClauses = [
+            'CHECK constraint' => '/\bcheck\s*\(/i',
+            'ON CONFLICT clause' => '/\bon\s+conflict\s+(?:rollback|fail|ignore|replace)\b/i',
+        ];
+
+        foreach ($unsupportedClauses as $clause => $pattern) {
+            if (preg_match($pattern, $sql) === 1) {
+                throw new RuntimeException(
+                    "Cannot rebuild table [{$blueprint->getTable()}] because the {$clause} in its stored definition cannot be reconstructed."
+                );
+            }
+        }
+
+        if ($blueprint->getState()->getForeignKeys() !== []
+            && preg_match(
+                // Exempt the NOT form because it has the same behavior as SQLite's default.
+                '/\bnot\s+deferrable\s+initially\s+deferred\b(*SKIP)(*F)|\bdeferrable\s+initially\s+deferred\b/i',
+                $sql,
+            ) === 1) {
+            throw new RuntimeException(
+                "Cannot rebuild table [{$blueprint->getTable()}] because the DEFERRABLE INITIALLY DEFERRED clause in its stored definition cannot be reconstructed."
+            );
+        }
+    }
+
+    /**
+     * Compile table options retained from the stored definition.
+     */
+    protected function compileTableOptions(string $sql): string
+    {
+        if (preg_match(
+            '/\)\s*(?<options>(?:without\s+rowid|strict)(?:\s*,\s*(?:without\s+rowid|strict))*)\s*\z/i',
+            $sql,
+            $matches,
+        ) !== 1) {
+            return '';
+        }
+
+        $options = [];
+
+        if (preg_match('/\bwithout\s+rowid\b/i', $matches['options']) === 1) {
+            $options[] = 'without rowid';
+        }
+
+        if (preg_match('/\bstrict\b/i', $matches['options']) === 1) {
+            $options[] = 'strict';
+        }
+
+        return ' ' . implode(', ', $options);
+    }
+
+    /**
+     * Compile an index retained across a table rebuild.
+     */
+    protected function compileRebuiltIndex(Blueprint $blueprint, Fluent $index): string
+    {
+        if ($index->reconstructible) {
+            return $this->{'compile' . ucfirst($index->name)}($blueprint, $index);
+        }
+
+        if ($index->columnRenamed) {
+            throw new RuntimeException(
+                "Cannot safely rebuild index [{$index->index}] across a column rename in the same blueprint. Move the rename after the rebuild-triggering command or use a separate Schema::table() call."
+            );
+        }
+
+        if ($index->columnDropped
+            && version_compare($this->connection->getServerVersion(), '3.35', '<')) {
+            throw new RuntimeException(
+                "Cannot safely rebuild index [{$index->index}] while dropping a column on this SQLite version. Drop the index first and recreate it after the column change."
+            );
+        }
+
+        if ($index->existing && ! is_null($index->storedSql)) {
+            return $this->compileStoredIndex(
+                $blueprint,
+                $index->storedSql,
+                $index->renamed ? $index->index : null,
+            );
+        }
+
+        if ($index->existing) {
+            throw new RuntimeException(
+                "Cannot rebuild index [{$index->index}] without its stored definition."
+            );
+        }
+
+        return $this->{'compile' . ucfirst($index->name)}($blueprint, $index);
+    }
+
+    /**
+     * Compile a stored index definition for the target schema and name.
+     */
+    protected function compileStoredIndex(Blueprint $blueprint, string $sql, ?string $name = null): string
+    {
+        $identifier = '(?:"(?:[^"]|"")*"|\x60(?:[^\x60]|\x60\x60)*\x60|\[(?:[^\]]|\]\])*\]|\'(?:[^\']|\'\')*\'|[^\s.]+)';
+        // sqlite_schema normalizes the header and removes IF NOT EXISTS and schema qualifiers.
+        $pattern = '/\A(?<prefix>CREATE (?:UNIQUE )?INDEX )(?<name>' . $identifier . ')(?<suffix>\s+(?i:ON)\s+.+)\z/s';
+
+        if (preg_match($pattern, $sql, $matches) !== 1) {
+            throw new RuntimeException('Cannot rebuild an index with an unrecognized stored definition.');
+        }
+
+        [$schema] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
+
+        if (is_null($schema) && is_null($name)) {
+            return $sql;
+        }
+
+        return $matches['prefix']
+            . (is_null($schema) ? '' : $this->wrapValue($schema) . '.')
+            . (is_null($name) ? $matches['name'] : $this->wrapValue($name))
+            . $matches['suffix'];
     }
 
     #[Override]
@@ -357,7 +555,7 @@ class SQLiteGrammar extends Grammar
             $schema ? $this->wrapValue($schema) . '.' : '',
             $this->wrap($command->index),
             $this->wrapTable($table),
-            $this->columnize($command->columns)
+            $this->columnizeIndexedColumns($command)
         );
     }
 
@@ -373,7 +571,7 @@ class SQLiteGrammar extends Grammar
             $schema ? $this->wrapValue($schema) . '.' : '',
             $this->wrap($command->index),
             $this->wrapTable($table),
-            $this->columnize($command->columns)
+            $this->columnizeIndexedColumns($command)
         );
     }
 
@@ -532,13 +730,20 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a rename index command.
      *
+     * @return list<string>
      * @throws RuntimeException
      */
     public function compileRenameIndex(Blueprint $blueprint, Fluent $command): array
     {
-        $indexes = $this->connection->getSchemaBuilder()->getIndexes($blueprint->getTable());
+        /** @var SQLiteBuilder $schema */
+        $schema = $this->connection->getSchemaBuilder();
 
-        $index = Arr::first($indexes, fn ($index) => $index['name'] === $command->from);
+        $indexes = $schema->getIndexesForSchemaState($blueprint->getTable());
+
+        $index = Arr::first(
+            $indexes,
+            fn ($index) => strcasecmp($index['physical_name'], $command->from) === 0,
+        );
 
         if (! $index) {
             throw new RuntimeException("Index [{$command->from}] does not exist.");
@@ -548,22 +753,47 @@ class SQLiteGrammar extends Grammar
             throw new RuntimeException('SQLite does not support altering primary keys.');
         }
 
-        if ($index['unique']) {
-            return [
-                $this->compileDropUnique($blueprint, new IndexDefinition(['index' => $index['name']])),
-                $this->compileUnique(
-                    $blueprint,
-                    new IndexDefinition(['index' => $command->to, 'columns' => $index['columns']])
+        if (is_null($index['sql'])) {
+            throw new RuntimeException(
+                "SQLite cannot rename the index [{$index['physical_name']}] because it backs a unique constraint. Change the table constraint instead."
+            );
+        }
+
+        if ($index['reconstructible']) {
+            $columnCollations = [];
+
+            foreach ($schema->getColumnsForSchemaState($blueprint->getTable())['columns'] as $column) {
+                $columnCollations[$column['name']] = $column['collation'] ?? 'BINARY';
+            }
+
+            $definition = new IndexDefinition([
+                'index' => $command->to,
+                'columns' => $index['columns'],
+                'collations' => $index['collations'],
+                'columnCollations' => array_map(
+                    static fn (string $column): ?string => $columnCollations[$column] ?? null,
+                    $index['columns'],
                 ),
+                'descending' => $index['descending'],
+            ]);
+
+            return [
+                $this->compileDropIndex(
+                    $blueprint,
+                    new IndexDefinition(['index' => $index['physical_name']]),
+                ),
+                $index['unique']
+                    ? $this->compileUnique($blueprint, $definition)
+                    : $this->compileIndex($blueprint, $definition),
             ];
         }
 
         return [
-            $this->compileDropIndex($blueprint, new IndexDefinition(['index' => $index['name']])),
-            $this->compileIndex(
+            $this->compileDropIndex(
                 $blueprint,
-                new IndexDefinition(['index' => $command->to, 'columns' => $index['columns']])
+                new IndexDefinition(['index' => $index['physical_name']]),
             ),
+            $this->compileStoredIndex($blueprint, $index['sql'], $command->to),
         ];
     }
 
