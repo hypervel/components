@@ -25,7 +25,6 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'ext-filter' => '*',
-            'ext-hash' => '*',
             'hypervel/auth' => '^0.4',
             'hypervel/prompts' => '^0.4',
             'hypervel/rate-limiter' => '^0.4',
