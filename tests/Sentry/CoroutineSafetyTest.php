@@ -6,15 +6,13 @@ namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Tracing\EventHandler as TracingEventHandler;
 use Hypervel\Tests\TestCase;
-use ReflectionMethod;
 use Sentry\SentrySdk;
-use Sentry\Tracing\Span;
-use Sentry\Tracing\SpanContext;
-use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
 use Swoole\Coroutine\Channel;
 
@@ -63,12 +61,16 @@ class CoroutineSafetyTest extends TestCase
         $transaction->setSampled(true);
         $hub->setSpan($transaction);
 
-        // Push a span in the parent coroutine via a mock DB transaction event
-        $parentSpan = $transaction->startChild(SpanContext::make()->setOp('test.parent'));
-        $this->pushSpanOnHandler($handler, $parentSpan);
+        $connection = new Connection(
+            static fn (): null => null,
+            'database',
+            '',
+            ['driver' => 'sqlite', 'name' => 'parent'],
+        );
+        $handler->transactionBeginning(new TransactionBeginning($connection));
 
         // Verify parent has a span on its stack
-        $parentStackKey = TracingEventHandler::CONTEXT_CURRENT_SPANS_KEY;
+        $parentStackKey = TracingEventHandler::CONTEXT_TRANSACTION_SPANS_KEY;
         $parentStack = CoroutineContext::get($parentStackKey, []);
         $this->assertCount(1, $parentStack);
 
@@ -121,14 +123,5 @@ class CoroutineSafetyTest extends TestCase
         // Parent should be unaffected
         $this->assertSame(3, CoroutineContext::get($scopeKey, 0));
         $this->assertCount(3, CoroutineContext::get($currentSpansKey, []));
-    }
-
-    /**
-     * Use reflection to call the private pushSpan method on TracingEventHandler.
-     */
-    private function pushSpanOnHandler(TracingEventHandler $handler, Span $span): void
-    {
-        $method = new ReflectionMethod($handler, 'pushSpan');
-        $method->invoke($handler, $span);
     }
 }
