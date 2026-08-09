@@ -26,7 +26,6 @@
         "php": "^8.4",
         "ext-ctype": "*",
         "ext-filter": "*",
-        "ext-json": "*",
         "nesbot/carbon": "^3.13.1",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",

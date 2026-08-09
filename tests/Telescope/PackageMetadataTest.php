@@ -56,7 +56,6 @@ class PackageMetadataTest extends TestCase
             'hypervel/view',
         ];
         $externalDependencies = [
-            'ext-json',
             'ext-mbstring',
             'ext-pdo',
             'guzzlehttp/guzzle',

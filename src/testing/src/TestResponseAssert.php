@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing;
 
+use Hypervel\Http\RedirectResponse;
 use Hypervel\Support\Arr;
 use PHPUnit\Framework\ExpectationFailedException;
 use ReflectionProperty;
@@ -58,6 +59,20 @@ class TestResponseAssert
      */
     protected function injectResponseContext(ExpectationFailedException $exception): ExpectationFailedException
     {
+        $lastException = $this->response->exceptions->last();
+
+        if ($lastException instanceof Throwable || (is_string($lastException) && $lastException !== '')) {
+            return $this->appendExceptionToException($lastException, $exception);
+        }
+
+        if ($this->response->baseResponse instanceof RedirectResponse) {
+            $session = $this->response->baseResponse->getSession();
+
+            if ($session !== null && $session->has('errors')) {
+                return $this->appendErrorsToException($session->get('errors')->all(), $exception);
+            }
+        }
+
         if ($this->response->baseResponse->headers->get('Content-Type') === 'application/json') {
             $testJson = new AssertableJsonString($this->response->getContent());
 
@@ -72,9 +87,11 @@ class TestResponseAssert
     /**
      * Append an exception to the message of another exception.
      */
-    protected function appendExceptionToException(Throwable $exceptionToAppend, ExpectationFailedException $exception): ExpectationFailedException
+    protected function appendExceptionToException(Throwable|string $exceptionToAppend, ExpectationFailedException $exception): ExpectationFailedException
     {
-        $exceptionMessage = $exceptionToAppend->getMessage();
+        $exceptionMessage = is_string($exceptionToAppend)
+            ? $exceptionToAppend
+            : $exceptionToAppend->getMessage();
 
         $exceptionToAppend = (string) $exceptionToAppend;
 

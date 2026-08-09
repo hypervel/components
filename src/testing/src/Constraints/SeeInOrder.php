@@ -36,7 +36,7 @@ class SeeInOrder extends Constraint
         $position = 0;
 
         foreach ($values as $value) {
-            if (empty($value)) {
+            if ($value === '') {
                 continue;
             }
 
@@ -64,7 +64,7 @@ class SeeInOrder extends Constraint
     public function failureDescription($values): string
     {
         return sprintf(
-            'Failed asserting that \'%s\' contains "%s" in specified order.',
+            '\'%s\' contains "%s" in specified order',
             $this->content,
             $this->failedValue
         );

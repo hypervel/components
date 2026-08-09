@@ -27,7 +27,7 @@ class AssertableJsonString implements ArrayAccess, Countable
     /**
      * The decoded json contents.
      */
-    protected ?array $decoded = null;
+    protected mixed $decoded = null;
 
     /**
      * Create a new assertable JSON string instance.
