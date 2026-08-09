@@ -133,6 +133,25 @@ class CoroutineTest extends TestCase
         $this->assertSame([1, 2, 3], $order);
     }
 
+    public function testForkInstallsCopiedContextBeforeAfterCreatedCallbacks(): void
+    {
+        CoroutineContext::set('request-id', 'parent-request');
+        $observed = [];
+
+        Coroutine::afterCreated(static function () use (&$observed): void {
+            $observed['callback'] = CoroutineContext::get('request-id');
+        });
+
+        Coroutine::fork(static function () use (&$observed): void {
+            $observed['callable'] = CoroutineContext::get('request-id');
+        });
+
+        $this->assertSame([
+            'callback' => 'parent-request',
+            'callable' => 'parent-request',
+        ], $observed);
+    }
+
     public function testFlushStateClearsAfterCreatedCallbacks()
     {
         $count = 0;
