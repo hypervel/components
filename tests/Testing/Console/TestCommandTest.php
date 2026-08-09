@@ -10,6 +10,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Console\TestCommand;
 use Hypervel\Testing\Coverage;
 use Hypervel\Testing\ParallelRunner;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\Profile\ProfileExtension;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
@@ -26,7 +27,7 @@ class TestCommandTest extends TestCase
     /** @var array<string, array{bool, null|string}> */
     private array $originalConfigurationFiles = [];
 
-    /** @var array{bool, mixed} */
+    /** @var array{bool, null|list<string>} */
     private array $originalArguments;
 
     protected function setUp(): void
@@ -263,15 +264,15 @@ class TestCommandTest extends TestCase
     #[Test]
     public function itClearsConfiguredEnvironmentVariablesFromEveryEnvironmentStore(): void
     {
-        $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-test-command-env-'
-            . getmypid() . '-' . bin2hex(random_bytes(6));
+        $basePath = ParallelTesting::tempDir('TestCommandEnvironment');
         $environmentFile = '.env.command-clear';
         $keys = [
             'HYPERVEL_TEST_COMMAND_CLEAR_ONE',
             'HYPERVEL_TEST_COMMAND_CLEAR_TWO',
         ];
 
-        mkdir($basePath, 0777, true);
+        $this->removeDirectory($basePath);
+        mkdir($basePath, 0700, true);
         file_put_contents($basePath . DIRECTORY_SEPARATOR . $environmentFile, implode("\n", [
             'HYPERVEL_TEST_COMMAND_CLEAR_ONE=one',
             'HYPERVEL_TEST_COMMAND_CLEAR_TWO=two',
@@ -378,20 +379,22 @@ XML);
             $this->markTestSkipped('Permission checks are unreliable when running as root.');
         }
 
-        $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-profile-config-'
-            . getmypid() . '-' . bin2hex(random_bytes(6));
+        // A crashed run can leave this fixture read-only, so it never reuses a path.
+        $basePath = ParallelTesting::tempDir(
+            'TestCommandUnpublishedConfiguration-' . bin2hex(random_bytes(6)),
+        );
 
         mkdir($basePath, 0700, true);
-        file_put_contents($basePath . DIRECTORY_SEPARATOR . 'phpunit.xml', <<<'XML'
+        try {
+            file_put_contents($basePath . DIRECTORY_SEPARATOR . 'phpunit.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit bootstrap="vendor/autoload.php"/>
 XML);
-        chmod($basePath, 0555);
+            chmod($basePath, 0555);
 
-        $command = new TestCommandHarness(['profile' => true], $basePath);
-        $command->setHypervel($this->app);
+            $command = new TestCommandHarness(['profile' => true], $basePath);
+            $command->setHypervel($this->app);
 
-        try {
             $command->phpUnitConfigurationFilePublic();
             $this->fail('The temporary configuration write failure was not thrown.');
         } catch (RuntimeException $exception) {
@@ -577,10 +580,10 @@ XML);
      */
     protected function createProfileProject(): string
     {
-        $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-profile-project-'
-            . getmypid() . '-' . bin2hex(random_bytes(6));
+        $basePath = ParallelTesting::tempDir('TestCommandProfileProject');
 
-        mkdir($basePath . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'Feature', 0777, true);
+        $this->removeDirectory($basePath);
+        mkdir($basePath . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'Feature', 0700, true);
         symlink(package_path('vendor'), $basePath . DIRECTORY_SEPARATOR . 'vendor');
 
         file_put_contents($basePath . DIRECTORY_SEPARATOR . 'phpunit.xml', <<<'XML'
