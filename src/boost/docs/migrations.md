@@ -1485,6 +1485,20 @@ When creating an index, Hypervel will automatically generate an index name based
 $table->unique('email', 'unique_email');
 ```
 
+When a connection uses a table prefix and `prefix_indexes` is enabled, automatically generated index names include the configured prefix. Explicit names remain unchanged unless you qualify them using the `Schema::qualifyIndexName` method:
+
+```php
+$table->unique('email', Schema::qualifyIndexName('unique_email'));
+```
+
+The qualified name uses the connection resolved by the `Schema` facade. Within a migration, this is the migration's connection. When qualifying a name elsewhere, you should select the connection explicitly:
+
+```php
+$name = Schema::connection('tenant')->qualifyIndexName('unique_email');
+```
+
+Use the same qualified name when checking, renaming, or dropping the index.
+
 <a name="available-index-types"></a>
 #### Available Index Types
 
@@ -1577,7 +1591,7 @@ Schema::table('posts', function (Blueprint $table) {
 });
 ```
 
-The `foreignId` method creates an `UNSIGNED BIGINT` equivalent column, while the `constrained` method will use conventions to determine the table and column being referenced. If your table name does not match Hypervel's conventions, you may manually provide it to the `constrained` method. In addition, the name that should be assigned to the generated index may be specified as well:
+The `foreignId` method creates an `UNSIGNED BIGINT` equivalent column, while the `constrained` method will use conventions to determine the table and column being referenced. If your table name does not match Hypervel's conventions, you may manually provide it to the `constrained` method. In addition, the name that should be assigned to the generated index may be specified as well. Index prefixing does not modify explicit names, so you should use `Schema::qualifyIndexName` when the name should include a configured table prefix, as described under [creating indexes](#creating-indexes):
 
 ```php
 Schema::table('posts', function (Blueprint $table) {
@@ -1641,6 +1655,8 @@ When dropping an explicitly named foreign key, you may pass the constraint's col
 ```php
 $table->dropForeign(['tenant_id', 'user_id'], 'posts_user_fk');
 ```
+
+When dropping a qualified foreign key name, use the same value returned by `Schema::qualifyIndexName`.
 
 <a name="toggling-foreign-key-constraints"></a>
 #### Toggling Foreign Key Constraints
