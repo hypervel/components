@@ -1,6 +1,6 @@
 # Testbench Correctness, Parallel Ownership, and Current Parity
 
-**Status:** Implementation-ready
+**Status:** Complete
 
 ## Objective
 
@@ -14,7 +14,7 @@ The finished design must:
 - preserve the earliest failure while still running independent cleanup;
 - reject unsupported file identifiers before performing filesystem operations;
 - retain current Hypervel Testbench and Orchestra-shaped APIs unless an approved omission is recorded;
-- add no application hot-path work: every change is in Testbench bootstrap, CLI, the Foundation test lifecycle, the Testing parallel runner, tests, or package metadata.
+- add no application hot-path work from Testbench; `telescope-41` adds only three local presence checks when Telescope propagates context to a newly created coroutine and skips the corresponding parent reads and child writes for installed values.
 
 Primary references:
 
@@ -86,7 +86,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 - Runtime clone names retain worker identity and PID. Stale foreign clones remain a serialized, exhaustive best-effort sweep; no retry loop or cleanup exception is added.
 - `Hypervel\Testbench\TestCase` and `Hypervel\Tests\TestCase` retain their inherited coroutine behavior. No test gains a parallel helper, lock, new context state, or package-specific base class.
 - `ParallelTesting::tempDir()` remains the scratch-directory API. Existing service traits continue to own per-worker external-service isolation.
-- Testbench bootstrap and commands remain development-only work. No production application request, command, database, or package runtime path gains work from this plan.
+- Testbench bootstrap and commands remain development-only work. Production paths outside Testbench gain only Filesystem's symlink check during explicit directory deletion and `telescope-41`'s bounded local context checks during coroutine creation when Telescope is enabled; neither adds allocation, locking, retries, or retained state.
 - `WithConfig` remains eager so configuration is finalized before providers register. Orchestra's additive deferred mode is intentionally omitted because it conflicts with Hypervel's worker-startup configuration model.
 - Public Testbench and Orchestra APIs otherwise remain compatible. The approved broken bundled Pest integration is removed because it was never loaded and the real integration belongs to the separate Pest plugin.
 - Testbench cleanup remains explicit ownership, not a generic filesystem transaction framework.
@@ -119,6 +119,8 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `testbench-28` | Remove dead annotations/branches and complete Testbench test method typing. |
 | `testbench-29` | Reject invalid configured seeder classes instead of silently dropping them. |
 | `testing-18` | Terminate then flush each parallel-runner application while retaining token and failure ownership. |
+| `testing-19` | Join every application test-binary path segment before passing it to the single-path application API. |
+| `telescope-41` | Preserve installed fork snapshots in Telescope's child-context callback while retaining ordinary-create and omitted-key parent propagation. |
 
 ## Implementation
 
@@ -133,10 +135,12 @@ Files:
 - `src/testbench/src/Foundation/Application.php`
 - `src/foundation/src/Testing/Concerns/InteractsWithTestCaseLifecycle.php`
 - `src/testing/src/Concerns/RunsInParallel.php`
+- `src/testing/src/Console/TestCommandBase.php`
 - `phpstan.neon.dist`
 - focused tests under `tests/Testbench/Bootstrapper*`, `tests/Testbench/CreatesApplicationTest.php`, `tests/Testbench/TestCaseTest.php`, and `tests/Testbench/TimezoneTest.php`
 - `tests/Foundation/Testing/Concerns/InteractsWithTestCaseTest.php`
 - `tests/Testing/ParallelRunnerTest.php`
+- `tests/Testing/Console/TestCommandTest.php`
 - `tests/Sentry/SentryTestCase.php`
 - `tests/Sentry/Console/AboutCommandIntegrationTest.php`
 - `tests/Sentry/Features/RedisIntegrationTest.php`
@@ -220,7 +224,7 @@ Runtime-copy regressions use at most one creation per `withRuntimeCopyEnvironmen
 
 #### Exact process-global restoration and application ownership (`testbench-08`)
 
-Capture the timezone before mutation. Register one idempotent restoration closure before changing it, invoke that closure from PHPUnit destruction or standalone application termination as appropriate, and clean every partially created application if any later bootstrap or resolving callback throws.
+Capture the timezone before mutation. PHPUnit consumers register one idempotent restoration closure with test destruction. Standalone applications retain their configured timezone for their lifetime because request termination fires after every request; when construction or an owning action fails before ownership transfers, restore the original timezone immediately after cleaning the application.
 
 ```php
 $timezone = date_default_timezone_get();
@@ -292,6 +296,7 @@ Tests must prove:
 - `WithCachedStateTest` retains its single route definition and `[false, true]` cache observations through deliberate raw refresh;
 - `loadEnvironmentVariables = false` restores exact `APP_ENV` presence and values in `$_SERVER`, `$_ENV`, and `getenv()` after `defineEnvironment()` throws;
 - `#[WithEnv]` remains active through two HTTP requests and restores only at test teardown;
+- standalone application termination leaves the configured timezone active for the application lifetime;
 - timezone and `putenv` restoration remain exact and idempotent.
 
 Retain the existing direct restoration closures; do not add a registry or nesting counter.
@@ -312,6 +317,26 @@ Keep cached-state preparation inside the same catch boundary, but do not manufac
 The resolver remains cleared before both cleanup operations, matching the ambient state in which the application was constructed. Testbench's terminating callback only restores `Env::enablePutenv()` and does not need the process token. Implement this single Testing-owned site inline; do not share Testbench helpers across packages.
 
 Extend `tests/Testing/ParallelRunnerTest.php` to prove termination precedes flush, the ambient/null resolver is visible during termination, termination failure cannot skip flush, and callback failure remains primary. Retain every current attempted-token, application-freshness, teardown-exhaustion, and resolver-restoration assertion. This adds bounded parent-process cleanup once per attempted token, not worker-test, clone, service-isolation, coroutine, or application hot-path work.
+
+#### Application test binary paths (`testing-19`)
+
+`TestCommandBase::basePath()` accepts multiple path segments, but the application contract accepts one relative path. Join the segments before calling the application so PHPUnit, ParaTest, and Pest binaries resolve to executable files rather than the `vendor` directory:
+
+```php
+return $this->hypervel->basePath(join_paths(null, ...$paths));
+```
+
+Keep the protected variadic API and the application's Laravel-compatible single-path API. The required `null` base preserves the zero-segment call. Add a regression through the real parent method for PHPUnit, ParaTest, sequential Pest, and parallel Pest; the harness must not supply its custom base path because that override already joins segments and would mask the defect. This adds one bounded join during test-command construction and no application hot-path work.
+
+#### Telescope fork snapshots (`telescope-41`)
+
+Telescope's `afterCreated` callback must prefer each non-null value already installed in the child before reading the live parent. `Coroutine::fork()` installs its captured map before callbacks, but an earlier callback may yield and let the parent mutate before Telescope runs. Guard each of Telescope's three propagated keys with `CoroutineContext::has()`; this matches Sentry's existing child-first callback, preserves captured `false` values, and keeps the nullable batch-ID sentinel semantically absent as required by `getOrSet()`.
+
+Ordinary `create()` still begins empty and inherits all three keys. A selected fork that omits a Telescope key likewise retains parent propagation. Do not add a Context API, fork marker, callback argument, sentinel object, or raw-context inspection.
+
+Add real-provider regressions with a pre-provider yielding callback registered in `defineEnvironment()`: a full fork must preserve a captured `false` after the parent changes to `true`; ordinary `create()` and a selected fork omitting Telescope keys must still observe the parent value. The boolean counterfactual pins the null-blind `isset()` behavior used by `CoroutineContext::has()` without adding batch-ID coverage for an unchanged sentinel path.
+
+The callback adds up to three child-context presence checks per created coroutine when Telescope is enabled. A full fork with installed Telescope values avoids the corresponding parent lookups and child writes; ordinary creation retains those existing operations. This bounded in-memory cost is required for snapshot correctness and adds no network, storage, serialization, or retained worker memory.
 
 ### 2. Configuration and attribute boundaries
 
@@ -398,9 +423,9 @@ Remove the branch's entire deferred mechanism: `$defer`, `FRAMEWORK_CONFIGURATIO
 After restoring the eager runtime code, add the required intentional-omission record immediately before the constructor:
 
 ```php
-// Orchestra's deferred `defer` parameter is intentionally not ported: Hypervel
-// configuration is process-global worker-startup state, so values must be applied
-// before providers register. A test needing a post-boot value sets it in the test body.
+// Orchestra's deferred `defer` parameter is intentionally not ported. Hypervel's
+// long-lived Swoole workers share process-global configuration, so values must be
+// applied before providers register. Set post-boot values explicitly in the test body.
 /**
  * Create a new attribute instance.
  */
@@ -459,24 +484,33 @@ $ownedBackup = $backup;
 
 Remove the absolute backup paths from `$this->files`; `InteractsWithPublishedFiles` rebases entries and cannot own them. Keep the existing crash-recovery glob hook. Do not introduce another cleanup collection.
 
-`useActiveSqliteDatabasePath()` mutates worker-global configuration. Move the initial purge inside the protected region and nest final purge under config restoration so either purge may fail without leaving the active path installed:
+`useActiveSqliteDatabasePath()` mutates worker-global configuration. Move the initial purge inside the protected region, retain the first operation or cleanup failure, attempt the final purge independently, and then restore the exact original config value:
 
 ```php
 $config->set('database.connections.sqlite.database', $activeDatabase);
+$failure = null;
 
 try {
     $this->purgeSqliteConnection();
     value($callback);
-} finally {
-    try {
-        $this->purgeSqliteConnection();
-    } finally {
-        $config->set('database.connections.sqlite.database', $originalDatabase);
-    }
+} catch (Throwable $throwable) {
+    $failure = $throwable;
+}
+
+try {
+    $this->purgeSqliteConnection();
+} catch (Throwable $throwable) {
+    $failure ??= $throwable;
+}
+
+$config->set('database.connections.sqlite.database', $originalDatabase);
+
+if ($failure !== null) {
+    throw $failure;
 }
 ```
 
-Tests must inject failed backup, creation-copy, and restore operations; prove originals survive; cover distinct base/active paths; cover memory and URI rejection; and prove connection purges surround swaps. Separate regressions make the initial and final purge throw and assert the exact original config value is restored. Use the existing overridable purge method; add no new cleanup owner or filesystem operation.
+Tests must inject failed backup, creation-copy, and restore operations; prove originals survive; cover distinct base/active paths; cover memory and URI rejection; and prove connection purges surround swaps. Separate regressions make the initial and final purge throw and assert the exact original config value is restored. A combined callback-plus-final-purge regression must prove the callback failure remains the thrown failure while the final purge still runs and config is restored. Use the existing overridable purge method; add no new cleanup owner or filesystem operation.
 
 Revalidate the current Database boundaries rather than duplicating them: `SQLiteDatabase::isInMemory()` and `isUri()` remain the identifier owners; migration repository and Migrator behavior remain unchanged; and `DatabaseConnectionResolver` may discard an unknown physical session connection. Testbench's explicit `DB::purge('sqlite')` before each file swap is stronger, remains required, and needs no second unknown-session cleanup path.
 
@@ -521,13 +555,15 @@ if ($failure !== null) {
 }
 ```
 
-Commander must independently execute terminating callbacks, Workbench cleanup, and signal unregistration, preserving the first failure. Keep callback LIFO order because synchronized files depend on delete-then-restore.
+Commander must independently execute terminating callbacks, Workbench cleanup, and signal unregistration, preserving the first failure. Keep callback LIFO order because synchronized files depend on delete-then-restore. A cleanup failure after command execution is rendered through the normal exception boundary and becomes the process status rather than escaping as an uncaught throwable. Signal handlers likewise report cleanup failures, fall back to direct standard-error output if normal rendering fails, and preserve the upstream exit mapping: SIGINT exits 0, SIGTERM exits 143, and other signals exit `128 + signal`.
 
 #### Temporary application ownership (`testbench-08`, `testbench-20`, `testbench-29`)
 
 `Foundation\Application::createVendorSymlink()` and `deleteVendorSymlink()` keep their upstream-shaped application return contracts. Each static wrapper owns its application until it returns successfully: if its action fails, terminate then flush locally and preserve the action failure.
 
 `CreateVendorSymlink::handle()` must not flush its application. The action does not own the caller's lifecycle, and the existing inner flush clears terminating callbacks before the wrappers can terminate. More seriously, the documented `Foundation\Bootstrap\CreateVendorSymlink` extension passes the real application after providers boot and before the testing database resolver and kernel finish bootstrap; an action-owned flush destroys that live application mid-bootstrap. Remove the flush at the action boundary rather than compensating in each caller.
+
+`DeleteVendorSymlink` suppresses the raw `unlink()` / `rmdir()` warning and verifies the boolean result plus the postcondition. This keeps Hypervel's warning-to-exception conversion from bypassing the action's named failure.
 
 After a successful return, Commander owns that throwaway application. Wrap the complete `tap()` body that copies configuration and dotenv files, then terminate and flush on success or failure. The terminating-console callback must likewise dispose the application returned by `deleteVendorSymlink()`. Commander must use one private helper for these two sites; it attempts both operations and returns the first cleanup failure so the caller can preserve an earlier file/action/termination failure. The main `$this->app` remains command-process-owned and follows its existing lifetime.
 
@@ -573,7 +609,7 @@ Do not propagate heterogeneous child exit codes or create a status value object.
 
 #### Seeder configuration and status (`testbench-21`, `testbench-29`)
 
-In `LoadMigrationsFromArray::bootstrapSeeders()`, validate every configured value instead of filtering invalid values away. Widen the constructor PHPDoc to `array<int, mixed>|bool|string` because YAML is an untrusted runtime boundary; narrow values inside the listener. Non-string values and missing classes throw `InvalidArgumentException`; valid classes are dispatched and every nonzero status throws a named runtime failure. Import `Hypervel\Console\Command`, `InvalidArgumentException`, and `RuntimeException` explicitly.
+In `LoadMigrationsFromArray::bootstrapSeeders()`, validate every configured value instead of filtering invalid values away. Widen its constructor PHPDoc and `Foundation\Config`'s matching aliases to `array<int, mixed>|bool|string` because YAML is an untrusted runtime boundary; narrow values inside the listener. Non-string values and missing classes throw `InvalidArgumentException`; valid classes are dispatched and every nonzero status throws a named runtime failure. Import `Hypervel\Console\Command`, `InvalidArgumentException`, and `RuntimeException` explicitly.
 
 ```php
 if ($this->seeders === true) {
@@ -701,7 +737,7 @@ $refreshesDatabase = static::usesTestingConcern(DatabaseMigrations::class)
 
 Use this predicate in `WithHypervelMigrations` and for the string/list branch of `loadMigrationsFrom()`. Keep it local to those two sites; a new Foundation API or Testbench helper would add machinery for a concise condition with only two callers. Associative option arrays remain processor-owned because their connection and command semantics cannot safely be reduced to path registration.
 
-Inject `Hypervel\Database\Migrations\Migrator` directly into `MigrateProcessor` after `TestCase` and before `$options`. At all three construction sites in `InteractsWithMigrations`, resolve it with `$app->make(Migrator::class)`. The canonical alias resolves the same singleton used by the migration commands, and `getRepository()` supplies the repository whose batches the processor owns. Do not inject the application as a second way to resolve the same dependency.
+Inject `Hypervel\Database\Migrations\Migrator` directly into `MigrateProcessor` after `TestCase` and before `$options`. Centralize the three identical construction, compensation, retention, and command-reset paths in one `runMigrationProcessor()` helper on `InteractsWithMigrations`, resolving the Migrator there with `$app->make(Migrator::class)`. The canonical alias resolves the same singleton used by the migration commands, and `getRepository()` supplies the repository whose batches the processor owns. Do not inject the application as a second way to resolve the same dependency.
 
 ```php
 public function __construct(
@@ -809,13 +845,19 @@ $paths = Arr::wrap($argumentCount > 1 ? func_get_args() : $path);
 $path = join_paths(array_shift($paths), ...$paths);
 ```
 
-Retain the upstream single-string `./` branch. Remove the now-redundant exact-`DIRECTORY_SEPARATOR` branch and the paired final `ltrim($path, DIRECTORY_SEPARATOR)` from all three helpers. Route `workbench_relative_path()` through `workbench_path()` before stripping the package root, so a consuming package's selected workbench—not Testbench's own fallback fixtures—owns the result.
+Retain the upstream single-string `./` branch. Remove the now-redundant exact-`DIRECTORY_SEPARATOR` branch and the paired final `ltrim($path, DIRECTORY_SEPARATOR)` from all three helpers. Route `workbench_relative_path()` through `workbench_path()` before stripping the package root, so a consuming package's selected workbench—not Testbench's own fallback fixtures—owns the result. Strip only an exact leading package-root prefix; when Testbench or Workbench resolves outside that root, retain the absolute path. Keep the two short public functions direct rather than adding another callable helper solely to share three lines.
 
 Correct all six pseudo-variadic path-helper PHPDocs to `array<int, string>|string`, restore the omitted variadic marker on `default_skeleton_path()`, and add `@no-named-arguments`. Do not widen the shared joiner for unsupported null array elements or port upstream's inaccurate conditional return annotation.
 
-Keep `Foundation\Console\TestCommand::basePath()` on the natural `package_path(...$paths)` variadic call. Revert the branch's equivalent array-form call; it adds no behavior and creates needless port drift.
+Keep `Foundation\Console\TestCommand::basePath()` on the natural variadic call while converting the inherited variadic array to the positional list required by `package_path()`:
 
-Path regressions must use real on-disk targets so `realpath()` succeeds: the current Testbench and package fixtures for the three absolute helpers and `testbench_relative_path()`, plus the dogfood package's existing `workbench/config/dogfood.php` for `workbench_relative_path()`. In the dogfood suite, assert ordinary and `./` forms separately so consumer-workbench selection and relative normalization each have a counterfactual. Round-trip environment tests must parse emitted dotenv values, not merely compare generated text.
+```php
+return package_path(...array_values($paths));
+```
+
+This preserves the helper's zero-, one-, and multi-argument paths while matching the Hypervel parent extension point and its no-named-arguments helper contract.
+
+Path regressions must use real on-disk targets so `realpath()` succeeds: the current Testbench and package fixtures for the three absolute helpers and `testbench_relative_path()`, an external Testbench path that must remain absolute, plus the dogfood package's existing `workbench/config/dogfood.php` for `workbench_relative_path()`. In the dogfood suite, assert ordinary and `./` forms separately so consumer-workbench selection and relative normalization each have a counterfactual. Round-trip environment tests must parse emitted dotenv values, not merely compare generated text.
 
 #### Package metadata (`testbench-26`)
 
@@ -860,7 +902,7 @@ Files:
 
 Restore both public `WithConfig` timing statements in `src/boost/docs/testbench.md`: every attribute value is applied after configuration loads and before providers register. Explain that this timing models Hypervel's process-global worker-startup configuration and that explicit test-body mutation is the visible option for a genuinely post-boot value. Add the intentional deferred-mode omission under the existing `Differences From Orchestra Testbench` README heading. The current docs contain no bundled Pest claim to remove. Do not add README differences for the other correctness fixes, internal ownership, or upstream bugs.
 
-Add `testbench-07` through `testbench-29` and `testing-18` to the ledger with exact evidence, tests, compatibility, performance, and counterfactual coverage. Classify defects, consistency corrections, and retained non-defects accurately. Record `testbench-27` as already resolved by Testbench's serialized stale-runtime cleanup change; no code action remains. Revalidate current `testbench-05` through `testbench-06`, `foundation-19`, and `filesystem-17` without overwriting their existing records.
+Add `testbench-07` through `testbench-29`, `testing-18` through `testing-19`, and `telescope-41` to the ledger with exact evidence, tests, compatibility, performance, and counterfactual coverage. Classify defects, consistency corrections, and retained non-defects accurately. Record `testbench-27` as already resolved by Testbench's serialized stale-runtime cleanup change; no code action remains. Revalidate current `testbench-05` through `testbench-06`, `foundation-19`, and `filesystem-17` without overwriting their existing records.
 
 Revalidate the core index entries already routed to this audit: `testbench-01` through `testbench-06`, `concurrency-01` through `concurrency-03`, `support-02`, `foundation-06`, `database-03`, `database-08`, `cache-04`, and `view-37`. Add `testing-18` under Testing with Testbench revalidation. Update routing dispositions rather than duplicating findings, and retain every existing owner and cross-package route. Mark Testbench complete only after implementation, full verification, self-review, code-review signoff, and records review.
 
@@ -910,9 +952,11 @@ composer fix
 - Wrong-target attribute coverage reaches PHP's `ReflectionAttribute::newInstance()` error rather than substituting a throwing constructor.
 - Failed replacement coverage asserts parsed method state is cleared without invoking application-bound callbacks against a stale or flushed container.
 - Vendor bootstrapper coverage uses a real application and pins continued application usability plus terminating-callback preservation; outer tracking doubles are not sufficient.
+- Commander subprocess coverage proves cleanup failures are rendered with a normal failure status and cannot replace the established signal exit status, including upstream's zero-status SIGINT behavior.
 - SQLite active-path coverage throws from both purge positions and verifies exact worker-global config restoration.
 - Workbench backup-cleanup coverage pins the retained safe state: the correct link remains live, the displaced original remains backed up, and the named failure propagates.
 - Parallel-runner cleanup tests assert the token resolver is cleared before termination, flush still follows a failed termination, and callback failures remain primary.
+- Application test-command coverage reaches the real parent path resolver and proves every PHPUnit, ParaTest, and Pest executable segment is retained.
 - Failed cached-route reload tests assert both the exact worker cache and every owned loader-visible route file are removed while the reload failure remains primary.
 - Runtime clone tests retain real worker/PID path formation and exercise the actual serialized stale-sweep boundary.
 - Runtime tests that fabricate the active clone identity run in a child with no Testbench application or inherited static state; do not encode an ordering-dependent cross-file reproduction.
@@ -935,7 +979,7 @@ After the full gate passes:
 - compare public signatures, named arguments, protected extension points, and docs with current Orchestra Testbench, while preserving the recorded deferred-config omission;
 - rerun the repository-wide `WithConfig` consumer and attribute-target scans against the final tree;
 - inspect every new guard for a demonstrated failure and remove redundant checks;
-- verify no application hot path, container state, coroutine context, lock, retry, cache, or retained worker memory was added;
+- verify Testbench adds no application hot path, container state, coroutine context, lock, retry, cache, or retained worker memory, and that `telescope-41` remains limited to its bounded child-context presence checks;
 - remove dead imports, stale comments, superseded tests, and temporary fixtures;
 - review the final diff and records before requesting code review.
 
