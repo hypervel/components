@@ -504,6 +504,33 @@ class PendingRequestTest extends TestCase
             && $request->data() === ['payload' => ['name' => 'Taylor']]);
     }
 
+    #[DataProvider('bodylessFormRequestProvider')]
+    public function testFormConfiguredClientSupportsBodylessRequests(
+        string $method,
+        array $arguments,
+        string $expectedUrl,
+        array $expectedData,
+    ): void {
+        Http::fake(['https://example.test/*' => Http::response([])]);
+
+        (new ApiClientFormConfiguredClient)->{$method}(...$arguments);
+
+        Http::assertSent(function (Request $request) use ($expectedUrl, $expectedData) {
+            return $request->url() === $expectedUrl
+                && $request->data() === $expectedData;
+        });
+    }
+
+    public static function bodylessFormRequestProvider(): array
+    {
+        return [
+            'GET' => ['get', ['https://example.test/get'], 'https://example.test/get', []],
+            'GET with query' => ['get', ['https://example.test/get', ['foo' => 'bar']], 'https://example.test/get?foo=bar', ['foo' => 'bar']],
+            'HEAD' => ['head', ['https://example.test/head'], 'https://example.test/head', []],
+            'DELETE' => ['delete', ['https://example.test/delete'], 'https://example.test/delete', []],
+        ];
+    }
+
     public function testApiMiddlewareReceivesNormalizedNestedFormData(): void
     {
         $observedData = null;
@@ -668,6 +695,14 @@ class ApiClientTransientMiddleware
         $this->tracker->transientInstances[] = $this;
 
         return $next($request);
+    }
+}
+
+class ApiClientFormConfiguredClient extends ApiClient
+{
+    protected function configurePendingRequest(PendingRequest $request): void
+    {
+        $request->asForm();
     }
 }
 

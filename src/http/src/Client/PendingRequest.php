@@ -1210,6 +1210,12 @@ class PendingRequest
             }
 
             if ($key === 'form_params') {
+                // parseHttpOptions() plants null for a configured body format with no payload;
+                // a value that becomes null during normalization is caller-supplied and invalid.
+                if ($value === null) {
+                    continue;
+                }
+
                 $options[$key] = $this->normalizeStructuredDataValue($value);
 
                 if (! is_array($options[$key])) {

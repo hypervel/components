@@ -974,6 +974,33 @@ class HttpClientTest extends TestCase
         });
     }
 
+    #[DataProvider('bodylessFormRequestProvider')]
+    public function testBodylessFormRequestsIgnoreTheMissingFormPayload(
+        string $method,
+        array $arguments,
+        string $expectedUrl,
+        array $expectedData,
+    ): void {
+        $this->factory->fake();
+
+        $this->factory->asForm()->{$method}(...$arguments);
+
+        $this->factory->assertSent(function (Request $request) use ($expectedUrl, $expectedData) {
+            return $request->url() === $expectedUrl
+                && $request->data() === $expectedData;
+        });
+    }
+
+    public static function bodylessFormRequestProvider(): array
+    {
+        return [
+            'GET' => ['get', ['http://foo.com/get'], 'http://foo.com/get', []],
+            'GET with query' => ['get', ['http://foo.com/get', ['foo' => 'bar']], 'http://foo.com/get?foo=bar', ['foo' => 'bar']],
+            'HEAD' => ['head', ['http://foo.com/head'], 'http://foo.com/head', []],
+            'DELETE' => ['delete', ['http://foo.com/delete'], 'http://foo.com/delete', []],
+        ];
+    }
+
     public function testFormParamsNormalizeNonFiniteFloats(): void
     {
         $this->factory->fake();
@@ -1065,19 +1092,32 @@ class HttpClientTest extends TestCase
         });
     }
 
-    public function testFormDataRejectsAJsonSerializableScalar(): void
+    #[DataProvider('invalidJsonSerializableFormDataProvider')]
+    public function testFormDataRejectsInvalidJsonSerializableValues(?string $serialized): void
     {
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('HTTP form data must resolve to an array.');
 
-        $this->factory->asForm()->post('http://foo.com/form', new class implements JsonSerializable {
+        $this->factory->asForm()->post('http://foo.com/form', new class($serialized) implements JsonSerializable {
+            public function __construct(private ?string $serialized)
+            {
+            }
+
             public function jsonSerialize(): mixed
             {
-                return 'name=Taylor';
+                return $this->serialized;
             }
         });
+    }
+
+    public static function invalidJsonSerializableFormDataProvider(): array
+    {
+        return [
+            'scalar' => ['name=Taylor'],
+            'null' => [null],
+        ];
     }
 
     #[DataProvider('methodsReceivingArrayableDataProvider')]
