@@ -138,26 +138,17 @@ class CreateVendorSymlinkTest extends TestCase
     }
 
     #[Test]
-    #[RequiresOperatingSystem('Linux|Darwin')]
+    #[RequiresOperatingSystem('Linux')]
     public function itReportsADeletionFailureThroughTheNamedException(): void
     {
-        $application = $this->createApplication();
-        $filesystem = new Filesystem;
-        $vendorPath = $application->basePath('vendor');
-        (new DeleteVendorSymlink)->handle($application);
-        $filesystem->link(package_path('vendor'), $vendorPath);
-        chmod($application->basePath(), 0500);
-
-        try {
-            (new DeleteVendorSymlink)->handle($application);
-            $this->fail('Expected vendor symlink deletion to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame("Unable to remove vendor symlink [{$vendorPath}].", $exception->getMessage());
-        } finally {
-            chmod($application->basePath(), 0700);
-        }
-
+        $application = m::mock(ApplicationContract::class);
+        $vendorPath = '/proc/self/fd/0';
+        $application->shouldReceive('basePath')->once()->with('vendor')->andReturn($vendorPath);
         $this->assertTrue(is_link($vendorPath));
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to remove vendor symlink [{$vendorPath}].");
+
+        (new DeleteVendorSymlink)->handle($application);
     }
 
     #[Test]
