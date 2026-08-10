@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ApiClient;
 
 use BadMethodCallException;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Hypervel\ApiClient\ApiRequest;
 use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
@@ -59,7 +60,7 @@ class ApiResourceTest extends TestCase
     public function testResolve(): void
     {
         $this->response
-            ->shouldReceive('json')
+            ->shouldReceive('toArray')
             ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->resolve());
@@ -68,7 +69,7 @@ class ApiResourceTest extends TestCase
     public function testToArray(): void
     {
         $this->response
-            ->shouldReceive('json')
+            ->shouldReceive('toArray')
             ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->toArray());
@@ -77,7 +78,7 @@ class ApiResourceTest extends TestCase
     public function testJsonSerialize(): void
     {
         $this->response
-            ->shouldReceive('json')
+            ->shouldReceive('toArray')
             ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->jsonSerialize());
@@ -85,7 +86,7 @@ class ApiResourceTest extends TestCase
 
     public function testToJsonThrowsForInvalidUtf8(): void
     {
-        $this->response->shouldReceive('json')->once()->andReturn(['value' => "\xB1\x31"]);
+        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => "\xB1\x31"]);
 
         $this->expectException(JsonException::class);
 
@@ -94,11 +95,21 @@ class ApiResourceTest extends TestCase
 
     public function testToJsonHonorsInvalidUtf8Substitution(): void
     {
-        $this->response->shouldReceive('json')->once()->andReturn(['value' => "\xB1\x31"]);
+        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => "\xB1\x31"]);
 
         $this->assertSame(
             '{"value":"\ufffd1"}',
             $this->resource->toJson(JSON_INVALID_UTF8_SUBSTITUTE),
+        );
+    }
+
+    public function testToPrettyJsonPreservesCallerOptions(): void
+    {
+        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => '/path']);
+
+        $this->assertSame(
+            "{\n    \"value\": \"/path\"\n}",
+            $this->resource->toPrettyJson(JSON_UNESCAPED_SLASHES),
         );
     }
 
@@ -173,6 +184,18 @@ class ApiResourceTest extends TestCase
             ->andReturn($expectedResult = 200);
 
         $this->assertEquals($expectedResult, $this->resource->status());
+    }
+
+    public function testCallForwardsResponseMacrosAndPsrMethods(): void
+    {
+        ApiResponse::macro('greeting', fn (): string => 'hello');
+        $resource = new ApiResource(
+            new ApiResponse(new Psr7Response(201)),
+            $this->request,
+        );
+
+        $this->assertSame('hello', $resource->greeting());
+        $this->assertSame(201, $resource->getStatusCode());
     }
 
     public function testCallNonExistentMethodThrowsException(): void
