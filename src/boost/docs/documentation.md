@@ -95,6 +95,7 @@
     - [Database](/docs/{{version}}/database-testing)
     - [Mocking](/docs/{{version}}/mocking)
 - ## Packages
+    - [API Client](/docs/{{version}}/api-client)
     - [Fortify](/docs/{{version}}/fortify)
     - [gRPC](/docs/{{version}}/grpc)
     - [Horizon](/docs/{{version}}/horizon)

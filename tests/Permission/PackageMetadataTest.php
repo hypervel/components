@@ -31,6 +31,8 @@ class PackageMetadataTest extends TestCase
         );
 
         foreach (['composer-runtime-api', 'nesbot/carbon', 'symfony/http-kernel'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 

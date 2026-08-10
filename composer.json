@@ -162,6 +162,8 @@
         "google/common-protos": "^4.14",
         "google/protobuf": "^5.35",
         "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/promises": "^2.5.2",
+        "guzzlehttp/psr7": "^2.13",
         "guzzlehttp/uri-template": "^1.0",
         "hypervel/laminas-mime": "^0.1.0",
         "laravel/serializable-closure": "^2.0.10",

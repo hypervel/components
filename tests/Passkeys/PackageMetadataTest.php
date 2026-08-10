@@ -72,6 +72,7 @@ class PackageMetadataTest extends TestCase
             'web-auth/cose-lib',
             'web-auth/webauthn-lib',
         ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
@@ -81,6 +82,7 @@ class PackageMetadataTest extends TestCase
         );
 
         $this->assertSame($internalConstraint, $composer['require']['hypervel/context']);
+        $this->assertArrayHasKey('hypervel/context', $rootComposer['replace']);
         $this->assertSame('self.version', $rootComposer['replace']['hypervel/context']);
     }
 }
