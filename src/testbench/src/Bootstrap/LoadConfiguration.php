@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Bootstrap;
 
 use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration as BaseLoadConfiguration;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Foundation\Env;
@@ -87,8 +88,11 @@ class LoadConfiguration extends BaseLoadConfiguration
     protected function configureDefaultDatabaseConnection(RepositoryContract $repository): void
     {
         $sqliteDatabase = $repository->get('database.connections.sqlite.database');
+        $usesLocalFile = is_string($sqliteDatabase)
+            && ! SQLiteDatabase::isInMemory($sqliteDatabase)
+            && ! SQLiteDatabase::isUri($sqliteDatabase);
 
-        if ($repository->get('database.default') === 'sqlite' && is_string($sqliteDatabase) && ! is_file($sqliteDatabase)) {
+        if ($repository->get('database.default') === 'sqlite' && $usesLocalFile && ! is_file($sqliteDatabase)) {
             $repository->set('database.default', 'testing');
             $this->rewriteQueueDatabaseConnection($repository, 'queue.batching.database');
             $this->rewriteQueueDatabaseConnection($repository, 'queue.failed.database');
