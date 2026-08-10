@@ -33,8 +33,12 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
 
+        $this->assertArrayHasKey('composer/semver', $rootComposer['require-dev']);
+        $this->assertArrayHasKey('composer/semver', $composer['require']);
         $this->assertSame($rootComposer['require-dev']['composer/semver'], $composer['require']['composer/semver']);
+        $this->assertArrayHasKey('hypervel/di', $composer['require']);
         $this->assertSame('^0.4', $composer['require']['hypervel/di']);
+        $this->assertArrayHasKey('hypervel/di', $rootComposer['replace']);
         $this->assertSame('self.version', $rootComposer['replace']['hypervel/di']);
         $this->assertArrayNotHasKey('brianium/paratest', $composer['suggest'] ?? []);
     }
