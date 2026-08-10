@@ -9,6 +9,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar;
+use Hypervel\Support\Fluent;
 use Hypervel\Tests\Database\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -235,6 +236,132 @@ class DatabaseSchemaBlueprintTest extends TestCase
         };
 
         $this->assertEquals(['alter table `users` add `foo` varchar(255) not null'], $getSql('MySql'));
+    }
+
+    public function testRemoveColumnMatchesNumericLookingNamesStrictly(): void
+    {
+        $blueprint = $this->getBlueprint('MySql', 'users', function (Blueprint $table) {
+            $table->string('1e2');
+            $table->string('0100');
+            $table->string('100');
+            $table->removeColumn('100');
+        });
+
+        $this->assertSame(['1e2', '0100'], array_column($blueprint->getColumns(), 'name'));
+        $this->assertSame(['1e2', '0100'], array_column($blueprint->getCommands(), 'name'));
+    }
+
+    public function testCreatePromotesForeignKeyTargetsWithoutMovingOtherCommands(): void
+    {
+        $blueprint = new DatabaseSchemaBlueprintOrderingTestBlueprint(
+            $this->getConnection('Postgres'),
+            'nodes',
+            function (DatabaseSchemaBlueprintOrderingTestBlueprint $table) {
+                $table->create();
+                $table->integer('parent_id');
+                $table->foreign('parent_id')->references('id')->on('nodes');
+                $table->unique('code');
+                $table->integer('root_id');
+                $table->foreign('root_id')->references('id')->on('nodes');
+                $table->index('parent_id');
+                $table->integer('id')->primary();
+                $table->customCommand();
+            },
+        );
+
+        $blueprint->toSql();
+
+        $this->assertSame(
+            [
+                'create', 'unique', 'index', 'primary', 'foreign', 'foreign', 'custom',
+                'AutoIncrementStartingValues', 'Comment', 'AutoIncrementStartingValues', 'Comment',
+                'AutoIncrementStartingValues', 'Comment',
+            ],
+            array_column($blueprint->getCommands(), 'name'),
+        );
+        $this->assertSame($blueprint->generatedUniqueCommand, $blueprint->getCommands()[1]);
+        $this->assertSame('preserved', $blueprint->getCommands()[1]->testMetadata);
+    }
+
+    public function testCreateKeepsTargetsAlreadyBeforeTheFirstForeignKeyInPlace(): void
+    {
+        $blueprint = $this->getBlueprint('Postgres', 'nodes', function (Blueprint $table) {
+            $table->create();
+            $table->unique('code');
+            $table->foreign('parent_id')->references('id')->on('nodes');
+            $table->index('parent_id');
+        });
+        $unique = $blueprint->getCommands()[1];
+
+        $blueprint->toSql();
+
+        $this->assertSame(['create', 'unique', 'index', 'foreign'], array_column($blueprint->getCommands(), 'name'));
+        $this->assertSame($unique, $blueprint->getCommands()[1]);
+    }
+
+    public function testAlterPlacesGeneratedForeignKeyTargetsAfterTheirOwningColumns(): void
+    {
+        $blueprint = new DatabaseSchemaBlueprintOrderingTestBlueprint(
+            $this->getConnection('Postgres'),
+            'nodes',
+            function (DatabaseSchemaBlueprintOrderingTestBlueprint $table) {
+                $table->integer('id')->primary();
+                // ALTER order is imperative, so this foreign key stays ahead of its later target column and index.
+                $table->foreign('parent_id')->references('id')->on('nodes');
+                $table->integer('parent_id')->index();
+                $table->string('code')->unique('nodes_code_unique');
+                $table->text('body')->fullText();
+                $table->geometry('location')->spatialIndex();
+                $table->vector('embedding', 3)->vectorIndex();
+                $table->string('legacy')->unique(false)->change();
+            },
+        );
+
+        $blueprint->toSql();
+
+        $this->assertSame(
+            [
+                'add', 'primary', 'foreign', 'add', 'index', 'add', 'unique', 'add', 'add', 'add', 'change',
+                'fulltext', 'spatialIndex', 'vectorIndex', 'dropUnique',
+                'AutoIncrementStartingValues', 'Comment', 'AutoIncrementStartingValues', 'Comment',
+                'AutoIncrementStartingValues', 'Comment', 'AutoIncrementStartingValues', 'Comment',
+                'AutoIncrementStartingValues', 'Comment', 'AutoIncrementStartingValues', 'Comment',
+                'AutoIncrementStartingValues', 'Comment',
+            ],
+            array_column($blueprint->getCommands(), 'name'),
+        );
+        $this->assertSame($blueprint->generatedUniqueCommand, $blueprint->getCommands()[6]);
+        $this->assertSame('preserved', $blueprint->getCommands()[6]->testMetadata);
+    }
+
+    public function testAlterPreservesExplicitCommandOrder(): void
+    {
+        $blueprint = $this->getBlueprint('Postgres', 'nodes', function (Blueprint $table) {
+            $table->foreign('parent_id')->references('id')->on('nodes');
+            $table->unique('id');
+        });
+
+        $blueprint->toSql();
+
+        $this->assertSame(['foreign', 'unique'], array_column($blueprint->getCommands(), 'name'));
+    }
+
+    public function testSqliteAlterKeepsGeneratedIndexAtTheEndOfTheCallbackCommands(): void
+    {
+        $connection = $this->getConnection('SQLite');
+        $connection->getSchemaBuilder()
+            ->shouldReceive('parseSchemaAndTable')
+            ->with('nodes')
+            ->andReturn([null, 'nodes']);
+
+        $blueprint = new Blueprint($connection, 'nodes', function (Blueprint $table) {
+            $table->integer('id')->unique();
+            $table->integer('value');
+        });
+
+        $blueprint->toSql();
+
+        $this->assertSame(['add', 'add', 'unique'], array_column($blueprint->getCommands(), 'name'));
     }
 
     public function testRenameColumn()
@@ -759,4 +886,29 @@ enum ApostropheBackedEnum: string
 {
     case ValueWithoutApostrophe = 'this will work';
     case ValueWithApostrophe = 'this\'ll work too';
+}
+
+class DatabaseSchemaBlueprintOrderingTestBlueprint extends Blueprint
+{
+    public ?Fluent $generatedUniqueCommand = null;
+
+    /**
+     * Add a custom schema command.
+     */
+    public function customCommand(): Fluent
+    {
+        return $this->addCommand('custom');
+    }
+
+    /**
+     * Specify a unique index for the table.
+     */
+    public function unique(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
+    {
+        $command = parent::unique($columns, $name, $algorithm);
+        $command->testMetadata = 'preserved';
+        $this->generatedUniqueCommand = $command;
+
+        return $command;
+    }
 }
