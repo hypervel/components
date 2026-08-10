@@ -42,7 +42,7 @@ $user = $github->get('/users/hypervel');
 return $user->login;
 ```
 
-Each fluent chain that begins on an API client creates an operation-local pending request. Therefore, API client instances may be safely injected and reused. Values that vary between requests, such as tenant credentials or trace identifiers, should be applied to the pending request or stored in its [context](#request-context) instead of being written to the client instance.
+API client instances may be safely injected and reused. Each request chain that begins on the client uses a fresh pending request. Apply values that vary between requests, such as tenant credentials or trace identifiers, to the pending request or store them in its [context](#request-context) instead of writing them to the client instance.
 
 <a name="installation"></a>
 ## Installation
@@ -81,7 +81,7 @@ class GitHubClient extends ApiClient
 }
 ```
 
-The `baseUrl`, `acceptJson`, `withUserAgent`, and `timeout` methods are provided by Hypervel's underlying HTTP client. Other HTTP client methods may be used in the same way.
+The `baseUrl`, `acceptJson`, `withUserAgent`, and `timeout` methods are provided by Hypervel's HTTP client. You may use its other request configuration methods in the same way.
 
 If you need to customize a new pending request before the client defaults are applied, you may override the `newPendingRequest` method. Most clients should only need to implement `configurePendingRequest`.
 
@@ -144,7 +144,7 @@ Data objects are optional. You may inject any configuration or service your clie
 <a name="resolving-clients"></a>
 ### Resolving Clients
 
-Since API clients are regular container-resolvable classes, you may type-hint them on controllers, jobs, listeners, or other classes resolved by Hypervel's [service container](/docs/{{version}}/container):
+API clients may be resolved by Hypervel's [service container](/docs/{{version}}/container). Therefore, you may type-hint them on controllers, jobs, listeners, or other classes resolved by the container:
 
 ```php
 <?php
@@ -209,7 +209,7 @@ API clients may be reused, but pending requests are mutable and represent one op
 <a name="request-options"></a>
 ### Request Options
 
-Calls that are not part of the API client itself are forwarded to the underlying HTTP pending request. This allows you to use familiar HTTP client methods such as `withHeaders`, `withToken`, `timeout`, `retry`, and `withOptions`:
+You may call familiar HTTP client methods such as `withHeaders`, `withToken`, `timeout`, `retry`, and `withOptions` directly on an API client:
 
 ```php
 $user = $github
@@ -218,12 +218,12 @@ $user = $github
     ->get('/users/hypervel');
 ```
 
-When a forwarded method returns the underlying pending request, the API pending request is returned so that the fluent chain remains intact. Methods that return a value return that value unchanged.
+Fluent HTTP client methods continue the API client chain. Methods that return another value return that value unchanged.
 
 > [!NOTE]
-> The API client performs synchronous requests. Calling `async(true)` is rejected before a request is dispatched. Calling `async(false)` may be used when shared request-building code needs to state the synchronous mode explicitly.
+> API clients send requests synchronously. Calling `async(true)` is rejected before a request is dispatched. Calling `async(false)` may be useful when shared request-building code needs to specify synchronous mode explicitly.
 
-The API client does not accept custom Guzzle client instances because they bypass its request middleware. To customize the low-level transport for a request, use the `setHandler` method instead:
+Custom Guzzle client instances are not supported because they skip API middleware. To customize the transport for a request, use the `setHandler` method instead:
 
 ```php
 $user = $github
@@ -273,7 +273,7 @@ $user = $github
     ->get('/user');
 ```
 
-Request middleware may read or update the context using the `context` and `withContext` methods. The final request context is also made available to response middleware, allowing both middleware stages to share operation-local information. If a request is retried, the context from the final attempt is used:
+Request middleware may read or update the context using the `context` and `withContext` methods. The final request context is also available to response middleware, allowing both middleware stages to share information about the current request. If a request is retried, the context from the final attempt is used:
 
 ```php
 $tenant = $request->context('tenant');
@@ -286,7 +286,7 @@ Context values belong to one pending request and are not retained by the API cli
 <a name="error-handling"></a>
 ### Error Handling
 
-By default, API clients return their configured resource for successful and unsuccessful HTTP responses. This allows response middleware and resources to inspect error payloads:
+By default, API clients return the selected resource for successful and unsuccessful HTTP responses. This allows response middleware and resources to inspect error payloads:
 
 ```php
 $user = $github->get('/users/missing');
@@ -304,7 +304,7 @@ $user = $github
     ->get('/users/missing');
 ```
 
-You may also inspect or throw from the underlying response after the request has completed:
+You may also inspect or throw from the API response after the request has completed:
 
 ```php
 $response = $user->getResponse();
@@ -315,7 +315,7 @@ $response->throw();
 <a name="api-resources"></a>
 ## API Resources
 
-API resources provide a dedicated representation for data returned by an external API. They offer array access, property access, JSON serialization, and access to the underlying request and response.
+API resources provide a dedicated representation for data returned by an external API. They offer array access, property access, JSON serialization, and access to the API request and response.
 
 The base `Hypervel\ApiClient\ApiResource` class returns the decoded JSON response as an array:
 
@@ -331,7 +331,7 @@ $user->toPrettyJson();
 
 Reading a missing field using array or property access returns `null`.
 
-Response methods and macros are forwarded to the resource, so you may inspect status codes and headers directly:
+You may call response methods and macros on the resource to inspect status codes and headers directly:
 
 ```php
 $user->successful();
@@ -389,7 +389,7 @@ class GitHubClient extends ApiClient
 }
 ```
 
-The `$resource` property selects the resource at runtime. The `@extends` annotation gives static analysis tools the matching return type for client requests and `createPendingRequest`.
+The `$resource` property determines which resource is created. The `@extends` annotation tells static analysis tools which resource is returned by client requests and `createPendingRequest`.
 
 <a name="selecting-resources"></a>
 ### Selecting Resources
@@ -429,12 +429,12 @@ These methods are useful when an integration needs access to details that are no
 <a name="api-middleware"></a>
 ## API Middleware
 
-API middleware allows an integration to transform its API request before it reaches the HTTP client or transform its API response before a resource is created. This differs from [Guzzle middleware](/docs/{{version}}/http-client#guzzle-middleware), which operates on the lower-level Guzzle request lifecycle.
+API middleware may change a request before it is sent or change a response before a resource is created. This differs from [Guzzle middleware](/docs/{{version}}/http-client#guzzle-middleware), which works directly with PSR-7 requests and responses.
 
 <a name="request-middleware"></a>
 ### Request Middleware
 
-Request middleware receives an `ApiRequest` instance and a closure that invokes the next middleware in the pipeline:
+Request middleware receives an `ApiRequest` instance and a closure that passes the request to the next middleware:
 
 ```php
 <?php
@@ -537,7 +537,7 @@ $user = $github
     ->get('/user');
 ```
 
-The API-specific method names keep these middleware pipelines distinct from the HTTP client's `withRequestMiddleware` and `withResponseMiddleware` methods.
+These API-specific methods are separate from the HTTP client's `withRequestMiddleware` and `withResponseMiddleware` methods.
 
 <a name="middleware-dependencies"></a>
 ### Middleware Dependencies
@@ -568,7 +568,7 @@ $pendingRequest->withContext('tenant', $tenant);
 
 Closures and other callable objects may also be registered as middleware.
 
-Unbound middleware classes are reused for the worker lifetime and should not hold request state. If a middleware instance must be created for every pipeline execution, register it using a transient container binding. Scoped and singleton bindings retain their normal container lifetimes.
+Hypervel reuses unbound middleware classes for the lifetime of the worker, so they should not store request state. If you need a new middleware instance each time the pipeline runs, register it using the container's `bind` method. Scoped and singleton bindings retain their normal container lifetimes.
 
 <a name="disabling-middleware"></a>
 ### Disabling Middleware
@@ -581,12 +581,12 @@ $user = $github
     ->get('/users/hypervel');
 ```
 
-Disabling API middleware does not disable middleware configured on the underlying HTTP or Guzzle clients.
+Disabling API middleware does not disable HTTP or Guzzle middleware.
 
 <a name="mutating-requests-and-responses"></a>
 ## Mutating Requests and Responses
 
-API request and response objects provide fluent methods for middleware that needs to transform a message. These methods return the same API wrapper with its underlying PSR-7 message replaced.
+API request and response objects provide fluent methods for middleware that needs to change a message. These methods return the same object, allowing you to continue chaining calls.
 
 <a name="request-data"></a>
 ### Request Data
@@ -602,7 +602,7 @@ $request
 
 Structured request data belongs to request bodies. Calling `withData`, `mergeData`, or `withoutData` on a `GET` or `HEAD` request will throw an exception. Use `withQuery` and `withoutQuery` to change the query string instead.
 
-The `asJson` and `asForm` methods may be used to convert representable structured data between JSON and form encoding:
+The `asJson` and `asForm` methods may be used to convert structured request data between JSON and form encoding:
 
 ```php
 $request->asForm();
