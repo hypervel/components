@@ -1202,6 +1202,29 @@ SQL);
         $this->assertEquals($expected, $getSql('SQLite'));
     }
 
+    public function testAddingPrimaryAndUniqueIndexesUsesOneSqliteRebuild(): void
+    {
+        DB::connection()->getSchemaBuilder()->create('users', function (Blueprint $table): void {
+            $table->string('name')->nullable();
+        });
+
+        $blueprint = $this->getBlueprint('SQLite', 'users', function (Blueprint $table): void {
+            $table->string('key')->primary();
+            $table->string('email')->unique();
+            $table->text('name')->nullable()->change();
+        });
+
+        $this->assertSame([
+            'alter table "users" add column "key" varchar not null',
+            'alter table "users" add column "email" varchar not null',
+            'create table "__temp__users" ("name" text, "key" varchar not null, "email" varchar not null, primary key ("key"))',
+            'insert into "__temp__users" ("name", "key", "email") select "name", "key", "email" from "users"',
+            'drop table "users"',
+            'alter table "__temp__users" rename to "users"',
+            'create unique index "users_email_unique" on "users" ("email")',
+        ], $blueprint->toSql());
+    }
+
     public function testAddColumnNamedCreateWorks()
     {
         Schema::create('users', function (Blueprint $table) {
