@@ -362,7 +362,7 @@ Decode non-empty request JSON with `JSON_THROW_ON_ERROR`: malformed JSON keeps i
 
 Normalize structured values with one recursive helper that converts nested Hypervel `Stringable`, `JsonSerializable`, and `Arrayable` values. The wire and logical-payload consumers have distinct owners:
 
-- `normalizeRequestOptions()` validates merged query options as `array|string|null` and form options as arrays, then normalizes non-finite floats;
+- `normalizeRequestOptions()` validates merged query options as `array|string|null` and supplied form options as arrays, then normalizes non-finite floats. A directly null `form_params` option remains untouched so Guzzle retains its established bodyless-request behavior; a supplied structured value that resolves to null is still invalid;
 - `parseRequestData()` resolves per-terminal query, JSON, and form input before publishing `hypervel_data`, because that payload is computed before option merging and wire normalization;
 - multipart remains structurally aligned through the existing `normalizeMultipartOption()` owner on both paths. `parseHttpOptions()` unwraps a top-level `JsonSerializable` or `Arrayable` container before requiring an array, while `normalizeMultipartOption()` resolves nested structured part values. `parseRequestData()` returns an actual multipart option through that shared owner without a second general traversal; multipart-configured GET/HEAD requests continue through normal query parsing when no multipart option is present.
 
@@ -489,7 +489,7 @@ Update the core audit plan/ledger to mark the complete API Client audit finished
 
 ### Shared-owner and metadata coverage
 
-- HTTP media types with case/parameters, exact-empty JSON read requests, distinct malformed/scalar JSON diagnostics, empty decode caching, numeric query keys, static subtype returns, GET/HEAD URL-query observation, recursive structured query/form/multipart normalization on both wire and logical-payload paths, multipart-configured read requests retaining string and URL queries, and invalid result types;
+- HTTP media types with case/parameters, exact-empty JSON read requests, distinct malformed/scalar JSON diagnostics, empty decode caching, numeric query keys, static subtype returns, GET/HEAD URL-query observation, bodyless form-configured HTTP/API Client reads and deletes, recursive structured query/form/multipart normalization on both wire and logical-payload paths, multipart-configured read requests retaining string and URL queries, and invalid result types;
 - exact logical JSON/form values without a body rewrite; final data after local/global Guzzle middleware or `beforeSending` body replacement; later callbacks, stubs, recorders, API middleware, retries, multipart file probes, and scalar replacement failures; raw terminal body options; gated and callback-hidden prepared-body metadata; no added common-path parsing;
 - Telescope raw-body capture for `withBody()` and the structured-input ownership boundary;
 - every compared root/split hard dependency being present before its constraint is compared, optional Foundation/Database feature suggestion, and Reverb dependency removal;
