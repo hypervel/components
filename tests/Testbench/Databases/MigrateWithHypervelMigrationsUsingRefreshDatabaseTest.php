@@ -11,6 +11,7 @@ use Hypervel\Support\Facades\Hash;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithHypervelMigrations;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\Depends;
 use PHPUnit\Framework\Attributes\Test;
 
 #[WithConfig('database.default', 'testing')]
@@ -19,9 +20,13 @@ class MigrateWithHypervelMigrationsUsingRefreshDatabaseTest extends TestCase
     use RefreshDatabase;
     use WithHypervelMigrations;
 
+    protected bool $migrateRefresh = true;
+
     #[Test]
     public function itLoadsTheMigrations(): void
     {
+        $this->assertSame([], $this->cachedTestMigratorProcessors);
+
         $now = CarbonImmutable::now();
 
         DB::table('users')->insert([
@@ -36,5 +41,13 @@ class MigrateWithHypervelMigrationsUsingRefreshDatabaseTest extends TestCase
 
         $this->assertEquals('crynobone@gmail.com', $users->email);
         $this->assertTrue(Hash::check('456', $users->password));
+    }
+
+    #[Test]
+    #[Depends('itLoadsTheMigrations')]
+    public function itRegistersTheMigrationsWhenARefreshIsForced(): void
+    {
+        $this->assertSame([], $this->cachedTestMigratorProcessors);
+        $this->assertTrue(DB::getSchemaBuilder()->hasTable('users'));
     }
 }

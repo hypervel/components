@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 class InlineCacheRouteTest extends TestCase
 {
     #[Test]
-    public function itCanCacheRoute()
+    public function itCanCacheRoute(): void
     {
         $this->assertFalse($this->app->routesAreCached());
 

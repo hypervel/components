@@ -451,7 +451,7 @@ protected function defineEnvironment(Application $app): void
 }
 ```
 
-If a config value must be available during provider boot logic, prefer `defineEnvironment` over `#[WithConfig]`.
+Configuration set with `#[WithConfig]` is always applied before service providers register. This keeps process-global configuration fixed during startup for Hypervel's long-lived Swoole workers. If a test needs a post-boot value, set it explicitly in the test body using `config()->set()`.
 
 <a name="using-attributes"></a>
 ### Using Attributes

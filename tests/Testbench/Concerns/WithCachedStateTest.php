@@ -62,6 +62,8 @@ class WithCachedStateTest extends TestCase
             $this->app->make(Router::class)->getRoutes()->getByName('cached-testbench-state')
         );
 
+        // A full reload resets the cached-state traits and defines the routes again,
+        // replacing the lifecycle this test is exercising.
         $this->refreshApplication();
 
         $routes = $this->app->make(Router::class)->getRoutes();

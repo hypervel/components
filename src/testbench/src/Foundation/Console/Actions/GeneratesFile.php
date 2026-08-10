@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Foundation\Console\Actions;
 
 use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
+use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Prompts\confirm;
@@ -36,7 +37,7 @@ class GeneratesFile
 
         if (! $this->filesystem->exists($from)) {
             $this->components?->twoColumnDetail(
-                sprintf('Source file [%s] doesn\'t exists', transform_realpath_to_relative($from, $this->workingPath)),
+                sprintf('Source file [%s] doesn\'t exist', transform_realpath_to_relative($from, $this->workingPath)),
                 '<fg=yellow;options=bold>SKIPPED</>',
             );
 
@@ -58,7 +59,9 @@ class GeneratesFile
             return;
         }
 
-        $this->filesystem->copy($from, $to);
+        if (! $this->filesystem->copy($from, $to)) {
+            throw new RuntimeException("Unable to generate file [{$to}].");
+        }
 
         $gitKeepFile = join_paths(dirname($to), '.gitkeep');
 

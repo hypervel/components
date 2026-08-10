@@ -63,7 +63,7 @@ class SyncSkeletonCommandTest extends TestCase
     }
 
     #[Test]
-    public function itCanSyncTheSkeletonFiles()
+    public function itCanSyncTheSkeletonFiles(): void
     {
         $config = $this->app->make(ConfigContract::class);
 
@@ -96,7 +96,7 @@ class SyncSkeletonCommandTest extends TestCase
 
     #[Test]
     #[Depends('itCanSyncTheSkeletonFiles')]
-    public function itDoesNotLeakMutatedWorkbenchConfigAcrossTests()
+    public function itDoesNotLeakMutatedWorkbenchConfigAcrossTests(): void
     {
         $config = $this->app->make(ConfigContract::class);
 

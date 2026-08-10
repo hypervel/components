@@ -28,9 +28,14 @@ parameters:
     - %currentWorkingDirectory%/src/*/resources/views/*
     - %currentWorkingDirectory%/src/*/publish/*
     - %currentWorkingDirectory%/src/foundation/src/ComposerScripts.php
-    # @TODO: Add pest to root composer.json require-dev and remove this line once Pest 5 is released (required for PHPUnit 13 support).
-    - %currentWorkingDirectory%/src/testbench/src/Pest/Autoload.php
   ignoreErrors:
+    # CreatesApplication is an open trait consumed by both PHPUnit test cases and the
+    # standalone Testbench application. PHPStan reports this shared capability guard
+    # in the consumer contexts, where an inline suppression in the trait cannot bind.
+    - message: "#^Call to function method_exists\\(\\) with .+ and 'beforeApplicationDe[^']*' will always evaluate to true\\.$#"
+      identifier: function.alreadyNarrowedType
+      path: src/testbench/src/Concerns/CreatesApplication.php
+
     # protoc 35.1 emits a two-argument enum check, while google/protobuf 5.35.1
     # declares the userland method with one argument and relies on PHP ignoring the extra value.
     - identifier: arguments.count

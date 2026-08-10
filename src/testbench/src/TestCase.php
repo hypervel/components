@@ -12,7 +12,6 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
-use Hypervel\Testbench\Pest\WithPest;
 use RuntimeException;
 use Swoole\Timer;
 use Throwable;
@@ -30,7 +29,6 @@ use Throwable;
  * @method void disableEventsForAllTests()
  *
  * @internal
- * @coversNothing
  */
 class TestCase extends BaseTestCase implements Contracts\TestCase
 {
@@ -68,11 +66,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
             CoordinatorManager::clear(Constants::WORKER_EXIT);
         });
-
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            $this->setUpTheEnvironmentUsingPest(); /* @phpstan-ignore method.notFound */
-        }
 
         $setupHasRun = false;
         $setup = function () use (&$setupHasRun): void {
@@ -178,15 +171,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
 
         $exception = null;
 
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            try {
-                $this->tearDownTheEnvironmentUsingPest(); /* @phpstan-ignore method.notFound */
-            } catch (Throwable $throwable) {
-                $exception = $throwable;
-            }
-        }
-
         $teardownHasRun = false;
         $teardown = function () use (&$teardownHasRun): void {
             if ($teardownHasRun) {
@@ -219,7 +203,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
                 $parent();
             })($teardown);
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = $throwable;
         }
 
         if (! $teardownHasRun) {
@@ -245,11 +229,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     {
         static::setUpBeforeClassUsingPHPUnit();
 
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            static::setUpBeforeClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
-        }
-
         static::setUpBeforeClassUsingTestCase();
     }
 
@@ -264,15 +243,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             static::tearDownAfterClassUsingTestCase();
         } catch (Throwable $throwable) {
             $exception = $throwable;
-        }
-
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            try {
-                static::tearDownAfterClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
-            } catch (Throwable $throwable) {
-                $exception ??= $throwable;
-            }
         }
 
         try {

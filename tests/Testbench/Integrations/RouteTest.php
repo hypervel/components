@@ -40,7 +40,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveWebGroupRoute()
+    public function itCanResolveWebGroupRoute(): void
     {
         $crawler = $this->call('GET', 'web/test');
 
@@ -48,7 +48,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveApiGroupRoute()
+    public function itCanResolveApiGroupRoute(): void
     {
         $crawler = $this->call('GET', 'api/test');
 
@@ -56,7 +56,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveGetRoutes()
+    public function itCanResolveGetRoutes(): void
     {
         $crawler = $this->call('GET', 'hello');
 
@@ -68,7 +68,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveGetRoutesWithPrefixes()
+    public function itCanResolveGetRoutesWithPrefixes(): void
     {
         $crawler = $this->call('GET', 'boss/hello');
 
@@ -80,7 +80,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveResourceController()
+    public function itCanResolveResourceController(): void
     {
         $response = $this->call('GET', 'foo');
 
@@ -89,7 +89,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveDomainRoute()
+    public function itCanResolveDomainRoute(): void
     {
         $response = $this->get('http://api.localhost/hello');
 
@@ -98,7 +98,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveNameRoutes()
+    public function itCanResolveNameRoutes(): void
     {
         $this->app['router']->get('passthrough', fn () => route('bye'))->name('pass');
 
@@ -109,7 +109,7 @@ class RouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanHandleRouteThrowingException()
+    public function itCanHandleRouteThrowingException(): void
     {
         $this->app['router']->get('bad-route', fn () => throw new Exception('Route error!'))->name('bad');
 

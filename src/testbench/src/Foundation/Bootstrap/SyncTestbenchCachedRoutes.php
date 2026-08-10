@@ -23,6 +23,7 @@ class SyncTestbenchCachedRoutes
         /* @phpstan-ignore argument.type */
         (new Collection($routeFiles))
             ->each(static function ($routeFile) use ($app, $router) { // @phpstan-ignore closure.unusedUse, closure.unusedUse
+                // Required route files inherit both application and router scope from this loader.
                 require $routeFile;
             });
     }

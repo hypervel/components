@@ -13,11 +13,12 @@ use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\testbench_path;
+use function Hypervel\Testbench\testbench_relative_path;
 
 class PackagePathTest extends TestCase
 {
     #[Test]
-    public function itCanUsePackagePath()
+    public function itCanUsePackagePath(): void
     {
         $this->assertSame(realpath(dirname(__DIR__, 3)), package_path());
         $this->assertSame(implode('', [realpath(dirname(__DIR__, 3)), DIRECTORY_SEPARATOR]), package_path(DIRECTORY_SEPARATOR));
@@ -45,7 +46,28 @@ class PackagePathTest extends TestCase
     }
 
     #[Test]
-    public function itCanUseTestbenchPath()
+    public function itKeepsExternalTestbenchPathsAbsolute(): void
+    {
+        $process = new Process(
+            command: [
+                php_binary(),
+                '-r',
+                sprintf(
+                    'require %s; echo Hypervel\Testbench\testbench_relative_path("workbench");',
+                    var_export(package_path('vendor', 'autoload.php'), true)
+                ),
+            ],
+            cwd: package_path(),
+            env: ['TESTBENCH_WORKING_PATH' => package_path('tests')],
+        );
+
+        $process->mustRun();
+
+        $this->assertSame(testbench_path('workbench'), $process->getOutput());
+    }
+
+    #[Test]
+    public function itCanUseTestbenchPath(): void
     {
         $this->assertSame(realpath(package_path('src/testbench')), testbench_path());
         $this->assertSame(
@@ -56,30 +78,15 @@ class PackagePathTest extends TestCase
 
     #[Test]
     #[DataProvider('pathDataProvider')]
-    public function itCanResolveCorrectPackagePath(string $path)
+    public function itCanResolveCorrectPackagePath(string $path): void
     {
         $this->assertSame(
             realpath(join_paths(__DIR__, 'PackagePathTest.php')),
-            package_path(join_paths('./tests', 'Testbench', 'Functions', 'PackagePathTest.php'))
-        );
-
-        $this->assertSame(
-            realpath(join_paths(__DIR__, 'PackagePathTest.php')),
-            package_path(join_paths('tests', 'Testbench', 'Functions', 'PackagePathTest.php'))
-        );
-
-        $this->assertSame(
-            realpath(join_paths(__DIR__, 'PackagePathTest.php')),
-            package_path(DIRECTORY_SEPARATOR . join_paths('tests', 'Testbench', 'Functions', 'PackagePathTest.php'))
-        );
-
-        $this->assertSame(
-            realpath(join_paths(__DIR__, 'PackagePathTest.php')),
-            package_path(join_paths('tests', 'Testbench', 'Functions', 'PackagePathTest.php'))
+            $path
         );
     }
 
-    public static function pathDataProvider()
+    public static function pathDataProvider(): iterable
     {
         yield [package_path('tests' . DIRECTORY_SEPARATOR . 'Testbench' . DIRECTORY_SEPARATOR . 'Functions' . DIRECTORY_SEPARATOR . 'PackagePathTest.php')];
         yield [package_path('./tests' . DIRECTORY_SEPARATOR . 'Testbench' . DIRECTORY_SEPARATOR . 'Functions' . DIRECTORY_SEPARATOR . 'PackagePathTest.php')];
@@ -89,5 +96,29 @@ class PackagePathTest extends TestCase
         yield [package_path(['tests', 'Testbench', 'Functions', 'PackagePathTest.php'])];
         yield [package_path('./tests', 'Testbench', 'Functions', 'PackagePathTest.php')];
         yield [package_path(['./tests', 'Testbench', 'Functions', 'PackagePathTest.php'])];
+    }
+
+    #[Test]
+    public function itCanResolveRelativeTestbenchPaths(): void
+    {
+        $expected = realpath(package_path('src/testbench/workbench/resources/views'));
+
+        $this->assertSame(
+            $expected,
+            testbench_path('./workbench', 'resources', 'views')
+        );
+        $this->assertSame(
+            $expected,
+            testbench_path(['./workbench', 'resources', 'views'])
+        );
+
+        $this->assertSame(
+            'src/testbench/workbench/resources/views',
+            testbench_relative_path('./workbench', 'resources', 'views')
+        );
+        $this->assertSame(
+            'src/testbench/workbench/resources/views',
+            testbench_relative_path(['./workbench', 'resources', 'views'])
+        );
     }
 }

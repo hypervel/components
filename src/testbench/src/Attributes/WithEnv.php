@@ -8,8 +8,11 @@ use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
+use Hypervel\Testbench\Foundation\Bootstrap\LoadEnvironmentVariablesFromArray;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\UndefinedValue;
+
+use function Hypervel\Testbench\parse_environment_variables;
 
 /**
  * Sets an environment variable for the duration of a test.
@@ -31,14 +34,27 @@ final class WithEnv implements Invokable
         $key = $this->key;
         $value = Env::get($key, new UndefinedValue);
 
-        Env::set($key, $this->value ?? '(null)');
+        self::setEnvironmentVariable($app, $key, $this->value);
 
-        return static function () use ($key, $value) {
+        return static function () use ($app, $key, $value): void {
             if ($value instanceof UndefinedValue) {
                 Env::forget($key);
             } else {
-                Env::set($key, Env::encode($value));
+                self::setEnvironmentVariable($app, $key, $value);
             }
         };
+    }
+
+    /**
+     * Set an environment variable through the shared dotenv parser boundary.
+     */
+    private static function setEnvironmentVariable(
+        ApplicationContract $app,
+        string $key,
+        mixed $value,
+    ): void {
+        (new LoadEnvironmentVariablesFromArray(
+            parse_environment_variables([$key => $value]),
+        ))->bootstrap($app);
     }
 }

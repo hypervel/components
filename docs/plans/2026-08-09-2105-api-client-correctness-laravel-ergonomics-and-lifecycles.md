@@ -103,8 +103,8 @@ The originating audit's labels are evidence-local and collide with the already d
 | `api-client-09` | terminal/query parity and omitted-argument preservation |
 | `api-client-10` | static types, documentation, test isolation, and package metadata |
 | `http-28` | shared Request media/data/query/subtype correctness |
-| `telescope-42` | raw HTTP body payload capture and structured-payload ownership |
-| `broadcasting-18`, `contracts-13`, `foundation-20`, `http-29`, `inertia-24`, `socialite-28`, `support-35`, `telescope-41` | exact direct dependency ownership at each split package |
+| `telescope-43` | raw HTTP body payload capture and structured-payload ownership |
+| `broadcasting-18`, `contracts-13`, `foundation-20`, `http-29`, `inertia-24`, `socialite-28`, `support-35`, `telescope-42` | exact direct dependency ownership at each split package |
 | `database-34` | Faker suggestion for Eloquent model factories |
 | `reverb-41` | false API Client dependency removal |
 

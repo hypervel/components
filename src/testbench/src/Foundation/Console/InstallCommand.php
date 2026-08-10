@@ -51,7 +51,9 @@ class InstallCommand extends Command
         $this->copyWorkbenchFiles($filesystem, $workingPath, $namespaces);
         $this->copyWorkbenchDotEnvFile($filesystem, $workingPath);
 
-        $this->call('package:create-sqlite-db', ['--force' => true]);
+        if ($this->call('package:create-sqlite-db', ['--force' => true]) !== self::SUCCESS) {
+            return self::FAILURE;
+        }
 
         return $composer->setWorkingPath($workingPath)->dumpAutoloads() === self::SUCCESS
             ? self::SUCCESS

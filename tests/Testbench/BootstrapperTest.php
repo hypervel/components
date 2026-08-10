@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\Bootstrapper;
@@ -15,8 +16,11 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionProperty;
 use RuntimeException;
 use UnexpectedValueException;
+
+use function Hypervel\Testbench\testbench_path;
 
 class BootstrapperTest extends TestCase
 {
@@ -95,6 +99,58 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function itCreatesTheRuntimeRootWithOwnerOnlyPermissions(): void
+    {
+        $packagePath = $this->temporaryDirectory('private-runtime-package');
+        $sourcePath = $this->temporaryDirectory('private-runtime-source');
+        $runtimePath = null;
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-private-runtime', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertSame(0700, fileperms($runtimePath) & 0777);
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itFailsWhenTheRuntimeRootCannotBeCreated(): void
+    {
+        $packagePath = $this->temporaryDirectory('failed-root-package');
+        $sourcePath = $this->temporaryDirectory('failed-root-source');
+        $filesystem = new FailedRuntimeRootFilesystem;
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-failed-root', false, function () use ($filesystem, $sourcePath, $packagePath): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath): void {
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath);
+                        $this->fail('Expected runtime root creation to fail.');
+                    } catch (RuntimeException $exception) {
+                        $this->assertStringContainsString('Unable to create runtime path', $exception->getMessage());
+                    }
+
+                    $this->assertFalse($filesystem->copyAttempted);
+                });
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+        }
+    }
+
+    #[Test]
     public function itPublishesWhenAnUnrelatedStaleRuntimeCannotBeRemoved(): void
     {
         $token = 'bootstrapper-unremovable-stale-' . getmypid() . '-' . bin2hex(random_bytes(6));
@@ -162,6 +218,46 @@ class BootstrapperTest extends TestCase
         }
     }
 
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    #[Test]
+    public function itDoesNotDeleteTheActiveRuntimeWhenAnOverlayFails(): void
+    {
+        $token = 'bootstrapper-failed-overlay-' . getmypid() . '-' . bin2hex(random_bytes(6));
+        $packagePath = $this->temporaryDirectory('failed-overlay-package');
+        $sourcePath = $this->temporaryDirectory('failed-overlay-source');
+        $runtimePath = $this->runtimeDirectory($token, getmypid());
+        $filesystem = new FailedRuntimeOverlayFilesystem;
+        $reflection = new ReflectionClass(Bootstrapper::class);
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+        mkdir($runtimePath, 0777, true);
+        file_put_contents($runtimePath . '/active.txt', 'active');
+
+        try {
+            $this->withRuntimeCopyEnvironment($token, false, function () use ($reflection, $filesystem, $sourcePath, $packagePath, $runtimePath): void {
+                $reflection->setStaticPropertyValue('runtimePath', $runtimePath);
+
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath, $runtimePath): void {
+                    $this->expectException(RuntimeException::class);
+                    $this->expectExceptionMessage('Unable to create the Testbench runtime copy');
+
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath);
+                    } finally {
+                        $this->assertSame(0, $filesystem->makeDirectoryAttempts);
+                        $this->assertFileExists($runtimePath . '/active.txt');
+                    }
+                });
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
     #[Test]
     public function itRollsBackTheRuntimeCopyWhenProcessMarkerCreationFails(): void
     {
@@ -224,6 +320,38 @@ class BootstrapperTest extends TestCase
             $this->deleteDirectory($packagePath);
             $this->deleteDirectory($sourcePath);
             $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRollsBackWhenThePackageEnvironmentFileCannotBeCopied(): void
+    {
+        $packagePath = $this->temporaryDirectory('failed-package-env');
+        $sourcePath = $this->temporaryDirectory('failed-package-env-source');
+        $filesystem = new FailedEnvironmentCopyFilesystem;
+
+        mkdir($packagePath . DIRECTORY_SEPARATOR . 'workbench', 0777, true);
+        mkdir($sourcePath, 0777, true);
+        file_put_contents($packagePath . DIRECTORY_SEPARATOR . 'workbench' . DIRECTORY_SEPARATOR . '.env', 'APP_NAME=Workbench');
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-failed-package-env', true, function () use ($filesystem, $sourcePath, $packagePath): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath): void {
+                    $this->expectException(RuntimeException::class);
+                    $this->expectExceptionMessage('Unable to copy the Testbench environment file.');
+
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath);
+                    } finally {
+                        $this->assertNotNull($filesystem->runtimePath);
+                        $this->assertDirectoryDoesNotExist($filesystem->runtimePath);
+                    }
+                });
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($filesystem->runtimePath);
         }
     }
 
@@ -318,6 +446,71 @@ class BootstrapperTest extends TestCase
         }
     }
 
+    #[Test]
+    public function itUsesThePrivateTestbenchConfigurationOnlyForTheComponentsMonorepo(): void
+    {
+        $workingPath = $this->temporaryDirectory('components-configuration');
+        mkdir($workingPath, 0777, true);
+
+        try {
+            $this->withComposerRoot('hypervel/components', function () use ($workingPath): void {
+                $configurationPath = $this->resolveConfigurationPath($workingPath);
+                $config = Config::loadFromYaml($configurationPath);
+
+                $this->assertSame(testbench_path(), $configurationPath);
+                $this->assertSame(
+                    ['Workbench\App\Providers\WorkbenchServiceProvider'],
+                    $config['providers'],
+                );
+                $this->assertSame(['hypervel/components'], $config['dont-discover']);
+            });
+        } finally {
+            $this->deleteDirectory($workingPath);
+        }
+    }
+
+    #[Test]
+    public function itUsesConsumerDefaultsWhenNoConfigurationFileExists(): void
+    {
+        $workingPath = $this->temporaryDirectory('consumer-configuration');
+        mkdir($workingPath, 0777, true);
+
+        try {
+            $this->withComposerRoot('example/package', function () use ($workingPath): void {
+                $configurationPath = $this->resolveConfigurationPath($workingPath);
+                $config = Config::loadFromYaml($configurationPath);
+
+                $this->assertSame($workingPath, $configurationPath);
+                $this->assertSame([], $config['providers']);
+                $this->assertSame([], $config['dont-discover']);
+            });
+        } finally {
+            $this->deleteDirectory($workingPath);
+        }
+    }
+
+    #[Test]
+    public function itUsesASplitPackagesOwnConfigurationFile(): void
+    {
+        $workingPath = $this->temporaryDirectory('split-configuration');
+        mkdir($workingPath, 0777, true);
+        file_put_contents($workingPath . '/testbench.yaml', "env:\n  APP_NAME: Split\n");
+
+        try {
+            $this->withComposerRoot('hypervel/testbench', function () use ($workingPath): void {
+                $configurationPath = $this->resolveConfigurationPath($workingPath);
+                $config = Config::loadFromYaml($configurationPath);
+
+                $this->assertSame($workingPath, $configurationPath);
+                $this->assertSame(['APP_NAME="Split"'], $config['env']);
+            });
+        } finally {
+            $this->deleteDirectory($workingPath);
+        }
+    }
+
+    // Isolation gives the fixture a distinct live parent PID without sharing
+    // the PHPUnit worker's process state with the stale sweep.
     #[PreserveGlobalState(false)]
     #[RunInSeparateProcess]
     #[Test]
@@ -573,6 +766,39 @@ class BootstrapperTest extends TestCase
     }
 
     /**
+     * Resolve the configuration path through Bootstrapper's protected method.
+     */
+    private function resolveConfigurationPath(string $workingPath): string
+    {
+        $method = new ReflectionMethod(Bootstrapper::class, 'resolveConfigurationPath');
+        $method->setAccessible(true);
+
+        return $method->invoke(null, $workingPath);
+    }
+
+    /**
+     * Run a callback with a specific Composer root package name.
+     */
+    private function withComposerRoot(string $name, callable $callback): void
+    {
+        $installed = require dirname(__DIR__, 2) . '/vendor/composer/installed.php';
+        $reloaded = $installed;
+        $reloaded['root']['name'] = $name;
+        $canGetVendors = new ReflectionProperty(InstalledVersions::class, 'canGetVendors');
+        $previousCanGetVendors = $canGetVendors->getValue();
+
+        $canGetVendors->setValue(null, false);
+        InstalledVersions::reload($reloaded);
+
+        try {
+            $callback();
+        } finally {
+            InstalledVersions::reload($installed);
+            $canGetVendors->setValue(null, $previousCanGetVendors);
+        }
+    }
+
+    /**
      * Run a callback with a specific Bootstrapper filesystem.
      */
     private function withBootstrapperFilesystem(Filesystem $filesystem, callable $callback): void
@@ -610,8 +836,9 @@ class BootstrapperTest extends TestCase
     /**
      * Run a callback with isolated runtime-copy environment state.
      *
-     * A successful copy replaces the PHPUnit worker's runtime identity until
-     * this helper restores it. Callers that sweep again must use process isolation.
+     * The stale sweep deletes same-PID copies that are not the active path.
+     * Callers that replace the active path before creation must use process
+     * isolation, and each block may create at most one runtime copy.
      */
     private function withRuntimeCopyEnvironment(string $token, bool $packageTester, callable $callback): void
     {
@@ -852,9 +1079,78 @@ class FailedRuntimeCopyFilesystem extends Filesystem
     public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
     {
         $this->runtimePath = $destination;
-        mkdir($destination, 0777, true);
+        file_put_contents($destination . '/partial.txt', 'partial');
 
         return false;
+    }
+}
+
+class FailedRuntimeRootFilesystem extends Filesystem
+{
+    public bool $copyAttempted = false;
+
+    /**
+     * Simulate runtime-root creation failure.
+     */
+    public function makeDirectory(string $path, int $mode = 0755, bool $recursive = false, bool $force = false): bool
+    {
+        return false;
+    }
+
+    /**
+     * Record an unexpected directory-copy attempt.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        $this->copyAttempted = true;
+
+        return false;
+    }
+}
+
+class FailedRuntimeOverlayFilesystem extends Filesystem
+{
+    public int $makeDirectoryAttempts = 0;
+
+    /**
+     * Record an unexpected attempt to recreate the active runtime root.
+     */
+    public function makeDirectory(string $path, int $mode = 0755, bool $recursive = false, bool $force = false): bool
+    {
+        ++$this->makeDirectoryAttempts;
+
+        return parent::makeDirectory($path, $mode, $recursive, $force);
+    }
+
+    /**
+     * Simulate an overlay failure on the active runtime.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        return false;
+    }
+}
+
+class FailedEnvironmentCopyFilesystem extends Filesystem
+{
+    public ?string $runtimePath = null;
+
+    /**
+     * Capture the runtime path while copying the skeleton.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        $this->runtimePath = $destination;
+
+        return parent::copyDirectory($directory, $destination, $options);
+    }
+
+    /**
+     * Fail only the environment publication copy.
+     */
+    public function copy(string $path, string $target): bool
+    {
+        return basename($target) !== '.env' && parent::copy($path, $target);
     }
 }
 

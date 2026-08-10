@@ -171,6 +171,36 @@ class TestCommandTest extends TestCase
     }
 
     #[Test]
+    public function itBuildsCompleteApplicationTestBinaryPaths(): void
+    {
+        $phpunitCommand = new TestCommandHarness;
+        $paratestCommand = new TestCommandHarness(['parallel' => true]);
+        $pestCommand = new TestCommandHarness(usesPest: true);
+        $parallelPestCommand = new TestCommandHarness(['parallel' => true], usesPest: true);
+
+        foreach ([$phpunitCommand, $paratestCommand, $pestCommand, $parallelPestCommand] as $command) {
+            $command->setHypervel($this->app);
+        }
+
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/phpunit/phpunit/phpunit')],
+            $phpunitCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/brianium/paratest/bin/paratest')],
+            $paratestCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest')],
+            $pestCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest'), '--parallel'],
+            $parallelPestCommand->binaryPublic(),
+        );
+    }
+
+    #[Test]
     public function itDoesNotRewriteAConfigurationThatAlreadyRegistersTheProfileExtension(): void
     {
         $this->writePhpunitConfiguration(
@@ -660,6 +690,7 @@ class TestCommandHarness extends TestCommand
         private readonly array $options = [],
         private readonly ?string $basePath = null,
         private readonly ?array $commonArguments = null,
+        private readonly bool $usesPest = false,
     ) {
         parent::__construct();
     }
@@ -683,7 +714,7 @@ class TestCommandHarness extends TestCommand
     #[Override]
     protected function usingPest(): bool
     {
-        return false;
+        return $this->usesPest;
     }
 
     /**
@@ -708,6 +739,16 @@ class TestCommandHarness extends TestCommand
         }
 
         return $this->basePath . ($paths === [] ? '' : DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $paths));
+    }
+
+    /**
+     * Expose the resolved binary command.
+     *
+     * @return array<int, string>
+     */
+    public function binaryPublic(): array
+    {
+        return $this->binary();
     }
 
     /**

@@ -48,6 +48,11 @@ class TelescopeServiceProvider extends ServiceProvider
                 Telescope::BATCH_ID_CONTEXT_KEY => null,
             ];
             foreach ($keys as $key => $default) {
+                // fork() installs its snapshot before callbacks run, so keep captured values.
+                if (CoroutineContext::has($key)) {
+                    continue;
+                }
+
                 CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));
             }
         });

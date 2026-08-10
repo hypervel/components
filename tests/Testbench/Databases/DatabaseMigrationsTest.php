@@ -24,6 +24,8 @@ class DatabaseMigrationsTest extends TestCase
     #[Test]
     public function itRunsTheMigrations(): void
     {
+        $this->assertSame([], $this->cachedTestMigratorProcessors);
+
         $users = DB::table('testbench_users')->where('id', '=', 1)->first();
 
         $this->assertEquals('crynobone@gmail.com', $users->email);

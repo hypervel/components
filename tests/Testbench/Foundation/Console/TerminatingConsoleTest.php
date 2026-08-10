@@ -7,11 +7,12 @@ namespace Hypervel\Tests\Testbench\Foundation\Console;
 use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 
 class TerminatingConsoleTest extends TestCase
 {
     #[Test]
-    public function itCanHandleTerminatingCallbacksOnTerminal()
+    public function itCanHandleTerminatingCallbacksOnTerminal(): void
     {
         $this->assertFalse(isset($_SERVER['TerminatingConsole.before']));
         $this->assertFalse(isset($_SERVER['TerminatingConsole.beforeWhenTrue']));
@@ -42,5 +43,37 @@ class TerminatingConsoleTest extends TestCase
         );
 
         TerminatingConsole::flush();
+    }
+
+    #[Test]
+    public function itExhaustsDetachedCallbacksAndDoesNotReplayReentrantRegistrations(): void
+    {
+        $calls = [];
+        $failure = new RuntimeException('termination failed');
+
+        TerminatingConsole::before(function () use (&$calls): void {
+            $calls[] = 'first';
+        });
+        TerminatingConsole::before(function () use (&$calls, $failure): never {
+            $calls[] = 'second';
+            TerminatingConsole::before(function () use (&$calls): void {
+                $calls[] = 'reentrant';
+            });
+
+            throw $failure;
+        });
+
+        try {
+            TerminatingConsole::handle();
+            $this->fail('Expected the first terminating failure to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(['second', 'first'], $calls);
+
+        TerminatingConsole::handle();
+
+        $this->assertSame(['second', 'first'], $calls);
     }
 }

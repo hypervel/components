@@ -13,6 +13,13 @@ trait WithHypervelBootstrapFile
     use InteractsWithTestCase;
 
     /**
+     * The resolved application bootstrap file.
+     *
+     * False means the owner has no bootstrap file; null means it has not been resolved.
+     */
+    protected string|false|null $applicationBootstrapFile = null;
+
+    /**
      * Get application bootstrap file path (if exists).
      *
      * @internal
@@ -40,7 +47,7 @@ trait WithHypervelBootstrapFile
     protected function hasCustomApplicationKernels(): bool
     {
         return ! $this->usesTestbenchDefaultSkeleton()
-            && ((static::$cacheApplicationBootstrapFile ??= $this->getApplicationBootstrapFile('app.php')) !== false);
+            && (($this->applicationBootstrapFile ??= $this->getApplicationBootstrapFile('app.php')) !== false);
     }
 
     /**

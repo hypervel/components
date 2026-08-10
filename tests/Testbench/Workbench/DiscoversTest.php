@@ -26,14 +26,14 @@ class DiscoversTest extends TestCase
     use WithWorkbench;
 
     #[Test]
-    public function itCanResolveWebRoutesFromDiscovers()
+    public function itCanResolveWebRoutesFromDiscovers(): void
     {
         $this->get('/api/hello')
             ->assertOk();
     }
 
     #[Test]
-    public function itCanResolveWebRoutesUsingMacroFromDiscovers()
+    public function itCanResolveWebRoutesUsingMacroFromDiscovers(): void
     {
         $contentType = package_version_compare('symfony/http-foundation', '7.4.0', '>=')
             ? 'text/plain; charset=utf-8'
@@ -74,7 +74,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveViewsFromDiscovers()
+    public function itCanResolveViewsFromDiscovers(): void
     {
         $this->get('/testbench')
             ->assertOk()
@@ -83,7 +83,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveErrorsViewsFromDiscovers()
+    public function itCanResolveErrorsViewsFromDiscovers(): void
     {
         $this->get('/root')
             ->assertStatus(418)
@@ -92,19 +92,19 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveRouteNameFromDiscovers()
+    public function itCanResolveRouteNameFromDiscovers(): void
     {
         $this->assertSame(url('/testbench'), route('testbench'));
     }
 
     #[Test]
-    public function itCanResolveCommandsFromDiscovers()
+    public function itCanResolveCommandsFromDiscovers(): void
     {
         $this->artisan('workbench:inspire')->assertOk();
     }
 
     #[Test]
-    public function itCanDiscoverConfigFiles()
+    public function itCanDiscoverConfigFiles(): void
     {
         $this->assertSame(InstalledVersions::isInstalled('hypervel/components'), config('workbench.installed'));
 
@@ -112,7 +112,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanDiscoverViewsFiles()
+    public function itCanDiscoverViewsFiles(): void
     {
         $this->view('workbench::testbench')
             ->assertSee('Alert Component')
@@ -124,7 +124,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanDiscoverTranslationFiles()
+    public function itCanDiscoverTranslationFiles(): void
     {
         $this->assertSame('Good Morning', __('workbench::welcome.morning'));
     }
@@ -132,13 +132,13 @@ class DiscoversTest extends TestCase
     #[Test]
     #[TestWith(['Workbench\Database\Factories\Hypervel\Foundation\Auh\UserFactory', 'Hypervel\Foundation\Auh\User'])]
     #[TestWith(['Workbench\Database\Factories\UserFactory', 'Workbench\App\Models\User'])]
-    public function itCanDiscoverDatabaseFactoriesFromModel(string $factory, string $model)
+    public function itCanDiscoverDatabaseFactoriesFromModel(string $factory, string $model): void
     {
         $this->assertSame($factory, Factory::resolveFactoryName($model));
     }
 
     #[Test]
-    public function itCanDiscoverModelFromFactory()
+    public function itCanDiscoverModelFromFactory(): void
     {
         $this->assertSame('Workbench\App\Models\User', \Workbench\Database\Factories\UserFactory::new()->modelName());
     }

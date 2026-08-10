@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\Test;
 class PhpUnit10DeprecationsTest extends TestCase
 {
     #[Test]
-    public function handlePhp81DeprecationsUsingLogs()
+    public function handlePhp81DeprecationsUsingLogs(): void
     {
         Log::shouldReceive('channel')
             ->once()->with('deprecations')
@@ -28,7 +28,7 @@ class PhpUnit10DeprecationsTest extends TestCase
 
     #[Test]
     #[DefineEnvironment('defineConvertDeprecationsToExceptions')]
-    public function handlePhp81DeprecationsUsingTestbenchException()
+    public function handlePhp81DeprecationsUsingTestbenchException(): void
     {
         $this->expectException(DeprecatedException::class);
         $this->expectExceptionMessage('zzz');

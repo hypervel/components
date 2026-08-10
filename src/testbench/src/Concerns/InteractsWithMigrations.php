@@ -6,12 +6,15 @@ namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Console\Kernel as FoundationConsoleKernel;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Database\MigrateProcessor;
 use InvalidArgumentException;
+use Throwable;
 
 use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\load_migration_paths;
@@ -38,16 +41,31 @@ trait InteractsWithMigrations
     protected function tearDownInteractsWithMigrations(): void
     {
         $hasInMemoryConnections = ! empty(RefreshDatabaseState::$inMemoryConnections);
+        $processors = $this->cachedTestMigratorProcessors;
+        $this->cachedTestMigratorProcessors = [];
+        $failure = null;
 
-        if (
-            (count($this->cachedTestMigratorProcessors) > 0 && static::usesRefreshDatabaseTestingConcern())
-            || ($hasInMemoryConnections && $this->usesSqliteInMemoryDatabaseConnection())
-        ) {
-            ResetRefreshDatabaseState::run();
+        try {
+            if (
+                (count($processors) > 0 && static::usesRefreshDatabaseTestingConcern())
+                || ($hasInMemoryConnections && $this->usesSqliteInMemoryDatabaseConnection())
+            ) {
+                ResetRefreshDatabaseState::run();
+            }
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
         }
 
-        foreach ($this->cachedTestMigratorProcessors as $migrator) {
-            $migrator->rollback();
+        foreach ($processors as $migrator) {
+            try {
+                $migrator->rollback();
+            } catch (Throwable $throwable) {
+                $failure ??= $throwable;
+            }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
@@ -61,11 +79,23 @@ trait InteractsWithMigrations
         /** @var ApplicationContract $app */
         $app = $this->app;
 
+        $migrateRefresh = property_exists($this, 'migrateRefresh')
+            && (bool) $this->migrateRefresh;
+        $refreshesDatabase = static::usesTestingConcern(DatabaseMigrations::class)
+            || (
+                static::usesRefreshDatabaseTestingConcern()
+                && (
+                    $migrateRefresh
+                    || (
+                        RefreshDatabaseState::$migrated === false
+                        && RefreshDatabaseState::$lazilyRefreshed === false
+                    )
+                )
+            );
+
         if (
             (is_string($paths) || Arr::isList($paths))
-            && static::usesRefreshDatabaseTestingConcern()
-            && RefreshDatabaseState::$migrated === false
-            && RefreshDatabaseState::$lazilyRefreshed === false
+            && $refreshesDatabase
         ) {
             /** @var list<string>|string $paths */
             load_migration_paths($app, $paths);
@@ -74,12 +104,7 @@ trait InteractsWithMigrations
         }
 
         /** @var array<string, mixed>|string $paths */
-        $migrator = new MigrateProcessor($this, $this->resolvePackageMigrationsOptions($paths));
-        $migrator->up();
-
-        array_unshift($this->cachedTestMigratorProcessors, $migrator);
-
-        $this->resetApplicationArtisanCommands($app);
+        $this->runMigrationProcessor($app, $this->resolvePackageMigrationsOptions($paths));
     }
 
     /**
@@ -117,12 +142,7 @@ trait InteractsWithMigrations
         $options['--path'] = default_migration_path();
         $options['--realpath'] = true;
 
-        $migrator = new MigrateProcessor($this, $this->resolveHypervelMigrationsOptions($options));
-        $migrator->up();
-
-        array_unshift($this->cachedTestMigratorProcessors, $migrator);
-
-        $this->resetApplicationArtisanCommands($app);
+        $this->runMigrationProcessor($app, $this->resolveHypervelMigrationsOptions($options));
     }
 
     /**
@@ -137,12 +157,7 @@ trait InteractsWithMigrations
         /** @var ApplicationContract $app */
         $app = $this->app;
 
-        $migrator = new MigrateProcessor($this, $this->resolveHypervelMigrationsOptions($database));
-        $migrator->up();
-
-        array_unshift($this->cachedTestMigratorProcessors, $migrator);
-
-        $this->resetApplicationArtisanCommands($app);
+        $this->runMigrationProcessor($app, $this->resolveHypervelMigrationsOptions($database));
     }
 
     /**
@@ -154,6 +169,36 @@ trait InteractsWithMigrations
     protected function resolveHypervelMigrationsOptions(array|string $database = []): array
     {
         return is_array($database) ? $database : ['--database' => $database];
+    }
+
+    /**
+     * Run and retain a migration processor for teardown.
+     *
+     * @param array<string, mixed> $options
+     */
+    protected function runMigrationProcessor(ApplicationContract $app, array $options): void
+    {
+        $migrator = new MigrateProcessor(
+            $this,
+            $app->make(Migrator::class),
+            $options,
+        );
+
+        try {
+            $migrator->up();
+        } catch (Throwable $throwable) {
+            try {
+                $migrator->rollback();
+            } catch (Throwable) {
+                // Preserve the migration failure when compensating rollback also fails.
+            }
+
+            throw $throwable;
+        }
+
+        array_unshift($this->cachedTestMigratorProcessors, $migrator);
+
+        $this->resetApplicationArtisanCommands($app);
     }
 
     protected function resetApplicationArtisanCommands(ApplicationContract $app): void

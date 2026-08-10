@@ -13,7 +13,7 @@ class CommandTest extends TestCase
     use WithWorkbench;
 
     #[Test]
-    public function itCanShowExpectedOutput()
+    public function itCanShowExpectedOutput(): void
     {
         $this->artisan('sample:command')
             ->expectsOutput('It works!')
