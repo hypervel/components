@@ -81,7 +81,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | Architecture/API review | Remove base `DataObject` configuration and public state getters; use constructor injection plus `configurePendingRequest()`. |
 | Context review | Put one operation-local context API on pending request, request, and response; never use coroutine/global storage. |
 | Error/resource review | Default to non-throwing HTTP and use an explicit array-conversion contract without rejecting raw response access. |
-| Query review | Distinguish an omitted GET/HEAD query from explicit null; normalize `JsonSerializable` query values at the HTTP owner. |
+| Structured input review | Distinguish an omitted GET/HEAD query from explicit null; normalize query, form, and multipart wrapper values at their HTTP owners. |
 | Final request-body ownership | Preserve exact logical payload values until supported HTTP middleware replaces the prepared body, then invalidate them so later callbacks, fakes, recorders, and API middleware read the final bytes. |
 | Telescope raw-body capture | Omit the structured-payload option for raw bodies so Telescope uses its bounded PSR-body parser; document that structured entries report caller input rather than later callback rewrites. |
 | Dependency sweep | Declare every verified direct owner in the changed split packages, advertise optional Foundation search/Faker and Database Faker features, and remove Reverb's false API Client dependency. |
@@ -351,6 +351,7 @@ Fix behavior used by API Client in `Hypervel\Http\Client\Request`, not locally:
 - track whether form/JSON data has genuinely been decoded so valid empty arrays are cached; `withData()` injects logical caller data without marking it decoded, and both formats decode only while the cache is unset and the injected array is empty;
 - preserve numeric query keys during parse/mutate/build operations;
 - let `withoutQuery()` remove either one key or a key list, matching the sibling request-removal APIs;
+- recover URL-embedded query data for HEAD assertions and recorders as well as GET;
 - return `static` from `withData()`, `withQuery()`, and `withoutQuery()`.
 
 Keep logical payloads exact until a supported request hook replaces the prepared PSR body. When configured Guzzle middleware exists, push one gated handler before it that stores the prepared body stream under a protected internal option key. At the existing before-sending boundary, read and remove that internal key before invoking public callbacks, compare stream identity against the prepared baseline and after each accepted callback result, then keep it removed for downstream handlers. A replacement clears the local logical data for later callbacks and removes `hypervel_data` from options passed to the recorder/stub; header-only changes retain exact PHP values. Do not read, hash, or compare body bytes. In-place stream mutation is a deliberate low-level bypass and is not tracked.
@@ -359,9 +360,15 @@ Raw `withBody()` requests and requests carrying an explicit raw `body` option do
 
 Decode non-empty request JSON with `JSON_THROW_ON_ERROR`: malformed JSON keeps its native parse diagnostic, while valid non-array JSON receives the request-specific array-contract exception. An exactly empty body has no payload and decodes to `[]`; whitespace-only JSON remains malformed.
 
-Correct `PendingRequest::get()` query normalization at the HTTP owner. Only the query-option branch calls `jsonSerialize()`; recursively normalize the result, accept an array or string, and throw `InvalidArgumentException` for every other value. Do not change JSON body precedence or widen Request data to mixed. Initialize the HTTP pending request's transient `$request` property to null.
+Normalize structured values with one recursive helper that converts nested Hypervel `Stringable`, `JsonSerializable`, and `Arrayable` values. The wire and logical-payload consumers have distinct owners:
 
-API `get()` and `head()` must branch on their own `func_num_args()` and omit the query argument entirely when absent. This preserves defaults installed by `withQueryParameters()`; explicit null remains an explicit replacement. Add the current `query()` terminal and use current write-terminal `Arrayable|array|JsonSerializable` types.
+- `normalizeRequestOptions()` validates merged query options as `array|string|null` and form options as arrays, then normalizes non-finite floats;
+- `parseRequestData()` resolves per-terminal query, JSON, and form input before publishing `hypervel_data`, because that payload is computed before option merging and wire normalization;
+- multipart remains structurally aligned through the existing `normalizeMultipartOption()` owner on both paths. `parseHttpOptions()` unwraps a top-level `JsonSerializable` or `Arrayable` container before requiring an array, while `normalizeMultipartOption()` resolves nested structured part values. `parseRequestData()` returns an actual multipart option through that shared owner without a second general traversal; multipart-configured GET/HEAD requests continue through normal query parsing when no multipart option is present.
+
+Remove `get()`'s local query normalization once both consumers are correct. Query values must resolve to an array, string, or null; form and multipart values must resolve to arrays, with format-specific `InvalidArgumentException` messages otherwise. Do not change JSON-body precedence, redefine configured query options as per-terminal `hypervel_data`, or widen Request data to mixed. `Request::query()` remains the accessor for the merged effective URI query. Initialize the HTTP pending request's transient `$request` property to null.
+
+HTTP and API `get()` and `head()` accept `Arrayable|array|JsonSerializable|string|null`. API terminals branch on their own `func_num_args()` and omit the query argument entirely when absent. This preserves defaults installed by `withQueryParameters()`; explicit null remains an explicit replacement. Add the current `query()` terminal and use current write-terminal `Arrayable|array|JsonSerializable` types.
 
 ### 8. Make response/resource conversion explicit
 
@@ -414,7 +421,7 @@ protected function hasEmptyOrNullJsonBody(): bool
 
 The final implementation must distinguish the default decoder from a custom decoder exactly: custom null maps to `[]`; default null maps to `[]` only for empty/whitespace or JSON `null`; malformed/nonempty default JSON and any other value throw. `Arrayable`, `JsonSerializable`, and object results from a custom decoder are not recursively unwrapped. `JSON_THROW_ON_ERROR` may surface `JsonException` first when flags request it. Raw `body()`, status, headers, PSR response, and `getResponse()` always remain available; resource construction never rejects text/error bodies.
 
-`ApiResource` also declares `@implements Arrayable<array-key, mixed>` and delegates `toArray()` to its response. `__get()` and `offsetGet()` use the throwing array conversion. `__isset()` and `offsetExists()` never raise `InvalidResourceDataException`; they return false unless `json()` produced an array containing the key, while an application-configured `JSON_THROW_ON_ERROR` decoder may still surface `JsonException` first. Document both wrappers' throwing Arrayable contract because generic consumers such as `collect($apiResponse)` invoke it.
+`ApiResource` also declares `@implements Arrayable<array-key, mixed>` and delegates `toArray()` to its response. `__get()` and `offsetGet()` use the throwing array conversion but return null for a missing key after a valid array body. `__isset()` and `offsetExists()` never raise `InvalidResourceDataException`; they return false unless `json()` produced an array containing the key, while an application-configured `JSON_THROW_ON_ERROR` decoder may still surface `JsonException` first. Document both wrappers' throwing Arrayable contract and the missing-key behavior because generic consumers such as `collect($apiResponse)` invoke the conversion.
 
 Use `is_a($resource, ApiResource::class, true)`. Give `withResource()` a method template, truthful `@return $this`, and `@phpstan-this-out static<TNewResource>` so both fluent expressions and the mutated variable narrow without a contradictory `@return static<TNewResource>`. Replace the untyped variadic resource factory with `make(ApiResponse $response, ApiRequest $request): static`, making the bridge's non-null request invariant statically enforceable. Resource `__call()` performs ordinary forwarding without `method_exists()`, allowing response macros and PSR methods. Add `toPrettyJson()`, keep caller JSON flags, use `JSON_THROW_ON_ERROR`, and declare `jsonSerialize(): array`.
 
@@ -455,11 +462,11 @@ Declare exact namespace owners, using root-compatible constraints and metadata t
 
 Add `guzzlehttp/promises` and `guzzlehttp/psr7` to the root manifest because source imports them directly. Use the lower bounds required by the current root Guzzle 7 line (`^2.5.2` and `^2.13` at planning time), let Composer resolve the newest compatible releases, and update the lockfile through Composer rather than manual edits. Existing `guzzlehttp/guzzle`, `psr/http-message`, and Algolia root constraints remain authoritative.
 
-Add or extend bounded `PackageMetadataTest` coverage in every changed package. API Client, Inertia, and Support require new metadata test files; Broadcasting, Contracts, Database, Foundation, HTTP, Socialite, Telescope, and Reverb extend their existing files. Tests assert hard-dependency root/split consistency and optional suggestion presence, not copied version text or the entire manifest.
+Add or extend bounded `PackageMetadataTest` coverage in every changed package. API Client, Inertia, and Support require new metadata test files; Broadcasting, Contracts, Database, Foundation, HTTP, Socialite, Telescope, and Reverb extend their existing files. Every hard-dependency constraint comparison asserts that the key exists in both root and split manifests first, without duplicating presence already established by a broader dependency loop. Complete that direct-assertion convention across all affected metadata tests; do not add a helper. Tests assert hard-dependency root/split consistency and optional suggestion presence, not copied version text or the entire manifest.
 
 ### 11. Documentation, records, and deletion
 
-Revise the hidden draft into `src/boost/docs/api-client.md` only after the code/API is final. Use Laravel-docs prose to cover installation, integration classes, constructor configuration, the required `@extends ApiClient<ConcreteResource>` plus matching `$resource` property, pending request customization, terminals/options/query omission, context propagation, errors/`throw()`, typed resources and scalar-body conversion, API vs Guzzle middleware, DI lifetimes, raw/structured request mutation, async rejection, custom-handler support and custom-client rejection, and HTTP fakes. Add the package to the Boost documentation index.
+Revise the hidden draft into `src/boost/docs/api-client.md` only after the code/API is final. Use Laravel-docs prose to cover installation, integration classes, constructor configuration, the required `@extends ApiClient<ConcreteResource>` plus matching `$resource` property, pending request customization, one pending request per concurrent operation, terminals/options/query omission, context propagation, errors/`throw()`, typed resources and scalar-body conversion, null reads for missing resource fields, API vs Guzzle middleware, DI lifetimes, raw/structured request mutation, async rejection, custom-handler support and custom-client rejection, and HTTP fakes. Every example must define the variables it uses. Add the package to the Boost documentation index.
 
 Keep `src/api-client/README.md` to package classification and a documentation link. Do not put audit history, bug fixes, implementation internals, or migration notes in public docs.
 
@@ -478,14 +485,14 @@ Update the core audit plan/ledger to mark the complete API Client audit finished
 - URL callable precedence; replace/merge/dot-notation remove semantics; eager body/data/header coherence between middleware; GET/HEAD guard; raw GET bodies; raw/multipart conversion rejection; throwing JSON; seekable redirect/retry bodies; transfer/content-length framing;
 - stale response decode invalidation while retaining custom decoder;
 - base/subclass/invalid resource selection, exact `make(ApiResponse, ApiRequest)` construction, generic narrowing, macro/PSR forwarding, pretty JSON, caller flags, array/scalar/malformed/empty/null/custom-decoder cases, existence probes that avoid `InvalidResourceDataException` while preserving configured `JsonException`, and generic `collect()` behavior;
-- all eight terminals, omitted versus explicit-null GET/HEAD queries, configured-query preservation, and Arrayable/JsonSerializable write/query inputs.
+- all eight terminals, omitted versus explicit-null GET/HEAD queries, configured-query preservation, and Arrayable/JsonSerializable write/query inputs, including missing resource-field reads.
 
 ### Shared-owner and metadata coverage
 
-- HTTP media types with case/parameters, exact-empty JSON read requests, distinct malformed/scalar JSON diagnostics, empty decode caching, numeric query keys, static subtype returns, recursive JsonSerializable query normalization, and invalid result types;
+- HTTP media types with case/parameters, exact-empty JSON read requests, distinct malformed/scalar JSON diagnostics, empty decode caching, numeric query keys, static subtype returns, GET/HEAD URL-query observation, recursive structured query/form/multipart normalization on both wire and logical-payload paths, multipart-configured read requests retaining string and URL queries, and invalid result types;
 - exact logical JSON/form values without a body rewrite; final data after local/global Guzzle middleware or `beforeSending` body replacement; later callbacks, stubs, recorders, API middleware, retries, multipart file probes, and scalar replacement failures; raw terminal body options; gated and callback-hidden prepared-body metadata; no added common-path parsing;
 - Telescope raw-body capture for `withBody()` and the structured-input ownership boundary;
-- every changed split manifest, optional Foundation/Database feature suggestion, root hard-dependency constraint, and Reverb dependency removal;
+- every compared root/split hard dependency being present before its constraint is compared, optional Foundation/Database feature suggestion, and Reverb dependency removal;
 - test helper statics reset from `tearDown()` even after exceptions;
 - documentation index/link integrity and max-level type fixtures.
 
