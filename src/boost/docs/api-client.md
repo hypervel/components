@@ -204,6 +204,8 @@ $request = $github->createPendingRequest()
 $user = $request->get('/users/hypervel');
 ```
 
+API clients may be reused, but pending requests are mutable and represent one operation. Create a separate pending request for each request that may run concurrently.
+
 <a name="request-options"></a>
 ### Request Options
 
@@ -252,7 +254,7 @@ $repositories = $github
 The `query` method may be used to issue an HTTP `QUERY` request with structured request data:
 
 ```php
-$result = $client->query('/search', [
+$result = $github->query('/search', [
     'filters' => ['status' => 'active'],
 ]);
 ```
@@ -327,6 +329,8 @@ $user->toJson();
 $user->toPrettyJson();
 ```
 
+Reading a missing field using array or property access returns `null`.
+
 Response methods and macros are forwarded to the resource, so you may inspect status codes and headers directly:
 
 ```php
@@ -338,6 +342,8 @@ $user->header('X-RateLimit-Remaining');
 API resources are intended for JSON objects and arrays. Empty bodies and JSON `null` are converted to an empty array. If an endpoint returns scalar JSON or plain text, array and property access will throw an `InvalidResourceDataException`. You may still access the raw response using the `body` method or `getResponse`:
 
 ```php
+$result = $github->get('/zen');
+
 $body = $result->body();
 
 $response = $result->getResponse();

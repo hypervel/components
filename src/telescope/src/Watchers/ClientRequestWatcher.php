@@ -154,8 +154,9 @@ class ClientRequestWatcher extends Watcher
      * When the request originated from Hypervel's HTTP client, the caller's
      * structured payload is available in the `hypervel_data` Guzzle option.
      * Body replacements made later by before-sending callbacks do not rewrite
-     * those original options. Raw and third-party traffic is parsed from the
-     * PSR-7 body instead.
+     * those original options, so this describes caller intent and may differ
+     * from bytes replaced later in the handler stack. Raw and third-party
+     * traffic is parsed from the PSR-7 body instead.
      */
     protected function buildPayload(RequestInterface $request, array $options): array|string
     {
