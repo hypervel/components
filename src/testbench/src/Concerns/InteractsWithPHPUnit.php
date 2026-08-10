@@ -159,7 +159,7 @@ trait InteractsWithPHPUnit
      */
     public static function tearDownAfterClassUsingPHPUnit(): void
     {
-        static::$cachedTestCaseUses = null;
+        static::$cachedTestCaseUses = [];
         static::$cachedTestCaseClassAttributes = [];
         static::$cachedTestCaseMethodAttributes = [];
 

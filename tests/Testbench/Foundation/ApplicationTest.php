@@ -4,12 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation;
 
+use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\PHPUnit\TestCase;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Testbench\Fixtures\BootstrapFileApplication;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -19,6 +26,32 @@ use function Hypervel\Testbench\default_skeleton_path;
 
 class ApplicationTest extends TestCase
 {
+    protected string $customApplicationPath;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->customApplicationPath = ParallelTesting::tempDir('TestbenchFoundationApplicationTest');
+
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($this->customApplicationPath);
+
+        if (! $filesystem->copyDirectory(
+            dirname(__DIR__) . '/Fixtures/ApplicationWithBootstrap',
+            $this->customApplicationPath,
+        )) {
+            throw new RuntimeException('Unable to create the custom application fixture.');
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->customApplicationPath);
+
+        parent::tearDown();
+    }
+
     #[Test]
     public function itCanCreateAnApplication(): void
     {
@@ -68,6 +101,59 @@ class ApplicationTest extends TestCase
         $this->assertSame($app['env'], $app['config']['app.env']);
         $this->assertSame($environment, $app->environment());
         $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER'), $app->runningUnitTests());
+    }
+
+    #[Test]
+    public function itScopesBootstrapFileSelectionToEachApplicationObject(): void
+    {
+        $fixturesPath = dirname(__DIR__) . '/Fixtures';
+        $withoutBootstrap = new BootstrapFileResolverTestbenchApplication($fixturesPath);
+        $withoutBootstrapApplication = $withoutBootstrap->resolveApplicationForTest();
+
+        try {
+            $this->assertNotInstanceOf(BootstrapFileApplication::class, $withoutBootstrapApplication);
+
+            $withBootstrap = new BootstrapFileResolverTestbenchApplication(
+                "{$fixturesPath}/ApplicationWithBootstrap",
+            );
+            $withBootstrapApplication = $withBootstrap->resolveApplicationForTest();
+
+            try {
+                $this->assertInstanceOf(BootstrapFileApplication::class, $withBootstrapApplication);
+                $this->assertSame(
+                    realpath("{$fixturesPath}/ApplicationWithBootstrap/bootstrap/app.php"),
+                    $withBootstrapApplication->bootstrapFile,
+                );
+            } finally {
+                $withBootstrapApplication->flush();
+            }
+        } finally {
+            $withoutBootstrapApplication->flush();
+        }
+    }
+
+    #[Test]
+    public function itPreservesCustomApplicationKernelsWithoutReplayingBootstrap(): void
+    {
+        $app = TestbenchApplication::create($this->customApplicationPath);
+
+        try {
+            $this->assertInstanceOf(BootstrapFileApplication::class, $app);
+            $this->assertSame(
+                realpath("{$this->customApplicationPath}/bootstrap/app.php"),
+                $app->bootstrapFile,
+            );
+            $this->assertSame(HttpKernel::class, get_class($app->make(HttpKernelContract::class)));
+            $this->assertSame(ConsoleKernel::class, get_class($app->make(ConsoleKernelContract::class)));
+            $this->assertSame(0, $app->frameworkBootstrapCount);
+            $this->assertTrue($app->hasBeenBootstrapped());
+        } finally {
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
     }
 
     #[Test]
@@ -152,6 +238,17 @@ class FailingResolvingTestbenchApplication extends TestbenchApplication
             $this->getApplicationBasePath(),
             $this->terminationFailure,
         );
+    }
+}
+
+class BootstrapFileResolverTestbenchApplication extends TestbenchApplication
+{
+    /**
+     * Resolve the application without booting it.
+     */
+    public function resolveApplicationForTest(): ApplicationContract
+    {
+        return $this->resolveApplication();
     }
 }
 

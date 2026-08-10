@@ -24,7 +24,7 @@ class InteractsWithPHPUnitTest extends TestCase
         InteractsWithPHPUnitTestCaseFixture::runPhpUnitClassTeardown();
 
         $this->assertSame([
-            'uses' => null,
+            'uses' => [],
             'classAttributes' => [],
             'methodAttributes' => [],
         ], InteractsWithPHPUnitTestCaseFixture::phpUnitState());
@@ -43,7 +43,7 @@ class InteractsWithPHPUnitTestCaseFixture extends TestCase
 {
     public static function seedPhpUnitState(): void
     {
-        static::$cachedTestCaseUses = [self::class => self::class];
+        static::$cachedTestCaseUses = [self::class => [self::class => self::class]];
         static::$cachedTestCaseClassAttributes = [self::class => []];
         static::$cachedTestCaseMethodAttributes = [self::class . ':testPlaceholder' => []];
     }

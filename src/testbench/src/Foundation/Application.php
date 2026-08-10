@@ -19,6 +19,8 @@ class Application
     use CreatesApplication {
         createApplication as protected createApplicationFromTrait;
         resolveApplicationConfiguration as protected resolveApplicationConfigurationFromTrait;
+        resolveApplicationConsoleKernel as protected resolveApplicationConsoleKernelFromTrait;
+        resolveApplicationHttpKernel as protected resolveApplicationHttpKernelFromTrait;
     }
 
     /**
@@ -360,5 +362,29 @@ class Application
     {
         $this->resolveApplicationConfigurationFromTrait($app);
         (new EnsuresDefaultConfiguration)->bootstrap($app);
+    }
+
+    /**
+     * Resolve application console kernel implementation.
+     */
+    protected function resolveApplicationConsoleKernel(ApplicationContract $app): void
+    {
+        if ($this->hasCustomApplicationKernels()) {
+            return;
+        }
+
+        $this->resolveApplicationConsoleKernelFromTrait($app);
+    }
+
+    /**
+     * Resolve application HTTP kernel implementation.
+     */
+    protected function resolveApplicationHttpKernel(ApplicationContract $app): void
+    {
+        if ($this->hasCustomApplicationKernels()) {
+            return;
+        }
+
+        $this->resolveApplicationHttpKernelFromTrait($app);
     }
 }

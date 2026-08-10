@@ -234,13 +234,14 @@ trait CreatesApplication
      */
     protected function resolveApplication(): ApplicationContract
     {
-        static::$cacheApplicationBootstrapFile ??= $this->getApplicationBootstrapFile('app.php');
+        $bootstrapFile = $this->applicationBootstrapFile
+            ??= $this->getApplicationBootstrapFile('app.php');
 
-        if (is_string(static::$cacheApplicationBootstrapFile)) {
+        if (is_string($bootstrapFile)) {
             $APP_BASE_PATH = $this->getApplicationBasePath();
 
             /** @var ApplicationContract $app */
-            $app = require static::$cacheApplicationBootstrapFile;
+            $app = require $bootstrapFile;
 
             return $app;
         }
@@ -548,6 +549,10 @@ trait CreatesApplication
             $app->singleton('db.resolver', DatabaseConnectionResolver::class);
             Model::setConnectionResolver($app->make('db'));
         }
+
+        // The manual sequence above replaces the kernel's bootstrappers. Mark it complete
+        // before resolving a retained custom kernel so configuration and providers do not replay.
+        $app->bootstrapWith([]);
 
         $app->make(KernelContract::class)->bootstrap();
     }
