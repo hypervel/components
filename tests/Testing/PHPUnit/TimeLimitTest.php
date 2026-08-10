@@ -13,6 +13,7 @@ class TimeLimitTest extends TestCase
 
     public function testNonYieldingTestsFailWithTheirIdentity(): void
     {
+        // Leave enough outer-process headroom for PHPUnit's one-second limit to report under parallel load.
         $process = new Process(
             command: [
                 PHP_BINARY,
@@ -22,7 +23,7 @@ class TimeLimitTest extends TestCase
                 'tests/Testing/PHPUnit/Fixtures/TimeLimitFixture.php',
             ],
             cwd: dirname(__DIR__, 3),
-            timeout: 10,
+            timeout: 30,
         );
         $process->run();
 
