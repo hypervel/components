@@ -4,15 +4,34 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
+use Override;
+use RuntimeException;
 use Throwable;
 
 class DefineCacheRoutesTest extends TestCase
 {
+    protected bool $failApplicationReload = false;
+
+    #[Override]
+    protected function reloadApplication(): void
+    {
+        if (! $this->failApplicationReload) {
+            parent::reloadApplication();
+
+            return;
+        }
+
+        $this->tearDown();
+
+        throw new RuntimeException('Application reload failed.');
+    }
+
     public function testCompiledRouteCollectionIsInstalledAfterDefineCacheRoutes(): void
     {
         $this->assertInstanceOf(
@@ -198,6 +217,64 @@ PHP);
         $this->assertFileDoesNotExist($routeFile);
     }
 
+    public function testFailedReloadCleansTheCapturedWorkerRouteCacheWithoutAnApplication(): void
+    {
+        $cachedRoutesPath = $this->app->getCachedRoutesPath();
+        $this->failApplicationReload = true;
+
+        try {
+            try {
+                $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Route;
+Route::get('/reload-failure', fn () => 'failed');
+PHP);
+                $this->fail('Expected application reload to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Application reload failed.', $exception->getMessage());
+            }
+
+            $this->assertNull($this->app);
+            $this->assertFileExists($cachedRoutesPath);
+            $this->assertCount(1, $this->testbenchRouteFiles);
+            $this->assertFileExists($this->testbenchRouteFiles[0]);
+
+            $this->callBeforeApplicationDestroyedCallbacks();
+
+            $this->assertFileDoesNotExist($cachedRoutesPath);
+            $this->assertFileDoesNotExist($this->testbenchRouteFiles[0]);
+        } finally {
+            $this->failApplicationReload = false;
+
+            if ($this->app === null) {
+                $this->setUp();
+            }
+        }
+    }
+
+    public function testRouteCleanupReportsOwnedFilesThatSurviveDeletion(): void
+    {
+        $routeFile = $this->testbenchRouteFilePath($this->app->basePath());
+        file_put_contents($routeFile, '<?php');
+        $this->testbenchRouteFiles[] = $routeFile;
+        $this->registerTestbenchRouteCleanup(
+            new FailingRouteFileDeleteFilesystem($routeFile),
+            $this->app->getCachedRoutesPath(),
+        );
+
+        try {
+            $this->callBeforeApplicationDestroyedCallbacks();
+            $this->assertInstanceOf(RuntimeException::class, $this->callbackException);
+            $this->assertSame(
+                "Unable to remove Testbench route files [{$routeFile}].",
+                $this->callbackException->getMessage(),
+            );
+        } finally {
+            $this->callbackException = null;
+            @unlink($routeFile);
+        }
+    }
+
     public function testTestbenchRouteFilePathIsUniquePerCall(): void
     {
         $firstRouteFile = $this->testbenchRouteFilePath($this->app->basePath());
@@ -234,5 +311,30 @@ PHP);
         // setUpApplicationRoutes returns early when routes are cached.
         // Only the cached /cached-only route should exist.
         $this->get('/cached-only')->assertOk();
+    }
+}
+
+class FailingRouteFileDeleteFilesystem extends Filesystem
+{
+    /**
+     * Construct the filesystem.
+     */
+    public function __construct(
+        private readonly string $failingPath,
+    ) {
+    }
+
+    /**
+     * Delete the file at a given path.
+     */
+    public function delete(array|string $paths): bool
+    {
+        $paths = is_array($paths) ? $paths : [$paths];
+
+        if (in_array($this->failingPath, $paths, true)) {
+            return false;
+        }
+
+        return parent::delete($paths);
     }
 }

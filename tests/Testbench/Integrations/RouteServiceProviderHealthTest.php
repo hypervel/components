@@ -25,7 +25,7 @@ class RouteServiceProviderHealthTest extends TestCase
     }
 
     #[Test]
-    public function itCanLoadHealthPage()
+    public function itCanLoadHealthPage(): void
     {
         $this->get('/up')->assertOk();
     }
