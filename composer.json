@@ -234,6 +234,7 @@
         "hypervel/coroutine": "self.version",
         "hypervel/database": "self.version",
         "hypervel/di": "self.version",
+        "hypervel/docs": "self.version",
         "hypervel/encryption": "self.version",
         "hypervel/engine": "self.version",
         "hypervel/events": "self.version",

@@ -72,9 +72,9 @@ Hyperf packages use `ConfigProvider` classes to register bindings, listeners, co
 
 Before migrating a ConfigProvider, read:
 
-- `src/boost/docs/providers.md`
-- `src/boost/docs/aop.md` if the ConfigProvider has aspects
-- `src/boost/docs/packages.md#class-map-overrides` if the package uses class map replacement
+- `src/docs/providers.md`
+- `src/docs/aop.md` if the ConfigProvider has aspects
+- `src/docs/packages.md#class-map-overrides` if the package uses class map replacement
 - `Hypervel\Support\ServiceProvider`
 
 Use existing Hypervel packages as pattern references. For low-level Swoole / Hyperf-style infrastructure, useful references include `pool`, `object-pool`, `engine`, `server`, `signal`, and `sentry`. The `database` package is a good reference for translating Hyperf provider patterns into Hypervel provider code.
