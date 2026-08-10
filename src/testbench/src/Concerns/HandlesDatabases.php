@@ -53,10 +53,6 @@ trait HandlesDatabases
                 $this->beforeApplicationDestroyed(fn () => $this->destroyDatabaseMigrations());
             },
             attribute: fn () => $this->parseTestMethodAttributes($app, DefineDatabase::class),
-            pest: function () {
-                $this->defineDatabaseMigrationsUsingPest(); /* @phpstan-ignore method.notFound */
-                $this->beforeApplicationDestroyed(fn () => $this->destroyDatabaseMigrationsUsingPest()); /* @phpstan-ignore method.notFound */
-            },
         )->get('attribute');
 
         $callback();
@@ -66,7 +62,6 @@ trait HandlesDatabases
         TestingFeature::run(
             testCase: $this,
             default: fn () => $this->defineDatabaseSeeders(),
-            pest: fn () => $this->defineDatabaseSeedersUsingPest(), /* @phpstan-ignore method.notFound */
         );
     }
 

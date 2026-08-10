@@ -21,7 +21,7 @@ class AggregateServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function itPopulateExpectedServices()
+    public function itPopulateExpectedServices(): void
     {
         $this->assertTrue($this->app->bound('parent.loaded'));
         $this->assertTrue($this->app->bound('child.loaded'));
