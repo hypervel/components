@@ -322,14 +322,39 @@ class FilesystemTest extends TestCase
         $this->assertTrue($files->missing($this->tempDir . '/file.txt'));
     }
 
-    public function testDeleteDirectory()
+    public function testDeleteDirectory(): void
     {
         mkdir($this->tempDir . '/foo');
         file_put_contents($this->tempDir . '/foo/file.txt', 'Hello World');
         $files = new Filesystem;
-        $files->deleteDirectory($this->tempDir . '/foo');
+        $this->assertTrue($files->deleteDirectory($this->tempDir . '/foo'));
         $this->assertDirectoryDoesNotExist($this->tempDir . '/foo');
         $this->assertFileDoesNotExist($this->tempDir . '/foo/file.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testDeleteDirectoryRemovesLinkWithoutDeletingTargetContents(): void
+    {
+        $target = $this->tempDir . '/target';
+        $link = $this->tempDir . '/link';
+        mkdir($target);
+        file_put_contents($target . '/file.txt', 'Hello World');
+        symlink($target, $link);
+
+        $this->assertTrue((new Filesystem)->deleteDirectory($link));
+        $this->assertFalse(is_link($link));
+        $this->assertDirectoryExists($target);
+        $this->assertFileExists($target . '/file.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testDeleteDirectoryRemovesBrokenLink(): void
+    {
+        $link = $this->tempDir . '/broken-link';
+        symlink($this->tempDir . '/missing-target', $link);
+
+        $this->assertTrue((new Filesystem)->deleteDirectory($link));
+        $this->assertFalse(is_link($link));
     }
 
     public function testDeleteDirectoryReturnFalseWhenNotADirectory()
@@ -363,7 +388,27 @@ class FilesystemTest extends TestCase
         $this->assertSame(['/root/first', '/root/second'], $filesystem->deleted);
     }
 
-    public function testCleanDirectory()
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testDeleteDirectoriesDoesNotTraverseLinkedChildren(): void
+    {
+        $parent = $this->tempDir . '/parent';
+        $child = $parent . '/child';
+        $target = $this->tempDir . '/target';
+        $link = $parent . '/linked-child';
+        mkdir($child, 0777, true);
+        mkdir($target);
+        file_put_contents($child . '/child.txt', 'child');
+        file_put_contents($target . '/target.txt', 'target');
+        symlink($target, $link);
+
+        $this->assertTrue((new Filesystem)->deleteDirectories($parent));
+        $this->assertDirectoryDoesNotExist($child);
+        $this->assertFalse(is_link($link));
+        $this->assertDirectoryExists($target);
+        $this->assertFileExists($target . '/target.txt');
+    }
+
+    public function testCleanDirectory(): void
     {
         mkdir($this->tempDir . '/baz');
         file_put_contents($this->tempDir . '/baz/file.txt', 'Hello World');
@@ -371,6 +416,21 @@ class FilesystemTest extends TestCase
         $files->cleanDirectory($this->tempDir . '/baz');
         $this->assertDirectoryExists($this->tempDir . '/baz');
         $this->assertFileDoesNotExist($this->tempDir . '/baz/file.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testCleanDirectoryEmptiesLinkedDirectory(): void
+    {
+        $target = $this->tempDir . '/clean-target';
+        $link = $this->tempDir . '/clean-link';
+        mkdir($target);
+        file_put_contents($target . '/file.txt', 'Hello World');
+        symlink($target, $link);
+
+        $this->assertTrue((new Filesystem)->cleanDirectory($link));
+        $this->assertTrue(is_link($link));
+        $this->assertDirectoryExists($target);
+        $this->assertFileDoesNotExist($target . '/file.txt');
     }
 
     public function testMacro()

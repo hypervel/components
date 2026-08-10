@@ -663,6 +663,11 @@ class Filesystem
      */
     public function deleteDirectory(string $directory, bool $preserve = false): bool
     {
+        // Removing a linked directory must never recurse into its unowned target.
+        if (! $preserve && is_link($directory)) {
+            return $this->delete($directory);
+        }
+
         if (! $this->isDirectory($directory)) {
             return false;
         }
