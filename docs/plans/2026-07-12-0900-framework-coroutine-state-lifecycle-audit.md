@@ -1200,7 +1200,28 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `process-11` | `process` | `process` (targeted correction complete); later full `process` audit | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `process-11` |
 | `telescope-04` | `telescope` | `telescope` (revalidation complete) | `Complete Permission correctness, custom pivots, and relation scope safety`; finding `telescope-04` |
 | `auth-18` | `auth` | `auth` and `sanctum` (revalidation complete) | `Complete Sanctum correctness, cache settlement, and current parity`; finding `auth-18` |
-| `api-client-01` | `api-client` | `api-client` (targeted correction complete); later full `api-client` audit | `Complete Pagination correctness, current parity, and query contracts`; finding `api-client-01` |
+| `api-client-01` | `api-client` | `api-client` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `api-client-01` |
+| `api-client-02` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-02` |
+| `api-client-03` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-03` |
+| `api-client-04` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-04` |
+| `api-client-05` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-05` |
+| `api-client-06` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-06` |
+| `api-client-07` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-07` |
+| `api-client-08` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-08` |
+| `api-client-09` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-09` |
+| `api-client-10` | `api-client` | `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `api-client-10` |
+| `http-28` | `http` | `http` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `http-28` |
+| `broadcasting-18` | `broadcasting` | `broadcasting` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `broadcasting-18` |
+| `contracts-13` | `contracts` | `contracts` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `contracts-13` |
+| `foundation-20` | `foundation` | `foundation` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `foundation-20` |
+| `database-34` | `database` | `database` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `database-34` |
+| `http-29` | `http` | `http` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `http-29` |
+| `inertia-24` | `inertia` | `inertia` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `inertia-24` |
+| `socialite-28` | `socialite` | `socialite` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `socialite-28` |
+| `support-35` | `support` | `support` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `support-35` |
+| `telescope-41` | `telescope` | `telescope` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `telescope-41` |
+| `telescope-42` | `telescope` | `telescope`, `http`, and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `telescope-42` |
+| `reverb-41` | `reverb` | `reverb` and `api-client` (revalidation complete) | `Complete API Client correctness, Laravel ergonomics, and lifecycles`; finding `reverb-41` |
 | `database-24` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-24` |
 | `database-25` | `database` | `database` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `database-25` |
 | `scout-41` | `scout` | `scout` and `pagination` (revalidation complete) | `Complete Pagination correctness, current parity, and query contracts`; finding `scout-41` |
@@ -1359,7 +1380,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `horizon`
 - [x] `reverb`
 - [x] `http`
-- [ ] `api-client`
+- [x] `api-client`
 - [x] `grpc`
 - [x] `broadcasting`
 - [x] `mail`
