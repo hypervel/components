@@ -1,11 +1,11 @@
 {
-    "name": "hypervel/boost",
+    "name": "hypervel/docs",
     "type": "library",
-    "description": "The boost package for Hypervel.",
+    "description": "The documentation for the Hypervel framework.",
     "license": "MIT",
     "keywords": [
         "php",
-        "boost",
+        "documentation",
         "swoole",
         "hypervel"
     ],
@@ -24,8 +24,7 @@
         "source": "https://github.com/hypervel/components"
     },
     "require": {
-        "php": "^8.4",
-        "hypervel/docs": "^0.4"
+        "php": "^8.4"
     },
     "config": {
         "sort-packages": true

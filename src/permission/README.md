@@ -50,4 +50,4 @@ class User extends Model
 - Undefined `permission.cache.store` values fail fast through Hypervel's cache manager instead of silently falling back to an array store.
 - The default role and permission models do not use soft deletes. Soft deletes are not recommended for permission models; restoring a custom soft-deletable role or permission reactivates its existing assignments.
 
-Full usage docs are available in `src/boost/docs/permission.md`.
+Full usage docs are available in `src/docs/permission.md`.
