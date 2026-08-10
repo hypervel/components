@@ -73,6 +73,77 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertTrue($this->schemaBuilder()->hasIndex('table1', 'example_table1_name_index'));
     }
 
+    public function testQualifyIndexNameNormalizesWhenIndexPrefixingIsDisabled(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => 'ignored_',
+            'prefix_indexes' => false,
+        ]);
+
+        $this->assertSame(
+            'custom_name_index',
+            $this->schemaBuilder()->qualifyIndexName('Custom.Name-Index')
+        );
+    }
+
+    public function testQualifyIndexNameSupportsAnEnabledEmptyPrefix(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+            'prefix_indexes' => true,
+        ]);
+
+        $this->assertSame(
+            'custom_name_index',
+            $this->schemaBuilder()->qualifyIndexName('Custom.Name-Index')
+        );
+    }
+
+    public function testQualifyIndexNameMatchesGeneratedIndexNaming(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => 'example-',
+            'prefix_indexes' => true,
+        ]);
+        $builder = $this->schemaBuilder();
+
+        $builder->create('table1', static function (Blueprint $table): void {
+            $table->string('name')->index();
+        });
+
+        $name = $builder->qualifyIndexName('Table1.Name-Index');
+
+        $this->assertSame('example_table1_name_index', $name);
+        $this->assertTrue($builder->hasIndex('table1', $name));
+
+        $builder->table('table1', static function (Blueprint $table) use ($name): void {
+            $table->dropIndex($name);
+        });
+
+        $this->assertFalse($builder->hasIndex('table1', $name));
+    }
+
+    public function testQualifyIndexNameSupportsExplicitForeignKeyNames(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => 'example-',
+            'prefix_indexes' => true,
+        ]);
+
+        $this->assertSame(
+            'example_posts_user_id_foreign',
+            $this->schemaBuilder()->qualifyIndexName('Posts.User-Id-Foreign')
+        );
+    }
+
     public function testHasForeignKeyWithSQLiteForeignKeys(): void
     {
         $this->schemaBuilder()->create('users', function (Blueprint $table) {

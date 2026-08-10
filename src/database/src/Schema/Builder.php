@@ -394,6 +394,22 @@ class Builder
     }
 
     /**
+     * Qualify an explicit index name.
+     *
+     * The configured table prefix is applied only when index prefixing is
+     * enabled. Names are always lowercased, with dashes and dots normalized to
+     * underscores to match generated index names.
+     */
+    public function qualifyIndexName(string $name): string
+    {
+        if ($this->connection->getConfig('prefix_indexes')) {
+            $name = $this->connection->getTablePrefix() . $name;
+        }
+
+        return str_replace(['-', '.'], '_', strtolower($name));
+    }
+
+    /**
      * Determine if the given table has a given index.
      */
     public function hasIndex(string $table, array|string $index, ?string $type = null): bool
