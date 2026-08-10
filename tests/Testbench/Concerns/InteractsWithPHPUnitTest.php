@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Testbench\Concerns;
 
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionException;
 
 class InteractsWithPHPUnitTest extends TestCase
 {
@@ -27,6 +28,14 @@ class InteractsWithPHPUnitTest extends TestCase
             'classAttributes' => [],
             'methodAttributes' => [],
         ], InteractsWithPHPUnitTestCaseFixture::phpUnitState());
+    }
+
+    #[Test]
+    public function itPropagatesAttributeReflectionFailures(): void
+    {
+        $this->expectException(ReflectionException::class);
+
+        InteractsWithPHPUnitTestCaseFixture::resolveAttributesFor('missingMethod');
     }
 }
 
@@ -51,6 +60,11 @@ class InteractsWithPHPUnitTestCaseFixture extends TestCase
             'classAttributes' => static::$cachedTestCaseClassAttributes,
             'methodAttributes' => static::$cachedTestCaseMethodAttributes,
         ];
+    }
+
+    public static function resolveAttributesFor(string $method): void
+    {
+        static::resolvePhpUnitAttributesForMethod(static::class, $method);
     }
 
     public function testPlaceholder(): void
