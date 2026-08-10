@@ -33,6 +33,8 @@ class PackageMetadataTest extends TestCase
         );
 
         foreach (['symfony/http-foundation', 'symfony/mime'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 

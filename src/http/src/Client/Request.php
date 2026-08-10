@@ -8,6 +8,8 @@ use ArrayAccess;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Uri;
+use InvalidArgumentException;
+use JsonException;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
 
@@ -19,6 +21,11 @@ class Request implements ArrayAccess
      * The decoded payload for the request.
      */
     protected array $data = [];
+
+    /**
+     * Determine whether the request data has been decoded.
+     */
+    protected bool $hasDecodedData = false;
 
     /**
      * The attribute data passed when building the PendingRequest.
@@ -128,6 +135,9 @@ class Request implements ArrayAccess
 
     /**
      * Get the request's data (form parameters or JSON).
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
      */
     public function data(): array
     {
@@ -146,10 +156,11 @@ class Request implements ArrayAccess
      */
     protected function parameters(): array
     {
-        if (! $this->data) {
+        if (! $this->hasDecodedData && $this->data === []) {
             parse_str($this->body(), $parameters);
 
             $this->data = $parameters;
+            $this->hasDecodedData = true;
         }
 
         return $this->data;
@@ -157,11 +168,29 @@ class Request implements ArrayAccess
 
     /**
      * Get the JSON decoded body of the request.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
      */
     protected function json(): array
     {
-        if (! $this->data) {
-            $this->data = json_decode($this->body(), true) ?? [];
+        if (! $this->hasDecodedData && $this->data === []) {
+            $body = $this->body();
+
+            if ($body === '') {
+                $this->hasDecodedData = true;
+
+                return $this->data;
+            }
+
+            $data = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+
+            if (! is_array($data)) {
+                throw new InvalidArgumentException('The request JSON body must decode to an array.');
+            }
+
+            $this->data = $data;
+            $this->hasDecodedData = true;
         }
 
         return $this->data;
@@ -172,7 +201,7 @@ class Request implements ArrayAccess
      */
     public function isForm(): bool
     {
-        return $this->hasHeader('Content-Type', 'application/x-www-form-urlencoded');
+        return $this->mediaType() === 'application/x-www-form-urlencoded';
     }
 
     /**
@@ -180,8 +209,7 @@ class Request implements ArrayAccess
      */
     public function isJson(): bool
     {
-        return $this->hasHeader('Content-Type')
-            && str_contains($this->header('Content-Type')[0], 'json');
+        return str_contains($this->mediaType(), 'json');
     }
 
     /**
@@ -189,20 +217,36 @@ class Request implements ArrayAccess
      */
     public function isMultipart(): bool
     {
-        return $this->hasHeader('Content-Type')
-            && str_contains($this->header('Content-Type')[0], 'multipart');
+        return str_contains($this->mediaType(), 'multipart');
     }
 
     /**
-     * Set the decoded data on the request.
+     * Get the normalized request media type.
      */
-    public function withData(array $data): Request
+    protected function mediaType(): string
+    {
+        if (! $this->hasHeader('Content-Type')) {
+            return '';
+        }
+
+        return strtolower(trim(explode(';', $this->header('Content-Type')[0], 2)[0]));
+    }
+
+    /**
+     * Set the logical data on the request.
+     *
+     * This does not mark the body as decoded, so a final JSON or form body may replace it.
+     */
+    public function withData(array $data): static
     {
         $this->data = $data;
 
         return $this;
     }
 
+    /**
+     * Get the request query parameters.
+     */
     public function query(): array
     {
         parse_str($this->request->getUri()->getQuery(), $query);
@@ -210,19 +254,25 @@ class Request implements ArrayAccess
         return $query;
     }
 
-    public function withQuery(array $query = []): Request
+    /**
+     * Add query parameters to the request.
+     */
+    public function withQuery(array $query = []): static
     {
         $this->request = $this->request->withUri(
-            $this->request->getUri()->withQuery(http_build_query(array_merge($this->query(), $query)))
+            $this->request->getUri()->withQuery(http_build_query(array_replace($this->query(), $query)))
         );
 
         return $this;
     }
 
-    public function withoutQuery(array $keys = []): Request
+    /**
+     * Remove query parameters from the request.
+     */
+    public function withoutQuery(array|string $keys = []): static
     {
         $query = $this->query();
-        foreach ($keys as $key) {
+        foreach ((array) $keys as $key) {
             unset($query[$key]);
         }
         $this->request = $this->request->withUri($this->request->getUri()->withQuery(http_build_query($query)));

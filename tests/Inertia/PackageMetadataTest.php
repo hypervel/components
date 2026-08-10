@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Contracts;
+namespace Hypervel\Tests\Inertia;
 
 use Hypervel\Tests\TestCase;
 use JsonException;
@@ -10,34 +10,26 @@ use JsonException;
 class PackageMetadataTest extends TestCase
 {
     /**
-     * Ensure every external parent interface is installed with the split package.
+     * Ensure Inertia dependencies match the classes it imports directly.
      *
      * @throws JsonException
      */
-    public function testExternalParentInterfaceDependenciesAreDeclared(): void
+    public function testRuntimeDependenciesAreDeclared(): void
     {
         $composer = json_decode(
-            file_get_contents(__DIR__ . '/../../src/contracts/composer.json'),
+            file_get_contents(__DIR__ . '/../../src/inertia/composer.json'),
             true,
             512,
-            JSON_THROW_ON_ERROR
+            JSON_THROW_ON_ERROR,
         );
         $rootComposer = json_decode(
             file_get_contents(__DIR__ . '/../../composer.json'),
             true,
             512,
-            JSON_THROW_ON_ERROR
+            JSON_THROW_ON_ERROR,
         );
 
-        foreach ([
-            'monolog/monolog',
-            'nesbot/carbon',
-            'psr/container',
-            'psr/http-message',
-            'psr/log',
-            'psr/simple-cache',
-            'symfony/http-kernel',
-        ] as $dependency) {
+        foreach (['guzzlehttp/guzzle', 'guzzlehttp/promises'] as $dependency) {
             $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);

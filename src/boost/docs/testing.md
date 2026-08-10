@@ -309,6 +309,8 @@ Integration tests that use an external service must use that service's test trai
 | `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
 | `InteractsWithServer` | Engine test servers | `TEST_SERVER_HOST` |
 
+The Meilisearch, Typesense, and Algolia traits require their corresponding client package: `meilisearch/meilisearch-php`, `typesense/typesense-php`, or `algolia/algoliasearch-client-php`.
+
 This applies whether the test calls the service directly or reaches it through the application or package code under test.
 
 These traits are required for external-service tests to work correctly under ParaTest. Parallel test workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.

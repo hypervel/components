@@ -5,18 +5,31 @@ declare(strict_types=1);
 namespace Hypervel\ApiClient;
 
 use GuzzleHttp\Psr7\Uri;
-use Hypervel\Engine\Http\Stream;
+use GuzzleHttp\Psr7\Utils;
+use Hypervel\ApiClient\Concerns\HasContext;
 use Hypervel\Http\Client\Request as HttpClientRequest;
+use Hypervel\Support\Arr;
+use InvalidArgumentException;
+use JsonException;
 use Psr\Http\Message\RequestInterface;
+use SensitiveParameter;
 
 class ApiRequest extends HttpClientRequest
 {
     use HasContext;
 
     /**
-     * Determine if the request data has changed.
+     * Create an API request from an HTTP client request.
      */
-    protected bool $dataChanged = false;
+    public static function createFrom(HttpClientRequest $request): static
+    {
+        $apiRequest = new static($request->toPsrRequest());
+        $apiRequest->data = $request->data;
+        $apiRequest->hasDecodedData = $request->hasDecodedData;
+        $apiRequest->attributes = $request->attributes;
+
+        return $apiRequest;
+    }
 
     /**
      * Set the request method.
@@ -33,7 +46,7 @@ class ApiRequest extends HttpClientRequest
      */
     public function withUrl(callable|string $url, bool $preserveHost = false): static
     {
-        if (is_callable($url)) {
+        if (! is_string($url)) {
             $url = $url((string) $this->request->getUri());
         }
 
@@ -45,7 +58,7 @@ class ApiRequest extends HttpClientRequest
     /**
      * Add the request header.
      */
-    public function withHeader(string $key, string $value): static
+    public function withHeader(string $key, array|string $value): static
     {
         return $this->withHeaders([$key => $value]);
     }
@@ -74,34 +87,42 @@ class ApiRequest extends HttpClientRequest
 
     /**
      * Indicate the request contains form parameters.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
      */
     public function asForm(): static
     {
-        if ($this->isJson() || ! $this->hasHeader('Content-Type')) {
-            if (! $this->data) {
-                $this->json();
-            }
+        $this->ensureStructuredBody();
 
-            $this->dataChanged = true;
+        if (! $this->isForm()) {
+            $this->data = $this->data();
+            $this->hasDecodedData = true;
+            $this->contentType('application/x-www-form-urlencoded');
+            $this->applyChangedData();
         }
 
-        return $this->contentType('application/x-www-form-urlencoded');
+        return $this;
     }
 
     /**
      * Indicate the request contains JSON.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
      */
     public function asJson(): static
     {
-        if ($this->isForm()) {
-            if (! $this->data) {
-                $this->parameters();
-            }
+        $this->ensureStructuredBody();
 
-            $this->dataChanged = true;
+        if (! $this->isJson()) {
+            $this->data = $this->data();
+            $this->hasDecodedData = true;
+            $this->contentType('application/json');
+            $this->applyChangedData();
         }
 
-        return $this->contentType('application/json');
+        return $this;
     }
 
     /**
@@ -123,7 +144,7 @@ class ApiRequest extends HttpClientRequest
     /**
      * Specify an authorization token for the request.
      */
-    public function withToken(string $token, string $type = 'Bearer'): static
+    public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
         return $this->withHeaders(['Authorization' => trim($type . ' ' . $token)]);
     }
@@ -133,13 +154,13 @@ class ApiRequest extends HttpClientRequest
      */
     public function withUserAgent(bool|string $userAgent): static
     {
-        return $this->withHeaders(['User-Agent' => trim($userAgent)]);
+        return $this->withHeaders(['User-Agent' => trim((string) $userAgent)]);
     }
 
     /**
      * Add a request header.
      */
-    public function withAddedHeader(string $key, string $value): static
+    public function withAddedHeader(string $key, array|string $value): static
     {
         return $this->withAddedHeaders([$key => $value]);
     }
@@ -181,32 +202,60 @@ class ApiRequest extends HttpClientRequest
      */
     public function withBody(string $body): static
     {
-        $this->request = $this->request->withBody(new Stream($body));
-        $this->dataChanged = false;
+        $this->replaceBody($body);
+        $this->data = [];
+        $this->hasDecodedData = false;
 
         return $this;
     }
 
     /**
-     * Add the request data.
+     * Replace the request data.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
      */
     public function withData(array $data): static
     {
-        $this->data = array_merge($this->data(), $data);
-        $this->dataChanged = true;
+        $this->ensureStructuredMutationAllowed();
+
+        $this->data = $data;
+        $this->hasDecodedData = true;
+        $this->applyChangedData();
 
         return $this;
     }
 
     /**
-     * Remove the request data.
+     * Merge the request data.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
      */
-    public function withoutData(array $data): static
+    public function mergeData(array $data): static
     {
-        $this->data();
-        foreach ($data as $key) {
-            unset($this->data[$key]);
-        }
+        $this->ensureStructuredMutationAllowed();
+
+        $this->data = array_merge($this->data(), $data);
+        $this->hasDecodedData = true;
+        $this->applyChangedData();
+
+        return $this;
+    }
+
+    /**
+     * Remove keys from the request data.
+     *
+     * @throws InvalidArgumentException
+     * @throws JsonException
+     */
+    public function withoutData(array|string $keys): static
+    {
+        $this->ensureStructuredMutationAllowed();
+
+        $this->data = Arr::except($this->data(), $keys);
+        $this->hasDecodedData = true;
+        $this->applyChangedData();
 
         return $this;
     }
@@ -216,26 +265,74 @@ class ApiRequest extends HttpClientRequest
      */
     public function toPsrRequest(): RequestInterface
     {
-        if ($this->dataChanged) {
-            $this->applyChangedData();
-        }
-
         return $this->request;
     }
 
+    /**
+     * Apply changed structured data to the request body.
+     *
+     * @throws JsonException
+     */
     protected function applyChangedData(): void
     {
-        $data = $this->data;
         if ($this->isForm()) {
-            $data = http_build_query($this->data, '', '&');
-        } elseif ($this->isJson() || ! $this->hasHeader('Content-Type')) {
-            $data = json_encode($this->data);
+            $body = http_build_query($this->data, '', '&');
+        } else {
+            $body = json_encode($this->data, JSON_THROW_ON_ERROR);
+
+            if (! $this->hasHeader('Content-Type')) {
+                $this->contentType('application/json');
+            }
         }
 
-        $this->request = $this->request->withBody(
-            new Stream($data)
-        );
+        $this->replaceBody($body);
+    }
 
-        $this->dataChanged = false;
+    /**
+     * Ensure structured data may be changed for the request.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function ensureStructuredMutationAllowed(): void
+    {
+        if (in_array(strtoupper($this->method()), ['GET', 'HEAD'], true)) {
+            throw new InvalidArgumentException(
+                'Structured request data cannot be changed for GET or HEAD requests. Use withQuery() or withoutQuery() instead.'
+            );
+        }
+
+        $this->ensureStructuredBody();
+    }
+
+    /**
+     * Ensure the request body has a supported structured representation.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function ensureStructuredBody(): void
+    {
+        if ($this->isJson() || $this->isForm()) {
+            return;
+        }
+
+        if ($this->hasHeader('Content-Type') || $this->body() !== '') {
+            throw new InvalidArgumentException('The request body does not contain structured JSON or form data.');
+        }
+    }
+
+    /**
+     * Replace the request body and update its framing headers.
+     */
+    protected function replaceBody(string $body): void
+    {
+        $request = $this->request->withBody(Utils::streamFor($body));
+
+        if ($request->hasHeader('Transfer-Encoding')) {
+            $request = $request->withoutHeader('Content-Length');
+        } else {
+            $request = $request->withHeader('Content-Length', (string) strlen($body));
+        }
+
+        $this->request = $request;
     }
 }
