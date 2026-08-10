@@ -151,6 +151,12 @@ trait RunsInParallel
         ParallelTesting::resolveTokenUsing(null);
 
         try {
+            $application->terminate();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
             $application->flush();
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
