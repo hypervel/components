@@ -24,6 +24,7 @@
     ],
     "require": {
         "php": "^8.4",
+        "composer/semver": "^3.4",
         "composer-runtime-api": "^2.2",
         "ext-posix": "*",
         "mockery/mockery": "1.6.x-dev",
@@ -38,6 +39,7 @@
         "hypervel/coordinator": "^0.4",
         "hypervel/core": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/di": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
         "hypervel/process": "^0.4",
