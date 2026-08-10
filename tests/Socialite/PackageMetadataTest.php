@@ -39,6 +39,10 @@ class PackageMetadataTest extends TestCase
         );
         $this->assertArrayNotHasKey('phpseclib/phpseclib', $composer['require']);
         $this->assertArrayNotHasKey('phpseclib/phpseclib', $rootComposer['require']);
+        $this->assertSame(
+            $rootComposer['require']['psr/http-message'],
+            $composer['require']['psr/http-message'],
+        );
     }
 
     public function testFacadeDocumentsOnlyTheManagerSurface(): void

@@ -59,6 +59,7 @@ class PackageMetadataTest extends TestCase
             'ext-mbstring',
             'ext-pdo',
             'guzzlehttp/guzzle',
+            'guzzlehttp/promises',
             'nesbot/carbon',
             'psr/http-message',
             'psr/log',
