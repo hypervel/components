@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
+use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
@@ -92,9 +93,13 @@ class Bootstrapper
      */
     protected static function resolveConfigurationPath(string $workingPath): string
     {
-        return static::hasConfigurationFile($workingPath)
-            ? $workingPath
-            : testbench_path();
+        if (static::hasConfigurationFile($workingPath)) {
+            return $workingPath;
+        }
+
+        return InstalledVersions::getRootPackage()['name'] === 'hypervel/components'
+            ? testbench_path()
+            : $workingPath;
     }
 
     /**
@@ -134,11 +139,19 @@ class Bootstrapper
 
         static::purgeStaleRuntimeCopies($tempDir, $pid);
 
-        if ($runtimePath !== static::$runtimePath && $filesystem->exists($runtimePath)) {
+        $reusesActivePath = $runtimePath === static::$runtimePath
+            && $filesystem->isDirectory($runtimePath);
+
+        if (! $reusesActivePath && $filesystem->exists($runtimePath)) {
             throw new RuntimeException("Unable to create the Testbench runtime copy because [{$runtimePath}] already exists.");
         }
 
         try {
+            if (! $reusesActivePath
+                && ! $filesystem->makeDirectory($runtimePath, 0700, recursive: true, force: true)) {
+                throw new RuntimeException("Unable to create runtime path [{$runtimePath}].");
+            }
+
             if (! $filesystem->copyDirectory($sourcePath, $runtimePath)) {
                 throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
             }
@@ -160,10 +173,12 @@ class Bootstrapper
                 );
             }
         } catch (Throwable $exception) {
-            try {
-                static::deleteRuntimeDirectory($runtimePath);
-            } catch (Throwable) {
-                // Preserve the runtime-creation failure when rollback also fails.
+            if (! $reusesActivePath) {
+                try {
+                    static::deleteRuntimeDirectory($runtimePath);
+                } catch (Throwable) {
+                    // Preserve the runtime-creation failure when rollback also fails.
+                }
             }
 
             throw $exception;
@@ -246,8 +261,9 @@ class Bootstrapper
             filename: static::testbenchEnvironmentFile(),
         );
 
-        if ($environmentFile !== null) {
-            $filesystem->copy($environmentFile, join_paths($runtimePath, '.env'));
+        if ($environmentFile !== null
+            && ! $filesystem->copy($environmentFile, join_paths($runtimePath, '.env'))) {
+            throw new RuntimeException('Unable to copy the Testbench environment file.');
         }
     }
 
