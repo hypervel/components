@@ -94,6 +94,29 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame($masked, $entry->content['response']['secret']);
     }
 
+    public function testRawBodyUsesThePsrPayloadFallback(): void
+    {
+        Telescope::hideRequestParameters(['password']);
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request(
+                'POST',
+                'https://hypervel.org/raw',
+                ['Content-Type' => 'application/json'],
+                '{"password":"secret","name":"Taylor"}',
+            ),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame([
+            'password' => '********',
+            'name' => 'Taylor',
+        ], $entry->content['payload']);
+    }
+
     public function testClientRequestWatcherRegistersRedirectResponse()
     {
         $client = $this->makeClient([
