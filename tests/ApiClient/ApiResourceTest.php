@@ -178,6 +178,17 @@ class ApiResourceTest extends TestCase
         $this->assertEquals($value, $this->resource->key);
     }
 
+    public function testMissingArrayAndPropertyValuesReturnNull(): void
+    {
+        $resource = new ApiResource(
+            new ApiResponse(new Psr7Response(200, body: '{"name":"Taylor"}')),
+            $this->request,
+        );
+
+        $this->assertNull($resource['email']);
+        $this->assertNull($resource->email);
+    }
+
     public function testCallMethodOnResponse(): void
     {
         $this->response->shouldReceive('status')

@@ -172,6 +172,6 @@ class ApiResponse extends HttpClientResponse implements Arrayable
      */
     public function offsetGet(mixed $offset): mixed
     {
-        return $this->toArray()[$offset];
+        return $this->toArray()[$offset] ?? null;
     }
 }

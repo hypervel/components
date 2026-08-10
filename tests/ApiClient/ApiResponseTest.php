@@ -147,6 +147,14 @@ class ApiResponseTest extends TestCase
         $response['name'];
     }
 
+    public function testMissingOffsetsReturnNullForArrayBodies(): void
+    {
+        $response = new ApiResponse(new Psr7Response(200, body: '{"name":"Taylor"}'));
+
+        $this->assertFalse(isset($response['email']));
+        $this->assertNull($response['email']);
+    }
+
     public function testGenericArrayableConsumersUseTheExplicitArrayContract(): void
     {
         $response = new ApiResponse(new Psr7Response(200, body: '{"name":"Taylor"}'));
