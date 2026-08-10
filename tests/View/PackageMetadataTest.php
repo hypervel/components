@@ -30,10 +30,14 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR
         );
 
+        $this->assertArrayHasKey('symfony/http-foundation', $rootComposer['require']);
+        $this->assertArrayHasKey('symfony/http-foundation', $composer['require']);
         $this->assertSame(
             $rootComposer['require']['symfony/http-foundation'],
             $composer['require']['symfony/http-foundation']
         );
+        $this->assertArrayHasKey('symfony/http-kernel', $rootComposer['require']);
+        $this->assertArrayHasKey('symfony/http-kernel', $composer['require']);
         $this->assertSame(
             $rootComposer['require']['symfony/http-kernel'],
             $composer['require']['symfony/http-kernel']

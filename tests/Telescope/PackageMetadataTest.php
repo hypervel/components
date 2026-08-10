@@ -73,11 +73,15 @@ class PackageMetadataTest extends TestCase
         $this->assertSame('^8.4', $composer['require']['php']);
 
         foreach ($hypervelDependencies as $dependency) {
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertArrayHasKey($dependency, $rootComposer['replace']);
             $this->assertSame('^0.4', $composer['require'][$dependency]);
             $this->assertSame('self.version', $rootComposer['replace'][$dependency]);
         }
 
         foreach ($externalDependencies as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 

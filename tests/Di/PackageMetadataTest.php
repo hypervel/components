@@ -29,6 +29,8 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
 
+        $this->assertArrayHasKey('composer-runtime-api', $rootComposer['require']);
+        $this->assertArrayHasKey('composer-runtime-api', $composer['require']);
         $this->assertSame(
             $rootComposer['require']['composer-runtime-api'],
             $composer['require']['composer-runtime-api'],

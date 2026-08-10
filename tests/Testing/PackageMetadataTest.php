@@ -47,6 +47,8 @@ class PackageMetadataTest extends TestCase
             'hypervel/support',
             'hypervel/view',
         ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertArrayHasKey($dependency, $rootComposer['replace']);
             $this->assertSame('^0.4', $composer['require'][$dependency]);
             $this->assertSame('self.version', $rootComposer['replace'][$dependency]);
         }
@@ -61,9 +63,13 @@ class PackageMetadataTest extends TestCase
             'symfony/process',
             'vlucas/phpdotenv',
         ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
+        $this->assertArrayHasKey('mockery/mockery', $rootComposer['require-dev']);
+        $this->assertArrayHasKey('mockery/mockery', $composer['require']);
         $this->assertSame($rootComposer['require-dev']['mockery/mockery'], $composer['require']['mockery/mockery']);
         $this->assertSame([
             'brianium/paratest' => 'Required to run tests in parallel (^7.24).',

@@ -54,6 +54,7 @@ class PackageMetadataTest extends TestCase
         }
 
         foreach (['guzzlehttp/guzzle', 'psr/http-message'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
