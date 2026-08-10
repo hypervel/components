@@ -98,7 +98,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
     {
         $this->setupConfig = $config;
 
-        $this->refreshApplication();
+        $this->reloadApplication();
     }
 
     protected function dispatchHypervelEvent(object $event, array $payload = []): void

@@ -251,6 +251,40 @@ class InteractsWithTestCaseTest extends TestCase
             }
         }
     }
+
+    public function testFoundationTeardownRunsDestructionCallbacksWithoutAnApplication(): void
+    {
+        $steps = [];
+        $callbackException = new RuntimeException('callback failed');
+        $testCase = new FoundationLifecycleTestCaseFixture('testPlaceholder');
+        $testCase->registerBeforeApplicationDestroyedCallback(
+            function () use (&$steps, $callbackException): never {
+                $steps[] = 'callback:first';
+
+                throw $callbackException;
+            }
+        );
+        $testCase->registerBeforeApplicationDestroyedCallback(function () use (&$steps): void {
+            $steps[] = 'callback:second';
+        });
+        $testCase->markSetupAsRun();
+
+        try {
+            $testCase->tearDownEnvironment();
+            $this->fail('Expected teardown to rethrow the first callback failure.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($callbackException, $exception);
+        }
+
+        $this->assertSame(['callback:first', 'callback:second'], $steps);
+        $this->assertSame([
+            'app' => null,
+            'afterCallbacks' => [],
+            'beforeCallbacks' => [],
+            'callbackException' => null,
+            'setUpHasRun' => false,
+        ], $testCase->lifecycleState());
+    }
 }
 
 class FoundationLifecycleTestCaseFixture extends FoundationTestCase

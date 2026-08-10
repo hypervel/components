@@ -115,23 +115,6 @@ class InteractsWithTestCaseTest extends TestCase
         ];
     }
 
-    public function testPestEnvironmentResolversRunBeforeTheLifecycleWrappers(): void
-    {
-        TestbenchLifecycleTestCaseFixture::$usesPest = true;
-        $testCase = new TestbenchLifecycleTestCaseFixture('testPlaceholder');
-        $testCase->useApplication($this->app);
-
-        try {
-            $testCase->runSetUp();
-            $testCase->runTearDown();
-
-            $this->assertSame(1, $testCase->pestSetUpCalls);
-            $this->assertSame(1, $testCase->pestTearDownCalls);
-        } finally {
-            TestbenchLifecycleTestCaseFixture::$usesPest = false;
-        }
-    }
-
     public function testEveryAfterEachCallbackRunsAndMethodFeaturesAreCleared(): void
     {
         LifecycleAttributeFixture::$calls = [];
@@ -157,6 +140,26 @@ class InteractsWithTestCaseTest extends TestCase
             }
 
             $this->assertSame(['afterEach:first', 'afterEach:second'], LifecycleAttributeFixture::$calls);
+            $this->assertSame([], TestbenchLifecycleTestCaseFixture::methodTestingFeatures());
+        } finally {
+            TestbenchLifecycleTestCaseFixture::forceClearLifecycleState();
+        }
+    }
+
+    public function testAfterEachCallbacksAreSkippedWithoutAnApplicationAndMethodFeaturesAreCleared(): void
+    {
+        LifecycleAttributeFixture::$calls = [];
+        $testCase = new TestbenchLifecycleTestCaseFixture('testPlaceholder');
+
+        try {
+            TestbenchLifecycleTestCaseFixture::usesTestingFeature(
+                new LifecycleAttributeFixture('application-bound'),
+                Attribute::TARGET_METHOD,
+            );
+
+            $testCase->runAfterEachAttributes();
+
+            $this->assertSame([], LifecycleAttributeFixture::$calls);
             $this->assertSame([], TestbenchLifecycleTestCaseFixture::methodTestingFeatures());
         } finally {
             TestbenchLifecycleTestCaseFixture::forceClearLifecycleState();
@@ -199,33 +202,18 @@ class InteractsWithTestCaseTest extends TestCase
 
 class TestbenchLifecycleTestCaseFixture extends TestCase
 {
-    public static bool $usesPest = false;
-
     public int $foundationSetUpCalls = 0;
 
     public int $manifestSetupCalls = 0;
 
     public int $attributeSetUpCalls = 0;
 
-    public int $pestSetUpCalls = 0;
-
     public int $attributeTearDownCalls = 0;
 
     public int $foundationTearDownCalls = 0;
 
-    public int $pestTearDownCalls = 0;
-
     public function testPlaceholder(): void
     {
-    }
-
-    public static function usesTestingConcern(?string $trait = null): bool
-    {
-        if ($trait === \Hypervel\Testbench\Pest\WithPest::class) {
-            return static::$usesPest;
-        }
-
-        return parent::usesTestingConcern($trait);
     }
 
     public function runSetUp(): void
@@ -292,16 +280,6 @@ class TestbenchLifecycleTestCaseFixture extends TestCase
     protected function setUpTheTestEnvironmentUsingTestCase(): void
     {
         ++$this->attributeSetUpCalls;
-    }
-
-    protected function setUpTheEnvironmentUsingPest(): void
-    {
-        ++$this->pestSetUpCalls;
-    }
-
-    protected function tearDownTheEnvironmentUsingPest(): void
-    {
-        ++$this->pestTearDownCalls;
     }
 
     protected function tearDownTheTestEnvironmentUsingTestCase(): void

@@ -331,7 +331,7 @@ class RedisIntegrationTest extends SentryTestCase
         $staleHub = m::mock(HubInterface::class);
         SentrySdk::setCurrentHub($staleHub);
 
-        $this->refreshApplication();
+        $this->reloadApplication();
         $this->setupMocks();
 
         $transaction = $this->startTransaction();

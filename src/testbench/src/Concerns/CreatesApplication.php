@@ -40,6 +40,7 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\PackageManifest;
 use Hypervel\Testbench\Foundation\UndefinedValue;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
+use Throwable;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_skeleton_path;
@@ -184,27 +185,46 @@ trait CreatesApplication
         $this->configureParallelCachePaths();
 
         $app = $this->resolveApplication();
+        $originalTimezone = date_default_timezone_get();
+        $timezoneRestored = false;
+        $restoreTimezone = static function () use (&$timezoneRestored, $originalTimezone): void {
+            if (! $timezoneRestored) {
+                date_default_timezone_set($originalTimezone);
+                $timezoneRestored = true;
+            }
+        };
 
-        if ($this instanceof FoundationTestCase) {
-            $this->prepareApplicationForCachedState($app);
+        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) {
+            $this->beforeApplicationDestroyed($restoreTimezone);
         }
 
-        $this->resolveApplicationBindings($app);
-        $this->resolveApplicationExceptionHandler($app);
-        $this->resolveApplicationEnvironmentVariables($app);
-        $this->resolveApplicationConfiguration($app);
+        try {
+            if ($this instanceof FoundationTestCase) {
+                $this->prepareApplicationForCachedState($app);
+            }
 
-        // Must run after resolveApplicationConfiguration() because LoadConfiguration's
-        // parent::bootstrap() calls detectEnvironment() with config('app.env'), which
-        // would overwrite the 'testing' environment. By running after, our
-        // detectEnvironment('testing') takes precedence.
-        $this->resolveApplicationCore($app);
+            $this->resolveApplicationBindings($app);
+            $this->resolveApplicationExceptionHandler($app);
+            $this->resolveApplicationEnvironmentVariables($app);
+            $this->resolveApplicationConfiguration($app);
 
-        $this->resolveApplicationHttpKernel($app);
-        $this->resolveApplicationHttpMiddlewares($app);
-        $this->resolveApplicationConsoleKernel($app);
-        $this->resolveApplicationBootstrappers($app);
-        $this->refreshApplicationRouteNameLookups($app);
+            // Must run after resolveApplicationConfiguration() because LoadConfiguration's
+            // parent::bootstrap() calls detectEnvironment() with config('app.env'), which
+            // would overwrite the 'testing' environment. By running after, our
+            // detectEnvironment('testing') takes precedence.
+            $this->resolveApplicationCore($app);
+
+            $this->resolveApplicationHttpKernel($app);
+            $this->resolveApplicationHttpMiddlewares($app);
+            $this->resolveApplicationConsoleKernel($app);
+            $this->resolveApplicationBootstrappers($app);
+            $this->refreshApplicationRouteNameLookups($app);
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            $restoreTimezone();
+
+            throw $exception;
+        }
 
         return $app;
     }
@@ -427,9 +447,9 @@ trait CreatesApplication
         $app->make(FoundationLoadConfiguration::class)->bootstrap($app);
         $app->make(SyncDatabaseEnvironmentVariables::class)->bootstrap($app);
 
-        if (($timezone = $this->getApplicationTimezone($app)) !== null) {
-            $app->make('config')->set('app.timezone', $timezone);
-            date_default_timezone_set($timezone);
+        if (($applicationTimezone = $this->getApplicationTimezone($app)) !== null) {
+            $app->make('config')->set('app.timezone', $applicationTimezone);
+            date_default_timezone_set($applicationTimezone);
         }
 
         // Rewrite the default database name for parallel testing before
@@ -508,7 +528,6 @@ trait CreatesApplication
             testCase: $this,
             default: fn () => $this->defineEnvironment($app),
             attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound */
-            pest: fn () => $this->defineEnvironmentUsingPest($app), /* @phpstan-ignore method.notFound */
         );
 
         if (static::usesTestingConcern(WithWorkbench::class)) {
@@ -605,5 +624,27 @@ trait CreatesApplication
         }
 
         return preg_replace('/[^A-Za-z0-9_.-]/', '_', $token);
+    }
+
+    /**
+     * Terminate and flush an application, preserving the first cleanup failure.
+     */
+    protected static function terminateAndFlushApplication(ApplicationContract $app): ?Throwable
+    {
+        $failure = null;
+
+        try {
+            $app->terminate();
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
+        }
+
+        try {
+            $app->flush();
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        return $failure;
     }
 }

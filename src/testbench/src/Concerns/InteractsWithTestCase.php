@@ -137,21 +137,24 @@ trait InteractsWithTestCase
     {
         $exception = null;
 
-        try {
-            $app = hypervel_or_fail($this->app);
-            $callbacks = $this->resolvePhpUnitAttributes()
-                ->flatten()
-                ->filter(static fn ($instance) => $instance instanceof AfterEach);
+        if ($this->app !== null) {
+            $app = $this->app;
 
-            foreach ($callbacks as $callback) {
-                try {
-                    $callback->afterEach($app);
-                } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+            try {
+                $callbacks = $this->resolvePhpUnitAttributes()
+                    ->flatten()
+                    ->filter(static fn ($instance) => $instance instanceof AfterEach);
+
+                foreach ($callbacks as $callback) {
+                    try {
+                        $callback->afterEach($app);
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
+                    }
                 }
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
             }
-        } catch (Throwable $throwable) {
-            $exception = $throwable;
         }
 
         static::$testCaseMethodTestingFeatures = [];

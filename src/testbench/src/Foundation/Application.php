@@ -12,6 +12,7 @@ use Hypervel\Testbench\Concerns\CreatesApplication;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Bootstrap\EnsuresDefaultConfiguration;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadEnvironmentVariablesFromArray;
+use Throwable;
 
 class Application
 {
@@ -120,9 +121,17 @@ class Application
      */
     public static function createVendorSymlink(?string $basePath, string $workingVendorPath): ApplicationContract
     {
+        $originalTimezone = date_default_timezone_get();
         $app = static::create(basePath: $basePath, options: ['extra' => ['dont-discover' => ['*']]]);
 
-        (new Actions\CreateVendorSymlink($workingVendorPath))->handle($app);
+        try {
+            (new Actions\CreateVendorSymlink($workingVendorPath))->handle($app);
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            date_default_timezone_set($originalTimezone);
+
+            throw $exception;
+        }
 
         return $app;
     }
@@ -132,9 +141,17 @@ class Application
      */
     public static function deleteVendorSymlink(?string $basePath): ApplicationContract
     {
+        $originalTimezone = date_default_timezone_get();
         $app = static::create(basePath: $basePath, options: ['extra' => ['dont-discover' => ['*']]]);
 
-        (new Actions\DeleteVendorSymlink)->handle($app);
+        try {
+            (new Actions\DeleteVendorSymlink)->handle($app);
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            date_default_timezone_set($originalTimezone);
+
+            throw $exception;
+        }
 
         return $app;
     }
@@ -189,6 +206,7 @@ class Application
     public function createApplication(): ApplicationContract
     {
         $restoreEnvironment = $this->maskInheritedStandaloneEnvironment();
+        $originalTimezone = date_default_timezone_get();
 
         try {
             $app = $this->createApplicationFromTrait();
@@ -198,8 +216,16 @@ class Application
 
         $this->app = $app;
 
-        if (\is_callable($this->resolvingCallback)) {
-            \call_user_func($this->resolvingCallback, $app);
+        try {
+            if (\is_callable($this->resolvingCallback)) {
+                \call_user_func($this->resolvingCallback, $app);
+            }
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            date_default_timezone_set($originalTimezone);
+            $this->app = null;
+
+            throw $exception;
         }
 
         return $app;
