@@ -118,6 +118,8 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `testbench-27` | Record that purge shutdown registration was already removed by Testbench cleanup work. |
 | `testbench-28` | Remove dead annotations/branches and complete Testbench test method typing. |
 | `testbench-29` | Reject invalid configured seeder classes instead of silently dropping them. |
+| `testbench-30` | Scope trait metadata to each test class and bootstrap-file selection to each owning object. |
+| `testbench-31` | Preserve standalone custom-bootstrap kernel bindings without replaying Hypervel's manual Testbench bootstrap sequence. |
 | `testing-18` | Terminate then flush each parallel-runner application while retaining token and failure ownership. |
 | `testing-19` | Join every application test-binary path segment before passing it to the single-path application API. |
 | `telescope-41` | Preserve installed fork snapshots in Telescope's child-context callback while retaining ordinary-create and omitted-key parent propagation. |
@@ -131,20 +133,27 @@ Files:
 - `src/testbench/src/Bootstrapper.php`
 - `src/testbench/src/TestCase.php`
 - `src/testbench/src/Concerns/CreatesApplication.php`
+- `src/testbench/src/Concerns/InteractsWithPHPUnit.php`
 - `src/testbench/src/Concerns/InteractsWithTestCase.php`
+- `src/testbench/src/Concerns/WithHypervelBootstrapFile.php`
 - `src/testbench/src/Foundation/Application.php`
+- `src/testbench/src/Foundation/Console/Kernel.php`
 - `src/foundation/src/Testing/Concerns/InteractsWithTestCaseLifecycle.php`
 - `src/testing/src/Concerns/RunsInParallel.php`
 - `src/testing/src/Console/TestCommandBase.php`
 - `phpstan.neon.dist`
 - focused tests under `tests/Testbench/Bootstrapper*`, `tests/Testbench/CreatesApplicationTest.php`, `tests/Testbench/TestCaseTest.php`, and `tests/Testbench/TimezoneTest.php`
-- `tests/Foundation/Testing/Concerns/InteractsWithTestCaseTest.php`
+- `tests/Foundation/Testing/Concerns/InteractsWithTestCaseLifecycleTest.php`
 - `tests/Testing/ParallelRunnerTest.php`
 - `tests/Testing/Console/TestCommandTest.php`
 - `tests/Sentry/SentryTestCase.php`
 - `tests/Sentry/Console/AboutCommandIntegrationTest.php`
 - `tests/Sentry/Features/RedisIntegrationTest.php`
 - `tests/Testbench/Concerns/WithCachedStateTest.php`
+- `tests/Testbench/Concerns/{InteractsWithPHPUnitTest,InteractsWithTestCaseTest}.php`
+- `tests/Testbench/Foundation/ApplicationTest.php`
+- `tests/Testbench/Fixtures/BootstrapFileApplication.php`
+- `tests/Testbench/Fixtures/ApplicationWithBootstrap/bootstrap/app.php`
 
 `src/testbench/src/Console/Commander.php` participates in temporary-application ownership and is specified in section 4.
 
@@ -300,6 +309,109 @@ Tests must prove:
 - timezone and `putenv` restoration remain exact and idempotent.
 
 Retain the existing direct restoration closures; do not add a registry or nesting counter.
+
+#### Test-class and bootstrap-file cache ownership (`testbench-30`)
+
+`InteractsWithTestCase::$cachedTestCaseUses` is inherited through `Testbench\TestCase`, so one
+unkeyed static slot can return another subclass's traits. Store maps by `static::class` and clear
+the whole cache with the neighboring PHPUnit metadata caches after each outer test class:
+
+```php
+/**
+ * Cached traits used by each test case class.
+ *
+ * Every class composing this trait shares one static slot with its subclasses.
+ *
+ * @var array<class-string, array<class-string, class-string>>
+ */
+protected static array $cachedTestCaseUses = [];
+```
+
+Keep `array_flip(class_uses_recursive(...))` for upstream mergeability. Do not replace the cache
+with repeated trait discovery or add an owner property synchronized with the value. The separate
+standalone `Foundation\Application` composer retains only immutable metadata keyed by its finite
+resolver classes; it does not participate in PHPUnit teardown.
+
+The bootstrap-file value has a different owner. Trait composition creates separate static slots
+on `Testbench\TestCase` and `Foundation\Application`, but neither slot owns the object-derived
+value. Standalone objects of the same class may have different readonly base paths. Move the value
+from `InteractsWithTestCase` to an instance property on `WithHypervelBootstrapFile`:
+
+```php
+/**
+ * The resolved application bootstrap file.
+ *
+ * False means the owner has no bootstrap file; null means it has not been resolved.
+ */
+protected string|false|null $applicationBootstrapFile = null;
+```
+
+Both instance readers retain `??=` so `false` remains a cached result. Remove the class-teardown
+reset for this value. This gives refreshes on one TestCase object one stable selection, keeps each
+standalone application tied to its own base path, and retains no path map for the worker lifetime.
+Do not key the bootstrap file only by class or add class-plus-path static storage.
+
+Current Orchestra retains both unowned caches. Record this as an upstream defect-fix candidate in
+the ledger, not as a README difference; it changes no supported public contract.
+
+Tests must prove a sibling with `DatabaseMigrations` reads its own trait map after another sibling
+primes the cache; a nested fixture reads traits from its own differing class; a nested fixture with
+a different base path selects its own bootstrap file; and two `Foundation\Application` objects of
+the same class select different bootstrap files from different base paths. Assertions must
+identify the selected bootstrap file or its unique marker, not merely prove that both calls return
+applications. Keep the package migration integration regression that requires path registration
+and an empty processor cache.
+
+Move Testbench-owned trait and attribute coverage from the mixed Foundation concern test into
+`tests/Testbench/Concerns/InteractsWithTestCaseTest.php`. Rename the remaining Foundation file to
+`InteractsWithTestCaseLifecycleTest.php`; it retains only Foundation teardown and lazy-database
+lifecycle coverage. Update the PHPUnit cache-reset fixture to the class-keyed trait-map shape.
+
+The trait lookup adds one Testbench-only array-key read. Its standalone map is bounded by loaded
+resolver classes, while PHPUnit clears its map after each outer class. Bootstrap-file resolution
+moves from once per static composer slot to once per owning object, adding only warm local
+filesystem checks during test application creation and removing worker-lifetime path retention.
+Neither change adds application hot-path work, coroutine state, locks, retries, or polling.
+
+#### Standalone custom-bootstrap kernels (`testbench-31`)
+
+Current Orchestra guards the two kernel resolvers only on its standalone
+`Foundation\Application` composer. Hypervel omitted those overrides, so a standalone application
+loaded from its own `bootstrap/app.php` has both kernel bindings replaced with Testbench kernels.
+Keep the ordinary `TestCase` composer on the unguarded trait methods, matching upstream; its
+`hasCustomApplicationKernels()` method remains unused from that composer by design.
+
+Alias the trait's HTTP and console resolver methods in `Foundation\Application`. Override both
+there: return when `hasCustomApplicationKernels()` is true, otherwise delegate to the aliased
+trait method. Do not port Orchestra's legacy `App\Http\Kernel` / `App\Console\Kernel` file probes.
+Hypervel applications bind kernels through `Application::configure()->create()`, and the current
+skeleton contains no application kernel classes.
+
+Hypervel's `resolveApplicationBootstrappers()` manually performs configuration, provider
+registration, provider boot, and package bootstrappers, then calls the console kernel's
+`bootstrap()`. Orchestra's equivalent ends after package bootstrappers and does not make that
+kernel call. A retained Foundation console kernel would therefore see an unbootstrapped
+application and replay its full bootstrapper list. Immediately before resolving the console
+kernel, close Hypervel's manual sequence with `$app->bootstrapWith([])`. Keep the kernel's
+`bootstrap()` call so it still loads commands. The placement must remain after the database
+resolver swap: moving it earlier changes deprecation handling during that swap.
+
+Add one concise source comment explaining that the empty bootstrap marks the manual sequence
+complete and prevents retained custom kernels from replaying configuration and providers. Update
+the Testbench console kernel class documentation: its empty bootstrapper list is now a fallback
+that prevents replay if the kernel is bootstrapped outside the normal Testbench sequence, not the
+primary flag-setting mechanism.
+
+Replace the nested TestCase fixture's direct guard probe with its production
+`resolveApplication()` path and assert the exact bootstrap marker. Add a standalone
+`Foundation\Application::create()` regression using a fixture copied into a clean
+`ParallelTesting::tempDir()`. Prove the bootstrap marker, Foundation HTTP and console bindings,
+bootstrapped state, and zero framework-bootstrap replay. Delete the scratch copy in teardown;
+never let package-manifest creation write beneath committed `tests/`.
+
+This changes only standalone Testbench application creation. The normal path moves its existing
+empty bootstrap operation immediately before kernel resolution; it adds no application hot-path,
+lock, retry, context, network, or retained-state cost.
 
 Keep cached-state preparation inside the same catch boundary, but do not manufacture a failure test for its total, non-callback operations.
 
@@ -902,7 +1014,7 @@ Files:
 
 Restore both public `WithConfig` timing statements in `src/boost/docs/testbench.md`: every attribute value is applied after configuration loads and before providers register. Explain that this timing models Hypervel's process-global worker-startup configuration and that explicit test-body mutation is the visible option for a genuinely post-boot value. Add the intentional deferred-mode omission under the existing `Differences From Orchestra Testbench` README heading. The current docs contain no bundled Pest claim to remove. Do not add README differences for the other correctness fixes, internal ownership, or upstream bugs.
 
-Add `testbench-07` through `testbench-29`, `testing-18` through `testing-19`, and `telescope-41` to the ledger with exact evidence, tests, compatibility, performance, and counterfactual coverage. Classify defects, consistency corrections, and retained non-defects accurately. Record `testbench-27` as already resolved by Testbench's serialized stale-runtime cleanup change; no code action remains. Revalidate current `testbench-05` through `testbench-06`, `foundation-19`, and `filesystem-17` without overwriting their existing records.
+Add `testbench-07` through `testbench-31`, `testing-18` through `testing-19`, and `telescope-41` to the ledger with exact evidence, tests, compatibility, performance, and counterfactual coverage. Classify defects, consistency corrections, and retained non-defects accurately. Record `testbench-27` as already resolved by Testbench's serialized stale-runtime cleanup change; no code action remains. Revalidate current `testbench-05` through `testbench-06`, `foundation-19`, and `filesystem-17` without overwriting their existing records.
 
 Revalidate the core index entries already routed to this audit: `testbench-01` through `testbench-06`, `concurrency-01` through `concurrency-03`, `support-02`, `foundation-06`, `database-03`, `database-08`, `cache-04`, and `view-37`. Add `testing-18` under Testing with Testbench revalidation. Update routing dispositions rather than duplicating findings, and retain every existing owner and cross-package route. Mark Testbench complete only after implementation, full verification, self-review, code-review signoff, and records review.
 
@@ -966,6 +1078,10 @@ composer fix
 - Secondary-connection migration coverage proves both ownership reads and rollback postconditions stay on the configured connection.
 - Environment serialization tests parse the emitted dotenv content to prove semantic round trips.
 - Split tests exercise the package using its own metadata rather than relying on root-only dependencies.
+- Class-cache tests prime one Testbench subclass before reading another and use nested fixtures with
+  genuinely different traits or bootstrap inputs; same-input fixtures are not counterfactuals.
+- Custom-bootstrap coverage proves standalone kernel bindings survive while the normal framework
+  bootstrapper list does not replay; retaining a class alone is insufficient.
 
 ### Final self-review
 
@@ -980,6 +1096,10 @@ After the full gate passes:
 - rerun the repository-wide `WithConfig` consumer and attribute-target scans against the final tree;
 - inspect every new guard for a demonstrated failure and remove redundant checks;
 - verify Testbench adds no application hot path, container state, coroutine context, lock, retry, cache, or retained worker memory, and that `telescope-41` remains limited to its bounded child-context presence checks;
+- verify every remaining Testbench static cache is keyed to its real owner and bootstrap-file state
+  remains instance-owned across refresh and standalone application paths;
+- verify standalone custom kernels remain bound without replaying configuration or provider boot,
+  while the ordinary TestCase composer retains its upstream-shaped kernel replacement;
 - remove dead imports, stale comments, superseded tests, and temporary fixtures;
 - review the final diff and records before requesting code review.
 
@@ -997,6 +1117,10 @@ After the full gate passes:
 - Associative migration option arrays remain processor-owned. A distinct `--database` is not invalidated by a default-connection refresh; same-connection options that must run after a refresh use `defineDatabaseMigrationsAfterDatabaseRefreshed()`. Do not add connection inference or option-shape machinery.
 - The runtime clone stale sweep remains exhaustive best-effort. A failed foreign deletion is recoverable by a later serialized sweep.
 - Existing static caches, worker token selection, clone-per-worker behavior, service isolation traits, and parallel temp-directory ownership remain unchanged.
+- Standalone custom HTTP kernels retain their class binding, but Testbench still applies its fixed
+  package-test middleware baseline through the existing unguarded `afterResolving` callback and
+  unconditionally replaces `ExceptionHandlerContract` with its own handler. This matches Orchestra
+  and does not promise preservation of application middleware or exception-handler configuration.
 - `WithConfig` does not expose Orchestra's deferred mode. Post-boot config mutation remains explicit in the test body rather than hidden in an attribute.
 - `WithCachedStateTest` deliberately uses raw `refreshApplication()` because full reload resets the cached-state traits and invalidates the lifecycle under test. Its deterministic boot owns no database, pool, or external service, so no disposal machinery is added.
 - A Workbench backup-delete failure retains the verified published link and preserved backup while throwing. Automatic rollback or next-run deletion would risk losing the correct destination or unowned user data.
