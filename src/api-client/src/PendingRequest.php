@@ -4,44 +4,95 @@ declare(strict_types=1);
 
 namespace Hypervel\ApiClient;
 
-use GuzzleHttp\Promise\PromiseInterface;
+use BadMethodCallException;
+use GuzzleHttp\ClientInterface;
+use Hypervel\ApiClient\Concerns\HasContext;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\PendingRequest as ClientPendingRequest;
-use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\Request as HttpRequest;
+use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use JsonSerializable;
+use Psr\Http\Message\RequestInterface;
 use Throwable;
 
 /**
- * @template TResource of ApiResource
+ * @template TResource of ApiResource = ApiResource
+ * @method static baseUrl(string $url)
+ * @method static withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Support\Stringable $content, string $contentType = 'application/json')
+ * @method static asJson()
+ * @method static asForm()
+ * @method static attach(array|string $name, resource|string $contents = '', ?string $filename = null, array $headers = [])
+ * @method static asMultipart()
+ * @method static bodyFormat(string $format)
+ * @method static withQueryParameters(array $parameters)
+ * @method static contentType(string $contentType)
+ * @method static acceptJson()
+ * @method static accept(string $contentType)
+ * @method static withHeaders(array $headers)
+ * @method static withHeader(string $name, mixed $value)
+ * @method static replaceHeaders(array $headers)
+ * @method static withBasicAuth(string $username, string $password)
+ * @method static withDigestAuth(string $username, string $password)
+ * @method static withNtlmAuth(string $username, string $password)
+ * @method static withToken(string $token, string $type = 'Bearer')
+ * @method static withUserAgent(bool|string $userAgent)
+ * @method static withUrlParameters(array $parameters = [])
+ * @method static withCookies(array $cookies, string $domain)
+ * @method static maxRedirects(int $max)
+ * @method static withoutRedirecting()
+ * @method static withoutVerifying()
+ * @method static sink(\Psr\Http\Message\StreamInterface|resource|string $to)
+ * @method static timeout(float|int $seconds)
+ * @method static connectTimeout(float|int $seconds)
+ * @method static retry(array|int $times, \Closure|int $sleepMilliseconds = 0, ?callable $when = null, bool $throw = true)
+ * @method static withOptions(array $options)
+ * @method static withMiddleware(callable $middleware)
+ * @method static withRequestMiddleware(callable $middleware)
+ * @method static withResponseMiddleware(callable $middleware)
+ * @method static withAttributes(array $attributes)
+ * @method static withoutTelescope()
+ * @method static withTelescopeTags(array $tags)
+ * @method static beforeSending(callable $callback)
+ * @method static afterResponse(callable $callback)
+ * @method static throw(?callable $callback = null)
+ * @method static throwIf(bool|callable $condition, ?callable $callback = null)
+ * @method static throwUnless(bool|callable $condition, ?callable $callback = null)
+ * @method static dump()
+ * @method static dd()
+ * @method static stub(callable|\Hypervel\Support\Collection $callback)
+ * @method static preventStrayRequests(bool $prevent = true)
+ * @method static allowStrayRequests(array $only)
+ * @method static truncateExceptionsAt(int $length)
+ * @method static dontTruncateExceptions()
+ * @method static setHandler(callable $handler)
+ * @method static connection(string $connection, ?array $config = null)
  * @mixin ClientPendingRequest
  */
 class PendingRequest
 {
     use Conditionable;
+    use ForwardsCalls;
+    use HasContext;
 
     /**
      * @var class-string<TResource>
      */
     protected string $resource = ApiResource::class;
 
-    protected bool $enableMiddleware = true;
-
-    protected array $middlewareOptions = [];
-
-    protected array $guzzleOptions = [];
-
     /**
-     * @var array<callable|object|string>
+     * @var list<callable|object|string>
      */
     protected array $requestMiddleware = [];
 
     /**
-     * @var array<callable|object|string>
+     * @var list<callable|object|string>
      */
     protected array $responseMiddleware = [];
 
@@ -49,61 +100,31 @@ class PendingRequest
 
     protected Pipeline $pipeline;
 
-    public function __construct(
-        protected ApiClient $client,
-        ?Pipeline $pipeline = null,
-    ) {
-        $this->resource = $this->client->getResource();
-        $this->enableMiddleware = $this->client->getEnableMiddleware();
-        $this->requestMiddleware = $this->client->getRequestMiddleware();
-        $this->responseMiddleware = $this->client->getResponseMiddleware();
-        $this->pipeline = $pipeline ?? new Pipeline(Container::getInstance());
+    protected bool $bridgeRegistered = false;
+
+    protected ?ApiRequest $activeRequest = null;
+
+    public function __construct(?Pipeline $pipeline = null)
+    {
+        $this->pipeline = $pipeline ?? Container::getInstance()->make(Pipeline::class);
     }
 
     /**
-     * Enable or disable middleware for the request.
+     * Add middleware to the API request pipeline.
      */
-    public function enableMiddleware(): static
+    public function withApiRequestMiddleware(callable|object|string $middleware): static
     {
-        $this->enableMiddleware = true;
+        $this->requestMiddleware[] = $middleware;
 
         return $this;
     }
 
     /**
-     * Disable middleware for the request.
+     * Replace the API request middleware pipeline.
+     *
+     * @param list<callable|object|string> $middleware
      */
-    public function disableMiddleware(): static
-    {
-        $this->enableMiddleware = false;
-
-        return $this;
-    }
-
-    /**
-     * Set the options for the middleware.
-     */
-    public function withMiddlewareOptions(array $options): static
-    {
-        $this->middlewareOptions = $options;
-
-        return $this;
-    }
-
-    /**
-     * Set the Guzzle options for the request.
-     */
-    public function withGuzzleOptions(array $options): static
-    {
-        $this->guzzleOptions = $options;
-
-        return $this;
-    }
-
-    /**
-     * Set the request middleware for the request.
-     */
-    public function withRequestMiddleware(array $middleware): static
+    public function replaceApiRequestMiddleware(array $middleware): static
     {
         $this->requestMiddleware = $middleware;
 
@@ -111,19 +132,21 @@ class PendingRequest
     }
 
     /**
-     * Add request middleware to the existing request middleware.
+     * Add middleware to the API response pipeline.
      */
-    public function withAddedRequestMiddleware(array $middleware): static
+    public function withApiResponseMiddleware(callable|object|string $middleware): static
     {
-        $this->requestMiddleware = array_merge($this->requestMiddleware, $middleware);
+        $this->responseMiddleware[] = $middleware;
 
         return $this;
     }
 
     /**
-     * Set the response middleware for the request.
+     * Replace the API response middleware pipeline.
+     *
+     * @param list<callable|object|string> $middleware
      */
-    public function withResponseMiddleware(array $middleware): static
+    public function replaceApiResponseMiddleware(array $middleware): static
     {
         $this->responseMiddleware = $middleware;
 
@@ -131,11 +154,12 @@ class PendingRequest
     }
 
     /**
-     * Add response middleware to the existing response middleware.
+     * Remove all API middleware from the request.
      */
-    public function withAddedResponseMiddleware(array $middleware): static
+    public function withoutApiMiddleware(): static
     {
-        $this->responseMiddleware = array_merge($this->responseMiddleware, $middleware);
+        $this->requestMiddleware = [];
+        $this->responseMiddleware = [];
 
         return $this;
     }
@@ -143,20 +167,17 @@ class PendingRequest
     /**
      * Set the resource class for the request.
      *
-     * @param class-string<TResource> $resource
+     * @template TNewResource of ApiResource
+     * @param class-string<TNewResource> $resource
+     * @return $this
+     * @phpstan-this-out static<TNewResource>
      * @throws InvalidArgumentException
      */
     public function withResource(string $resource): static
     {
-        if (! class_exists($resource)) {
+        if (! is_a($resource, ApiResource::class, true)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
             throw new InvalidArgumentException(
-                sprintf('Resource class `%s` does not exist', $resource)
-            );
-        }
-
-        if (! is_subclass_of($resource, ApiResource::class)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
-            throw new InvalidArgumentException(
-                sprintf('Resource class `%s` must be a subclass of `%s`', $resource, ApiResource::class)
+                sprintf('Resource class `%s` must be `%s` or a subclass.', $resource, ApiResource::class)
             );
         }
 
@@ -171,9 +192,11 @@ class PendingRequest
      * @return TResource
      * @throws ConnectionException
      */
-    public function get(string $url, array|JsonSerializable|string|null $query = null): ApiResource
+    public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): ApiResource
     {
-        return $this->sendRequest('get', $url, $query);
+        return func_num_args() === 1
+            ? $this->sendRequest('get', $url)
+            : $this->sendRequest('get', $url, $query);
     }
 
     /**
@@ -184,7 +207,20 @@ class PendingRequest
      */
     public function head(string $url, array|string|null $query = null): ApiResource
     {
-        return $this->sendRequest('head', $url, $query);
+        return func_num_args() === 1
+            ? $this->sendRequest('head', $url)
+            : $this->sendRequest('head', $url, $query);
+    }
+
+    /**
+     * Issue a QUERY request to the given URL.
+     *
+     * @return TResource
+     * @throws ConnectionException
+     */
+    public function query(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
+    {
+        return $this->sendRequest('query', $url, $data);
     }
 
     /**
@@ -193,7 +229,7 @@ class PendingRequest
      * @return TResource
      * @throws ConnectionException
      */
-    public function post(string $url, array|JsonSerializable $data = []): ApiResource
+    public function post(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
         return $this->sendRequest('post', $url, $data);
     }
@@ -204,7 +240,7 @@ class PendingRequest
      * @return TResource
      * @throws ConnectionException
      */
-    public function patch(string $url, array $data = []): ApiResource
+    public function patch(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
         return $this->sendRequest('patch', $url, $data);
     }
@@ -215,7 +251,7 @@ class PendingRequest
      * @return TResource
      * @throws ConnectionException
      */
-    public function put(string $url, array $data = []): ApiResource
+    public function put(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
         return $this->sendRequest('put', $url, $data);
     }
@@ -226,7 +262,7 @@ class PendingRequest
      * @return TResource
      * @throws ConnectionException
      */
-    public function delete(string $url, array $data = []): ApiResource
+    public function delete(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
         return $this->sendRequest('delete', $url, $data);
     }
@@ -243,87 +279,111 @@ class PendingRequest
     }
 
     /**
-     * Provide a dynamic method to pass calls to the pending request.
+     * Enable or disable asynchronous requests.
      */
-    public function __call(string $method, array $parameters): static
+    public function async(bool $async = true): static
     {
-        $this->getClient()
-            ->{$method}(...$parameters);
+        if ($async) {
+            throw new InvalidArgumentException('The API client does not support asynchronous requests.');
+        }
 
         return $this;
     }
 
-    protected function sendRequest(): ApiResource
+    /**
+     * Reject a custom Guzzle client that would bypass the API request pipeline.
+     */
+    public function setClient(ClientInterface $client): never
     {
-        $arguments = func_get_args();
-        $method = array_shift($arguments);
-
-        $request = null;
-        $response = $this->getClient()
-            ->beforeSending(function (Request $httpRequest) use (&$request) {
-                $request = new ApiRequest($httpRequest->toPsrRequest());
-                if ($this->enableMiddleware) {
-                    $request = $this->handleMiddlewareRequest($request);
-                }
-                return $request->toPsrRequest();
-            })->{$method}(...$arguments);
-
-        if ($response instanceof PromiseInterface) {
-            throw new InvalidArgumentException('Api client does not support async requests');
-        }
-
-        $response = new ApiResponse($response->toPsrResponse());
-
-        if ($this->enableMiddleware) {
-            $response = $this->handleMiddlewareResponse($response);
-        }
-
-        return $this->resource::make($response, $request);
+        throw new BadMethodCallException(
+            'Custom Guzzle clients are not supported by the API client. Use setHandler() to configure a request-specific transport handler.'
+        );
     }
 
-    protected function handleMiddlewareRequest(ApiRequest $request): ApiRequest
+    /**
+     * Send an API request.
+     *
+     * @return TResource
+     */
+    protected function sendRequest(string $method, mixed ...$arguments): ApiResource
+    {
+        try {
+            /** @var HttpResponse $response */
+            $response = $this->prepareClient()->{$method}(...$arguments);
+            /** @var ApiRequest $request */
+            $request = $this->activeRequest;
+
+            $apiResponse = ApiResponse::createFrom($response)
+                ->withContext($request->context());
+            $apiResponse = $this->runResponseMiddleware($apiResponse);
+
+            return $this->resource::make($apiResponse, $request);
+        } finally {
+            $this->activeRequest = null;
+        }
+    }
+
+    /**
+     * Run the API request middleware.
+     */
+    protected function runRequestMiddleware(ApiRequest $request): ApiRequest
     {
         return $this->pipeline
-            ->send($request->withContext('options', $this->middlewareOptions))
-            ->through($this->createMiddleware($this->requestMiddleware))
+            ->send($request)
+            ->through($this->requestMiddleware)
             ->thenReturn();
     }
 
-    protected function handleMiddlewareResponse(ApiResponse $response): ApiResponse
+    /**
+     * Run the API response middleware.
+     */
+    protected function runResponseMiddleware(ApiResponse $response): ApiResponse
     {
         return $this->pipeline
-            ->send($response->withContext('options', $this->middlewareOptions))
-            ->through($this->createMiddleware($this->responseMiddleware))
+            ->send($response)
+            ->through($this->responseMiddleware)
             ->thenReturn();
     }
 
-    protected function createMiddleware(array $middlewareClasses): array
+    /**
+     * Prepare the HTTP client for an API request.
+     */
+    protected function prepareClient(): ClientPendingRequest
     {
-        $middleware = [];
-        foreach ($middlewareClasses as $value) {
-            if (is_string($value)) {
-                $middleware[] = $this->client->resolveMiddleware($value);
-                continue;
-            }
+        $request = $this->getRequest();
 
-            $middleware[] = $value;
+        if (! $this->bridgeRegistered) {
+            $this->bridgeRegistered = true;
+            $request->beforeSending(function (HttpRequest $request): RequestInterface {
+                $apiRequest = ApiRequest::createFrom($request)
+                    ->withContext($this->context());
+
+                $this->activeRequest = $this->runRequestMiddleware($apiRequest);
+
+                return $this->activeRequest->toPsrRequest();
+            });
         }
 
-        return $middleware;
+        return $request;
     }
 
-    protected function getClient(): ClientPendingRequest
+    /**
+     * Get the underlying HTTP pending request.
+     */
+    protected function getRequest(): ClientPendingRequest
     {
-        if ($this->request) {
-            return $this->request;
-        }
+        return $this->request ??= Http::createPendingRequest();
+    }
 
-        $request = Http::throw();
-
-        if ($this->guzzleOptions) {
-            $request->withOptions($this->guzzleOptions);
-        }
-
-        return $this->request = $request;
+    /**
+     * Dynamically pass method calls to the underlying HTTP client.
+     */
+    public function __call(string $method, array $parameters): mixed
+    {
+        return $this->forwardDecoratedCallTo(
+            $this->getRequest(),
+            $method,
+            $parameters,
+        );
     }
 }

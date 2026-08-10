@@ -4,14 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ApiClient;
 
+use BadMethodCallException;
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\ApiClient\ApiClient;
 use Hypervel\ApiClient\ApiRequest;
+use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
+use Hypervel\ApiClient\PendingRequest;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\PendingRequest as HttpPendingRequest;
 use Hypervel\Http\Client\Request;
-use Hypervel\Support\DataObject;
+use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Http\Message\RequestInterface;
+use RuntimeException;
 
 class PendingRequestTest extends TestCase
 {
@@ -21,591 +31,515 @@ class PendingRequestTest extends TestCase
         Http::preventStrayRequests();
     }
 
-    public function testWithRequestMiddlewareSetsMiddleware(): void
+    public function testApiMiddlewareAcceptsEveryPipelineShapeAndContainerInjection(): void
     {
-        $client = new ApiClient;
-        $middleware = [TestRequestMiddleware::class];
+        $dependency = new ApiClientMiddlewareDependency;
+        $this->app->instance(ApiClientMiddlewareDependency::class, $dependency);
+        $objectMiddleware = new ApiClientObjectMiddleware;
 
-        $pending = $client->withRequestMiddleware($middleware);
+        Http::fake(['https://example.test/test' => Http::response(['ok' => true])]);
 
-        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
-        $pending->get('https://example.test/test');
+        $resource = (new ApiClient)
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next): ApiRequest {
+                return $next($request->withHeader('X-Closure', 'yes'));
+            })
+            ->withApiRequestMiddleware(__NAMESPACE__ . '\apiClientCallableMiddleware')
+            ->withApiRequestMiddleware([ApiClientStaticMiddleware::class, 'handle'])
+            ->withApiRequestMiddleware($objectMiddleware)
+            ->withApiRequestMiddleware(ApiClientInjectedMiddleware::class)
+            ->withApiResponseMiddleware(ApiClientInjectedResponseMiddleware::class)
+            ->get('https://example.test/test');
 
-        $this->assertTrue(TestRequestMiddleware::$called);
-        TestRequestMiddleware::reset();
+        $this->assertTrue($objectMiddleware->called);
+        $this->assertSame($dependency, $resource->context('dependency'));
+        $this->assertSame('response', $resource->context('phase'));
+        Http::assertSent(fn (Request $request) => $request->hasHeaders([
+            'X-Closure' => 'yes',
+            'X-Callable-String' => 'yes',
+            'X-Callable-Array' => 'yes',
+            'X-Object' => 'yes',
+            'X-Injected' => 'yes',
+        ]));
     }
 
-    public function testWithAddedRequestMiddlewareAppendsMiddleware(): void
+    public function testApiMiddlewareCanBeReplacedOrRemoved(): void
     {
-        $client = new ApiClient;
-        $middlewareA = [TestRequestMiddleware::class];
-        $middlewareB = [AnotherRequestMiddleware::class];
+        $calls = [];
+        Http::fake(['https://example.test/*' => Http::response([])]);
 
-        $pending = $client
-            ->withRequestMiddleware($middlewareA)
-            ->withAddedRequestMiddleware($middlewareB);
+        $pending = (new ApiClient)
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$calls): ApiRequest {
+                $calls[] = 'old-request';
 
-        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
-        $pending->get('https://example.test/test');
+                return $next($request);
+            })
+            ->replaceApiRequestMiddleware([
+                function (ApiRequest $request, callable $next) use (&$calls): ApiRequest {
+                    $calls[] = 'new-request';
 
-        $this->assertTrue(TestRequestMiddleware::$called);
-        $this->assertTrue(AnotherRequestMiddleware::$called);
-        TestRequestMiddleware::reset();
-        AnotherRequestMiddleware::reset();
+                    return $next($request);
+                },
+            ])
+            ->withApiResponseMiddleware(function (ApiResponse $response, callable $next) use (&$calls): ApiResponse {
+                $calls[] = 'old-response';
+
+                return $next($response);
+            })
+            ->replaceApiResponseMiddleware([
+                function (ApiResponse $response, callable $next) use (&$calls): ApiResponse {
+                    $calls[] = 'new-response';
+
+                    return $next($response);
+                },
+            ]);
+
+        $pending->get('https://example.test/first');
+
+        $this->assertSame(['new-request', 'new-response'], $calls);
+
+        $calls = [];
+        $pending->withoutApiMiddleware()->get('https://example.test/second');
+
+        $this->assertSame([], $calls);
     }
 
-    public function testWithResponseMiddlewareSetsMiddleware(): void
+    public function testContainerControlsClassMiddlewareLifetimes(): void
     {
-        $client = new ApiClient;
-        $middleware = [TestResponseMiddleware::class];
+        $tracker = new ApiClientMiddlewareTracker;
+        $this->app->instance(ApiClientMiddlewareTracker::class, $tracker);
+        $this->app->bind(
+            ApiClientTransientMiddleware::class,
+            fn () => new ApiClientTransientMiddleware($tracker),
+        );
+        Http::fake(['https://example.test/*' => Http::response([])]);
 
-        $pending = $client->withResponseMiddleware($middleware);
-
-        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
-        $pending->get('https://example.test/test');
-
-        $this->assertTrue(TestResponseMiddleware::$called);
-        TestResponseMiddleware::reset();
-    }
-
-    public function testWithAddedResponseMiddlewareAppendsMiddleware(): void
-    {
-        $client = new ApiClient;
-        $middlewareA = [TestResponseMiddleware::class];
-        $middlewareB = [AnotherResponseMiddleware::class];
-
-        $pending = $client
-            ->withResponseMiddleware($middlewareA)
-            ->withAddedResponseMiddleware($middlewareB);
-
-        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
-        $pending->get('https://example.test/test');
-
-        $this->assertTrue(TestResponseMiddleware::$called);
-        $this->assertTrue(AnotherResponseMiddleware::$called);
-        TestResponseMiddleware::reset();
-        AnotherResponseMiddleware::reset();
-    }
-
-    public function testRequestMiddlewareCanModifyRequest(): void
-    {
         $client = new ApiClient;
 
-        $pending = $client->withRequestMiddleware([AddHeaderRequestMiddleware::class]);
+        $client->withApiRequestMiddleware(ApiClientAutoSingletonMiddleware::class)
+            ->get('https://example.test/one');
+        $client->withApiRequestMiddleware(ApiClientAutoSingletonMiddleware::class)
+            ->get('https://example.test/two');
+        $client->withApiRequestMiddleware(ApiClientTransientMiddleware::class)
+            ->get('https://example.test/three');
+        $client->withApiRequestMiddleware(ApiClientTransientMiddleware::class)
+            ->get('https://example.test/four');
 
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
-
-        Http::assertSent(function (Request $request) {
-            return $request->hasHeader('X-Custom-Header')
-                && $request->header('X-Custom-Header')[0] === 'middleware-value';
-        });
-    }
-
-    public function testResponseMiddlewareCanModifyResponse(): void
-    {
-        $client = new ApiClient;
-
-        $pending = $client->withResponseMiddleware([AddHeaderResponseMiddleware::class]);
-
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $response = $pending->get('https://example.test/test');
-
-        $this->assertTrue($response->hasHeader('X-Response-Header'));
-        $this->assertEquals(
-            'response-value',
-            $response->header('X-Response-Header')
+        $this->assertCount(2, $tracker->autoSingletonInstances);
+        $this->assertSame(
+            $tracker->autoSingletonInstances[0],
+            $tracker->autoSingletonInstances[1],
+        );
+        $this->assertNotSame(
+            $tracker->transientInstances[0],
+            $tracker->transientInstances[1],
         );
     }
 
-    public function testMiddlewareExecutionOrder(): void
+    public function testForwardingPreservesFluentAndValueReturnsAndUnshadowsHttpMiddleware(): void
     {
-        $client = new ApiClient;
+        Http::fake(['https://example.test/test' => Http::response([])]);
 
-        OrderTrackingMiddleware::reset();
+        $pending = (new ApiClient)->createPendingRequest();
 
-        $pending = $client->withRequestMiddleware([
-            OrderTrackingMiddleware::class,
-            SecondOrderTrackingMiddleware::class,
+        $this->assertSame($pending, $pending->withOptions(['timeout' => 5]));
+        $this->assertSame(5, $pending->getOptions()['timeout']);
+
+        $pending
+            ->withOptions(['timeout' => 10])
+            ->withRequestMiddleware(
+                fn (RequestInterface $request): RequestInterface => $request->withHeader('X-Guzzle', 'yes')
+            )
+            ->get('https://example.test/test');
+
+        $this->assertSame(10, $pending->getOptions()['timeout']);
+        Http::assertSent(fn (Request $request) => $request->hasHeader('X-Guzzle', 'yes'));
+    }
+
+    public function testDefaultResponsesDoNotThrowAndThrowRemainsOptIn(): void
+    {
+        Http::fake([
+            'https://example.test/default' => Http::response(['error' => true], 500),
+            'https://example.test/throw' => Http::response(['error' => true], 500),
         ]);
 
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
+        $response = (new ApiClient)->get('https://example.test/default');
 
-        $this->assertEquals([1, 2], OrderTrackingMiddleware::$order);
-        OrderTrackingMiddleware::reset();
+        $this->assertSame(500, $response->status());
+
+        $this->expectException(RequestException::class);
+
+        (new ApiClient)->throw()->get('https://example.test/throw');
     }
 
-    public function testMiddlewareCanBeDisabled(): void
+    public function testAsyncIsRejectedBeforeTheHttpBuilderIsCreated(): void
     {
-        $client = new ApiClient;
+        $pending = new ApiClientInspectablePendingRequest;
 
-        $pending = $client
-            ->withRequestMiddleware([TestRequestMiddleware::class])
-            ->disableMiddleware();
+        try {
+            $pending->async();
+            $this->fail('Expected asynchronous dispatch to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'The API client does not support asynchronous requests.',
+                $exception->getMessage(),
+            );
+        }
 
-        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
-        $pending->get('https://example.test/test');
-
-        $this->assertFalse(TestRequestMiddleware::$called);
-        TestRequestMiddleware::reset();
+        $this->assertFalse($pending->clientWasCreated);
+        $this->assertSame($pending, $pending->async(false));
     }
 
-    public function testMiddlewareCanBeEnabled(): void
+    public function testCustomGuzzleClientIsRejectedBeforeTransportDispatch(): void
     {
-        $client = new ApiClient;
+        $transportInvocations = 0;
+        $client = new Client([
+            'handler' => function () use (&$transportInvocations): never {
+                ++$transportInvocations;
 
-        $pending = $client
-            ->withRequestMiddleware([TestRequestMiddleware::class])
-            ->disableMiddleware()
-            ->enableMiddleware();
-
-        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
-        $pending->get('https://example.test/test');
-
-        $this->assertTrue(TestRequestMiddleware::$called);
-        TestRequestMiddleware::reset();
-    }
-
-    public function testWithMiddlewareOptionsPassesOptionsToRequestMiddleware(): void
-    {
-        $client = new ApiClient;
-        $options = ['key' => 'value', 'timeout' => 30];
-
-        $pending = $client
-            ->withMiddlewareOptions($options)
-            ->withRequestMiddleware([RequestOptionsCheckingMiddleware::class]);
-
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
-
-        $this->assertEquals($options, RequestOptionsCheckingMiddleware::$receivedOptions);
-        RequestOptionsCheckingMiddleware::reset();
-    }
-
-    public function testWithMiddlewareOptionsPassesOptionsToResponseMiddleware(): void
-    {
-        $client = new ApiClient;
-        $options = ['key' => 'value', 'timeout' => 30];
-
-        $pending = $client
-            ->withMiddlewareOptions($options)
-            ->withResponseMiddleware([ResponseOptionsCheckingMiddleware::class]);
-
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
-
-        $this->assertEquals($options, ResponseOptionsCheckingMiddleware::$receivedOptions);
-        ResponseOptionsCheckingMiddleware::reset();
-    }
-
-    public function testMiddlewareIsCachedAcrossRequestsForSameClient(): void
-    {
-        $client = new ApiClient;
-
-        $pendingA = $client->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['https://example.test/test1' => Http::response('{"data": "test1"}')]);
-        $pendingA->get('https://example.test/test1');
-
-        $firstInstanceId = CachingTestMiddleware::$instanceId;
-
-        $pendingB = $client->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['https://example.test/test2' => Http::response('{"data": "test2"}')]);
-        $pendingB->get('https://example.test/test2');
-
-        $this->assertEquals($firstInstanceId, CachingTestMiddleware::$instanceId);
-        CachingTestMiddleware::reset();
-    }
-
-    public function testDifferentClientsDoNotShareMiddlewareCache(): void
-    {
-        $clientA = new ApiClient;
-        $clientB = new ApiClient;
-
-        $pendingA = $clientA->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['https://example.test/test1' => Http::response('{"data": "test1"}')]);
-        $pendingA->get('https://example.test/test1');
-
-        $firstInstanceId = CachingTestMiddleware::$instanceId;
-
-        $pendingB = $clientB->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['https://example.test/test2' => Http::response('{"data": "test2"}')]);
-        $pendingB->get('https://example.test/test2');
-
-        $this->assertNotEquals($firstInstanceId, CachingTestMiddleware::$instanceId);
-        CachingTestMiddleware::reset();
-    }
-
-    public function testMiddlewareCacheDoesNotLeakConfigAcrossClients(): void
-    {
-        $clientA = new FooApiClient([
-            'api_key' => 'first-key',
-            'base_url' => 'https://first.test',
-        ]);
-        $clientB = new FooApiClient([
-            'api_key' => 'second-key',
-            'base_url' => 'https://second.test',
-        ]);
-
-        ConfigRecordingMiddleware::reset();
-
-        Http::fake(['https://first.test' => Http::response('{"success": true}')]);
-        $clientA->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('https://first.test');
-
-        Http::fake(['https://second.test' => Http::response('{"success": true}')]);
-        $clientB->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('https://second.test');
-
-        $this->assertSame([
-            ['api_key' => 'first-key', 'base_url' => 'https://first.test'],
-            ['api_key' => 'second-key', 'base_url' => 'https://second.test'],
-        ], ConfigRecordingMiddleware::$receivedConfigs);
-        ConfigRecordingMiddleware::reset();
-    }
-
-    public function testInvalidMiddlewareClassThrowsException(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Middleware class `NonExistentMiddleware` does not exist');
-
-        $client = new ApiClient;
-        $pending = $client->withRequestMiddleware(['NonExistentMiddleware']);
-
-        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
-        $pending->get('https://example.test/test');
-    }
-
-    public function testRequestMiddlewarePipelineFlow(): void
-    {
-        $client = new ApiClient;
-
-        PipelineTestMiddleware::reset();
-
-        $pending = $client->withRequestMiddleware([
-            FirstPipelineMiddleware::class,
-            SecondPipelineMiddleware::class,
-        ]);
-
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
-
-        // Verify both middleware were called in correct order
-        $this->assertEquals(['first', 'second'], PipelineTestMiddleware::$calls);
-        PipelineTestMiddleware::reset();
-    }
-
-    public function testRequestMiddlewareAcceptsCallable(): void
-    {
-        $client = new ApiClient;
-        $called = false;
-
-        $pending = $client->withRequestMiddleware([
-            function (ApiRequest $request, callable $next) use (&$called): ApiRequest {
-                $called = true;
-
-                return $next($request->withHeader('X-Callable-Middleware', 'yes'));
+                throw new RuntimeException('The custom transport was invoked.');
             },
         ]);
 
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
+        try {
+            (new ApiClient)
+                ->setClient($client)
+                ->get('https://example.test/custom-client');
+            $this->fail('Expected custom Guzzle clients to be rejected.');
+        } catch (BadMethodCallException $exception) {
+            $this->assertSame(
+                'Custom Guzzle clients are not supported by the API client. Use setHandler() to configure a request-specific transport handler.',
+                $exception->getMessage(),
+            );
+        }
 
-        $this->assertTrue($called);
-        Http::assertSent(function (Request $request) {
-            return $request->header('X-Callable-Middleware')[0] === 'yes';
-        });
+        $this->assertSame(0, $transportInvocations);
     }
 
-    public function testRequestMiddlewareAcceptsObject(): void
+    public function testCustomHandlerPreservesApiMiddlewareAndResourceConstruction(): void
     {
-        $client = new ApiClient;
-        $middleware = new ObjectRequestMiddleware;
+        $middlewareRan = false;
+        Http::preventStrayRequests(false);
 
-        $pending = $client->withRequestMiddleware([$middleware]);
+        $resource = (new ApiClient)
+            ->setHandler(fn () => Http::response(['ok' => true]))
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$middlewareRan): ApiRequest {
+                $middlewareRan = true;
 
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
+                return $next($request);
+            })
+            ->get('https://example.test/custom-handler');
 
-        $this->assertTrue($middleware->called);
-        Http::assertSent(function (Request $request) {
-            return $request->header('X-Object-Middleware')[0] === 'yes';
-        });
+        $this->assertTrue($middlewareRan);
+        $this->assertInstanceOf(ApiResource::class, $resource);
+        $this->assertTrue($resource['ok']);
     }
 
-    public function testResponseMiddlewarePipelineFlow(): void
+    public function testOneBridgeRunsOncePerDispatchAndRetryAttempt(): void
     {
-        $client = new ApiClient;
-
-        PipelineTestMiddleware::reset();
-
-        $pending = $client->withResponseMiddleware([
-            FirstResponsePipelineMiddleware::class,
-            SecondResponsePipelineMiddleware::class,
+        $sequence = Http::sequence()
+            ->push(['attempt' => 1], 500)
+            ->push(['attempt' => 2]);
+        Http::fake([
+            'https://example.test/retry' => $sequence,
+            'https://example.test/again' => Http::response([]),
         ]);
+        $attempts = 0;
+        $pending = (new ApiClient)
+            ->withContext('tenant', 'tenant-1')
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$attempts): ApiRequest {
+                ++$attempts;
 
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $pending->get('https://example.test/test');
+                return $next($request->withContext('attempt', $attempts));
+            })
+            ->retry(2, 0);
 
-        // Verify both middleware were called in correct order
-        $this->assertEquals(['first-response', 'second-response'], PipelineTestMiddleware::$calls);
-        PipelineTestMiddleware::reset();
+        $resource = $pending->get('https://example.test/retry');
+
+        $this->assertSame(2, $attempts);
+        $this->assertSame(2, $resource->context('attempt'));
+        $this->assertSame('tenant-1', $resource->context('tenant'));
+
+        $pending->get('https://example.test/again');
+
+        $this->assertSame(3, $attempts);
     }
 
-    public function testMiddlewareReceivesClientConfig(): void
+    public function testBridgePreservesCallbackOrderingWithoutReorderingLaterCallbacks(): void
     {
-        $client = new FooApiClient($config = [
-            'api_key' => 'test-key',
-            'base_url' => 'https://api.test.com',
-        ]);
+        $order = [];
+        Http::fake(['https://example.test/*' => Http::response([])]);
+        $pending = (new ApiClient)
+            ->beforeSending(function (Request $request) use (&$order): RequestInterface {
+                $order[] = 'caller';
 
-        $pending = $client->withRequestMiddleware([ConfigCheckingMiddleware::class]);
+                return $request->toPsrRequest()->withHeader('X-Before', 'yes');
+            })
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$order): ApiRequest {
+                $order[] = $request->hasHeader('X-Before', 'yes') ? 'api' : 'api-missed-caller';
 
-        Http::fake(['https://api.test.com/test' => Http::response('{"success": true}')]);
-        $pending->get('https://api.test.com/test');
+                return $next($request);
+            });
 
-        $this->assertEquals($config, ConfigCheckingMiddleware::$receivedConfig?->toArray());
-        ConfigCheckingMiddleware::reset();
-    }
+        $pending->get('https://example.test/first');
 
-    public function testCombinedRequestAndResponseMiddleware(): void
-    {
-        $client = new ApiClient;
+        $this->assertSame(['caller', 'api'], $order);
 
-        $pending = $client
-            ->withRequestMiddleware([AddHeaderRequestMiddleware::class])
-            ->withResponseMiddleware([AddHeaderResponseMiddleware::class]);
+        $pending->beforeSending(function (Request $request) use (&$order): RequestInterface {
+            $order[] = 'late';
 
-        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
-        $response = $pending->get('https://example.test/test');
-
-        // Verify request middleware was applied
-        Http::assertSent(function (Request $request) {
-            return $request->hasHeader('X-Custom-Header')
-                && $request->header('X-Custom-Header')[0] === 'middleware-value';
+            return $request->toPsrRequest()->withHeader('X-Late', 'yes');
         });
+        $resource = $pending->get('https://example.test/second');
 
-        // Verify response middleware was applied
-        $this->assertTrue($response->hasHeader('X-Response-Header'));
-        $this->assertEquals(
-            'response-value',
-            $response->header('X-Response-Header')
+        $this->assertSame(['caller', 'api', 'caller', 'api', 'late'], $order);
+        $this->assertFalse($resource->getRequest()->hasHeader('X-Late'));
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/second'
+            && $request->hasHeader('X-Late', 'yes'));
+    }
+
+    public function testApiMiddlewareMutatesTheFinalRawHttpBody(): void
+    {
+        Http::fake(['https://example.test/raw' => Http::response([])]);
+
+        (new ApiClient)
+            ->withBody('{"existing":true}')
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next): ApiRequest {
+                return $next($request->mergeData(['added' => true]));
+            })
+            ->post('https://example.test/raw');
+
+        Http::assertSent(fn (Request $request) => $request->body() === '{"existing":true,"added":true}'
+            && $request->data() === ['existing' => true, 'added' => true]);
+    }
+
+    public function testApiMiddlewareMutatesTheBodyFromAnEarlierCallback(): void
+    {
+        Http::fake(['https://example.test/callback' => Http::response([])]);
+
+        (new ApiClient)
+            ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withBody(
+                Utils::streamFor('{"replaced":true}')
+            ))
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next): ApiRequest {
+                return $next($request->mergeData(['added' => true]));
+            })
+            ->post('https://example.test/callback', ['original' => true]);
+
+        Http::assertSent(fn (Request $request) => $request->body() === '{"replaced":true,"added":true}'
+            && $request->data() === ['replaced' => true, 'added' => true]);
+    }
+
+    public function testApiMiddlewareMutatesTheBodyFromGuzzleRequestMiddleware(): void
+    {
+        Http::fake(['https://example.test/guzzle' => Http::response([])]);
+
+        (new ApiClient)
+            ->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
+                Utils::streamFor('{"middleware":true}')
+            ))
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next): ApiRequest {
+                return $next($request->mergeData(['added' => true]));
+            })
+            ->post('https://example.test/guzzle', ['original' => true]);
+
+        Http::assertSent(fn (Request $request) => $request->body() === '{"middleware":true,"added":true}'
+            && $request->data() === ['middleware' => true, 'added' => true]);
+    }
+
+    public function testApiMiddlewarePreservesLogicalDataUntilItChangesTheBody(): void
+    {
+        $payload = ['whole_number_float' => 1.0];
+        $observedRequest = null;
+        Http::fake(['https://example.test/*' => Http::response([])]);
+
+        $resource = (new ApiClient)
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next): ApiRequest {
+                return $next($request->withHeader('X-Test', 'yes'));
+            })
+            ->post('https://example.test/header', $payload);
+
+        $this->assertSame($payload, $resource->getRequest()->data());
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/header'
+            && $request->data() === $payload);
+
+        (new ApiClient)
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next): ApiRequest {
+                return $next($request->mergeData(['added' => true]));
+            })
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$observedRequest): ApiRequest {
+                $observedRequest = [
+                    'data' => $request->data(),
+                    'body' => $request->body(),
+                    'content_length' => $request->header('Content-Length'),
+                ];
+
+                return $next($request);
+            })
+            ->post('https://example.test/body', $payload);
+
+        $expectedBody = '{"whole_number_float":1,"added":true}';
+        $this->assertSame([
+            'data' => ['whole_number_float' => 1.0, 'added' => true],
+            'body' => $expectedBody,
+            'content_length' => [(string) strlen($expectedBody)],
+        ], $observedRequest);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/body'
+            && $request->data() === ['whole_number_float' => 1, 'added' => true]);
+    }
+
+    public function testTransientRequestStateIsClearedAfterEveryFailureBoundary(): void
+    {
+        Http::fake([
+            'https://example.test/request' => Http::response([]),
+            'https://example.test/response' => Http::response([]),
+            'https://example.test/resource' => Http::response([]),
+            'https://example.test/transport' => Http::failedConnection('failed'),
+        ]);
+        $pending = new ApiClientInspectablePendingRequest;
+
+        $pending->withApiRequestMiddleware(fn (): never => throw new RuntimeException('request'));
+        try {
+            $pending->get('https://example.test/request');
+            $this->fail('Expected request middleware to fail.');
+        } catch (RuntimeException) {
+            $this->assertNull($pending->activeRequest());
+        }
+
+        $pending
+            ->replaceApiRequestMiddleware([])
+            ->withApiResponseMiddleware(fn (): never => throw new RuntimeException('response'));
+        try {
+            $pending->get('https://example.test/response');
+            $this->fail('Expected response middleware to fail.');
+        } catch (RuntimeException) {
+            $this->assertNull($pending->activeRequest());
+        }
+
+        $pending
+            ->replaceApiResponseMiddleware([])
+            ->withResource(ApiClientThrowingResource::class);
+        try {
+            $pending->get('https://example.test/resource');
+            $this->fail('Expected resource construction to fail.');
+        } catch (RuntimeException) {
+            $this->assertNull($pending->activeRequest());
+        }
+
+        $pending->withResource(ApiResource::class);
+        try {
+            $pending->get('https://example.test/transport');
+            $this->fail('Expected the transport to fail.');
+        } catch (ConnectionException) {
+            $this->assertNull($pending->activeRequest());
+        }
+    }
+
+    #[DataProvider('terminalProvider')]
+    public function testEveryTerminalReturnsTheConfiguredResource(string $terminal, array $arguments): void
+    {
+        Http::fake(['https://example.test/terminal' => Http::response([])]);
+
+        $resource = (new ApiClient)
+            ->withResource(PendingRequestTestResource::class)
+            ->{$terminal}(...$arguments);
+
+        $this->assertInstanceOf(PendingRequestTestResource::class, $resource);
+    }
+
+    public static function terminalProvider(): array
+    {
+        $url = 'https://example.test/terminal';
+
+        return [
+            'get' => ['get', [$url]],
+            'head' => ['head', [$url]],
+            'query' => ['query', [$url, []]],
+            'post' => ['post', [$url, []]],
+            'patch' => ['patch', [$url, []]],
+            'put' => ['put', [$url, []]],
+            'delete' => ['delete', [$url, []]],
+            'send' => ['send', ['OPTIONS', $url]],
+        ];
+    }
+
+    public function testOmittedGetAndHeadQueriesPreserveConfiguredParameters(): void
+    {
+        Http::fake(['https://example.test/*' => Http::response([])]);
+
+        (new ApiClient)
+            ->withQueryParameters(['configured' => 'yes'])
+            ->get('https://example.test/get');
+        (new ApiClient)
+            ->withQueryParameters(['configured' => 'yes'])
+            ->head('https://example.test/head');
+        (new ApiClient)
+            ->withQueryParameters(['configured' => 'yes'])
+            ->get('https://example.test/null', null);
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/get?configured=yes');
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/head?configured=yes');
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/null');
+    }
+
+    #[DataProvider('emptyJsonReadMethodProvider')]
+    public function testApiMiddlewareSeesEmptyDataForJsonReadRequestsWithoutABody(string $method): void
+    {
+        $observedData = null;
+        Http::fake(['https://example.test' => Http::response([])]);
+
+        (new ApiClient)
+            ->asJson()
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$observedData): ApiRequest {
+                $observedData = $request->data();
+
+                return $next($request);
+            })
+            ->{$method}('https://example.test');
+
+        $this->assertSame([], $observedData);
+    }
+
+    public static function emptyJsonReadMethodProvider(): array
+    {
+        return [
+            'GET' => ['get'],
+            'HEAD' => ['head'],
+        ];
+    }
+
+    public function testResourceSelectionAcceptsTheBaseAndSubclassesAndRejectsOtherClasses(): void
+    {
+        Http::fake(['https://example.test/*' => Http::response([])]);
+
+        $this->assertInstanceOf(
+            ApiResource::class,
+            (new ApiClient)->withResource(ApiResource::class)->get('https://example.test/base'),
         );
+        $this->assertInstanceOf(
+            PendingRequestTestResource::class,
+            (new ApiClient)->withResource(PendingRequestTestResource::class)->get('https://example.test/subclass'),
+        );
+
+        $this->expectException(InvalidArgumentException::class);
+
+        (new ApiClient)->withResource(self::class);
     }
 }
 
-// Test middleware classes
-class TestRequestMiddleware
+function apiClientCallableMiddleware(ApiRequest $request, callable $next): ApiRequest
 {
-    public static bool $called = false;
-
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        self::$called = true;
-        return $next($request);
-    }
-
-    public static function reset(): void
-    {
-        self::$called = false;
-    }
+    return $next($request->withHeader('X-Callable-String', 'yes'));
 }
 
-class AnotherRequestMiddleware
+class ApiClientStaticMiddleware
 {
-    public static bool $called = false;
-
-    public function __construct(protected ?array $config = null)
+    public static function handle(ApiRequest $request, callable $next): ApiRequest
     {
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        self::$called = true;
-        return $next($request);
-    }
-
-    public static function reset(): void
-    {
-        self::$called = false;
+        return $next($request->withHeader('X-Callable-Array', 'yes'));
     }
 }
 
-class TestResponseMiddleware
-{
-    public static bool $called = false;
-
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiResponse $response, callable $next): ApiResponse
-    {
-        self::$called = true;
-        return $next($response);
-    }
-
-    public static function reset(): void
-    {
-        self::$called = false;
-    }
-}
-
-class AnotherResponseMiddleware
-{
-    public static bool $called = false;
-
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiResponse $response, callable $next): ApiResponse
-    {
-        self::$called = true;
-        return $next($response);
-    }
-
-    public static function reset(): void
-    {
-        self::$called = false;
-    }
-}
-
-class AddHeaderRequestMiddleware
-{
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        $request = $request->withHeader('X-Custom-Header', 'middleware-value');
-        return $next($request);
-    }
-}
-
-class AddHeaderResponseMiddleware
-{
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiResponse $response, callable $next): ApiResponse
-    {
-        $response = $response->withHeader('X-Response-Header', 'response-value');
-        return $next($response);
-    }
-}
-
-class OrderTrackingMiddleware
-{
-    public static array $order = [];
-
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        self::$order[] = 1;
-        return $next($request);
-    }
-
-    public static function reset(): void
-    {
-        self::$order = [];
-    }
-}
-
-class SecondOrderTrackingMiddleware
-{
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        OrderTrackingMiddleware::$order[] = 2;
-        return $next($request);
-    }
-}
-
-class RequestOptionsCheckingMiddleware
-{
-    public static ?array $receivedOptions = null;
-
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        self::$receivedOptions = $request->context('options');
-        return $next($request);
-    }
-
-    public static function reset(): void
-    {
-        self::$receivedOptions = null;
-    }
-}
-
-class ResponseOptionsCheckingMiddleware
-{
-    public static ?array $receivedOptions = null;
-
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiResponse $response, callable $next): ApiResponse
-    {
-        self::$receivedOptions = $response->context('options');
-        return $next($response);
-    }
-
-    public static function reset(): void
-    {
-        self::$receivedOptions = null;
-    }
-}
-
-class CachingTestMiddleware
-{
-    public static ?string $instanceId = null;
-
-    private string $id;
-
-    public function __construct(protected ?array $config = null)
-    {
-        $this->id = uniqid('middleware_', true);
-        self::$instanceId = $this->id;
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        return $next($request);
-    }
-
-    public static function reset(): void
-    {
-        self::$instanceId = null;
-    }
-}
-
-class PipelineTestMiddleware
-{
-    public static array $calls = [];
-
-    public static function reset(): void
-    {
-        self::$calls = [];
-    }
-}
-
-class ObjectRequestMiddleware
+class ApiClientObjectMiddleware
 {
     public bool $called = false;
 
@@ -613,115 +547,106 @@ class ObjectRequestMiddleware
     {
         $this->called = true;
 
-        return $next($request->withHeader('X-Object-Middleware', 'yes'));
+        return $next($request->withHeader('X-Object', 'yes'));
     }
 }
 
-class FirstPipelineMiddleware
+class ApiClientMiddlewareDependency
 {
-    public function __construct(protected ?array $config = null)
+}
+
+class ApiClientInjectedMiddleware
+{
+    public function __construct(protected ApiClientMiddlewareDependency $dependency)
     {
     }
 
     public function handle(ApiRequest $request, callable $next): ApiRequest
     {
-        PipelineTestMiddleware::$calls[] = 'first';
-        return $next($request);
+        return $next(
+            $request
+                ->withHeader('X-Injected', 'yes')
+                ->withContext('dependency', $this->dependency)
+        );
     }
 }
 
-class SecondPipelineMiddleware
+class ApiClientInjectedResponseMiddleware
 {
-    public function __construct(protected ?array $config = null)
-    {
-    }
-
-    public function handle(ApiRequest $request, callable $next): ApiRequest
-    {
-        PipelineTestMiddleware::$calls[] = 'second';
-        return $next($request);
-    }
-}
-
-class FirstResponsePipelineMiddleware
-{
-    public function __construct(protected ?array $config = null)
+    public function __construct(protected ApiClientMiddlewareDependency $dependency)
     {
     }
 
     public function handle(ApiResponse $response, callable $next): ApiResponse
     {
-        PipelineTestMiddleware::$calls[] = 'first-response';
-        return $next($response);
+        return $next(
+            $response
+                ->withContext('dependency', $this->dependency)
+                ->withContext('phase', 'response')
+        );
     }
 }
 
-class SecondResponsePipelineMiddleware
+class ApiClientMiddlewareTracker
 {
-    public function __construct(protected ?array $config = null)
-    {
-    }
+    public array $autoSingletonInstances = [];
 
-    public function handle(ApiResponse $response, callable $next): ApiResponse
-    {
-        PipelineTestMiddleware::$calls[] = 'second-response';
-        return $next($response);
-    }
+    public array $transientInstances = [];
 }
 
-class ConfigCheckingMiddleware
+class ApiClientAutoSingletonMiddleware
 {
-    public static ?ConfigDataObject $receivedConfig = null;
-
-    public function __construct(protected ?ConfigDataObject $config = null)
+    public function __construct(protected ApiClientMiddlewareTracker $tracker)
     {
-        self::$receivedConfig = $config;
     }
 
     public function handle(ApiRequest $request, callable $next): ApiRequest
     {
-        return $next($request);
-    }
+        $this->tracker->autoSingletonInstances[] = $this;
 
-    public static function reset(): void
-    {
-        self::$receivedConfig = null;
+        return $next($request);
     }
 }
 
-class ConfigRecordingMiddleware
+class ApiClientTransientMiddleware
 {
-    public static array $receivedConfigs = [];
-
-    public function __construct(protected ?ConfigDataObject $config = null)
+    public function __construct(protected ApiClientMiddlewareTracker $tracker)
     {
-        self::$receivedConfigs[] = $config?->toArray();
     }
 
     public function handle(ApiRequest $request, callable $next): ApiRequest
     {
+        $this->tracker->transientInstances[] = $this;
+
         return $next($request);
     }
+}
 
-    public static function reset(): void
+class ApiClientInspectablePendingRequest extends PendingRequest
+{
+    public bool $clientWasCreated = false;
+
+    public function activeRequest(): ?ApiRequest
     {
-        self::$receivedConfigs = [];
+        return $this->activeRequest;
+    }
+
+    protected function getRequest(): HttpPendingRequest
+    {
+        $this->clientWasCreated = true;
+
+        return parent::getRequest();
     }
 }
 
-class ConfigDataObject extends DataObject
+class ApiClientThrowingResource extends ApiResource
 {
-    public function __construct(
-        public string $apiKey,
-        public string $baseUrl,
-    ) {
+    public static function make(ApiResponse $response, ApiRequest $request): static
+    {
+        throw new RuntimeException('resource');
     }
 }
 
-class FooApiClient extends ApiClient
+class PendingRequestTestResource extends ApiResource
 {
-    public function __construct(array $config = [])
-    {
-        $this->config = ConfigDataObject::make($config);
-    }
 }
