@@ -104,6 +104,9 @@ class PendingRequest
 
     protected ?ApiRequest $activeRequest = null;
 
+    /**
+     * Create a new pending API request instance.
+     */
     public function __construct(?Pipeline $pipeline = null)
     {
         $this->pipeline = $pipeline ?? Container::getInstance()->make(Pipeline::class);
@@ -191,6 +194,7 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): ApiResource
     {
@@ -204,8 +208,9 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
-    public function head(string $url, array|string|null $query = null): ApiResource
+    public function head(string $url, Arrayable|array|JsonSerializable|string|null $query = null): ApiResource
     {
         return func_num_args() === 1
             ? $this->sendRequest('head', $url)
@@ -217,6 +222,7 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function query(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
@@ -228,6 +234,7 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function post(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
@@ -239,6 +246,7 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function patch(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
@@ -250,6 +258,7 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function put(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
@@ -261,6 +270,7 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function delete(string $url, Arrayable|array|JsonSerializable $data = []): ApiResource
     {
@@ -272,6 +282,7 @@ class PendingRequest
      *
      * @return TResource
      * @throws ConnectionException|Throwable
+     * @throws InvalidArgumentException
      */
     public function send(string $method, string $url, array $options = []): ApiResource
     {

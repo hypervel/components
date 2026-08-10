@@ -18,6 +18,19 @@ class ApiClientTypeResource extends ApiResource
 {
 }
 
+class ApiClientTypeQuery implements JsonSerializable
+{
+    /**
+     * Serialize the query data.
+     *
+     * @return array{status: string}
+     */
+    public function jsonSerialize(): array
+    {
+        return ['status' => 'open'];
+    }
+}
+
 /**
  * @extends ApiClient<ApiClientTypeResource>
  */
@@ -41,6 +54,7 @@ assertType(HandlerStack::class, $pendingRequest->buildHandlerStack());
 assertType(ApiClientTypeResource::class, $client->get('/issues'));
 assertType(ApiClientTypeResource::class, $pendingRequest->get('/issues'));
 assertType(ApiClientTypeResource::class, $pendingRequest->head('/issues'));
+assertType(ApiClientTypeResource::class, $pendingRequest->head('/issues', new ApiClientTypeQuery));
 assertType(ApiClientTypeResource::class, $pendingRequest->query('/issues'));
 assertType(ApiClientTypeResource::class, $pendingRequest->post('/issues'));
 assertType(ApiClientTypeResource::class, $pendingRequest->patch('/issues'));

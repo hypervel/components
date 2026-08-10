@@ -19,6 +19,7 @@ use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
+use JsonSerializable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use RuntimeException;
@@ -479,6 +480,54 @@ class PendingRequestTest extends TestCase
         Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/get?configured=yes');
         Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/head?configured=yes');
         Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/null');
+    }
+
+    public function testHeadAcceptsRecursiveJsonSerializableQueryData(): void
+    {
+        Http::fake(['https://example.test/head*' => Http::response([])]);
+
+        (new ApiClient)->head('https://example.test/head', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return [
+                    'payload' => new class implements JsonSerializable {
+                        public function jsonSerialize(): mixed
+                        {
+                            return ['name' => 'Taylor'];
+                        }
+                    },
+                ];
+            }
+        });
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/head?payload%5Bname%5D=Taylor'
+            && $request->data() === ['payload' => ['name' => 'Taylor']]);
+    }
+
+    public function testApiMiddlewareReceivesNormalizedNestedFormData(): void
+    {
+        $observedData = null;
+        Http::fake(['https://example.test/form' => Http::response([])]);
+
+        (new ApiClient)
+            ->asForm()
+            ->withApiRequestMiddleware(function (ApiRequest $request, callable $next) use (&$observedData): ApiRequest {
+                $observedData = $request->data();
+
+                return $next($request);
+            })
+            ->post('https://example.test/form', [
+                'payload' => new class implements JsonSerializable {
+                    public function jsonSerialize(): mixed
+                    {
+                        return ['name' => 'Taylor'];
+                    }
+                },
+            ]);
+
+        $this->assertSame(['payload' => ['name' => 'Taylor']], $observedData);
+        Http::assertSent(fn (Request $request) => $request->body() === 'payload%5Bname%5D=Taylor'
+            && $request->data() === ['payload' => ['name' => 'Taylor']]);
     }
 
     #[DataProvider('emptyJsonReadMethodProvider')]

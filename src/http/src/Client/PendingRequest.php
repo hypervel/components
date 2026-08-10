@@ -730,6 +730,7 @@ class PendingRequest
      * Issue a GET request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
@@ -737,7 +738,7 @@ class PendingRequest
             'GET',
             $url,
             func_num_args() === 1 ? [] : [
-                'query' => $this->normalizeQuery($query),
+                'query' => $query,
             ]
         );
     }
@@ -746,8 +747,9 @@ class PendingRequest
      * Issue a HEAD request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
-    public function head(string $url, array|string|null $query = null): PromiseInterface|Response
+    public function head(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
         return $this->send(
             'HEAD',
@@ -762,6 +764,7 @@ class PendingRequest
      * Issue a QUERY request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function query(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -774,6 +777,7 @@ class PendingRequest
      * Issue a POST request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function post(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -786,6 +790,7 @@ class PendingRequest
      * Issue a PATCH request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function patch(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -798,6 +803,7 @@ class PendingRequest
      * Issue a PUT request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function put(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -810,6 +816,7 @@ class PendingRequest
      * Issue a DELETE request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function delete(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -832,6 +839,7 @@ class PendingRequest
      *
      * @throws Exception
      * @throws ConnectionException|Throwable
+     * @throws InvalidArgumentException
      */
     public function send(string $method, string $url, array $options = []): PromiseInterface|Response
     {
@@ -933,12 +941,26 @@ class PendingRequest
 
     /**
      * Parse the given HTTP options and set the appropriate additional options.
+     *
+     * @throws InvalidArgumentException
      */
     protected function parseHttpOptions(array $options): array
     {
         if (isset($options[$this->bodyFormat])) {
             if ($this->bodyFormat === 'multipart') {
-                $options[$this->bodyFormat] = $this->parseMultipartBodyFormat($options[$this->bodyFormat]);
+                $data = $options[$this->bodyFormat];
+
+                if ($data instanceof JsonSerializable) {
+                    $data = $data->jsonSerialize();
+                } elseif ($data instanceof Arrayable) {
+                    $data = $data->toArray();
+                }
+
+                if (! is_array($data)) {
+                    throw new InvalidArgumentException('HTTP multipart data must resolve to an array.');
+                }
+
+                $options[$this->bodyFormat] = $this->parseMultipartBodyFormat($data);
             } elseif ($this->bodyFormat === 'body') {
                 $options[$this->bodyFormat] = $this->pendingBody;
             }
@@ -1144,9 +1166,15 @@ class PendingRequest
 
         $data = $options[$this->bodyFormat] ?? $options['query'] ?? [];
 
+        if ($this->bodyFormat === 'multipart' && isset($options['multipart'])) {
+            return is_array($data) ? $this->normalizeMultipartOption($data) : [];
+        }
+
+        $data = $this->normalizeStructuredDataValue($data);
+
         $urlString = (new Stringable($url));
 
-        if (empty($data) && $method === 'GET' && $urlString->contains('?')) {
+        if (empty($data) && in_array($method, ['GET', 'HEAD'], true) && $urlString->contains('?')) {
             $data = (string) $urlString->after('?');
         }
 
@@ -1154,19 +1182,13 @@ class PendingRequest
             parse_str($data, $data);
         }
 
-        if ($data instanceof JsonSerializable) {
-            $data = $data->jsonSerialize();
-        }
-
-        if (is_array($data) && $this->bodyFormat === 'multipart') {
-            return $this->normalizeMultipartOption($data);
-        }
-
         return is_array($data) ? $data : [];
     }
 
     /**
      * Normalize the given request options.
+     *
+     * @throws InvalidArgumentException
      */
     protected function normalizeRequestOptions(array $options): array
     {
@@ -1177,10 +1199,24 @@ class PendingRequest
                 continue;
             }
 
-            if (($key === 'query' || $key === 'form_params') && is_array($value)) {
-                $options[$key] = $this->normalizeNonFiniteFloatValues(
-                    $this->normalizeRequestOptionValue($value)
-                );
+            if ($key === 'query') {
+                $options[$key] = $this->normalizeQuery($value);
+
+                if (is_array($options[$key])) {
+                    $options[$key] = $this->normalizeNonFiniteFloatValues($options[$key]);
+                }
+
+                continue;
+            }
+
+            if ($key === 'form_params') {
+                $options[$key] = $this->normalizeStructuredDataValue($value);
+
+                if (! is_array($options[$key])) {
+                    throw new InvalidArgumentException('HTTP form data must resolve to an array.');
+                }
+
+                $options[$key] = $this->normalizeNonFiniteFloatValues($options[$key]);
 
                 continue;
             }
@@ -1282,7 +1318,7 @@ class PendingRequest
                     continue;
                 }
 
-                $part[$key] = $this->normalizeRequestOptionValue($value);
+                $part[$key] = $this->normalizeStructuredDataValue($value);
 
                 if ($key === 'contents') {
                     if (is_array($part[$key])) {
@@ -1344,7 +1380,7 @@ class PendingRequest
      */
     protected function normalizeQuery(mixed $query): array|string|null
     {
-        $query = $this->normalizeQueryValue($query);
+        $query = $this->normalizeStructuredDataValue($query);
 
         if (! is_array($query) && ! is_string($query) && $query !== null) {
             throw new InvalidArgumentException('HTTP query data must resolve to an array, string, or null.');
@@ -1354,15 +1390,15 @@ class PendingRequest
     }
 
     /**
-     * Normalize nested query values.
+     * Normalize nested structured data values.
      */
-    protected function normalizeQueryValue(mixed $value): mixed
+    protected function normalizeStructuredDataValue(mixed $value): mixed
     {
         return match (true) {
-            is_array($value) => array_map(fn ($item) => $this->normalizeQueryValue($item), $value),
+            is_array($value) => array_map(fn ($item) => $this->normalizeStructuredDataValue($item), $value),
             $value instanceof Stringable => $value->toString(),
-            $value instanceof JsonSerializable => $this->normalizeQueryValue($value->jsonSerialize()),
-            $value instanceof Arrayable => $this->normalizeQueryValue($value->toArray()),
+            $value instanceof JsonSerializable => $this->normalizeStructuredDataValue($value->jsonSerialize()),
+            $value instanceof Arrayable => $this->normalizeStructuredDataValue($value->toArray()),
             default => $value,
         };
     }
@@ -1463,6 +1499,7 @@ class PendingRequest
     {
         return tap($handlerStack, function ($stack) {
             if ($this->middleware->isNotEmpty()) {
+                // Only middleware can replace the prepared body before callbacks run.
                 $stack->push($this->buildPreparedBodyHandler());
             }
 
@@ -1500,6 +1537,8 @@ class PendingRequest
                 $preparedBody = $options[self::PREPARED_BODY_OPTION] ?? $request->getBody();
                 $request = $this->runBeforeSendingCallbacks($request, $options);
 
+                // Direct stream mutation is a low-level escape hatch; only replacement
+                // streams invalidate structured data.
                 if ($request->getBody() !== $preparedBody) {
                     unset($options['hypervel_data']);
                 }

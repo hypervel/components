@@ -1029,6 +1029,57 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testCanSendNestedJsonSerializableFormData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asForm()->post('http://foo.com/form', [
+            'payload' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return ['name' => 'Taylor'];
+                }
+            },
+        ]);
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->body() === 'payload%5Bname%5D=Taylor'
+                && $request['payload']['name'] === 'Taylor';
+        });
+    }
+
+    public function testCanSendTopLevelJsonSerializableFormData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asForm()->post('http://foo.com/form', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return ['name' => 'Taylor'];
+            }
+        });
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->body() === 'name=Taylor'
+                && $request['name'] === 'Taylor';
+        });
+    }
+
+    public function testFormDataRejectsAJsonSerializableScalar(): void
+    {
+        $this->factory->fake();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTTP form data must resolve to an array.');
+
+        $this->factory->asForm()->post('http://foo.com/form', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return 'name=Taylor';
+            }
+        });
+    }
+
     #[DataProvider('methodsReceivingArrayableDataProvider')]
     public function testCanSendJsonSerializableData(string $method): void
     {
@@ -1095,6 +1146,27 @@ class HttpClientTest extends TestCase
             'post' => ['post'],
             'delete' => ['delete'],
         ];
+    }
+
+    public function testStructuredJsonValuesMatchTheTransmittedBody(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->post('http://foo.com/json', [
+            'serialized' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return 'json-value';
+                }
+            },
+            'arrayable' => new Fluent(['name' => 'Taylor']),
+        ]);
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->body() === '{"serialized":"json-value","arrayable":{"name":"Taylor"}}'
+                && $request['serialized'] === 'json-value'
+                && $request['arrayable'] === ['name' => 'Taylor'];
+        });
     }
 
     public function testCanSendJsonDataWithStringable()
@@ -1611,6 +1683,78 @@ class HttpClientTest extends TestCase
         });
     }
 
+    #[DataProvider('structuredMultipartDataProvider')]
+    public function testCanSendStructuredMultipartData(Arrayable|JsonSerializable $data): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', $data);
+
+        $this->factory->assertSent(function (Request $request) {
+            return str_contains($request->body(), 'name="name"')
+                && $request[0]['name'] === 'name'
+                && $request[0]['contents'] === 'Taylor';
+        });
+    }
+
+    public static function structuredMultipartDataProvider(): array
+    {
+        return [
+            'Arrayable' => [new Fluent(['name' => 'Taylor'])],
+            'JsonSerializable' => [new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return ['name' => 'Taylor'];
+                }
+            }],
+        ];
+    }
+
+    public function testMultipartDataRejectsAJsonSerializableScalar(): void
+    {
+        $this->factory->fake();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTTP multipart data must resolve to an array.');
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return 'name=Taylor';
+            }
+        });
+    }
+
+    public function testCanSendNestedJsonSerializableMultipartData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', [
+            'meta' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return ['name' => 'Taylor'];
+                }
+            },
+            [
+                'name' => 'fields',
+                'contents' => new class implements JsonSerializable {
+                    public function jsonSerialize(): mixed
+                    {
+                        return ['role' => 'admin'];
+                    }
+                },
+            ],
+        ]);
+
+        $this->factory->assertSent(function (Request $request) {
+            return str_contains($request->body(), 'name="meta[name]"')
+                && str_contains($request->body(), 'name="fields[role]"')
+                && $request[0]['contents'] === ['name' => 'Taylor']
+                && $request[1]['contents'] === ['role' => 'admin'];
+        });
+    }
+
     public function testCanSendMultipartDataWithBothSimplifiedAndExtendedParameters()
     {
         $this->factory->fake();
@@ -1936,6 +2080,25 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testWithQueryParametersNormalizesNestedJsonSerializableValues(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withQueryParameters([
+            'filter' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return 'active';
+                }
+            },
+        ])->get('https://laravel.com');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'https://laravel.com?filter=active'
+                && $request->query() === ['filter' => 'active'];
+        });
+    }
+
     public function testGetWithArrayQueryParam()
     {
         $this->factory->fake();
@@ -2005,6 +2168,30 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testHeadRecursivelyNormalizesJsonSerializableQueryData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->head('http://foo.com/head', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return [
+                    'payload' => new class implements JsonSerializable {
+                        public function jsonSerialize(): mixed
+                        {
+                            return ['name' => 'Taylor'];
+                        }
+                    },
+                ];
+            }
+        });
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/head?payload%5Bname%5D=Taylor'
+                && $request['payload']['name'] === 'Taylor';
+        });
+    }
+
     public function testGetAcceptsAStringFromJsonSerializableQueryData(): void
     {
         $this->factory->fake();
@@ -2049,6 +2236,18 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testMultipartGetWithStringQueryParam(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->get('http://foo.com/get', 'foo=bar');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/get?foo=bar'
+                && $request['foo'] === 'bar';
+        });
+    }
+
     public function testGetWithQuery()
     {
         $this->factory->fake();
@@ -2057,6 +2256,32 @@ class HttpClientTest extends TestCase
 
         $this->factory->assertSent(function (Request $request) {
             return $request->url() === 'http://foo.com/get?foo=bar&page=1'
+                && $request['foo'] === 'bar'
+                && $request['page'] === '1';
+        });
+    }
+
+    public function testMultipartGetWithUrlQuery(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->get('http://foo.com/get?foo=bar&page=1');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/get?foo=bar&page=1'
+                && $request['foo'] === 'bar'
+                && $request['page'] === '1';
+        });
+    }
+
+    public function testHeadWithUrlQuery(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->head('http://foo.com/head?foo=bar&page=1');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/head?foo=bar&page=1'
                 && $request['foo'] === 'bar'
                 && $request['page'] === '1';
         });
