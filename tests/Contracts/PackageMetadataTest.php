@@ -33,6 +33,7 @@ class PackageMetadataTest extends TestCase
             'monolog/monolog',
             'nesbot/carbon',
             'psr/container',
+            'psr/http-message',
             'psr/log',
             'psr/simple-cache',
             'symfony/http-kernel',

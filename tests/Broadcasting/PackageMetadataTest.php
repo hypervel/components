@@ -38,7 +38,7 @@ class PackageMetadataTest extends TestCase
 
         $this->assertSame($internalConstraint, $composer['require']['hypervel/routing']);
 
-        foreach (['psr/log', 'symfony/http-kernel'] as $dependency) {
+        foreach (['guzzlehttp/guzzle', 'psr/log', 'symfony/http-kernel'] as $dependency) {
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
