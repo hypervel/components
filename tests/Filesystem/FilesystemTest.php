@@ -6,9 +6,11 @@ namespace Hypervel\Tests\Filesystem;
 
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -575,18 +577,56 @@ class FilesystemTest extends TestCase
         (new Filesystem)->getRequire($this->tempDir . '/unknown-file.txt');
     }
 
-    public function testJsonReturnsDecodedJsonData()
+    public function testJsonReturnsDecodedJsonData(): void
     {
         file_put_contents($this->tempDir . '/file.json', '{"foo": "bar"}');
         $files = new Filesystem;
         $this->assertSame(['foo' => 'bar'], $files->json($this->tempDir . '/file.json'));
     }
 
-    public function testJsonReturnsNullIfJsonDataIsInvalid()
+    public function testJsonReturnsNullIfJsonDataIsInvalid(): void
     {
         file_put_contents($this->tempDir . '/file.json', '{"foo":');
         $files = new Filesystem;
         $this->assertNull($files->json($this->tempDir . '/file.json'));
+    }
+
+    public function testJsonReadsTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        file_put_contents($this->tempDir . '/file.json', Json::encode($value));
+
+        $this->assertSame($value, (new Filesystem)->json($this->tempDir . '/file.json'));
+    }
+
+    public function testJsonRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        file_put_contents(
+            $this->tempDir . '/file.json',
+            json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1)
+        );
+
+        $this->assertNull((new Filesystem)->json($this->tempDir . '/file.json'));
+    }
+
+    public function testJsonSupportsThrowingDecodeFlags(): void
+    {
+        file_put_contents($this->tempDir . '/file.json', '{"foo":');
+
+        $this->expectException(JsonException::class);
+
+        (new Filesystem)->json($this->tempDir . '/file.json', JSON_THROW_ON_ERROR);
     }
 
     public function testAppendAddsDataToFile()

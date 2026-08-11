@@ -18,9 +18,11 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use JsonException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
@@ -272,18 +274,67 @@ class FilesystemAdapterTest extends TestCase
         $this->assertNull($filesystemAdapter->get('file.txt'));
     }
 
-    public function testJsonReturnsDecodedJsonData()
+    public function testJsonReturnsDecodedJsonData(): void
     {
         $this->filesystem->write('file.json', '{"foo": "bar"}');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $this->assertSame(['foo' => 'bar'], $filesystemAdapter->json('file.json'));
     }
 
-    public function testJsonReturnsNullIfJsonDataIsInvalid()
+    public function testJsonReturnsNullIfJsonDataIsInvalid(): void
     {
         $this->filesystem->write('file.json', '{"foo":');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $this->assertNull($filesystemAdapter->json('file.json'));
+    }
+
+    public function testJsonReturnsNullIfFileIsMissing(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertNull($filesystemAdapter->json('missing.json'));
+    }
+
+    public function testJsonReadsTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->filesystem->write('file.json', Json::encode($value));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertSame($value, $filesystemAdapter->json('file.json'));
+    }
+
+    public function testJsonRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->filesystem->write(
+            'file.json',
+            json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1)
+        );
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertNull($filesystemAdapter->json('file.json'));
+    }
+
+    public function testJsonSupportsThrowingDecodeFlags(): void
+    {
+        $this->filesystem->write('file.json', '{"foo":');
+
+        $this->expectException(JsonException::class);
+
+        (new FilesystemAdapter($this->filesystem, $this->adapter))->json('file.json', JSON_THROW_ON_ERROR);
     }
 
     public function testJsonReturnsDecodedScalarData(): void
