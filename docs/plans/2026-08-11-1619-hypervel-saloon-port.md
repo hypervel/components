@@ -59,7 +59,7 @@ Keep Saloon's `Traits` convention throughout this port. Do not introduce a paral
 
 The package Composer file must declare every dependency it uses directly, including the required Hypervel components and PSR/Guzzle types referenced by source. Wire `Hypervel\Saloon\` into the root autoloader, add `hypervel/saloon` to root `replace`, and register the provider and facade alias in both Composer metadata locations. Saloon is optional and must not be added to `DefaultProviders`.
 
-The expected direct runtime set is `hypervel/cache`, `collections`, `conditionable`, `console`, `container`, `context`, `contracts`, `coroutine`, `events`, `filesystem`, `foundation`, `http`, `macroable`, `prompts`, `rate-limiter`, and `support`; `guzzlehttp/guzzle`, `guzzlehttp/psr7`, `psr/http-message`, `symfony/console`, `symfony/dom-crawler`, `symfony/finder`, `symfony/var-dumper`, `ext-dom`, `ext-mbstring`, and `ext-simplexml`. `foundation` owns the path helpers used by published config, while generator prompts, Symfony Console/Finder types, and multibyte string functions are used directly. Confirm the final set from actual imports and use Composer commands for root dependency changes; do not rely on transitive packages.
+The expected direct runtime set is `hypervel/cache`, `collections`, `conditionable`, `console`, `container`, `context`, `contracts`, `coroutine`, `events`, `filesystem`, `foundation`, `http`, `macroable`, `prompts`, `rate-limiter`, `reflection`, and `support`; `guzzlehttp/guzzle`, `guzzlehttp/psr7`, `psr/http-message`, `symfony/console`, `symfony/dom-crawler`, `symfony/finder`, `symfony/var-dumper`, `ext-dom`, `ext-mbstring`, and `ext-simplexml`. `foundation` owns the path helpers used by published config, `reflection` owns the closure-type inspection used by test assertions, and generator prompts, Symfony Console/Finder types, and multibyte string functions are used directly. Confirm the final set from actual imports and use Composer commands for root dependency changes; do not rely on transitive packages.
 
 Add:
 
@@ -81,7 +81,7 @@ Document these durable differences and their replacements in the guide. The READ
 - OAuth 1 is not included. OAuth 2 remains supported.
 - `authorizationUrl()` returns an object containing both the URL and state instead of `getAuthorizationUrl()` storing state on a mutable connector; `getState()` is removed.
 - Deprecated upstream APIs and compatibility shims are omitted, including `sendAndRetry`, the `with*Auth` shortcuts, deprecated facade response recording, `assertSentJson`, and deprecated paginator page accessors. Use `authenticate()`, `defaultAuth()`, normal mock callbacks, and `currentPage()`.
-- Custom response factories receive the wrapped Hypervel response through `fromResponse()` rather than rebuilding framework metadata from `fromPsrResponse()`.
+- Custom response factories receive the wrapped Hypervel response through `fromResponse()` rather than rebuilding framework metadata from `fromPsrResponse()`. `resolveResponseClass(Response $response)` receives a normal Saloon response, so a request or connector may select a response subclass from its status, headers, or body without another response-context abstraction.
 - Pool concurrency is a positive integer; callable concurrency policies and promise-returning APIs are not retained.
 - Pool response and exception handlers receive the result and iterable key; the removed aggregate-promise argument has no coroutine equivalent.
 - Response-detected rate limits return a cooldown duration from `resolveRateLimitCooldown()`. Cooldown detection records the response and never resends recursively; the normal connector/request retry policy remains authoritative, and any configured next attempt must pass the recorded cooldown first.
@@ -108,6 +108,8 @@ abstract class Connector implements SelfBuilding
 ```
 
 Apply the same pattern to `Request`. `build()` constructs the concrete subclass freshly while resolving its constructor dependencies; explicit application bindings still remain authoritative at the outer `make()` boundary. Direct `new` construction and Saloon's argument-forwarding `make()` API remain supported. A caller may reuse a connector, request, or authenticator deliberately, but container resolution must not turn it into worker-shared mutable state. `PendingRequest`, `Response`, middleware repositories, and body repositories are operation-owned and must never be stored on a worker singleton.
+
+`Request::__clone()` must clone every initialized mutable repository owned by the request: headers, query, config, delay, middleware pipeline, and body repository. `MiddlewarePipeline::__clone()` must in turn clone its internal pipelines. Do not recursively clone caller-supplied objects or stream resources stored inside those repositories, and do not clone the explicitly shared MockClient used to record pooled work. This makes paginator-created request clones independent without inventing a general object-graph copier.
 
 ### Manager and test state
 
@@ -148,6 +150,8 @@ Add a stateless `Hypervel\Saloon\Http\Sender` injected with `Hypervel\Http\Clien
 Connector instances cannot receive framework services through their normal user constructors, so `Connector::send()` resolves the canonical `saloon` manager once at the call boundary and delegates the operation. This is the only container fallback on the send path. The manager, sender, and the framework services they use all receive constructor injection and can be rebound by applications and tests. Pending requests receive the already-resolved cache/rate services from the manager; plugin traits must not perform repeated container lookups.
 
 `PendingRequest::config()` continues to accept real Guzzle transport options such as timeouts, redirects, proxy, TLS/certificates, streaming, and stats callbacks. Fail fast when it contains `headers`, `query`, `cookies`, `body`, `json`, `form_params`, `multipart`, `delay`, or `http_errors`: Saloon repositories and the manager own those values, and accepting a second source would make cache/fake identity contradict the transmitted request or bypass Saloon error handling. One internal validator owns this key set and checks the merged operation config after request middleware, the default connection before provider registration, and any connector-selected connection before use. Hypervel HTTP separately rejects handler, object-pool, transport-sharing, and connection-cap options outside registered connections. Do not silently strip or override an invalid placement.
+
+Port Saloon's HTTP method enum and add the standardized `QUERY` method from RFC 10008. It is a normal body-capable method on the existing send path; do not add method-specific transport, retry, or cache machinery.
 
 For each attempt, the sender must:
 
@@ -310,7 +314,7 @@ Hypervel HTTP continues to dispatch its own lower-level events and record real r
 
 ## Responses and data objects
 
-`Hypervel\Saloon\Http\Response` composes `Hypervel\Http\Client\Response`; it must not extend it because Saloon's header repository and other public signatures conflict with the framework response signatures. Delegate raw body/stream, status/reason, headers/cookies, transfer stats/effective URI, PSR response, close, file-save, and data-URL behavior to the wrapped response or its PSR body without duplicating transport metadata.
+`Hypervel\Saloon\Http\Response` composes `Hypervel\Http\Client\Response`; it must not extend it because Saloon's header repository and other public signatures conflict with the framework response signatures. Delegate raw body/stream, status/reason, headers/cookies, transfer stats/effective URI, PSR response, close, file-save, and data-URL behavior to the wrapped response or its PSR body without duplicating transport metadata. Expose the current wrapper through `getHttpResponse(): HypervelResponse`, including a lazily buffered replacement, so response subclass resolution never falls back to stale transport metadata.
 
 Keep response buffering lazy. `body()` delegates directly for a seekable stream. For a non-seekable stream, read its remaining contents once, replace the wrapped response through `withBufferedBody()`, and return the buffered value; every later body, stream, PSR, decode, cache, or middleware access then sees the same bytes.
 
@@ -334,6 +338,10 @@ public function json(string|int|null $key = null, mixed $default = null): mixed
 This accepts valid scalar JSON without assigning it to an array-typed property. Cache only the object/XML forms that the wrapped response does not cache. Use the PSR response's reason phrase instead of the upstream static status-code table.
 
 Custom responses use a typed `fromResponse(HypervelResponse $response, PendingRequest $pendingRequest, RequestInterface $request, ?Throwable $exception = null)` factory. Do not retain `fromPsrResponse()` as a misleading factory for a class that now requires Hypervel response metadata.
+
+Create the normal Saloon `Response` first, pass it to the request's `resolveResponseClass()` and then the connector's resolver, and return it directly when neither selects another class. When a custom `class-string<Response>` is selected, validate it and call its `fromResponse()` factory with the base response's current wrapped Hypervel response, pending request, PSR request, and exception. If a resolver reads a non-seekable body, the base wrapper's normal lazy buffering therefore remains authoritative for the selected subclass. This supports response-data-dependent subclasses with one extra wrapper allocation only on the custom-response path and no separate response-context abstraction. Preserve Saloon's status-specific request exceptions and include `BadRequestException` for HTTP 400 alongside the existing 401 and later mappings.
+
+Carry user-defined DTO types through static analysis without adding a runtime DTO contract. `Request` is `@template TDto`, and `PendingRequest` and `Response` carry the same template. `Connector::send()` maps `Request<TDto>` to `Response<TDto>`, while `Response::dto()` and `dtoOrFail()` return `TDto`; annotate every forwarding boundary so the template is not dropped. Internal and heterogeneous pool surfaces use `mixed` where one exact DTO type cannot be guaranteed. Users may return any value from `createDtoFromResponse()` and opt into object inference with `@extends Request<UserData>`; no base class, serializer, or DTO package is required. Add a `types/Saloon` fixture proving the complete request-to-DTO inference chain. Use a `Hypervel\Support\DataObject` subclass for one guide example, while stating explicitly that it is optional and that plain classes or any other DTO implementation work through the same method.
 
 ## Coroutine-native pool
 
@@ -424,6 +432,10 @@ Build authorization query strings without blanket `array_filter()`: valid falsey
 ## Fakes, fixtures, and assertions
 
 Port request matching, response sequences, closure responses, wildcard URL matching, mock response builders, recorded requests/responses, fixtures, redaction hooks, and non-deprecated assertions. The global facade and `MockClient::global()` both delegate to the coroutine-local manager state. Saloon fakes take precedence and populate Saloon's mocked flag, recordings, and assertions. A lower-level Hypervel HTTP fake still prevents transport and remains visible through HTTP's own recorder, but it does not pretend to be a Saloon `MockClient` response.
+
+An unmatched MockClient remains strict by default. Give it the familiar `preventStrayRequests(bool $prevent = true)` and `allowStrayRequests(?array $only = null)` controls: allowing null permits any unmatched request to continue through the normal cache/admission/send lifecycle, while an array permits only matching URL patterns. The manager owns this branch after the mock lookup; the response matcher returns a nullable fake and never returns a PendingRequest sentinel or widens the fake-response union. Document the array as `list<string>` and match it against the final logical URI.
+
+`assertSent()` closures may type their first parameter with a request class or class union. Filter recorded requests by those types before invoking the closure, using Hypervel's existing `ReflectsClosures` support; untyped callbacks retain their current behavior. Reflection occurs only when a test assertion runs, and no package-specific reflection parser or production-path work is added.
 
 Use a configured default fixture directory and safe nested fixture names. Replace upstream's broad normalization machinery with a direct relative-name contract: non-empty portable path segments containing letters, digits, `.`, `_`, `-`, `=`, or `&`, separated by `/`, with `.` and `..` rejected as whole segments. Convert `/` to the platform separator only after validation and append `.json`. This retains organized and query-derived names such as `pagination/per-page-limit=5&page=4` while rejecting absolute paths, backslashes, null bytes, and traversal. Deliberate symlinks inside a developer-owned fixture directory are not an untrusted-input boundary.
 
@@ -578,11 +590,11 @@ Generate into `App\Http\Integrations` by default and honor the configured path/n
 Write `src/docs/saloon.md` as a complete public guide, not a change log or implementation record. Cover:
 
 - installation, publishing, and package discovery;
-- connectors, dependency injection, requests, methods, endpoints, headers, query values, config, bodies, files, and the direct PSR-stream contract for custom body repositories;
+- connectors, dependency injection, requests, methods including `QUERY`, endpoints, headers, query values, config, bodies, files, and the direct PSR-stream contract for custom body repositories;
 - authentication and OAuth 2 state handling;
 - request/response/fatal middleware and plugin traits;
-- sending, responses, JSON/XML/DOM, DTOs, errors, retries, custom responses, and the credential exposure of raw debug output;
-- fakes, response sequences, fixtures, redaction, assertions, and stray-request prevention;
+- sending, responses, wrapped Hypervel response access, JSON/XML/DOM, typed user-defined DTOs, errors, retries, response-data-dependent custom responses, and the credential exposure of raw debug output;
+- fakes, partial fakes, response sequences, fixtures, redaction, typed assertions, and stray-request prevention;
 - bounded pools and context propagation;
 - cache duration/store/key/invalidation behavior, buffering, and the cache-plus-sink restriction;
 - API pagination and why it is separate from view pagination;
@@ -597,9 +609,9 @@ Use examples that compile against the final API. Avoid internal implementation l
 
 1. **Inventory and skeleton.** Rebuild the source/test inventories from all five upstream packages. Create one implementation checklist entry per source and test file, marking each as port, merge, adapt, or deliberately omitted with its replacement. Add package/root Composer wiring through Composer commands for resolved dependencies, then the provider/config/facade skeleton.
 2. **HTTP owner fixes.** Correct named-connection handler options, post-mutation body preparation, nullable raw-body content types, response-body buffering, tests, and HTTP docs first so the Saloon sender can rely on the final transport contract.
-3. **Core values and repositories.** Port enums, contracts, exceptions, data values, header/query/config/body repositories, helpers still needed after framework substitutions, and authentication.
-4. **Core operation path.** Port Connector, Request, PendingRequest, Response, middleware, retry/error handling, plugin boot caching, SelfBuilding freshness, manager state, events, and the concrete Sender. Run each new/changed test file immediately.
-5. **Fakes and fixtures.** Port MockClient, fake/recorded responses, sequences, fixture storage/redaction, facade assertions, coroutine state, and test cleanup.
+3. **Core values and repositories.** Port enums (including `QUERY`), contracts, exceptions (including HTTP 400), data values, header/query/config/body repositories, helpers still needed after framework substitutions, and authentication.
+4. **Core operation path.** Port Connector, Request, PendingRequest, Response, middleware, retry/error handling, request-clone independence, response-data-dependent subclass selection, DTO generic propagation/type fixtures, plugin boot caching, SelfBuilding freshness, manager state, events, and the concrete Sender. Run each new/changed test file immediately.
+5. **Fakes and fixtures.** Port MockClient, strict and partial fake behavior, fake/recorded responses, sequences, fixture storage/redaction, typed facade assertions, coroutine state, and test cleanup.
 6. **OAuth 2.** Port grant flows and token models using immutable dates and the AuthorizationUrl state contract.
 7. **Pool.** Replace promise tests with bounded coroutine, context propagation, failure settlement, and non-coroutine entry tests.
 8. **Cache and pagination.** Port each module against Hypervel repositories/collections and the new pool, deleting replaced plugin drivers and promise code rather than leaving adapters.
@@ -617,9 +629,9 @@ Place unit/package tests under `tests/Saloon` and external HTTP tests under `tes
 
 Cover:
 
-- Connector/Request fresh unbound container resolution, constructor DI, honored explicit bindings, direct construction, and repeated sends that create independent pending state.
-- Property merge precedence, authentication, HTTP(S)-only base/endpoint joining, endpoint/repository query merging (duplicates, zero/false/empty-string names and values, valueless pairs, exact and nested-family overrides, literal bracket keys, plus/percent-encoded names, nested/Arrayable/JsonSerializable/Stringable/non-finite values), header normalization, body formats, structured JSON/form/query normalization, string `"0"`, empty/null streams, custom JSON flags, multipart boundaries/metadata/numeric normalization/defaults, one-time prepared-body identity across fake/cache/network paths, stream ownership, cookies, accepted transport options, rejected request-shaping/error options, TLS/certificates, base-URL override protection, final PSR middleware replacement, and one HTTP attempt per Saloon attempt.
-- Response delegation, scalar/array/object JSON, invalid JSON, seekable and lazily buffered non-seekable streams, retained framework response metadata, exception-safe path/resource export and ownership, reason/header/status helpers, custom responses, DTOs, exception chains, cached/mocked false resets, and XML/DOM.
+- Connector/Request fresh unbound container resolution, constructor DI, honored explicit bindings, direct construction, independent cloning of every initialized mutable request repository/pipeline, and repeated sends that create independent pending state.
+- Property merge precedence, authentication, all supported methods including body-bearing `QUERY`, HTTP(S)-only base/endpoint joining, endpoint/repository query merging (duplicates, zero/false/empty-string names and values, valueless pairs, exact and nested-family overrides, literal bracket keys, plus/percent-encoded names, nested/Arrayable/JsonSerializable/Stringable/non-finite values), header normalization, body formats, structured JSON/form/query normalization, string `"0"`, empty/null streams, custom JSON flags, multipart boundaries/metadata/numeric normalization/defaults, one-time prepared-body identity across fake/cache/network paths, stream ownership, cookies, accepted transport options, rejected request-shaping/error options, TLS/certificates, base-URL override protection, final PSR middleware replacement, and one HTTP attempt per Saloon attempt.
+- Response delegation and current wrapped-response access, scalar/array/object JSON, invalid JSON, seekable and lazily buffered non-seekable streams, retained framework response metadata, exception-safe path/resource export and ownership, reason/header/status helpers, response-data-dependent custom response selection (including a resolver that buffers a non-seekable body before selecting a subclass), HTTP 400 exception mapping, DTO runtime behavior and static type inference, exception chains, cached/mocked false resets, and XML/DOM.
 - Request/response debugging order, one PSR-hook invocation, custom callbacks, seekable-position preservation, non-consuming request-stream markers, buffered non-seekable response bodies, raw-output credential warning, and the direct-exit path in an isolated subprocess with no process-global test hook.
 - Middleware ordering/names/replacement, fixed terminal-phase ordering after ordinary request middleware, plugin boot order/inheritance, cached metadata, global boot middleware, listener guards, retries/backoff, per-attempt rematerialization after seekable prepared/final-hook stream and multipart restoration, non-seekable retry rejection, and `Sleep` fakes.
 - Saloon sending/sent events exactly once for sender, fake, and cache-hit responses; real Hypervel HTTP event/Telescope visibility without duplicate Saloon instrumentation on short-circuit paths.
@@ -636,6 +648,7 @@ Cover:
 ### Pool
 
 - Concurrency never exceeds the configured bound, including a large lazy generator.
+- Pooled pagination clones requests whose query, headers, config, delay, middleware, and body repositories were initialized before pagination without sharing later mutations.
 - Direct iterables and connector-aware producers accept only Request items; input keys are retained, response/exception callbacks receive the correct key, all children join, and partial responses/failures are exposed.
 - The no-handler path throws after settlement; the handler path returns successful keys; callback failures are preserved separately from send failures.
 - A lazy producer or scheduler failure still joins every started child and remains available with partial responses and any child failures.
@@ -644,7 +657,7 @@ Cover:
 
 ### Fakes and fixtures
 
-- Exact/class/wildcard/callback matching, sequences, exhaustion, stray prevention, request recording, supported assertions, pooled recording, fake precedence over an existing cache entry, and the distinct Saloon-versus-HTTP fake recorders/flags.
+- Exact/class/wildcard/callback matching, sequences, exhaustion, strict unmatched behavior, reversible all/URL-limited partial fakes through `preventStrayRequests()` / `allowStrayRequests()`, normal cache/network continuation for permitted unmatched requests, request recording, class- and union-typed assertion callbacks, pooled recording, fake precedence over an existing cache entry, and the distinct Saloon-versus-HTTP fake recorders/flags.
 - Nested and query-derived valid fixture names, rejected traversal/absolute/backslash/dot-segment names, atomic writes, missing behavior, redaction, merge/through hooks, and parallel temp-directory isolation. Saloon fakes and cache hits must not populate or refresh cache entries.
 
 ### OAuth 2 and security
@@ -668,6 +681,10 @@ Cover:
 - Fixed/sliding/leaky/unlimited policies through Saloon, store selection, resource/key scoping, callback-policy rejection, threshold-free atomic admission, multiple policy order, denied exceptions, waiting with `Sleep`, fake/cache bypass, and no network call before admission.
 - Retry-After seconds/date/invalid/past values, resource/tenant cooldown keys, provider-specific cooldown detection, shared 429 cooldown, cooldown-before-admission ordering, no cooldown-recursive resend, explicit retries passing through the recorded cooldown, and next-operation wait/fail behavior.
 - Cooldown contract tests across worker-array, database, Redis, and Swoole stores: stable identity, atomic max extension, concurrent blocks, authoritative clocks, overflow, inspect, expiry, clear, and pruning.
+
+### Static analysis
+
+- `types/Saloon` assertions proving `Request<TDto>` flows through `Connector::send()` and `Response<TDto>` to `dto()` / `dtoOrFail()` without changing runtime behavior.
 
 ### Package and console
 
