@@ -17,6 +17,7 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
@@ -1616,7 +1617,7 @@ class TestResponse implements ArrayAccess
     {
         $content = $this->content();
 
-        if (json_validate($content)) {
+        if (Json::validate($content)) {
             $this->ddJson($key);
         }
 
@@ -1648,10 +1649,11 @@ class TestResponse implements ArrayAccess
     {
         $content = $this->getContent();
 
-        $json = json_decode($content);
-
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $content = $json;
+        try {
+            // Keep debugging output object-shaped like Laravel's native decode.
+            $content = Json::decode($content, assoc: false);
+        } catch (JsonException) {
+            // Invalid response bodies are still useful when dumped verbatim.
         }
 
         if (! is_null($key)) {
