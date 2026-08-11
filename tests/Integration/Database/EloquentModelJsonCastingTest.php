@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentModelJsonCastingTest;
 
+use ArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsEnumArrayObject;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Collection;
@@ -22,6 +25,7 @@ class EloquentModelJsonCastingTest extends DatabaseTestCase
             $table->json('array_as_json_field')->nullable();
             $table->json('object_as_json_field')->nullable();
             $table->json('collection_as_json_field')->nullable();
+            $table->text('malformed_json_field')->nullable();
         });
     }
 
@@ -71,6 +75,30 @@ class EloquentModelJsonCastingTest extends DatabaseTestCase
         $this->assertInstanceOf(Collection::class, $user->collection_as_json_field);
         $this->assertSame('value1', $user->collection_as_json_field->get('key1'));
     }
+
+    public function testValidAssignmentsCanReplaceMalformedStoredJson(): void
+    {
+        $casts = [
+            'array' => ['value' => ['key' => 'value'], 'stored' => '{"key":"value"}'],
+            'object' => ['value' => (object) ['key' => 'value'], 'stored' => '{"key":"value"}'],
+            AsArrayObject::class => ['value' => new ArrayObject(['key' => 'value']), 'stored' => '{"key":"value"}'],
+            AsEnumArrayObject::of(JsonCastStatus::class) => ['value' => [JsonCastStatus::Ready], 'stored' => '["ready"]'],
+        ];
+
+        foreach ($casts as $cast => $replacement) {
+            $id = JsonCast::query()->insertGetId(['malformed_json_field' => '{invalid']);
+            $model = JsonCast::query()->findOrFail($id)->mergeCasts(['malformed_json_field' => $cast]);
+
+            $model->malformed_json_field = $replacement['value'];
+
+            $this->assertTrue($model->isDirty('malformed_json_field'));
+            $this->assertTrue($model->save());
+            $this->assertSame(
+                $replacement['stored'],
+                JsonCast::query()->whereKey($id)->value('malformed_json_field'),
+            );
+        }
+    }
 }
 
 /**
@@ -79,6 +107,7 @@ class EloquentModelJsonCastingTest extends DatabaseTestCase
  * @property $array_as_json_field
  * @property $object_as_json_field
  * @property $collection_as_json_field
+ * @property $malformed_json_field
  */
 class JsonCast extends Model
 {
@@ -95,4 +124,9 @@ class JsonCast extends Model
         'object_as_json_field' => 'object',
         'collection_as_json_field' => 'collection',
     ];
+}
+
+enum JsonCastStatus: string
+{
+    case Ready = 'ready';
 }

@@ -45,6 +45,7 @@ use Hypervel\Support\Facades\Hash;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
+use JsonException;
 use LogicException;
 use ReflectionClass;
 use ReflectionMethod;
@@ -1161,11 +1162,11 @@ trait HasAttributes
     {
         [$key, $path] = explode('->', $key, 2);
 
-        $value = $this->asJson($this->getArrayAttributeWithValue(
+        $value = $this->castAttributeAsJson($key, $this->getArrayAttributeWithValue(
             $path,
             $key,
             $value
-        ), $this->getJsonCastFlags($key));
+        ));
 
         $this->attributes[$key] = $this->isEncryptedCastable($key)
             ? $this->castAttributeAsEncryptedString($key, $value)
@@ -2188,8 +2189,15 @@ trait HasAttributes
                 === $this->fromDateTime($original);
         }
         if ($this->hasCast($key, ['object', 'collection'])) {
-            return $this->fromJson($attribute)
-                === $this->fromJson($original);
+            $current = $this->fromJson($attribute);
+
+            try {
+                $original = $this->fromJson($original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->hasCast($key, ['real', 'float', 'double'])) {
             if ($original === null) {
@@ -2202,14 +2210,37 @@ trait HasAttributes
             return false;
         }
         if ($this->hasCast($key, static::$primitiveCastTypes)) {
-            return $this->castAttribute($key, $attribute)
-                === $this->castAttribute($key, $original);
+            $current = $this->castAttribute($key, $attribute);
+
+            try {
+                $original = $this->castAttribute($key, $original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->isClassCastable($key) && Str::startsWith($this->getCasts()[$key], [AsArrayObject::class, AsCollection::class])) {
-            return $this->fromJson($attribute) === $this->fromJson($original);
+            $current = $this->fromJson($attribute);
+
+            try {
+                $original = $this->fromJson($original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->isClassCastable($key) && Str::startsWith($this->getCasts()[$key], [AsEnumArrayObject::class, AsEnumCollection::class])) {
-            return $this->fromJson($attribute) === $this->fromJson($original);
+            $current = $this->fromJson($attribute);
+
+            try {
+                $original = $this->fromJson($original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->isClassCastable($key) && $original !== null && Str::startsWith($this->getCasts()[$key], [AsEncryptedArrayObject::class, AsEncryptedCollection::class])) {
             if (empty(static::currentEncrypter()->getPreviousKeys())) {
