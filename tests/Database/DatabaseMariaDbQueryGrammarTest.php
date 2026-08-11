@@ -7,10 +7,19 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Grammars\MariaDbGrammar;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 
 class DatabaseMariaDbQueryGrammarTest extends TestCase
 {
+    public function testUpdateBindingsRejectUnencodableArrays(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new MariaDbGrammar(m::mock(Connection::class)))
+            ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
+    }
+
     public function testToRawSql()
     {
         $connection = m::mock(Connection::class);
