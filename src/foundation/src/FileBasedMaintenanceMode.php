@@ -6,6 +6,7 @@ namespace Hypervel\Foundation;
 
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Json;
 use RuntimeException;
 
 class FileBasedMaintenanceMode implements MaintenanceModeContract
@@ -21,7 +22,7 @@ class FileBasedMaintenanceMode implements MaintenanceModeContract
     {
         $this->files->replace(
             $this->path(),
-            json_encode($payload, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)
+            Json::encode($payload, JSON_PRETTY_PRINT)
         );
     }
 
@@ -52,7 +53,7 @@ class FileBasedMaintenanceMode implements MaintenanceModeContract
      */
     public function data(): array
     {
-        $data = json_decode($this->files->get($this->path()), true, flags: JSON_THROW_ON_ERROR);
+        $data = Json::decode($this->files->get($this->path()));
 
         if (! is_array($data)) {
             throw new RuntimeException('The maintenance mode file does not contain a valid payload.');
