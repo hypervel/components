@@ -40,6 +40,10 @@ class PackageMetadataTest extends TestCase
         $this->assertSame('^0.4', $composer['require']['hypervel/di']);
         $this->assertArrayHasKey('hypervel/di', $rootComposer['replace']);
         $this->assertSame('self.version', $rootComposer['replace']['hypervel/di']);
+        $this->assertArrayHasKey('hypervel/concurrency', $composer['require']);
+        $this->assertSame('^0.4', $composer['require']['hypervel/concurrency']);
+        $this->assertArrayHasKey('hypervel/concurrency', $rootComposer['replace']);
+        $this->assertSame('self.version', $rootComposer['replace']['hypervel/concurrency']);
         $this->assertArrayNotHasKey('brianium/paratest', $composer['suggest'] ?? []);
     }
 

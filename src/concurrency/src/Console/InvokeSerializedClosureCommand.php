@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Console;
+namespace Hypervel\Concurrency\Console;
 
 use Error;
 use Exception;
@@ -53,6 +53,7 @@ class InvokeSerializedClosureCommand extends Command
 
                 if ($parameters !== null) {
                     // Named arguments must survive JSON without changing types or nested state.
+                    // This subtree is one container shallower than the envelope decoded at native depth 513.
                     $encodedParameters = json_encode($parameters, self::JSON_FLAGS);
 
                     if (json_decode($encodedParameters, true, 512, JSON_THROW_ON_ERROR) !== $parameters) {
