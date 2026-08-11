@@ -362,7 +362,7 @@ Update Testbench's `Foundation\PackageManifest` without weakening its typed boun
 - Keep `packagesToIgnore()` returning `[]`. Base installed discovery still applies package-owned ignores; Testbench's application/runtime ignores remain read-time behavior in `getManifest()`.
 - Malformed installed metadata fails before the root merge and manifest write, so no partial cache is published. Testbench's runtime filtering no longer hides corrupt installed metadata; record this intentional fail-loud behavior in the PR/change summary.
 
-The Testbench subprocess regression must use a scratch package root, call `Process::run()`, and assert nonzero status plus useful native failure text on stderr. Do not wrap the production exception merely to customize subprocess output.
+The Testbench subprocess regression must use a scratch package root, call `Process::run()`, and assert nonzero status plus useful native failure text across the process output streams. Do not wrap the production exception merely to customize subprocess output.
 
 ## File map
 
@@ -464,7 +464,7 @@ Run every changed/new test file immediately after editing it. Use small local de
 - Replace TestState's malformed-does-not-throw case with malformed root/installed fail-loud cases. Assert no registrar runs before failure, while missing files remain tolerated.
 - Testbench accepts an absent root package, preserves the formatted `testbench/example` root key, and rejects malformed syntax, scalar roots, empty/formatted-empty names, and invalid explicit `extra.hypervel` with the same package-shape rules as installed discovery.
 - Use a `ParallelTesting::tempDir('PackageManifestTest')` scratch root for Testbench's manifest output instead of a direct system-temp path, while retaining its committed read-only fixtures.
-- Package-tester subprocess coverage builds from a scratch package root, proves malformed metadata exits nonzero with the native error in stderr, and proves no manifest is published.
+- Package-tester subprocess coverage builds from a scratch package root, proves malformed metadata exits nonzero with the native error in the combined process output, and proves no manifest is published.
 
 ## Documentation, performance, and compatibility audit
 

@@ -93,7 +93,7 @@ class PackageManifestPackageTesterTest extends TestCase
         );
 
         $this->assertFalse($process->isSuccessful());
-        $this->assertStringContainsString('Syntax error', $process->getErrorOutput());
+        $this->assertStringContainsString('Syntax error', $this->processOutput($process));
         $this->assertFileDoesNotExist($this->manifestPath('malformed-root'));
     }
 
@@ -110,7 +110,7 @@ class PackageManifestPackageTesterTest extends TestCase
         $this->assertFalse($process->isSuccessful());
         $this->assertStringContainsString(
             "Composer metadata [{$this->packagePath}/composer.json] must contain an array.",
-            $process->getErrorOutput()
+            $this->processOutput($process)
         );
         $this->assertFileDoesNotExist($this->manifestPath('non-array-root'));
     }
@@ -126,7 +126,7 @@ class PackageManifestPackageTesterTest extends TestCase
         );
 
         $this->assertFalse($process->isSuccessful());
-        $this->assertStringContainsString('Syntax error', $process->getErrorOutput());
+        $this->assertStringContainsString('Syntax error', $this->processOutput($process));
         $this->assertFileDoesNotExist($this->manifestPath('malformed-installed'));
     }
 
@@ -142,7 +142,7 @@ class PackageManifestPackageTesterTest extends TestCase
         $process = $this->runManifest($manifestName, $env, $arguments);
         $manifestPath = $this->manifestPath($manifestName);
 
-        $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+        $this->assertTrue($process->isSuccessful(), $this->processOutput($process));
         $this->assertFileExists($manifestPath);
 
         /** @var array<string, mixed> $manifest */
@@ -178,6 +178,14 @@ class PackageManifestPackageTesterTest extends TestCase
         $process->run();
 
         return $process;
+    }
+
+    /**
+     * Get the process output from both streams.
+     */
+    private function processOutput(Process $process): string
+    {
+        return $process->getOutput() . $process->getErrorOutput();
     }
 
     /**
