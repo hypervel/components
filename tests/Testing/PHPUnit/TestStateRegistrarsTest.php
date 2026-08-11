@@ -10,6 +10,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\TestStateRegistrars;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -122,12 +123,39 @@ class TestStateRegistrarsTest extends TestCase
         $this->assertSame([], TestStateRegistrarRecorder::$calls);
     }
 
-    public function testMalformedComposerAndInstalledJsonDoNotThrow(): void
+    public function testMalformedRootComposerJsonFailsBeforeRegisteringPackageRegistrar(): void
     {
         $this->filesystem->put($this->basePath . '/composer.json', '{');
+        $this->writeInstalledPackages([
+            $this->package('vendor/package', [PackageTestStateRegistrar::class]),
+        ]);
+
+        try {
+            $this->makeRegistrars()->register();
+            $this->fail('Expected malformed root Composer metadata to stop registrar discovery.');
+        } catch (JsonException $exception) {
+            $this->assertSame('Syntax error', $exception->getMessage());
+        }
+
+        AfterEachTestCleanup::runCallbacks();
+
+        $this->assertSame([], TestStateRegistrarRecorder::$calls);
+    }
+
+    public function testMalformedInstalledJsonFailsBeforeRegisteringRootRegistrar(): void
+    {
+        $this->writeRootComposer([
+            'test-state' => [RootTestStateRegistrar::class],
+        ]);
         $this->filesystem->put($this->basePath . '/vendor/composer/installed.json', '{');
 
-        $this->makeRegistrars()->register();
+        try {
+            $this->makeRegistrars()->register();
+            $this->fail('Expected malformed installed Composer metadata to stop registrar discovery.');
+        } catch (JsonException $exception) {
+            $this->assertSame('Syntax error', $exception->getMessage());
+        }
+
         AfterEachTestCleanup::runCallbacks();
 
         $this->assertSame([], TestStateRegistrarRecorder::$calls);

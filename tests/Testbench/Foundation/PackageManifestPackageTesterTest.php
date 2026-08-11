@@ -15,26 +15,35 @@ use function Hypervel\Support\php_binary;
 
 class PackageManifestPackageTesterTest extends TestCase
 {
+    private Filesystem $filesystem;
+
     private string $manifestDirectory;
 
     private string $fixturePath;
+
+    private string $packagePath;
+
+    private string $tempDirectory;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->manifestDirectory = ParallelTesting::tempDir('PackageManifestPackageTesterTest');
+        $this->filesystem = new Filesystem;
         $this->fixturePath = __DIR__ . '/Fixtures/PackageManifest';
+        $this->tempDirectory = ParallelTesting::tempDir('PackageManifestPackageTesterTest');
+        $this->manifestDirectory = $this->tempDirectory . '/manifests';
+        $this->packagePath = $this->tempDirectory . '/package';
 
-        $files = new Filesystem;
-        $files->deleteDirectory($this->manifestDirectory);
-        $files->ensureDirectoryExists($this->manifestDirectory);
+        $this->filesystem->deleteDirectory($this->tempDirectory);
+        $this->filesystem->ensureDirectoryExists($this->manifestDirectory);
+        $this->filesystem->copyDirectory($this->fixturePath, $this->packagePath);
     }
 
     #[Override]
     protected function tearDown(): void
     {
-        (new Filesystem)->deleteDirectory($this->manifestDirectory);
+        $this->filesystem->deleteDirectory($this->tempDirectory);
 
         parent::tearDown();
     }
@@ -73,6 +82,54 @@ class PackageManifestPackageTesterTest extends TestCase
         $this->assertArrayHasKey('testbench/example', $manifest);
     }
 
+    #[Test]
+    public function itFailsForMalformedRootMetadataWithoutPublishingAManifest(): void
+    {
+        $this->filesystem->put($this->packagePath . '/composer.json', '{');
+
+        $process = $this->runManifest(
+            manifestName: 'malformed-root',
+            env: ['TESTBENCH_PACKAGE_TESTER' => '(true)'],
+        );
+
+        $this->assertFalse($process->isSuccessful());
+        $this->assertStringContainsString('Syntax error', $process->getErrorOutput());
+        $this->assertFileDoesNotExist($this->manifestPath('malformed-root'));
+    }
+
+    #[Test]
+    public function itFailsForNonArrayRootMetadataWithoutPublishingAManifest(): void
+    {
+        $this->filesystem->put($this->packagePath . '/composer.json', 'null');
+
+        $process = $this->runManifest(
+            manifestName: 'non-array-root',
+            env: ['TESTBENCH_PACKAGE_TESTER' => '(true)'],
+        );
+
+        $this->assertFalse($process->isSuccessful());
+        $this->assertStringContainsString(
+            "Composer metadata [{$this->packagePath}/composer.json] must contain an array.",
+            $process->getErrorOutput()
+        );
+        $this->assertFileDoesNotExist($this->manifestPath('non-array-root'));
+    }
+
+    #[Test]
+    public function itFailsForMalformedInstalledMetadataWithoutPublishingAManifest(): void
+    {
+        $this->filesystem->put($this->packagePath . '/vendor/composer/installed.json', '{');
+
+        $process = $this->runManifest(
+            manifestName: 'malformed-installed',
+            env: ['TESTBENCH_PACKAGE_TESTER' => '(true)'],
+        );
+
+        $this->assertFalse($process->isSuccessful());
+        $this->assertStringContainsString('Syntax error', $process->getErrorOutput());
+        $this->assertFileDoesNotExist($this->manifestPath('malformed-installed'));
+    }
+
     /**
      * Build the package manifest in a fresh PHP process.
      *
@@ -82,7 +139,27 @@ class PackageManifestPackageTesterTest extends TestCase
      */
     private function buildManifest(string $manifestName, array $env = [], array $arguments = []): array
     {
-        $manifestPath = $this->manifestDirectory . '/' . $manifestName . '.php';
+        $process = $this->runManifest($manifestName, $env, $arguments);
+        $manifestPath = $this->manifestPath($manifestName);
+
+        $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+        $this->assertFileExists($manifestPath);
+
+        /** @var array<string, mixed> $manifest */
+        $manifest = require $manifestPath;
+
+        return $manifest;
+    }
+
+    /**
+     * Run the package manifest builder in a fresh PHP process.
+     *
+     * @param array<string, false|string> $env
+     * @param array<int, string> $arguments
+     */
+    private function runManifest(string $manifestName, array $env = [], array $arguments = []): Process
+    {
+        $manifestPath = $this->manifestPath($manifestName);
 
         $process = new Process(
             command: [
@@ -92,16 +169,22 @@ class PackageManifestPackageTesterTest extends TestCase
                 ...$arguments,
             ],
             env: [
-                'TESTBENCH_WORKING_PATH' => $this->fixturePath,
+                'TESTBENCH_PACKAGE_ROOT' => $this->packagePath,
+                'TESTBENCH_WORKING_PATH' => $this->packagePath,
                 ...$env,
             ],
         );
 
-        $process->mustRun();
+        $process->run();
 
-        /** @var array<string, mixed> $manifest */
-        $manifest = require $manifestPath;
+        return $process;
+    }
 
-        return $manifest;
+    /**
+     * Get the generated manifest path.
+     */
+    private function manifestPath(string $manifestName): string
+    {
+        return $this->manifestDirectory . '/' . $manifestName . '.php';
     }
 }

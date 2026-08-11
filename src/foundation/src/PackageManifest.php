@@ -8,7 +8,9 @@ use Exception;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
+use Hypervel\Support\Json;
 use RuntimeException;
+use UnexpectedValueException;
 
 class PackageManifest
 {
@@ -189,40 +191,74 @@ class PackageManifest
      */
     public static function discoverInstalledPackages(Filesystem $files, string $vendorPath, array $baseIgnore): array
     {
-        $packages = [];
-
-        if ($files->exists($path = $vendorPath . '/composer/installed.json')) {
-            $installed = json_decode($files->get($path), true);
-
-            if (is_array($installed)) {
-                $installedPackages = $installed['packages'] ?? $installed;
-
-                if (is_array($installedPackages)) {
-                    $packages = $installedPackages;
-                }
-            }
+        if (in_array('*', $baseIgnore, true)) {
+            return [];
         }
 
+        $path = $vendorPath . '/composer/installed.json';
+
+        if (! $files->exists($path)) {
+            return [];
+        }
+
+        $installed = Json::decode($files->get($path));
+
+        if (! is_array($installed)) {
+            throw new UnexpectedValueException("Composer metadata [{$path}] must contain an array.");
+        }
+
+        $installedPackages = array_key_exists('packages', $installed)
+            ? $installed['packages']
+            : $installed;
+
+        if (! is_array($installedPackages)) {
+            throw new UnexpectedValueException("Composer metadata [{$path}] member [packages] must contain an array.");
+        }
+
+        $packages = [];
         $ignore = $baseIgnore;
 
-        return (new Collection($packages))->filter(function (mixed $package): bool {
-            return is_array($package) && is_string($package['name'] ?? null);
-        })->mapWithKeys(function (array $package) use ($vendorPath) {
-            $configuration = $package['extra']['hypervel'] ?? [];
+        foreach ($installedPackages as $index => $package) {
+            $location = "package [{$index}] in [{$path}]";
 
-            if (! is_array($configuration)) {
-                $configuration = [];
+            if (! is_array($package)) {
+                throw new UnexpectedValueException("Composer metadata {$location} must contain an array.");
             }
 
-            return [static::formatPackageName($package['name'], $vendorPath) => [
+            $name = static::packageName($package, $location, $vendorPath);
+
+            if (in_array($name, $baseIgnore, true)) {
+                continue;
+            }
+
+            $version = $package['version'] ?? null;
+
+            if (! is_null($version) && ! is_string($version)) {
+                throw new UnexpectedValueException(
+                    "Composer metadata package [{$name}] in [{$path}] member [version] must be a string or null."
+                );
+            }
+
+            $configuration = static::hypervelExtra($package, $location);
+
+            $packages[$name] = [
                 ...$configuration,
-                'version' => $package['version'] ?? null,
-            ]];
-        })->each(function (array $configuration) use (&$ignore) {
+                'version' => $version,
+            ];
+        }
+
+        foreach ($packages as $configuration) {
             $ignore = array_merge($ignore, (array) ($configuration['dont-discover'] ?? []));
-        })->reject(function (array $configuration, string $package) use ($ignore) {
-            return in_array('*', $ignore, true) || in_array($package, $ignore, true);
-        })->filter()->all();
+        }
+
+        $ignoreAll = in_array('*', $ignore, true);
+
+        return array_filter(
+            $packages,
+            fn (int|string $package): bool => ! $ignoreAll
+                && ! in_array((string) $package, $ignore, true),
+            ARRAY_FILTER_USE_KEY
+        );
     }
 
     /**
@@ -259,6 +295,48 @@ class PackageManifest
     }
 
     /**
+     * Get the formatted package name from Composer metadata.
+     */
+    protected static function packageName(array $package, string $location, string $vendorPath): string
+    {
+        $name = $package['name'] ?? null;
+
+        if (! is_string($name) || $name === '') {
+            throw new UnexpectedValueException(
+                "Composer metadata {$location} member [name] must be a non-empty string."
+            );
+        }
+
+        $formatted = static::formatPackageName($name, $vendorPath);
+
+        if ($formatted === '') {
+            throw new UnexpectedValueException("Composer metadata {$location} has an empty formatted package name.");
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * Get the Hypervel configuration from Composer metadata.
+     */
+    protected static function hypervelExtra(array $package, string $location): array
+    {
+        $extra = $package['extra'] ?? null;
+
+        if (! is_array($extra) || ! array_key_exists('hypervel', $extra)) {
+            return [];
+        }
+
+        if (! is_array($extra['hypervel'])) {
+            throw new UnexpectedValueException(
+                "Composer metadata {$location} member [extra.hypervel] must contain an array."
+            );
+        }
+
+        return $extra['hypervel'];
+    }
+
+    /**
      * Get the package names ignored by root composer metadata.
      *
      * @return array<int, string>
@@ -275,23 +353,19 @@ class PackageManifest
      */
     public static function rootHypervelExtra(Filesystem $files, string $basePath, string $key): mixed
     {
-        if (! $files->isFile($basePath . '/composer.json')) {
+        $path = $basePath . '/composer.json';
+
+        if (! $files->isFile($path)) {
             return null;
         }
 
-        $composer = json_decode($files->get(
-            $basePath . '/composer.json'
-        ), true);
+        $composer = Json::decode($files->get($path));
 
         if (! is_array($composer)) {
-            return null;
+            throw new UnexpectedValueException("Composer metadata [{$path}] must contain an array.");
         }
 
-        $hypervel = $composer['extra']['hypervel'] ?? null;
-
-        if (! is_array($hypervel)) {
-            return null;
-        }
+        $hypervel = static::hypervelExtra($composer, "root package in [{$path}]");
 
         return $hypervel[$key] ?? null;
     }

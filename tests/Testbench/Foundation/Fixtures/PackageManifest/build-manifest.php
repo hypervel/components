@@ -7,7 +7,8 @@ use Hypervel\Testbench\Foundation\PackageManifest;
 
 require dirname(__DIR__, 5) . '/vendor/autoload.php';
 
-$basePath = __DIR__;
+$packageRoot = getenv('TESTBENCH_PACKAGE_ROOT');
+$basePath = is_string($packageRoot) && $packageRoot !== '' ? $packageRoot : __DIR__;
 $manifestPath = $argv[1] ?? null;
 
 if (($argv[2] ?? null) === '--testbench-core' && ! defined('TESTBENCH_CORE')) {
