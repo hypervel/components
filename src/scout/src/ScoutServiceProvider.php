@@ -11,6 +11,7 @@ use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use Algolia\AlgoliaSearch\Support\AlgoliaAgent;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
@@ -25,7 +26,7 @@ use Hypervel\Support\ServiceProvider;
 use Meilisearch\Client as MeilisearchClient;
 use Typesense\Client as TypesenseClient;
 
-class ScoutServiceProvider extends ServiceProvider
+class ScoutServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register Scout services.
@@ -52,6 +53,23 @@ class ScoutServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
             $this->registerCommands();
+        }
+    }
+
+    /**
+     * Reload the worker configuration owned by the provider.
+     *
+     * Boot-only. Calling this while requests are running mutates shared worker
+     * state while concurrent coroutines may still use the previous configuration.
+     */
+    public function reloadConfiguration(): void
+    {
+        if ($this->app->resolved(EngineManager::class)) {
+            $this->app->make(EngineManager::class)->forgetEngines();
+        }
+
+        foreach ([AlgoliaSearchClient::class, MeilisearchClient::class, TypesenseClient::class] as $client) {
+            $this->app->forgetInstance($client);
         }
     }
 
