@@ -7,9 +7,8 @@ ARG PHP_VERSION
 ARG SWOOLE_VERSION
 ARG PIE_VERSION=1.4.9
 ARG PIE_CHECKSUM=19a31ddd4bfd08b9eb5eaad2e5f63e76e7919cae7683852da41c80da704ad6c0
-ARG SOURCE_REPOSITORY=hypervel/components
 
-LABEL org.opencontainers.image.source="https://github.com/${SOURCE_REPOSITORY}"
+LABEL org.opencontainers.image.source="https://github.com/hypervel/components"
 LABEL org.opencontainers.image.description="PHP ${PHP_VERSION} and Swoole ${SWOOLE_VERSION} test image for Hypervel components"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -52,7 +51,7 @@ RUN set -eux; \
 
 RUN set -eux; \
     pie_packages=(); \
-    if ! php -r 'exit(extension_loaded("redis") ? 0 : 1);'; then \
+    if ! php -r 'exit(extension_loaded("redis") && version_compare((string) phpversion("redis"), "6.3.0", ">=") ? 0 : 1);'; then \
         pie_packages+=(phpredis/phpredis); \
     fi; \
     if ! php -r 'exit(extension_loaded("imagick") ? 0 : 1);'; then \
@@ -81,7 +80,7 @@ RUN printf '%s\n' 'swoole.use_shortname=Off' > /usr/local/etc/php/conf.d/99-swoo
 RUN set -eux; \
     test "$(php -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;')" = "${PHP_VERSION}"; \
     test "$(php -r 'echo phpversion("swoole");')" = "${SWOOLE_VERSION}"; \
-    php -r '$extensions = ["bcmath", "ctype", "curl", "dom", "fileinfo", "filter", "gd", "gmp", "imagick", "intl", "mbstring", "openssl", "pcntl", "pdo", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "posix", "redis", "session", "sockets", "sqlite3", "swoole", "tokenizer", "zlib"]; foreach ($extensions as $extension) { if (! extension_loaded($extension)) { fwrite(STDERR, "Missing required extension: {$extension}\n"); exit(1); } } foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing required GD function: {$function}()\n"); exit(1); } } if (version_compare((string) phpversion("redis"), "6.1", "<")) { fwrite(STDERR, "Redis extension 6.1 or newer is required.\n"); exit(1); } if ((bool) ini_get("swoole.use_shortname")) { fwrite(STDERR, "Swoole short names must be disabled.\n"); exit(1); }'; \
+    php -r '$extensions = ["bcmath", "ctype", "curl", "dom", "fileinfo", "filter", "gd", "gmp", "imagick", "intl", "mbstring", "openssl", "pcntl", "pdo", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "posix", "redis", "session", "sockets", "sqlite3", "swoole", "tokenizer", "zlib"]; foreach ($extensions as $extension) { if (! extension_loaded($extension)) { fwrite(STDERR, "Missing required extension: {$extension}\n"); exit(1); } } foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing required GD function: {$function}()\n"); exit(1); } } if (version_compare((string) phpversion("redis"), "6.3.0", "<")) { fwrite(STDERR, "Redis extension 6.3.0 or newer is required for full integration coverage.\n"); exit(1); } if ((bool) ini_get("swoole.use_shortname")) { fwrite(STDERR, "Swoole short names must be disabled.\n"); exit(1); }'; \
     composer --version --no-ansi; \
     git --version; \
     ps --version

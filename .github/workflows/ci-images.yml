@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 0.4
-      - feature/image
     paths:
       - .github/docker/ci/Dockerfile
       - .github/workflows/ci-images.yml
@@ -22,6 +21,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.repository == 'hypervel/components'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -53,7 +53,6 @@ jobs:
           docker build \
             --pull \
             --build-arg PHP_VERSION=${{ matrix.php }} \
-            --build-arg SOURCE_REPOSITORY=${{ github.repository }} \
             --tag "$IMAGE" \
             --file .github/docker/ci/Dockerfile \
             .github/docker/ci
