@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
+ * @method static bool supportsUserSessionManagement()
+ * @method static \Hypervel\Session\UserSessions forUser(\Hypervel\Contracts\Auth\Authenticatable|string|int $user, \UnitEnum|string|null $guard = null)
  * @method static bool shouldBlock()
  * @method static string|null blockDriver()
  * @method static int defaultRouteBlockLockSeconds()

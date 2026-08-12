@@ -4,23 +4,28 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\RedisStore;
-use Hypervel\Cache\Repository as CacheRepository;
+use BadMethodCallException;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Session\CacheBasedSessionHandler;
+use Hypervel\Foundation\Auth\User as FoundationUser;
+use Hypervel\Session\Contracts\CanManageUserSessions;
 use Hypervel\Session\DatabaseSessionHandler;
 use Hypervel\Session\EncryptedStore;
+use Hypervel\Session\RedisSessionHandler;
 use Hypervel\Session\SessionManager;
 use Hypervel\Session\Store;
+use Hypervel\Session\UserSessions;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use SessionHandlerInterface;
 
@@ -66,59 +71,28 @@ class SessionManagerTest extends TestCase
 
     public function testRedisDriverDefaultsToSessionConnectionWhenUnset(): void
     {
-        $store = m::mock(RedisStore::class);
-        $store->shouldReceive('setConnection')->once()->with('session');
-        $store->shouldReceive('setPrefix')->once()->with('application_session:');
-
-        $repository = new CacheRepository($store);
-
-        $cacheManager = m::mock();
-        $cacheManager->shouldReceive('store')->with('redis')->andReturn($repository);
-
         $container = $this->getContainer([
             'session.driver' => 'redis',
             'session.connection' => null,
-            'session.store' => null,
             'session.lifetime' => 120,
             'session.cookie' => 'session',
             'session.encrypt' => false,
             'session.serialization' => 'php',
             'session.prefix' => 'application_session:',
+            'session.track_user_sessions' => false,
         ]);
-
-        $container->instance('cache', $cacheManager);
+        $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
 
         $sessionStore = (new SessionManager($container))->driver();
+        $handler = $this->handlerFromStore($sessionStore);
 
         $this->assertInstanceOf(Store::class, $sessionStore);
-    }
-
-    public function testCacheBackedSessionsPreserveZeroStoreAndEmptyFallback(): void
-    {
-        foreach ([['0', '0'], ['', 'redis']] as [$configuredStore, $expectedStore]) {
-            $store = m::mock(RedisStore::class);
-            $store->shouldReceive('setConnection')->once()->with('session');
-
-            $cacheManager = m::mock();
-            $cacheManager->shouldReceive('store')
-                ->once()
-                ->with($expectedStore)
-                ->andReturn(new CacheRepository($store));
-
-            $container = $this->getContainer([
-                'session.driver' => 'redis',
-                'session.connection' => null,
-                'session.store' => $configuredStore,
-                'session.lifetime' => 120,
-                'session.cookie' => 'session',
-                'session.encrypt' => false,
-                'session.serialization' => 'php',
-                'session.prefix' => null,
-            ]);
-            $container->instance('cache', $cacheManager);
-
-            $this->assertInstanceOf(Store::class, (new SessionManager($container))->driver());
-        }
+        $this->assertInstanceOf(RedisSessionHandler::class, $handler);
+        $this->assertSame('session', $this->propertyFromObject($handler, 'connection'));
+        $this->assertSame('application_session:', $this->propertyFromObject($handler, 'prefix'));
+        $this->assertSame(120, $this->propertyFromObject($handler, 'minutes'));
+        $this->assertFalse($this->propertyFromObject($handler, 'trackUserSessions'));
+        $this->assertFalse($container->bound('cache'));
     }
 
     public function testExplicitSessionConnectionOverridesBothDrivers(): void
@@ -140,98 +114,241 @@ class SessionManagerTest extends TestCase
             $this->databaseConnectionFromHandler($this->handlerFromStore($databaseStore))
         );
 
-        $redisStore = m::mock(RedisStore::class);
-        $redisStore->shouldReceive('setConnection')->once()->with('custom-session');
-
-        $repository = new CacheRepository($redisStore);
-
-        $cacheManager = m::mock();
-        $cacheManager->shouldReceive('store')->with('redis')->andReturn($repository);
-
         $container = $this->getContainer([
             'session.driver' => 'redis',
             'session.connection' => 'custom-session',
-            'session.store' => null,
-            'session.lifetime' => 120,
-            'session.cookie' => 'session',
-            'session.encrypt' => false,
-            'session.serialization' => 'php',
-            'session.prefix' => null,
-        ]);
-
-        $container->instance('cache', $cacheManager);
-
-        $this->assertInstanceOf(Store::class, (new SessionManager($container))->driver());
-    }
-
-    public function testRedisDriverAppliesSessionPrefixWithoutMutatingSharedCacheStore(): void
-    {
-        foreach ([
-            ['custom:', 'custom:'],
-            ['0', '0'],
-            [null, 'cache:'],
-            ['', 'cache:'],
-        ] as [$configuredPrefix, $expectedPrefix]) {
-            $redis = m::mock(RedisFactory::class);
-            $sharedStore = new RedisStore($redis, 'cache:', 'cache');
-            $repository = new CacheRepository($sharedStore);
-            $cacheManager = m::mock();
-            $cacheManager->shouldReceive('store')->once()->with('redis')->andReturn($repository);
-
-            $container = $this->getContainer([
-                'session.driver' => 'redis',
-                'session.connection' => 'session',
-                'session.store' => null,
-                'session.lifetime' => 120,
-                'session.cookie' => 'session',
-                'session.encrypt' => false,
-                'session.serialization' => 'php',
-                'session.prefix' => $configuredPrefix,
-            ]);
-            $container->instance('cache', $cacheManager);
-
-            $sessionStore = (new SessionManager($container))->driver();
-            $handler = $this->handlerFromStore($sessionStore);
-
-            $this->assertInstanceOf(CacheBasedSessionHandler::class, $handler);
-
-            $sessionRedisStore = $handler->getCache()->getStore();
-
-            $this->assertInstanceOf(RedisStore::class, $sessionRedisStore);
-            $this->assertNotSame($sharedStore, $sessionRedisStore);
-            $this->assertSame($expectedPrefix, $sessionRedisStore->getPrefix());
-            $this->assertSame('session', $this->redisConnectionFromStore($sessionRedisStore));
-            $this->assertSame('cache:', $sharedStore->getPrefix());
-            $this->assertSame('cache', $this->redisConnectionFromStore($sharedStore));
-        }
-    }
-
-    public function testRedisDriverRejectsNonRedisCacheStore(): void
-    {
-        $cacheManager = m::mock();
-        $cacheManager->shouldReceive('store')
-            ->once()
-            ->with('array')
-            ->andReturn(new CacheRepository(new ArrayStore));
-
-        $container = $this->getContainer([
-            'session.driver' => 'redis',
-            'session.connection' => null,
-            'session.store' => 'array',
             'session.lifetime' => 120,
             'session.cookie' => 'session',
             'session.encrypt' => false,
             'session.serialization' => 'php',
             'session.prefix' => 'application_session:',
+            'session.track_user_sessions' => true,
         ]);
-        $container->instance('cache', $cacheManager);
+        $redis = m::mock(RedisFactory::class);
+        $container->instance(RedisFactory::class, $redis);
+
+        $redisSessionStore = (new SessionManager($container))->driver();
+        $handler = $this->handlerFromStore($redisSessionStore);
+
+        $this->assertInstanceOf(RedisSessionHandler::class, $handler);
+        $this->assertSame($redis, $this->propertyFromObject($handler, 'redis'));
+        $this->assertSame('custom-session', $this->propertyFromObject($handler, 'connection'));
+        $this->assertSame('application_session:', $this->propertyFromObject($handler, 'prefix'));
+        $this->assertTrue($this->propertyFromObject($handler, 'trackUserSessions'));
+    }
+
+    public function testCapabilityProbeReflectsTheConfiguredHandler(): void
+    {
+        $database = new SessionManager($this->getContainer([
+            'session.driver' => 'database',
+            'session.connection' => null,
+            'session.table' => 'sessions',
+            'session.lifetime' => 120,
+            'session.cookie' => 'session',
+            'session.encrypt' => false,
+            'session.serialization' => 'php',
+        ]));
+        $this->assertTrue($database->supportsUserSessionManagement());
+
+        foreach ([false, true] as $tracking) {
+            $container = $this->getContainer([
+                'session.driver' => 'redis',
+                'session.connection' => null,
+                'session.lifetime' => 120,
+                'session.cookie' => 'session',
+                'session.encrypt' => false,
+                'session.serialization' => 'php',
+                'session.prefix' => 'application_session:',
+                'session.track_user_sessions' => $tracking,
+            ]);
+            $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
+
+            $this->assertSame(
+                $tracking,
+                (new SessionManager($container))->supportsUserSessionManagement(),
+            );
+        }
+
+        $array = new SessionManager($this->getContainer([
+            'session.driver' => 'array',
+            'session.lifetime' => 120,
+            'session.cookie' => 'session',
+            'session.encrypt' => false,
+            'session.serialization' => 'php',
+        ]));
+        $this->assertFalse($array->supportsUserSessionManagement());
+    }
+
+    #[DataProvider('supportedUserIdentifierProvider')]
+    public function testForUserNormalizesSupportedIdentifiers(int|string $userId, string $expected): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler);
+
+        $repository = $manager->forUser($userId);
+
+        $this->assertInstanceOf(UserSessions::class, $repository);
+        $this->assertSame([], $repository->all()->all());
+        $this->assertSame('users', $handler->listedAuthProvider);
+        $this->assertSame($expected, $handler->listedUserId);
+    }
+
+    public static function supportedUserIdentifierProvider(): array
+    {
+        return [
+            'integer zero' => [0, '0'],
+            'numeric string' => ['42', '42'],
+            'uuid' => ['550e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440000'],
+            'ulid' => ['01HV4ZQ3R4N56M7P8Q9S0T1U2V', '01HV4ZQ3R4N56M7P8Q9S0T1U2V'],
+        ];
+    }
+
+    public function testForUserExtractsAnAuthenticatableIdentifier(): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler);
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->once()->andReturn('user-1');
+
+        $manager->forUser($user)->all();
+
+        $this->assertSame('users', $handler->listedAuthProvider);
+        $this->assertSame('user-1', $handler->listedUserId);
+    }
+
+    public function testForUserUsesSelectedOrExplicitGuardProviderWithoutChangingSelection(): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler);
+        /** @var AuthManager $auth */
+        $auth = Container::getInstance()->make('auth');
+        $auth->shouldUse('admin');
+
+        $manager->forUser('1')->all();
+        $this->assertSame('admins', $handler->listedAuthProvider);
+
+        $manager->forUser('1', 'web')->all();
+        $this->assertSame('users', $handler->listedAuthProvider);
+
+        $manager->forUser('1', SessionGuardIdentifier::Secondary)->all();
+        $this->assertSame('users', $handler->listedAuthProvider);
+        $this->assertSame('admin', $auth->getDefaultDriver());
+    }
+
+    public function testForUserRejectsAModelFromAnotherEloquentProvider(): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler);
+        Container::getInstance()->make('config')->set('auth.providers.users', [
+            'driver' => 'eloquent',
+            'model' => SessionManagerUserStub::class,
+        ]);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(
-            'The [session.driver] value [redis] requires [session.store] to reference a Redis cache store.'
+            'User [' . SessionManagerAdminStub::class . '] does not belong to auth provider [users].'
         );
 
-        (new SessionManager($container))->driver();
+        $manager->forUser(new SessionManagerAdminStub);
+    }
+
+    public function testForUserAcceptsAModelFromTheSelectedEloquentProvider(): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler);
+        Container::getInstance()->make('config')->set('auth.providers.users', [
+            'driver' => 'eloquent',
+            'model' => SessionManagerUserStub::class,
+        ]);
+        $user = new SessionManagerUserStub;
+        $user->setAttribute('id', 42);
+
+        $manager->forUser($user)->all();
+
+        $this->assertSame('users', $handler->listedAuthProvider);
+        $this->assertSame('42', $handler->listedUserId);
+    }
+
+    public function testForUserRejectsAGuardWithoutAProvider(): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler);
+        Container::getInstance()->make('config')->set('auth.guards.providerless', [
+            'driver' => 'custom',
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Auth guard [providerless] does not declare a user provider. Set auth.guards.providerless.provider.'
+        );
+
+        $manager->forUser('user-1', 'providerless');
+    }
+
+    public function testForUserRejectsEmptyAndInvalidModelIdentifiers(): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler);
+
+        try {
+            $manager->forUser('');
+            $this->fail('Expected an empty identifier to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('The user identifier may not be empty.', $exception->getMessage());
+        }
+
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->once()->andReturnNull();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The user identifier must be an integer or string.');
+
+        $manager->forUser($user);
+    }
+
+    public function testForUserRejectsUnsupportedAndDisabledDrivers(): void
+    {
+        $unsupported = new SessionManager($this->getContainer([
+            'session.driver' => 'array',
+            'session.lifetime' => 120,
+            'session.cookie' => 'session',
+            'session.encrypt' => false,
+            'session.serialization' => 'php',
+        ]));
+        $container = $this->getContainer([
+            'session.driver' => 'redis',
+            'session.connection' => null,
+            'session.lifetime' => 120,
+            'session.cookie' => 'session',
+            'session.encrypt' => false,
+            'session.serialization' => 'php',
+            'session.prefix' => 'application_session:',
+            'session.track_user_sessions' => false,
+        ]);
+        $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
+        $disabled = new SessionManager($container);
+
+        foreach ([$unsupported, $disabled] as $manager) {
+            try {
+                $manager->forUser('user-1');
+                $this->fail('Expected the session driver to reject user session management.');
+            } catch (BadMethodCallException $exception) {
+                $this->assertSame(
+                    'This session driver does not support user session management.',
+                    $exception->getMessage(),
+                );
+            }
+        }
+    }
+
+    public function testEncryptedStoresExposeTheUnderlyingHandlerCapability(): void
+    {
+        $handler = new SessionManagerCapableHandler;
+        $manager = $this->customManager($handler, encrypted: true);
+
+        $this->assertTrue($manager->supportsUserSessionManagement());
+        $this->assertInstanceOf(UserSessions::class, $manager->forUser('user-1'));
+        $this->assertInstanceOf(EncryptedStore::class, $manager->driver());
     }
 
     public function testSessionSerializationUsesConfiguredStrategy(): void
@@ -294,6 +411,45 @@ class SessionManagerTest extends TestCase
         return $container;
     }
 
+    protected function customManager(
+        SessionManagerCapableHandler $handler,
+        bool $encrypted = false,
+    ): SessionManager {
+        $container = $this->getContainer([
+            'session.driver' => 'capable',
+            'session.lifetime' => 120,
+            'session.cookie' => 'session',
+            'session.encrypt' => $encrypted,
+            'session.serialization' => 'php',
+            'auth' => [
+                'defaults' => ['guard' => 'web'],
+                'guards' => [
+                    'web' => [
+                        'driver' => 'custom',
+                        'provider' => 'users',
+                    ],
+                    'admin' => [
+                        'driver' => 'custom',
+                        'provider' => 'admins',
+                    ],
+                    'secondary' => [
+                        'driver' => 'custom',
+                        'provider' => 'users',
+                    ],
+                ],
+                'providers' => [
+                    'users' => ['driver' => 'custom'],
+                    'admins' => ['driver' => 'custom'],
+                ],
+            ],
+        ]);
+        $container->instance('auth', new AuthManager($container));
+        $manager = new SessionManager($container);
+        $manager->extend('capable', static fn (): SessionHandlerInterface => $handler);
+
+        return $manager;
+    }
+
     protected function handlerFromStore(Store $store): object
     {
         $property = new ReflectionProperty($store, 'handler');
@@ -308,11 +464,11 @@ class SessionManagerTest extends TestCase
         return $property->getValue($handler);
     }
 
-    protected function redisConnectionFromStore(RedisStore $store): string
+    protected function propertyFromObject(object $object, string $property): mixed
     {
-        $property = new ReflectionProperty($store, 'connection');
+        $property = new ReflectionProperty($object, $property);
 
-        return $property->getValue($store);
+        return $property->getValue($object);
     }
 
     protected function serializationFromStore(Store $store): string
@@ -326,4 +482,83 @@ class SessionManagerTest extends TestCase
 enum SessionIntegerIdentifier: int
 {
     case Zero = 0;
+}
+
+enum SessionGuardIdentifier: string
+{
+    case Secondary = 'secondary';
+}
+
+class SessionManagerUserStub extends FoundationUser
+{
+}
+
+class SessionManagerAdminStub extends FoundationUser
+{
+}
+
+class SessionManagerCapableHandler implements CanManageUserSessions, SessionHandlerInterface
+{
+    public ?string $listedAuthProvider = null;
+
+    public ?string $listedUserId = null;
+
+    public function open(string $path, string $name): bool
+    {
+        return true;
+    }
+
+    public function close(): bool
+    {
+        return true;
+    }
+
+    public function read(string $id): string
+    {
+        return '';
+    }
+
+    public function write(string $id, string $data): bool
+    {
+        return true;
+    }
+
+    public function destroy(string $id): bool
+    {
+        return true;
+    }
+
+    public function gc(int $maxLifetime): int
+    {
+        return 0;
+    }
+
+    public function supportsUserSessionManagement(): bool
+    {
+        return true;
+    }
+
+    public function userSessions(string $authProvider, int|string $userId): Collection
+    {
+        $this->listedAuthProvider = $authProvider;
+        $this->listedUserId = (string) $userId;
+
+        return new Collection;
+    }
+
+    public function destroyUserSession(
+        string $authProvider,
+        int|string $userId,
+        string $sessionId,
+    ): bool {
+        return false;
+    }
+
+    public function destroyUserSessions(
+        string $authProvider,
+        int|string $userId,
+        array $except = [],
+    ): int {
+        return 0;
+    }
 }

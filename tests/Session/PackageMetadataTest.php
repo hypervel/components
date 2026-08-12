@@ -39,6 +39,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/filesystem',
             'hypervel/http',
             'hypervel/macroable',
+            'hypervel/redis',
             'hypervel/routing',
             'hypervel/support',
             'symfony/console',

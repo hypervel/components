@@ -62,12 +62,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Session Database Connection
+    | Session Connection
     |--------------------------------------------------------------------------
     |
     | When using the "database" or "redis" session drivers, you may specify a
     | connection that should be used to manage these sessions. This should
-    | correspond to a connection in your database configuration options.
+    | correspond to a connection in the matching driver configuration.
     |
     */
 
@@ -88,18 +88,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Session Cache Store
+    | User Session Tracking
     |--------------------------------------------------------------------------
     |
-    | When using one of the framework's cache driven session backends, you may
-    | define the cache store which should be used to store the session data
-    | between requests. This must match one of your defined cache stores.
-    |
-    | Affects: "redis"
+    | When using the Redis session driver, this option maintains the metadata
+    | required to list and invalidate all sessions belonging to a user.
     |
     */
 
-    'store' => env('SESSION_STORE'),
+    'track_user_sessions' => (bool) env('SESSION_TRACK_USER_SESSIONS', false),
 
     /*
     |--------------------------------------------------------------------------
