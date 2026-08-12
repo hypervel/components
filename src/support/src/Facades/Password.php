@@ -11,6 +11,7 @@ use Hypervel\Contracts\Auth\PasswordBroker;
  * @method static string|null resolveBrokerNameForGuard(\UnitEnum|string $guard)
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(\UnitEnum|string $name)
+ * @method static \Hypervel\Auth\Passwords\PasswordBrokerManager forgetBrokers()
  * @method static void refreshEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
  * @method static string sendResetLink(array $credentials, \Closure|null $callback = null)
  * @method static mixed reset(array $credentials, \Closure $callback)

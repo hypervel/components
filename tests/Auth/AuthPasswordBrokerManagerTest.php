@@ -311,6 +311,22 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $this->assertSame(['0'], $manager->resolvedNames);
     }
 
+    public function testForgetBrokersClearsEveryResolvedBroker(): void
+    {
+        $manager = new AuthPasswordBrokerManagerStub(new Container);
+        $first = m::mock(PasswordBrokerContract::class);
+        $second = m::mock(PasswordBrokerContract::class);
+        $replacement = m::mock(PasswordBrokerContract::class);
+        $manager->seedBroker('first', $first);
+        $manager->seedBroker('second', $second);
+        $manager->resolvedBroker = $replacement;
+
+        $this->assertSame($manager, $manager->forgetBrokers());
+        $this->assertSame($replacement, $manager->broker('first'));
+        $this->assertSame($replacement, $manager->broker('second'));
+        $this->assertSame(['first', 'second'], $manager->resolvedNames);
+    }
+
     public function testRefreshingDispatcherUpdatesOnlyConcreteResolvedBrokers(): void
     {
         $manager = new AuthPasswordBrokerManagerStub(new Container);
