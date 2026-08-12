@@ -55,6 +55,7 @@
     "suggest": {
         "ext-fileinfo": "Required to use the Filesystem class.",
         "ext-ftp": "Required to use the Flysystem FTP driver.",
+        "hypervel/image": "Required to create images from stored files (^0.4).",
         "league/flysystem-ftp": "Required to use the Flysystem FTP driver (^3.25.1).",
         "league/flysystem-google-cloud-storage": "Required to use the Flysystem Google Cloud Storage driver (^3.25.1).",
         "league/flysystem-sftp-v3": "Required to use the Flysystem SFTP driver (^3.25.1).",
