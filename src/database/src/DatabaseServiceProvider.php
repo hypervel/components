@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
+use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Queue\EntityResolver;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
@@ -40,7 +41,7 @@ use Hypervel\Database\Schema\SchemaProxy;
 use Hypervel\Support\ServiceProvider;
 use Swoole\Constant;
 
-class DatabaseServiceProvider extends ServiceProvider
+class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfiguration
 {
     /**
      * Register the service provider.
@@ -99,6 +100,18 @@ class DatabaseServiceProvider extends ServiceProvider
             TableCommand::class,
             WipeCommand::class,
         ]);
+    }
+
+    /**
+     * Reload configuration-derived worker state.
+     *
+     * Boot-only. Request-time use clears the shared connection resolver while
+     * concurrent coroutines may still be using connections from it.
+     */
+    public function reloadConfiguration(): void
+    {
+        $this->app->forgetInstance('db.resolver');
+        $this->app->forgetInstance(ConnectionResolver::class);
     }
 
     /**
