@@ -1803,48 +1803,20 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testWithExistsRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
     {
-        $builder = (new ModelParentStub)->newQuery()->where('tenant_id', 7);
-        $sql = $builder->toSql();
-        $bindings = $builder->getBindings();
-
-        try {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
             $builder->withExists(['foo' => function ($query): void {
                 $query->where('active', true)->timeout(2);
             }]);
-
-            $this->fail('Expected the relationship constraint timeout to be rejected.');
-        } catch (InvalidArgumentException $exception) {
-            $this->assertSame(
-                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.',
-                $exception->getMessage()
-            );
-        }
-
-        $this->assertSame($sql, $builder->toSql());
-        $this->assertSame($bindings, $builder->getBindings());
+        });
     }
 
     public function testWithCountRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
     {
-        $builder = (new ModelParentStub)->newQuery()->where('tenant_id', 7);
-        $sql = $builder->toSql();
-        $bindings = $builder->getBindings();
-
-        try {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
             $builder->withCount(['foo' => function ($query): void {
                 $query->where('active', true)->timeout(2);
             }]);
-
-            $this->fail('Expected the relationship constraint timeout to be rejected.');
-        } catch (InvalidArgumentException $exception) {
-            $this->assertSame(
-                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.',
-                $exception->getMessage()
-            );
-        }
-
-        $this->assertSame($sql, $builder->toSql());
-        $this->assertSame($bindings, $builder->getBindings());
+        });
     }
 
     public function testWithExistsAndSelect()
@@ -2003,48 +1975,20 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testRelationshipExistsRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
     {
-        $builder = (new ModelParentStub)->newQuery()->where('tenant_id', 7);
-        $sql = $builder->toSql();
-        $bindings = $builder->getBindings();
-
-        try {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
             $builder->whereHas('foo', function ($query): void {
                 $query->where('active', true)->timeout(2);
             });
-
-            $this->fail('Expected the relationship constraint timeout to be rejected.');
-        } catch (InvalidArgumentException $exception) {
-            $this->assertSame(
-                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.',
-                $exception->getMessage()
-            );
-        }
-
-        $this->assertSame($sql, $builder->toSql());
-        $this->assertSame($bindings, $builder->getBindings());
+        });
     }
 
     public function testRelationshipCountRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
     {
-        $builder = (new ModelParentStub)->newQuery()->where('tenant_id', 7);
-        $sql = $builder->toSql();
-        $bindings = $builder->getBindings();
-
-        try {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
             $builder->whereHas('foo', function ($query): void {
                 $query->where('active', true)->timeout(2);
             }, '>=', 2);
-
-            $this->fail('Expected the relationship constraint timeout to be rejected.');
-        } catch (InvalidArgumentException $exception) {
-            $this->assertSame(
-                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.',
-                $exception->getMessage()
-            );
-        }
-
-        $this->assertSame($sql, $builder->toSql());
-        $this->assertSame($bindings, $builder->getBindings());
+        });
     }
 
     public function testWithCountAndConstraintsWithBindingInSelectSub()
@@ -3345,6 +3289,29 @@ class DatabaseEloquentBuilderTest extends TestCase
         $result = $builder->incrementEach(['votes' => 1]);
 
         $this->assertSame(1, $result);
+    }
+
+    /**
+     * Assert that a relationship constraint timeout is rejected before it is embedded.
+     */
+    protected function assertRelationshipConstraintTimeoutRejected(Closure $accept): void
+    {
+        $builder = (new ModelParentStub)->newQuery()->where('tenant_id', 7);
+        $sql = $builder->toSql();
+        $bindings = $builder->getBindings();
+
+        try {
+            $accept($builder);
+            $this->fail('Expected the relationship constraint timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame($sql, $builder->toSql());
+        $this->assertSame($bindings, $builder->getBindings());
     }
 
     protected function mockConnectionForModel($model, $database)
