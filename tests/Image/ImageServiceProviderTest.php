@@ -9,7 +9,9 @@ use Hypervel\Image\Drivers\GdDriver;
 use Hypervel\Image\ImageManager;
 use Hypervel\Image\ImageServiceProvider;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 class ImageServiceProviderTest extends TestCase
 {
@@ -20,7 +22,9 @@ class ImageServiceProviderTest extends TestCase
 
     public function testMergesDefaultConfiguration(): void
     {
-        $this->assertSame('gd', $this->app->make('config')->string('images.default'));
+        $expected = require dirname(__DIR__, 2) . '/src/image/config/images.php';
+
+        $this->assertSame($expected, $this->app->make('config')->array('images'));
     }
 
     public function testPublishesConfiguration(): void
@@ -30,6 +34,8 @@ class ImageServiceProviderTest extends TestCase
         ], ServiceProvider::pathsToPublish(ImageServiceProvider::class, 'image-config'));
     }
 
+    #[RequiresPhpExtension('gd')]
+    #[WithConfig('images.default', 'gd')]
     public function testCanonicalAliasSharesTheWorkerLifetimeManagerAndDriver(): void
     {
         $manager = $this->app->make('image');
