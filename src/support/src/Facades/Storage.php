@@ -23,6 +23,7 @@ use function Hypervel\Support\enum_value;
  * @method static \Hypervel\Filesystem\FilesystemManager set(string $name, mixed $disk)
  * @method static string getDefaultDriver()
  * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
+ * @method static \Hypervel\Filesystem\FilesystemManager forgetDisks()
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
  * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Hypervel\Contracts\Container\Container $app)
