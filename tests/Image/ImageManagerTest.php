@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Image;
 
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
@@ -13,6 +14,7 @@ use Hypervel\Contracts\Image\Driver;
 use Hypervel\Contracts\Image\Transformation;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Client\Factory as HttpFactory;
+use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\Client\Response as ClientResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Drivers\InterventionDriver;
@@ -23,6 +25,7 @@ use Hypervel\Image\ImagePipeline;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class ImageManagerTest extends TestCase
 {
@@ -113,10 +116,8 @@ class ImageManagerTest extends TestCase
 
     public function testFromPathIsLazy(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldNotReceive('get');
-
         $app = $this->makeApp([]);
+        $app->shouldNotReceive('make')->with(Filesystem::class);
 
         $manager = new ImageManager($app);
         $image = $manager->fromPath('/some/path.jpg');
@@ -224,10 +225,8 @@ class ImageManagerTest extends TestCase
 
     public function testFromStorageIsLazy(): void
     {
-        $filesystem = m::mock(FilesystemFactory::class);
-        $filesystem->shouldNotReceive('disk');
-
         $app = $this->makeApp([]);
+        $app->shouldNotReceive('make')->with(FilesystemFactory::class);
 
         $manager = new ImageManager($app);
         $image = $manager->fromStorage('images/avatar.jpg', 'public');
@@ -319,6 +318,7 @@ class ImageManagerTest extends TestCase
 
         $http = m::mock(HttpFactory::class);
         $response = m::mock(ClientResponse::class);
+        $response->expects('throw')->once()->andReturnSelf();
         $response->expects('body')->andReturn($contents);
         $http->expects('get')->with('https://example.com/photo.jpg')->andReturn($response);
 
@@ -336,10 +336,8 @@ class ImageManagerTest extends TestCase
 
     public function testFromUrlIsLazy(): void
     {
-        $http = m::mock(HttpFactory::class);
-        $http->shouldNotReceive('get');
-
         $app = $this->makeApp([]);
+        $app->shouldNotReceive('make')->with(HttpFactory::class);
 
         $manager = new ImageManager($app);
         $image = $manager->fromUrl('https://example.com/photo.jpg');
@@ -351,6 +349,7 @@ class ImageManagerTest extends TestCase
     {
         $http = m::mock(HttpFactory::class);
         $response = m::mock(ClientResponse::class);
+        $response->expects('throw')->once()->andReturnSelf();
         $response->expects('body')->once()->andReturn('shared image');
         $http->expects('get')->once()->with('https://example.com/photo.jpg')->andReturn($response);
 
@@ -364,6 +363,30 @@ class ImageManagerTest extends TestCase
 
         $this->assertSame('shared image', $first->toBytes());
         $this->assertSame('shared image', $second->toBytes());
+    }
+
+    #[DataProvider('httpErrorStatusProvider')]
+    public function testFromUrlRejectsClientAndServerErrors(int $status): void
+    {
+        $response = new ClientResponse(new Psr7Response($status, [], '<html>Request Failed</html>'));
+
+        $http = m::mock(HttpFactory::class);
+        $http->expects('get')->once()->with('https://example.com/missing.jpg')->andReturn($response);
+
+        $app = $this->makeApp([]);
+        $app->expects('make')->once()->with(HttpFactory::class)->andReturn($http);
+
+        $image = (new ImageManager($app))->fromUrl('https://example.com/missing.jpg');
+
+        $this->expectException(RequestException::class);
+        $this->expectExceptionCode($status);
+
+        $image->toBytes();
+    }
+
+    public static function httpErrorStatusProvider(): array
+    {
+        return [[404], [500]];
     }
 
     public function testFromBase64ReturnsImage(): void
