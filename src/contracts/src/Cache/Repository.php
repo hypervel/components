@@ -13,6 +13,51 @@ use UnitEnum;
 interface Repository extends CacheInterface
 {
     /**
+     * Retrieve an item from the cache by key.
+     *
+     * @template TCacheValue
+     *
+     * @param (Closure(): TCacheValue)|TCacheValue $default
+     * @return (TCacheValue is null ? mixed : TCacheValue)
+     */
+    public function get(array|UnitEnum|string $key, mixed $default = null): mixed;
+
+    /**
+     * Store an item in the cache.
+     */
+    public function set(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool;
+
+    /**
+     * Remove an item from the cache.
+     */
+    public function delete(UnitEnum|string $key): bool;
+
+    /**
+     * Retrieve multiple items from the cache by key.
+     *
+     * @param iterable<string|UnitEnum> $keys
+     * @return iterable<string, mixed>
+     */
+    public function getMultiple(iterable $keys, mixed $default = null): iterable;
+
+    /**
+     * Store multiple items in the cache.
+     */
+    public function setMultiple(iterable $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool;
+
+    /**
+     * Remove multiple items from the cache by key.
+     *
+     * @param iterable<string|UnitEnum> $keys
+     */
+    public function deleteMultiple(iterable $keys): bool;
+
+    /**
+     * Determine if an item exists in the cache.
+     */
+    public function has(array|UnitEnum|string $key): bool;
+
+    /**
      * Retrieve an item from the cache and delete it.
      *
      * @template TCacheValue

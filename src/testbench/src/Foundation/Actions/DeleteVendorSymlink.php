@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation\Actions;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use RuntimeException;
 
 use function Hypervel\Testbench\is_symlink;
 
@@ -20,7 +21,12 @@ final class DeleteVendorSymlink
     {
         tap($app->basePath('vendor'), static function (string $appVendorPath): void {
             if (is_symlink($appVendorPath)) {
-                windows_os() ? @rmdir($appVendorPath) : @unlink($appVendorPath);
+                $deleted = windows_os() ? @rmdir($appVendorPath) : @unlink($appVendorPath);
+                clearstatcache(false, $appVendorPath);
+
+                if (! $deleted || is_symlink($appVendorPath) || file_exists($appVendorPath)) {
+                    throw new RuntimeException("Unable to remove vendor symlink [{$appVendorPath}].");
+                }
             }
 
             clearstatcache(false, dirname($appVendorPath));

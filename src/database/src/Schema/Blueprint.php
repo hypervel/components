@@ -17,12 +17,15 @@ use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;
 
 class Blueprint
 {
     use Macroable;
+
+    private const array FOREIGN_KEY_TARGET_COMMANDS = ['primary', 'unique', 'index'];
 
     /**
      * The database connection instance.
@@ -42,14 +45,14 @@ class Blueprint
     /**
      * The columns that should be added to the table.
      *
-     * @var \Hypervel\Database\Schema\ColumnDefinition[]
+     * @var list<\Hypervel\Database\Schema\ColumnDefinition>
      */
     protected array $columns = [];
 
     /**
      * The commands that should be run for the table.
      *
-     * @var \Hypervel\Support\Fluent[]
+     * @var list<\Hypervel\Support\Fluent>
      */
     protected array $commands = [];
 
@@ -102,9 +105,7 @@ class Blueprint
      */
     public function build(): void
     {
-        foreach ($this->toSql() as $statement) {
-            $this->connection->statement($statement);
-        }
+        $this->connection->getSchemaBuilder()->executeBlueprint($this);
     }
 
     /**
@@ -162,7 +163,9 @@ class Blueprint
         $this->addFluentIndexes();
         $this->addFluentCommands();
 
-        if (! $this->creating()) {
+        if ($this->creating()) {
+            $this->promoteCreateIndexesBeforeForeignKeys();
+        } else {
             $this->commands = array_map(
                 fn ($command) => $command instanceof ColumnDefinition
                     ? $this->createCommand($command->change ? 'change' : 'add', ['column' => $command])
@@ -179,6 +182,12 @@ class Blueprint
      */
     protected function addFluentIndexes(): void
     {
+        $generatedIndexes = [];
+
+        // CREATE columns are not commands and cannot receive moved indexes; SQLite ALTER
+        // compiles ordered state into rebuild groups instead of independent statements.
+        $placeGeneratedIndexes = ! $this->creating() && ! $this->grammar instanceof SQLiteGrammar;
+
         foreach ($this->columns as $column) {
             foreach (['primary', 'unique', 'index', 'fulltext', 'fullText', 'spatialIndex', 'vectorIndex'] as $index) {
                 // If the column is supposed to be changed to an auto increment column and
@@ -196,7 +205,13 @@ class Blueprint
                         ? 'vectorIndex'
                         : $index;
 
-                    $this->{$indexMethod}($column->name);
+                    /** @var Fluent $command */
+                    $command = $this->{$indexMethod}($column->name);
+
+                    if ($placeGeneratedIndexes && in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true)) {
+                        $generatedIndexes[] = ['column' => $column, 'command' => $command];
+                    }
+
                     $column->{$index} = null;
 
                     continue 2;
@@ -225,13 +240,92 @@ class Blueprint
                         ? 'vectorIndex'
                         : $index;
 
-                    $this->{$indexMethod}($column->name, $column->{$index});
+                    /** @var Fluent $command */
+                    $command = $this->{$indexMethod}($column->name, $column->{$index});
+
+                    if ($placeGeneratedIndexes && in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true)) {
+                        $generatedIndexes[] = ['column' => $column, 'command' => $command];
+                    }
+
                     $column->{$index} = null;
 
                     continue 2;
                 }
             }
         }
+
+        if ($generatedIndexes !== []) {
+            // Fluent indexes are created after the callback, so restore them beside their owning ALTER columns.
+            $this->placeGeneratedIndexesAfterColumns($generatedIndexes);
+        }
+    }
+
+    /**
+     * Place generated ALTER indexes after their owning columns.
+     *
+     * @param list<array{column: ColumnDefinition, command: Fluent}> $generatedIndexes
+     */
+    private function placeGeneratedIndexesAfterColumns(array $generatedIndexes): void
+    {
+        $indexesByColumn = [];
+        $generatedIndexIds = [];
+
+        foreach ($generatedIndexes as $generatedIndex) {
+            $indexesByColumn[spl_object_id($generatedIndex['column'])][] = $generatedIndex['command'];
+            $generatedIndexIds[spl_object_id($generatedIndex['command'])] = true;
+        }
+
+        $commands = [];
+
+        foreach ($this->commands as $command) {
+            if (isset($generatedIndexIds[spl_object_id($command)])) {
+                continue;
+            }
+
+            $commands[] = $command;
+
+            if ($command instanceof ColumnDefinition) {
+                foreach ($indexesByColumn[spl_object_id($command)] ?? [] as $generatedIndex) {
+                    $commands[] = $generatedIndex;
+                }
+            }
+        }
+
+        $this->commands = $commands;
+    }
+
+    /**
+     * Promote CREATE indexes before foreign keys.
+     *
+     * Target indexes must exist before referencing foreign keys on supported server databases.
+     * CREATE is declarative, so moving only targets preserves later non-target commands.
+     */
+    private function promoteCreateIndexesBeforeForeignKeys(): void
+    {
+        $foreignKeyOffset = array_find_key(
+            $this->commands,
+            static fn (Fluent $command): bool => $command->name === 'foreign',
+        );
+
+        if (is_null($foreignKeyOffset)) {
+            return;
+        }
+
+        $prefix = array_slice($this->commands, 0, $foreignKeyOffset);
+        $targets = [];
+        $remainder = [];
+
+        for ($offset = $foreignKeyOffset, $count = count($this->commands); $offset < $count; ++$offset) {
+            $command = $this->commands[$offset];
+
+            if (in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true)) {
+                $targets[] = $command;
+            } else {
+                $remainder[] = $command;
+            }
+        }
+
+        $this->commands = [...$prefix, ...$targets, ...$remainder];
     }
 
     /**
@@ -262,7 +356,7 @@ class Blueprint
         ];
 
         foreach ($this->commands as $command) {
-            if (in_array($command->name, $alterCommands)) {
+            if (in_array($command->name, $alterCommands, true)) {
                 $hasAlterCommand = true;
                 $lastCommandWasAlter = true;
             } elseif ($lastCommandWasAlter) {
@@ -418,9 +512,17 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      */
-    public function dropForeign(array|string $index): Fluent
+    public function dropForeign(array|string $index, ?string $name = null): Fluent
     {
-        return $this->dropIndexCommand('dropForeign', 'foreign', $index);
+        if (is_string($index) && $name !== null) {
+            throw new InvalidArgumentException(
+                "Cannot drop foreign key [{$index}] with a second constraint name [{$name}]. Pass the foreign key columns as the first argument when specifying its name."
+            );
+        }
+
+        return is_array($index) && $name !== null
+            ? $this->indexCommand('dropForeign', $index, $name)
+            : $this->dropIndexCommand('dropForeign', 'foreign', $index);
     }
 
     /**
@@ -1435,13 +1537,15 @@ class Blueprint
      */
     public function removeColumn(string $name): static
     {
-        $this->columns = array_values(array_filter($this->columns, function ($c) use ($name) {
-            return $c['name'] != $name;
-        }));
+        $this->columns = array_values(array_filter(
+            $this->columns,
+            fn (ColumnDefinition $column): bool => $column['name'] !== $name,
+        ));
 
-        $this->commands = array_values(array_filter($this->commands, function ($c) use ($name) {
-            return ! $c instanceof ColumnDefinition || $c['name'] != $name;
-        }));
+        $this->commands = array_values(array_filter(
+            $this->commands,
+            fn (Fluent $command): bool => ! $command instanceof ColumnDefinition || $command['name'] !== $name,
+        ));
 
         return $this;
     }
@@ -1470,6 +1574,14 @@ class Blueprint
     public function getTable(): string
     {
         return $this->table;
+    }
+
+    /**
+     * Get the schema grammar used by the blueprint.
+     */
+    public function getGrammar(): Grammar
+    {
+        return $this->grammar;
     }
 
     // REMOVED: Laravel's deprecated getPrefix() forwarding is omitted;

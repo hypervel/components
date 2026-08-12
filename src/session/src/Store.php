@@ -15,6 +15,7 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Json;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
@@ -168,7 +169,11 @@ class Store implements Session
     {
         if ($data = $this->handler->read($this->getId())) {
             if ($this->serialization === 'json') {
-                $data = json_decode($this->prepareForUnserialize($data), true);
+                $data = json_decode(
+                    $this->prepareForUnserialize($data),
+                    true,
+                    Json::MAXIMUM_NESTING_DEPTH + 1
+                );
             } else {
                 $data = @unserialize($this->prepareForUnserialize($data));
             }

@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\HandlesAuthorization;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Events\Dispatcher as EventDispatcher;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\Auth\Fixtures\AbilitiesEnum;
 use Hypervel\Tests\Auth\Fixtures\DummyWithoutUsePolicy;
 use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicy;
@@ -16,6 +20,7 @@ use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicyPolicy;
 use Hypervel\Tests\Auth\Fixtures\SubDummyWithUsePolicy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
@@ -105,6 +110,49 @@ class AuthAccessGateTest extends TestCase
 
         $this->assertTrue($gate->check('foo'));
         $this->assertFalse($gate->check('bar'));
+    }
+
+    public function testInvokableObjectsCanAllowGuestsAcrossCallbackPaths(): void
+    {
+        $callback = new AccessGateTestGuestCallback;
+
+        $abilityGate = new Gate(new Container, fn () => null);
+        $abilityGate->define('guest', $callback);
+
+        $beforeGate = new Gate(new Container, fn () => null);
+        $beforeGate->before($callback);
+
+        $afterGate = new Gate(new Container, fn () => null);
+        $afterGate->define('denied', fn () => false);
+        $afterGate->after($callback);
+
+        $this->assertTrue($abilityGate->check('guest'));
+        $this->assertTrue($beforeGate->check('undefined'));
+        $this->assertTrue($afterGate->check('denied'));
+    }
+
+    public function testStaticStringCallbacksCanAllowGuests(): void
+    {
+        $gate = new Gate(new Container, fn () => null);
+        $gate->define('guest', AccessGateTestStaticGuestCallback::class . '::allow');
+
+        $this->assertTrue($gate->check('guest'));
+    }
+
+    public function testObjectCallableGuestResultIsWeaklyCachedByIdentity(): void
+    {
+        $callback = new AccessGateTestGuestCallback;
+        $gate = new AccessGateTestInspectableGate(new Container, fn () => null);
+        $gate->define('guest', $callback);
+
+        $this->assertTrue($gate->check('guest'));
+        $this->assertTrue($gate->check('guest'));
+        $this->assertSame(1, AccessGateTestInspectableGate::guestCallbackCacheCount());
+
+        unset($callback, $gate);
+        gc_collect_cycles();
+
+        $this->assertSame(0, AccessGateTestInspectableGate::guestCallbackCacheCount());
     }
 
     public function testPoliciesCanAllowGuests()
@@ -1512,6 +1560,49 @@ class AuthAccessGateTest extends TestCase
         $this->assertSame(404, $response->status());
     }
 
+    public function testGateEvaluationSkipsDispatchWhenThereAreNoListeners(): void
+    {
+        $container = new Container;
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(GateEvaluated::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $container->instance(Dispatcher::class, $events);
+
+        $gate = new Gate($container, fn () => new stdClass);
+        $gate->define('allowed', fn () => true);
+
+        $this->assertTrue($gate->check('allowed'));
+    }
+
+    public function testGateEvaluationDispatchesWhenThereIsAListener(): void
+    {
+        $container = new Container;
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(GateEvaluated::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')
+            ->once()
+            ->with(m::on(fn (GateEvaluated $event): bool => $event->ability === 'allowed'));
+        $container->instance(Dispatcher::class, $events);
+
+        $gate = new Gate($container, fn () => new stdClass);
+        $gate->define('allowed', fn () => true);
+
+        $this->assertTrue($gate->check('allowed'));
+    }
+
+    public function testGateEvaluationDispatchesToAnEventFakeWithoutRealListeners(): void
+    {
+        $container = new Container;
+        $events = new EventFake(new EventDispatcher($container));
+        $container->instance(Dispatcher::class, $events);
+
+        $gate = new Gate($container, fn () => new stdClass);
+        $gate->define('allowed', fn () => true);
+
+        $this->assertTrue($gate->check('allowed'));
+        $events->assertDispatched(GateEvaluated::class);
+    }
+
     public function testPolicyCacheReturnsSameResultOnSecondCall()
     {
         $gate = $this->getBasicGate();
@@ -1594,6 +1685,19 @@ class AuthAccessGateTest extends TestCase
         $this->assertTrue($gate->check('edit', new AccessGateTestDummy));
     }
 
+    public function testFlushStateRestoresLazyGuestCallbackCacheSentinel(): void
+    {
+        $gate = new AccessGateTestInspectableGate(new Container, fn () => null);
+        $gate->define('guest', new AccessGateTestGuestCallback);
+        $gate->check('guest');
+
+        $this->assertSame(1, AccessGateTestInspectableGate::guestCallbackCacheCount());
+
+        Gate::flushState();
+
+        $this->assertNull(AccessGateTestInspectableGate::guestCallbackCacheCount());
+    }
+
     public function testFlushStateClearsAllCaches()
     {
         $gate = $this->getBasicGate();
@@ -1612,6 +1716,41 @@ class AuthAccessGateTest extends TestCase
         $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
         $result = $gate->getPolicyFor(new AccessGateTestDummy);
         $this->assertInstanceOf(AccessGateTestPolicy::class, $result);
+    }
+}
+
+class AccessGateTestInspectableGate extends Gate
+{
+    /**
+     * Return the number of cached guest callback results.
+     */
+    public static function guestCallbackCacheCount(): ?int
+    {
+        return static::$guestCallbackCache === null
+            ? null
+            : count(static::$guestCallbackCache);
+    }
+}
+
+class AccessGateTestGuestCallback
+{
+    /**
+     * Allow guest access.
+     */
+    public function __invoke(?stdClass $user): bool
+    {
+        return true;
+    }
+}
+
+class AccessGateTestStaticGuestCallback
+{
+    /**
+     * Allow guest access.
+     */
+    public static function allow(?stdClass $user): bool
+    {
+        return true;
     }
 }
 

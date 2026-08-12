@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\RequestOptions;
+use SensitiveParameter;
 
 class LinkedInOpenIdProvider extends AbstractProvider implements ProviderInterface
 {
@@ -28,7 +29,7 @@ class LinkedInOpenIdProvider extends AbstractProvider implements ProviderInterfa
         return 'https://www.linkedin.com/oauth/v2/accessToken';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         return $this->getBasicProfile($token);
     }
@@ -36,7 +37,7 @@ class LinkedInOpenIdProvider extends AbstractProvider implements ProviderInterfa
     /**
      * Get the basic profile fields for the user.
      */
-    protected function getBasicProfile(string $token): array
+    protected function getBasicProfile(#[SensitiveParameter] string $token): array
     {
         $response = $this->getHttpClient()->get('https://api.linkedin.com/v2/userinfo', [
             RequestOptions::HEADERS => [

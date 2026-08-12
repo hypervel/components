@@ -87,6 +87,25 @@ class MiddlewareTest extends SentryTestCase
         $this->assertNull($property->getValue());
     }
 
+    public function testTransactionUsesTheRequestStartTimestamp(): void
+    {
+        $middleware = $this->app->make(Middleware::class);
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $request->server->set('REQUEST_TIME_FLOAT', 1_800_000_000.654321);
+
+        $response = $middleware->handle($request, fn () => new Response('OK'));
+
+        Middleware::signalRouteWasMatched();
+        $middleware->terminate($request, $response);
+        $middleware->finishTransaction();
+
+        $this->assertSentryTransactionCount(1);
+        $this->assertSame(1_700_000_000.123456, $this->getLastSentryEvent()?->getStartTimestamp());
+    }
+
     public function testAfterResponseSpansAreCapturedOnTransaction()
     {
         $middleware = $this->app->make(Middleware::class);
@@ -160,5 +179,41 @@ class MiddlewareTest extends SentryTestCase
         }
 
         $this->assertTrue($found, 'After-response span should be captured on the transaction');
+    }
+
+    public function testTerminateFinishesTransactionWhenAfterResponseTracingIsDisabled(): void
+    {
+        config()->set('sentry.tracing.missing_routes', true);
+        $middleware = new Middleware(false);
+        $request = Request::create('/test', 'GET');
+
+        $response = $middleware->handle($request, static fn () => new Response('OK'));
+        $middleware->terminate($request, $response);
+
+        $this->assertSentryTransactionCount(1);
+
+        $middleware->finishTransaction();
+
+        $this->assertSentryTransactionCount(1);
+    }
+
+    public function testIncomingTraceIsContinuedWhenTransactionRecordingIsDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.traces_sample_rate' => null,
+        ]);
+        $middleware = $this->app->make(Middleware::class);
+        $traceId = '5b8efff798038103d269b633813fc60c';
+        $request = Request::create('/test', 'GET', server: [
+            'HTTP_SENTRY_TRACE' => "{$traceId}-5e8efff798038103-1",
+        ]);
+
+        $middleware->handle($request, static fn () => new Response('OK'));
+
+        $this->assertNull(SentrySdk::getCurrentHub()->getTransaction());
+        $this->assertSame(
+            $traceId,
+            (string) $this->getCurrentSentryScope()->getPropagationContext()->getTraceId(),
+        );
     }
 }

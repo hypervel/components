@@ -6,10 +6,11 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Throwable;
 
-class PoolProxy
+class PoolProxy implements InvalidatesPool
 {
     /**
      * Create a proxy that resolves its current pool per operation.

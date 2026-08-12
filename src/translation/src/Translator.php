@@ -36,7 +36,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * The fallback locale used by the translator.
      */
-    protected ?string $fallback = '';
+    protected string $fallback = '';
 
     /**
      * The array of loaded translation groups.
@@ -57,6 +57,8 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * The custom rendering callbacks for stringable objects.
+     *
+     * @var array<class-string, callable>
      */
     protected array $stringableHandlers = [];
 
@@ -157,7 +159,45 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         // If the line doesn't exist, we will return back the key which was requested as
         // that will be quick to spot in the UI if language keys are wrong or missing
         // from the application's language files. Otherwise we can return the line.
-        return $this->makeReplacements($line ?: $key, $replace);
+        return $this->makeReplacements($line ?? $key, $replace);
+    }
+
+    /**
+     * Get the specified string translation value.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function string(string $key, array $replace = [], ?string $locale = null, bool $fallback = true): string
+    {
+        $value = $this->get($key, $replace, $locale, $fallback);
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Translation value for key [%s] must be a string, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Get the specified array translation value.
+     *
+     * @return array<array-key, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    public function array(string $key, array $replace = [], ?string $locale = null, bool $fallback = true): array
+    {
+        $value = $this->get($key, $replace, $locale, $fallback);
+
+        if (! is_array($value)) {
+            throw new InvalidArgumentException(
+                sprintf('Translation value for key [%s] must be an array, %s given.', $key, gettype($value))
+            );
+        }
+
+        return $value;
     }
 
     /**
@@ -165,7 +205,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function choice(string $key, array|Countable|float|int $number, array $replace = [], ?string $locale = null): string
     {
-        $line = $this->get(
+        $line = $this->string(
             $key,
             [],
             $locale = $this->localeForChoice($key, $locale)
@@ -207,15 +247,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
         $line = Arr::get($this->loaded[$namespace][$group][$locale], $item);
 
-        if (is_string($line)) {
+        // Loaders return an empty array for missing or empty groups, so only a
+        // requested item may use an empty array as its translation value.
+        if (is_string($line) || (is_array($line) && ($line !== [] || $item !== null))) {
             return $this->makeReplacements($line, $replace);
-        }
-        if (is_array($line) && count($line) > 0) {
-            array_walk_recursive($line, function (&$value, $key) use ($replace) {
-                $value = $this->makeReplacements($value, $replace);
-            });
-
-            return $line;
         }
 
         return null;
@@ -223,10 +258,22 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Make the place-holder replacements on a line.
+     *
+     * @return ($line is array ? array : string)
      */
-    protected function makeReplacements(string $line, array $replace): string
+    protected function makeReplacements(array|string $line, array $replace): array|string
     {
         if (empty($replace)) {
+            return $line;
+        }
+
+        if (is_array($line)) {
+            foreach ($line as $key => $value) {
+                if (is_array($value) || is_string($value)) {
+                    $line[$key] = $this->makeReplacements($value, $replace);
+                }
+            }
+
             return $line;
         }
 
@@ -262,6 +309,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Add translation lines to the given locale.
+     *
+     * Boot-only. The lines are stored on the shared Translator instance and
+     * affect every subsequent lookup in the worker.
      */
     public function addLines(array $lines, string $locale, string $namespace = '*'): void
     {
@@ -345,6 +395,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Register a callback that is responsible for handling missing translation keys.
+     *
+     * Boot-only. The callback is stored on the shared Translator instance and
+     * affects every subsequent missing-key lookup in the worker.
      */
     public function handleMissingKeysUsing(?callable $callback): static
     {
@@ -355,6 +408,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Add a new namespace to the loader.
+     *
+     * Boot-only. The namespace is added to the shared loader and affects every
+     * subsequent translation lookup in the worker.
      */
     public function addNamespace(string $namespace, string $hint): void
     {
@@ -363,6 +419,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Add a new path to the loader.
+     *
+     * Boot-only. The path is added to the shared loader and affects every
+     * subsequent translation lookup in the worker.
      */
     public function addPath(string $path): void
     {
@@ -371,6 +430,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Add a new JSON path to the loader.
+     *
+     * Boot-only. The path is added to the shared loader and affects every
+     * subsequent translation lookup in the worker.
      */
     public function addJsonPath(string $path): void
     {
@@ -404,7 +466,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     }
 
     /**
-     * Specify a callback that should be invoked to determined the applicable locale array.
+     * Specify a callback that should be invoked to determine the applicable locale array.
+     *
+     * Boot-only. The callback is stored on the shared Translator instance and
+     * affects every subsequent locale resolution in the worker.
      */
     public function determineLocalesUsing(callable $callback): void
     {
@@ -426,8 +491,8 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Set the message selector instance.
      *
-     * Boot-only. The selector is held on the singleton Translator and used for
-     * every choice() call across all coroutines.
+     * Boot-only. The selector is stored on the shared Translator instance and
+     * affects every subsequent choice() call in the worker.
      */
     public function setSelector(MessageSelector $selector): void
     {
@@ -443,7 +508,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     }
 
     /**
-     * Get the default locale being used.
+     * Get the current locale being used.
      */
     public function locale(): string
     {
@@ -451,7 +516,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     }
 
     /**
-     * Get the default locale being used.
+     * Get the current locale being used.
      */
     public function getLocale(): string
     {
@@ -459,13 +524,14 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     }
 
     /**
-     * Set the default locale.
+     * Set the current locale.
      *
      * @throws InvalidArgumentException
      */
     public function setLocale(string $locale): void
     {
-        if (Str::contains($locale, ['/', '\\'])) {
+        // Mirrors the trust-boundary check in FileLoader::load(); keep both predicates identical.
+        if (Str::contains($locale, ['/', '\\']) || $locale === '.' || $locale === '..') {
             throw new InvalidArgumentException('Invalid characters present in locale.');
         }
 
@@ -483,9 +549,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Set the fallback locale being used.
      *
-     * Boot-only. The fallback is shared across all coroutines on the singleton
-     * Translator; per-request use races and affects every concurrent lookup.
-     * For per-request locale overrides use setLocale(), which is Context-scoped.
+     * Boot-only. The fallback is shared by the worker's Translator instance and
+     * affects every subsequent translation lookup in that worker. Use
+     * setLocale() for a current-request locale override.
      */
     public function setFallback(string $fallback): void
     {
@@ -495,9 +561,8 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Set the loaded translation groups.
      *
-     * Boot-only. Overwrites the singleton Translator's loaded-translation cache
-     * used across all coroutines; per-request use races and breaks concurrent
-     * lookups.
+     * Boot-only. The groups are stored on the shared Translator instance and
+     * affect every subsequent translation lookup in the worker.
      */
     public function setLoaded(array $loaded): void
     {
@@ -506,14 +571,23 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Add a handler to be executed in order to format a given class to a string during translation replacements.
+     *
+     * Boot-only. The handler is stored on the shared Translator instance and
+     * affects every subsequent replacement in the worker.
+     *
+     * @param class-string|Closure $class
      */
-    public function stringable(callable|string $class, ?callable $handler = null): void
+    public function stringable(Closure|string $class, ?callable $handler = null): void
     {
         if ($class instanceof Closure) {
             [$class, $handler] = [
                 $this->firstClosureParameterType($class),
                 $class,
             ];
+        }
+
+        if ($handler === null) {
+            throw new InvalidArgumentException('A handler must be provided when registering a stringable class.');
         }
 
         $this->stringableHandlers[$class] = $handler;

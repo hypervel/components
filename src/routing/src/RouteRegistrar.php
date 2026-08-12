@@ -20,19 +20,21 @@ use InvalidArgumentException;
  * @method \Hypervel\Routing\Route patch(string $uri, \Closure|array|string|null $action = null)
  * @method \Hypervel\Routing\Route post(string $uri, \Closure|array|string|null $action = null)
  * @method \Hypervel\Routing\Route put(string $uri, \Closure|array|string|null $action = null)
- * @method \Hypervel\Routing\RouteRegistrar as(string $value)
- * @method \Hypervel\Routing\RouteRegistrar can(\UnitEnum|string $ability, array|string $models = [])
- * @method \Hypervel\Routing\RouteRegistrar controller(string $controller)
- * @method \Hypervel\Routing\RouteRegistrar domain(\BackedEnum|string $value)
- * @method \Hypervel\Routing\RouteRegistrar middleware(null|array|string $middleware)
- * @method \Hypervel\Routing\RouteRegistrar missing(\Closure $missing)
- * @method \Hypervel\Routing\RouteRegistrar name(\BackedEnum|string $value)
- * @method \Hypervel\Routing\RouteRegistrar namespace(null|string $value)
- * @method \Hypervel\Routing\RouteRegistrar prefix(string $prefix)
- * @method \Hypervel\Routing\RouteRegistrar scopeBindings()
- * @method static where(array $where)
- * @method \Hypervel\Routing\RouteRegistrar withoutMiddleware(array|string $middleware)
- * @method \Hypervel\Routing\RouteRegistrar withoutScopedBindings()
+ * @method $this as(string $value)
+ * @method $this can(\UnitEnum|string $ability, array|string $models = [])
+ * @method $this controller(string $controller)
+ * @method $this domain(\BackedEnum|string $value)
+ * @method $this metadata(array $metadata)
+ * @method $this middleware(null|array|string $middleware)
+ * @method $this missing(\Closure $missing)
+ * @method $this name(\BackedEnum|string $value)
+ * @method $this namespace(null|string $value)
+ * @method $this port(int $port)
+ * @method $this prefix(string $prefix)
+ * @method $this scopeBindings()
+ * @method $this where(array $where)
+ * @method $this withoutMiddleware(array|string $middleware)
+ * @method $this withoutScopedBindings()
  */
 class RouteRegistrar
 {
@@ -70,6 +72,7 @@ class RouteRegistrar
         'can',
         'controller',
         'domain',
+        'metadata',
         'middleware',
         'missing',
         'name',
@@ -117,6 +120,17 @@ class RouteRegistrar
             foreach ($value as $index => $middleware) {
                 $value[$index] = (string) $middleware;
             }
+        }
+
+        if ($key === 'metadata') {
+            if (! is_array($value)) {
+                throw new InvalidArgumentException('Attribute [metadata] expects an array.');
+            }
+
+            $value = RouteGroup::mergeMetadata(
+                $this->attributes['metadata'] ?? [],
+                $value
+            );
         }
 
         $attributeKey = Arr::get($this->aliases, $key, $key);
@@ -192,6 +206,14 @@ class RouteRegistrar
     }
 
     /**
+     * Add metadata to routes registered by the registrar.
+     */
+    public function metadata(array $metadata): static
+    {
+        return $this->attribute('metadata', $metadata);
+    }
+
+    /**
      * Register a new route with the router.
      */
     protected function registerRoute(string $method, string $uri, Closure|array|string|null $action = null): Route
@@ -227,7 +249,18 @@ class RouteRegistrar
             ];
         }
 
-        return array_merge($this->attributes, $action);
+        $metadata = RouteGroup::mergeMetadata(
+            $this->attributes['metadata'] ?? [],
+            $action['metadata'] ?? [],
+        );
+
+        $action = array_merge($this->attributes, $action);
+
+        if ($metadata !== []) {
+            $action['metadata'] = $metadata;
+        }
+
+        return $action;
     }
 
     /**

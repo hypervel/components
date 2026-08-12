@@ -305,10 +305,16 @@ class DatabaseTransactionsManager
 
     /**
      * Register a transaction callback.
+     *
+     * A null connection selects the most recently started applicable transaction on any
+     * connection. The callback runs when that transaction and its enclosing stack on the
+     * same connection commit.
+     *
+     * @param null|string $connection base name from Connection::getName()
      */
-    public function addCallback(callable $callback): void
+    public function addCallback(callable $callback, ?string $connection = null): void
     {
-        if ($current = $this->callbackApplicableTransactions()->last()) {
+        if ($current = $this->latestApplicableTransaction($connection)) {
             $current->addCallback($callback);
             return;
         }
@@ -318,12 +324,40 @@ class DatabaseTransactionsManager
 
     /**
      * Register a callback for transaction rollback.
+     *
+     * A null connection selects the most recently started applicable transaction on any
+     * connection. The callback runs when that transaction and its enclosing stack on the
+     * same connection roll back.
+     *
+     * @param null|string $connection base name from Connection::getName()
      */
-    public function addCallbackForRollback(callable $callback): void
+    public function addCallbackForRollback(callable $callback, ?string $connection = null): void
     {
-        if ($current = $this->callbackApplicableTransactions()->last()) {
+        if ($current = $this->latestApplicableTransaction($connection)) {
             $current->addCallbackForRollback($callback);
         }
+    }
+
+    /**
+     * Get the latest applicable transaction, optionally limited to a connection.
+     */
+    protected function latestApplicableTransaction(?string $connection): ?DatabaseTransactionRecord
+    {
+        $transactions = $this->callbackApplicableTransactions();
+
+        if ($connection === null) {
+            return $transactions->last();
+        }
+
+        $current = null;
+
+        foreach ($transactions as $transaction) {
+            if ($transaction->connection === $connection) {
+                $current = $transaction;
+            }
+        }
+
+        return $current;
     }
 
     /**

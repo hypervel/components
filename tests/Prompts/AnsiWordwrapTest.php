@@ -9,21 +9,21 @@ use Hypervel\Tests\TestCase;
 
 class AnsiWordwrapTest extends TestCase
 {
-    public function testWrapsPlainTextWithoutAnsiCodes()
+    public function testWrapsPlainTextWithoutAnsiCodes(): void
     {
         $result = $this->getInstance()->wrap('Hello World', 5);
 
         $this->assertSame(['Hello', 'World'], $result);
     }
 
-    public function testReturnsSingleLineWhenTextFitsWithinWidth()
+    public function testReturnsSingleLineWhenTextFitsWithinWidth(): void
     {
         $result = $this->getInstance()->wrap('Hello', 80);
 
         $this->assertSame(['Hello'], $result);
     }
 
-    public function testPreservesAnsiCodesAcrossWordWrap()
+    public function testPreservesAnsiCodesAcrossWordWrap(): void
     {
         $result = $this->getInstance()->wrap("\e[31mHello World\e[0m", 5);
 
@@ -36,7 +36,7 @@ class AnsiWordwrapTest extends TestCase
         $this->assertStringContainsString('World', $result[1]);
     }
 
-    public function testHandlesTextWithColorChangeMidWrap()
+    public function testHandlesTextWithColorChangeMidWrap(): void
     {
         $result = $this->getInstance()->wrap("\e[31mRed\e[0m \e[32mGreen text here\e[0m", 10);
 
@@ -46,14 +46,14 @@ class AnsiWordwrapTest extends TestCase
         $this->assertGreaterThanOrEqual(2, count($result));
     }
 
-    public function testHandlesEmptyString()
+    public function testHandlesEmptyString(): void
     {
         $result = $this->getInstance()->wrap('', 80);
 
         $this->assertSame([''], $result);
     }
 
-    public function testClosesOpenAnsiCodesAtEndOfWrappedLines()
+    public function testClosesOpenAnsiCodesAtEndOfWrappedLines(): void
     {
         $result = $this->getInstance()->wrap("\e[1mBold text that should wrap around\e[0m", 10);
 
@@ -65,7 +65,7 @@ class AnsiWordwrapTest extends TestCase
         }
     }
 
-    public function testWrapsTextWithMultiByteCharactersAndAnsiCodes()
+    public function testWrapsTextWithMultiByteCharactersAndAnsiCodes(): void
     {
         $result = $this->getInstance()->wrap("\e[31mHêllo Wörld\e[0m", 6);
 
@@ -74,7 +74,7 @@ class AnsiWordwrapTest extends TestCase
         $this->assertStringContainsString('Wörld', $result[1]);
     }
 
-    public function testHandlesMultipleColorSegmentsWrappingAcrossLines()
+    public function testHandlesMultipleColorSegmentsWrappingAcrossLines(): void
     {
         $text = "\e[31mRed\e[0m \e[32mGreen\e[0m \e[34mBlue\e[0m";
         $result = $this->getInstance()->wrap($text, 5);
@@ -86,11 +86,53 @@ class AnsiWordwrapTest extends TestCase
         $this->assertStringContainsString('Blue', $result[2]);
     }
 
-    public function testPreservesUnstyledTextThatDoesNotNeedWrapping()
+    public function testPreservesUnstyledTextThatDoesNotNeedWrapping(): void
     {
         $result = $this->getInstance()->wrap('Short', 80);
 
         $this->assertSame(['Short'], $result);
+    }
+
+    public function testPreservesOsc8HyperlinkSequences(): void
+    {
+        $result = $this->getInstance()->wrap("Click \e]8;;https://example.com\e\\here\e]8;;\e\\", 80);
+
+        $this->assertCount(1, $result);
+        $this->assertStringContainsString("\e]8;;https://example.com\e\\", $result[0]);
+        $this->assertStringContainsString('here', $result[0]);
+        $this->assertStringContainsString("\e]8;;\e\\", $result[0]);
+    }
+
+    public function testClosesAndReopensOsc8HyperlinkWhenWrappingAcrossLines(): void
+    {
+        $result = $this->getInstance()->wrap("\e]8;;https://example.com\e\\Hello World\e]8;;\e\\", 5);
+
+        $this->assertCount(2, $result);
+        $this->assertStringContainsString("\e]8;;https://example.com\e\\", $result[0]);
+        $this->assertStringContainsString('Hello', $result[0]);
+        $this->assertStringEndsWith("\e]8;;\e\\", $result[0]);
+        $this->assertStringContainsString("\e]8;;https://example.com\e\\", $result[1]);
+        $this->assertStringContainsString('World', $result[1]);
+        $this->assertStringEndsWith("\e]8;;\e\\", $result[1]);
+    }
+
+    public function testHandlesOsc8HyperlinkWithAnsiCodesInside(): void
+    {
+        $result = $this->getInstance()->wrap("\e]8;;https://example.com\e\\\e[4mLink Text\e[0m\e]8;;\e\\", 80);
+
+        $this->assertCount(1, $result);
+        $this->assertStringContainsString("\e]8;;https://example.com\e\\", $result[0]);
+        $this->assertStringContainsString("\e[4m", $result[0]);
+        $this->assertStringContainsString('Link Text', $result[0]);
+    }
+
+    public function testPreservesUnterminatedEscapeSequencesAsLiteralText(): void
+    {
+        $this->assertSame(["abc\e[31"], $this->getInstance()->wrap("abc\e[31", 80));
+        $this->assertSame(
+            ["abc\e]8;;https://hypervel.org"],
+            $this->getInstance()->wrap("abc\e]8;;https://hypervel.org", 80),
+        );
     }
 
     private function getInstance(): object

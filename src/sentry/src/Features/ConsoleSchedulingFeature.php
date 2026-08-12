@@ -39,7 +39,8 @@ class ConsoleSchedulingFeature extends Feature
             ?int $maxRuntime,
             bool $updateMonitorConfig,
             ?int $failureIssueThreshold,
-            ?int $recoveryThreshold
+            ?int $recoveryThreshold,
+            ?string $schedule
         ) {
             $this->startCheckIn(
                 $slug,
@@ -48,7 +49,8 @@ class ConsoleSchedulingFeature extends Feature
                 $maxRuntime,
                 $updateMonitorConfig,
                 $failureIssueThreshold,
-                $recoveryThreshold
+                $recoveryThreshold,
+                $schedule
             );
         };
         $finishCheckIn = function (?string $slug, SchedulingEvent $scheduled, CheckInStatus $status) {
@@ -61,7 +63,8 @@ class ConsoleSchedulingFeature extends Feature
             ?int $maxRuntime = null,
             bool $updateMonitorConfig = true,
             ?int $failureIssueThreshold = null,
-            ?int $recoveryThreshold = null
+            ?int $recoveryThreshold = null,
+            ?string $schedule = null
         ) use ($startCheckIn, $finishCheckIn) {
             /** @var SchedulingEvent $this */
             if ($monitorSlug === null && empty($this->command) && empty($this->description)) {
@@ -78,7 +81,8 @@ class ConsoleSchedulingFeature extends Feature
                     $maxRuntime,
                     $updateMonitorConfig,
                     $failureIssueThreshold,
-                    $recoveryThreshold
+                    $recoveryThreshold,
+                    $schedule
                 ) {
                     /** @var SchedulingEvent $this */
                     $startCheckIn(
@@ -88,7 +92,8 @@ class ConsoleSchedulingFeature extends Feature
                         $maxRuntime,
                         $updateMonitorConfig,
                         $failureIssueThreshold,
-                        $recoveryThreshold
+                        $recoveryThreshold,
+                        $schedule
                     );
                 })
                 ->onSuccess(function () use ($finishCheckIn, $monitorSlug) {
@@ -110,6 +115,11 @@ class ConsoleSchedulingFeature extends Feature
     public function onBoot(): void
     {
         $this->shouldHandleCheckIn = true;
+
+        if (! $this->canRecordSpans()) {
+            return;
+        }
+
         $dispatcher = $this->container->make('events');
 
         $dispatcher->listen(ScheduledTaskStarting::class, [$this, 'handleScheduledTaskStarting']);
@@ -122,6 +132,9 @@ class ConsoleSchedulingFeature extends Feature
         $this->shouldHandleCheckIn = false;
     }
 
+    /**
+     * Start tracing the scheduled task.
+     */
     public function handleScheduledTaskStarting(ScheduledTaskStarting $event): void
     {
         // When scheduling a command class the command name will be the most descriptive
@@ -139,16 +152,30 @@ class ConsoleSchedulingFeature extends Feature
         $this->pushSpan($transaction);
     }
 
-    public function handleScheduledTaskFinished(): void
+    /**
+     * Finish tracing the scheduled task with its published outcome.
+     */
+    public function handleScheduledTaskFinished(ScheduledTaskFinished $event): void
     {
-        $this->maybeFinishSpan(SpanStatus::ok());
-        $this->maybePopScope();
+        $exitCode = $event->task->exitCode();
+        $status = $exitCode === null || $exitCode === 0
+            ? SpanStatus::ok()
+            : SpanStatus::internalError();
+
+        // Gate maybePopScope's flush so duplicate terminal events do not flush twice.
+        if ($this->maybeFinishSpan($status) !== null) {
+            $this->maybePopScope();
+        }
     }
 
+    /**
+     * Mark tracing for the scheduled task as failed.
+     */
     public function handleScheduledTaskFailed(): void
     {
-        $this->maybeFinishSpan(SpanStatus::internalError());
-        $this->maybePopScope();
+        if ($this->maybeFinishSpan(SpanStatus::internalError()) !== null) {
+            $this->maybePopScope();
+        }
     }
 
     private function startCheckIn(
@@ -158,7 +185,8 @@ class ConsoleSchedulingFeature extends Feature
         ?int $maxRuntime,
         bool $updateMonitorConfig,
         ?int $failureIssueThreshold,
-        ?int $recoveryThreshold
+        ?int $recoveryThreshold,
+        ?string $schedule
     ): void {
         if (! $this->shouldHandleCheckIn) {
             return;
@@ -177,7 +205,7 @@ class ConsoleSchedulingFeature extends Feature
 
             $checkIn->setMonitorConfig(
                 new MonitorConfig(
-                    MonitorSchedule::crontab($scheduled->getExpression()),
+                    MonitorSchedule::crontab($schedule ?? $scheduled->getExpression()),
                     $checkInMargin,
                     $maxRuntime,
                     $timezone,

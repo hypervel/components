@@ -49,7 +49,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Retrieve information about an existing batch.
      */
-    public function find(int|string $batchId): ?Batch
+    public function find(string $batchId): ?Batch
     {
         $batch = $this->getConnection()->table($this->table)
             ->useWritePdo()
@@ -91,7 +91,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Increment the total number of jobs within the batch.
      */
-    public function incrementTotalJobs(int|string $batchId, int $amount): void
+    public function incrementTotalJobs(string $batchId, int $amount): void
     {
         $this->getConnection()->table($this->table)->where('id', $batchId)->update([
             'total_jobs' => new Expression('total_jobs + ' . $amount),
@@ -103,7 +103,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Decrement the total number of pending jobs for the batch.
      */
-    public function decrementPendingJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts
+    public function decrementPendingJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
         $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId) {
             return [
@@ -122,7 +122,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Increment the total number of failed jobs for the batch.
      */
-    public function incrementFailedJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts
+    public function incrementFailedJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
         $values = $this->updateAtomicValues($batchId, function ($batch) use ($jobId) {
             return [
@@ -141,7 +141,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Update an atomic value within the batch.
      */
-    protected function updateAtomicValues(int|string $batchId, Closure $callback): ?array
+    protected function updateAtomicValues(string $batchId, Closure $callback): ?array
     {
         return $this->getConnection()->transaction(function () use ($batchId, $callback) {
             $batch = $this->getConnection()->table($this->table)->where('id', $batchId)
@@ -157,7 +157,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Mark the batch that has the given ID as finished.
      */
-    public function markAsFinished(int|string $batchId): void
+    public function markAsFinished(string $batchId): void
     {
         $this->getConnection()->table($this->table)->where('id', $batchId)->update([
             'finished_at' => time(),
@@ -167,7 +167,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Cancel the batch that has the given ID.
      */
-    public function cancel(int|string $batchId): void
+    public function cancel(string $batchId): void
     {
         $this->getConnection()->table($this->table)->where('id', $batchId)->update([
             'cancelled_at' => time(),
@@ -178,7 +178,7 @@ class DatabaseBatchRepository implements PrunableBatchRepository
     /**
      * Delete the batch that has the given ID.
      */
-    public function delete(int|string $batchId): void
+    public function delete(string $batchId): void
     {
         $this->getConnection()->table($this->table)->where('id', $batchId)->delete();
     }

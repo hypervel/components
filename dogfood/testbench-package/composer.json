@@ -30,7 +30,7 @@
         "hypervel/support": "0.4.x-dev"
     },
     "require-dev": {
-        "brianium/paratest": "^7.19",
+        "brianium/paratest": "^7.24",
         "fakerphp/faker": "^1.24",
         "hypervel/components": "0.4.x-dev",
         "hypervel/testbench": "0.4.x-dev",

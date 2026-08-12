@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -49,4 +51,6 @@ jobs:
       - name: Execute integration tests
         env:
           TEST_SERVER_HOST: 127.0.0.1
-        run: vendor/bin/phpunit tests/Integration/Engine tests/Integration/HttpServer
+        run: |
+          vendor/bin/paratest tests/Integration/Engine
+          vendor/bin/paratest tests/Integration/HttpServer

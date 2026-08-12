@@ -304,6 +304,24 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('foo@gmail.com', $models[0]->email);
     }
 
+    public function testExplicitZeroPageDoesNotConsultResolver(): void
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        Paginator::currentPageResolver(fn () => 9);
+
+        $paginator = User::oldest('id')->paginate(1, page: 0);
+        $simplePaginator = User::oldest('id')->simplePaginate(1, page: 0);
+
+        $this->assertSame(1, $paginator->currentPage());
+        $this->assertSame(1, $paginator->first()->getKey());
+        $this->assertSame(1, $simplePaginator->currentPage());
+        $this->assertSame(1, $simplePaginator->first()->getKey());
+    }
+
     public function testPaginatedModelCollectionRetrievalUsingCallablePerPage()
     {
         User::insert([

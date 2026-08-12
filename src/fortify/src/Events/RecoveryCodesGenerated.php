@@ -15,7 +15,7 @@ class RecoveryCodesGenerated
      * Create a new event instance.
      */
     public function __construct(
-        public readonly Authenticatable $user,
+        public Authenticatable $user,
     ) {
     }
 }

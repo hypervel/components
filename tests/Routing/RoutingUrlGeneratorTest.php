@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing\RoutingUrlGeneratorTest;
 
+use ErrorException;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\UrlGenerator;
+use Hypervel\Support\Str;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
 use Hypervel\Tests\Routing\Fixtures\RouteDomainEnum;
 use Hypervel\Tests\Routing\Fixtures\RouteNameEnum;
@@ -159,6 +161,33 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('', $request->getBasePath());
         $this->assertSame('/other.php', $request->getBaseUrl());
         $this->assertSame('/foo/bar/subfolder', $url->route('foobar', [], false));
+    }
+
+    #[DataProvider('requestBaseUrlWithSpecialCharactersProvider')]
+    public function testRelativeRouteGenerationStripsRequestBaseUrlWithSpecialCharacters(string $directory): void
+    {
+        $request = Request::create("http://www.foo.com/{$directory}/index.php");
+
+        $request->server->set('SCRIPT_FILENAME', "/var/www/hypervel-project/public/{$directory}/index.php");
+        $request->server->set('PHP_SELF', "/{$directory}/index.php");
+
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            $request
+        );
+
+        $routes->add(new Route(['GET'], 'foo', ['as' => 'foo']));
+
+        $this->assertSame("/{$directory}/index.php", $request->getBaseUrl());
+        $this->assertSame('/foo', $url->route('foo', [], false));
+    }
+
+    public static function requestBaseUrlWithSpecialCharactersProvider(): array
+    {
+        return [
+            'encoded characters' => ['app(v2)'],
+            'regex metacharacters' => ['a+b'],
+        ];
     }
 
     public function testBasicGenerationWithPathFormatting()
@@ -961,10 +990,41 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $url->getRequest()->headers->set('referer', 'http://www.foo.com/bar?baz=bah');
         $this->assertSame('/bar', $url->previousPath());
 
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/foo');
+        $this->assertSame('/foo', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/foo?bar=baz');
+        $this->assertSame('/foo', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com');
+        $this->assertSame('/', $url->previousPath());
+
         $url->getRequest()->headers->remove('referer');
         $this->assertSame('/', $url->previousPath());
 
         $this->assertSame('/bar', $url->previousPath('/bar'));
+    }
+
+    public function testPreviousPathWithBaseUrl(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('http://www.foo.com/subdir/current')
+        );
+
+        $url->useOrigin('http://www.foo.com/subdir');
+
+        $url->getRequest()->headers->set('referer', 'http://www.foo.com/subdir/dashboard?x=1');
+        $this->assertSame('/dashboard', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/foo');
+        $this->assertSame('/foo', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.foo.com/subdir');
+        $this->assertSame('/', $url->previousPath());
+
+        $url->getRequest()->headers->set('referer', 'http://www.bar.com/subdirfoo');
+        $this->assertSame('/subdirfoo', $url->previousPath());
     }
 
     public function testRouteNotDefinedException()
@@ -1124,6 +1184,55 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         );
     }
 
+    public function testRouteParameterDelimitersRemainEncodedAsData(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], '/keys/{key}', ['as' => 'keys.show']));
+        $routes->add(
+            (new Route(['GET'], '/keys/{key}', ['as' => 'tenant.keys.show']))
+                ->domain('{tenant}.example.com')
+        );
+        $routes->add(new Route(['GET'], '/dashboard', ['as' => 'root.dashboard']));
+
+        $this->assertSame(
+            'http://www.foo.com/keys/report%3Fv2%23final%252F.pdf?q=1',
+            $url->route('keys.show', ['key' => 'report?v2#final%2F.pdf', 'q' => 1]),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/report%7Bdraft%7D.pdf',
+            $url->route('keys.show', ['key' => 'report{draft}.pdf']),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/a%7Bx%7Db?extra',
+            $url->route('keys.show', ['key' => 'a{x}b', 'extra']),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/positional%3Fvalue',
+            $url->route('keys.show', ['positional?value']),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/stringable%23value',
+            $url->route('keys.show', Str::of('stringable#value')),
+        );
+        $this->assertSame(
+            'http://www.foo.com/keys/pend%3Fing',
+            $url->route('keys.show', DelimitedRouteParameter::Pending),
+        );
+        $this->assertSame(
+            'http://tenant%3Fvalue.example.com/keys/key',
+            $url->route('tenant.keys.show', ['tenant' => 'tenant?value', 'key' => 'key']),
+        );
+
+        $url->useOrigin('http://{tenant}.example.com');
+        $url->defaults(['tenant' => '100%']);
+
+        $this->assertSame('http://100%25.example.com/dashboard', $url->route('root.dashboard'));
+    }
+
     public function testSignedUrlWithKeyResolver()
     {
         $url = new UrlGenerator(
@@ -1164,6 +1273,44 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
 
         $this->assertTrue($url3->hasValidSignature($firstRequest));
         $this->assertTrue($url3->hasValidSignature($secondRequest));
+    }
+
+    public function testSignedUrlWithArraySignatureReturnsFalseWithoutWarning(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+        $url->setKeyResolver(fn () => 'secret');
+
+        $request = Request::create('http://www.foo.com/foo?signature[]=foo&signature[]=bar');
+
+        set_error_handler(static function (int $errorNumber, string $errorMessage) {
+            throw new ErrorException($errorMessage, 0, $errorNumber);
+        }, E_WARNING);
+
+        try {
+            $this->assertFalse($url->hasCorrectSignature($request));
+            $this->assertFalse($url->hasValidSignature($request));
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testSignedUrlWithArrayExpiresReturnsFalse(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+        $url->setKeyResolver(fn () => 'secret');
+
+        $query = 'expires[]=99999999999';
+        $signature = hash_hmac('sha256', 'http://www.foo.com/foo?' . $query, 'secret');
+        $request = Request::create('http://www.foo.com/foo?' . $query . '&signature=' . $signature);
+
+        $this->assertFalse($url->signatureHasNotExpired($request));
+        $this->assertFalse($url->hasValidSignature($request));
     }
 
     public function testMissingNamedRouteResolution()
@@ -1209,6 +1356,112 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
                 tap(new RoutableInterfaceStub, fn ($x) => $x->key = 'concretePost'),
             ]),
         );
+    }
+
+    public function testBooleanRouteParametersUseRoutingScalarFormat(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], 'features/{enabled}/{disabled}', ['as' => 'features', fn () => '']));
+        $routes->add(
+            (new Route(['GET'], 'features/{enabled}', ['as' => 'domain-features', fn () => '']))
+                ->domain('{tenant}.example.com')
+        );
+
+        $this->assertSame(
+            'https://www.foo.com/features/1/0',
+            $url->route('features', ['enabled' => true, 'disabled' => false])
+        );
+        $this->assertSame(
+            'https://1.example.com/features/0',
+            $url->route('domain-features', ['tenant' => true, 'enabled' => false])
+        );
+    }
+
+    public function testBindingFieldDefaultRemainsAuthoritativeForExplicitNull(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults([
+            'team' => 'plain-team',
+            'team:slug' => 'bound-team',
+        ]);
+        $routes->add(new Route(['GET'], 'teams/{team:slug}', ['as' => 'teams.show', fn () => '']));
+
+        $this->assertSame(
+            'https://www.foo.com/teams/bound-team',
+            $url->route('teams.show', ['team' => null])
+        );
+    }
+
+    public function testPlainDefaultDoesNotSatisfyBoundRouteParameter(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['team' => 'plain-team']);
+        $routes->add(new Route(['GET'], 'teams/{team:slug}', ['as' => 'teams.show', fn () => '']));
+
+        $this->expectException(UrlGenerationException::class);
+
+        $url->route('teams.show');
+    }
+
+    public function testBindingAwareDefaultSuppliesRouteDomainParameter(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['team:slug' => 'bound-team']);
+        $routes->add(
+            (new Route(['GET'], 'dashboard', ['as' => 'domain-dashboard', fn () => '']))
+                ->domain('{team:slug}.example.com')
+        );
+
+        $this->assertSame('https://bound-team.example.com/dashboard', $url->route('domain-dashboard'));
+    }
+
+    public function testConsumedRootDefaultsDoNotLeakIntoTheQueryString(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->useOrigin('https://{tenant}.example.com');
+        $url->defaults(['tenant' => 'default-tenant']);
+        $routes->add(new Route(['GET'], 'dashboard', ['as' => 'root-dashboard', fn () => '']));
+
+        $this->assertSame('https://default-tenant.example.com/dashboard', $url->route('root-dashboard'));
+        $this->assertSame('https://default-tenant.example.com/dashboard', $url->route('root-dashboard', ['tenant' => null]));
+        $this->assertSame('https://default-tenant.example.com/dashboard', $url->route('root-dashboard', ['tenant' => '']));
+        $this->assertSame('https://explicit.example.com/dashboard', $url->route('root-dashboard', ['tenant' => 'explicit']));
+    }
+
+    public function testForcedRootAndRouteParameterCollisionThrows(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->useOrigin('https://{tenant}.example.com');
+        $url->defaults(['tenant' => 'default-tenant']);
+        $routes->add(new Route(['GET'], 'dashboard/{tenant}', ['as' => 'tenant-dashboard', fn () => '']));
+
+        $this->expectException(UrlGenerationException::class);
+
+        $url->route('tenant-dashboard', ['tenant' => 'explicit']);
     }
 
     public function testDefaultResolverPrecedence(): void
@@ -2606,4 +2859,9 @@ class InvokableActionStub
 class RoutingUrlGeneratorTestUser extends Model
 {
     protected array $fillable = ['uuid'];
+}
+
+enum DelimitedRouteParameter: string
+{
+    case Pending = 'pend?ing';
 }

@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Crypt;
 
 class AsEncryptedArrayObject implements Castable
@@ -18,25 +20,33 @@ class AsEncryptedArrayObject implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes {
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?ArrayObject
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (isset($attributes[$key])) {
-                    return new ArrayObject(Json::decode(Crypt::decryptString($attributes[$key])), ArrayObject::ARRAY_AS_PROPS);
+                    $data = Json::decode(Crypt::decryptString($attributes[$key]));
+
+                    return is_array($data) ? new ArrayObject($data, ArrayObject::ARRAY_AS_PROPS) : null;
                 }
 
                 return null;
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): ?array
+            public function set(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 if (! is_null($value)) {
-                    return [$key => Crypt::encryptString(Json::encode($value))];
+                    $encoded = Json::encode($value);
+
+                    if ($encoded === false) {
+                        throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+                    }
+
+                    return [$key => Crypt::encryptString($encoded)];
                 }
 
                 return null;
             }
 
-            public function serialize(mixed $model, string $key, mixed $value, array $attributes): ?array
+            public function serialize(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 return ! is_null($value) ? $value->getArrayCopy() : null;
             }

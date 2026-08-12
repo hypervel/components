@@ -9,8 +9,10 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use Mockery as m;
 use Swoole\Coroutine\Channel;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -22,7 +24,7 @@ use function Hypervel\Coroutine\parallel;
  */
 class AbstractProviderTest extends TestCase
 {
-    public function testWithConfigSeedsBaselineConfig()
+    public function testWithConfigSeedsBaselineConfig(): void
     {
         $provider = new GenericTestProviderStub(
             m::mock(Request::class),
@@ -36,7 +38,7 @@ class AbstractProviderTest extends TestCase
         $this->assertSame('my-realm', $provider->getProviderConfig('realm'));
     }
 
-    public function testSetConfigOverridesPerRequest()
+    public function testSetConfigOverridesPerRequest(): void
     {
         $provider = new GenericTestProviderStub(
             m::mock(Request::class),
@@ -52,7 +54,7 @@ class AbstractProviderTest extends TestCase
         $this->assertSame('tenant-realm', $provider->getProviderConfig('realm'));
     }
 
-    public function testGetConfigReturnsDefaultForMissingKeys()
+    public function testGetConfigReturnsDefaultForMissingKeys(): void
     {
         $provider = new GenericTestProviderStub(
             m::mock(Request::class),
@@ -62,7 +64,19 @@ class AbstractProviderTest extends TestCase
         $this->assertSame('fallback', $provider->getProviderConfig('nonexistent', 'fallback'));
     }
 
-    public function testSetHttpClient()
+    public function testGetConfigDelegatesNullAndZeroKeysToArr(): void
+    {
+        $provider = new GenericTestProviderStub(m::mock(Request::class));
+        $provider->withConfig([
+            0 => 'zero',
+            'realm' => 'default',
+        ]);
+
+        $this->assertSame('zero', $provider->getProviderConfig('0'));
+        $this->assertSame([0 => 'zero', 'realm' => 'default'], $provider->getProviderConfig());
+    }
+
+    public function testSetHttpClient(): void
     {
         $provider = new GenericTestProviderStub(
             m::mock(Request::class),
@@ -74,7 +88,7 @@ class AbstractProviderTest extends TestCase
         $this->assertSame($client, $provider->getProviderHttpClient());
     }
 
-    public function testStatelessToggle()
+    public function testStatelessToggle(): void
     {
         $provider = new GenericTestProviderStub(
             m::mock(Request::class),
@@ -87,7 +101,7 @@ class AbstractProviderTest extends TestCase
         $this->assertFalse($provider->providerUsesState());
     }
 
-    public function testSetRequest()
+    public function testSetRequest(): void
     {
         $originalRequest = m::mock(Request::class);
         $newRequest = m::mock(Request::class);
@@ -98,7 +112,7 @@ class AbstractProviderTest extends TestCase
         $this->assertSame($newRequest, $provider->getProviderRequest());
     }
 
-    public function testSetRequestIsIsolatedPerCoroutine()
+    public function testSetRequestIsIsolatedPerCoroutine(): void
     {
         $provider = new GenericTestProviderStub(
             Request::create('/baseline'),
@@ -125,7 +139,55 @@ class AbstractProviderTest extends TestCase
         $this->assertSame('/tenant-b', $pathB);
     }
 
-    public function testBaselineConfigSurvivesAcrossCoroutines()
+    public function testRequestMustBeSeededInEachCoroutine(): void
+    {
+        $provider = new GenericTestProviderStub(Request::create('/baseline'));
+        $channel = new Channel(1);
+
+        Coroutine::create(function () use ($provider, $channel): void {
+            try {
+                $provider->getProviderRequest();
+            } catch (Throwable $exception) {
+                $channel->push($exception);
+            }
+        });
+
+        $exception = $channel->pop(1.0);
+
+        $this->assertInstanceOf(LogicException::class, $exception);
+        $this->assertSame(
+            'No request is available for this provider. Resolve it through Socialite::driver() or call setRequest().',
+            $exception->getMessage()
+        );
+    }
+
+    public function testRecycledObjectIdsCannotReuseProviderContext(): void
+    {
+        $request = Request::create('/');
+        $provider = new GenericTestProviderStub($request);
+        $objectId = spl_object_id($provider);
+        $provider->rememberProviderMarker('tenant-a');
+
+        unset($provider);
+
+        $replacement = null;
+
+        for ($attempt = 0; $attempt < 1000; ++$attempt) {
+            $candidate = new GenericTestProviderStub($request);
+
+            if (spl_object_id($candidate) === $objectId) {
+                $replacement = $candidate;
+                break;
+            }
+
+            unset($candidate);
+        }
+
+        $this->assertNotNull($replacement);
+        $this->assertNull($replacement->getProviderMarker());
+    }
+
+    public function testBaselineConfigSurvivesAcrossCoroutines(): void
     {
         $provider = new GenericTestProviderStub(
             m::mock(Request::class),
@@ -147,7 +209,7 @@ class AbstractProviderTest extends TestCase
         $this->assertSame('https://idp.example.com', $childValue);
     }
 
-    public function testSetConfigIsIsolatedPerCoroutine()
+    public function testSetConfigIsIsolatedPerCoroutine(): void
     {
         $provider = new GenericTestProviderStub(
             m::mock(Request::class),

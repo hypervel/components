@@ -32,13 +32,13 @@ class PotentiallyTranslatedString implements Stringable
      */
     public function translate(array $replace = [], ?string $locale = null): static
     {
-        $this->translation = $this->translator->get($this->string, $replace, $locale);
+        $this->translation = $this->translator->string($this->string, $replace, $locale);
 
         return $this;
     }
 
     /**
-     * Translates the string based on a count.
+     * Translate the string based on a count.
      */
     public function translateChoice(array|Countable|float|int $number, array $replace = [], ?string $locale = null): static
     {

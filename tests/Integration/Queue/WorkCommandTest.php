@@ -29,9 +29,9 @@ class WorkCommandTest extends QueueTestCase
 
     protected function defineEnvironment($app): void
     {
-        $app['config']->set('queue.default', 'database');
-
         parent::defineEnvironment($app);
+
+        $app['config']->set('queue.default', 'database');
     }
 
     protected function setUp(): void

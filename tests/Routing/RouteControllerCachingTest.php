@@ -20,7 +20,7 @@ use ReflectionProperty;
 
 class RouteControllerCachingTest extends RoutingTestCase
 {
-    public function testUnboundControllerIsCachedOnRouteProperty()
+    public function testUnboundControllerIsCachedOnRouteProperty(): void
     {
         $router = $this->getRouter();
         $router->get('foo', UnboundController::class . '@index');
@@ -34,7 +34,7 @@ class RouteControllerCachingTest extends RoutingTestCase
         $this->assertSame($first, $second);
     }
 
-    public function testScopedControllerUsesContextNotRouteProperty()
+    public function testScopedControllerUsesContextNotRouteProperty(): void
     {
         $router = $this->getRouter();
         $router->get('foo', ScopedController::class . '@index');
@@ -53,7 +53,7 @@ class RouteControllerCachingTest extends RoutingTestCase
         $this->assertNull($reflection->getValue($route));
     }
 
-    public function testBoundControllerUsesContextNotRouteProperty()
+    public function testBoundControllerUsesContextNotRouteProperty(): void
     {
         $container = new Container;
         $container->bind(BoundController::class);
@@ -73,7 +73,7 @@ class RouteControllerCachingTest extends RoutingTestCase
         $this->assertNull($reflection->getValue($route));
     }
 
-    public function testSingletonControllerIsCachedOnRouteProperty()
+    public function testSingletonControllerIsCachedOnRouteProperty(): void
     {
         $container = new Container;
         $container->singleton(SingletonController::class);
@@ -94,7 +94,7 @@ class RouteControllerCachingTest extends RoutingTestCase
         $this->assertNotNull($reflection->getValue($route));
     }
 
-    public function testFlushControllerClearsPropertyCache()
+    public function testFlushControllerClearsPropertyCache(): void
     {
         $router = $this->getRouter();
         $router->get('foo', UnboundController::class . '@index');
@@ -113,7 +113,7 @@ class RouteControllerCachingTest extends RoutingTestCase
         $this->assertNull($reflection->getValue($route));
     }
 
-    public function testSetContainerClearsControllerCache()
+    public function testSetContainerClearsControllerCache(): void
     {
         $container = new Container;
         $router = $this->getRouter($container);
@@ -125,21 +125,41 @@ class RouteControllerCachingTest extends RoutingTestCase
         $route = $request->route();
         $route->getController();
 
-        $controllerRef = new ReflectionProperty($route, 'controller');
-        $cacheDecisionRef = new ReflectionProperty($route, 'shouldCacheControllerOnRoute');
+        $controllerProperty = new ReflectionProperty($route, 'controller');
+        $cacheDecisionProperty = new ReflectionProperty($route, 'shouldCacheControllerOnRoute');
 
-        $this->assertNotNull($controllerRef->getValue($route));
-        $this->assertNotNull($cacheDecisionRef->getValue($route));
+        $this->assertNotNull($controllerProperty->getValue($route));
+        $this->assertNotNull($cacheDecisionProperty->getValue($route));
 
         // Swapping the container should clear all controller caches
         // since the caching decision was made against the old container.
         $route->setContainer(new Container);
 
-        $this->assertNull($controllerRef->getValue($route));
-        $this->assertNull($cacheDecisionRef->getValue($route));
+        $this->assertNull($controllerProperty->getValue($route));
+        $this->assertNull($cacheDecisionProperty->getValue($route));
     }
 
-    public function testPrepareForSerializationClearsControllerCache()
+    public function testSetContainerClearsCoroutineLocalController(): void
+    {
+        $firstContainer = new Container;
+        $firstController = new BoundController;
+        $firstContainer->bind(BoundController::class, fn () => $firstController);
+
+        $route = $this->getRouter($firstContainer)
+            ->get('foo', BoundController::class . '@index');
+
+        $this->assertSame($firstController, $route->getController());
+
+        $secondContainer = new Container;
+        $secondController = new BoundController;
+        $secondContainer->bind(BoundController::class, fn () => $secondController);
+
+        $route->setContainer($secondContainer);
+
+        $this->assertSame($secondController, $route->getController());
+    }
+
+    public function testPrepareForSerializationClearsControllerCache(): void
     {
         $router = $this->getRouter();
         $router->get('foo', UnboundController::class . '@index');
@@ -150,16 +170,16 @@ class RouteControllerCachingTest extends RoutingTestCase
         $route = $request->route();
         $route->getController();
 
-        $controllerRef = new ReflectionProperty($route, 'controller');
-        $cacheDecisionRef = new ReflectionProperty($route, 'shouldCacheControllerOnRoute');
+        $controllerProperty = new ReflectionProperty($route, 'controller');
+        $cacheDecisionProperty = new ReflectionProperty($route, 'shouldCacheControllerOnRoute');
 
-        $this->assertNotNull($controllerRef->getValue($route));
-        $this->assertNotNull($cacheDecisionRef->getValue($route));
+        $this->assertNotNull($controllerProperty->getValue($route));
+        $this->assertNotNull($cacheDecisionProperty->getValue($route));
 
         $route->prepareForSerialization();
 
-        $this->assertNull($controllerRef->getValue($route));
-        $this->assertNull($cacheDecisionRef->getValue($route));
+        $this->assertNull($controllerProperty->getValue($route));
+        $this->assertNull($cacheDecisionProperty->getValue($route));
     }
 
     protected function getRouter(?Container $container = null): Router

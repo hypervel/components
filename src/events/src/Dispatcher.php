@@ -836,7 +836,7 @@ class Dispatcher implements DispatcherContract
     }
 
     /**
-     * Determine if the given event handler should be dispatched after all database transactions have committed.
+     * Determine if the given event handler should be dispatched after the open parent database transactions have committed.
      */
     protected function handlerShouldBeDispatchedAfterDatabaseTransactions(mixed $listener): bool
     {

@@ -43,7 +43,7 @@ class ViewCacheCommand extends Command
      */
     protected function compileViews(Collection $views): void
     {
-        $compiler = $this->hypervel['view']->getEngineResolver()->resolve('blade')->getCompiler();
+        $compiler = $this->hypervel->make('view')->getEngineResolver()->resolve('blade')->getCompiler();
 
         $views->map(function (SplFileInfo $file) use ($compiler) {
             $this->components->task('    ' . $file->getRelativePathname(), null, OutputInterface::VERBOSITY_VERY_VERBOSE);
@@ -61,7 +61,7 @@ class ViewCacheCommand extends Command
      */
     protected function bladeFilesIn(array $paths): Collection
     {
-        $extensions = (new Collection($this->hypervel['view']->getExtensions()))
+        $extensions = (new Collection($this->hypervel->make('view')->getExtensions()))
             ->filter(fn ($value) => $value === 'blade')
             ->keys()
             ->map(fn ($extension) => "*.{$extension}")
@@ -81,10 +81,27 @@ class ViewCacheCommand extends Command
      */
     protected function paths(): Collection
     {
-        $finder = $this->hypervel['view']->getFinder();
+        $finder = $this->hypervel->make('view')->getFinder();
 
-        return (new Collection($finder->getPaths()))->merge(
+        $paths = (new Collection($finder->getPaths()))->merge(
             (new Collection($finder->getHints()))->flatten()
-        );
+        )->map(function (string $path): string {
+            $path = realpath($path) ?: $path;
+
+            return dirname($path) === $path ? $path : rtrim($path, DIRECTORY_SEPARATOR);
+        })->unique();
+
+        return $paths->reject(function (string $path) use ($paths): bool {
+            // Trimming before appending preserves one boundary separator for filesystem roots.
+            $boundary = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+            return $paths->contains(
+                fn (string $existing): bool => $existing !== $path
+                    && str_starts_with(
+                        $boundary,
+                        rtrim($existing, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR
+                    )
+            );
+        })->values();
     }
 }

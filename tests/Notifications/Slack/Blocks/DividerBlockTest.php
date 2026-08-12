@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
 use Hypervel\Notifications\Slack\BlockKit\Blocks\DividerBlock;
+use Hypervel\Tests\TestCase;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 
 class DividerBlockTest extends TestCase
 {
@@ -39,5 +39,14 @@ class DividerBlockTest extends TestCase
         $block->id(str_repeat('a', 256));
 
         $block->toArray();
+    }
+
+    public function testBlockIdUsesTheSlackCharacterLimit(): void
+    {
+        $id = str_repeat('你', 255);
+        $block = new DividerBlock;
+        $block->id($id);
+
+        $this->assertSame($id, $block->toArray()['block_id']);
     }
 }

@@ -144,55 +144,6 @@ class AttributesTest extends TestCase
         $this->assertEmpty(RefreshDatabaseState::$inMemoryConnections);
     }
 
-    public function testWithMigrationImplementsInvokable(): void
-    {
-        $attribute = new WithMigration('hypervel');
-
-        $this->assertInstanceOf(Invokable::class, $attribute);
-        $this->assertSame(['hypervel'], $attribute->types);
-    }
-
-    public function testWithMigrationDefaultsToLaravel(): void
-    {
-        $attribute = new WithMigration;
-
-        $this->assertSame(['hypervel'], $attribute->types);
-    }
-
-    public function testWithMigrationAliasesMapToLaravel(): void
-    {
-        // cache, queue, session all map to 'hypervel'
-        $cacheAttr = new WithMigration('cache');
-        $queueAttr = new WithMigration('queue');
-        $sessionAttr = new WithMigration('session');
-
-        $this->assertSame(['hypervel'], $cacheAttr->types);
-        $this->assertSame(['hypervel'], $queueAttr->types);
-        $this->assertSame(['hypervel'], $sessionAttr->types);
-    }
-
-    public function testWithMigrationDeduplicatesTypes(): void
-    {
-        // Multiple aliases that map to 'hypervel' should dedupe
-        $attribute = new WithMigration('cache', 'queue', 'session', 'hypervel');
-
-        $this->assertSame(['hypervel'], $attribute->types);
-    }
-
-    public function testWithMigrationPreservesLiteralPaths(): void
-    {
-        $attribute = new WithMigration('/path/to/migrations');
-
-        $this->assertSame(['/path/to/migrations'], $attribute->types);
-    }
-
-    public function testWithMigrationMixedTypesAndPaths(): void
-    {
-        $attribute = new WithMigration('cache', '/custom/path');
-
-        $this->assertSame(['hypervel', '/custom/path'], $attribute->types);
-    }
-
     public function testRequiresEnvImplementsActionable(): void
     {
         $attribute = new RequiresEnv('SOME_VAR');

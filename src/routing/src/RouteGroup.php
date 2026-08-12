@@ -25,16 +25,64 @@ class RouteGroup
             unset($old['controller']);
         }
 
+        $metadata = static::formatMetadata($new, $old);
+
+        unset($new['metadata']);
+
         $new = array_merge(static::formatAs($new, $old), [
             'namespace' => static::formatNamespace($new, $old),
             'prefix' => static::formatPrefix($new, $old, $prependExistingPrefix),
             'where' => static::formatWhere($new, $old),
         ]);
 
+        if ($metadata !== []) {
+            $new['metadata'] = $metadata;
+        }
+
         return array_merge_recursive(Arr::except(
             $old,
-            ['namespace', 'prefix', 'where', 'as']
+            ['metadata', 'namespace', 'prefix', 'where', 'as']
         ), $new);
+    }
+
+    /**
+     * Format the metadata for the new group attributes.
+     */
+    protected static function formatMetadata(array $new, array $old): array
+    {
+        return static::mergeMetadata(
+            $old['metadata'] ?? [],
+            $new['metadata'] ?? []
+        );
+    }
+
+    /**
+     * Merge the given route metadata.
+     *
+     * Associative array values are merged recursively, while all other values, including lists, replace the existing value entirely.
+     */
+    public static function mergeMetadata(array $old, array $new): array
+    {
+        foreach ($new as $key => $value) {
+            if (isset($old[$key]) && static::mergableMetadata($old[$key], $value)) {
+                $value = static::mergeMetadata($old[$key], $value);
+            }
+
+            $old[$key] = $value;
+        }
+
+        return $old;
+    }
+
+    /**
+     * Determine if the given metadata values should be merged.
+     */
+    protected static function mergableMetadata(mixed $old, mixed $new): bool
+    {
+        return is_array($old)
+            && is_array($new)
+            && Arr::isAssoc($old)
+            && Arr::isAssoc($new);
     }
 
     /**

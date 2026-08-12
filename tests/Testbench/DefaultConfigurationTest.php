@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Hypervel\Config\Repository;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
-use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Bootstrap\LoadConfiguration as TestbenchLoadConfiguration;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionMethod;
 
-#[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
 class DefaultConfigurationTest extends TestCase
 {
     #[Test]
@@ -75,12 +77,57 @@ class DefaultConfigurationTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('sqliteNonFileIdentifiers')]
+    public function itDoesNotReplaceSqliteMemoryOrUriConnections(string $database): void
+    {
+        $config = new Repository([
+            'database' => [
+                'default' => 'sqlite',
+                'connections' => [
+                    'sqlite' => ['database' => $database],
+                ],
+            ],
+            'queue' => [
+                'batching' => ['database' => 'sqlite'],
+                'failed' => ['database' => 'sqlite'],
+            ],
+        ]);
+        $method = new ReflectionMethod(TestbenchLoadConfiguration::class, 'configureDefaultDatabaseConnection');
+
+        $method->invoke(new TestbenchLoadConfiguration, $config);
+
+        $this->assertSame('sqlite', $config->get('database.default'));
+        $this->assertSame('sqlite', $config->get('queue.batching.database'));
+        $this->assertSame('sqlite', $config->get('queue.failed.database'));
+    }
+
+    /**
+     * Provide SQLite identifiers that do not represent ordinary local files.
+     */
+    public static function sqliteNonFileIdentifiers(): array
+    {
+        return [
+            'memory' => [':memory:'],
+            'memory URI' => ['file::memory:'],
+            'file URI' => ['file:/tmp/testbench.sqlite?mode=rwc'],
+        ];
+    }
+
+    #[Test]
     public function itPopulatesExpectedCacheDefaults(): void
     {
         $this->assertSame(Env::has('TESTBENCH_PACKAGE_TESTER') ? 'database' : 'array', $this->app['config']['cache.default']);
-        $this->assertTrue($this->app['config']->has('cache.limiter'));
-        $this->assertNull($this->app['config']['cache.limiter']);
         $this->assertFalse($this->app['config']['cache.serializable_classes']);
+    }
+
+    #[Test]
+    public function itPopulatesExpectedRateLimiterDefaults(): void
+    {
+        $this->assertSame('worker-array', $this->app['config']['rate-limiter.default']);
+        $this->assertSame(
+            ['database', 'redis', 'swoole', 'worker-array'],
+            array_keys($this->app['config']['rate-limiter.stores']),
+        );
     }
 
     #[Test]

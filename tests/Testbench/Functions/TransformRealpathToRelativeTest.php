@@ -15,7 +15,7 @@ use function Hypervel\Testbench\transform_realpath_to_relative;
 class TransformRealpathToRelativeTest extends TestCase
 {
     #[Test]
-    public function itCanUseTransformRealpathToRelative()
+    public function itCanUseTransformRealpathToRelative(): void
     {
         $this->assertSame('Testbench.php', transform_realpath_to_relative('Testbench.php'));
 
@@ -36,7 +36,7 @@ class TransformRealpathToRelativeTest extends TestCase
     }
 
     #[Test]
-    public function itCanUseTransformRealpathToRelativeUsingCustomWorkingPath()
+    public function itCanUseTransformRealpathToRelativeUsingCustomWorkingPath(): void
     {
         $this->assertSame(
             join_paths('@tests', 'Testbench', 'Functions', 'TransformRealpathToRelativeTest.php'),

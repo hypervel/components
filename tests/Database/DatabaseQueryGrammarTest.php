@@ -8,15 +8,36 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use PDO;
 use ReflectionClass;
 
 class DatabaseQueryGrammarTest extends TestCase
 {
-    public function testWhereRawReturnsStringWhenExpressionPassed()
+    public function testJsonContainsBindingRejectsUnencodableValues(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new Grammar(m::mock(Connection::class)))->prepareBindingForJsonContains(NAN);
+    }
+
+    public function testWrapIdentifierEscapesOneIdentifierWithoutApplyingTheTablePrefix(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldNotReceive('getTablePrefix');
+
+        $grammar = new Grammar($connection);
+
+        $this->assertSame('"a""b"', $grammar->wrapIdentifier('a"b'));
+        $this->assertSame('"users"', $grammar->wrapIdentifier('users'));
+        $this->assertSame('`a``b`', (new MySqlGrammar($connection))->wrapIdentifier('a`b'));
+    }
+
+    public function testWhereRawReturnsStringWhenExpressionPassed(): void
     {
         $builder = m::mock(Builder::class);
         $grammar = new Grammar(m::mock(Connection::class));
@@ -29,7 +50,7 @@ class DatabaseQueryGrammarTest extends TestCase
         $this->assertSame('select * from "users"', $rawQuery);
     }
 
-    public function testWhereRawReturnsStringWhenStringPassed()
+    public function testWhereRawReturnsStringWhenStringPassed(): void
     {
         $builder = m::mock(Builder::class);
         $grammar = new Grammar(m::mock(Connection::class));
@@ -42,7 +63,7 @@ class DatabaseQueryGrammarTest extends TestCase
         $this->assertSame('select * from "users"', $rawQuery);
     }
 
-    public function testCompileOrdersAcceptsExpression()
+    public function testCompileOrdersAcceptsExpression(): void
     {
         $builder = m::mock(Builder::class);
         $grammar = new Grammar(m::mock(Connection::class));
@@ -61,7 +82,7 @@ class DatabaseQueryGrammarTest extends TestCase
         $this->assertSame('order by length("name") desc', strtolower($sql));
     }
 
-    public function testCompileOrdersAcceptsExpressionWithPlaceholders()
+    public function testCompileOrdersAcceptsExpressionWithPlaceholders(): void
     {
         $builder = m::mock(Builder::class);
         $grammar = new Grammar(m::mock(Connection::class));

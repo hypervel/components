@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\RequestOptions;
+use SensitiveParameter;
 
 class GitlabProvider extends AbstractProvider implements ProviderInterface
 {
@@ -45,10 +46,10 @@ class GitlabProvider extends AbstractProvider implements ProviderInterface
         return $this->getHost() . '/oauth/token';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
-        $response = $this->getHttpClient()->get($this->getHost() . '/api/v3/user', [
-            RequestOptions::QUERY => ['access_token' => $token],
+        $response = $this->getHttpClient()->get($this->getHost() . '/api/v4/user', [
+            RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token],
         ]);
 
         return json_decode((string) $response->getBody(), true);

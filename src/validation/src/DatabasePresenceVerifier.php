@@ -50,6 +50,35 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
     }
 
     /**
+     * Get the existing values from a collection.
+     *
+     * @param array<int, mixed> $values
+     * @param array<string, mixed> $extra
+     * @return array<int, mixed>
+     */
+    public function getExistingValues(
+        string $collection,
+        string $column,
+        array $values,
+        ?string $connection,
+        mixed $excludeId = null,
+        ?string $idColumn = null,
+        array $extra = [],
+    ): array {
+        $query = $this->db->connection($connection)
+            ->table($collection)
+            ->useWritePdo()
+            ->whereIn($column, $values);
+
+        if (! is_null($excludeId) && $excludeId !== 'NULL') {
+            $query->where($idColumn ?: 'id', '<>', $excludeId);
+        }
+
+        /** @var array<int, mixed> */
+        return $this->addConditions($query, $extra)->pluck($column)->all();
+    }
+
+    /**
      * Add the given conditions to the query.
      */
     protected function addConditions(Builder $query, array $conditions): Builder

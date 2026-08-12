@@ -9,6 +9,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
 use Hypervel\Contracts\Support\MessageProvider;
+use JsonException;
 use JsonSerializable;
 use Stringable;
 
@@ -370,14 +371,18 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
     /**
      * Convert the object to its JSON representation.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options);
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
      * Convert the object to pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string
     {

@@ -6,7 +6,6 @@ namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Auth\Events\Verified;
 use Hypervel\Contracts\Auth\MustVerifyEmail;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\VerifyEmailResponse;
 use Hypervel\Fortify\Http\Requests\VerifyEmailRequest;
@@ -15,11 +14,6 @@ use Hypervel\Routing\Controller;
 class VerifyEmailController extends Controller
 {
     use DispatchesEvents;
-
-    public function __construct(
-        private readonly Container $container,
-    ) {
-    }
 
     /**
      * Mark the authenticated user's email address as verified.
@@ -30,7 +24,7 @@ class VerifyEmailController extends Controller
         $user = $request->user();
 
         if ($user->hasVerifiedEmail()) {
-            return $this->container->make(VerifyEmailResponse::class);
+            return app(VerifyEmailResponse::class);
         }
 
         if ($user->markEmailAsVerified()) {
@@ -40,6 +34,6 @@ class VerifyEmailController extends Controller
             );
         }
 
-        return $this->container->make(VerifyEmailResponse::class);
+        return app(VerifyEmailResponse::class);
     }
 }

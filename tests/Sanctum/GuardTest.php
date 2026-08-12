@@ -99,6 +99,14 @@ class GuardTest extends TestCase
         );
     }
 
+    protected function useCustomLookupPersonalAccessTokenModel(ApplicationContract $app): void
+    {
+        $app->make('config')->set(
+            'sanctum.testing_personal_access_token_model',
+            CustomLookupPersonalAccessToken::class,
+        );
+    }
+
     /**
      * Get the migrations to run for the test.
      */
@@ -159,6 +167,15 @@ class GuardTest extends TestCase
 
         Route::get('/test/custom-header', function () {
             $user = auth('sanctum')->user();
+            return response()->json([
+                'authenticated' => $user !== null,
+                'user_id' => $user?->id,
+            ]);
+        });
+
+        Route::post('/test/input-token', function () {
+            $user = auth('sanctum')->user();
+
             return response()->json([
                 'authenticated' => $user !== null,
                 'user_id' => $user?->id,
@@ -259,6 +276,64 @@ class GuardTest extends TestCase
                 'user_id' => $user->id,
                 'user_email' => $user->email,
                 'token_id' => $token->id,
+            ]);
+    }
+
+    public function testAuthenticationUsesTheRequestBearerParser(): void
+    {
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        $this->withHeaders([
+            'Authorization' => 'Basic ignored, bEaReR ' . $plainToken . ',ignored',
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_id' => $token->id,
+            ]);
+    }
+
+    public function testAuthenticationDoesNotReadTokensFromTheQueryString(): void
+    {
+        [, $token, $plainToken] = $this->createUserWithToken();
+
+        $this->getJson('/test/user?token=' . urlencode($plainToken))
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testAuthenticationDoesNotReadTokensFromRequestInput(): void
+    {
+        [, $token, $plainToken] = $this->createUserWithToken();
+
+        $this->postJson('/test/input-token', ['token' => $plainToken])
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    #[DefineEnvironment('useCustomLookupPersonalAccessTokenModel')]
+    public function testConfiguredTokenModelOwnsTokenLookupValidation(): void
+    {
+        [$user] = $this->createUserWithToken();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer custom-token',
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
             ]);
     }
 
@@ -1041,6 +1116,17 @@ class CustomTrackingPersonalAccessToken extends PersonalAccessToken
     public function updateLastUsedAt(): void
     {
         $this->forceFill(['name' => 'Tracked by custom model'])->save();
+    }
+}
+
+class CustomLookupPersonalAccessToken extends PersonalAccessToken
+{
+    /**
+     * Find the token instance matching the given token.
+     */
+    public static function findToken(string $token): ?static
+    {
+        return $token === 'custom-token' ? static::query()->first() : null;
     }
 }
 

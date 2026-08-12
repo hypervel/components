@@ -45,7 +45,7 @@ namespace Hypervel\Support\Facades;
  * @method static string compileEndComponentClass()
  * @method static mixed sanitizeComponentAttribute(mixed $value)
  * @method static string compileEndOnce()
- * @method static void stringable(callable|string $class, callable|null $handler = null)
+ * @method static void stringable(\Closure|string $class, callable|null $handler = null)
  * @method static string compileEchos(string $value)
  * @method static mixed applyEchoHandler(mixed $value)
  *

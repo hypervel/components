@@ -638,7 +638,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Attempt to find the batch with the given ID.
      */
-    public function findBatch(int|string $batchId): ?Batch
+    public function findBatch(string $batchId): ?Batch
     {
         return $this->batchRepository->find($batchId);
     }

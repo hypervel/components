@@ -13,9 +13,10 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Number;
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use ReflectionEnum;
 use stdClass;
-use Stringable;
+use Stringable as BaseStringable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -405,7 +406,7 @@ trait InteractsWithData
                 return $value;
             }
 
-            if (is_int($value) || is_float($value) || is_bool($value) || $value instanceof Stringable) {
+            if (is_int($value) || is_float($value) || is_bool($value) || $value instanceof BaseStringable) {
                 return (string) $value;
             }
         }

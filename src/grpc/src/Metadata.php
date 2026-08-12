@@ -225,7 +225,7 @@ final class Metadata implements Countable, IteratorAggregate
         }
 
         if (preg_match('/^[\x20-\x7e]*$/D', $value) !== 1) {
-            throw new InvalidArgumentException('ASCII gRPC metadata values must contain only visible ASCII bytes.');
+            throw new InvalidArgumentException('ASCII gRPC metadata values must contain only printable ASCII bytes.');
         }
 
         if ($value !== '' && ($value[0] === ' ' || $value[-1] === ' ')) {

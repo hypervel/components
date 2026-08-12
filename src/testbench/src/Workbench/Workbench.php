@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Foundation\Events\DiagnosingHealth;
+use Hypervel\Http\Request;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
@@ -129,7 +130,7 @@ class Workbench
                 }
 
                 if ($healthCheckEnabled === true) {
-                    $router->get('/up', static function () {
+                    $router->get('/up', static function (Request $request) {
                         $exception = null;
 
                         try {
@@ -150,7 +151,7 @@ class Workbench
                         return response(
                             View::file(
                                 dirname(__DIR__, 3) . '/foundation/src/resources/health-up.blade.php',
-                                ['status' => $health],
+                                ['request' => $request, 'status' => $health],
                             ),
                             status: $status,
                         );

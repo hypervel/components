@@ -9,7 +9,9 @@ use Hypervel\Inertia\Middleware;
 use Hypervel\Inertia\Testing\AssertableInertia;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Json;
 use Hypervel\Tests\Inertia\TestCase;
+use JsonException;
 use PHPUnit\Framework\AssertionFailedError;
 
 class AssertableInertiaTest extends TestCase
@@ -30,6 +32,34 @@ class AssertableInertiaTest extends TestCase
 
         $this->expectException(AssertionFailedError::class);
         $this->expectExceptionMessage('Not a valid Inertia response.');
+
+        $response->assertInertia();
+    }
+
+    public function testPagePropsRoundTripAtTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH - 2; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = $this->makeMockRequest(Inertia::render('foo', ['nested' => $value]));
+
+        $response->assertInertia(fn (AssertableInertia $page) => $page->where('nested', $value));
+    }
+
+    public function testPagePropsOverTheMaximumNestingDepthRaiseJsonException(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH - 1; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = $this->makeMockRequest(Inertia::render('foo', ['nested' => $value]));
+
+        $this->expectException(JsonException::class);
 
         $response->assertInertia();
     }

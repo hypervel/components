@@ -7,12 +7,14 @@ namespace Hypervel\Tests\Integration\Queue\ThrottlesExceptionsTest;
 use Exception;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Cache\RateLimiter;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -349,6 +351,36 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertSame(300, $job->releasedAfter);
     }
 
+    public function testDeniedFailureConsumeUsesTheCircuitOpenDelayInsteadOfBackoff(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+        $key = 'concurrent-last-slot';
+        $limiter = $this->app->make(RateLimiter::class)->store();
+        $policy = Limit::perMinute(1)->by('hypervel:queue:throttles-exceptions:' . $key);
+        $job = new class {
+            public ?int $releasedAfter = null;
+
+            public function release(int $delay): static
+            {
+                $this->releasedAfter = $delay;
+
+                return $this;
+            }
+        };
+        $middleware = (new ThrottlesExceptions(1, 60))
+            ->by($key)
+            ->backoff(5);
+
+        $result = $middleware->handle($job, function () use ($limiter, $policy): never {
+            $this->assertTrue($limiter->consume($policy)->allowed());
+
+            throw new RuntimeException('Whoops!');
+        });
+
+        $this->assertSame($job, $result);
+        $this->assertSame(63, $job->releasedAfter);
+    }
+
     public function testReportingExceptions(): void
     {
         $this->spy(ExceptionHandler::class)
@@ -378,81 +410,68 @@ class ThrottlesExceptionsTest extends TestCase
         $middleware->handle($job, $next);
     }
 
-    public function testUsesJobClassNameForCacheKey(): void
+    public function testCallbacksReceiveTheSelectedPackageLimiter(): void
     {
-        $rateLimiter = $this->mock(RateLimiter::class);
+        config([
+            'rate-limiter.stores.queue' => [
+                'driver' => 'worker-array',
+            ],
+        ]);
 
+        $expected = $this->app->make(RateLimiter::class)->store('queue');
+        $whenLimiter = null;
+        $reportLimiter = null;
         $job = new class {
-            public $released = false;
-
-            public function release()
+            public function release(): static
             {
-                $this->released = true;
-
                 return $this;
             }
         };
 
-        $expectedKey = 'laravel_throttles_exceptions:' . hash('xxh128', get_class($job));
+        $middleware = (new ThrottlesExceptions)
+            ->store('queue')
+            ->when(function (RuntimeException $throwable, Limiter $limiter) use (&$whenLimiter): bool {
+                $whenLimiter = $limiter;
 
-        $rateLimiter->shouldReceive('tooManyAttempts')
-            ->once()
-            ->with($expectedKey, 10)
-            ->andReturn(false);
+                return true;
+            })
+            ->report(function (RuntimeException $throwable, Limiter $limiter) use (&$reportLimiter): bool {
+                $reportLimiter = $limiter;
 
-        $rateLimiter->shouldReceive('hit')
-            ->once()
-            ->with($expectedKey, 600);
+                return false;
+            });
 
-        $next = function ($job) {
+        $this->assertSame($job, $middleware->handle($job, function (): never {
             throw new RuntimeException('Whoops!');
-        };
-
-        $middleware = new ThrottlesExceptions;
-        $middleware->handle($job, $next);
-
-        $this->assertTrue($job->released);
+        }));
+        $this->assertSame($expected, $whenLimiter);
+        $this->assertSame($expected, $reportLimiter);
     }
 
-    public function testUsesDisplayNameForCacheKeyWhenAvailable(): void
+    public function testUsesRawJobClassNameForRateLimiterKey(): void
     {
-        $rateLimiter = $this->mock(RateLimiter::class);
-
         $job = new class {
-            public $released = false;
+        };
 
-            public function release()
-            {
-                $this->released = true;
+        $this->assertSame(
+            'hypervel:queue:throttles-exceptions:' . get_class($job),
+            (new ExposesThrottlesExceptions)->getKeyForTest($job),
+        );
+    }
 
-                return $this;
-            }
-
+    public function testUsesRawDisplayNameForRateLimiterKeyWhenAvailable(): void
+    {
+        $job = new class {
             public function displayName(): string
             {
                 return 'App\Actions\ThrottlesExceptionsTestAction';
             }
         };
 
-        $expectedKey = 'laravel_throttles_exceptions:' . hash('xxh128', 'App\Actions\ThrottlesExceptionsTestAction');
-
-        $rateLimiter->shouldReceive('tooManyAttempts')
-            ->once()
-            ->with($expectedKey, 10)
-            ->andReturn(false);
-
-        $rateLimiter->shouldReceive('hit')
-            ->once()
-            ->with($expectedKey, 600);
-
-        $next = function ($job) {
-            throw new RuntimeException('Whoops!');
-        };
-
-        $middleware = new ThrottlesExceptions;
-        $middleware->handle($job, $next);
-
-        $this->assertTrue($job->released);
+        $this->assertSame(
+            'hypervel:queue:throttles-exceptions:App\Actions\ThrottlesExceptionsTestAction',
+            (new ExposesThrottlesExceptions)->getKeyForTest($job),
+        );
     }
 }
 
@@ -531,5 +550,13 @@ class CircuitBreakerSuccessfulJob
     public function middleware(): array
     {
         return [(new ThrottlesExceptions(2, 10 * 60))->by('test')];
+    }
+}
+
+class ExposesThrottlesExceptions extends ThrottlesExceptions
+{
+    public function getKeyForTest(mixed $job): string
+    {
+        return $this->getKey($job);
     }
 }

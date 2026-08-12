@@ -13,6 +13,7 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionParameter;
 use ReflectionProperty;
+use Throwable;
 use WeakMap;
 
 class RouteSignatureParametersTest extends RoutingTestCase
@@ -31,6 +32,23 @@ class RouteSignatureParametersTest extends RoutingTestCase
 
         $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $parameters);
         $this->assertSame('user', $parameters[0]->getName());
+    }
+
+    public function testSerializedRouteSignaturesAllowOnlySerializableClosureClasses(): void
+    {
+        $captured = new InsecureSignatureDeserializationStub;
+        $serializedClosure = serialize(SerializableClosure::unsigned(function () use ($captured) {
+            return $captured;
+        }));
+
+        InsecureSignatureDeserializationStub::$instantiated = false;
+
+        try {
+            RouteSignatureParameters::fromAction(['uses' => $serializedClosure]);
+        } catch (Throwable) {
+        }
+
+        $this->assertFalse(InsecureSignatureDeserializationStub::$instantiated);
     }
 
     public function testItDoesNotReuseStaleClosureSignatureParametersWhenClosureObjectIdIsReused(): void
@@ -157,5 +175,15 @@ class SignatureParametersMagicController
     public function __call(string $method, array $arguments): mixed
     {
         return null;
+    }
+}
+
+class InsecureSignatureDeserializationStub
+{
+    public static bool $instantiated = false;
+
+    public function __wakeup(): void
+    {
+        self::$instantiated = true;
     }
 }

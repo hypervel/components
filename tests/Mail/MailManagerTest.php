@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Mailable;
@@ -34,6 +36,22 @@ class MailManagerTest extends TestCase
     {
         parent::setUp();
         $this->app->instance('view', m::mock(ViewFactory::class));
+    }
+
+    public function testSetApplicationRefreshesConfigWithoutRebuildingResolvedMailers(): void
+    {
+        $this->app->make('config')->set('mail.mailers.existing', ['transport' => 'array']);
+
+        $manager = new MailManager($this->app);
+        $resolved = $manager->mailer('existing');
+        $application = new Container;
+        $application->instance('config', new Repository([
+            'mail' => ['default' => 'replacement'],
+        ]));
+
+        $this->assertSame($manager, $manager->setApplication($application));
+        $this->assertSame('replacement', $manager->getDefaultDriver());
+        $this->assertSame($resolved, $manager->mailer('existing'));
     }
 
     public function testIntegerEnumMailerNamesAreNormalizedWithoutTreatingZeroAsAbsent(): void

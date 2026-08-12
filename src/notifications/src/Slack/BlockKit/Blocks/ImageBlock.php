@@ -46,12 +46,15 @@ class ImageBlock implements BlockContract
      */
     public function __construct(string $url, ?string $altText = null)
     {
-        if (strlen($url) > 3000) {
+        if (mb_strlen($url, 'UTF-8') > 3000) {
             throw new InvalidArgumentException('Maximum length for the url field is 3000 characters.');
         }
 
         $this->url = $url;
-        $this->altText = $altText;
+
+        if ($altText !== null) {
+            $this->alt($altText);
+        }
     }
 
     /**
@@ -69,7 +72,7 @@ class ImageBlock implements BlockContract
      */
     public function alt(string $altText): static
     {
-        if (strlen($altText) > 2000) {
+        if (mb_strlen($altText, 'UTF-8') > 2000) {
             throw new InvalidArgumentException('Maximum length for the alt text field is 2000 characters.');
         }
 
@@ -93,7 +96,7 @@ class ImageBlock implements BlockContract
      */
     public function toArray(): array
     {
-        if ($this->blockId && strlen($this->blockId) > 255) {
+        if ($this->blockId && mb_strlen($this->blockId, 'UTF-8') > 255) {
             throw new InvalidArgumentException('Maximum length for the block_id field is 255 characters.');
         }
 

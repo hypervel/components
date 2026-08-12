@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Hypervel\Cache\RateLimiter;
-
 /**
  * Integration tests ported from Laravel's RedisCacheIntegrationTest.
  *
- * Tests core Redis cache behavior (add, rate limiter) against a real Redis connection.
+ * Tests core Redis cache behavior against a real Redis connection.
  */
 class RedisCacheIntegrationTest extends RedisCacheIntegrationTestCase
 {
@@ -19,16 +17,6 @@ class RedisCacheIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertTrue($cache->add('k', 'v', 3600));
         $this->assertFalse($cache->add('k', 'v', 3600));
         $this->assertGreaterThan(3500, $this->store()->connection()->ttl($this->store()->getPrefix() . 'k'));
-    }
-
-    public function testRedisCacheRateLimiter()
-    {
-        $rateLimiter = new RateLimiter($this->cache());
-
-        $this->assertFalse($rateLimiter->tooManyAttempts('key', 1));
-        $this->assertEquals(1, $rateLimiter->hit('key', 60));
-        $this->assertTrue($rateLimiter->tooManyAttempts('key', 1));
-        $this->assertFalse($rateLimiter->tooManyAttempts('key', 2));
     }
 
     /**

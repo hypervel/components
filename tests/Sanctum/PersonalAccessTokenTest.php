@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class PersonalAccessTokenTest extends TestCase
 {
-    public function testCanDetermineWhatItCanAndCantDo()
+    public function testCanDetermineWhatItCanAndCantDo(): void
     {
         $token = new PersonalAccessToken;
 
@@ -31,7 +31,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->can('bar'));
     }
 
-    public function testCanCheckAbilitiesWithBackedEnum()
+    public function testCanCheckAbilitiesWithBackedEnum(): void
     {
         $token = new PersonalAccessToken;
         $token->abilities = ['posts:read', 'posts:write'];
@@ -41,7 +41,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertFalse($token->can(TokenAbility::UsersRead));
     }
 
-    public function testCantCheckAbilitiesWithBackedEnum()
+    public function testCantCheckAbilitiesWithBackedEnum(): void
     {
         $token = new PersonalAccessToken;
         $token->abilities = ['posts:read'];
@@ -50,7 +50,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->cant(TokenAbility::PostsWrite));
     }
 
-    public function testWildcardAbilityWorksWithBackedEnum()
+    public function testWildcardAbilityWorksWithBackedEnum(): void
     {
         $token = new PersonalAccessToken;
         $token->abilities = ['*'];
@@ -60,7 +60,7 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->can(TokenAbility::UsersRead));
     }
 
-    public function testMixedStringAndEnumAbilitiesWork()
+    public function testMixedStringAndEnumAbilitiesWork(): void
     {
         $token = new PersonalAccessToken;
         $token->abilities = ['posts:read', 'legacy-ability'];
@@ -71,5 +71,14 @@ class PersonalAccessTokenTest extends TestCase
         $this->assertTrue($token->can('posts:read'));
         // String check for legacy
         $this->assertTrue($token->can('legacy-ability'));
+    }
+
+    public function testAbilityChecksDoNotCoerceStoredValues(): void
+    {
+        $token = new PersonalAccessToken;
+        $token->abilities = [1, true];
+
+        $this->assertFalse($token->can('1'));
+        $this->assertFalse($token->can('*'));
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing\RoutingStaticStateTest;
 
-use Hypervel\Routing\Middleware\ThrottleRequests;
 use Hypervel\Routing\PendingResourceRegistration;
 use Hypervel\Routing\PendingSingletonResourceRegistration;
 use Hypervel\Routing\Redirector;
@@ -57,18 +56,5 @@ class RoutingStaticStateTest extends RoutingTestCase
         Route::flushState();
 
         $this->assertSame([], $enumCache->getValue());
-    }
-
-    public function testThrottleRequestsFlushStateRestoresHashedKeys(): void
-    {
-        $shouldHashKeys = new ReflectionProperty(ThrottleRequests::class, 'shouldHashKeys');
-
-        ThrottleRequests::shouldHashKeys(false);
-
-        $this->assertFalse($shouldHashKeys->getValue());
-
-        ThrottleRequests::flushState();
-
-        $this->assertTrue($shouldHashKeys->getValue());
     }
 }

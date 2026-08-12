@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\DurationLimiter;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -13,7 +14,7 @@ use Mockery as m;
 /**
  * Tests for DurationLimiter.
  *
- * DurationLimiter provides a sliding window rate limiter using Redis Lua scripts.
+ * DurationLimiter provides a fixed-window rate limiter using Redis Lua scripts.
  */
 class DurationLimiterTest extends TestCase
 {
@@ -21,9 +22,7 @@ class DurationLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
         // Lua script returns: [acquired (1=success), decaysAt, remaining]
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn([1, time() + 60, 4]);
+        $this->expectEvaluation($redis, [1, time() + 60, 4]);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -33,23 +32,23 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(4, $limiter->remaining);
     }
 
-    public function testAcquireUsesTransformedEvalSignature(): void
+    public function testAcquireUsesShaCachedEvalSignature(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('eval')
-            ->once()
-            ->withArgs(function (string $script, int $numberOfKeys, string $name, float $microtime, int $timestamp, int $decay, int $maxLocks): bool {
+        $this->expectEvaluation(
+            $redis,
+            [1, time() + 60, 4],
+            function (string $script, array $keys, array $arguments): bool {
                 $this->assertNotSame('', $script);
-                $this->assertSame(1, $numberOfKeys);
-                $this->assertSame('test-key', $name);
-                $this->assertGreaterThan(0.0, $microtime);
-                $this->assertGreaterThan(0, $timestamp);
-                $this->assertSame(60, $decay);
-                $this->assertSame(5, $maxLocks);
+                $this->assertSame(['test-key'], $keys);
+                $this->assertGreaterThan(0.0, $arguments[0]);
+                $this->assertGreaterThan(0, $arguments[1]);
+                $this->assertSame(60, $arguments[2]);
+                $this->assertSame(5, $arguments[3]);
 
                 return true;
-            })
-            ->andReturn([1, time() + 60, 4]);
+            },
+        );
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -60,9 +59,7 @@ class DurationLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
         // Lua script returns: [acquired (0=failed), decaysAt, remaining]
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn([0, time() + 30, 0]);
+        $this->expectEvaluation($redis, [0, time() + 30, 0]);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -76,9 +73,7 @@ class DurationLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
         // Even if script returns negative, remaining should be 0
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn([0, time() + 60, -2]);
+        $this->expectEvaluation($redis, [0, time() + 60, -2]);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -90,9 +85,7 @@ class DurationLimiterTest extends TestCase
     public function testTooManyAttemptsReturnsTrueWhenNoRemaining(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn([time() + 60, 0]);
+        $this->expectEvaluation($redis, [time() + 60, 0]);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -105,9 +98,7 @@ class DurationLimiterTest extends TestCase
     public function testTooManyAttemptsReturnsFalseWhenHasRemaining(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn([time() + 60, 3]);
+        $this->expectEvaluation($redis, [time() + 60, 3]);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -117,23 +108,23 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(3, $limiter->remaining);
     }
 
-    public function testTooManyAttemptsUsesTransformedEvalSignature(): void
+    public function testTooManyAttemptsUsesShaCachedEvalSignature(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('eval')
-            ->once()
-            ->withArgs(function (string $script, int $numberOfKeys, string $name, float $microtime, int $timestamp, int $decay, int $maxLocks): bool {
+        $this->expectEvaluation(
+            $redis,
+            [time() + 60, 2],
+            function (string $script, array $keys, array $arguments): bool {
                 $this->assertNotSame('', $script);
-                $this->assertSame(1, $numberOfKeys);
-                $this->assertSame('test-key', $name);
-                $this->assertGreaterThan(0.0, $microtime);
-                $this->assertGreaterThan(0, $timestamp);
-                $this->assertSame(60, $decay);
-                $this->assertSame(5, $maxLocks);
+                $this->assertSame(['test-key'], $keys);
+                $this->assertGreaterThan(0.0, $arguments[0]);
+                $this->assertGreaterThan(0, $arguments[1]);
+                $this->assertSame(60, $arguments[2]);
+                $this->assertSame(5, $arguments[3]);
 
                 return true;
-            })
-            ->andReturn([time() + 60, 2]);
+            },
+        );
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -159,9 +150,7 @@ class DurationLimiterTest extends TestCase
     public function testBlockExecutesCallbackOnSuccess(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn([1, time() + 60, 4]);
+        $this->expectEvaluation($redis, [1, time() + 60, 4]);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
 
@@ -178,8 +167,13 @@ class DurationLimiterTest extends TestCase
     public function testBlockThrowsExceptionAfterTimeout(): void
     {
         $redis = $this->mockRedis();
+        $connection = m::mock(RedisConnection::class);
+
+        $redis->shouldReceive('withConnection')
+            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+
         // Always fail to acquire
-        $redis->shouldReceive('eval')
+        $connection->shouldReceive('evalWithShaCache')
             ->andReturn([0, time() + 60, 0]);
 
         $limiter = new DurationLimiter($redis, 'test-key', 5, 60);
@@ -199,5 +193,28 @@ class DurationLimiterTest extends TestCase
     private function mockRedis(): m\MockInterface|RedisProxy
     {
         return m::mock(RedisProxy::class);
+    }
+
+    /**
+     * Expect a script evaluation on one held Redis connection.
+     */
+    private function expectEvaluation(
+        m\MockInterface|RedisProxy $redis,
+        mixed $result,
+        ?callable $assertion = null,
+    ): void {
+        $connection = m::mock(RedisConnection::class);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+
+        $expectation = $connection->shouldReceive('evalWithShaCache')->once();
+
+        if ($assertion !== null) {
+            $expectation->withArgs($assertion);
+        }
+
+        $expectation->andReturn($result);
     }
 }

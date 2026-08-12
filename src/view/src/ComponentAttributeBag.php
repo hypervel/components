@@ -68,6 +68,8 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
 
     /**
      * Retrieve data from the instance.
+     *
+     * @return ($key is null ? array<array-key, mixed> : mixed)
      */
     protected function data(?string $key = null, mixed $default = null): mixed
     {
@@ -222,6 +224,10 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
 
             if ($key === 'style') {
                 $value = Str::finish($value, ';');
+
+                if (is_string($defaultsValue) && $defaultsValue !== '') {
+                    $defaultsValue = Str::finish($defaultsValue, ';');
+                }
             }
 
             return [$key => implode(' ', array_unique(array_filter([$defaultsValue, $value])))];

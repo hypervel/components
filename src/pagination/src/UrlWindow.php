@@ -38,10 +38,16 @@ class UrlWindow
      */
     public function get(): array
     {
-        /** @phpstan-ignore property.notFound (onEachSide is a public property on the concrete class) */
-        $onEachSide = $this->paginator->onEachSide;
+        /**
+         * Keep the readable window-size requirement local so the public contract remains mockable.
+         *
+         * @var object{onEachSide: int}&PaginatorContract $paginator
+         */
+        $paginator = $this->paginator;
 
-        if ($this->paginator->lastPage() < ($onEachSide * 2) + 8) {
+        $onEachSide = $paginator->onEachSide;
+
+        if ($paginator->lastPage() < ($onEachSide * 2) + 8) {
             return $this->getSmallSlider();
         }
 

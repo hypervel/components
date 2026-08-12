@@ -39,6 +39,9 @@ function test(Builder $query, EloquentBuilder $userQuery): void
     assertType('Hypervel\Support\LazyCollection<int, stdClass>', $query->lazy());
     assertType('Hypervel\Support\LazyCollection<int, stdClass>', $query->lazyById());
     assertType('Hypervel\Support\LazyCollection<int, stdClass>', $query->lazyByIdDesc());
+    assertType('Hypervel\Pagination\LengthAwarePaginator', $query->paginate());
+    assertType('Hypervel\Contracts\Pagination\Paginator', $query->simplePaginate());
+    assertType('Hypervel\Contracts\Pagination\CursorPaginator', $query->cursorPaginate());
 
     $query->chunk(1, function ($users, $page) {
         assertType('Hypervel\Support\Collection<int, stdClass>', $users);

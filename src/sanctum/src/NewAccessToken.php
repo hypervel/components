@@ -6,6 +6,7 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use JsonException;
 use Stringable;
 
 class NewAccessToken implements Stringable, Arrayable, Jsonable
@@ -34,10 +35,12 @@ class NewAccessToken implements Stringable, Arrayable, Jsonable
 
     /**
      * Convert the object to its JSON representation.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->toArray(), $options);
+        return json_encode($this->toArray(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**

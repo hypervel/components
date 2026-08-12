@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
@@ -215,6 +216,7 @@ class PoolProxyTest extends TestCase
     {
         $proxy = $this->proxy(static fn (): object => new PoolProxyObject);
 
+        $this->assertInstanceOf(InvalidatesPool::class, $proxy);
         $this->assertSame($this->definition, $proxy->getDefinition());
         $this->assertSame($this->definition->identity, $proxy->getPoolName());
         $this->assertFalse($proxy->invalidatePool());

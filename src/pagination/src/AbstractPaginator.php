@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Pagination;
 
+use ArrayIterator;
 use Closure;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -65,7 +67,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * The query parameters to add to all URLs.
      *
-     * @var array<string, mixed>
+     * @var array<array-key, mixed>
      */
     protected array $query = [];
 
@@ -117,14 +119,24 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     protected static ?Closure $viewFactoryResolver = null;
 
     /**
+     * The default pagination view name.
+     */
+    protected const DEFAULT_VIEW = 'pagination::tailwind';
+
+    /**
+     * The default simple pagination view name.
+     */
+    protected const DEFAULT_SIMPLE_VIEW = 'pagination::simple-tailwind';
+
+    /**
      * The default pagination view.
      */
-    public static string $defaultView = 'pagination::tailwind';
+    public static string $defaultView = self::DEFAULT_VIEW;
 
     /**
      * The default "simple" pagination view.
      */
-    public static string $defaultSimpleView = 'pagination::simple-tailwind';
+    public static string $defaultSimpleView = self::DEFAULT_SIMPLE_VIEW;
 
     /**
      * Determine if the given value is a valid page number.
@@ -173,7 +185,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
         $parameters = [$this->pageName => $page];
 
         if (count($this->query) > 0) {
-            $parameters = array_merge($this->query, $parameters);
+            $parameters = array_replace($this->query, $parameters);
         }
 
         return $this->path()
@@ -185,7 +197,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Get / set the URL fragment to be appended to URLs.
      *
-     * @return null|$this|string
+     * @return ($fragment is null ? null|string : $this)
      */
     public function fragment(?string $fragment = null): static|string|null
     {
@@ -203,8 +215,10 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      *
      * @return $this
      */
-    public function appends(array|string|null $key, array|string|null $value = null): static
-    {
+    public function appends(
+        array|int|string|null $key,
+        array|bool|float|int|string|null $value = null,
+    ): static {
         if (is_null($key)) {
             return $this;
         }
@@ -219,7 +233,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Add an array of query string values.
      *
-     * @param array<string, mixed> $keys
+     * @param array<array-key, mixed> $keys
      * @return $this
      */
     protected function appendArray(array $keys): static
@@ -250,7 +264,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      *
      * @return $this
      */
-    protected function addQuery(string $key, mixed $value): static
+    protected function addQuery(int|string $key, mixed $value): static
     {
         if ($key !== $this->pageName) {
             $this->query[$key] = $value;
@@ -351,7 +365,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      */
     public function hasPages(): bool
     {
-        return $this->currentPage() != 1 || $this->hasMorePages();
+        return $this->currentPage() !== 1 || $this->hasMorePages();
     }
 
     /**
@@ -512,7 +526,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * Get an instance of the view factory from the resolver.
      */
-    public static function viewFactory(): mixed
+    public static function viewFactory(): Factory
     {
         return call_user_func(static::$viewFactoryResolver);
     }
@@ -558,9 +572,11 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      */
     public static function useTailwind(): void
     {
-        static::defaultView('pagination::tailwind');
-        static::defaultSimpleView('pagination::simple-tailwind');
+        static::defaultView(self::DEFAULT_VIEW);
+        static::defaultSimpleView(self::DEFAULT_SIMPLE_VIEW);
     }
+
+    // Hypervel ships only Tailwind pagination views, so Bootstrap selectors are intentionally omitted.
 
     /**
      * Flush all static state.
@@ -571,14 +587,14 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
         static::$currentPageResolver = null;
         static::$queryStringResolver = null;
         static::$viewFactoryResolver = null;
-        static::$defaultView = 'pagination::tailwind';
-        static::$defaultSimpleView = 'pagination::simple-tailwind';
+        static::$defaultView = self::DEFAULT_VIEW;
+        static::$defaultSimpleView = self::DEFAULT_SIMPLE_VIEW;
     }
 
     /**
      * Get an iterator for the items.
      *
-     * @return Traversable<TKey, TValue>
+     * @return ArrayIterator<TKey, TValue>
      */
     public function getIterator(): Traversable
     {

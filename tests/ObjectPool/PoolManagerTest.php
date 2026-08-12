@@ -196,13 +196,22 @@ class PoolManagerTest extends TestCase
     {
         $this->manager->getOrCreate($this->definition(), static fn (): object => new stdClass);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('different construction fingerprint [auto:first] (requested [auto:second])');
-
-        $this->manager->getOrCreate(
-            $this->definition(fingerprint: 'auto:second'),
-            static fn (): object => new stdClass,
-        );
+        try {
+            $this->manager->getOrCreate(
+                $this->definition(fingerprint: 'auto:second'),
+                static fn (): object => new stdClass,
+            );
+            $this->fail('Expected the construction fingerprint mismatch to be rejected.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString(
+                'different construction fingerprint [auto:first] (requested [auto:second])',
+                $exception->getMessage(),
+            );
+            $this->assertStringContainsString(
+                'declare a matching explicit fingerprint only when the differing input does not affect construction',
+                $exception->getMessage(),
+            );
+        }
     }
 
     public function testOptionsMismatchNamesOnlyDifferingFields(): void

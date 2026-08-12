@@ -53,6 +53,7 @@ class DefaultProviders
             \Hypervel\Pagination\PaginationServiceProvider::class,
             \Hypervel\Pipeline\PipelineServiceProvider::class,
             \Hypervel\Queue\QueueServiceProvider::class,
+            \Hypervel\RateLimiter\RateLimiterServiceProvider::class,
             \Hypervel\Redis\RedisServiceProvider::class,
             \Hypervel\Server\ServerServiceProvider::class,
             \Hypervel\ServerProcess\ServerProcessServiceProvider::class,

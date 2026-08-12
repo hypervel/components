@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Traits\Macroable;
+use SensitiveParameter;
 use stdClass;
 
 class TokenGuard implements Guard
@@ -87,33 +88,41 @@ class TokenGuard implements Guard
 
         $token = $request->query($this->inputKey);
 
-        if (empty($token)) {
-            $token = $request->input($this->inputKey);
+        if (is_string($token) && $token !== '') {
+            return $token;
         }
 
-        if (empty($token)) {
-            $token = $request->bearerToken();
+        $token = $request->input($this->inputKey);
+
+        if (is_string($token) && $token !== '') {
+            return $token;
         }
 
-        if (empty($token)) {
-            $token = $request->getPassword();
+        $token = $request->bearerToken();
+
+        if (is_string($token) && $token !== '') {
+            return $token;
         }
 
-        return $token;
+        $token = $request->getPassword();
+
+        return is_string($token) && $token !== '' ? $token : null;
     }
 
     /**
      * Validate a user's credentials.
      */
-    public function validate(array $credentials = []): bool
+    public function validate(#[SensitiveParameter] array $credentials = []): bool
     {
-        if (empty($credentials[$this->inputKey])) {
+        $token = $credentials[$this->inputKey] ?? null;
+
+        if (! is_string($token) || $token === '') {
             return false;
         }
 
-        $credentials = [$this->storageKey => $credentials[$this->inputKey]];
-
-        return (bool) $this->provider->retrieveByCredentials($credentials);
+        return $this->provider->retrieveByCredentials([
+            $this->storageKey => $this->hash ? hash('sha256', $token) : $token,
+        ]) !== null;
     }
 
     /**

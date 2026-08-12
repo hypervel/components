@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Telescope;
 
+use Hypervel\Console\Command;
+use Hypervel\Console\Events\BeforeHandle;
+use Hypervel\Console\Events\ScheduledTaskStarting;
+use Hypervel\Console\Scheduling\Event;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
@@ -13,6 +18,9 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
@@ -56,6 +64,57 @@ class TelescopeTest extends FeatureTestCase
         EntryModel::count();
 
         $this->assertCount(1, Telescope::getEntriesQueue());
+    }
+
+    public function testThrowingTagCallbackDoesNotPoisonLaterRecording(): void
+    {
+        Telescope::tag(fn () => throw new RuntimeException('tag failed'));
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'first']));
+            $this->fail('The tag callback exception was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('tag failed', $exception->getMessage());
+        }
+
+        Telescope::$tagUsing = [];
+        Telescope::recordLog(IncomingEntry::make(['message' => 'second']));
+
+        $this->assertSame('second', Telescope::getEntriesQueue()[0]->content['message']);
+    }
+
+    public function testThrowingFilterCallbackDoesNotPoisonLaterRecording(): void
+    {
+        Telescope::filter(fn () => throw new RuntimeException('filter failed'));
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'first']));
+            $this->fail('The filter callback exception was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('filter failed', $exception->getMessage());
+        }
+
+        Telescope::$filterUsing = [];
+        Telescope::recordLog(IncomingEntry::make(['message' => 'second']));
+
+        $this->assertSame('second', Telescope::getEntriesQueue()[0]->content['message']);
+    }
+
+    public function testThrowingAfterRecordingCallbackDoesNotPoisonLaterRecording(): void
+    {
+        Telescope::afterRecording(fn () => throw new RuntimeException('after recording failed'));
+
+        try {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'first']));
+            $this->fail('The after-recording callback exception was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('after recording failed', $exception->getMessage());
+        }
+
+        Telescope::$afterRecordingHook = null;
+        Telescope::recordLog(IncomingEntry::make(['message' => 'second']));
+
+        $this->assertSame('second', Telescope::getEntriesQueue()[1]->content['message']);
     }
 
     public function testRunAfterStoreCallback()
@@ -106,6 +165,95 @@ class TelescopeTest extends FeatureTestCase
         Telescope::flushState();
 
         $this->assertTrue(Telescope::shouldListen());
+    }
+
+    public function testResolvedCommandStartsRecording(): void
+    {
+        Telescope::stopRecording();
+
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('telescope:test-command')));
+
+        $this->assertTrue(Telescope::isRecording());
+    }
+
+    #[DataProvider('ignoredCommandProvider')]
+    public function testResolvedIgnoredCommandDoesNotStartRecording(string $command): void
+    {
+        Telescope::stopRecording();
+
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new BeforeHandle(new RecordingStateCommand($command)));
+
+        $this->assertFalse(Telescope::isRecording());
+    }
+
+    public static function ignoredCommandProvider(): array
+    {
+        return [
+            ['package:discover'],
+            ['watch'],
+        ];
+    }
+
+    public function testResolvedConfiguredIgnoredCommandDoesNotStartRecording(): void
+    {
+        config()->set('telescope.ignore_commands', ['custom:ignored']);
+        Telescope::stopRecording();
+
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:ignored')));
+
+        $this->assertFalse(Telescope::isRecording());
+    }
+
+    public function testSchedulerDaemonDoesNotStartRecording(): void
+    {
+        Telescope::stopRecording();
+
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('schedule:run')));
+
+        $this->assertFalse(Telescope::isRecording());
+
+        Telescope::recordCache(IncomingEntry::make(['key' => 'scheduler-cache-read']));
+
+        $this->assertSame([], Telescope::getEntriesQueue());
+    }
+
+    public function testScheduledTaskStartsRecordingWhenSchedulerIsApproved(): void
+    {
+        Telescope::stopRecording();
+
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new ScheduledTaskStarting(m::mock(Event::class)));
+
+        $this->assertTrue(Telescope::isRecording());
+    }
+
+    public function testConfiguredIgnoredSchedulerDoesNotStartTaskRecording(): void
+    {
+        config()->set('telescope.ignore_commands', ['schedule:run']);
+        Telescope::stopRecording();
+
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new ScheduledTaskStarting(m::mock(Event::class)));
+
+        $this->assertFalse(Telescope::isRecording());
+    }
+}
+
+class RecordingStateCommand extends Command
+{
+    public function __construct(string $command)
+    {
+        $this->signature = $command;
+
+        parent::__construct();
+    }
+
+    public function handle(): void
+    {
     }
 }
 

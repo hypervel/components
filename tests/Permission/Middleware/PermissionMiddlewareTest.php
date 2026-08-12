@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middleware;
 
+use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Permission\Contracts\Permission;
@@ -46,6 +47,21 @@ class PermissionMiddlewareTest extends TestCase
         $this->testUser->givePermissionTo('edit-articles');
 
         $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'edit-articles'));
+    }
+
+    public function testAuthorizedRequestPreservesJsonResponse(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUser->givePermissionTo('edit-articles');
+
+        $response = new JsonResponse(['authorized' => true]);
+
+        $this->assertSame($response, $this->permissionMiddleware->handle(
+            new Request,
+            fn (): JsonResponse => $response,
+            'edit-articles',
+        ));
     }
 
     public function testSuperAdminGateBeforeCanAccessPermissionProtectedRoute(): void

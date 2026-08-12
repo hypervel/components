@@ -7,20 +7,16 @@ namespace Hypervel\Tests\Cache;
 use Closure;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\CacheServiceProvider;
-use Hypervel\Cache\Listeners\CreateSwooleTimers;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerStart;
-use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
-use RuntimeException;
 use Swoole\Server as SwooleServer;
 
 class CacheServiceProviderTest extends TestCase
@@ -34,7 +30,7 @@ class CacheServiceProviderTest extends TestCase
         $events = m::mock(Dispatcher::class);
         $listeners = [];
         $events->shouldReceive('listen')
-            ->times(3)
+            ->times(2)
             ->andReturnUsing(function (mixed $event, mixed $listener) use (&$listeners): void {
                 $listeners[$event][] = $listener;
             });
@@ -67,7 +63,6 @@ class CacheServiceProviderTest extends TestCase
 
         $this->assertCount(1, $listeners[BeforeServerStart::class]);
         $this->assertCount(1, $listeners[AfterWorkerStart::class]);
-        $this->assertCount(1, $listeners[OnWorkerExit::class]);
         $this->assertInstanceOf(Closure::class, $bootedCallback);
 
         $bootedCallback();
@@ -92,7 +87,7 @@ class CacheServiceProviderTest extends TestCase
         $events = m::mock(Dispatcher::class);
         $listeners = [];
         $events->shouldReceive('listen')
-            ->times(4)
+            ->times(3)
             ->andReturnUsing(function (mixed $event, mixed $listener) use (&$listeners): void {
                 $listeners[$event][] = $listener;
             });
@@ -116,7 +111,6 @@ class CacheServiceProviderTest extends TestCase
         $this->assertTrue($provider->bootCalled);
         $this->assertCount(1, $listeners[BeforeServerStart::class]);
         $this->assertCount(2, $listeners[AfterWorkerStart::class]);
-        $this->assertCount(1, $listeners[OnWorkerExit::class]);
 
         $server = m::mock(SwooleServer::class);
         // Policy finalization runs in request workers and taskworkers, unlike Swoole timer registration.
@@ -125,35 +119,6 @@ class CacheServiceProviderTest extends TestCase
 
         $this->expectException(LogicException::class);
         $workerManager->allowSerializableClassesUsing(static fn (): array => []);
-    }
-
-    public function testWorkerExitStopsOwnedTimersAndReportsCleanupFailure(): void
-    {
-        $events = m::mock(Dispatcher::class);
-        $listeners = [];
-        $events->shouldReceive('listen')
-            ->times(4)
-            ->andReturnUsing(function (mixed $event, mixed $listener) use (&$listeners): void {
-                $listeners[$event][] = $listener;
-            });
-        $failure = new RuntimeException('Unable to clear timer.');
-        $timers = m::mock(CreateSwooleTimers::class);
-        $timers->expects('stop')->andThrow($failure);
-        $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($failure);
-        $application = m::mock(Application::class);
-        $application->expects('make')->with('events')->andReturn($events);
-        $application->expects('runningInConsole')->andReturnFalse();
-        $application->expects('make')->with(CreateSwooleTimers::class)->andReturn($timers);
-        $application->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
-        $provider = new CacheServiceProvider($application);
-        $server = m::mock(SwooleServer::class);
-        $server->taskworker = false;
-
-        $provider->boot();
-        $listeners[OnWorkerExit::class][0](new OnWorkerExit($server, 0));
-
-        $this->addToAssertionCount(1);
     }
 
     public function testFacadeCallsTheManagerExtensionWithoutResolvingAStore(): void

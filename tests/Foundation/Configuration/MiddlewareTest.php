@@ -396,24 +396,19 @@ class MiddlewareTest extends TestCase
         ], $middleware->getMiddlewareAliases());
     }
 
-    public function testThrottleWithRedisUsesRedisThrottleMiddlewareAlias()
+    // REMOVED: throttleWithRedis() and throttleApi()'s Redis argument are
+    // replaced by rate-limiter store configuration and named-store selection.
+    public function testThrottleApiAddsTheNamedLimiterToTheApiGroup(): void
     {
         $middleware = new Middleware;
-        $middleware->throttleWithRedis();
+        $middleware->throttleApi('api');
 
+        $this->assertSame([
+            'throttle:api',
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+        ], $middleware->getMiddlewareGroups()['api']);
         $this->assertSame(
-            \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
-            $middleware->getMiddlewareAliases()['throttle']
-        );
-    }
-
-    public function testThrottleApiWithRedisUsesRedisThrottleMiddlewareAlias()
-    {
-        $middleware = new Middleware;
-        $middleware->throttleApi(redis: true);
-
-        $this->assertSame(
-            \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
             $middleware->getMiddlewareAliases()['throttle']
         );
     }
@@ -455,7 +450,6 @@ class MiddlewareTest extends TestCase
             \Hypervel\Auth\Middleware\UseGuard::class,
             \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \Hypervel\Routing\Middleware\ThrottleRequests::class,
-            \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
             \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
             \Hypervel\Routing\Middleware\SubstituteBindings::class,
             \Hypervel\Auth\Middleware\Authorize::class,

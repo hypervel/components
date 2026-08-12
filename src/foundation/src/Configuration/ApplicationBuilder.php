@@ -207,6 +207,7 @@ class ApplicationBuilder
                     }
 
                     return response(View::file(__DIR__ . '/../resources/health-up.blade.php', [
+                        'request' => $request,
                         'status' => $health,
                     ]), status: $status);
                 });

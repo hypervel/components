@@ -48,7 +48,7 @@ class DatabaseMySqlSchemaBuilderAlterTableWithEnumTest extends MySqlTestCase
 
     public function testGetTablesAndColumnListing()
     {
-        $tables = Schema::getTables();
+        $tables = Schema::getTables(Schema::getCurrentSchemaListing());
 
         $this->assertCount(2, $tables);
         $this->assertEquals(['migrations', 'users'], array_column($tables, 'name'));
@@ -63,7 +63,7 @@ class DatabaseMySqlSchemaBuilderAlterTableWithEnumTest extends MySqlTestCase
             $table->integer('id');
             $table->string('title');
         });
-        $tables = Schema::getTables();
+        $tables = Schema::getTables(Schema::getCurrentSchemaListing());
         $this->assertCount(3, $tables);
         Schema::drop('posts');
     }

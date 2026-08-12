@@ -1229,6 +1229,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the given text strings are present in order in the HTML email body.
+     *
+     * @param list<string> $strings
      */
     public function assertSeeInOrderInHtml(array $strings, bool $escape = true): static
     {
@@ -1248,7 +1250,7 @@ class Mailable implements MailableContract, Renderable
      */
     public function assertSeeInText(string $string): static
     {
-        [$html, $text] = $this->renderForAssertions();
+        [, $text] = $this->renderForAssertions();
 
         PHPUnit::assertStringContainsString(
             $string,
@@ -1264,7 +1266,7 @@ class Mailable implements MailableContract, Renderable
      */
     public function assertDontSeeInText(string $string): static
     {
-        [$html, $text] = $this->renderForAssertions();
+        [, $text] = $this->renderForAssertions();
 
         PHPUnit::assertStringNotContainsString(
             $string,
@@ -1277,10 +1279,12 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Assert that the given text strings are present in order in the plain-text email body.
+     *
+     * @param list<string> $strings
      */
     public function assertSeeInOrderInText(array $strings): static
     {
-        [$html, $text] = $this->renderForAssertions();
+        [, $text] = $this->renderForAssertions();
 
         PHPUnit::assertThat($strings, new SeeInOrder($text));
 

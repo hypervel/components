@@ -17,8 +17,10 @@ use Hypervel\Foundation\Bootstrap\HandleExceptions as FoundationHandleExceptions
 use Hypervel\Foundation\Bootstrap\LoadConfiguration as FoundationLoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -38,6 +40,7 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\PackageManifest;
 use Hypervel\Testbench\Foundation\UndefinedValue;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
+use Throwable;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_skeleton_path;
@@ -182,23 +185,46 @@ trait CreatesApplication
         $this->configureParallelCachePaths();
 
         $app = $this->resolveApplication();
+        $originalTimezone = date_default_timezone_get();
+        $timezoneRestored = false;
+        $restoreTimezone = static function () use (&$timezoneRestored, $originalTimezone): void {
+            if (! $timezoneRestored) {
+                date_default_timezone_set($originalTimezone);
+                $timezoneRestored = true;
+            }
+        };
 
-        $this->resolveApplicationBindings($app);
-        $this->resolveApplicationExceptionHandler($app);
-        $this->resolveApplicationEnvironmentVariables($app);
-        $this->resolveApplicationConfiguration($app);
+        if ($this instanceof PHPUnitTestCase && method_exists($this, 'beforeApplicationDestroyed')) {
+            $this->beforeApplicationDestroyed($restoreTimezone);
+        }
 
-        // Must run after resolveApplicationConfiguration() because LoadConfiguration's
-        // parent::bootstrap() calls detectEnvironment() with config('app.env'), which
-        // would overwrite the 'testing' environment. By running after, our
-        // detectEnvironment('testing') takes precedence.
-        $this->resolveApplicationCore($app);
+        try {
+            if ($this instanceof FoundationTestCase) {
+                $this->prepareApplicationForCachedState($app);
+            }
 
-        $this->resolveApplicationHttpKernel($app);
-        $this->resolveApplicationHttpMiddlewares($app);
-        $this->resolveApplicationConsoleKernel($app);
-        $this->resolveApplicationBootstrappers($app);
-        $this->refreshApplicationRouteNameLookups($app);
+            $this->resolveApplicationBindings($app);
+            $this->resolveApplicationExceptionHandler($app);
+            $this->resolveApplicationEnvironmentVariables($app);
+            $this->resolveApplicationConfiguration($app);
+
+            // Must run after resolveApplicationConfiguration() because LoadConfiguration's
+            // parent::bootstrap() calls detectEnvironment() with config('app.env'), which
+            // would overwrite the 'testing' environment. By running after, our
+            // detectEnvironment('testing') takes precedence.
+            $this->resolveApplicationCore($app);
+
+            $this->resolveApplicationHttpKernel($app);
+            $this->resolveApplicationHttpMiddlewares($app);
+            $this->resolveApplicationConsoleKernel($app);
+            $this->resolveApplicationBootstrappers($app);
+            $this->refreshApplicationRouteNameLookups($app);
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            $restoreTimezone();
+
+            throw $exception;
+        }
 
         return $app;
     }
@@ -208,13 +234,14 @@ trait CreatesApplication
      */
     protected function resolveApplication(): ApplicationContract
     {
-        static::$cacheApplicationBootstrapFile ??= $this->getApplicationBootstrapFile('app.php');
+        $bootstrapFile = $this->applicationBootstrapFile
+            ??= $this->getApplicationBootstrapFile('app.php');
 
-        if (is_string(static::$cacheApplicationBootstrapFile)) {
+        if (is_string($bootstrapFile)) {
             $APP_BASE_PATH = $this->getApplicationBasePath();
 
             /** @var ApplicationContract $app */
-            $app = require static::$cacheApplicationBootstrapFile;
+            $app = require $bootstrapFile;
 
             return $app;
         }
@@ -421,9 +448,9 @@ trait CreatesApplication
         $app->make(FoundationLoadConfiguration::class)->bootstrap($app);
         $app->make(SyncDatabaseEnvironmentVariables::class)->bootstrap($app);
 
-        if (($timezone = $this->getApplicationTimezone($app)) !== null) {
-            $app->make('config')->set('app.timezone', $timezone);
-            date_default_timezone_set($timezone);
+        if (($applicationTimezone = $this->getApplicationTimezone($app)) !== null) {
+            $app->make('config')->set('app.timezone', $applicationTimezone);
+            date_default_timezone_set($applicationTimezone);
         }
 
         // Rewrite the default database name for parallel testing before
@@ -455,6 +482,7 @@ trait CreatesApplication
         $providers = (new Collection(TestbenchRegisterProviders::mergeAdditionalProvidersForTestbench(
             $this->getApplicationProviders($app)
         )))
+            ->push(RouteServiceProvider::class)
             ->merge($this->getPackageProviders($app));
 
         $overrides = $this->overrideApplicationProviders($app);
@@ -501,7 +529,6 @@ trait CreatesApplication
             testCase: $this,
             default: fn () => $this->defineEnvironment($app),
             attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound */
-            pest: fn () => $this->defineEnvironmentUsingPest($app), /* @phpstan-ignore method.notFound */
         );
 
         if (static::usesTestingConcern(WithWorkbench::class)) {
@@ -522,6 +549,10 @@ trait CreatesApplication
             $app->singleton('db.resolver', DatabaseConnectionResolver::class);
             Model::setConnectionResolver($app->make('db'));
         }
+
+        // The manual sequence above replaces the kernel's bootstrappers. Mark it complete
+        // before resolving a retained custom kernel so configuration and providers do not replay.
+        $app->bootstrapWith([]);
 
         $app->make(KernelContract::class)->bootstrap();
     }
@@ -598,5 +629,27 @@ trait CreatesApplication
         }
 
         return preg_replace('/[^A-Za-z0-9_.-]/', '_', $token);
+    }
+
+    /**
+     * Terminate and flush an application, preserving the first cleanup failure.
+     */
+    protected static function terminateAndFlushApplication(ApplicationContract $app): ?Throwable
+    {
+        $failure = null;
+
+        try {
+            $app->terminate();
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
+        }
+
+        try {
+            $app->flush();
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        return $failure;
     }
 }

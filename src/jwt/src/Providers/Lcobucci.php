@@ -21,6 +21,7 @@ use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Signer\Rsa;
 use Lcobucci\JWT\Token\RegisteredClaims;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
+use Throwable;
 
 class Lcobucci extends Provider implements ProviderContract
 {
@@ -88,8 +89,12 @@ class Lcobucci extends Provider implements ProviderContract
         try {
             /** @var \Lcobucci\JWT\Token\Plain */
             $token = $this->config->parser()->parse($token);
-        } catch (Exception $e) {
-            throw new TokenInvalidException('Could not decode token: ' . $e->getMessage(), $e->getCode(), $e);
+        } catch (Throwable $exception) {
+            throw new TokenInvalidException(
+                'Could not decode token: ' . $exception->getMessage(),
+                $exception->getCode(),
+                $exception,
+            );
         }
 
         if (! $this->config->validator()->validate($token, ...$this->config->validationConstraints())) {

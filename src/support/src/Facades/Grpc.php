@@ -7,8 +7,8 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Grpc\Server\GrpcRouteRegistrar;
 
 /**
- * @method static \Hypervel\Routing\Route unary(string $method, array|string|callable $action)
- * @method static \Hypervel\Routing\Route serverStream(string $method, array|string|callable $action)
+ * @method static \Hypervel\Routing\Route unary(string $method, callable|array|string $action)
+ * @method static \Hypervel\Routing\Route serverStream(string $method, callable|array|string $action)
  * @method static void service(string $service, \Closure $routes)
  * @method static \Hypervel\Grpc\Server\PendingGrpcRegistration middleware(array|string $middleware)
  * @method static \Hypervel\Grpc\Server\PendingGrpcRegistration withoutMiddleware(array|string $middleware)

@@ -6,12 +6,16 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use DateTimeZone;
 use Hypervel\Bus\Queueable;
+use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;
+use Sentry\Event as SentryEvent;
+use Sentry\EventType;
+use Sentry\Tracing\SpanStatus;
 
 class ConsoleSchedulingIntegrationTest extends SentryTestCase
 {
@@ -70,6 +74,21 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
 
         $this->assertNotNull($finishCheckInEvent->getCheckIn());
         $this->assertEquals($expectedTimezone, $finishCheckInEvent->getCheckIn()->getMonitorConfig()->getTimezone());
+    }
+
+    public function testScheduleMacroCanOverrideTheMonitorExpression(): void
+    {
+        $scheduledEvent = $this->getScheduler()
+            ->call(static function (): void {
+            })
+            ->daily()
+            ->sentryMonitor('custom-schedule-monitor', schedule: '*/5 * * * *');
+
+        $scheduledEvent->run($this->app);
+
+        $monitorConfig = $this->getLastSentryEvent()->getCheckIn()->getMonitorConfig();
+
+        $this->assertSame('*/5 * * * *', $monitorConfig->getSchedule()->getValue());
     }
 
     public function testScheduleMacroAutomaticSlugForCommand(): void
@@ -145,6 +164,33 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $this->assertTrue(Event::hasMacro('sentryMonitor'));
     }
 
+    public function testMonitorCheckInsRemainWithoutScheduledTracingListeners(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.traces_sample_rate' => null,
+            'sentry.features' => [
+                ConsoleSchedulingFeature::class,
+            ],
+        ]);
+        $listeners = $this->app->make('events')->getRawListeners()[ScheduledTaskStarting::class] ?? [];
+
+        foreach ($listeners as $listener) {
+            $this->assertFalse(
+                is_array($listener) && ($listener[0] ?? null) instanceof ConsoleSchedulingFeature,
+            );
+        }
+
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->call(static function (): void {
+            })
+            ->sentryMonitor('check-ins-without-tracing');
+
+        $scheduledEvent->run($this->app);
+
+        $this->assertSentryCheckInCount(2);
+    }
+
     public function testScheduleMacroIsRegisteredWithoutDsnSet(): void
     {
         $this->resetApplicationWithConfig([
@@ -170,6 +216,41 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $transaction = $this->getLastSentryEvent();
 
         $this->assertEquals('Closure', $transaction->getTransaction());
+        $this->assertSame((string) SpanStatus::ok(), $transaction->getContexts()['trace']['status']);
+    }
+
+    public function testScheduledClosureWithNonZeroExitCreatesOneFailedTransaction(): void
+    {
+        $this->getScheduler()->call(static fn (): false => false)->everyMinute();
+
+        $this->artisan('schedule:run --once');
+
+        $this->assertSentryTransactionCount(1);
+
+        $transaction = $this->getCapturedTransactions()[0];
+
+        $this->assertSame(
+            (string) SpanStatus::internalError(),
+            $transaction->getContexts()['trace']['status'],
+        );
+    }
+
+    public function testScheduledClosureThatThrowsBeforeFinishedCreatesOneFailedTransaction(): void
+    {
+        $this->getScheduler()->call(static function (): never {
+            throw new RuntimeException('Scheduled closure failed.');
+        })->everyMinute();
+
+        $this->artisan('schedule:run --once');
+
+        $this->assertSentryTransactionCount(1);
+
+        $transaction = $this->getCapturedTransactions()[0];
+
+        $this->assertSame(
+            (string) SpanStatus::internalError(),
+            $transaction->getContexts()['trace']['status'],
+        );
     }
 
     /** @define-env envSamplingAllTransactions */
@@ -271,6 +352,22 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
         $scheduledEvent->run($this->app);
 
         $this->assertSentryCheckInCount(4);
+    }
+
+    /**
+     * Get the captured Sentry transactions.
+     *
+     * @return list<SentryEvent>
+     */
+    protected function getCapturedTransactions(): array
+    {
+        return array_values(array_map(
+            static fn (array $captured): SentryEvent => $captured[0],
+            array_filter(
+                $this->getCapturedSentryEvents(),
+                static fn (array $captured): bool => $captured[0]->getType() === EventType::transaction(),
+            ),
+        ));
     }
 
     protected function getScheduler(): Schedule

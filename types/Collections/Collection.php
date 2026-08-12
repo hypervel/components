@@ -26,6 +26,10 @@ assertType('Hypervel\Support\Collection<int, bool>', Collection::times(3, static
 assertType('Hypervel\Support\LazyCollection<int, int>', LazyCollection::times(3));
 assertType('Hypervel\Support\LazyCollection<int, bool>', LazyCollection::times(3, static fn (int $number): bool => $number > 1));
 assertType('Hypervel\Support\Collection<int, mixed>', $collection->flatten());
+assertType(
+    'Hypervel\Support\Collection<string, Hypervel\Support\Collection<int, 1|2|3>>',
+    $collection->groupBy(static fn (int $value): array => [$value % 2 === 0 ? 'even' : 'odd'])
+);
 
 assertType('1|2|3|null', $collection->min());
 assertType("'1'|'2'|'3'|null", $collection->min(static fn (int $value): string => (string) $value));

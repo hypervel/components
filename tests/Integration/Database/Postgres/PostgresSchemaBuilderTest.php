@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Postgres;
 
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -179,6 +180,43 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertEquals('This is a new comment', DB::selectOne("select obj_description('public.posts'::regclass, 'pg_class')")->obj_description);
     }
 
+    public function testWithoutForeignKeyConstraintsNestsUntilTheOuterScopeRestoresImmediateChecks(): void
+    {
+        Schema::create('constraint_parents', function (Blueprint $table): void {
+            $table->id();
+        });
+        Schema::create('constraint_children', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('parent_id');
+            $table->foreign('parent_id')
+                ->references('id')
+                ->on('constraint_parents')
+                ->deferrable()
+                ->initiallyImmediate();
+        });
+
+        $connection = DB::connection();
+        $outer = $connection->getSchemaBuilder();
+        $inner = $connection->getSchemaBuilder();
+
+        $connection->transaction(function () use ($connection, $inner, $outer): void {
+            $outer->withoutForeignKeyConstraints(function () use ($connection, $inner): void {
+                $connection->table('constraint_children')->insert(['id' => 1, 'parent_id' => 1]);
+
+                $inner->withoutForeignKeyConstraints(function () use ($connection): void {
+                    $connection->table('constraint_children')->insert(['id' => 2, 'parent_id' => 2]);
+                });
+
+                $connection->table('constraint_parents')->insert([
+                    ['id' => 1],
+                    ['id' => 2],
+                ]);
+            });
+        });
+
+        $this->assertSame(2, $connection->table('constraint_children')->count());
+    }
+
     public function testGetTables()
     {
         Schema::create('public.table', function (Blueprint $table) {
@@ -295,5 +333,39 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertContains('public_table_created_at_index', $indexNames);
         $this->assertContains('public_table_body_fulltext', $indexNames);
         $this->assertContains('table_raw_index', $indexNames);
+    }
+
+    public function testLateSchemaFailureRollsBackTheCompleteBlueprint(): void
+    {
+        try {
+            Schema::create('atomic_records', function (Blueprint $table): void {
+                $table->id();
+                $table->rawIndex('(', 'invalid_index');
+            });
+            $this->fail('Expected the invalid index to fail.');
+        } catch (QueryException) {
+        }
+
+        $this->assertFalse(Schema::hasTable('atomic_records'));
+    }
+
+    public function testOnlineIndexInsideATransactionRetainsTheNativeFailure(): void
+    {
+        Schema::create('transaction_records', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+        });
+
+        try {
+            DB::transaction(function (): void {
+                Schema::table('transaction_records', function (Blueprint $table): void {
+                    $table->index('name')->online();
+                });
+            });
+            $this->fail('Expected PostgreSQL to reject the online index inside a transaction.');
+        } catch (QueryException) {
+        }
+
+        $this->assertFalse(Schema::hasIndex('transaction_records', ['name']));
     }
 }

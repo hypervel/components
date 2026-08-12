@@ -23,6 +23,20 @@ class AuthConfigTest extends TestCase
         $this->assertSame(300, $config['password_timeout']);
     }
 
+    public function testVerificationExpiryIsLoadedAsIntegerFromEnvironment(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_VERIFICATION_EXPIRE', '90');
+
+        $this->assertSame(90, $config['verification']['expire']);
+    }
+
+    public function testTimeboxDurationIsLoadedAsIntegerFromEnvironment(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_TIMEBOX_DURATION', '250000');
+
+        $this->assertSame(250000, $config['timebox_duration']);
+    }
+
     /**
      * Load the Auth configuration with a temporary environment value.
      *

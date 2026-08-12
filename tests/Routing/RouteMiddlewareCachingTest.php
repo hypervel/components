@@ -19,7 +19,7 @@ use Hypervel\Tests\Routing\RoutingTestCase;
 
 class RouteMiddlewareCachingTest extends RoutingTestCase
 {
-    public function testResolvedMiddlewareIsCachedOnRoute()
+    public function testResolvedMiddlewareIsCachedOnRoute(): void
     {
         $router = $this->getRouter();
         $router->aliasMiddleware('testmw', TestMiddleware::class);
@@ -36,7 +36,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertNotNull($route->resolvedMiddleware);
     }
 
-    public function testResolvedMiddlewareIsNullBeforeGathering()
+    public function testResolvedMiddlewareIsNullBeforeGathering(): void
     {
         $router = $this->getRouter();
 
@@ -47,7 +47,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertNull($route->resolvedMiddleware);
     }
 
-    public function testFlushControllerClearsResolvedMiddleware()
+    public function testFlushControllerClearsResolvedMiddleware(): void
     {
         $router = $this->getRouter();
 
@@ -63,7 +63,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertNull($route->resolvedMiddleware);
     }
 
-    public function testPrepareForSerializationClearsResolvedMiddleware()
+    public function testPrepareForSerializationClearsResolvedMiddleware(): void
     {
         $router = $this->getRouter();
 
@@ -79,7 +79,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertNull($route->resolvedMiddleware);
     }
 
-    public function testControllerRouteMiddlewareIsCached()
+    public function testControllerRouteMiddlewareIsCached(): void
     {
         $router = $this->getRouter();
         $route = $router->get('foo', MiddlewareController::class . '@index');
@@ -97,7 +97,31 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         $this->assertSame($first, $second);
     }
 
-    public function testSetContainerClearsResolvedMiddleware()
+    public function testSettingTheSameContainerPreservesResolvedMiddleware(): void
+    {
+        $container = new Container;
+        $dispatcherResolutions = 0;
+        $router = $this->getRouter($container);
+
+        $container->bind(ControllerDispatcherContract::class, function ($app) use (&$dispatcherResolutions) {
+            ++$dispatcherResolutions;
+
+            return new ControllerDispatcher($app);
+        });
+
+        $route = $router->get('foo', MiddlewareController::class . '@index');
+
+        $router->gatherRouteMiddleware($route);
+        $resolvedMiddleware = $route->resolvedMiddleware;
+
+        $route->setContainer($container);
+
+        $this->assertSame($resolvedMiddleware, $route->resolvedMiddleware);
+        $this->assertSame($resolvedMiddleware, $router->gatherRouteMiddleware($route));
+        $this->assertSame(1, $dispatcherResolutions);
+    }
+
+    public function testSettingADifferentContainerClearsResolvedMiddleware(): void
     {
         $router = $this->getRouter();
 
@@ -106,10 +130,12 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
         }]);
 
         $router->gatherRouteMiddleware($route);
+        $this->assertNotNull($route->computedMiddleware);
         $this->assertNotNull($route->resolvedMiddleware);
 
         $route->setContainer(new Container);
 
+        $this->assertNull($route->computedMiddleware);
         $this->assertNull($route->resolvedMiddleware);
     }
 
@@ -130,7 +156,7 @@ class RouteMiddlewareCachingTest extends RoutingTestCase
 
 class TestMiddleware
 {
-    public function handle($request, Closure $next)
+    public function handle(mixed $request, Closure $next): mixed
     {
         return $next($request);
     }

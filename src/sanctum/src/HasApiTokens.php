@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use DateTimeInterface;
-use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Support\Str;
 use UnitEnum;
@@ -27,11 +26,30 @@ trait HasApiTokens
     /**
      * Get the access tokens that belong to model.
      *
-     * @return MorphMany<TToken, $this>
+     * @return PersonalAccessTokenRelation<$this>
      */
-    public function tokens(): MorphMany
+    public function tokens(): PersonalAccessTokenRelation
     {
-        return $this->morphMany(Sanctum::$personalAccessTokenModel, 'tokenable');
+        return $this->newTokenRelation();
+    }
+
+    /**
+     * Instantiate the personal access token relationship.
+     */
+    protected function newTokenRelation(): PersonalAccessTokenRelation
+    {
+        $instance = $this->newRelatedInstance(Sanctum::personalAccessTokenModel());
+        [$type, $id] = $this->getMorphs('tokenable', null, null);
+
+        // This relation owns Sanctum's cache-aware delete contract without
+        // replacing the model-wide newMorphMany() extension point.
+        return new PersonalAccessTokenRelation(
+            $instance->newQuery(),
+            $this,
+            $instance->qualifyColumn($type),
+            $instance->qualifyColumn($id),
+            $this->getKeyName(),
+        );
     }
 
     /**

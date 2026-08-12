@@ -9,6 +9,7 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 use function Hypervel\Testbench\remote;
+use function Hypervel\Testbench\workbench_relative_path;
 
 class PackageRuntimeTest extends TestCase
 {
@@ -27,6 +28,13 @@ class PackageRuntimeTest extends TestCase
 
         $this->assertTrue($config->boolean('dogfood.workbench_provider_loaded'));
         $this->assertTrue($config->boolean('dogfood.workbench_config_loaded'));
+    }
+
+    #[Test]
+    public function itResolvesPathsRelativeToThePackageWorkbench(): void
+    {
+        $this->assertSame('workbench/config/dogfood.php', workbench_relative_path('config', 'dogfood.php'));
+        $this->assertSame('workbench/config/dogfood.php', workbench_relative_path('./config', 'dogfood.php'));
     }
 
     #[Test]

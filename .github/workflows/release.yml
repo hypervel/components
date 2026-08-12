@@ -17,6 +17,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # Version commits and framework tag pushes authenticate through origin.
+          persist-credentials: true
 
       - name: Remove optional "v" prefix
         id: version

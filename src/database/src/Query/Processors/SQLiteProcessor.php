@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Processors;
 
+use Hypervel\Support\Arr;
 use Override;
+use UnexpectedValueException;
 
 class SQLiteProcessor extends Processor
 {
@@ -58,6 +60,23 @@ class SQLiteProcessor extends Processor
     #[Override]
     public function processIndexes(array $results): array
     {
+        return array_map(
+            static fn (array $index): array => Arr::only(
+                $index,
+                ['name', 'columns', 'type', 'unique', 'primary'],
+            ),
+            $this->processIndexesForSchemaState($results),
+        );
+    }
+
+    /**
+     * Process indexes with the metadata required to reconstruct SQLite schema state.
+     *
+     * @internal
+     * @return list<array{name: string, physical_name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, sql: null|string, origin: null|string, reconstructible: bool, collations: null|list<string>, descending: null|list<bool>}>
+     */
+    public function processIndexesForSchemaState(array $results): array
+    {
         $primaryCount = 0;
 
         $indexes = array_map(function ($result) use (&$primaryCount) {
@@ -69,10 +88,23 @@ class SQLiteProcessor extends Processor
 
             return [
                 'name' => strtolower($result->name),
-                'columns' => $result->columns ? explode(',', $result->columns) : [],
+                'physical_name' => (string) $result->name,
+                'columns' => $this->decodeHexList($result->columns),
                 'type' => null,
                 'unique' => (bool) $result->unique,
                 'primary' => $isPrimary,
+                'sql' => $result->sql,
+                'origin' => $result->origin,
+                'reconstructible' => (bool) $result->reconstructible,
+                'collations' => is_null($result->collations)
+                    ? null
+                    : $this->decodeHexList($result->collations),
+                'descending' => is_null($result->descending)
+                    ? null
+                    : array_map(
+                        static fn (string $value): bool => $value === '1',
+                        explode(',', $result->descending),
+                    ),
             ];
         }, $results);
 
@@ -80,7 +112,30 @@ class SQLiteProcessor extends Processor
             $indexes = array_filter($indexes, fn ($index) => $index['name'] !== 'primary');
         }
 
-        return $indexes;
+        return array_values($indexes);
+    }
+
+    /**
+     * Decode a comma-separated list of hexadecimal SQLite schema values.
+     *
+     * @return list<string>
+     */
+    protected function decodeHexList(?string $values): array
+    {
+        if (is_null($values) || $values === '') {
+            return [];
+        }
+
+        return array_map(static function (string $value): string {
+            if (strlen($value) % 2 !== 0 || ! ctype_xdigit($value)) {
+                throw new UnexpectedValueException('The SQLite schema metadata contains invalid hexadecimal text.');
+            }
+
+            /** @var string $decoded */
+            $decoded = hex2bin($value);
+
+            return $decoded;
+        }, explode(',', $values));
     }
 
     #[Override]

@@ -9,7 +9,9 @@ use BadMethodCallException;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\ForgettingKey;
+use Hypervel\Cache\Events\KeyForgetFailed;
 use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\RetrievingKey;
@@ -363,6 +365,103 @@ class CacheStackStoreTagsTest extends TestCase
             $this->assertSame('key', $event->key);
             $this->assertSame(['tag'], $event->tags);
         }
+    }
+
+    public function testTaggedRememberDispatchesRepositoryReadFailureEventWhenTheStoreThrows(): void
+    {
+        $exception = new RuntimeException('read failed');
+        $taggable = $this->anyModeTaggableStore();
+        $taggable->shouldReceive('get')->once()->with('key')->andThrow($exception);
+
+        $captured = [];
+        $stack = new StackStore([$taggable]);
+        $cache = (new Repository($stack, ['store' => 'stack']))->tags(['tag']);
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        try {
+            $cache->remember('key', 60, fn () => 'computed');
+            $this->fail('Expected the tagged cache read exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(
+            [RetrievingKey::class, KeyRetrievalFailed::class],
+            array_map(get_class(...), $captured),
+        );
+        $this->assertSame(['tag'], $captured[1]->tags);
+        $this->assertSame($exception, $captured[1]->exception);
+    }
+
+    public function testTaggedPutDispatchesRepositoryWriteFailureEventWhenTheStoreThrows(): void
+    {
+        $exception = new RuntimeException('write failed');
+        $taggable = $this->anyModeTaggableStore();
+        $taggedCache = m::mock(TaggedCache::class);
+        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
+        $taggedCache->shouldReceive('put')->once()->with('key', m::type('array'), 60)->andThrow($exception);
+
+        $captured = [];
+        $stack = new StackStore([$taggable]);
+        $cache = (new Repository($stack, ['store' => 'stack']))->tags(['tag']);
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        try {
+            $cache->put('key', 'value', 60);
+            $this->fail('Expected the tagged cache write exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
+        $this->assertSame(['tag'], $captured[1]->tags);
+    }
+
+    public function testTaggedForeverDispatchesRepositoryWriteFailureEventWhenTheStoreThrows(): void
+    {
+        $exception = new RuntimeException('forever write failed');
+        $taggable = $this->anyModeTaggableStore();
+        $taggedCache = m::mock(TaggedCache::class);
+        $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
+        $taggedCache->shouldReceive('forever')->once()->with('key', ['value' => 'value'])->andThrow($exception);
+
+        $captured = [];
+        $stack = new StackStore([$taggable]);
+        $cache = (new Repository($stack, ['store' => 'stack']))->tags(['tag']);
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        try {
+            $cache->forever('key', 'value');
+            $this->fail('Expected the tagged forever exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([WritingKey::class, KeyWriteFailed::class], array_map(get_class(...), $captured));
+        $this->assertSame(['tag'], $captured[1]->tags);
+        $this->assertNull($captured[1]->seconds);
+    }
+
+    public function testTaggedExpiredPutDispatchesRepositoryForgetFailureEventWhenTheStoreThrows(): void
+    {
+        $exception = new RuntimeException('forget failed');
+        $taggable = $this->anyModeTaggableStore();
+        $taggable->shouldReceive('forget')->once()->with('key')->andThrow($exception);
+
+        $captured = [];
+        $stack = new StackStore([$taggable]);
+        $cache = (new Repository($stack, ['store' => 'stack']))->tags(['tag']);
+        $cache->setEventDispatcher($this->capturingDispatcher($captured));
+
+        try {
+            $cache->put('key', 'value', 0);
+            $this->fail('Expected the tagged forget exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame([ForgettingKey::class, KeyForgetFailed::class], array_map(get_class(...), $captured));
+        $this->assertSame(['tag'], $captured[1]->tags);
     }
 
     public function testTaggedPutWithExpiredTtlDispatchesRepositoryDeleteEvents(): void

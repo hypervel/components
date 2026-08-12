@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -56,13 +58,12 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_CONNECTION: mysql
           DB_HOST: mysql
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: vendor/bin/phpunit tests/Integration/Database $(find tests/Integration -path 'tests/Integration/*/Database/MySql' -type d)
+        run: bin/run-database-tests.sh mysql
 
   mysql_9:
     runs-on: ubuntu-latest
@@ -93,6 +94,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -112,13 +115,12 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_CONNECTION: mysql
           DB_HOST: mysql
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: vendor/bin/phpunit tests/Integration/Database $(find tests/Integration -path 'tests/Integration/*/Database/MySql' -type d)
+        run: bin/run-database-tests.sh mysql
 
   mariadb_10:
     runs-on: ubuntu-latest
@@ -149,6 +151,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -168,13 +172,12 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_CONNECTION: mariadb
           DB_HOST: mariadb
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: vendor/bin/phpunit tests/Integration/Database $(find tests/Integration -path 'tests/Integration/*/Database/MariaDb' -type d)
+        run: bin/run-database-tests.sh mariadb
 
   mariadb_11:
     runs-on: ubuntu-latest
@@ -205,6 +208,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -224,13 +229,12 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_CONNECTION: mariadb
           DB_HOST: mariadb
           DB_PORT: 3306
           DB_DATABASE: testing
           DB_USERNAME: root
           DB_PASSWORD: password
-        run: vendor/bin/phpunit tests/Integration/Database $(find tests/Integration -path 'tests/Integration/*/Database/MariaDb' -type d)
+        run: bin/run-database-tests.sh mariadb
 
   pgsql_17:
     runs-on: ubuntu-latest
@@ -261,6 +265,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -280,13 +286,12 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_CONNECTION: pgsql
           DB_HOST: postgres
           DB_PORT: 5432
           DB_DATABASE: testing
           DB_USERNAME: postgres
           DB_PASSWORD: password
-        run: vendor/bin/phpunit tests/Integration/Database $(find tests/Integration -path 'tests/Integration/*/Database/Postgres' -type d)
+        run: bin/run-database-tests.sh pgsql
 
   pgsql_18:
     runs-on: ubuntu-latest
@@ -317,6 +322,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -336,13 +343,12 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_CONNECTION: pgsql
           DB_HOST: postgres
           DB_PORT: 5432
           DB_DATABASE: testing
           DB_USERNAME: postgres
           DB_PASSWORD: password
-        run: vendor/bin/phpunit tests/Integration/Database $(find tests/Integration -path 'tests/Integration/*/Database/Postgres' -type d)
+        run: bin/run-database-tests.sh pgsql
 
   sqlite:
     runs-on: ubuntu-latest
@@ -359,6 +365,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -378,8 +386,7 @@ jobs:
 
       - name: Execute integration tests
         env:
-          DB_CONNECTION: sqlite
           DB_DATABASE: /tmp/testing.sqlite
         run: |
           touch /tmp/testing.sqlite
-          vendor/bin/phpunit tests/Integration/Database $(find tests/Integration -path 'tests/Integration/*/Database/Sqlite' -type d)
+          bin/run-database-tests.sh sqlite

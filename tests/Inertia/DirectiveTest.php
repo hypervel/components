@@ -11,6 +11,8 @@ use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Tests\Inertia\Fixtures\FakeGateway;
 use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\ViewException;
+use JsonException;
 use Mockery as m;
 
 class DirectiveTest extends TestCase
@@ -72,6 +74,30 @@ class DirectiveTest extends TestCase
         $this->assertSame($html, $this->renderView('@inertia(foo)', ['page' => self::EXAMPLE_PAGE_OBJECT]));
         $this->assertSame($html, $this->renderView("@inertia('foo')", ['page' => self::EXAMPLE_PAGE_OBJECT]));
         $this->assertSame($html, $this->renderView('@inertia("foo")', ['page' => self::EXAMPLE_PAGE_OBJECT]));
+    }
+
+    public function testInertiaDirectivePreservesAZeroRootElementId(): void
+    {
+        Config::set(['inertia.ssr.enabled' => false]);
+
+        $html = '<script data-page="0" type="application/json">{"component":"Foo\/Bar","props":{"foo":"bar"},"url":"\/test","version":""}</script><div id="0"></div>';
+
+        $this->assertSame($html, $this->renderView('@inertia("0")', ['page' => self::EXAMPLE_PAGE_OBJECT]));
+    }
+
+    public function testInertiaDirectiveReportsPageEncodingFailures(): void
+    {
+        Config::set(['inertia.ssr.enabled' => false]);
+
+        try {
+            $this->renderView('@inertia', ['page' => ['value' => "\xB1\x31"]]);
+        } catch (ViewException $exception) {
+            $this->assertInstanceOf(JsonException::class, $exception->getPrevious());
+
+            return;
+        }
+
+        $this->fail('The unencodable page did not throw a view exception.');
     }
 
     public function testInertiaHeadDirectiveRendersNothing(): void

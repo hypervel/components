@@ -43,10 +43,12 @@ use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
+use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Throwable;
 use UnexpectedValueException;
 
 class RoutingRouteTest extends TestCase
@@ -1496,6 +1498,15 @@ class RoutingRouteTest extends TestCase
         $this->assertSame('foo/{foo}/modifier', $routes->getByName('foo.edit')->uri());
     }
 
+    public function testResourceVerbSetterReturnsNull(): void
+    {
+        $this->assertNull(ResourceRegistrar::verbs(['create' => 'ajouter']));
+        $this->assertSame([
+            'create' => 'ajouter',
+            'edit' => 'edit',
+        ], ResourceRegistrar::verbs());
+    }
+
     public function testResourceRoutingParameters()
     {
         ResourceRegistrar::singularParameters();
@@ -2227,6 +2238,57 @@ class RoutingRouteTest extends TestCase
         $this->assertSame($response, $prepared[0]->response);
     }
 
+    public function testSerializedRouteActionsAllowOnlySerializableClosureClasses(): void
+    {
+        $captured = new RouteTestInsecureDeserializationStub;
+        $serializedClosure = serialize(SerializableClosure::unsigned(function () use ($captured) {
+            return $captured;
+        }));
+
+        RouteTestInsecureDeserializationStub::$instantiated = false;
+        unserialize($serializedClosure);
+        $this->assertTrue(RouteTestInsecureDeserializationStub::$instantiated);
+
+        $router = $this->getRouter();
+        $router->get('foo', ['uses' => $serializedClosure]);
+        RouteTestInsecureDeserializationStub::$instantiated = false;
+
+        try {
+            $router->dispatch(Request::create('foo', 'GET'));
+        } catch (Throwable) {
+        }
+
+        $this->assertFalse(RouteTestInsecureDeserializationStub::$instantiated);
+    }
+
+    public function testSerializedMissingCallbacksAllowOnlySerializableClosureClasses(): void
+    {
+        $captured = new RouteTestInsecureDeserializationStub;
+        $serializedClosure = serialize(SerializableClosure::unsigned(function () use ($captured) {
+            return $captured;
+        }));
+        $route = new Route(['GET'], 'foo', ['uses' => fn () => 'ok', 'missing' => $serializedClosure]);
+
+        RouteTestInsecureDeserializationStub::$instantiated = false;
+
+        try {
+            $route->getMissing();
+        } catch (Throwable) {
+        }
+
+        $this->assertFalse(RouteTestInsecureDeserializationStub::$instantiated);
+    }
+
+    public function testSerializedRouteActionsStillRun(): void
+    {
+        $router = $this->getRouter();
+        $serializedClosure = serialize(SerializableClosure::unsigned(fn () => 'serialized'));
+
+        $router->get('foo', ['uses' => $serializedClosure]);
+
+        $this->assertSame('serialized', $router->dispatch(Request::create('foo', 'GET'))->getContent());
+    }
+
     protected function getRouter($container = null)
     {
         $container ??= new Container;
@@ -2661,5 +2723,15 @@ final class RoutingTestHasTenantImpl
     public function onTenant(RoutingTestTenant $tenant): void
     {
         $this->tenant = $tenant;
+    }
+}
+
+class RouteTestInsecureDeserializationStub
+{
+    public static bool $instantiated = false;
+
+    public function __wakeup(): void
+    {
+        self::$instantiated = true;
     }
 }

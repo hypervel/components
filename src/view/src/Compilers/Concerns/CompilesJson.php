@@ -16,7 +16,7 @@ trait CompilesJson
      */
     protected function compileJson(string $expression): string
     {
-        $parts = explode(',', $this->stripParentheses($expression));
+        $parts = $this->splitTopLevel($expression, 3);
 
         $options = isset($parts[1]) ? trim($parts[1]) : $this->encodingOptions;
 

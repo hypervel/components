@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -11,7 +12,9 @@ use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class PruneExpiredTest extends TestCase
 {
@@ -136,5 +139,43 @@ class PruneExpiredTest extends TestCase
         $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Test_1']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_2']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_3']);
+    }
+
+    #[DataProvider('invalidHoursProvider')]
+    public function testInvalidHoursFailBeforeQuerying(string $hours): void
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->artisan("sanctum:prune-expired --hours={$hours}")
+            ->expectsOutput('The --hours option must be a non-negative integer.')
+            ->assertExitCode(Command::FAILURE);
+
+        $this->assertSame([], DB::getQueryLog());
+    }
+
+    public static function invalidHoursProvider(): iterable
+    {
+        yield 'negative' => ['-1'];
+        yield 'decimal' => ['1.5'];
+        yield 'nonnumeric' => ['invalid'];
+    }
+
+    public function testZeroHoursIsAccepted(): void
+    {
+        $this->app->make('config')->set(['sanctum.expiration' => null]);
+
+        PersonalAccessToken::forceCreate([
+            'tokenable_type' => 'App\Models\User',
+            'tokenable_id' => 1,
+            'name' => 'Expired Now',
+            'token' => hash('sha256', 'expired-now'),
+            'expires_at' => CarbonImmutable::now()->subSecond(),
+        ]);
+
+        $this->artisan('sanctum:prune-expired --hours=0')
+            ->assertExitCode(Command::SUCCESS);
+
+        $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Expired Now']);
     }
 }

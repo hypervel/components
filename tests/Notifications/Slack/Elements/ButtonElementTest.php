@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Notifications\Slack\Elements;
 use Hypervel\Notifications\Slack\BlockKit\Composites\ConfirmObject;
 use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
 use Hypervel\Notifications\Slack\BlockKit\Elements\ButtonElement;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use PHPUnit\Framework\TestCase;
 
 class ButtonElementTest extends TestCase
 {
@@ -83,10 +83,28 @@ class ButtonElementTest extends TestCase
         $element->toArray();
     }
 
+    public function testGeneratedActionIdCannotExceedTwoFiveFiveCharacters(): void
+    {
+        $element = new ButtonElement(str_repeat('@', 248));
+
+        $this->assertSame(255, strlen($element->toArray()['action_id']));
+    }
+
+    public function testGeneratedActionIdsFallbackWhenTextCannotBeSlugged(): void
+    {
+        $firstId = (new ButtonElement('🦄'))->toArray()['action_id'];
+        $secondId = (new ButtonElement('🐘'))->toArray()['action_id'];
+
+        $this->assertStringStartsWith('button_', $firstId);
+        $this->assertStringStartsWith('button_', $secondId);
+        $this->assertNotSame('button_', $firstId);
+        $this->assertNotSame($firstId, $secondId);
+    }
+
     public function testCanHaveUrl(): void
     {
         $element = new ButtonElement('Click Me');
-        $element->url('https://laravel.com');
+        $element->url('https://hypervel.org');
 
         $this->assertSame([
             'type' => 'button',
@@ -95,7 +113,7 @@ class ButtonElementTest extends TestCase
                 'text' => 'Click Me',
             ],
             'action_id' => 'button_click-me',
-            'url' => 'https://laravel.com',
+            'url' => 'https://hypervel.org',
         ], $element->toArray());
     }
 
@@ -124,6 +142,27 @@ class ButtonElementTest extends TestCase
             'action_id' => 'button_click-me',
             'value' => 'click_me_123',
         ], $element->toArray());
+    }
+
+    public function testCharacterLimitedFieldsAcceptMultibyteValuesAtTheirLimits(): void
+    {
+        $url = str_repeat('你', 3000);
+        $id = str_repeat('你', 255);
+        $value = str_repeat('你', 2000);
+        $label = str_repeat('你', 75);
+
+        $element = (new ButtonElement('Click Me'))
+            ->url($url)
+            ->id($id)
+            ->value($value)
+            ->accessibilityLabel($label);
+
+        $payload = $element->toArray();
+
+        $this->assertSame($url, $payload['url']);
+        $this->assertSame($id, $payload['action_id']);
+        $this->assertSame($value, $payload['value']);
+        $this->assertSame($label, $payload['accessibility_label']);
     }
 
     public function testValueCantExceedTwoThousandCharacters(): void

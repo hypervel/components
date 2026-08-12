@@ -9,8 +9,10 @@ use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\AbstractProvider as BaseProvider;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
+use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
+use SensitiveParameter;
 
 abstract class AbstractProvider extends BaseProvider implements ProviderContract
 {
@@ -48,6 +50,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     public function __construct(
         Request $request,
         protected string $clientId,
+        #[SensitiveParameter]
         protected string $clientSecret,
         protected string $redirectUrl,
         array $guzzle = []
@@ -68,7 +71,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Get the raw user for the given access token.
      */
-    abstract protected function getUserByToken(string $token): mixed;
+    abstract protected function getUserByToken(#[SensitiveParameter] string $token): array;
 
     /**
      * Map the raw user array to a Socialite User instance.
@@ -133,6 +136,9 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
         return implode($scopeSeparator, $scopes);
     }
 
+    /**
+     * Get the User instance for the authenticated user.
+     */
     public function user(): User
     {
         if ($user = $this->getUser()) {
@@ -145,9 +151,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
         $response = $this->getAccessTokenResponse($this->getCode());
 
-        $user = $this->getUserByToken(Arr::get($response, 'access_token'));
-
-        return $this->userInstance($response, $user);
+        return $this->userInstance($response, $this->getUserByTokenResponse($response));
     }
 
     /**
@@ -171,26 +175,36 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Create a user instance from the given data.
      */
-    protected function userInstance(array $response, array $user): User
+    protected function userInstance(#[SensitiveParameter] array $response, array $user): User
     {
-        $this->setUser(
-            $this->mapUserToObject($user)
-        );
+        $instance = $this->mapUserToObject($user);
 
-        return $this->getUser()->setToken(Arr::get($response, 'access_token'))
-            ->setRefreshToken(Arr::get($response, 'refresh_token'))
-            ->setExpiresIn(Arr::get($response, 'expires_in'))
-            ->setApprovedScopes(explode($this->scopeSeparator, Arr::get($response, 'scope', '')));
+        $instance->setToken($this->parseAccessToken($response))
+            ->setRefreshToken($this->parseRefreshToken($response))
+            ->setExpiresIn($this->parseExpiresIn($response))
+            ->setApprovedScopes($this->parseApprovedScopes($response))
+            ->setAccessTokenResponseBody($response);
+
+        $this->setUser($instance);
+
+        return $instance;
+    }
+
+    /**
+     * Get the raw user from the token response.
+     */
+    protected function getUserByTokenResponse(#[SensitiveParameter] array $response): array
+    {
+        return $this->getUserByToken($this->parseAccessToken($response));
     }
 
     /**
      * Get a Social User instance from a known access token.
      */
-    public function userFromToken(string $token): User
+    public function userFromToken(#[SensitiveParameter] string $token): User
     {
-        $user = $this->mapUserToObject($this->getUserByToken($token));
-
-        return $user->setToken($token);
+        return $this->mapUserToObject($this->getUserByToken($token))
+            ->setToken($token);
     }
 
     /**
@@ -210,7 +224,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Get the access token response for the given code.
      */
-    public function getAccessTokenResponse(string $code): mixed
+    public function getAccessTokenResponse(#[SensitiveParameter] string $code): array
     {
         $response = $this->getHttpClient()->post($this->getTokenUrl(), [
             RequestOptions::HEADERS => $this->getTokenHeaders($code),
@@ -223,7 +237,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Get the headers for the access token request.
      */
-    protected function getTokenHeaders(string $code): array
+    protected function getTokenHeaders(#[SensitiveParameter] string $code): array
     {
         return ['Accept' => 'application/json'];
     }
@@ -231,7 +245,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Get the POST fields for the token request.
      */
-    protected function getTokenFields(string $code): array
+    protected function getTokenFields(#[SensitiveParameter] string $code): array
     {
         $fields = [
             'grant_type' => 'authorization_code',
@@ -251,22 +265,22 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     /**
      * Refresh a user's access token with a refresh token.
      */
-    public function refreshToken(string $refreshToken): Token
+    public function refreshToken(#[SensitiveParameter] string $refreshToken): Token
     {
         $response = $this->getRefreshTokenResponse($refreshToken);
 
         return new Token(
-            Arr::get($response, 'access_token'),
-            Arr::get($response, 'refresh_token'),
-            Arr::get($response, 'expires_in'),
-            explode($this->scopeSeparator, Arr::get($response, 'scope', ''))
+            $this->parseAccessToken($response),
+            $this->parseRefreshToken($response) ?? $refreshToken,
+            $this->parseExpiresIn($response),
+            $this->parseApprovedScopes($response)
         );
     }
 
     /**
      * Get the refresh token response for the given refresh token.
      */
-    protected function getRefreshTokenResponse(string $refreshToken): mixed
+    protected function getRefreshTokenResponse(#[SensitiveParameter] string $refreshToken): array
     {
         return json_decode((string) $this->getHttpClient()->post($this->getTokenUrl(), [
             RequestOptions::HEADERS => ['Accept' => 'application/json'],
@@ -277,6 +291,55 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
                 'client_secret' => $this->getClientSecret(),
             ],
         ])->getBody(), true);
+    }
+
+    /**
+     * Parse the access token from a token response.
+     */
+    protected function parseAccessToken(#[SensitiveParameter] array $response): string
+    {
+        return Arr::get($response, 'access_token');
+    }
+
+    /**
+     * Parse the refresh token from a token response.
+     */
+    protected function parseRefreshToken(#[SensitiveParameter] array $response): ?string
+    {
+        return Arr::get($response, 'refresh_token');
+    }
+
+    /**
+     * Parse the expiration period from a token response.
+     */
+    protected function parseExpiresIn(#[SensitiveParameter] array $response): ?int
+    {
+        $expiresIn = Arr::get($response, 'expires_in');
+
+        if (is_int($expiresIn)) {
+            return $expiresIn >= 0 ? $expiresIn : null;
+        }
+
+        if (! is_string($expiresIn) || ! ctype_digit($expiresIn)) {
+            return null;
+        }
+
+        $normalized = ltrim($expiresIn, '0');
+        $parsed = filter_var($normalized === '' ? '0' : $normalized, FILTER_VALIDATE_INT);
+
+        return $parsed === false ? null : $parsed;
+    }
+
+    /**
+     * Parse the approved scopes from a token response.
+     */
+    protected function parseApprovedScopes(#[SensitiveParameter] array $response): array
+    {
+        $scopes = Arr::get($response, 'scope');
+
+        return is_array($scopes)
+            ? $scopes
+            : (is_string($scopes) && $scopes !== '' ? explode($this->scopeSeparator, $scopes) : []);
     }
 
     /**
@@ -357,6 +420,25 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     }
 
     /**
+     * Validate the token audience for the provider.
+     */
+    protected function validateAudience(mixed $audience): void
+    {
+        $audiences = is_array($audience) ? $audience : [$audience];
+        $trusted = [$this->getClientId(), ...Arr::wrap($this->getConfig('trusted_audiences', []))];
+
+        if (! in_array($this->getClientId(), $audiences, true)) {
+            throw new InvalidAudienceException;
+        }
+
+        foreach ($audiences as $candidate) {
+            if (! is_string($candidate) || ! in_array($candidate, $trusted, true)) {
+                throw new InvalidAudienceException;
+            }
+        }
+    }
+
+    /**
      * Determine if the provider uses PKCE.
      */
     protected function usesPKCE(): bool
@@ -406,7 +488,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
      * Extends the base setConfig to also handle OAuth2-specific credential
      * keys (client_id, client_secret, redirect) in coroutine context.
      */
-    public function setConfig(array $config): static
+    public function setConfig(#[SensitiveParameter] array $config): static
     {
         if (isset($config['client_id'])) {
             $this->setContext('clientId', $config['client_id']);

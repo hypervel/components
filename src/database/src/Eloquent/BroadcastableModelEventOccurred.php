@@ -31,7 +31,7 @@ class BroadcastableModelEventOccurred implements ShouldBroadcast
     public ?string $queue = null;
 
     /**
-     * Indicates whether the job should be dispatched after all database transactions have committed.
+     * Indicates whether the job should be dispatched after the open parent database transactions have committed.
      */
     public bool $afterCommit = false;
 

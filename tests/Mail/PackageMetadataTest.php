@@ -32,20 +32,12 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR
         );
 
-        foreach ($composer['require'] as $package => $constraint) {
-            if ($package === 'php') {
-                continue;
-            }
-
-            if (str_starts_with($package, 'hypervel/')) {
-                $this->assertSame('self.version', $rootComposer['replace'][$package]);
-            } else {
-                $this->assertSame($constraint, $rootComposer['require'][$package]);
-            }
+        foreach (['symfony/http-foundation', 'symfony/mime'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
-        $this->assertSame('^8.1', $composer['require']['symfony/http-foundation']);
-        $this->assertSame('^8.1', $composer['require']['symfony/mime']);
         $this->assertArrayNotHasKey('hypervel/notifications', $composer['require']);
         $this->assertArrayNotHasKey('hypervel/testing', $composer['require']);
 

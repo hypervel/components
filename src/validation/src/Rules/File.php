@@ -85,6 +85,9 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
      * call across all coroutines.
      *
      * @param null|callable|static $callback
+     * @return ($callback is null ? static : null)
+     *
+     * @throws InvalidArgumentException
      */
     public static function defaults(mixed $callback = null): ?static
     {

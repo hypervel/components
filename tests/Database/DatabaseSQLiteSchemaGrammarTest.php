@@ -106,6 +106,45 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
         $this->assertSame('drop index "my_schema"."foo"', $statements[0]);
     }
 
+    public function testDropForeignWithColumnsAndName(): void
+    {
+        $db = new Manager;
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $schema = $db->getConnection()->getSchemaBuilder();
+
+        $schema->create('parents', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unique(['tenant_id', 'id']);
+        });
+
+        $schema->create('children', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('tenant_id');
+            $table->unsignedBigInteger('parent_id');
+            $table->foreign(
+                ['tenant_id', 'parent_id'],
+                'children_parent_fk',
+            )->references(['tenant_id', 'id'])->on('parents');
+        });
+
+        $this->assertCount(1, $schema->getForeignKeys('children'));
+
+        $schema->table('children', function (Blueprint $table): void {
+            $table->dropForeign(
+                ['tenant_id', 'parent_id'],
+                'children_parent_fk',
+            );
+        });
+
+        $this->assertSame([], $schema->getForeignKeys('children'));
+    }
+
     public function testDropColumn()
     {
         $db = new Manager;
@@ -1079,16 +1118,19 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         $builder = mock(SQLiteBuilder::class)
             ->makePartial()
-            ->shouldReceive('getColumns')->andReturn([
-                ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+            ->shouldReceive('getColumnsForSchemaState')->andReturn([
+                'columns' => [
+                    ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                    ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                ],
+                'sql' => 'CREATE TABLE users (name varchar, age varchar)',
             ])
-            ->shouldReceive('getIndexes')->andReturn([])
+            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
             ->shouldReceive('getForeignKeys')->andReturn([])
             ->getMock();
 
         $connection = $this->getConnection(builder: $builder);
-        $connection->shouldReceive('scalar')->with('pragma foreign_keys')->andReturn(false);
+        $connection->shouldReceive('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
 
         $blueprint = new Blueprint($connection, 'users');
         $blueprint->renameColumn('name', 'first_name');
@@ -1107,16 +1149,19 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         $builder = mock(SQLiteBuilder::class)
             ->makePartial()
-            ->shouldReceive('getColumns')->andReturn([
-                ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
-                ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+            ->shouldReceive('getColumnsForSchemaState')->andReturn([
+                'columns' => [
+                    ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                    ['name' => 'age', 'type_name' => 'varchar', 'type' => 'varchar', 'collation' => null, 'nullable' => false, 'default' => null, 'auto_increment' => false, 'comment' => null, 'generation' => null],
+                ],
+                'sql' => 'CREATE TABLE users (name varchar, age varchar)',
             ])
-            ->shouldReceive('getIndexes')->andReturn([])
+            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
             ->shouldReceive('getForeignKeys')->andReturn([])
             ->getMock();
 
         $connection = $this->getConnection(builder: $builder);
-        $connection->shouldReceive('scalar')->with('pragma foreign_keys')->andReturn(false);
+        $connection->shouldReceive('scalar')->with('pragma foreign_keys', [], false)->andReturn(false);
 
         $blueprint = new Blueprint($connection, 'my_schema.users');
         $blueprint->renameColumn('name', 'first_name');
@@ -1158,8 +1203,11 @@ class DatabaseSQLiteSchemaGrammarTest extends TestCase
     {
         return mock(SQLiteBuilder::class)
             ->makePartial()
-            ->shouldReceive('getColumns')->andReturn([])
-            ->shouldReceive('getIndexes')->andReturn([])
+            ->shouldReceive('getColumnsForSchemaState')->andReturn([
+                'columns' => [],
+                'sql' => 'CREATE TABLE users ()',
+            ])
+            ->shouldReceive('getIndexesForSchemaState')->andReturn([])
             ->shouldReceive('getForeignKeys')->andReturn([])
             ->getMock();
     }

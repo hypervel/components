@@ -24,10 +24,31 @@ return new class extends Migration {
         Schema::create('pivot_events_role_user', function (Blueprint $table) {
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('role_id');
+            $table->unsignedInteger('scope_id')->default(1);
+            $table->unsignedInteger('priority')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 
-            $table->primary(['user_id', 'role_id']);
+            $table->primary(['user_id', 'role_id', 'scope_id']);
+
+            $table->foreign('user_id')
+                ->references('id')
+                ->on('pivot_events_users')
+                ->onDelete('cascade');
+
+            $table->foreign('role_id')
+                ->references('id')
+                ->on('pivot_events_roles')
+                ->onDelete('cascade');
+        });
+
+        Schema::create('pivot_events_role_user_ids', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('role_id');
+            $table->unsignedInteger('scope_id')->default(1);
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
 
             $table->foreign('user_id')
                 ->references('id')
@@ -63,10 +84,12 @@ return new class extends Migration {
             $table->unsignedBigInteger('tag_id');
             $table->unsignedBigInteger('taggable_id');
             $table->string('taggable_type');
+            $table->unsignedInteger('scope_id')->default(1);
+            $table->unsignedInteger('priority')->default(0);
             $table->boolean('is_primary')->default(false);
             $table->timestamps();
 
-            $table->primary(['tag_id', 'taggable_id', 'taggable_type']);
+            $table->primary(['tag_id', 'taggable_id', 'taggable_type', 'scope_id']);
 
             $table->foreign('tag_id')
                 ->references('id')

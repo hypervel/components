@@ -6,6 +6,7 @@ namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\RequestOptions;
 use Hypervel\Support\Arr;
+use SensitiveParameter;
 
 class XProvider extends AbstractProvider implements ProviderInterface
 {
@@ -39,7 +40,7 @@ class XProvider extends AbstractProvider implements ProviderInterface
         return 'https://api.x.com/2/oauth2/token';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         $response = $this->getHttpClient()->get('https://api.x.com/2/users/me', [
             RequestOptions::HEADERS => ['Authorization' => 'Bearer ' . $token],
@@ -60,7 +61,7 @@ class XProvider extends AbstractProvider implements ProviderInterface
         ]);
     }
 
-    public function getAccessTokenResponse(string $code): array
+    public function getAccessTokenResponse(#[SensitiveParameter] string $code): array
     {
         $response = $this->getHttpClient()->post($this->getTokenUrl(), [
             RequestOptions::HEADERS => ['Accept' => 'application/json'],
@@ -71,7 +72,7 @@ class XProvider extends AbstractProvider implements ProviderInterface
         return json_decode((string) $response->getBody(), true);
     }
 
-    protected function getRefreshTokenResponse(string $refreshToken): array
+    protected function getRefreshTokenResponse(#[SensitiveParameter] string $refreshToken): array
     {
         $response = $this->getHttpClient()->post($this->getTokenUrl(), [
             RequestOptions::HEADERS => ['Accept' => 'application/json'],

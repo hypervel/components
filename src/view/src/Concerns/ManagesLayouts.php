@@ -22,9 +22,9 @@ trait ManagesLayouts
     protected const SECTION_STACK_CONTEXT_KEY = '__view.section_stack';
 
     /**
-     * Context key for the parent placeholder.
+     * The parent placeholder salt for the worker.
      */
-    protected const PARENT_PLACEHOLDER_CONTEXT_KEY = '__view.parent_placeholder';
+    protected static ?string $parentPlaceholderSalt = null;
 
     /**
      * Start injecting content into a section.
@@ -38,6 +38,7 @@ trait ManagesLayouts
                 CoroutineContext::set(static::SECTION_STACK_CONTEXT_KEY, $sectionStack);
             }
         } else {
+            // Coroutine contexts copy object references, so store immutable section content.
             $this->extendSection($section, $content instanceof View ? $content->render() : e($content));
         }
     }
@@ -126,7 +127,7 @@ trait ManagesLayouts
         $sections = CoroutineContext::get(static::SECTIONS_CONTEXT_KEY, []);
 
         if (isset($sections[$section])) {
-            $content = str_replace($this->getParentPlaceholder($section), $content, $sections[$section]);
+            $content = str_replace(static::parentPlaceholder($section), $content, $sections[$section]);
         }
 
         $sections[$section] = $content;
@@ -138,36 +139,35 @@ trait ManagesLayouts
      */
     public function yieldContent(string $section, string|View $default = ''): string
     {
-        $sectionContent = $default instanceof View ? $default->render() : e($default);
-
         $sections = CoroutineContext::get(static::SECTIONS_CONTEXT_KEY, []);
-        if (isset($sections[$section])) {
-            $sectionContent = $sections[$section];
-        }
+        $sectionContent = isset($sections[$section])
+            ? $sections[$section]
+            : ($default instanceof View ? $default->render() : e($default));
 
         $sectionContent = str_replace('@@parent', '--parent--holder--', $sectionContent);
 
         return str_replace(
             '--parent--holder--',
             '@parent',
-            str_replace($this->getParentPlaceholder($section), '', $sectionContent)
+            str_replace(static::parentPlaceholder($section), '', $sectionContent)
         );
     }
 
     /**
-     * Get the parent placeholder for the current request.
+     * Get the parent placeholder for the given section.
      */
-    public function getParentPlaceholder(string $section = ''): string
+    public static function parentPlaceholder(string $section = ''): string
     {
-        $parentPlaceholder = CoroutineContext::get(static::PARENT_PLACEHOLDER_CONTEXT_KEY, []);
+        // This pure value is cheaper to recompute than to retain in a worker-lived map.
+        return '##parent-placeholder-' . hash('xxh128', static::parentPlaceholderSalt() . $section) . '##';
+    }
 
-        if (! isset($parentPlaceholder[$section])) {
-            $salt = Str::random(40);
-            $parentPlaceholder[$section] = '##parent-placeholder-' . hash('xxh128', $salt . $section) . '##';
-            CoroutineContext::set(static::PARENT_PLACEHOLDER_CONTEXT_KEY, $parentPlaceholder);
-        }
-
-        return $parentPlaceholder[$section];
+    /**
+     * Get the parent placeholder salt.
+     */
+    protected static function parentPlaceholderSalt(): string
+    {
+        return static::$parentPlaceholderSalt ??= Str::random(40);
     }
 
     /**

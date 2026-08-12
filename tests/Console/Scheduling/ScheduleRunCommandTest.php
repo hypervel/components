@@ -22,7 +22,9 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
+use Hypervel\Coroutine\Coroutine as HypervelCoroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -87,6 +89,89 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
         $this->assertSame($callbackEvent, $this->dispatched[1]->task);
         $this->assertIsFloat($this->dispatched[1]->runtime);
+    }
+
+    public function testForegroundTaskEvaluationsUseFiniteCoroutinesWithSelectedLogContext(): void
+    {
+        ContextRepository::getInstance()->add('trace_id', 'parent-trace');
+        CoroutineContext::set('__test.schedule.unrelated', 'parent-value');
+
+        $parentCoroutineId = Coroutine::getCid();
+        $observations = [];
+        $deferred = [];
+        $events = [];
+
+        foreach (['first', 'second'] as $name) {
+            $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$observations, &$deferred, $name): int {
+                $observations[$name]['run'] = [Coroutine::getCid(), count($deferred)];
+
+                return 0;
+            });
+            $event->when(function () use (&$observations, &$deferred, $name): bool {
+                $context = CoroutineContext::get(ContextRepository::CONTEXT_KEY);
+
+                $observations[$name]['filter'] = [
+                    Coroutine::getCid(),
+                    $context instanceof ContextRepository ? $context->get('trace_id') : null,
+                    CoroutineContext::get('__test.schedule.unrelated'),
+                    count($deferred),
+                ];
+
+                HypervelCoroutine::defer(function () use (&$deferred, $name): void {
+                    $deferred[] = $name;
+                });
+
+                return true;
+            });
+            $events[] = $event;
+        }
+
+        $command = $this->makeCommand();
+        $this->invokeRunEvents($command, $events);
+
+        $this->assertNotSame($parentCoroutineId, $observations['first']['filter'][0]);
+        $this->assertNotSame($parentCoroutineId, $observations['second']['filter'][0]);
+        $this->assertNotSame($observations['first']['filter'][0], $observations['second']['filter'][0]);
+        $this->assertSame($observations['first']['filter'][0], $observations['first']['run'][0]);
+        $this->assertSame($observations['second']['filter'][0], $observations['second']['run'][0]);
+        $this->assertSame('parent-trace', $observations['first']['filter'][1]);
+        $this->assertSame('parent-trace', $observations['second']['filter'][1]);
+        $this->assertNull($observations['first']['filter'][2]);
+        $this->assertNull($observations['second']['filter'][2]);
+        $this->assertSame(0, $observations['first']['filter'][3]);
+        $this->assertSame(1, $observations['second']['filter'][3]);
+        $this->assertSame(0, $observations['first']['run'][1]);
+        $this->assertSame(1, $observations['second']['run'][1]);
+        $this->assertSame(['first', 'second'], $deferred);
+    }
+
+    public function testRunOncePreservesLogContextAcrossItsOuterCoroutine(): void
+    {
+        ContextRepository::getInstance()->add('trace_id', 'parent-trace');
+        $observedTraceId = null;
+        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$observedTraceId): int {
+            $context = CoroutineContext::get(ContextRepository::CONTEXT_KEY);
+            $observedTraceId = $context instanceof ContextRepository
+                ? $context->get('trace_id')
+                : null;
+
+            return 0;
+        });
+
+        $schedule = m::mock(Schedule::class);
+        $schedule->shouldReceive('dueEventsAt')
+            ->once()
+            ->with($this->app, m::type(CarbonInterface::class))
+            ->andReturn(new Collection([$event]));
+
+        $command = $this->makeCommand();
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
+        $command->setInput(new ArrayInput(['--whisper' => true], $command->getDefinition()));
+        $this->captureOutput($command);
+
+        (new ReflectionMethod($command, 'runOnce'))->invoke($command);
+
+        $this->assertSame('parent-trace', $observedTraceId);
     }
 
     public function testTaskLifecycleEventsAreNotDispatchedWithoutListeners(): void
@@ -571,6 +656,37 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame(1, $runCount);
     }
 
+    public function testSingleServerEventClaimedElsewhereDoesNotReportThatNoCommandsWereReady(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'test:single-server');
+        $event->onOneServer();
+
+        $schedule = m::mock(Schedule::class);
+        $schedule->shouldReceive('dueEventsAt')
+            ->once()
+            ->with($this->app, m::type(CarbonInterface::class))
+            ->andReturn(new Collection([$event]));
+        $schedule->shouldReceive('serverShouldRun')
+            ->once()
+            ->with($event, m::type(CarbonInterface::class))
+            ->andReturnFalse();
+
+        $command = $this->makeCommand();
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
+        $command->setInput(new ArrayInput([], $command->getDefinition()));
+        $output = $this->captureOutput($command);
+
+        (new ReflectionMethod($command, 'runOnce'))->invoke($command);
+
+        $display = $output->fetch();
+
+        $this->assertStringContainsString(
+            'Skipping [test:single-server], as command already run on another server.',
+            $display,
+        );
+        $this->assertStringNotContainsString('No scheduled commands are ready to run.', $display);
+    }
+
     #[DataProvider('dateClassProvider')]
     public function testRepeatEventsPreservesOriginalStartForSingleServerMutex(string $dateClass): void
     {
@@ -621,6 +737,39 @@ class ScheduleRunCommandTest extends TestCase
             'immutable default' => [CarbonImmutable::class],
             'mutable opt-out' => [Carbon::class],
         ];
+    }
+
+    public function testRepeatEventsUseTheBackgroundDispatchPath(): void
+    {
+        Date::setTestNow('2026-05-28 12:34:00');
+
+        $startedAt = Date::now()->startOfMinute();
+        $event = m::mock(Event::class, [m::mock(EventMutex::class), 'test:repeating-background', null, false])
+            ->makePartial();
+        $event->shouldReceive('run')
+            ->once()
+            ->andReturnUsing(function () use ($startedAt): void {
+                Date::setTestNow($startedAt->addMinute());
+            });
+        $event->repeatSeconds = 1;
+        $event->lastChecked = $startedAt->subSecond();
+        $event->runInBackground();
+
+        $command = $this->makeCommand();
+        $concurrent = new Concurrent(10);
+        (new ReflectionProperty($command, 'concurrent'))->setValue($command, $concurrent);
+        (new ReflectionProperty($command, 'startedAt'))->setValue($command, $startedAt);
+
+        $this->invokeRepeatEvents($command, [$event]);
+        $this->waitForConcurrent($concurrent);
+
+        $backgroundFinished = array_values(array_filter(
+            $this->dispatched,
+            static fn (object $event): bool => $event instanceof ScheduledBackgroundTaskFinished
+        ));
+
+        $this->assertCount(1, $backgroundFinished);
+        $this->assertSame($event, $backgroundFinished[0]->task);
     }
 
     public function testConcurrentFinishesUseRunLocalExitCodeForSuccessAndFailureCallbacks()

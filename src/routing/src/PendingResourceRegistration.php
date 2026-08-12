@@ -194,6 +194,19 @@ class PendingResourceRegistration
     }
 
     /**
+     * Add metadata to the registered resource routes.
+     */
+    public function metadata(array $metadata): static
+    {
+        $this->options['metadata'] = RouteGroup::mergeMetadata(
+            $this->options['metadata'] ?? [],
+            $metadata
+        );
+
+        return $this;
+    }
+
+    /**
      * Indicate that the resource routes should have "shallow" nesting.
      */
     public function shallow(bool $shallow = true): static

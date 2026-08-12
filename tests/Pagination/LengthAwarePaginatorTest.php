@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Pagination;
 
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
+use JsonException;
 
 class LengthAwarePaginatorTest extends TestCase
 {
@@ -29,7 +31,7 @@ class LengthAwarePaginatorTest extends TestCase
         parent::tearDown();
     }
 
-    public function testLengthAwarePaginatorGetAndSetPageName()
+    public function testLengthAwarePaginatorGetAndSetPageName(): void
     {
         $this->assertSame('page', $this->p->getPageName());
 
@@ -37,7 +39,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame('p', $this->p->getPageName());
     }
 
-    public function testLengthAwarePaginatorCanGiveMeRelevantPageInformation()
+    public function testLengthAwarePaginatorCanGiveMeRelevantPageInformation(): void
     {
         $this->assertEquals(2, $this->p->lastPage());
         $this->assertEquals(2, $this->p->currentPage());
@@ -46,7 +48,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertEquals(['item1', 'item2', 'item3', 'item4'], $this->p->items());
     }
 
-    public function testLengthAwarePaginatorSetCorrectInformationWithNoItems()
+    public function testLengthAwarePaginatorSetCorrectInformationWithNoItems(): void
     {
         $paginator = new LengthAwarePaginator([], 0, 2, 1);
 
@@ -57,7 +59,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertEmpty($paginator->items());
     }
 
-    public function testLengthAwarePaginatorOnFirstAndLastPage()
+    public function testLengthAwarePaginatorOnFirstAndLastPage(): void
     {
         $paginator = new LengthAwarePaginator(['1', '2', '3', '4'], 4, 2, 2);
 
@@ -70,7 +72,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertTrue($paginator->onFirstPage());
     }
 
-    public function testLengthAwarePaginatorCanGenerateUrls()
+    public function testLengthAwarePaginatorCanGenerateUrls(): void
     {
         $this->p->setPath('http://website.com');
         $this->p->setPageName('foo');
@@ -96,7 +98,7 @@ class LengthAwarePaginatorTest extends TestCase
         );
     }
 
-    public function testLengthAwarePaginatorCanGenerateUrlsWithQuery()
+    public function testLengthAwarePaginatorCanGenerateUrlsWithQuery(): void
     {
         $this->p->setPath('http://website.com?sort_by=date');
         $this->p->setPageName('foo');
@@ -107,7 +109,7 @@ class LengthAwarePaginatorTest extends TestCase
         );
     }
 
-    public function testLengthAwarePaginatorCanGenerateUrlsWithoutTrailingSlashes()
+    public function testLengthAwarePaginatorCanGenerateUrlsWithoutTrailingSlashes(): void
     {
         $this->p->setPath('http://website.com/test');
         $this->p->setPageName('foo');
@@ -128,7 +130,7 @@ class LengthAwarePaginatorTest extends TestCase
         );
     }
 
-    public function testLengthAwarePaginatorCorrectlyGenerateUrlsWithQueryAndSpaces()
+    public function testLengthAwarePaginatorCorrectlyGenerateUrlsWithQueryAndSpaces(): void
     {
         $this->p->setPath('http://website.com?key=value%20with%20spaces');
         $this->p->setPageName('foo');
@@ -139,12 +141,12 @@ class LengthAwarePaginatorTest extends TestCase
         );
     }
 
-    public function testItRetrievesThePaginatorOptions()
+    public function testItRetrievesThePaginatorOptions(): void
     {
         $this->assertSame($this->options, $this->p->getOptions());
     }
 
-    public function testNextPageUrl()
+    public function testNextPageUrl(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 10, 2);
 
@@ -155,7 +157,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame(null, $paginator->nextPageUrl());
     }
 
-    public function testFirstItem()
+    public function testFirstItem(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 10, 2, 2);
 
@@ -163,7 +165,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame(4, $paginator->lastItem());
     }
 
-    public function testAppends()
+    public function testAppends(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 10, 2, 2);
         $paginator = $paginator->appends('keyword', 'Hypervel');
@@ -182,14 +184,14 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame('/?settings%5Bid%5D=1&settings%5Bname%5D=Hypervel&page=1', $paginator->url(1));
     }
 
-    public function testToArrayIncludesCurrentPageUrl()
+    public function testToArrayIncludesCurrentPageUrl(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 10, 2, 2);
 
         $this->assertSame('/?page=2', $paginator->toArray()['current_page_url']);
     }
 
-    public function testCurrentPageUrlIncludesAppendedQueryParams()
+    public function testCurrentPageUrlIncludesAppendedQueryParams(): void
     {
         $paginator = (new LengthAwarePaginator([1, 2], 10, 2, 2))
             ->appends('sort', 'votes')
@@ -198,7 +200,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame('/?sort=votes&page=2#users', $paginator->toArray()['current_page_url']);
     }
 
-    public function testToJson()
+    public function testToJson(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 10, 2, 2);
 
@@ -209,20 +211,20 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame(json_encode($paginator->toArray()), $paginator->toJson());
     }
 
-    public function testTotal()
+    public function testTotal(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 50, 2, 1);
 
         $this->assertSame(50, $paginator->total());
     }
 
-    public function testLinkCollection()
+    public function testLinkCollection(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 4, 2, 1);
 
         $links = $paginator->linkCollection();
 
-        $this->assertInstanceOf(\Hypervel\Support\Collection::class, $links);
+        $this->assertInstanceOf(Collection::class, $links);
         $this->assertGreaterThanOrEqual(3, $links->count()); // prev + pages + next
 
         // First link is "Previous"
@@ -236,7 +238,7 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertFalse($last['active']);
     }
 
-    public function testToPrettyJson()
+    public function testToPrettyJson(): void
     {
         $paginator = new LengthAwarePaginator(['item/1', 'item/2'], 2, 2, 1);
         $results = $paginator->toPrettyJson();
@@ -248,18 +250,59 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertStringContainsString('    ', $results);
     }
 
-    public function testPreviousPageUrlReturnsNullOnFirstPage()
+    public function testPreviousPageUrlReturnsNullOnFirstPage(): void
     {
         $paginator = new LengthAwarePaginator([1, 2], 10, 2, 1);
 
         $this->assertNull($paginator->previousPageUrl());
     }
 
-    public function testFirstItemAndLastItemReturnNullWhenEmpty()
+    public function testFirstItemAndLastItemReturnNullWhenEmpty(): void
     {
         $paginator = new LengthAwarePaginator([], 0, 2, 1);
 
         $this->assertNull($paginator->firstItem());
         $this->assertNull($paginator->lastItem());
+    }
+
+    public function testZeroPerPageKeepsThePublicValueAndCalculatesTheLastPage(): void
+    {
+        $paginator = new LengthAwarePaginator([], 4, 0);
+
+        $this->assertSame(0, $paginator->perPage());
+        $this->assertSame(4, $paginator->lastPage());
+    }
+
+    public function testExplicitZeroPageDoesNotConsultTheResolver(): void
+    {
+        Paginator::currentPageResolver(fn () => 9);
+
+        $this->assertSame(1, (new LengthAwarePaginator([], 0, 1, 0))->currentPage());
+        $this->assertSame(9, (new LengthAwarePaginator([], 0, 1))->currentPage());
+    }
+
+    public function testLengthAwarePaginatorJsonThrowsForInvalidUtf8(): void
+    {
+        $paginator = new LengthAwarePaginator(["\xB1\x31"], 1, 1);
+
+        $this->expectException(JsonException::class);
+
+        $paginator->toJson();
+    }
+
+    public function testLengthAwarePaginatorPrettyJsonPropagatesInvalidUtf8Failure(): void
+    {
+        $paginator = new LengthAwarePaginator(["\xB1\x31"], 1, 1);
+
+        $this->expectException(JsonException::class);
+
+        $paginator->toPrettyJson();
+    }
+
+    public function testLengthAwarePaginatorJsonHonorsInvalidUtf8Substitution(): void
+    {
+        $paginator = new LengthAwarePaginator(["\xB1\x31"], 1, 1);
+
+        $this->assertStringContainsString('\ufffd1', $paginator->toJson(JSON_INVALID_UTF8_SUBSTITUTE));
     }
 }

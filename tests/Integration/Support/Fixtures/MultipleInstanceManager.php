@@ -74,6 +74,7 @@ class MultipleInstanceManager extends BaseMultipleInstanceManager
             'custom' => [
                 'driver' => 'custom',
             ],
+            'configured' => $this->config->array('instances.configured'),
             default => [],
         };
     }

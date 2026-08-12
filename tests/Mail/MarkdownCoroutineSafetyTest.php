@@ -150,6 +150,34 @@ class MarkdownCoroutineSafetyTest extends TestCase
         $this->assertStringContainsString('Component Body', $result);
     }
 
+    public function testNestedMarkdownRenderRestoresOuterEchoFormat(): void
+    {
+        $compiler = new BladeCompiler($this->filesystem, $this->tempDir . '/views', shouldCache: false);
+        $inner = new Markdown(new MarkdownTestViewFactory(
+            fn () => 'inner',
+            bladeCompiler: $compiler
+        ));
+        $compiled = [];
+        $outer = new Markdown(new MarkdownTestViewFactory(
+            function () use ($compiler, $inner, &$compiled): string {
+                $compiled[] = $compiler->compileString('{{ $value }}');
+                $inner->render('inner', inliner: new MarkdownPassthroughInliner);
+                $compiled[] = $compiler->compileString('{{ $value }}');
+
+                return 'outer';
+            },
+            bladeCompiler: $compiler
+        ));
+
+        $outer->render('outer', inliner: new MarkdownPassthroughInliner);
+
+        $this->assertSame([
+            '<?php echo new \Hypervel\Support\EncodedHtmlString($value); ?>',
+            '<?php echo new \Hypervel\Support\EncodedHtmlString($value); ?>',
+        ], $compiled);
+        $this->assertSame('<?php echo e($value); ?>', $compiler->compileString('{{ $value }}'));
+    }
+
     public function testConcurrentMailablesUseTheirOwnThemes(): void
     {
         $markdown = $this->swapThemeProbeMarkdownIntoContainer();
@@ -268,10 +296,14 @@ class MarkdownTestViewFactory implements ViewFactoryContract
 {
     protected array $cachedViews = [];
 
+    protected BladeCompiler|MarkdownTestBladeCompiler $bladeCompiler;
+
     public function __construct(
         protected Closure $renderer,
-        protected ?Closure $themeRenderer = null
+        protected ?Closure $themeRenderer = null,
+        BladeCompiler|MarkdownTestBladeCompiler|null $bladeCompiler = null
     ) {
+        $this->bladeCompiler = $bladeCompiler ?? new MarkdownTestBladeCompiler;
     }
 
     public function exists(string $view): bool
@@ -332,7 +364,7 @@ class MarkdownTestViewFactory implements ViewFactoryContract
 
     public function getEngineResolver(): MarkdownTestEngineResolver
     {
-        return new MarkdownTestEngineResolver;
+        return new MarkdownTestEngineResolver($this->bladeCompiler);
     }
 
     public function cacheView(string $name, string $path): void
@@ -348,17 +380,25 @@ class MarkdownTestViewFactory implements ViewFactoryContract
 
 class MarkdownTestEngineResolver
 {
+    public function __construct(protected BladeCompiler|MarkdownTestBladeCompiler $bladeCompiler)
+    {
+    }
+
     public function resolve(string $engine): MarkdownTestCompilerEngine
     {
-        return new MarkdownTestCompilerEngine;
+        return new MarkdownTestCompilerEngine($this->bladeCompiler);
     }
 }
 
 class MarkdownTestCompilerEngine
 {
-    public function getCompiler(): MarkdownTestBladeCompiler
+    public function __construct(protected BladeCompiler|MarkdownTestBladeCompiler $bladeCompiler)
     {
-        return new MarkdownTestBladeCompiler;
+    }
+
+    public function getCompiler(): BladeCompiler|MarkdownTestBladeCompiler
+    {
+        return $this->bladeCompiler;
     }
 }
 

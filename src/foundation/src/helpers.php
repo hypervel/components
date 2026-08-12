@@ -14,7 +14,6 @@ use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Cookie\Factory as CookieFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Responsable;
@@ -32,7 +31,9 @@ use Hypervel\Http\RedirectResponse;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\LogManager;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Routing\Redirector;
 use Hypervel\Routing\Router;
+use Hypervel\Session\SessionManager;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
@@ -375,7 +376,7 @@ if (! function_exists('cookie')) {
     /**
      * Create a new cookie instance.
      *
-     * @return ($name is null ? \Hypervel\Cookie\CookieJar : Cookie)
+     * @return ($name is null ? CookieJar : Cookie)
      */
     function cookie(?string $name = null, ?string $value = null, int $minutes = 0, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): CookieJar|Cookie
     {
@@ -666,8 +667,10 @@ if (! function_exists('public_path')) {
 if (! function_exists('redirect')) {
     /**
      * Get an instance of the redirector or create a redirect response.
+     *
+     * @return ($to is null ? Redirector : RedirectResponse)
      */
-    function redirect(?string $to = null, int $status = 302, array $headers = [], ?bool $secure = null): \Hypervel\Routing\Redirector|\Hypervel\Http\RedirectResponse
+    function redirect(?string $to = null, int $status = 302, array $headers = [], ?bool $secure = null): Redirector|RedirectResponse
     {
         if (is_null($to)) {
             return app('redirect');
@@ -853,7 +856,7 @@ if (! function_exists('session')) {
      *
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
-     * @return mixed|SessionContract
+     * @return ($key is null ? SessionManager : ($key is string ? mixed : null))
      */
     function session(array|string|null $key = null, mixed $default = null): mixed
     {
@@ -951,6 +954,8 @@ if (! function_exists('trans_choice')) {
 if (! function_exists('__')) {
     /**
      * Translate the given message.
+     *
+     * @return ($key is null ? null : array|string)
      */
     function __(?string $key = null, array $replace = [], ?string $locale = null): array|string|null
     {
@@ -1013,6 +1018,8 @@ if (! function_exists('validator')) {
 if (! function_exists('view')) {
     /**
      * Get the evaluated view contents for the given view.
+     *
+     * @return ($view is null ? ViewFactory : ViewContract)
      */
     function view(?string $view = null, array|Arrayable $data = [], array $mergeData = []): ViewFactory|ViewContract
     {

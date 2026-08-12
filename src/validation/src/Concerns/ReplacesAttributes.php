@@ -48,17 +48,17 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the date_format rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceDateFormat(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':format', $parameters[0], $message);
+        return str_replace(':format', (string) $parameters[0], $message);
     }
 
     /**
      * Replace all place-holders for the decimal rule.
      *
-     * @param array<int,int> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceDecimal(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -66,7 +66,7 @@ trait ReplacesAttributes
             ':decimal',
             isset($parameters[1])
                 ? $parameters[0] . '-' . $parameters[1]
-                : $parameters[0],
+                : (string) $parameters[0],
             $message
         );
     }
@@ -84,11 +84,11 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the digits rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceDigits(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':digits', $parameters[0], $message);
+        return str_replace(':digits', (string) $parameters[0], $message);
     }
 
     /**
@@ -124,41 +124,41 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the min rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceMin(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':min', $parameters[0], $message);
+        return str_replace(':min', (string) $parameters[0], $message);
     }
 
     /**
      * Replace all place-holders for the min digits rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceMinDigits(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':min', $parameters[0], $message);
+        return str_replace(':min', (string) $parameters[0], $message);
     }
 
     /**
      * Replace all place-holders for the max rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceMax(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':max', $parameters[0], $message);
+        return str_replace(':max', (string) $parameters[0], $message);
     }
 
     /**
      * Replace all place-holders for the max digits rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceMaxDigits(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':max', $parameters[0], $message);
+        return str_replace(':max', (string) $parameters[0], $message);
     }
 
     /**
@@ -219,18 +219,17 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the multiple_of rule.
      *
-     * @param array<int,string> $parameters
-     * @param mixed $message
+     * @param array<int, int|string> $parameters
      */
-    protected function replaceMultipleOf($message, string $attribute, string $rule, array $parameters): string
+    protected function replaceMultipleOf(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':value', $parameters[0] ?? '', $message);
+        return str_replace(':value', (string) ($parameters[0] ?? ''), $message);
     }
 
     /**
      * Replace all place-holders for the in rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceIn(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -252,7 +251,7 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the not_in rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceNotIn(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -420,11 +419,11 @@ trait ReplacesAttributes
     /**
      * Replace all place-holders for the size rule.
      *
-     * @param array<int,string> $parameters
+     * @param array<int, int|string> $parameters
      */
     protected function replaceSize(string $message, string $attribute, string $rule, array $parameters): string
     {
-        return str_replace(':size', $parameters[0], $message);
+        return str_replace(':size', (string) $parameters[0], $message);
     }
 
     /**

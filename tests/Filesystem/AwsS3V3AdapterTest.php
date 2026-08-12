@@ -24,6 +24,22 @@ use function Hypervel\Coroutine\parallel;
 
 class AwsS3V3AdapterTest extends TestCase
 {
+    public function testConfiguredAndNativeUrlsEncodeRawPathsIdentically(): void
+    {
+        $path = 'nested/report%2F v?x#y+z.txt';
+        $expected = 'https://bucket.s3.amazonaws.com/tenant/nested/report%252F%20v%3Fx%23y%2Bz.txt';
+        $config = [
+            'bucket' => 'bucket',
+            'root' => 'tenant',
+        ];
+
+        $this->assertSame($expected, $this->adapter(new MockHandler([]), $config)->url($path));
+        $this->assertSame($expected, $this->adapter(new MockHandler([]), [
+            ...$config,
+            'url' => 'https://bucket.s3.amazonaws.com',
+        ])->url($path));
+    }
+
     #[DataProvider('ranges')]
     public function testReadStreamRangeUsesANativePrefixedGetObjectRange(
         ?int $start,

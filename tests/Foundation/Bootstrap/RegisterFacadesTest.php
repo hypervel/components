@@ -13,6 +13,8 @@ use Mockery as m;
 
 class RegisterFacadesTest extends TestCase
 {
+    // REMOVED: Laravel's AliasLoader real-time facade path; Hypervel supports
+    // only explicit facade aliases.
     public function testRegisterAliases(): void
     {
         $config = m::mock(Repository::class);

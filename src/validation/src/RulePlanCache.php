@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
+use InvalidArgumentException;
+
 /**
  * Worker-lifetime LRU cache of compiled rule plans.
  *
@@ -96,6 +98,10 @@ final class RulePlanCache
      */
     public static function setMaxSize(int $size): void
     {
+        if ($size < 1) {
+            throw new InvalidArgumentException('The rule plan cache size must be at least 1.');
+        }
+
         self::$maxSize = $size;
     }
 
@@ -118,7 +124,7 @@ final class RulePlanCache
             $parts[] = $item;
         }
 
-        return implode('|', $parts);
+        return serialize($parts);
     }
 
     /**

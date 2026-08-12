@@ -19,6 +19,10 @@
             "homepage": "https://github.com/binaryfire"
         }
     ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
     "autoload": {
         "psr-4": {
             "Hypervel\\Prompts\\": "src/"
@@ -31,7 +35,6 @@
         "php": "^8.4",
         "ext-mbstring": "*",
         "composer-runtime-api": "^2.2",
-        "nunomaduro/termwind": "^2.0",
         "symfony/console": "^8.1",
         "symfony/process": "^8.1",
         "hypervel/collections": "^0.4",
@@ -41,10 +44,17 @@
     "require-dev": {
         "mockery/mockery": "1.6.x-dev"
     },
+    "suggest": {
+        "ext-pcntl": "Required for Progress cancellation handling and, with POSIX, animated standalone Tasks.",
+        "ext-posix": "Required with PCNTL for animated standalone Tasks."
+    },
     "extra": {
         "branch-alias": {
             "dev-main": "0.4-dev"
         }
+    },
+    "config": {
+        "sort-packages": true
     },
     "prefer-stable": true,
     "minimum-stability": "dev"

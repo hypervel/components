@@ -8,11 +8,11 @@ use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\InvokableValidationRule;
 use Hypervel\Validation\Validator;
-use PHPUnit\Framework\TestCase;
 
 class ValidationInvokableRuleTest extends TestCase
 {

@@ -48,7 +48,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static void flushMacros()
  * @method static mixed macroCall(string $method, array $parameters)
  * @method static \Hypervel\Http\Client\PendingRequest baseUrl(string $url)
- * @method static \Hypervel\Http\Client\PendingRequest withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Stringable $content, string $contentType = 'application/json')
+ * @method static \Hypervel\Http\Client\PendingRequest withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Support\Stringable $content, string $contentType = 'application/json')
  * @method static \Hypervel\Http\Client\PendingRequest asJson()
  * @method static \Hypervel\Http\Client\PendingRequest asForm()
  * @method static \Hypervel\Http\Client\PendingRequest attach(array|string $name, resource|string $contents = '', string|null $filename = null, array $headers = [])
@@ -90,7 +90,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\PendingRequest dump()
  * @method static \Hypervel\Http\Client\PendingRequest dd()
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response get(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array|string|null $query = null)
- * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response head(string $url, array|string|null $query = null)
+ * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response head(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array|string|null $query = null)
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response query(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response post(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response patch(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
@@ -116,8 +116,8 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static array getOptions()
  * @method static \Hypervel\Http\Client\PendingRequest connection(string $connection, array|null $config = null)
  * @method static string|null getConnection()
- * @method static \Hypervel\Http\Client\PendingRequest|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static \Hypervel\Http\Client\PendingRequest|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  *
  * @see \Hypervel\Http\Client\Factory
  */

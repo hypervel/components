@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Validation;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\RuleCompiler;
 use Hypervel\Validation\RulePlanCache;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class ValidationRulePlanCacheTest extends TestCase
@@ -18,7 +20,7 @@ class ValidationRulePlanCacheTest extends TestCase
         RulePlanCache::flushState();
     }
 
-    public function testCacheHitReturnsSamePlanInstance()
+    public function testCacheHitReturnsSamePlanInstance(): void
     {
         $rules = ['required', 'string', 'max:255'];
         $plan = RuleCompiler::compile($rules);
@@ -30,17 +32,17 @@ class ValidationRulePlanCacheTest extends TestCase
         $this->assertSame($plan, $cached);
     }
 
-    public function testCacheMissReturnsNull()
+    public function testCacheMissReturnsNull(): void
     {
         $this->assertNull(RulePlanCache::get(['required', 'string']));
     }
 
-    public function testNonStringElementsReturnNull()
+    public function testNonStringElementsReturnNull(): void
     {
         $this->assertNull(RulePlanCache::get(['required', new stdClass]));
     }
 
-    public function testFlushStateClearsCache()
+    public function testFlushStateClearsCache(): void
     {
         $rules = ['required'];
         $plan = RuleCompiler::compile($rules);
@@ -52,7 +54,7 @@ class ValidationRulePlanCacheTest extends TestCase
         $this->assertNull(RulePlanCache::get($rules));
     }
 
-    public function testLruEvictionAtMaxSize()
+    public function testLruEvictionAtMaxSize(): void
     {
         RulePlanCache::setMaxSize(3);
 
@@ -77,11 +79,9 @@ class ValidationRulePlanCacheTest extends TestCase
         $this->assertNotNull(RulePlanCache::get($rules2));
         $this->assertNotNull(RulePlanCache::get($rules3));
         $this->assertNotNull(RulePlanCache::get($rules4));
-
-        RulePlanCache::setMaxSize(2048);
     }
 
-    public function testReputtingExistingKeyAtMaxSizeDoesNotEvictAndRefreshesRecency()
+    public function testReputtingExistingKeyAtMaxSizeDoesNotEvictAndRefreshesRecency(): void
     {
         // Regression guard for the ordered-associative-array LRU: re-putting an
         // existing key at capacity must not evict anything immediately, and it
@@ -114,11 +114,9 @@ class ValidationRulePlanCacheTest extends TestCase
         $this->assertNull(RulePlanCache::get($rules3));
         $this->assertNotNull(RulePlanCache::get($rules4));
         $this->assertNotNull(RulePlanCache::get($rules5));
-
-        RulePlanCache::setMaxSize(2048);
     }
 
-    public function testPutWithNonStringElementsIsNoOp()
+    public function testPutWithNonStringElementsIsNoOp(): void
     {
         RulePlanCache::put(['required', new stdClass], RuleCompiler::compile(['required']));
 
@@ -126,7 +124,7 @@ class ValidationRulePlanCacheTest extends TestCase
         $this->assertNull(RulePlanCache::get(['required']));
     }
 
-    public function testDifferentRuleArraysAreDifferentKeys()
+    public function testDifferentRuleArraysAreDifferentKeys(): void
     {
         $rules1 = ['required', 'string'];
         $rules2 = ['required', 'integer'];
@@ -139,5 +137,36 @@ class ValidationRulePlanCacheTest extends TestCase
 
         $this->assertSame($plan1, RulePlanCache::get($rules1));
         $this->assertSame($plan2, RulePlanCache::get($rules2));
+    }
+
+    public function testDelimiterCharactersCannotCollideAcrossRuleArrays(): void
+    {
+        $rules1 = ['alpha|beta', 'gamma'];
+        $rules2 = ['alpha', 'beta|gamma'];
+        $plan1 = RuleCompiler::compile($rules1);
+        $plan2 = RuleCompiler::compile($rules2);
+
+        RulePlanCache::put($rules1, $plan1);
+        RulePlanCache::put($rules2, $plan2);
+
+        $this->assertSame($plan1, RulePlanCache::get($rules1));
+        $this->assertSame($plan2, RulePlanCache::get($rules2));
+    }
+
+    #[DataProvider('invalidMaxSizes')]
+    public function testNonPositiveMaximumSizeIsRejected(int $size): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The rule plan cache size must be at least 1.');
+
+        RulePlanCache::setMaxSize($size);
+    }
+
+    /**
+     * Provide invalid maximum cache sizes.
+     */
+    public static function invalidMaxSizes(): array
+    {
+        return [[0], [-1]];
     }
 }

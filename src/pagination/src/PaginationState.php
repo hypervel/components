@@ -6,56 +6,52 @@ namespace Hypervel\Pagination;
 
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\View\Factory;
 
 class PaginationState
 {
     /**
      * Bind the pagination state resolvers using the given application container as a base.
      *
-     * Boot-only. Registers worker-lifetime resolvers (path, page, query string,
-     * cursor) on Paginator/CursorPaginator that capture the application
-     * container; each resolver itself reads per-request data via RequestContext.
+     * Boot-only. The request resolvers read RequestContext on each invocation,
+     * while the lazy view resolver captures the worker-lifetime container.
      */
     public static function resolveUsing(Container $app): void
     {
-        Paginator::viewFactoryResolver(fn () => $app['view']);
+        Paginator::viewFactoryResolver(fn (): Factory => $app->make('view'));
 
-        Paginator::currentPathResolver(function () use ($app): string {
-            if (! RequestContext::has()) {
-                return '/';
-            }
+        Paginator::currentPathResolver(static function (): string {
+            $request = RequestContext::getOrNull();
 
-            return $app['request']->url();
+            return $request?->url() ?? '/';
         });
 
-        Paginator::currentPageResolver(function (string $pageName = 'page') use ($app): int {
-            if (! RequestContext::has()) {
+        Paginator::currentPageResolver(static function (string $pageName = 'page'): int {
+            $request = RequestContext::getOrNull();
+
+            if ($request === null) {
                 return 1;
             }
 
-            $page = $app['request']->input($pageName);
+            $page = $request->input($pageName);
 
-            if (filter_var($page, FILTER_VALIDATE_INT) !== false && (int) $page >= 1) {
-                return (int) $page;
-            }
-
-            return 1;
+            return filter_var($page, FILTER_VALIDATE_INT) !== false && (int) $page >= 1
+                ? (int) $page
+                : 1;
         });
 
-        Paginator::queryStringResolver(function () use ($app): array {
-            if (! RequestContext::has()) {
-                return [];
-            }
+        Paginator::queryStringResolver(static function (): array {
+            $request = RequestContext::getOrNull();
 
-            return $app['request']->query();
+            return $request?->query() ?? [];
         });
 
-        CursorPaginator::currentCursorResolver(function (string $cursorName = 'cursor') use ($app): ?Cursor {
-            if (! RequestContext::has()) {
-                return null;
-            }
+        CursorPaginator::currentCursorResolver(static function (string $cursorName = 'cursor'): ?Cursor {
+            $request = RequestContext::getOrNull();
 
-            return Cursor::fromEncoded($app['request']->input($cursorName));
+            return $request === null
+                ? null
+                : Cursor::fromEncoded($request->input($cursorName));
         });
     }
 }

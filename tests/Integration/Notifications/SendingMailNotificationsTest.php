@@ -63,7 +63,7 @@ class SendingMailNotificationsTest extends TestCase
         });
     }
 
-    public function testMailIsSent()
+    public function testMailIsSent(): void
     {
         $notification = new TestMailNotification;
         $notification->id = Str::uuid()->toString();
@@ -102,7 +102,7 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
-    public function testMailIsSentWithCustomTheme()
+    public function testMailIsSentWithCustomTheme(): void
     {
         $notification = new TestMailNotificationWithCustomTheme;
         $notification->id = Str::uuid()->toString();
@@ -176,7 +176,7 @@ class SendingMailNotificationsTest extends TestCase
         });
     }
 
-    public function testMailIsSentToNamedAddress()
+    public function testMailIsSentToNamedAddress(): void
     {
         $notification = new TestMailNotification;
         $notification->id = Str::uuid()->toString();
@@ -216,7 +216,7 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
-    public function testMailIsSentWithSubject()
+    public function testMailIsSentWithSubject(): void
     {
         $notification = new TestMailNotificationWithSubject;
         $notification->id = Str::uuid()->toString();
@@ -245,7 +245,7 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
-    public function testMailIsSentToMultipleAddresses()
+    public function testMailIsSentToMultipleAddresses(): void
     {
         $notification = new TestMailNotificationWithSubject;
         $notification->id = Str::uuid()->toString();
@@ -274,7 +274,7 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
-    public function testMailIsSentUsingMailable()
+    public function testMailIsSentUsingMailable(): void
     {
         $notification = new TestMailNotificationWithMailable;
 
@@ -285,7 +285,7 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
-    public function testMailIsSentUsingMailMessageWithHtmlAndPlain()
+    public function testMailIsSentUsingMailMessageWithHtmlAndPlain(): void
     {
         $notification = new TestMailNotificationWithHtmlAndPlain;
         $notification->id = Str::uuid()->toString();
@@ -317,7 +317,7 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
-    public function testMailIsSentUsingMailMessageWithHtmlOnly()
+    public function testMailIsSentUsingMailMessageWithHtmlOnly(): void
     {
         $notification = new TestMailNotificationWithHtmlOnly;
         $notification->id = Str::uuid()->toString();
@@ -349,7 +349,7 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
-    public function testMailIsSentUsingMailMessageWithPlainOnly()
+    public function testMailIsSentUsingMailMessageWithPlainOnly(): void
     {
         $notification = new TestMailNotificationWithPlainOnly;
         $notification->id = Str::uuid()->toString();

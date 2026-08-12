@@ -21,8 +21,12 @@ use Hypervel\Jwt\Contracts\StorageContract;
 use Hypervel\Jwt\Http\Parser\Cookie;
 use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Jwt\JwtGuard;
+use Hypervel\Jwt\JwtManager;
 use Hypervel\Jwt\JwtServiceProvider;
+use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Jwt\Storage\TaggedCache;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -116,7 +120,7 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.providers.storage', TaggedCache::class);
         $config->set('jwt.blacklist_enabled', true);
         $config->set('jwt.blacklist_grace_period', 0);
-        $config->set('jwt.blacklist_refresh_ttl', 20160);
+        $config->set('jwt.refresh_ttl', 20160);
 
         $repository = m::mock(CacheRepository::class);
         $repository->shouldReceive('supportsTags')->once()->andReturnTrue();
@@ -138,7 +142,7 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.providers.storage', TaggedCache::class);
         $config->set('jwt.blacklist_enabled', true);
         $config->set('jwt.blacklist_grace_period', 0);
-        $config->set('jwt.blacklist_refresh_ttl', 20160);
+        $config->set('jwt.refresh_ttl', 20160);
 
         $repository = m::mock(CacheRepository::class);
         $repository->shouldReceive('supportsTags')->once()->andReturnTrue();
@@ -160,7 +164,7 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.providers.storage', TaggedCache::class);
         $config->set('jwt.blacklist_enabled', true);
         $config->set('jwt.blacklist_grace_period', 0);
-        $config->set('jwt.blacklist_refresh_ttl', 20160);
+        $config->set('jwt.refresh_ttl', 20160);
 
         $repository = m::mock(CacheRepository::class);
         $repository->shouldReceive('supportsTags')->once()->andReturnTrue();
@@ -185,7 +189,7 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.providers.storage', TaggedCache::class);
         $config->set('jwt.blacklist_enabled', false);
         $config->set('jwt.blacklist_grace_period', 0);
-        $config->set('jwt.blacklist_refresh_ttl', 20160);
+        $config->set('jwt.refresh_ttl', 20160);
 
         $repository = m::mock(CacheRepository::class);
         $repository->shouldReceive('supportsTags')->never();
@@ -207,7 +211,7 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.providers.storage', TaggedCache::class);
         $config->set('jwt.blacklist_enabled', false);
         $config->set('jwt.blacklist_grace_period', 0);
-        $config->set('jwt.blacklist_refresh_ttl', 20160);
+        $config->set('jwt.refresh_ttl', 20160);
 
         $store = m::mock(TaggableStore::class);
         $store->shouldReceive('supportsTags')->once()->andReturnFalse();
@@ -232,7 +236,8 @@ class JwtServiceProviderTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage(
             'The JWT blacklist requires a taggable cache store (all-mode or any-mode). '
-            . 'Use a taggable store or set a custom jwt.providers.storage.'
+            . 'Use a taggable store or configure a custom ' . StorageContract::class
+            . ' implementation in jwt.providers.storage.'
         );
 
         $config = $this->app->make('config');
@@ -256,7 +261,7 @@ class JwtServiceProviderTest extends TestCase
         $config->set('jwt.providers.storage', JwtServiceProviderCustomStorage::class);
         $config->set('jwt.blacklist_enabled', true);
         $config->set('jwt.blacklist_grace_period', 0);
-        $config->set('jwt.blacklist_refresh_ttl', 20160);
+        $config->set('jwt.refresh_ttl', 20160);
 
         $cache = m::mock();
         $cache->shouldReceive('store')->never();
@@ -267,6 +272,71 @@ class JwtServiceProviderTest extends TestCase
         $blacklist = $this->app->make(BlacklistContract::class);
 
         $this->assertInstanceOf(Blacklist::class, $blacklist);
+    }
+
+    public function testBlacklistReceivesFiniteRefreshTtlAndLeeway(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
+
+        $config = $this->app->make('config');
+        $config->set('jwt.providers.storage', JwtServiceProviderCustomStorage::class);
+        $config->set('jwt.refresh_ttl', 5);
+        $config->set('jwt.leeway', 120);
+
+        $this->app->forgetInstance(BlacklistContract::class);
+
+        /** @var Blacklist $blacklist */
+        $blacklist = $this->app->make(BlacklistContract::class);
+        $storage = $this->app->make(JwtServiceProviderCustomStorage::class);
+        $now = Date::now()->timestamp;
+
+        $this->assertSame(5, $blacklist->getRefreshTTL());
+        $this->assertTrue($blacklist->add([
+            'exp' => $now + 600,
+            'iat' => $now,
+            'jti' => 'foo',
+        ]));
+        $this->assertSame(13, $storage->minutes);
+    }
+
+    public function testBlacklistReceivesNullRefreshTtl(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('jwt.providers.storage', JwtServiceProviderCustomStorage::class);
+        $config->set('jwt.refresh_ttl', null);
+
+        $this->app->forgetInstance(BlacklistContract::class);
+
+        /** @var Blacklist $blacklist */
+        $blacklist = $this->app->make(BlacklistContract::class);
+        $storage = $this->app->make(JwtServiceProviderCustomStorage::class);
+
+        $this->assertNull($blacklist->getRefreshTTL());
+        $this->assertTrue($blacklist->add([
+            'exp' => Date::now()->timestamp + 600,
+            'iat' => Date::now()->timestamp,
+            'jti' => 'foo',
+        ]));
+        $this->assertTrue($storage->foreverCalled);
+    }
+
+    public function testOmittedStorageProviderUsesTheTaggedCacheDefault(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('jwt.providers', ['jwt' => Lcobucci::class]);
+        $config->set('jwt.blacklist_enabled', true);
+
+        $repository = m::mock(CacheRepository::class);
+        $repository->shouldReceive('supportsTags')->once()->andReturnTrue();
+        $repository->shouldReceive('getStore')->once()->andReturn($this->taggableStore(TagMode::All));
+        $cache = m::mock();
+        $cache->shouldReceive('store')->once()->withNoArgs()->andReturn($repository);
+
+        $this->app->instance('cache', $cache);
+        $this->app->forgetInstance(BlacklistContract::class);
+        $this->app->forgetInstance('jwt');
+
+        $this->assertInstanceOf(JwtManager::class, $this->app->make('jwt'));
     }
 
     protected function taggableStore(TagMode $mode): TaggableStore
@@ -282,12 +352,22 @@ class JwtServiceProviderTest extends TestCase
 
 class JwtServiceProviderCustomStorage implements StorageContract
 {
-    public function add(string $key, mixed $value, int $minutes): void
+    public ?int $minutes = null;
+
+    public bool $foreverCalled = false;
+
+    public function add(string $key, mixed $value, int $minutes): bool
     {
+        $this->minutes = $minutes;
+
+        return true;
     }
 
-    public function forever(string $key, mixed $value): void
+    public function forever(string $key, mixed $value): bool
     {
+        $this->foreverCalled = true;
+
+        return true;
     }
 
     public function get(string $key): mixed
@@ -300,7 +380,8 @@ class JwtServiceProviderCustomStorage implements StorageContract
         return true;
     }
 
-    public function flush(): void
+    public function flush(): bool
     {
+        return true;
     }
 }

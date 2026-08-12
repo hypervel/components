@@ -6,13 +6,16 @@ namespace Hypervel\Foundation;
 
 use Closure;
 use Composer\Autoload\ClassLoader;
+use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\LocaleUpdated;
@@ -28,6 +31,7 @@ use Hypervel\Support\Traits\Macroable;
 use JsonException;
 use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -680,6 +684,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function routesAreCached(): bool
     {
+        if ($this->bound('routes.cached')) {
+            return (bool) $this->make('routes.cached');
+        }
+
         return is_file($this->getCachedRoutesPath());
     }
 
@@ -812,7 +820,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
         }
 
         return in_array(
-            $_SERVER['argv'][1] ?? null,
+            ConsoleApplication::resolveCommandName(new ArgvInput),
             is_array($commands[0] ?? null) ? $commands[0] : $commands,
             true
         );
@@ -1246,7 +1254,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function getLocale(): string
     {
-        return $this['translator']->getLocale();
+        return $this->make(TranslatorContract::class)->getLocale();
     }
 
     /**
@@ -1270,7 +1278,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function getFallbackLocale(): string
     {
-        return $this['translator']->getFallback();
+        return $this->make(TranslatorContract::class)->getFallback();
     }
 
     /**
@@ -1278,11 +1286,18 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setLocale(string $locale): void
     {
-        $previous = $this['translator']->getLocale();
+        // Config supplies the boot defaults; the Translator owns the request-local
+        // current locale and worker-shared fallback thereafter.
+        $translator = $this->make(TranslatorContract::class);
 
-        $this['translator']->setLocale($locale);
+        $previous = $translator->getLocale();
+        $translator->setLocale($locale);
 
-        $this['events']->dispatch(new LocaleUpdated($locale, $previous));
+        $events = $this->make(DispatcherContract::class);
+
+        if ($events->hasListeners(LocaleUpdated::class)) {
+            $events->dispatch(new LocaleUpdated($locale, $previous));
+        }
     }
 
     /**
@@ -1293,7 +1308,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function setFallbackLocale(string $fallbackLocale): void
     {
-        $this['translator']->setFallback($fallbackLocale);
+        $this->make(TranslatorContract::class)->setFallback($fallbackLocale);
     }
 
     /**

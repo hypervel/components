@@ -7,6 +7,8 @@ namespace Hypervel\Translation;
 use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use InvalidArgumentException;
 use RuntimeException;
 
 class FileLoader implements Loader
@@ -23,20 +25,18 @@ class FileLoader implements Loader
 
     /**
      * All of the namespace hints.
+     *
+     * @var array<string, string>
      */
     protected array $hints = [];
 
     /**
      * Create a new file loader instance.
-     *
-     * @param Filesystem $files the filesystem instance
      */
     public function __construct(
         protected Filesystem $files,
         array|string $path
     ) {
-        $this->files = $files;
-
         $this->paths = is_string($path) ? [$path] : $path;
     }
 
@@ -45,6 +45,11 @@ class FileLoader implements Loader
      */
     public function load(string $locale, string $group, ?string $namespace = null): array
     {
+        // Mirrors the eager check in Translator::setLocale(); keep both predicates identical.
+        if (Str::contains($locale, ['/', '\\']) || $locale === '.' || $locale === '..') {
+            throw new InvalidArgumentException('Invalid characters present in locale.');
+        }
+
         if ($group === '*' && $namespace === '*') {
             return $this->loadJsonPaths($locale);
         }
@@ -114,8 +119,16 @@ class FileLoader implements Loader
                 if ($this->files->exists($full = "{$path}/{$locale}.json")) {
                     $decoded = json_decode($this->files->get($full), true);
 
-                    if (is_null($decoded) || json_last_error() !== JSON_ERROR_NONE) {
+                    if (! is_array($decoded)) {
                         throw new RuntimeException("Translation file [{$full}] contains an invalid JSON structure.");
+                    }
+
+                    foreach ($decoded as $key => $value) {
+                        if ($value !== null && ! is_string($value) && ! is_array($value)) {
+                            throw new RuntimeException(
+                                "Translation file [{$full}] contains an invalid value for key [{$key}]. Translation values must be strings or arrays."
+                            );
+                        }
                     }
 
                     $output = array_merge($output, $decoded);
@@ -135,6 +148,8 @@ class FileLoader implements Loader
 
     /**
      * Get an array of all the registered namespaces.
+     *
+     * @return array<string, string>
      */
     public function namespaces(): array
     {

@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -25,7 +27,7 @@ class AsCollection implements Castable
                 $this->arguments = array_pad(array_values($this->arguments), 2, '');
             }
 
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Collection
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 if (! isset($attributes[$key])) {
                     return null;
@@ -58,9 +60,15 @@ class AsCollection implements Castable
                     : $instance->mapInto($this->arguments[1][0]);
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): array
+            public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
-                return [$key => Json::encode($value)];
+                $encoded = Json::encode($value);
+
+                if ($encoded === false) {
+                    throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+                }
+
+                return [$key => $encoded];
             }
         };
     }

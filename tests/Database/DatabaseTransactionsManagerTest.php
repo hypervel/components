@@ -113,6 +113,31 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(1, $manager->getPendingTransactions()[2]->getCallbacks());
     }
 
+    public function testCallbacksAreAddedToTheCurrentTransactionForTheNamedConnection(): void
+    {
+        $callbacks = [];
+        $manager = new DatabaseTransactionsManager;
+
+        $manager->begin('default', 1);
+        $manager->begin('default', 2);
+        $manager->begin('admin', 1);
+
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'default';
+        }, 'default');
+
+        $this->assertCount(0, $manager->getPendingTransactions()[0]->getCallbacks());
+        $this->assertCount(1, $manager->getPendingTransactions()[1]->getCallbacks());
+        $this->assertCount(0, $manager->getPendingTransactions()[2]->getCallbacks());
+
+        $manager->commit('admin', 1, 0);
+        $this->assertSame([], $callbacks);
+
+        $manager->commit('default', 2, 1);
+        $manager->commit('default', 1, 0);
+        $this->assertSame(['default'], $callbacks);
+    }
+
     public function testCallbacksRunInFifoOrder()
     {
         $manager = new DatabaseTransactionsManager;
@@ -206,6 +231,20 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[0]);
     }
 
+    public function testCallbackForNamedConnectionIsExecutedIfThatConnectionHasNoTransaction(): void
+    {
+        $callbacks = [];
+        $manager = new DatabaseTransactionsManager;
+        $manager->begin('admin', 1);
+
+        $manager->addCallback(function () use (&$callbacks): void {
+            $callbacks[] = 'default';
+        }, 'default');
+
+        $this->assertSame(['default'], $callbacks);
+        $this->assertCount(0, $manager->getPendingTransactions()[0]->getCallbacks());
+    }
+
     public function testCallbacksForRollbackAreAddedToTheCurrentTransaction()
     {
         $callbacks = [];
@@ -227,6 +266,45 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(1, $manager->getPendingTransactions()[0]->getCallbacksForRollback());
         $this->assertCount(0, $manager->getPendingTransactions()[1]->getCallbacksForRollback());
         $this->assertCount(1, $manager->getPendingTransactions()[2]->getCallbacksForRollback());
+    }
+
+    public function testCallbacksForRollbackAreAddedToTheCurrentTransactionForTheNamedConnection(): void
+    {
+        $callbacks = [];
+        $manager = new DatabaseTransactionsManager;
+
+        $manager->begin('default', 1);
+        $manager->begin('default', 2);
+        $manager->begin('admin', 1);
+
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'default';
+        }, 'default');
+
+        $this->assertCount(0, $manager->getPendingTransactions()[0]->getCallbacksForRollback());
+        $this->assertCount(1, $manager->getPendingTransactions()[1]->getCallbacksForRollback());
+        $this->assertCount(0, $manager->getPendingTransactions()[2]->getCallbacksForRollback());
+
+        $manager->rollback('admin', 0);
+        $this->assertSame([], $callbacks);
+
+        $manager->rollback('default', 1);
+        $this->assertSame(['default'], $callbacks);
+    }
+
+    public function testCallbackForRollbackOnNamedConnectionIsIgnoredIfThatConnectionHasNoTransaction(): void
+    {
+        $callbacks = [];
+        $manager = new DatabaseTransactionsManager;
+        $manager->begin('admin', 1);
+
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = 'default';
+        }, 'default');
+
+        $manager->rollback('admin', 0);
+
+        $this->assertSame([], $callbacks);
     }
 
     public function testRollbackTransactionsExecutesCallbacks()

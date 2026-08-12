@@ -26,12 +26,12 @@ class EntryQueryOptions
     /**
      * The ID that all retrieved entries should be less than.
      */
-    public mixed $beforeSequence = null;
+    public int|string|null $beforeSequence = null;
 
     /**
-     * The list of UUIDs of entries tor retrieve.
+     * The list of UUIDs of entries to retrieve.
      */
-    public mixed $uuids = null;
+    public ?array $uuids = null;
 
     /**
      * The number of entries to retrieve.
@@ -71,7 +71,7 @@ class EntryQueryOptions
     }
 
     /**
-     * Set the list of UUIDs of entries tor retrieve.
+     * Set the list of UUIDs of entries to retrieve.
      */
     public function uuids(?array $uuids): static
     {
@@ -83,9 +83,9 @@ class EntryQueryOptions
     /**
      * Set the ID that all retrieved entries should be less than.
      */
-    public function beforeSequence(mixed $id): static
+    public function beforeSequence(int|string|null $id): static
     {
-        $this->beforeSequence = $id;
+        $this->beforeSequence = $id === '' ? null : $id;
 
         return $this;
     }
@@ -95,7 +95,7 @@ class EntryQueryOptions
      */
     public function tag(?string $tag): static
     {
-        $this->tag = $tag;
+        $this->tag = $tag === '' ? null : $tag;
 
         return $this;
     }

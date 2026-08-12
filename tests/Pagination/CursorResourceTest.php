@@ -12,7 +12,7 @@ use LogicException;
 
 class CursorResourceTest extends TestCase
 {
-    public function testItCanTransformToExplicitResource()
+    public function testItCanTransformToExplicitResource(): void
     {
         $paginator = new CursorResourceTestPaginator([
             new CursorResourceTestModel,
@@ -23,7 +23,7 @@ class CursorResourceTest extends TestCase
         $this->assertInstanceOf(JsonResource::class, $resource);
     }
 
-    public function testItThrowsExceptionWhenResourceCannotBeFound()
+    public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel].');
@@ -35,7 +35,7 @@ class CursorResourceTest extends TestCase
         $paginator->toResourceCollection();
     }
 
-    public function testItCanGuessResourceWhenNotProvided()
+    public function testItCanGuessResourceWhenNotProvided(): void
     {
         $paginator = new CursorResourceTestPaginator([
             new CursorResourceTestModel,

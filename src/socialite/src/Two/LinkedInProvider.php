@@ -6,6 +6,7 @@ namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\RequestOptions;
 use Hypervel\Support\Arr;
+use SensitiveParameter;
 
 class LinkedInProvider extends AbstractProvider implements ProviderInterface
 {
@@ -29,7 +30,7 @@ class LinkedInProvider extends AbstractProvider implements ProviderInterface
         return 'https://www.linkedin.com/oauth/v2/accessToken';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         $basicProfile = $this->getBasicProfile($token);
         $emailAddress = $this->getEmailAddress($token);
@@ -40,11 +41,11 @@ class LinkedInProvider extends AbstractProvider implements ProviderInterface
     /**
      * Get the basic profile fields for the user.
      */
-    protected function getBasicProfile(string $token): array
+    protected function getBasicProfile(#[SensitiveParameter] string $token): array
     {
         $fields = ['id', 'firstName', 'lastName', 'profilePicture(displayImage~:playableStreams)'];
 
-        if (in_array('r_liteprofile', $this->getScopes())) {
+        if (in_array('r_liteprofile', $this->getScopes(), true)) {
             array_push($fields, 'vanityName');
         }
 
@@ -64,7 +65,7 @@ class LinkedInProvider extends AbstractProvider implements ProviderInterface
     /**
      * Get the email address for the user.
      */
-    protected function getEmailAddress(string $token): array
+    protected function getEmailAddress(#[SensitiveParameter] string $token): array
     {
         $response = $this->getHttpClient()->get('https://api.linkedin.com/v2/emailAddress', [
             RequestOptions::HEADERS => [
@@ -88,15 +89,21 @@ class LinkedInProvider extends AbstractProvider implements ProviderInterface
 
         $images = (array) Arr::get($user, 'profilePicture.displayImage~.elements', []);
         $avatar = Arr::first($images, function ($image) {
+            $stillImage = $image['data']['com.linkedin.digitalmedia.mediaartifact.StillImage'] ?? [];
+
             return (
-                $image['data']['com.linkedin.digitalmedia.mediaartifact.StillImage']['storageSize']['width']
-                ?? $image['data']['com.linkedin.digitalmedia.mediaartifact.StillImage']['displaySize']['width']
+                $stillImage['storageSize']['width']
+                ?? $stillImage['displaySize']['width']
+                ?? null
             ) === 100;
         });
         $originalAvatar = Arr::first($images, function ($image) {
+            $stillImage = $image['data']['com.linkedin.digitalmedia.mediaartifact.StillImage'] ?? [];
+
             return (
-                $image['data']['com.linkedin.digitalmedia.mediaartifact.StillImage']['storageSize']['width']
-                ?? $image['data']['com.linkedin.digitalmedia.mediaartifact.StillImage']['displaySize']['width']
+                $stillImage['storageSize']['width']
+                ?? $stillImage['displaySize']['width']
+                ?? null
             ) === 800;
         });
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel\Scaling;
 
+use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Reverb\ReverbTestCase;
@@ -26,7 +27,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $lockTable->column('locked_at', Table::TYPE_FLOAT);
         $lockTable->create();
 
-        $this->state = new SwooleTableSharedState($table, $lockTable);
+        $this->state = new SwooleTableSharedState($table, $lockTable, new StripedLock);
     }
 
     public function testSubscribeReturnsChannelOccupiedOnFirstSubscriber(): void
@@ -196,7 +197,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $lockTable->column('locked_at', Table::TYPE_FLOAT);
         $lockTable->create();
 
-        $state = new SwooleTableSharedState($smallTable, $lockTable);
+        $state = new SwooleTableSharedState($smallTable, $lockTable, new StripedLock);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('reverb.servers.reverb.swoole_shared_state.rows');
@@ -242,7 +243,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $lockTable->column('locked_at', Table::TYPE_FLOAT);
         $lockTable->create();
 
-        $state = new FailingSecondPresenceRowSharedState($table, $lockTable);
+        $state = new FailingSecondPresenceRowSharedState($table, $lockTable, new StripedLock);
 
         try {
             $state->subscribe('app1', 'presence-channel', 'user-1');
@@ -461,7 +462,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         $lockTable->column('locked_at', Table::TYPE_FLOAT);
         $lockTable->create();
 
-        $state = new SwooleTableSharedState($table, $lockTable);
+        $state = new SwooleTableSharedState($table, $lockTable, new StripedLock);
         Log::shouldReceive('error')
             ->once()
             ->withArgs(fn (string $message): bool => str_contains($message, 'swoole_shared_state.lock_rows'));

@@ -108,6 +108,24 @@ class FoundationConfigTest extends TestCase
         }
     }
 
+    public function testViewConfigDefinesCompilerDefaults(): void
+    {
+        $originalContainer = Container::getInstance();
+
+        try {
+            Container::setInstance(new Application(dirname(__DIR__, 2)));
+
+            $config = require dirname(__DIR__, 2) . '/src/foundation/config/view.php';
+        } finally {
+            Container::setInstance($originalContainer);
+        }
+
+        $this->assertFalse($config['relative_hash']);
+        $this->assertTrue($config['cache']);
+        $this->assertSame('php', $config['compiled_extension']);
+        $this->assertTrue($config['check_cache_timestamps']);
+    }
+
     /**
      * Load the application config with one environment override.
      */

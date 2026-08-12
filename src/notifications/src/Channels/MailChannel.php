@@ -124,7 +124,8 @@ class MailChannel
             '__hypervel_notification' => get_class($notification),
             '__hypervel_notification_queued' => in_array(
                 ShouldQueue::class,
-                class_implements($notification)
+                class_implements($notification),
+                true,
             ),
         ];
     }

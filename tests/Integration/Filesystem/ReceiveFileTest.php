@@ -11,6 +11,7 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
+#[RequiresOperatingSystem('Linux|Darwin')]
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ReceiveFileTest extends TestCase
 {
@@ -20,6 +21,7 @@ class ReceiveFileTest extends TestCase
             Storage::delete([
                 'receive-file-test.txt',
                 'receive-file-test.txt?pad=x',
+                'receive-file-test%2F.txt',
                 'nested/folder/receive-file-test.txt',
             ]);
         });
@@ -99,7 +101,6 @@ class ReceiveFileTest extends TestCase
         $response->assertForbidden();
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testItCanReceiveAFileWithUriDelimitersInThePath(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->addMinutes(1));
@@ -111,7 +112,17 @@ class ReceiveFileTest extends TestCase
         Storage::assertMissing('receive-file-test.txt');
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testItCanReceiveAFileWithAnEncodedSeparatorInItsName(): void
+    {
+        $result = Storage::temporaryUploadUrl('receive-file-test%2F.txt', now()->addMinutes(1));
+
+        $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Percent Escape');
+
+        $response->assertNoContent();
+        Storage::assertExists('receive-file-test%2F.txt', 'Hello Percent Escape');
+        Storage::assertMissing('receive-file-test.txt');
+    }
+
     public function testTemporaryUploadUrlPreservesPathSeparatorsInNestedPaths(): void
     {
         $result = Storage::temporaryUploadUrl('nested/folder/receive-file-test.txt', now()->addMinutes(1));
@@ -119,7 +130,6 @@ class ReceiveFileTest extends TestCase
         $this->assertStringContainsString('nested/folder/receive-file-test.txt', $result['url']);
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testUriDelimitersInThePathCannotHideAnExpiredUploadUrl(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->subMinutes(1));

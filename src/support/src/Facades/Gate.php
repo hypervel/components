@@ -8,8 +8,8 @@ use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 
 /**
  * @method static bool has(\UnitEnum|array|string $ability)
- * @method static \Hypervel\Auth\Access\Response allowIf(mixed $condition, string|null $message = null, int|string|null $code = null)
- * @method static \Hypervel\Auth\Access\Response denyIf(mixed $condition, string|null $message = null, int|string|null $code = null)
+ * @method static \Hypervel\Auth\Access\Response allowIf(mixed $condition, string|null $message = null, string|int|null $code = null)
+ * @method static \Hypervel\Auth\Access\Response denyIf(mixed $condition, string|null $message = null, string|int|null $code = null)
  * @method static \Hypervel\Auth\Access\Gate define(\UnitEnum|string $ability, callable|array|string $callback)
  * @method static \Hypervel\Auth\Access\Gate resource(string $name, string $class, array|null $abilities = null)
  * @method static \Hypervel\Auth\Access\Gate policy(string $class, string $policy)

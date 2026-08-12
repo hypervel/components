@@ -8,14 +8,14 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Notifications\Dispatcher;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\RoutesNotifications;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use stdClass;
 
 class NotificationRoutesNotificationsTest extends TestCase
 {
-    public function testNotificationCanBeDispatched()
+    public function testNotificationCanBeDispatched(): void
     {
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
@@ -27,7 +27,7 @@ class NotificationRoutesNotificationsTest extends TestCase
         $notifiable->notify($instance);
     }
 
-    public function testNotificationCanBeSentNow()
+    public function testNotificationCanBeSentNow(): void
     {
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
@@ -39,20 +39,25 @@ class NotificationRoutesNotificationsTest extends TestCase
         $notifiable->notifyNow($instance);
     }
 
-    public function testNotificationOptionRouting()
+    public function testNotificationOptionRouting(): void
     {
         $instance = new RoutesNotificationsTestInstance;
         $this->assertSame('bar', $instance->routeNotificationFor('foo'));
         $this->assertSame('taylor@laravel.com', $instance->routeNotificationFor('mail'));
     }
 
-    public function testOnDemandNotificationsCannotUseDatabaseChannel()
+    public function testOnDemandNotificationsCannotUseDatabaseChannel(): void
     {
         $this->expectExceptionObject(
             new InvalidArgumentException('The database channel does not support on-demand notifications.')
         );
 
         (new AnonymousNotifiable)->route('database', 'foo');
+    }
+
+    public function testAnonymousNotifiableHasNoKey(): void
+    {
+        $this->assertNull((new AnonymousNotifiable)->getKey());
     }
 
     protected function getContainer(): Container
@@ -69,9 +74,9 @@ class RoutesNotificationsTestInstance
 {
     use RoutesNotifications;
 
-    protected $email = 'taylor@laravel.com';
+    protected string $email = 'taylor@laravel.com';
 
-    public function routeNotificationForFoo()
+    public function routeNotificationForFoo(): string
     {
         return 'bar';
     }

@@ -19,11 +19,11 @@ if (! function_exists('inertia')) {
     {
         $instance = Inertia::getFacadeRoot();
 
-        if ($component) {
-            return $instance->render($component, $props);
+        if ($component === null) {
+            return $instance;
         }
 
-        return $instance;
+        return $instance->render($component, $props);
     }
 }
 

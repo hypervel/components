@@ -7,18 +7,20 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Auth\PasswordBroker;
 
 /**
- * @method static \Hypervel\Contracts\Auth\PasswordBroker broker(string|null $name = null)
- * @method static string|null resolveBrokerNameForGuard(string $guard)
+ * @method static \Hypervel\Contracts\Auth\PasswordBroker broker(\UnitEnum|string|null $name = null)
+ * @method static string|null resolveBrokerNameForGuard(\UnitEnum|string $guard)
  * @method static string getDefaultDriver()
- * @method static void setDefaultDriver(string $name)
+ * @method static void setDefaultDriver(\UnitEnum|string $name)
+ * @method static void refreshEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
  * @method static string sendResetLink(array $credentials, \Closure|null $callback = null)
  * @method static mixed reset(array $credentials, \Closure $callback)
+ * @method static void deleteToken(\Hypervel\Contracts\Auth\CanResetPassword $user)
  * @method static \Hypervel\Contracts\Auth\CanResetPassword|null getUser(array $credentials)
  * @method static string createToken(\Hypervel\Contracts\Auth\CanResetPassword $user)
- * @method static void deleteToken(\Hypervel\Contracts\Auth\CanResetPassword $user)
  * @method static bool tokenExists(\Hypervel\Contracts\Auth\CanResetPassword $user, string $token)
  * @method static \Hypervel\Auth\Passwords\TokenRepositoryInterface getRepository()
  * @method static \Hypervel\Support\Timebox getTimebox()
+ * @method static void setDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
  *
  * @see \Hypervel\Auth\Passwords\PasswordBrokerManager
  * @see \Hypervel\Auth\Passwords\PasswordBroker

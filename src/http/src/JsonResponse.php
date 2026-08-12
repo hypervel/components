@@ -6,6 +6,7 @@ namespace Hypervel\Http;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Support\Json;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonSerializable;
@@ -48,7 +49,7 @@ class JsonResponse extends BaseJsonResponse
     /**
      * Get the decoded JSON data from the response.
      */
-    public function getData(bool $assoc = false, int $depth = 512): mixed
+    public function getData(bool $assoc = false, int $depth = Json::MAXIMUM_NESTING_DEPTH + 1): mixed
     {
         return json_decode($this->data, $assoc, $depth);
     }

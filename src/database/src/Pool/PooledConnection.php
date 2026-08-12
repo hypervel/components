@@ -119,6 +119,18 @@ class PooledConnection implements PoolConnectionInterface
             $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
         }
 
+        if ($this->connection->hasUnknownSessionState()) {
+            $this->markInvalid();
+
+            if ($sharedPdo !== null) {
+                throw new RuntimeException(
+                    'The shared in-memory SQLite database session is unknown and its sole connection cannot be replaced without discarding the database.'
+                );
+            }
+
+            throw new RuntimeException('Database session state remains unknown after reconnecting.');
+        }
+
         // Configure event dispatcher for query events
         if ($this->container->bound('events')) {
             $this->connection->setEventDispatcher($this->container->make('events'));
@@ -445,8 +457,13 @@ class PooledConnection implements PoolConnectionInterface
         if ($sharedPdo !== null) {
             // For shared in-memory SQLite, rebind to the same PDO.
             // Creating a fresh PDO would give us a new empty database.
-            $connection->setPdo($sharedPdo);
-            $connection->setReadPdo($sharedPdo);
+            // Disconnect first to roll back connection state and resolve manager records.
+            try {
+                $connection->disconnect();
+            } finally {
+                $connection->setPdo($sharedPdo);
+                $connection->setReadPdo($sharedPdo);
+            }
         } else {
             try {
                 $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);

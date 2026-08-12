@@ -10,8 +10,10 @@ use Hypervel\Contracts\Pagination\CursorPaginator as PaginatorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Contracts\View\View;
 use Hypervel\Support\Collection;
 use IteratorAggregate;
+use JsonException;
 use JsonSerializable;
 
 /**
@@ -37,7 +39,7 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
      * Create a new paginator instance.
      *
      * @param null|Arrayable<TKey, TValue>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
-     * @param array<string, mixed> $options (path, query, fragment, pageName)
+     * @param array<string, mixed> $options (path, query, fragment, cursorName, parameters)
      */
     public function __construct(mixed $items, int $perPage, ?Cursor $cursor = null, array $options = [])
     {
@@ -68,8 +70,10 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
         $this->items = $this->items->slice(0, $this->perPage);
 
         if (! is_null($this->cursor) && $this->cursor->pointsToPreviousItems()) {
-            $this->items = $this->items->reverse()->values();
+            $this->items = $this->items->reverse();
         }
+
+        $this->items = $this->items->values();
     }
 
     /**
@@ -89,6 +93,8 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
      */
     public function render(?string $view = null, array $data = []): Htmlable
     {
+        // Laravel's View contract omits Htmlable, but factory-created views fulfill both contracts.
+        /** @var Htmlable&View */
         return static::viewFactory()->make($view ?: Paginator::$defaultSimpleView, array_merge($data, [
             'paginator' => $this,
         ]));
@@ -158,14 +164,18 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
 
     /**
      * Convert the object to its JSON representation.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options);
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
      * Convert the object to pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string
     {

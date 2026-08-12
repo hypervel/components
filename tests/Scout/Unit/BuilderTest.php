@@ -704,6 +704,40 @@ class BuilderTest extends TestCase
         $this->assertSame(15, $lengthAwareRaw->perPage());
     }
 
+    public function testPublicPaginationBoundariesClampInvalidPagesBeforeEngineDispatch(): void
+    {
+        Paginator::currentPageResolver(fn () => 3);
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $engine = m::mock(Engine::class);
+        $model->shouldReceive('getPerPage')->times(5)->andReturn(15);
+        $model->shouldReceive('searchableUsing')->times(8)->andReturn($engine);
+        $model->shouldReceive('newCollection')->twice()->andReturn(new EloquentCollection);
+
+        $pages = [];
+        $rawResults = ['hits' => [], 'estimatedTotalHits' => 0];
+        $engine->shouldReceive('paginate')->times(5)->andReturnUsing(
+            function (Builder $_, int $perPage, int $page) use (&$pages, $rawResults): array {
+                $this->assertSame(15, $perPage);
+                $pages[] = $page;
+
+                return $rawResults;
+            }
+        );
+        $engine->shouldReceive('map')->twice()->andReturn(new EloquentCollection);
+        $engine->shouldReceive('getTotalCount')->times(5)->andReturn(0);
+
+        $builder = new Builder($model, 'query');
+
+        $this->assertSame(1, $builder->simplePaginate(page: 0)->currentPage());
+        $this->assertSame(1, $builder->paginate(page: -2)->currentPage());
+        $this->assertSame(1, $builder->paginateRaw(page: 0)->currentPage());
+        $this->assertSame(1, $builder->simplePaginateRaw(page: -2)->currentPage());
+        $this->assertSame(3, $builder->paginateRaw()->currentPage());
+        $this->assertSame([1, 1, 1, 1, 3], $pages);
+    }
+
     public function testMacroable(): void
     {
         Builder::macro('testMacro', function () {

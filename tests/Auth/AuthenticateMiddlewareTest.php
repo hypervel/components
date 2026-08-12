@@ -13,6 +13,7 @@ use Hypervel\Auth\RequestGuard;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -170,6 +171,25 @@ class AuthenticateMiddlewareTest extends TestCase
         $this->assertSame($this->auth, $boundTo);
     }
 
+    public function testCustomDriverStatic(): void
+    {
+        $driver = m::mock(Guard::class);
+
+        $this->auth->extend(__CLASS__, fn () => $driver);
+
+        $this->assertSame($driver, $this->auth->guard(__CLASS__));
+    }
+
+    public function testCustomInvokableDriver(): void
+    {
+        $driver = m::mock(Guard::class);
+        $creator = new AuthenticateMiddlewareTestCustomAuthDriver($driver);
+
+        $this->auth->extend(__CLASS__, $creator(...));
+
+        $this->assertSame($driver, $this->auth->guard(__CLASS__));
+    }
+
     public function testAuthManagerCanResolveBackedEnumGuard(): void
     {
         $driver = $this->registerAuthDriver('default', true);
@@ -287,4 +307,22 @@ enum GuardName: string
 enum NumericGuardName: int
 {
     case Zero = 0;
+}
+
+class AuthenticateMiddlewareTestCustomAuthDriver
+{
+    /**
+     * Create a new custom Auth driver callback.
+     */
+    public function __construct(private Guard $driver)
+    {
+    }
+
+    /**
+     * Return the configured custom driver.
+     */
+    public function __invoke(): Guard
+    {
+        return $this->driver;
+    }
 }

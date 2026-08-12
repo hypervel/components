@@ -13,6 +13,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 
@@ -438,7 +439,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Get a paginator for the "select" statement.
      *
-     * @return \Hypervel\Pagination\LengthAwarePaginator
+     * @return \Hypervel\Pagination\LengthAwarePaginator<int, TRelatedModel>
      */
     public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -450,7 +451,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return \Hypervel\Contracts\Pagination\Paginator
+     * @return \Hypervel\Contracts\Pagination\Paginator<int, TRelatedModel>
      */
     public function simplePaginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -462,10 +463,14 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return \Hypervel\Contracts\Pagination\CursorPaginator
+     * @return \Hypervel\Contracts\Pagination\CursorPaginator<int, TRelatedModel>
      */
-    public function cursorPaginate(?int $perPage = null, array $columns = ['*'], string $cursorName = 'cursor', ?string $cursor = null): mixed
-    {
+    public function cursorPaginate(
+        ?int $perPage = null,
+        array $columns = ['*'],
+        string $cursorName = 'cursor',
+        Cursor|string|null $cursor = null,
+    ): mixed {
         $this->query->addSelect($this->shouldSelect($columns));
 
         return $this->query->cursorPaginate($perPage, $columns, $cursorName, $cursor);
@@ -476,7 +481,7 @@ abstract class HasOneOrManyThrough extends Relation
      */
     protected function shouldSelect(array $columns = ['*']): array
     {
-        if ($columns == ['*']) {
+        if ($columns === ['*']) {
             $columns = [$this->related->qualifyColumn('*')];
         }
 

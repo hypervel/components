@@ -4,22 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Two;
 
-use Firebase\JWT\JWK;
-use Firebase\JWT\JWT;
-use Firebase\JWT\SignatureInvalidException;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Socialite\Two\Concerns\InteractsWithJwks;
 use Hypervel\Socialite\Two\Exceptions\ConfigurationFetchingException;
-use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidIssuerException;
 use Hypervel\Socialite\Two\Exceptions\InvalidNonceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidUserInfoUrlException;
 use Hypervel\Support\Str;
+use SensitiveParameter;
 use Throwable;
 use UnexpectedValueException;
 
 abstract class OpenIdProvider extends AbstractProvider
 {
+    use InteractsWithJwks;
+
     /**
      * Indicates if the nonce should be utilized.
      */
@@ -27,24 +27,10 @@ abstract class OpenIdProvider extends AbstractProvider
 
     /**
      * The OpenID Connect configuration.
+     *
+     * @var null|array{url: string, config: array}
      */
-    protected array $openidConfig = [];
-
-    /**
-     * The JSON Web Key Set (JWKS) for the provider.
-     * This is used to verify the JWT tokens.
-     */
-    protected ?array $jwks = null;
-
-    /**
-     * The timestamp of the last forced JWKS refresh attempt.
-     */
-    protected ?int $jwksRefreshAttemptedAt = null;
-
-    /**
-     * The minimum seconds between forced JWKS refreshes.
-     */
-    protected int $jwksRefreshCooldownSeconds = 10;
+    protected ?array $openidConfig = null;
 
     /**
      * Get the base URL for the OIDC provider.
@@ -153,13 +139,7 @@ abstract class OpenIdProvider extends AbstractProvider
      */
     protected function getCurrentNonce(): ?string
     {
-        $nonce = null;
-
-        if ($this->getRequest()->session()->has('nonce')) {
-            $nonce = $this->getRequest()->session()->get('nonce');
-        }
-
-        return $nonce;
+        return $this->getRequest()->session()->pull('nonce');
     }
 
     /**
@@ -167,19 +147,29 @@ abstract class OpenIdProvider extends AbstractProvider
      */
     protected function getOpenIdConfig(bool $refresh = false): array
     {
-        if ($this->openidConfig && ! $refresh) {
-            return $this->openidConfig;
-        }
+        $url = $this->getOpenIdConfigUrl();
 
-        $configUrl = $this->getOpenIdConfigUrl();
+        if (! $refresh && ($this->openidConfig['url'] ?? null) === $url) {
+            return $this->openidConfig['config'];
+        }
 
         try {
-            $response = $this->getHttpClient()->get($configUrl);
+            $response = $this->getHttpClient()->get($url);
+            $config = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
 
-            return $this->openidConfig = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
-        } catch (Throwable $e) {
-            throw new ConfigurationFetchingException('Unable to get the OIDC configuration from ' . $configUrl . ': ' . $e->getMessage());
+            if (! is_array($config) || array_is_list($config)) {
+                throw new UnexpectedValueException('The OIDC configuration response must be a JSON object with named fields.');
+            }
+        } catch (Throwable $exception) {
+            throw new ConfigurationFetchingException(
+                'Unable to get the OIDC configuration from ' . $url . ': ' . $exception->getMessage(),
+                previous: $exception,
+            );
         }
+
+        $this->openidConfig = ['url' => $url, 'config' => $config];
+
+        return $this->openidConfig['config'];
     }
 
     /**
@@ -192,65 +182,9 @@ abstract class OpenIdProvider extends AbstractProvider
     }
 
     /**
-     * Get the JSON Web Key Set (JWKS) for the provider.
-     */
-    protected function getJwks(bool $refresh = false): array
-    {
-        if ($this->jwks && ! $refresh) {
-            return $this->jwks;
-        }
-
-        if ($this->jwks && ! $this->canRefreshJwks($refresh)) {
-            return $this->jwks;
-        }
-
-        if ($refresh) {
-            $this->jwksRefreshAttemptedAt = time();
-        }
-
-        $response = $this->getHttpClient()
-            ->get($this->getJwksUri($refresh));
-
-        return $this->jwks = JWK::parseKeySet(
-            json_decode((string) $response->getBody(), true)
-        );
-    }
-
-    /**
-     * Determine if the JWKS can be force-refreshed.
-     */
-    protected function canRefreshJwks(bool $refresh): bool
-    {
-        return ! $refresh
-            || $this->jwksRefreshAttemptedAt === null
-            || (time() - $this->jwksRefreshAttemptedAt) >= $this->jwksRefreshCooldownSeconds;
-    }
-
-    /**
-     * Receive data from auth/callback route
-     * code, id_token, scope, state, session_state.
-     */
-    public function user(): User
-    {
-        if ($user = $this->getUser()) {
-            return $user;
-        }
-
-        if ($this->hasInvalidState()) {
-            throw new InvalidStateException;
-        }
-
-        $user = $this->getUserByTokenResponse(
-            $response = $this->getAccessTokenResponse($this->getCode())
-        );
-
-        return $this->userInstance($response, $user);
-    }
-
-    /**
      * Get user data by the response from the provider.
      */
-    protected function getUserByTokenResponse(array $response): ?array
+    protected function getUserByTokenResponse(#[SensitiveParameter] array $response): array
     {
         return $this->getUserByOIDCToken($response['id_token']);
     }
@@ -271,20 +205,9 @@ abstract class OpenIdProvider extends AbstractProvider
     /**
      * Get user based on the OIDC token.
      */
-    protected function getUserByOIDCToken(string $token): ?array
+    protected function getUserByOIDCToken(#[SensitiveParameter] string $token): array
     {
-        try {
-            $data = (array) JWT::decode($token, $this->getJwks());
-        } catch (SignatureInvalidException) {
-            // Some providers briefly replace key material under an existing kid.
-            $data = (array) JWT::decode($token, $this->getJwks(refresh: true));
-        } catch (UnexpectedValueException $e) {
-            if (! str_contains($e->getMessage(), '"kid" invalid')) {
-                throw $e;
-            }
-
-            $data = (array) JWT::decode($token, $this->getJwks(refresh: true));
-        }
+        $data = $this->decodeUsingJwks($token);
 
         $this->validateOIDCPayload($data);
 
@@ -296,47 +219,32 @@ abstract class OpenIdProvider extends AbstractProvider
      */
     protected function validateOIDCPayload(array $data): void
     {
-        if (! isset($data['nonce']) || $this->isInvalidNonce($data['nonce'])) {
+        if ($this->usesNonce() && (! isset($data['nonce']) || $this->isInvalidNonce($data['nonce']))) {
             throw new InvalidNonceException;
         }
 
-        if (! isset($data['aud']) || $data['aud'] !== $this->getClientId()) {
-            throw new InvalidAudienceException;
-        }
+        $this->validateAudience($data['aud'] ?? null);
 
         if (! isset($data['iss']) || $data['iss'] !== $this->getOpenIdConfig()['issuer']) {
             throw new InvalidIssuerException;
         }
     }
 
-    protected function appendOIDCPayload(array $payload): array
-    {
-        if ($this->usesNonce()) {
-            $payload['nonce'] = $this->getCurrentNonce();
-        }
-
-        return $payload;
-    }
-
     /**
      * Get the raw user for the given access token.
      */
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         if (! $userInfoUrl = $this->getUserInfoUrl()) {
             throw new InvalidUserInfoUrlException;
         }
 
-        $response = $this->getHttpClient()->get(
-            $userInfoUrl . '?' . http_build_query([
-                'access_token' => $token,
-            ]),
-            [
-                RequestOptions::HEADERS => [
-                    'Accept' => 'application/json',
-                ],
-            ]
-        );
+        $response = $this->getHttpClient()->get($userInfoUrl, [
+            RequestOptions::HEADERS => [
+                'Accept' => 'application/json',
+                'Authorization' => 'Bearer ' . $token,
+            ],
+        ]);
 
         return json_decode((string) $response->getBody(), true);
     }

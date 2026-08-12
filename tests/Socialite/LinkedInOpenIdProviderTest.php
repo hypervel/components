@@ -17,7 +17,7 @@ use Psr\Http\Message\StreamInterface;
 
 class LinkedInOpenIdProviderTest extends TestCase
 {
-    public function testResponse()
+    public function testResponse(): void
     {
         $user = $this->fromResponse([
             'sub' => 'asdfgh',
@@ -49,7 +49,7 @@ class LinkedInOpenIdProviderTest extends TestCase
         ], $user->attributes);
     }
 
-    public function testMissingEmailAndAvatar()
+    public function testMissingEmailAndAvatar(): void
     {
         $user = $this->fromResponse([
             'sub' => 'asdfgh',

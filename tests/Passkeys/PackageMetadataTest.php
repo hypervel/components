@@ -1,0 +1,88 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Passkeys;
+
+use Hypervel\Support\Str;
+use Hypervel\Tests\TestCase;
+use JsonException;
+
+class PackageMetadataTest extends TestCase
+{
+    /**
+     * Ensure split-package dependencies match the monorepo constraints.
+     *
+     * @throws JsonException
+     */
+    public function testDirectDependenciesMatchTheMonorepoConstraints(): void
+    {
+        $composer = json_decode(
+            file_get_contents(__DIR__ . '/../../src/passkeys/composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        $rootComposer = json_decode(
+            file_get_contents(__DIR__ . '/../../composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        foreach ([
+            'php',
+            'hypervel/auth',
+            'hypervel/collections',
+            'hypervel/config',
+            'hypervel/console',
+            'hypervel/container',
+            'hypervel/context',
+            'hypervel/contracts',
+            'hypervel/database',
+            'hypervel/events',
+            'hypervel/foundation',
+            'hypervel/http',
+            'hypervel/queue',
+            'hypervel/routing',
+            'hypervel/session',
+            'hypervel/support',
+            'hypervel/validation',
+            'nesbot/carbon',
+            'paragonie/constant_time_encoding',
+            'symfony/console',
+            'symfony/http-foundation',
+            'symfony/http-kernel',
+            'symfony/serializer',
+            'web-auth/cose-lib',
+            'web-auth/webauthn-lib',
+        ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertIsString($composer['require'][$dependency]);
+            $this->assertNotSame('', trim($composer['require'][$dependency]));
+        }
+
+        foreach ([
+            'nesbot/carbon',
+            'paragonie/constant_time_encoding',
+            'symfony/console',
+            'symfony/http-foundation',
+            'symfony/http-kernel',
+            'symfony/serializer',
+            'web-auth/cose-lib',
+            'web-auth/webauthn-lib',
+        ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        }
+
+        $internalConstraint = '^' . Str::before(
+            $composer['extra']['branch-alias']['dev-main'],
+            '-dev',
+        );
+
+        $this->assertSame($internalConstraint, $composer['require']['hypervel/context']);
+        $this->assertArrayHasKey('hypervel/context', $rootComposer['replace']);
+        $this->assertSame('self.version', $rootComposer['replace']['hypervel/context']);
+    }
+}

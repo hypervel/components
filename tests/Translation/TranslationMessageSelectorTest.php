@@ -4,21 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Translation;
 
+use ErrorException;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\MessageSelector;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 
 class TranslationMessageSelectorTest extends TestCase
 {
     #[DataProvider('chooseTestData')]
-    public function testChoose($expected, $id, $number)
+    public function testChoose(string $expected, string $id, float|int $number): void
     {
         $selector = new MessageSelector;
 
-        $this->assertEquals($expected, $selector->choose($id, $number, 'en'));
+        $this->assertSame($expected, $selector->choose($id, $number, 'en'));
     }
 
-    public static function chooseTestData()
+    /**
+     * @return array<int, array{string, string, float|int}>
+     */
+    public static function chooseTestData(): array
     {
         return [
             ['first', 'first', 1],
@@ -37,6 +41,8 @@ class TranslationMessageSelectorTest extends TestCase
             ['', '{0}first|{1}', 1],
             ['first', '{1.3}first|{2.3}second', 1.3],
             ['second', '{1.3}first|{2.3}second', 2.3],
+            ['first', '{1.}first|{2.}second', 1],
+            ['second', '{-.5}first|{.5}second', .5],
             ['first
             line', '{1}first
             line|{2}second', 1],
@@ -54,10 +60,19 @@ class TranslationMessageSelectorTest extends TestCase
             ['first', '[*,4]first|[5,*]second', 1],
             ['second', '[5,*]first|[*,4]second', 1],
             ['second', '[5,*]first|[*,4]second', 0],
+            ['first', '[-1.5,-.5]first|[.5,1.]second', -1],
+            ['second', '[-1.5,-.5]first|[.5,1.]second', .5],
 
             ['first', '{0}first|[1,3]second|[4,*]third', 0],
             ['second', '{0}first|[1,3]second|[4,*]third', 1],
             ['third', '{0}first|[1,3]second|[4,*]third', 9],
+
+            ['first', '[*,-1]first|{0}second|[1,*]third', -4],
+            ['first', '[*,-1] first|{0} second|[1,*] third', -4],
+            ['second', '[*,-1]first|{0}second|[1,*]third', 0],
+            ['second', '[*,-1] first|{0} second|[1,*] third', 0],
+            ['third', '[*,-1]first|{0}second|[1,*]third', 9],
+            ['first', '[-5,-1]first|{0}second|[1,*]third', -4],
 
             ['first', 'first|second|third', 1],
             ['second', 'first|second|third', 9],
@@ -65,6 +80,49 @@ class TranslationMessageSelectorTest extends TestCase
 
             ['first', '{0}  first | { 1 } second', 0],
             ['first', '[4,*]first | [1,3]second', 100],
+
+            ['[?]first', '[?]first', 1],
+            ['[-]first', '[-]first', 1],
+            ['[.]first', '[.]first', 1],
+            ['[*]first', '[*]first', 1],
+            ['[,]first', '[,]first', 1],
+            ['[1,]first', '[1,]first', 1],
+            ['[*,*]first', '[*,*]first', 1],
+            ['{1]first', '{1]first', 1],
+            ['[1}first', '[1}first', 1],
+
+            ['[first](//example.com)', '[first](//example.com)|[second](//test.com)', 1],
+            ['[second](//test.com)', '[first](//example.com)|[second](//test.com)', 2],
+            ['[first](//example.com)', '{0}[first](//example.com)|{1}[second](//test.com)', 0],
+            ['[second](//test.com)', '{0}[first](//example.com)|{1}[second](//test.com)', 1],
+            ['[first](//example.com)', '{0}[first](//example.com)|[2,*][second](//test.com)', 0],
+            ['[first](//example.com)', '{0}[first](//example.com)|[2,*][second](//test.com)', 1],
+            ['[second](//test.com)', '{0}[first](//example.com)|[2,*][second](//test.com)', 10],
+            ['[first](//example.com)', '{0}[first](//example.com)|{2.3}[second](//test.com)', 0],
+            ['[first](//example.com)', '{0}[first](//example.com)|{2.3}[second](//test.com)', 1],
+            ['[second](//test.com)', '{0}[first](//example.com)|{2.3}[second](//test.com)', 2.3],
         ];
+    }
+
+    public function testChooseWithFloatDoesNotTriggerDeprecation(): void
+    {
+        $selector = new MessageSelector;
+
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+            throw new ErrorException($message, 0, $severity, $file, $line);
+        }, E_DEPRECATED);
+
+        try {
+            $this->assertSame('few', $selector->choose('one|few|many', 2.75, 'pl'));
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testChoosePluralizesFloats(): void
+    {
+        $selector = new MessageSelector;
+
+        $this->assertSame('plural', $selector->choose('singular|plural', 1.5, 'en'));
     }
 }

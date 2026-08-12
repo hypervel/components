@@ -30,6 +30,9 @@
     },
     "require": {
         "php": "^8.4",
+        "guzzlehttp/guzzle": "^7.15.1",
+        "psr/log": "^3.0",
+        "symfony/http-kernel": "^8.1",
         "hypervel/bus": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/container": "^0.4",
@@ -40,11 +43,9 @@
         "hypervel/pool": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/routing": "^0.4",
-        "hypervel/support": "^0.4",
-        "psr/log": "^3.0"
+        "hypervel/support": "^0.4"
     },
     "suggest": {
-        "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
         "hypervel/redis": "Required to use the Redis broadcast driver (^0.4).",
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
         "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^7.2)."

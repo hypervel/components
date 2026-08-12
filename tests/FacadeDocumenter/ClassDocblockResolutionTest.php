@@ -7,6 +7,56 @@ namespace Hypervel\Tests\FacadeDocumenter;
 class ClassDocblockResolutionTest extends FacadeDocumenterTestCase
 {
     /**
+     * Render magic method unions without redundant parentheses.
+     */
+    public function testMagicMethodUnionsAreNotWrapped(): void
+    {
+        $this->writeAppFile(
+            'ClassDocblock/Unions/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ClassDocblock\Unions;
+
+                /**
+                 * @method static bool|int transform(null|string $value)
+                 */
+                class Proxy
+                {
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'ClassDocblock/Unions/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\ClassDocblock\Unions;
+
+                /**
+                 * @see \App\ClassDocblock\Unions\Proxy
+                 */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\ClassDocblock\Unions\Facade']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+        $this->assertStringContainsString(
+            '@method static bool|int transform(null|string $value)',
+            $this->appFileContents('App\ClassDocblock\Unions\Facade')
+        );
+    }
+
+    /**
      * Resolve magic method types for a class with a constructor.
      */
     public function testResolvesMagicMethodTypesForClassWithConstructor(): void

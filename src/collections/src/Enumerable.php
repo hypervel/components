@@ -12,6 +12,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use InvalidArgumentException;
 use IteratorAggregate;
+use JsonException;
 use JsonSerializable;
 use SortDirection;
 use Traversable;
@@ -431,10 +432,16 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Group an associative array by a field or using a callback.
      *
-     * @template TGroupKey of array-key
+     * @template TGroupKey of array-key|\UnitEnum|\Stringable
      *
-     * @param array|(callable(TValue, TKey): TGroupKey)|string $groupBy
-     * @return static<($groupBy is string ? array-key : ($groupBy is array ? array-key : TGroupKey)), static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>>
+     * @param array|(callable(TValue, TKey): (array<array-key, TGroupKey>|TGroupKey))|string $groupBy
+     * @return static<
+     *  ($groupBy is (array|string)
+     *      ? array-key
+     *      : (TGroupKey is \UnitEnum ? array-key : (TGroupKey is \Stringable ? string : TGroupKey))),
+     *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
+     * >
+     * @phpstan-ignore generics.notSubtype (PHPStan cannot prove normalized conditional group keys satisfy array-key)
      */
     public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static;
 
@@ -1117,11 +1124,15 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Get the collection of items as JSON.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string;
 
     /**
      * Get the collection of items as pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string;
 

@@ -30,7 +30,7 @@ class AboutCommandIntegrationTest extends SentryTestCase
             'sample_rate_performance_monitoring' => '95%',
             'send_default_pii' => 'DISABLED',
             'php_sdk_version' => Client::SDK_VERSION,
-            'hypervel_sdk_version' => Version::SDK_VERSION,
+            'hypervel_sdk_version' => Version::getSdkVersion(),
         ];
 
         $actualData = $this->runArtisanAboutAndReturnSentryData();
@@ -39,6 +39,17 @@ class AboutCommandIntegrationTest extends SentryTestCase
             $this->assertArrayHasKey($key, $actualData);
             $this->assertEquals($value, $actualData[$key]);
         }
+    }
+
+    public function testAboutCommandRecognizesCustomProfileSampler(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.profiles_sampler' => static fn (): float => 1.0,
+        ]);
+
+        $actualData = $this->runArtisanAboutAndReturnSentryData();
+
+        $this->assertSame('CUSTOM SAMPLER', $actualData['sample_rate_profiling']);
     }
 
     public function testAboutCommandContainsExpectedDataWithoutHubClient(): void
@@ -50,7 +61,7 @@ class AboutCommandIntegrationTest extends SentryTestCase
         $expectedData = [
             'enabled' => 'NOT CONFIGURED',
             'php_sdk_version' => Client::SDK_VERSION,
-            'hypervel_sdk_version' => Version::SDK_VERSION,
+            'hypervel_sdk_version' => Version::getSdkVersion(),
         ];
 
         $actualData = $this->runArtisanAboutAndReturnSentryData();
@@ -70,7 +81,7 @@ class AboutCommandIntegrationTest extends SentryTestCase
         $output = Artisan::output();
 
         // Refresh to ensure the command didn't have side effects on the container
-        $this->refreshApplication();
+        $this->reloadApplication();
 
         $aboutOutput = json_decode($output, true);
 

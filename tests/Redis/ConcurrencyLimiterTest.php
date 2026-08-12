@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Redis;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\ConcurrencyLease;
 use Hypervel\Redis\Limiters\ConcurrencyLimiter;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -24,10 +25,8 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        // acquire() calls eval with the lock script — return a slot name to indicate success
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        // acquire() returns a slot name to indicate success
+        $this->expectSlotClaim($redis, 'test-lock1');
 
         // release() calls eval with the release script
         $redis->shouldReceive('eval')
@@ -55,9 +54,7 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
 
         // acquire() succeeds
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -71,9 +68,7 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
 
         // acquire() succeeds
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
 
         // release() should still be called
         $redis->shouldReceive('eval')
@@ -101,9 +96,7 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
         $releaseException = new RuntimeException('release failed');
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
         $redis->shouldReceive('eval')
             ->once()
             ->andThrow($releaseException);
@@ -124,9 +117,7 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
         $callbackException = new RuntimeException('callback failed');
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
         $redis->shouldReceive('eval')
             ->once()
             ->andThrow(new RuntimeException('release failed'));
@@ -147,9 +138,12 @@ class ConcurrencyLimiterTest extends TestCase
     public function testBlockThrowsTimeoutExceptionWhenCannotAcquire(): void
     {
         $redis = $this->mockRedis();
+        $connection = m::mock(RedisConnection::class);
 
         // acquire() always fails (returns falsy)
-        $redis->shouldReceive('eval')
+        $redis->shouldReceive('withConnection')
+            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+        $connection->shouldReceive('evalWithShaCache')
             ->andReturn(false);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
@@ -164,25 +158,19 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->withArgs(function (string $script, int $numKeys, ...$args): bool {
-                // With maxLocks=3, we should have 3 keys
-                $this->assertSame(3, $numKeys);
-
-                // First 3 args are the slot keys
-                $this->assertSame('test-lock1', $args[0]);
-                $this->assertSame('test-lock2', $args[1]);
-                $this->assertSame('test-lock3', $args[2]);
-
-                // Then ARGV: name, releaseAfter, id
-                $this->assertSame('test-lock', $args[3]);
-                $this->assertSame(60, $args[4]);
-                $this->assertNotEmpty($args[5]); // random id
+        $this->expectSlotClaim(
+            $redis,
+            'test-lock1',
+            function (string $script, array $keys, array $arguments): bool {
+                $this->assertNotSame('', $script);
+                $this->assertSame(['test-lock1', 'test-lock2', 'test-lock3'], $keys);
+                $this->assertSame('test-lock', $arguments[0]);
+                $this->assertSame(60, $arguments[1]);
+                $this->assertNotEmpty($arguments[2]);
 
                 return true;
-            })
-            ->andReturn('test-lock1');
+            },
+        );
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -193,9 +181,9 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        // limit(0) means no slots — acquire must short-circuit before calling eval,
+        // limit(0) means no slots — acquire must short-circuit before evaluating Lua,
         // otherwise Lua hits redis.call('mget') with no args and errors.
-        $redis->shouldNotReceive('eval');
+        $redis->shouldNotReceive('withConnection');
 
         $this->expectException(LimiterTimeoutException::class);
 
@@ -206,7 +194,7 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        $redis->shouldNotReceive('eval');
+        $redis->shouldNotReceive('withConnection');
 
         $this->expectException(LimiterTimeoutException::class);
 
@@ -217,9 +205,7 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
@@ -233,9 +219,7 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
         $redis->shouldReceive('eval')
             ->once()
             ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
@@ -256,9 +240,7 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
         $redis->shouldReceive('eval')
             ->once()
             ->withArgs(function (string $script, int $numKeys, string $key, string $id, int $seconds): bool {
@@ -280,9 +262,7 @@ class ConcurrencyLimiterTest extends TestCase
     {
         $redis = $this->mockRedis();
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-lock1');
+        $this->expectSlotClaim($redis, 'test-lock1');
         $redis->shouldReceive('ttl')
             ->once()
             ->with('test-lock1')
@@ -298,18 +278,16 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
         $redis->shouldReceive('isCluster')->andReturnTrue();
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->withArgs(function (string $script, int $numKeys, ...$args): bool {
-                $this->assertSame(3, $numKeys);
-                $this->assertSame('{test-lock}1', $args[0]);
-                $this->assertSame('{test-lock}2', $args[1]);
-                $this->assertSame('{test-lock}3', $args[2]);
-                $this->assertSame('{test-lock}', $args[3]);
+        $this->expectSlotClaim(
+            $redis,
+            '{test-lock}1',
+            function (string $script, array $keys, array $arguments): bool {
+                $this->assertSame(['{test-lock}1', '{test-lock}2', '{test-lock}3'], $keys);
+                $this->assertSame('{test-lock}', $arguments[0]);
 
                 return true;
-            })
-            ->andReturn('{test-lock}1');
+            },
+        );
 
         (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->block(5);
     }
@@ -319,15 +297,16 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
         $redis->shouldReceive('isCluster')->andReturnTrue();
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->withArgs(function (string $script, int $numKeys, ...$args): bool {
-                $this->assertSame('{test-lock}:funnel1', $args[0]);
-                $this->assertSame('{test-lock}:funnel', $args[1]);
+        $this->expectSlotClaim(
+            $redis,
+            '{test-lock}:funnel1',
+            function (string $script, array $keys, array $arguments): bool {
+                $this->assertSame(['{test-lock}:funnel1'], $keys);
+                $this->assertSame('{test-lock}:funnel', $arguments[0]);
 
                 return true;
-            })
-            ->andReturn('{test-lock}:funnel1');
+            },
+        );
 
         (new ConcurrencyLimiter($redis, '{test-lock}:funnel', 1, 60))->block(5);
     }
@@ -341,5 +320,28 @@ class ConcurrencyLimiterTest extends TestCase
         $redis->shouldReceive('isCluster')->byDefault()->andReturnFalse();
 
         return $redis;
+    }
+
+    /**
+     * Expect a slot-claim script evaluation on one held Redis connection.
+     */
+    private function expectSlotClaim(
+        m\MockInterface|RedisProxy $redis,
+        false|string $result,
+        ?callable $assertion = null,
+    ): void {
+        $connection = m::mock(RedisConnection::class);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+
+        $expectation = $connection->shouldReceive('evalWithShaCache')->once();
+
+        if ($assertion !== null) {
+            $expectation->withArgs($assertion);
+        }
+
+        $expectation->andReturn($result);
     }
 }

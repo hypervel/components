@@ -545,16 +545,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     /**
-     * @template TGroupKey of array-key|\UnitEnum|\Stringable
-     *
-     * @param array|(callable(TValue, TKey): TGroupKey)|string $groupBy
-     * @return static<
-     *  ($groupBy is (array|string)
-     *      ? array-key
-     *      : (TGroupKey is \UnitEnum ? array-key : (TGroupKey is \Stringable ? string : TGroupKey))),
-     *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
-     * >
-     * @phpstan-ignore method.childReturnType, generics.notSubtype (complex conditional types PHPStan can't match)
+     * Group an associative array by a field or using a callback.
      */
     #[Override]
     public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static

@@ -7,7 +7,6 @@ namespace Hypervel\Fortify\Http\Controllers;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\CanResetPassword;
 use Hypervel\Contracts\Auth\PasswordBroker;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\PasswordUpdateResponse;
 use Hypervel\Fortify\Contracts\UpdatesUserPasswords;
@@ -19,11 +18,6 @@ use Hypervel\Support\Facades\Password;
 class PasswordController extends Controller
 {
     use DispatchesEvents;
-
-    public function __construct(
-        private readonly Container $container,
-    ) {
-    }
 
     /**
      * Update the user's password.
@@ -42,7 +36,7 @@ class PasswordController extends Controller
             fn (): PasswordUpdatedViaController => new PasswordUpdatedViaController($user),
         );
 
-        return $this->container->make(PasswordUpdateResponse::class);
+        return app(PasswordUpdateResponse::class);
     }
 
     /**

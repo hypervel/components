@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class ArrayTypeTest extends TestCase
 {
-    public function testItMaySetMinItems()
+    public function testItMaySetMinItems(): void
     {
         $type = JsonSchema::array()->title('Tags')->min(1);
 
@@ -20,7 +20,7 @@ class ArrayTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetMaxItems()
+    public function testItMaySetMaxItems(): void
     {
         $type = JsonSchema::array()->description('A list of tags')->max(10);
 
@@ -31,7 +31,7 @@ class ArrayTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetItemsType()
+    public function testItMaySetItemsType(): void
     {
         $type = JsonSchema::array()->items(
             JsonSchema::string()->max(20)
@@ -46,7 +46,7 @@ class ArrayTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetDefaultValue()
+    public function testItMaySetDefaultValue(): void
     {
         $type = JsonSchema::array()->default(['a', 'b']);
 
@@ -56,7 +56,50 @@ class ArrayTypeTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testItMaySetEnum()
+    public function testItDistinguishesAnExplicitNullDefaultFromAnUnsetDefault(): void
+    {
+        $this->assertArrayNotHasKey('default', JsonSchema::array()->toArray());
+        $this->assertSame([
+            'default' => null,
+            'type' => 'array',
+        ], JsonSchema::array()->default(null)->toArray());
+    }
+
+    public function testItMaySetUniqueItems(): void
+    {
+        $type = JsonSchema::array()->items(JsonSchema::string())->unique();
+
+        $this->assertEquals([
+            'type' => 'array',
+            'items' => [
+                'type' => 'string',
+            ],
+            'uniqueItems' => true,
+        ], $type->toArray());
+    }
+
+    public function testItMayUnsetUniqueItems(): void
+    {
+        $type = JsonSchema::array()->unique()->unique(false);
+
+        $this->assertEquals([
+            'type' => 'array',
+        ], $type->toArray());
+    }
+
+    public function testItMayCombineUniqueItemsWithMinAndMax(): void
+    {
+        $type = JsonSchema::array()->min(1)->max(5)->unique();
+
+        $this->assertEquals([
+            'type' => 'array',
+            'minItems' => 1,
+            'maxItems' => 5,
+            'uniqueItems' => true,
+        ], $type->toArray());
+    }
+
+    public function testItMaySetEnum(): void
     {
         $type = JsonSchema::array()->enum([
             ['a'],

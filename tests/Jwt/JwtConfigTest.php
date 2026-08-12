@@ -15,11 +15,10 @@ use Hypervel\Tests\TestCase;
 
 class JwtConfigTest extends TestCase
 {
-    public function testBlacklistDurationsAreLoadedAsIntegersFromEnvironment(): void
+    public function testBlacklistGracePeriodIsLoadedAsIntegerFromEnvironment(): void
     {
         $originalValues = $this->setEnvironmentVariables([
             'JWT_BLACKLIST_GRACE_PERIOD' => '30',
-            'JWT_BLACKLIST_REFRESH_TTL' => '60',
         ]);
 
         try {
@@ -28,11 +27,20 @@ class JwtConfigTest extends TestCase
             $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
 
             $this->assertSame(30, $config['blacklist_grace_period']);
-            $this->assertSame(60, $config['blacklist_refresh_ttl']);
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
         }
+    }
+
+    public function testObsoleteBlacklistRefreshTtlConfigurationIsAbsent(): void
+    {
+        $path = dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+        $contents = file_get_contents($path);
+        $config = require $path;
+
+        $this->assertArrayNotHasKey('blacklist_refresh_ttl', $config);
+        $this->assertStringNotContainsString('JWT_BLACKLIST_REFRESH_TTL', $contents);
     }
 
     public function testLeewayIsLoadedAsIntegerFromEnvironment(): void

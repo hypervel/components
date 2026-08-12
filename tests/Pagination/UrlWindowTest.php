@@ -10,21 +10,21 @@ use Hypervel\Tests\TestCase;
 
 class UrlWindowTest extends TestCase
 {
-    public function testPresenterCanDetermineIfThereAreAnyPagesToShow()
+    public function testPresenterCanDetermineIfThereAreAnyPagesToShow(): void
     {
         $p = new LengthAwarePaginator($array = ['item1', 'item2', 'item3', 'item4'], 4, 2, 2);
         $window = new UrlWindow($p);
         $this->assertTrue($window->hasPages());
     }
 
-    public function testPresenterCanGetAUrlRangeForASmallNumberOfUrls()
+    public function testPresenterCanGetAUrlRangeForASmallNumberOfUrls(): void
     {
         $p = new LengthAwarePaginator($array = ['item1', 'item2', 'item3', 'item4'], 4, 2, 2);
         $window = new UrlWindow($p);
         $this->assertEquals(['first' => [1 => '/?page=1', 2 => '/?page=2'], 'slider' => null, 'last' => null], $window->get());
     }
 
-    public function testPresenterCanGetAUrlRangeForAWindowOfLinks()
+    public function testPresenterCanGetAUrlRangeForAWindowOfLinks(): void
     {
         $array = [];
         for ($i = 1; $i <= 20; ++$i) {
@@ -53,7 +53,7 @@ class UrlWindowTest extends TestCase
         $this->assertEquals(['first' => [1 => '/?page=1', 2 => '/?page=2'], 'slider' => null, 'last' => $last], $window->get());
     }
 
-    public function testCustomUrlRangeForAWindowOfLinks()
+    public function testCustomUrlRangeForAWindowOfLinks(): void
     {
         $array = [];
         for ($i = 1; $i <= 20; ++$i) {

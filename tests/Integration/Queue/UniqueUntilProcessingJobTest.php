@@ -23,7 +23,6 @@ class UniqueUntilProcessingJobTest extends QueueTestCase
         parent::defineEnvironment($app);
         $app['config']->set('queue.default', 'database');
         $app['config']->set('cache.default', 'database');
-        $this->driver = 'database';
     }
 
     public function testShouldBeUniqueUntilProcessingReleasesLockWhenJobIsReleasedByAMiddleware()

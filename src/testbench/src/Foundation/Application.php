@@ -5,46 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Foundation;
 
 use Closure;
-use Hypervel\Console\Application as Artisan;
-use Hypervel\Console\Commands\ScheduleListCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Database\Eloquent\Factories\Factory;
-use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Migrations\Migrator;
-use Hypervel\Database\Schema\Builder as SchemaBuilder;
-use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
-use Hypervel\Foundation\Console\AboutCommand;
-use Hypervel\Foundation\Console\RouteListCommand;
-use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
-use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
-use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
-use Hypervel\Foundation\Http\Middleware\TrimStrings;
-use Hypervel\Http\Middleware\TrustHosts;
-use Hypervel\Http\Middleware\TrustProxies;
-use Hypervel\Http\Resources\Json\JsonResource;
-use Hypervel\Http\Resources\JsonApi\JsonApiResource;
-use Hypervel\Mail\Markdown;
-use Hypervel\Queue\Console\WorkCommand;
-use Hypervel\Queue\Queue;
-use Hypervel\Routing\Middleware\ThrottleRequests;
 use Hypervel\Support\Arr;
-use Hypervel\Support\EncodedHtmlString;
-use Hypervel\Support\Sleep;
-use Hypervel\Support\Str;
-use Hypervel\Testbench\Bootstrap\RegisterProviders;
 use Hypervel\Testbench\Concerns\CreatesApplication;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Bootstrap\EnsuresDefaultConfiguration;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadEnvironmentVariablesFromArray;
-use Hypervel\Validation\Validator;
-use Hypervel\View\Component;
+use Throwable;
 
 class Application
 {
     use CreatesApplication {
         createApplication as protected createApplicationFromTrait;
         resolveApplicationConfiguration as protected resolveApplicationConfigurationFromTrait;
+        resolveApplicationConsoleKernel as protected resolveApplicationConsoleKernelFromTrait;
+        resolveApplicationHttpKernel as protected resolveApplicationHttpKernelFromTrait;
     }
 
     /**
@@ -147,9 +123,17 @@ class Application
      */
     public static function createVendorSymlink(?string $basePath, string $workingVendorPath): ApplicationContract
     {
+        $originalTimezone = date_default_timezone_get();
         $app = static::create(basePath: $basePath, options: ['extra' => ['dont-discover' => ['*']]]);
 
-        (new Actions\CreateVendorSymlink($workingVendorPath))->handle($app);
+        try {
+            (new Actions\CreateVendorSymlink($workingVendorPath))->handle($app);
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            date_default_timezone_set($originalTimezone);
+
+            throw $exception;
+        }
 
         return $app;
     }
@@ -159,9 +143,17 @@ class Application
      */
     public static function deleteVendorSymlink(?string $basePath): ApplicationContract
     {
+        $originalTimezone = date_default_timezone_get();
         $app = static::create(basePath: $basePath, options: ['extra' => ['dont-discover' => ['*']]]);
 
-        (new Actions\DeleteVendorSymlink)->handle($app);
+        try {
+            (new Actions\DeleteVendorSymlink)->handle($app);
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            date_default_timezone_set($originalTimezone);
+
+            throw $exception;
+        }
 
         return $app;
     }
@@ -216,6 +208,7 @@ class Application
     public function createApplication(): ApplicationContract
     {
         $restoreEnvironment = $this->maskInheritedStandaloneEnvironment();
+        $originalTimezone = date_default_timezone_get();
 
         try {
             $app = $this->createApplicationFromTrait();
@@ -225,8 +218,16 @@ class Application
 
         $this->app = $app;
 
-        if (\is_callable($this->resolvingCallback)) {
-            \call_user_func($this->resolvingCallback, $app);
+        try {
+            if (\is_callable($this->resolvingCallback)) {
+                \call_user_func($this->resolvingCallback, $app);
+            }
+        } catch (Throwable $exception) {
+            static::terminateAndFlushApplication($app);
+            date_default_timezone_set($originalTimezone);
+            $this->app = null;
+
+            throw $exception;
         }
 
         return $app;
@@ -364,45 +365,26 @@ class Application
     }
 
     /**
-     * Flush static state touched by Testbench application bootstrap tests.
-     *
-     * IMPORTANT: This is NOT the global framework static-state cleanup list.
-     * Do not add general framework static-state resets here. Add them to
-     * src/testing/src/PHPUnit/AfterEachTestSubscriber.php instead.
-     *
-     * @param object $instance active test instance, used to thread the running TestCase through to HandleExceptions::flushState()
+     * Resolve application console kernel implementation.
      */
-    public static function flushState(object $instance): void
+    protected function resolveApplicationConsoleKernel(ApplicationContract $app): void
     {
-        AboutCommand::flushState();
-        Artisan::forgetBootstrappers();
-        Component::flushCache();
-        Component::forgetComponentsResolver();
-        Component::forgetFactory();
-        ConvertEmptyStringsToNull::flushState();
-        EncodedHtmlString::flushState();
-        Factory::flushState();
-        HandleExceptions::flushState($instance instanceof \PHPUnit\Framework\TestCase ? $instance : null);
-        Env::flushState();
-        JsonResource::flushState();
-        JsonApiResource::flushState();
-        Markdown::flushState();
-        Migrator::flushState();
-        Model::flushState();
-        PreventRequestForgery::flushState();
-        PreventRequestsDuringMaintenance::flushState();
-        Queue::flushState();
-        RegisterProviders::flushState();
-        RouteListCommand::flushState();
-        ScheduleListCommand::flushState();
-        SchemaBuilder::flushState();
-        Sleep::flushState();
-        Str::flushState();
-        ThrottleRequests::flushState();
-        TrimStrings::flushState();
-        TrustProxies::flushState();
-        TrustHosts::flushState();
-        Validator::flushState();
-        WorkCommand::flushState();
+        if ($this->hasCustomApplicationKernels()) {
+            return;
+        }
+
+        $this->resolveApplicationConsoleKernelFromTrait($app);
+    }
+
+    /**
+     * Resolve application HTTP kernel implementation.
+     */
+    protected function resolveApplicationHttpKernel(ApplicationContract $app): void
+    {
+        if ($this->hasCustomApplicationKernels()) {
+            return;
+        }
+
+        $this->resolveApplicationHttpKernelFromTrait($app);
     }
 }

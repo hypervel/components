@@ -7,6 +7,7 @@ namespace Hypervel\Socialite\Two;
 use Exception;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Support\Arr;
+use SensitiveParameter;
 
 class GithubProvider extends AbstractProvider implements ProviderInterface
 {
@@ -25,7 +26,7 @@ class GithubProvider extends AbstractProvider implements ProviderInterface
         return 'https://github.com/login/oauth/access_token';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         $userUrl = 'https://api.github.com/user';
 
@@ -46,7 +47,7 @@ class GithubProvider extends AbstractProvider implements ProviderInterface
     /**
      * Get the email for the given access token.
      */
-    protected function getEmailByToken(string $token): ?string
+    protected function getEmailByToken(#[SensitiveParameter] string $token): ?string
     {
         $emailsUrl = 'https://api.github.com/user/emails';
 
@@ -83,7 +84,7 @@ class GithubProvider extends AbstractProvider implements ProviderInterface
     /**
      * Get the default options for an HTTP request.
      */
-    protected function getRequestOptions(string $token): array
+    protected function getRequestOptions(#[SensitiveParameter] string $token): array
     {
         return [
             RequestOptions::HEADERS => [

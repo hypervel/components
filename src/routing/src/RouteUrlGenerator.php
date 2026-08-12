@@ -13,6 +13,21 @@ use Hypervel\Support\Collection;
 class RouteUrlGenerator
 {
     /**
+     * Characters that must remain encoded within route parameter values.
+     *
+     * The final URI pass restores only the outer percent escape around these values;
+     * the $dontEncode map still owns structural URL syntax outside parameters. Brace
+     * escapes keep substituted data from being rescanned as route placeholders.
+     */
+    protected const array PARAMETER_ESCAPES = [
+        '%' => '%25',
+        '?' => '%3F',
+        '#' => '%23',
+        '{' => '%7B',
+        '}' => '%7D',
+    ];
+
+    /**
      * The URL generator instance.
      */
     protected UrlGenerator $url;
@@ -68,11 +83,9 @@ class RouteUrlGenerator
         // First we will construct the entire URI including the root and query string. Once it
         // has been constructed, we'll make sure we don't have any missing parameters or we
         // will need to throw the exception to let the developers know one was not given.
-        $uri = $this->addQueryString($this->url->format(
-            $root = $this->replaceRootParameters($route, $domain, $parameters, $defaultParameters),
-            $this->replaceRouteParameters($route->uri(), $parameters, $defaultParameters),
-            $route
-        ), $parameters);
+        $root = $this->replaceRootParameters($route, $domain, $parameters, $defaultParameters);
+        $uri = $this->replaceRouteParameters($route->uri(), $parameters, []);
+        $uri = $this->addQueryString($this->url->format($root, $uri, $route), $parameters);
 
         if (preg_match_all('/{(.*?)}/', $uri, $matchedMissingParameters)) {
             throw UrlGenerationException::forMissingParameters($route, $matchedMissingParameters[1]);
@@ -87,7 +100,9 @@ class RouteUrlGenerator
             $uri = preg_replace('#^(//|[^/?])+#', '', $uri);
 
             if ($base = $this->url->getRequest()->getBaseUrl()) {
-                $uri = preg_replace('#^' . $base . '#i', '', $uri);
+                $encodedBase = strtr(rawurlencode($base), $this->dontEncode);
+
+                $uri = preg_replace('#^' . preg_quote($encodedBase, '#') . '#i', '', $uri);
             }
 
             return '/' . ltrim($uri, '/');
@@ -184,6 +199,9 @@ class RouteUrlGenerator
 
                 continue;
             }
+            $namedParameters[$name] = '';
+            unset($parameters[$name]);
+
             $bindingField = $route->bindingFieldFor($name);
             $defaultParameterKey = $bindingField ? "{$name}:{$bindingField}" : $name;
 
@@ -191,8 +209,6 @@ class RouteUrlGenerator
                 // No named parameter or default value for a required parameter, try to match to positional parameter below...
                 array_push($requiredRouteParametersWithoutDefaultsOrNamedParameters, $name);
             }
-
-            $namedParameters[$name] = '';
         }
 
         // Named parameters that don't have route parameters will be used for query string...
@@ -313,7 +329,12 @@ class RouteUrlGenerator
             $root = $this->replacePortInRoot($root, $route);
         }
 
-        return $this->replaceRouteParameters($root, $parameters, $defaultParameters);
+        // Raw defaults belong only to placeholders in a configured root, not route domains.
+        return $this->replaceRouteParameters(
+            $root,
+            $parameters,
+            $domain === null ? $defaultParameters : [],
+        );
     }
 
     /**
@@ -342,9 +363,9 @@ class RouteUrlGenerator
     protected function replaceRouteParameters(
         string $path,
         array &$parameters,
-        array $defaultParameters,
+        array $rootDefaultParameters,
     ): string {
-        $path = $this->replaceNamedParameters($path, $parameters, $defaultParameters);
+        $path = $this->replaceNamedParameters($path, $parameters, $rootDefaultParameters);
 
         $path = preg_replace_callback('/\{.*?\}/', function ($match) use (&$parameters) {
             // Reset only the numeric keys...
@@ -352,7 +373,7 @@ class RouteUrlGenerator
 
             return (! isset($parameters[0]) && ! str_ends_with($match[0], '?}'))
                 ? $match[0]
-                : Arr::pull($parameters, 0);
+                : $this->escapeParameterValue(Arr::pull($parameters, 0));
         }, $path);
 
         return trim(preg_replace('/\{.*?\?\}/', '', $path), '/');
@@ -364,14 +385,16 @@ class RouteUrlGenerator
     protected function replaceNamedParameters(
         string $path,
         array &$parameters,
-        array $defaultParameters,
+        array $rootDefaultParameters,
     ): string {
-        return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $defaultParameters) {
+        return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $rootDefaultParameters) {
             if (isset($parameters[$m[1]]) && $parameters[$m[1]] !== '') {
-                return Arr::pull($parameters, $m[1]);
+                return $this->escapeParameterValue(Arr::pull($parameters, $m[1]));
             }
-            if (isset($defaultParameters[$m[1]])) {
-                return $defaultParameters[$m[1]];
+            if (isset($rootDefaultParameters[$m[1]])) {
+                Arr::pull($parameters, $m[1]);
+
+                return $this->escapeParameterValue($rootDefaultParameters[$m[1]]);
             }
             if (isset($parameters[$m[1]])) {
                 Arr::pull($parameters, $m[1]);
@@ -379,6 +402,14 @@ class RouteUrlGenerator
 
             return $m[0];
         }, $path);
+    }
+
+    /**
+     * Escape delimiters while the value is still known to be parameter data.
+     */
+    protected function escapeParameterValue(mixed $value): string
+    {
+        return strtr((string) $value, self::PARAMETER_ESCAPES);
     }
 
     /**

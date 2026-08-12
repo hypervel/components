@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseSoftDeletingTraitTest;
 
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
@@ -30,6 +31,15 @@ class DatabaseSoftDeletingTraitTest extends TestCase
         $model->delete();
 
         $this->assertSame(CarbonImmutable::class, $model->deleted_at::class);
+    }
+
+    public function testForceDeleteWrappersPreserveIntegerDeleteResult(): void
+    {
+        $model = new IntegerDeleteResultModelStub;
+        $model->exists = true;
+
+        $this->assertSame(1, $model->forceDelete());
+        $this->assertSame(1, $model->forceDeleteQuietly());
     }
 
     public function testRestore()
@@ -119,6 +129,19 @@ class Stub
     }
 
     protected function getKeyForSaveQuery()
+    {
+        return 1;
+    }
+}
+
+class IntegerDeleteResultModelStub extends Model
+{
+    use SoftDeletes;
+
+    /**
+     * Return a simulated affected-row count.
+     */
+    public function delete(): int
     {
         return 1;
     }

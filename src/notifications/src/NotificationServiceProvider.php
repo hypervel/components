@@ -17,8 +17,6 @@ class NotificationServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(ChannelManager::class, fn ($app) => new ChannelManager($app));
-
         $this->app->alias(ChannelManager::class, DispatcherContract::class);
         $this->app->alias(ChannelManager::class, FactoryContract::class);
 
@@ -40,12 +38,14 @@ class NotificationServiceProvider extends ServiceProvider
             ], 'hypervel-notifications');
         }
 
-        // Register once at boot — persists in the dispatcher's $listeners for the worker lifetime.
-        // Writes to coroutine-local Context so concurrent requests don't interfere.
-        // See NotificationSender::sendToNotifiable() for the consumer of this flag.
         $this->app->make('events')->listen(
             NotificationFailed::class,
-            static fn () => CoroutineContext::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true)
+            static function (): void {
+                // Only an active sender attempt owns this marker; external events must not create it.
+                if (CoroutineContext::get(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY) !== null) {
+                    CoroutineContext::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true);
+                }
+            }
         );
     }
 }

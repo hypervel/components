@@ -61,6 +61,8 @@ class ComponentSlot implements Htmlable, Stringable
 
     /**
      * Determine if the slot has non-comment content.
+     *
+     * @throws InvalidArgumentException
      */
     public function hasActualContent(callable|string|null $callable = null): bool
     {

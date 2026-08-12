@@ -27,7 +27,7 @@ namespace Hypervel\Support\Facades;
  * @method static string asset(string $asset, string|null $buildDirectory = null)
  * @method static string content(string $asset, string|null $buildDirectory = null)
  * @method static string|null manifestHash(string|null $buildDirectory = null)
- * @method static \Hypervel\Support\HtmlString fonts(array|string|null $aliases = null)
+ * @method static \Hypervel\Support\HtmlString fonts(null|array|string $aliases = null)
  * @method static \Hypervel\Foundation\Vite useFontsManifestFilename(string $filename)
  * @method static bool isRunningHot()
  * @method static string toHtml()

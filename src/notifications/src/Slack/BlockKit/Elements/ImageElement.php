@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Slack\BlockKit\Elements;
 
 use Hypervel\Notifications\Slack\Contracts\ElementContract;
+use InvalidArgumentException;
 use LogicException;
 
 class ImageElement implements ElementContract
 {
     /**
      * The URL of the image to be displayed.
+     *
+     * Maximum length for this field is 3000 characters.
      */
     protected string $url;
 
@@ -24,6 +27,10 @@ class ImageElement implements ElementContract
      */
     public function __construct(string $url, ?string $altText = null)
     {
+        if (mb_strlen($url, 'UTF-8') > 3000) {
+            throw new InvalidArgumentException('Maximum length for the url field is 3000 characters.');
+        }
+
         $this->url = $url;
         $this->altText = $altText;
     }

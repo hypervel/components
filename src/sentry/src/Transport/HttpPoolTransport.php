@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Transport;
 
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\WaitGroup;
 use RuntimeException;
 use Sentry\Event;
 use Sentry\Transport\HttpTransport;
@@ -16,13 +16,11 @@ use Throwable;
 
 class HttpPoolTransport implements TransportInterface
 {
-    /**
-     * Context key for the per-coroutine list of checked-out transports.
-     */
-    public const CONTEXT_TRANSPORTS_KEY = '__sentry.transports';
+    protected WaitGroup $group;
 
     public function __construct(protected Pool $pool)
     {
+        $this->group = new WaitGroup;
     }
 
     /**
@@ -30,7 +28,6 @@ class HttpPoolTransport implements TransportInterface
      *
      * Checks out a transport from the pool. If the pool is exhausted, the event
      * is silently dropped (backpressure) to avoid blocking the request coroutine.
-     * All checked-out transports are tracked per-coroutine and released on close().
      */
     public function send(Event $event): Result
     {
@@ -42,67 +39,76 @@ class HttpPoolTransport implements TransportInterface
             return new Result(ResultStatus::skipped());
         }
 
-        $transports = $this->initializeTrackedTransports();
-        $transports[] = $transport;
-        CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, $transports);
+        // Capture the generation once: a concurrent drain may replace $this->group,
+        // but this send must call done() on the same group it increments.
+        $group = $this->group;
+        $group->add();
 
         try {
-            return $transport->send($event);
-        } catch (Throwable) {
-            $transports = CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY, []);
-            if (($key = array_search($transport, $transports, true)) !== false) {
-                unset($transports[$key]);
-                CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, array_values($transports));
-            }
+            $this->createCoroutine(function () use ($event, $group, $transport): void {
+                $discard = false;
 
-            // A transport that failed mid-send may retain corrupt or pending
-            // state and must never be handed to another coroutine.
-            $this->pool->discard($transport);
+                try {
+                    $transport->send($event);
+                } catch (Throwable) {
+                    $discard = true;
+                } finally {
+                    try {
+                        if ($discard) {
+                            $this->pool->discard($transport);
+                        } else {
+                            $this->pool->release($transport);
+                        }
+                    } finally {
+                        $group->done();
+                    }
+                }
+            });
+        } catch (Throwable) {
+            try {
+                $this->pool->release($transport);
+            } finally {
+                $group->done();
+            }
 
             return new Result(ResultStatus::failed());
         }
+
+        return new Result(ResultStatus::success(), $event);
     }
 
     /**
-     * Release all checked-out transports back to the pool.
-     *
-     * Called by Integration::flushEvents() → Client::flush() at the end
-     * of each request lifecycle via FlushEventsMiddleware::terminate().
+     * Observe or wait for accepted sends to complete.
      */
     public function close(?int $timeout = null): Result
     {
-        foreach (CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY, []) as $transport) {
-            $this->pool->release($transport);
+        if ($timeout === null || $timeout <= 0) {
+            return new Result($this->group->count() === 0
+                ? ResultStatus::success()
+                : ResultStatus::unknown());
         }
-        CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, []);
 
-        return new Result(ResultStatus::success());
+        $group = $this->group;
+        $this->group = new WaitGroup;
+
+        return new Result($group->wait($timeout)
+            ? ResultStatus::success()
+            : ResultStatus::unknown());
     }
 
     /**
-     * Get the tracked transport list, registering a coroutine defer callback
-     * on first access to ensure transports are released even if the coroutine
-     * dies without close() being called.
-     *
-     * @return list<HttpTransport>
+     * Close the underlying transport pool.
      */
-    private function initializeTrackedTransports(): array
+    public function shutdown(): void
     {
-        $transports = CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY);
+        $this->pool->close();
+    }
 
-        if (is_array($transports)) {
-            return $transports;
-        }
-
-        CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, []);
-
-        Coroutine::defer(function (): void {
-            foreach (CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY, []) as $transport) {
-                $this->pool->release($transport);
-            }
-            CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, []);
-        });
-
-        return [];
+    /**
+     * Create the coroutine that owns a checked-out transport.
+     */
+    protected function createCoroutine(callable $callback): void
+    {
+        Coroutine::create($callback);
     }
 }

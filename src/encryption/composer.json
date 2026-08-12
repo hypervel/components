@@ -30,14 +30,14 @@
     },
     "require": {
         "php": "^8.4",
-        "ext-hash": "*",
         "ext-mbstring": "*",
         "ext-openssl": "*",
         "hypervel/config": "^0.4",
         "hypervel/console": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/filesystem": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "symfony/console": "^8.1"
     },
     "config": {
         "sort-packages": true

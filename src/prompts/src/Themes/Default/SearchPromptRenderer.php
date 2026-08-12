@@ -13,7 +13,7 @@ class SearchPromptRenderer extends Renderer implements Scrolling
     use Concerns\DrawsScrollbars;
 
     /**
-     * Render the suggest prompt.
+     * Render the search prompt.
      */
     public function __invoke(SearchPrompt $prompt): string
     {

@@ -26,12 +26,15 @@ interface CursorPaginator
      *
      * @return $this
      */
-    public function appends(array|string|null $key, ?string $value = null): static;
+    public function appends(
+        array|int|string|null $key,
+        array|bool|float|int|string|null $value = null,
+    ): static;
 
     /**
      * Get / set the URL fragment to be appended to URLs.
      *
-     * @return null|$this|string
+     * @return ($fragment is null ? null|string : $this)
      */
     public function fragment(?string $fragment = null): static|string|null;
 

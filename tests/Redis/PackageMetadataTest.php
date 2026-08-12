@@ -52,6 +52,28 @@ class PackageMetadataTest extends TestCase
         $this->assertArrayHasKey('ext-redis', $composer['suggest']);
     }
 
+    /**
+     * Ensure native Redis command return values are documented.
+     */
+    public function testNativeRedisCommandReturnValuesAreDocumented(): void
+    {
+        $connectionDocblock = (new ReflectionClass(RedisConnection::class))->getDocComment();
+        $this->assertIsString($connectionDocblock);
+        $this->assertStringContainsString('@method array|false|Redis keys(string $pattern)', $connectionDocblock);
+        $this->assertStringContainsString(
+            '@method false|int|Redis lInsert(string $key, string $pos, mixed $pivot, mixed $value)',
+            $connectionDocblock,
+        );
+
+        $facadeDocblock = (new ReflectionClass(Redis::class))->getDocComment();
+        $this->assertIsString($facadeDocblock);
+        $this->assertStringContainsString('@method static array|false|\Redis keys(string $pattern)', $facadeDocblock);
+        $this->assertStringContainsString(
+            '@method static false|int|\Redis lInsert(string $key, string $pos, mixed $pivot, mixed $value)',
+            $facadeDocblock,
+        );
+    }
+
     public function testConnectionBoundMethodsAreExcludedFromFacadeDocumentation(): void
     {
         $proxy = new ReflectionClass(RedisProxy::class);
@@ -134,8 +156,23 @@ class PackageMetadataTest extends TestCase
             $this->assertStringContainsString(" {$method}(", $docblock);
         }
 
-        $this->assertStringContainsString(' (bool|\Redis) discard()', $docblock);
+        $this->assertStringContainsString(' bool|\Redis discard()', $docblock);
         $this->assertStringNotContainsString(' macroCall(', $docblock);
+    }
+
+    /**
+     * Ensure pooled connections do not advertise guarded commands.
+     */
+    public function testPooledConnectionsDoNotAdvertiseGuardedCommands(): void
+    {
+        $connection = new ReflectionClass(RedisConnection::class);
+        $docblock = $connection->getDocComment();
+        $this->assertIsString($docblock);
+        $docblock = strtolower($docblock);
+
+        foreach (['reset', 'subscribe', 'psubscribe', 'ssubscribe'] as $command) {
+            $this->assertStringNotContainsString(" {$command}(", $docblock);
+        }
     }
 
     public function testUnsupportedNativeMethodsAreNotAdvertised(): void

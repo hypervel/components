@@ -6,26 +6,57 @@ namespace Hypervel\Tests\Testbench;
 
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
 use Hypervel\Testbench\Console\Commander;
+use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
+use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testbench\Workbench\Workbench;
+use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Process\Process;
 use Throwable;
 
+use function Hypervel\Support\php_binary;
+use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\remote;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
 class CommanderTest extends TestCase
 {
     use InteractsWithSqliteDatabaseFile;
+
+    protected string $tempDir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tempDir = ParallelTesting::tempDir('CommanderTest');
+
+        (new Filesystem)->deleteDirectory($this->tempDir);
+        (new Filesystem)->makeDirectory($this->tempDir, 0700, recursive: true);
+    }
+
+    protected function tearDown(): void
+    {
+        TerminatingConsole::flush();
+        CommanderLifecycleTestbench::reset();
+        (new Filesystem)->deleteDirectory($this->tempDir);
+
+        parent::tearDown();
+    }
 
     #[Test]
     public function itCanCallCommanderUsingCliAndGetCurrentVersion(): void
@@ -127,6 +158,7 @@ class CommanderTest extends TestCase
                 '0001_01_01_000005_testbench_create_job_batches_table',
                 '0001_01_01_000006_testbench_create_jobs_table',
                 '0001_01_01_000007_testbench_create_failed_jobs_table',
+                '0001_01_01_000008_testbench_create_rate_limits_table',
                 '2013_07_26_182750_create_testbench_users_table',
             ], DB::connection('sqlite')->table('migrations')->pluck('migration')->all());
         });
@@ -203,6 +235,129 @@ class CommanderTest extends TestCase
         $this->assertSame(1, $commander->renderThrowable($output, new RuntimeException('Bootstrap failure')));
         $this->assertStringContainsString('Bootstrap failure', $errorOutput->fetch());
     }
+
+    #[Test]
+    public function itDisposesTemporaryApplicationsAfterOwnershipTransfer(): void
+    {
+        $createdApplication = new Application($this->tempDir);
+        $vendorApplication = new CommanderTrackingApplication;
+        $deletionApplication = new CommanderTrackingApplication;
+        CommanderLifecycleTestbench::$createdApplication = $createdApplication;
+        CommanderLifecycleTestbench::$vendorApplication = $vendorApplication;
+        CommanderLifecycleTestbench::$deletionApplication = $deletionApplication;
+
+        $commander = new CommanderLifecycleHarness([], $this->tempDir, $this->tempDir);
+
+        $this->assertSame($createdApplication, $commander->hypervel());
+        $this->assertSame(['terminate', 'flush'], $vendorApplication->lifecycle);
+
+        TerminatingConsole::handle();
+
+        $this->assertSame(['terminate', 'flush'], $deletionApplication->lifecycle);
+    }
+
+    #[Test]
+    public function itPreservesCopyFailureWhileExhaustingTemporaryApplicationCleanup(): void
+    {
+        $copyFailure = new RuntimeException('copy failed');
+        $vendorApplication = new CommanderTrackingApplication(
+            new RuntimeException('termination failed'),
+            new RuntimeException('flush failed'),
+        );
+        CommanderLifecycleTestbench::$vendorApplication = $vendorApplication;
+
+        $commander = new CommanderLifecycleHarness([], $this->tempDir, $this->tempDir);
+        $commander->copyConfigurationFailure = $copyFailure;
+
+        try {
+            $commander->hypervel();
+            $this->fail('Expected configuration copying to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($copyFailure, $exception);
+        }
+
+        $this->assertSame(['terminate', 'flush'], $vendorApplication->lifecycle);
+    }
+
+    #[Test]
+    public function itRunsEveryCommanderCleanupPhaseAndPreservesTheFirstFailure(): void
+    {
+        $terminationFailure = new RuntimeException('termination callback failed');
+        $signalFailure = new RuntimeException('signal cleanup failed');
+        TerminatingConsole::before(static function () use ($terminationFailure): never {
+            throw $terminationFailure;
+        });
+        Workbench::$cachedCoreBindings = ['kernel' => ['console' => 'changed'], 'handler' => []];
+
+        $commander = new CommanderLifecycleHarness([], $this->tempDir, $this->tempDir);
+        $commander->signalCleanupFailure = $signalFailure;
+
+        $this->assertSame($terminationFailure, $commander->cleanUp());
+        $this->assertTrue($commander->signalsWereUnregistered);
+        $this->assertSame(['kernel' => [], 'handler' => []], Workbench::$cachedCoreBindings);
+    }
+
+    #[Test]
+    public function itRendersCleanupFailuresAndReturnsTheirStatus(): void
+    {
+        $process = new Process(
+            [
+                php_binary(),
+                package_path('tests/Testbench/Fixtures/CommanderCleanupFailure.php'),
+                '--version',
+                '--no-ansi',
+            ],
+            cwd: package_path(),
+            env: [
+                'COMMANDER_FIXTURE_MODE' => 'command',
+                'TESTBENCH_WORKING_PATH' => package_path(),
+            ],
+        );
+
+        $process->run();
+
+        $this->assertSame(1, $process->getExitCode());
+        $this->assertStringContainsString('Command cleanup failed.', $process->getErrorOutput());
+    }
+
+    #[Test]
+    #[RequiresPhpExtension('pcntl')]
+    public function itReportsSignalCleanupFailuresWithoutReplacingTheSignalStatus(): void
+    {
+        $process = new Process(
+            [php_binary(), package_path('tests/Testbench/Fixtures/CommanderCleanupFailure.php')],
+            cwd: package_path(),
+            env: [
+                'COMMANDER_FIXTURE_MODE' => 'signal',
+                'TESTBENCH_WORKING_PATH' => package_path(),
+            ],
+        );
+
+        $process->run();
+
+        $this->assertSame(143, $process->getExitCode());
+        $this->assertStringContainsString('Signal cleanup failed.', $process->getErrorOutput());
+    }
+
+    #[Test]
+    #[RequiresPhpExtension('pcntl')]
+    public function itPreservesTheUpstreamSuccessfulSigintStatusAfterCleanupFailure(): void
+    {
+        $process = new Process(
+            [php_binary(), package_path('tests/Testbench/Fixtures/CommanderCleanupFailure.php')],
+            cwd: package_path(),
+            env: [
+                'COMMANDER_FIXTURE_MODE' => 'signal',
+                'COMMANDER_FIXTURE_SIGNAL' => 'SIGINT',
+                'TESTBENCH_WORKING_PATH' => package_path(),
+            ],
+        );
+
+        $process->run();
+
+        $this->assertSame(0, $process->getExitCode());
+        $this->assertStringContainsString('Signal cleanup failed.', $process->getErrorOutput());
+    }
 }
 
 final class CommanderThrowableHarness extends Commander
@@ -215,5 +370,129 @@ final class CommanderThrowableHarness extends Commander
     public function renderThrowable(OutputInterface $output, Throwable $throwable): int
     {
         return $this->handleException($output, $throwable);
+    }
+}
+
+final class CommanderLifecycleHarness extends Commander
+{
+    protected const string TESTBENCH = CommanderLifecycleTestbench::class;
+
+    public ?Throwable $copyConfigurationFailure = null;
+
+    public ?Throwable $signalCleanupFailure = null;
+
+    public bool $signalsWereUnregistered = false;
+
+    public function __construct(array $config, string $workingPath, protected string $applicationBasePath)
+    {
+        parent::__construct($config, $workingPath);
+    }
+
+    public function cleanUp(): ?Throwable
+    {
+        $method = new ReflectionMethod(Commander::class, 'cleanUpCommand');
+
+        /** @var null|Throwable */
+        return $method->invoke($this);
+    }
+
+    protected function getApplicationBasePath(): string
+    {
+        return $this->applicationBasePath;
+    }
+
+    protected function copyTestbenchConfigurationFile(
+        ApplicationContract $app,
+        Filesystem $filesystem,
+        string $workingPath,
+        bool $backupExistingFile = true,
+        bool $resetOnTerminating = true,
+    ): void {
+        if ($this->copyConfigurationFailure !== null) {
+            throw $this->copyConfigurationFailure;
+        }
+    }
+
+    protected function copyTestbenchDotEnvFile(
+        ApplicationContract $app,
+        Filesystem $filesystem,
+        string $workingPath,
+        bool $backupExistingFile = true,
+        bool $resetOnTerminating = true,
+    ): void {
+    }
+
+    protected function unregisterSignals(): void
+    {
+        $this->signalsWereUnregistered = true;
+
+        if ($this->signalCleanupFailure !== null) {
+            throw $this->signalCleanupFailure;
+        }
+    }
+}
+
+class CommanderLifecycleTestbench extends TestbenchApplication
+{
+    public static ?ApplicationContract $createdApplication = null;
+
+    public static ?ApplicationContract $vendorApplication = null;
+
+    public static ?ApplicationContract $deletionApplication = null;
+
+    public static function create(
+        ?string $basePath = null,
+        ?callable $resolvingCallback = null,
+        array $options = [],
+    ): ApplicationContract {
+        return static::$createdApplication ?? throw new RuntimeException('No created application configured.');
+    }
+
+    public static function createVendorSymlink(?string $basePath, string $workingVendorPath): ApplicationContract
+    {
+        return static::$vendorApplication ?? throw new RuntimeException('No vendor application configured.');
+    }
+
+    public static function deleteVendorSymlink(?string $basePath): ApplicationContract
+    {
+        return static::$deletionApplication ?? throw new RuntimeException('No deletion application configured.');
+    }
+
+    public static function reset(): void
+    {
+        static::$createdApplication = null;
+        static::$vendorApplication = null;
+        static::$deletionApplication = null;
+    }
+}
+
+class CommanderTrackingApplication extends Application
+{
+    /** @var list<string> */
+    public array $lifecycle = [];
+
+    public function __construct(
+        protected ?Throwable $terminationFailure = null,
+        protected ?Throwable $flushFailure = null,
+    ) {
+        parent::__construct();
+    }
+
+    public function terminate(): void
+    {
+        $this->lifecycle[] = 'terminate';
+
+        if ($this->terminationFailure !== null) {
+            throw $this->terminationFailure;
+        }
+    }
+
+    public function flush(): void
+    {
+        $this->lifecycle[] = 'flush';
+
+        if ($this->flushFailure !== null) {
+            throw $this->flushFailure;
+        }
     }
 }

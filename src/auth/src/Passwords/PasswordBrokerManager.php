@@ -9,7 +9,11 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\PasswordBrokerFactory as FactoryContract;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin PasswordBrokerContract
@@ -23,6 +27,8 @@ class PasswordBrokerManager implements FactoryContract
 
     /**
      * The array of created "drivers".
+     *
+     * @var array<string, PasswordBrokerContract>
      */
     protected array $brokers = [];
 
@@ -37,8 +43,12 @@ class PasswordBrokerManager implements FactoryContract
     /**
      * Attempt to get the broker from the local cache.
      */
-    public function broker(?string $name = null): PasswordBrokerContract
+    public function broker(UnitEnum|string|null $name = null): PasswordBrokerContract
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $name ??= $this->getDefaultDriver();
 
         return $this->brokers[$name] ??= $this->resolve($name);
@@ -65,7 +75,7 @@ class PasswordBrokerManager implements FactoryContract
             $this->app->make('auth')->createUserProvider($config['provider'] ?? null),
             $name,
             $this->app->bound('events') ? $this->app->make('events') : null,
-            timeboxDuration: $this->app->make('config')->integer('auth.timebox_duration', 200000),
+            timeboxDuration: $this->app->make('config')->integer('auth.timebox_duration'),
         );
     }
 
@@ -114,8 +124,12 @@ class PasswordBrokerManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    public function resolveBrokerNameForGuard(string $guard): ?string
+    public function resolveBrokerNameForGuard(UnitEnum|string $guard): ?string
     {
+        if ($guard instanceof UnitEnum) {
+            $guard = (string) enum_value($guard);
+        }
+
         $config = $this->app->make('config');
         $key = "auth.guards.{$guard}.passwords";
 
@@ -158,9 +172,30 @@ class PasswordBrokerManager implements FactoryContract
      *
      * Uses coroutine Context so one request's override doesn't affect others.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         CoroutineContext::set(self::DEFAULT_BROKER_CONTEXT_KEY, $name);
+    }
+
+    /**
+     * Refresh the event dispatcher on resolved brokers.
+     *
+     * Boot or tests only. Replaces the dispatcher on every resolved concrete
+     * broker for the worker lifetime; per-request use races across coroutines.
+     * Reached by Event::fake() / Event::fakeFor() so cached brokers follow the
+     * active dispatcher and its later restoration.
+     */
+    public function refreshEventDispatcher(Dispatcher $events): void
+    {
+        foreach ($this->brokers as $broker) {
+            if ($broker instanceof PasswordBroker) {
+                $broker->setDispatcher($events);
+            }
+        }
     }
 
     /**

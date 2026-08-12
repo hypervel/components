@@ -14,6 +14,7 @@ class PasswordResetServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->registerPasswordBroker();
+        $this->registerEventRebindHandler();
     }
 
     /**
@@ -26,5 +27,19 @@ class PasswordResetServiceProvider extends ServiceProvider
         // bind() so the alias reflects the current coroutine's default broker.
         // The closure just asks the singleton manager for its cached broker.
         $this->app->bind('auth.password.broker', fn ($app) => $app->make('auth.password')->broker());
+    }
+
+    /**
+     * Handle the re-binding of the event dispatcher binding.
+     */
+    protected function registerEventRebindHandler(): void
+    {
+        $this->app->rebinding('events', function ($app, $dispatcher): void {
+            if (! $app->resolved('auth.password')) {
+                return;
+            }
+
+            $app->make('auth.password')->refreshEventDispatcher($dispatcher);
+        });
     }
 }

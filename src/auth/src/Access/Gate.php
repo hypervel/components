@@ -77,14 +77,14 @@ class Gate implements GateContract
     protected static array $guestMethodCache = [];
 
     /**
-     * Cached guest-access results for closures.
+     * Cached guest-access results for object callables.
      *
-     * WeakMap ensures entries disappear with the closure, preventing stale
+     * WeakMap ensures entries disappear with the object, preventing stale
      * results when object IDs are recycled during a long worker lifetime.
      *
-     * @var null|WeakMap<Closure, bool>
+     * @var null|WeakMap<object, bool>
      */
-    protected static ?WeakMap $guestClosureCache = null;
+    protected static ?WeakMap $guestCallbackCache = null;
 
     /**
      * Cached ability name to method name mappings.
@@ -472,8 +472,8 @@ class Gate implements GateContract
      */
     protected function callbackAllowsGuests(callable $callback): bool
     {
-        if ($callback instanceof Closure) {
-            $cache = static::$guestClosureCache ??= new WeakMap;
+        if (is_object($callback)) {
+            $cache = static::$guestCallbackCache ??= new WeakMap;
 
             return $cache[$callback] ??= $this->resolveCallbackAllowsGuests($callback);
         }
@@ -486,7 +486,9 @@ class Gate implements GateContract
      */
     private function resolveCallbackAllowsGuests(callable $callback): bool
     {
-        $parameters = (new ReflectionFunction($callback))->getParameters();
+        $parameters = (new ReflectionFunction(
+            Closure::fromCallable($callback)
+        ))->getParameters();
 
         return isset($parameters[0]) && $this->parameterAllowsGuests($parameters[0]);
     }
@@ -551,10 +553,14 @@ class Gate implements GateContract
      */
     protected function dispatchGateEvaluatedEvent(mixed $user, string $ability, array $arguments, bool|Response|null $result): void
     {
-        if ($this->container->bound(Dispatcher::class)) {
-            $this->container->make(Dispatcher::class)->dispatch(
-                new GateEvaluated($user, $ability, $result, $arguments)
-            );
+        if (! $this->container->bound(Dispatcher::class)) {
+            return;
+        }
+
+        $events = $this->container->make(Dispatcher::class);
+
+        if ($events->hasListeners(GateEvaluated::class)) {
+            $events->dispatch(new GateEvaluated($user, $ability, $result, $arguments));
         }
     }
 
@@ -1119,7 +1125,7 @@ class Gate implements GateContract
     {
         static::$policyClassCache = [];
         static::$guestMethodCache = [];
-        static::$guestClosureCache = new WeakMap;
+        static::$guestCallbackCache = null;
         static::$abilityMethodCache = [];
     }
 }

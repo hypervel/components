@@ -22,16 +22,25 @@ class PackageMetadataTest extends TestCase
             512,
             JSON_THROW_ON_ERROR
         );
+        $rootComposer = json_decode(
+            file_get_contents(__DIR__ . '/../../composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
 
         foreach ([
             'monolog/monolog',
+            'nesbot/carbon',
             'psr/container',
+            'psr/http-message',
             'psr/log',
             'psr/simple-cache',
+            'symfony/http-kernel',
         ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertArrayHasKey($dependency, $composer['require']);
-            $this->assertIsString($composer['require'][$dependency]);
-            $this->assertNotSame('', trim($composer['require'][$dependency]));
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
     }
 }

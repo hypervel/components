@@ -21,12 +21,6 @@ class TaskRenderer extends Renderer
         $leadPadding = str_repeat(' ', 3);
         $stableLineMaxWidth = $maxWidth - strlen($leadPadding) - 2;
 
-        if ($task->static) {
-            return (string) $this->line(" {$this->cyan($this->staticFrame)} {$this->truncate($task->label, $maxWidth)}");
-        }
-
-        $task->interval = $this->interval;
-
         $stableMessages = array_slice($task->stableMessages, -$task->maxStableMessages);
 
         if ($task->finished && $task->keepSummary && count($stableMessages) > 0) {
@@ -40,6 +34,12 @@ class TaskRenderer extends Renderer
 
             return (string) $this;
         }
+
+        if ($task->static) {
+            return (string) $this->line(" {$this->cyan($this->staticFrame)} {$this->truncate($task->label, $maxWidth)}");
+        }
+
+        $task->interval = $this->interval;
 
         $this->line(" {$this->cyan($this->spinnerFrame($task->count))} {$this->truncate($task->label, $labelMaxWidth)}");
 

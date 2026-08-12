@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Integration;
 
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
@@ -12,6 +13,7 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
+use Mockery as m;
 
 class CacheTest extends TestCase
 {
@@ -168,6 +170,32 @@ class CacheTest extends TestCase
         $this->assertQueryCount($this->cacheRunCount);
     }
 
+    public function testNoOpPermissionSyncDoesNotFlushTheCache(): void
+    {
+        $this->testUserRole->givePermissionTo($this->testUserPermission);
+        $this->registrar->getPermissions();
+
+        $this->testUserRole->syncPermissions($this->testUserPermission);
+
+        $this->resetQueryCount();
+        $this->registrar->getPermissions();
+
+        $this->assertQueryCount(0);
+    }
+
+    public function testNoOpPermissionEffectSyncDoesNotFlushTheCache(): void
+    {
+        $this->testUserRole->givePermissionTo($this->testUserPermission);
+        $this->registrar->getPermissions();
+
+        $this->testUserRole->syncPermissionEffects(allowed: [$this->testUserPermission]);
+
+        $this->resetQueryCount();
+        $this->registrar->getPermissions();
+
+        $this->assertQueryCount(0);
+    }
+
     public function testItUsesTheCacheForHasPermissionTo(): void
     {
         $this->testUserRole->givePermissionTo(['edit-articles', 'edit-news', 'Edit News']);
@@ -278,6 +306,23 @@ class CacheTest extends TestCase
         $this->resetQueryCount();
         $this->registrar->getPermissions();
         $this->assertQueryCount($this->cacheRunCount);
+    }
+
+    public function testItShowsAnErrorWhenTheCacheExistsButCannotBeFlushed(): void
+    {
+        $registrar = m::mock(PermissionRegistrar::class)->makePartial();
+        $registrar->cacheKey = $this->registrar->cacheKey;
+        $registrar->shouldReceive('forgetCachedPermissions')->once()->andReturn(false);
+
+        $cacheRepository = m::mock(Repository::class);
+        $cacheRepository->shouldReceive('has')->with($registrar->cacheKey)->andReturn(true);
+        $registrar->shouldReceive('getCacheRepository')->once()->andReturn($cacheRepository);
+
+        $this->app->instance(PermissionRegistrar::class, $registrar);
+
+        Artisan::call('permission:cache-reset');
+
+        $this->assertStringContainsString('Unable to flush cache.', Artisan::output());
     }
 
     protected function resetQueryCount(): void

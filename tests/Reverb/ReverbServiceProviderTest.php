@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb;
 
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\Logger;
 use Hypervel\Reverb\Loggers\NullLogger;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
+use Hypervel\Reverb\Protocols\Pusher\Managers\ArrayChannelManager;
 use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Log;
@@ -114,6 +116,25 @@ class ReverbServiceProviderTest extends ReverbTestCase
 
         $this->assertSame($channelManager, $this->app->make(ChannelManager::class));
         $this->assertSame($channelConnectionManager, $this->app->make(ChannelConnectionManager::class));
+    }
+
+    public function testConcreteAndContractChannelManagersShareOneRepository(): void
+    {
+        $application = $this->app->make(ApplicationProvider::class)->all()->first();
+        $manager = $this->app->make(ArrayChannelManager::class);
+        $channel = $manager->for($application)->findOrCreate('public-shared');
+
+        $this->assertSame($manager, $this->app->make(ChannelManager::class));
+        $this->assertSame($channel, $this->app->make(ChannelManager::class)->for($application)->find('public-shared'));
+    }
+
+    public function testChannelManagerBindingAfterRegistrationReplacesTheDefaultAlias(): void
+    {
+        $channelManager = m::mock(ChannelManager::class);
+
+        $this->app->instance(ChannelManager::class, $channelManager);
+
+        $this->assertSame($channelManager, $this->app->make(ChannelManager::class));
     }
 
     public function testRegistersTheDefaultLoggerOnlyWhenUnbound(): void

@@ -1,0 +1,52 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Notifications;
+
+use Hypervel\Notifications\NotificationServiceProvider;
+use Hypervel\Tests\TestCase;
+use JsonException;
+
+class PackageMetadataTest extends TestCase
+{
+    /**
+     * Ensure Notifications dependencies and discovery metadata are declared consistently.
+     *
+     * @throws JsonException
+     */
+    public function testDependenciesAndProviderAreDeclared(): void
+    {
+        $composer = json_decode(
+            file_get_contents(__DIR__ . '/../../src/notifications/composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+        $rootComposer = json_decode(
+            file_get_contents(__DIR__ . '/../../composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+
+        $this->assertSame('*', $composer['require']['ext-mbstring']);
+        $this->assertArrayHasKey('nesbot/carbon', $rootComposer['require']);
+        $this->assertArrayHasKey('nesbot/carbon', $composer['require']);
+        $this->assertSame($rootComposer['require']['nesbot/carbon'], $composer['require']['nesbot/carbon']);
+
+        foreach (['symfony/console', 'hypervel/conditionable', 'hypervel/macroable'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertIsString($composer['require'][$dependency]);
+            $this->assertNotSame('', trim($composer['require'][$dependency]));
+        }
+
+        $this->assertArrayNotHasKey('hypervel/filesystem', $composer['require']);
+        $this->assertArrayNotHasKey('hypervel/object-pool', $composer['require']);
+
+        $providers = [NotificationServiceProvider::class];
+
+        $this->assertSame($providers, $composer['extra']['hypervel']['providers']);
+        $this->assertContains(NotificationServiceProvider::class, $rootComposer['extra']['hypervel']['providers']);
+    }
+}

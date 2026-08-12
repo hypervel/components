@@ -26,7 +26,7 @@ class ViewComponentTest extends TestCase
         $this->assertSame('taylor', $variables['hello']('taylor'));
     }
 
-    public function testIgnoredMethodsAreNotExposedToViewData()
+    public function testIgnoredMethodsAreNotExposedToViewData(): void
     {
         $component = new class extends Component {
             protected array $except = ['goodbye'];
@@ -59,6 +59,18 @@ class ViewComponentTest extends TestCase
         foreach ($ignoredMethods as $method) {
             $this->assertArrayNotHasKey($method, $data);
         }
+    }
+
+    public function testFrameworkMethodsAreNotExposedToViewData(): void
+    {
+        $component = new class extends Component {
+            public function render(): ViewContract|Htmlable|Closure|string
+            {
+                return 'test';
+            }
+        };
+
+        $this->assertSame(['componentName', 'attributes'], array_keys($component->data()));
     }
 
     public function testAttributeParentInheritance(): void

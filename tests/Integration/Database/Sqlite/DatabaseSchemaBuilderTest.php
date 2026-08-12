@@ -28,7 +28,7 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
             'database.connections.sqlite-with-prefix' => [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
-                'prefix' => 'example_',
+                'prefix' => 'example-.',
                 'prefix_indexes' => false,
             ],
             'database.connections.sqlite-with-indexed-prefix' => [
@@ -40,7 +40,7 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         ]);
     }
 
-    public function testDropAllTablesWorksWithForeignKeys()
+    public function testDropAllTablesWorksWithForeignKeys(): void
     {
         Schema::create('table1', function (Blueprint $table) {
             $table->integer('id');
@@ -65,7 +65,7 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->artisan('migrate:install');
     }
 
-    public function testHasColumnAndIndexWithPrefixIndexDisabled()
+    public function testHasColumnAndIndexWithPrefixIndexDisabled(): void
     {
         $connection = DB::connection('sqlite-with-prefix');
 
@@ -79,7 +79,7 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->assertContains('table1_name_index', $indexes, 'name');
     }
 
-    public function testHasColumnAndIndexWithPrefixIndexEnabled()
+    public function testHasColumnAndIndexWithPrefixIndexEnabled(): void
     {
         $connection = DB::connection('sqlite-with-indexed-prefix');
 
@@ -93,7 +93,7 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->assertContains('example_table1_name_index', $indexes);
     }
 
-    public function testAlterTableAddForeignKeyWithPrefix()
+    public function testAlterTableAddForeignKeyWithPrefix(): void
     {
         $schema = Schema::connection('sqlite-with-prefix');
 
@@ -114,7 +114,7 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
 
         $this->assertTrue(
             $foreignKeys->contains(
-                fn ($fk) => $fk['foreign_table'] === 'example_table1'
+                fn ($fk) => $fk['foreign_table'] === 'example-.table1'
                 && $fk['foreign_columns'] === ['id']
                 && $fk['columns'] === ['author_id']
             )
@@ -122,14 +122,14 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
 
         $this->assertTrue(
             $foreignKeys->contains(
-                fn ($fk) => $fk['foreign_table'] === 'example_table1'
+                fn ($fk) => $fk['foreign_table'] === 'example-.table1'
                 && $fk['foreign_columns'] === ['id']
                 && $fk['columns'] === ['moderator_id']
             )
         );
     }
 
-    public function testAlterTableAddForeignKeyWithExpressionDefault()
+    public function testAlterTableAddForeignKeyWithExpressionDefault(): void
     {
         Schema::create('items', function (Blueprint $table) {
             $table->id();

@@ -9,8 +9,10 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Auth\User;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 class AuthEloquentUserProviderTest extends TestCase
 {
@@ -88,6 +90,49 @@ class AuthEloquentUserProviderTest extends TestCase
         $user = $provider->retrieveByToken(1, 'a');
 
         $this->assertNull($user);
+    }
+
+    public function testUpdateRememberTokenRestoresTimestampsAfterSaving(): void
+    {
+        $user = new EloquentProviderRememberUserStub;
+        $provider = new EloquentUserProvider(m::mock(Hasher::class), $user::class);
+
+        $provider->updateRememberToken($user, 'remember-token');
+
+        $this->assertFalse($user->timestampsDuringSave);
+        $this->assertTrue($user->timestamps);
+        $this->assertSame('remember-token', $user->getRememberToken());
+    }
+
+    public function testUpdateRememberTokenPreservesInitiallyDisabledTimestamps(): void
+    {
+        $user = new EloquentProviderRememberUserStub;
+        $user->timestamps = false;
+        $provider = new EloquentUserProvider(m::mock(Hasher::class), $user::class);
+
+        $provider->updateRememberToken($user, 'remember-token');
+
+        $this->assertFalse($user->timestampsDuringSave);
+        $this->assertFalse($user->timestamps);
+    }
+
+    public function testUpdateRememberTokenRestoresTimestampsAfterSaveFailure(): void
+    {
+        $exception = new RuntimeException('Save failed.');
+        $user = new EloquentProviderRememberUserStub;
+        $user->saveException = $exception;
+        $provider = new EloquentUserProvider(m::mock(Hasher::class), $user::class);
+
+        try {
+            $provider->updateRememberToken($user, 'remember-token');
+            $this->fail('The save exception was not thrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertFalse($user->timestampsDuringSave);
+        $this->assertTrue($user->timestamps);
+        $this->assertSame('remember-token', $user->getRememberToken());
     }
 
     public function testRetrieveByCredentialsReturnsUser()
@@ -248,4 +293,25 @@ class AuthEloquentUserProviderTest extends TestCase
 
 class EloquentProviderUserStub extends Model
 {
+}
+
+class EloquentProviderRememberUserStub extends User
+{
+    public bool $timestampsDuringSave = true;
+
+    public ?RuntimeException $saveException = null;
+
+    /**
+     * Capture the timestamp state and optionally fail the save.
+     */
+    public function save(array $options = []): bool
+    {
+        $this->timestampsDuringSave = $this->timestamps;
+
+        if ($this->saveException !== null) {
+            throw $this->saveException;
+        }
+
+        return true;
+    }
 }

@@ -17,9 +17,9 @@ class ObjectPoolServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(Factory::class, PoolManager::class);
+        $this->app->alias(PoolManager::class, Factory::class);
 
-        $this->app->singleton(Recycler::class, PoolRecycler::class);
+        $this->app->alias(PoolRecycler::class, Recycler::class);
     }
 
     /**

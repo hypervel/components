@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 
 use ArrayObject;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Foundation\Testing\Coroutine\Waiter;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Foundation\Testing\RequestContextSynchronizer;
 use Hypervel\Tests\TestCase;
 
@@ -25,7 +25,7 @@ class RequestContextSynchronizerTest extends TestCase
                 'foundation.testing.present',
                 'foundation.testing.missing',
             ]);
-        });
+        }, copyContext: true);
 
         $this->assertSame('new', CoroutineContext::get('foundation.testing.present'));
         $this->assertFalse(CoroutineContext::has('foundation.testing.missing'));
@@ -43,7 +43,7 @@ class RequestContextSynchronizerTest extends TestCase
                 'foundation.testing.snapshot.present',
                 'foundation.testing.snapshot.missing',
             ]);
-        });
+        }, copyContext: true);
 
         $this->assertSame('new', CoroutineContext::get('foundation.testing.snapshot.present'));
         $this->assertFalse(CoroutineContext::has('foundation.testing.snapshot.missing'));
@@ -61,7 +61,7 @@ class RequestContextSynchronizerTest extends TestCase
                 'foundation.testing.array-access.present',
                 'foundation.testing.array-access.missing',
             ]);
-        });
+        }, copyContext: true);
 
         $this->assertSame('new', CoroutineContext::get('foundation.testing.array-access.present'));
         $this->assertFalse(CoroutineContext::has('foundation.testing.array-access.missing'));

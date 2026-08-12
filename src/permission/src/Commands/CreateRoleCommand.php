@@ -25,7 +25,10 @@ class CreateRoleCommand extends Command
      */
     public function handle(PermissionRegistrar $permissionRegistrar): int
     {
-        if (! $permissionRegistrar->teams && $this->option('team-id')) {
+        $teamId = $this->option('team-id');
+        $hasTeamId = $teamId !== null && $teamId !== '';
+
+        if (! $permissionRegistrar->teams && $hasTeamId) {
             $this->warn('Teams feature disabled, argument --team-id has no effect. Either enable it in permissions config file or remove --team-id parameter');
 
             return self::SUCCESS;
@@ -36,7 +39,7 @@ class CreateRoleCommand extends Command
         $teamIdAux = getPermissionsTeamId();
 
         try {
-            setPermissionsTeamId($this->option('team-id') ?: null);
+            setPermissionsTeamId($hasTeamId ? $teamId : null);
 
             $role = $roleClass::findOrCreate((string) $this->argument('name'), is_string($guard) ? $guard : null);
         } finally {
@@ -44,7 +47,7 @@ class CreateRoleCommand extends Command
         }
 
         $teamsKey = $permissionRegistrar->teamsKey;
-        if ($permissionRegistrar->teams && $this->option('team-id') && is_null($role->{$teamsKey})) {
+        if ($permissionRegistrar->teams && $hasTeamId && is_null($role->{$teamsKey})) {
             $this->warn("Role `{$role->name}` already exists on the global team; argument --team-id has no effect");
         }
 

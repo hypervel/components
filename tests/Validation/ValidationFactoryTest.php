@@ -6,11 +6,12 @@ namespace Hypervel\Tests\Validation;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Translation\Translator as TranslatorInterface;
+use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Factory;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Validator;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 
 class ValidationFactoryTest extends TestCase
 {
@@ -144,5 +145,24 @@ class ValidationFactoryTest extends TestCase
         $this->assertNull($factory->getContainer());
 
         $this->assertSame($container, $factory->setContainer($container)->getContainer());
+    }
+
+    public function testPresenceVerifierIsNullableWhenFactoryIsConstructedDirectly(): void
+    {
+        $factory = new Factory(m::mock(TranslatorInterface::class));
+
+        $this->assertNull($factory->getPresenceVerifier());
+    }
+
+    public function testFakeDnsLookupsForwardsToValidator(): void
+    {
+        $factory = new Factory(m::mock(TranslatorInterface::class));
+        $property = new ReflectionProperty(Validator::class, 'fakeDnsLookups');
+
+        $factory->fakeDnsLookups();
+        $this->assertTrue($property->getValue());
+
+        $factory->fakeDnsLookups(false);
+        $this->assertFalse($property->getValue());
     }
 }

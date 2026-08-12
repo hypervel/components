@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Cache\Events\RetrievingKey;
+use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\Sentry\SentryTestCase;
+use Mockery as m;
+use RuntimeException;
 use Sentry\Tracing\Span;
+use Sentry\Tracing\SpanStatus;
 
 class CacheIntegrationTest extends SentryTestCase
 {
@@ -188,6 +193,63 @@ class CacheIntegrationTest extends SentryTestCase
         $this->assertEquals(['foo'], $span->getData()['cache.key']);
     }
 
+    public function testCacheGetFailureFinishesItsSpanAndRethrows(): void
+    {
+        $exception = new RuntimeException('The cache read failed.');
+        $store = m::mock(Store::class);
+        $store->shouldReceive('get')->once()->with('foo')->andThrow($exception);
+
+        $span = $this->executeFailureAndReturnMostRecentSpan(
+            fn () => $this->repository($store)->get('foo'),
+            $exception,
+        );
+
+        $this->assertSame(SpanStatus::internalError(), $span->getStatus());
+    }
+
+    public function testCacheManyFailureFinishesItsSpanAndRethrows(): void
+    {
+        $exception = new RuntimeException('The cache batch read failed.');
+        $store = m::mock(Store::class);
+        $store->shouldReceive('many')->once()->with(['foo', 'bar'])->andThrow($exception);
+
+        $span = $this->executeFailureAndReturnMostRecentSpan(
+            fn () => $this->repository($store)->many(['foo', 'bar']),
+            $exception,
+        );
+
+        $this->assertSame(SpanStatus::internalError(), $span->getStatus());
+    }
+
+    public function testCachePutFailureFinishesItsSpanAndRethrows(): void
+    {
+        $exception = new RuntimeException('The cache write failed.');
+        $store = m::mock(Store::class);
+        $store->shouldReceive('put')->once()->with('foo', 'bar', 60)->andThrow($exception);
+
+        $span = $this->executeFailureAndReturnMostRecentSpan(
+            fn () => $this->repository($store)->put('foo', 'bar', 60),
+            $exception,
+        );
+
+        $this->assertSame(SpanStatus::internalError(), $span->getStatus());
+        $this->assertFalse($span->getData()['cache.success']);
+    }
+
+    public function testCacheForgetFailureFinishesItsSpanAndRethrows(): void
+    {
+        $exception = new RuntimeException('The cache forget failed.');
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('foo')->andThrow($exception);
+
+        $span = $this->executeFailureAndReturnMostRecentSpan(
+            fn () => $this->repository($store)->forget('foo'),
+            $exception,
+        );
+
+        $this->assertSame(SpanStatus::internalError(), $span->getStatus());
+    }
+
     public function testCacheSpanReplacesSessionKeyWithPlaceholder(): void
     {
         $this->markSkippedIfTracingEventsNotAvailable();
@@ -257,5 +319,31 @@ class CacheIntegrationTest extends SentryTestCase
         $this->assertTrue(count($spans) >= 2);
 
         return array_pop($spans);
+    }
+
+    private function executeFailureAndReturnMostRecentSpan(callable $callable, RuntimeException $exception): Span
+    {
+        $transaction = $this->startTransaction();
+
+        try {
+            $callable();
+            $this->fail('Expected the cache exception to be rethrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $spans = $transaction->getSpanRecorder()->getSpans();
+
+        $this->assertCount(2, $spans);
+
+        return array_pop($spans);
+    }
+
+    private function repository(Store $store): Repository
+    {
+        $repository = new Repository($store, ['store' => 'test']);
+        $repository->setEventDispatcher($this->app->make('events'));
+
+        return $repository;
     }
 }

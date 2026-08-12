@@ -15,6 +15,7 @@ use Hypervel\Validation\InlineCheck;
 use Hypervel\Validation\RuleCompiler;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
+use Stringable;
 
 class ValidationRuleCompilerTest extends TestCase
 {
@@ -295,6 +296,38 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
     }
 
+    public function testDateWithHyphenatedFieldRefDelegates(): void
+    {
+        $plan = RuleCompiler::compile(['after:start-date']);
+
+        $this->assertCount(1, $plan->checks);
+        $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
+    }
+
+    public function testDateWithDigitLeadingFieldRefDelegates(): void
+    {
+        $plan = RuleCompiler::compile(['after:2fa-expiry']);
+
+        $this->assertCount(1, $plan->checks);
+        $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
+    }
+
+    public function testDateWithAmbiguousTimestampDelegates(): void
+    {
+        $plan = RuleCompiler::compile(['after:20250102T120000Z']);
+
+        $this->assertCount(1, $plan->checks);
+        $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
+    }
+
+    public function testDateWithEscapedDotFieldRefDelegates(): void
+    {
+        $plan = RuleCompiler::compile(['after:a\.b']);
+
+        $this->assertCount(1, $plan->checks);
+        $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0]);
+    }
+
     public function testDateWithSiblingFormatBaked()
     {
         $plan = RuleCompiler::compile(['date_format:Y-m-d', 'after:2025-01-01']);
@@ -302,6 +335,29 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertCount(2, $plan->checks);
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[1]);
         $this->assertSame('Y-m-d', $plan->checks[1]->param['format']);
+    }
+
+    public function testCastableArrayFormDateFormatsAreNormalizedForSiblingChecks(): void
+    {
+        $stringable = new class implements Stringable {
+            public function __toString(): string
+            {
+                return 'Y-m-d';
+            }
+        };
+
+        $integerPlan = RuleCompiler::compile([['date_format', 123], 'after:124']);
+        $stringablePlan = RuleCompiler::compile([['date_format', $stringable], 'after:2025-01-01']);
+
+        $this->assertSame('123', $integerPlan->checks[1]->param['format']);
+        $this->assertSame('Y-m-d', $stringablePlan->checks[1]->param['format']);
+    }
+
+    public function testMalformedArrayFormDateFormatDoesNotPoisonSiblingCompilation(): void
+    {
+        $plan = RuleCompiler::compile([['date_format', []], 'after:2025-01-01']);
+
+        $this->assertNull($plan->checks[1]->param['format']);
     }
 
     public function testDateFormatStoresAllFormats()
@@ -487,6 +543,20 @@ class ValidationRuleCompilerTest extends TestCase
         $this->assertInstanceOf(InlineCheck::class, $plan->checks[0]);
         $this->assertSame(CheckType::Digits, $plan->checks[0]->type);
         $this->assertSame(5, $plan->checks[0]->param);
+    }
+
+    public function testMalformedDigitParametersDelegateInsteadOfBeingTruncated(): void
+    {
+        foreach ([
+            'digits:2abc',
+            'digits_between:2,3.0',
+            'min_digits:2.9',
+            'max_digits:abc',
+        ] as $rule) {
+            $plan = RuleCompiler::compile([$rule]);
+
+            $this->assertInstanceOf(DelegatedCheck::class, $plan->checks[0], $rule);
+        }
     }
 
     public function testRegexInlines()

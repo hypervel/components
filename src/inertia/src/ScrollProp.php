@@ -38,6 +38,11 @@ class ScrollProp implements Deferrable, Mergeable
     protected $resolved;
 
     /**
+     * Indicates if the property value has been resolved.
+     */
+    protected bool $hasResolved = false;
+
+    /**
      * The wrapper key for the data array.
      */
     protected string $wrapper;
@@ -122,10 +127,13 @@ class ScrollProp implements Deferrable, Mergeable
      */
     public function __invoke(): mixed
     {
-        if (isset($this->resolved)) {
+        if ($this->hasResolved) {
             return $this->resolved;
         }
 
-        return $this->resolved = $this->resolveCallable($this->value);
+        $this->resolved = $this->resolveCallable($this->value);
+        $this->hasResolved = true;
+
+        return $this->resolved;
     }
 }

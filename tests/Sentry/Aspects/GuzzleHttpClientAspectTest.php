@@ -13,6 +13,8 @@ use GuzzleHttp\TransferStats;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Psr\Http\Message\RequestInterface;
+use RuntimeException;
+use Sentry\SentrySdk;
 use Sentry\Tracing\SpanStatus;
 
 class GuzzleHttpClientAspectTest extends SentryTestCase
@@ -112,6 +114,44 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $this->assertEquals(SpanStatus::internalError(), $span->getStatus());
     }
 
+    public function testHttpSpanNeverBecomesTheHubCurrentSpan(): void
+    {
+        $transaction = $this->startTransaction();
+        $observedSpan = null;
+        $client = $this->makeClient([
+            static function () use (&$observedSpan): Response {
+                $observedSpan = SentrySdk::getCurrentHub()->getSpan();
+
+                return new Response(200, [], 'OK');
+            },
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
+
+        $this->assertSame($transaction, $observedSpan);
+        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
+    }
+
+    public function testFailedTransferFinishesTheExactHttpSpan(): void
+    {
+        $transaction = $this->startTransaction();
+        $exception = new RuntimeException('Connection failed.');
+        $client = $this->makeClient([$exception]);
+
+        try {
+            $this->executeTransfer($client, new Request('GET', 'https://example.com'));
+            $this->fail('Expected the transfer to fail.');
+        } catch (RuntimeException $thrown) {
+            $this->assertSame($exception, $thrown);
+        }
+
+        $span = last($transaction->getSpanRecorder()->getSpans());
+        $this->assertSame('http.client', $span->getOp());
+        $this->assertNotNull($span->getEndTimestamp());
+        $this->assertSame(SpanStatus::internalError(), $span->getStatus());
+        $this->assertSame($transaction, SentrySdk::getCurrentHub()->getSpan());
+    }
+
     public function testSpanIsNotRecordedWhenDisabled()
     {
         $this->resetApplicationWithConfig([
@@ -154,6 +194,63 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
         $sentRequest = $mock->getLastRequest();
         $this->assertFalse($sentRequest->hasHeader('sentry-trace'));
         $this->assertFalse($sentRequest->hasHeader('baggage'));
+    }
+
+    public function testTracingHeadersAreAttachedWhenLocalRecordingIsDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.tracing.http_client_requests' => false,
+            'sentry.breadcrumbs.http_client_requests' => false,
+        ]);
+        $mock = new MockHandler([new Response(200, [], 'OK')]);
+        $client = new Client(['handler' => HandlerStack::create($mock)]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
+
+        $sentRequest = $mock->getLastRequest();
+        $this->assertTrue($sentRequest->hasHeader('sentry-trace'));
+        $this->assertTrue($sentRequest->hasHeader('baggage'));
+        $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
+    }
+
+    public function testTransferStatsCallbackIsNotWrappedWhenLocalOutputIsDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.tracing.http_client_requests' => false,
+            'sentry.breadcrumbs.http_client_requests' => false,
+        ]);
+        $observedOnStats = null;
+        $existingOnStats = static function (TransferStats $stats): void {
+        };
+        $client = $this->makeClient([
+            static function (RequestInterface $request, array $options) use (&$observedOnStats): Response {
+                $observedOnStats = $options['on_stats'] ?? null;
+
+                return new Response(200, [], 'OK');
+            },
+        ]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'), [
+            'on_stats' => $existingOnStats,
+        ]);
+
+        $this->assertSame($existingOnStats, $observedOnStats);
+    }
+
+    public function testLegacyEnableTracingOptionRecordsSpansWithoutAnExplicitSampler(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.enable_tracing' => true,
+            'sentry.traces_sample_rate' => null,
+            'sentry.breadcrumbs.http_client_requests' => false,
+        ]);
+        $transaction = $this->startTransaction();
+        $client = $this->makeClient([new Response(200, [], 'OK')]);
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com'));
+
+        $span = last($transaction->getSpanRecorder()->getSpans());
+        $this->assertSame('http.client', $span->getOp());
     }
 
     public function testPerRequestOptOut()

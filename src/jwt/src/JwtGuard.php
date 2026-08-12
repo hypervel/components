@@ -379,15 +379,15 @@ class JwtGuard implements Guard
         $user = $this->cachedUser();
         $token = $this->getToken();
 
+        if ($token && $this->jwtManager->hasBlacklistEnabled()) {
+            $this->jwtManager->invalidate($token, $forceForever);
+        }
+
         $this->forgetUser();
         $this->forgetContextState('token');
 
         if ($token) {
             CoroutineContext::forget($this->getPayloadContextKey($token));
-
-            if ($this->jwtManager->hasBlacklistEnabled()) {
-                $this->jwtManager->invalidate($token, $forceForever);
-            }
         }
 
         $this->fireLogoutEvent($user);

@@ -12,7 +12,7 @@ use Sentry\State\HubInterface;
  * @method static \Sentry\EventId|null getLastEventId()
  * @method static \Sentry\State\Scope pushScope()
  * @method static bool popScope()
- * @method static mixed|void withScope(callable $callback)
+ * @method static mixed withScope(callable $callback)
  * @method static void configureScope(callable $callback)
  * @method static void bindClient(\Sentry\ClientInterface $client)
  * @method static \Sentry\EventId|null captureMessage(string $message, \Sentry\Severity|null $level = null, \Sentry\EventHint|null $hint = null)

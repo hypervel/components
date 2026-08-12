@@ -7,7 +7,6 @@ namespace Hypervel\Sentry\Tracing;
 use Closure;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
-use Hypervel\Sentry\Integration;
 use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Sentry\Tracing\Span;
@@ -48,6 +47,14 @@ class Middleware
     private bool $didRouteMatch = false;
 
     /**
+     * Create a new tracing middleware instance.
+     */
+    public function __construct(
+        private readonly bool $continueAfterResponse = true,
+    ) {
+    }
+
+    /**
      * Handle an incoming request.
      */
     public function handle(Request $request, Closure $next): Response
@@ -62,10 +69,8 @@ class Middleware
     /**
      * Perform cleanup after the response has been sent.
      *
-     * The transaction is not finished here — it stays open to capture spans
-     * created by after-response work (e.g. dispatchAfterResponse). A
-     * Coroutine::defer() registered in startTransaction() finishes the
-     * transaction when the coroutine exits, after all deferred work completes.
+     * When after-response tracing is enabled, a Coroutine::defer() registered
+     * in startTransaction() finishes the transaction after deferred work.
      */
     public function terminate(Request $request, Response $response): void
     {
@@ -85,6 +90,10 @@ class Middleware
         }
 
         $this->hydrateResponseData($response);
+
+        if (! $this->continueAfterResponse) {
+            $this->finishTransaction();
+        }
     }
 
     /**
@@ -135,23 +144,21 @@ class Middleware
     private function startTransaction(Request $request): void
     {
         $hub = SentrySdk::getCurrentHub();
+        $client = $hub->getClient();
 
         // Prevent starting a new transaction if we are already in a transaction
         if ($hub->getTransaction() !== null) {
             return;
         }
 
-        $requestStartTime = $request->server(
-            'REQUEST_TIME_FLOAT',
-            defined('HYPERVEL_START')
-                ? HYPERVEL_START
-                : microtime(true)
-        );
-
         $context = continueTrace(
             $request->header('sentry-trace', ''),
             $request->header('baggage', '')
         );
+
+        if ($client === null || ! $client->getOptions()->isTracingEnabled()) {
+            return;
+        }
 
         $requestPath = '/' . ltrim($request->path(), '/');
 
@@ -159,7 +166,9 @@ class Middleware
         $context->setName($requestPath);
         $context->setOrigin('auto.http.server');
         $context->setSource(TransactionSource::url());
-        $context->setStartTimestamp($requestStartTime);
+        $context->setStartTimestamp(
+            $request->startedAt()->getPreciseTimestamp(6) / 1_000_000
+        );
 
         $context->setData([
             'url' => $requestPath,
@@ -177,14 +186,13 @@ class Middleware
 
         $this->transaction = $transaction;
 
-        // Register a coroutine defer to finish the transaction when the coroutine exits.
-        // Since defers run in LIFO order, this early registration ensures the transaction
-        // finishes LAST — after all dispatchAfterResponse() work and other deferred callbacks
-        // have completed, capturing their spans on the transaction.
-        Coroutine::defer(function () {
-            $this->finishTransaction();
-            Integration::flushEvents();
-        });
+        if ($this->continueAfterResponse) {
+            // This runs before the earlier outer flush defer and after later
+            // after-response work because coroutine defers are LIFO.
+            Coroutine::defer(function (): void {
+                $this->finishTransaction();
+            });
+        }
 
         $bootstrapSpan = $this->addAppBootstrapSpan();
 

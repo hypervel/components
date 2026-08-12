@@ -62,4 +62,28 @@ class JsonSchemaTypeFactory extends JsonSchema implements JsonSchemaContract
     {
         return new Types\BooleanType;
     }
+
+    /**
+     * Create a new multi-type union instance.
+     *
+     * @param array<int, string> $types
+     */
+    public function union(array $types): Types\UnionType
+    {
+        return new Types\UnionType($types);
+    }
+
+    /**
+     * Create a new anyOf schema instance.
+     *
+     * @param array<int, Types\Type>|(Closure(JsonSchemaTypeFactory): array<int, Types\Type>) $schemas
+     */
+    public function anyOf(Closure|array $schemas): Types\AnyOfType
+    {
+        if ($schemas instanceof Closure) {
+            $schemas = $schemas($this);
+        }
+
+        return new Types\AnyOfType($schemas);
+    }
 }

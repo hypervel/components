@@ -9,6 +9,8 @@ use Hypervel\Database\Eloquent\Attributes\Fillable;
 use Hypervel\Database\Eloquent\Attributes\Guarded;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Unguarded;
+use Hypervel\Database\Eloquent\Model;
+use ReflectionClass;
 
 trait GuardsAttributes
 {
@@ -34,20 +36,109 @@ trait GuardsAttributes
     protected static array $guardableColumns = [];
 
     /**
+     * The resolved guard configuration for each model class.
+     *
+     * @var array<class-string, array{guarded: null|array<int, string>, propertyDefault: array<int, string>}>
+     */
+    protected static array $guardConfigurations = [];
+
+    /**
      * Initialize the GuardsAttributes trait.
      */
     #[Initialize]
     public function initializeGuardsAttributes(): void
     {
+        if ($this->modelClassAttributesInitialized) {
+            return;
+        }
+
         $this->mergeFillable(static::resolveClassAttribute(Fillable::class, 'columns') ?? []);
 
-        if ($this->guarded === ['*']) {
-            if (static::resolveClassAttribute(Unguarded::class) !== null) {
-                $this->guarded = [];
-            } else {
-                $this->guarded = static::resolveClassAttribute(Guarded::class, 'columns') ?? ['*'];
-            }
+        $configuration = static::guardConfiguration();
+
+        // A subclass constructor may intentionally configure guarding before
+        // calling the model constructor. Class metadata must not replace it.
+        if ($configuration['guarded'] !== null
+            && $this->guarded === $configuration['propertyDefault']) {
+            $this->guarded = $configuration['guarded'];
         }
+    }
+
+    /**
+     * Resolve the nearest guard configuration for the model class.
+     *
+     * @return array{guarded: null|array<int, string>, propertyDefault: array<int, string>}
+     */
+    protected static function guardConfiguration(): array
+    {
+        $class = static::class;
+
+        if (isset(static::$guardConfigurations[$class])) {
+            return static::$guardConfigurations[$class];
+        }
+
+        $reflection = new ReflectionClass($class);
+        $propertyDeclarer = static::classPropertyDeclarer('guarded');
+        $propertyDefault = $reflection->getDefaultProperties()['guarded'];
+        $guarded = null;
+
+        do {
+            $reflectionClass = $reflection->getName();
+
+            // The framework Model's trait default is the fallback, not a user
+            // declaration that should mask attributes on application models.
+            if ($reflectionClass === $propertyDeclarer && $reflectionClass !== Model::class) {
+                break;
+            }
+
+            $guardedAttributes = $reflection->getAttributes(Guarded::class);
+            $unguardedAttributes = $reflection->getAttributes(Unguarded::class);
+
+            if ($guardedAttributes !== []) {
+                $guarded = $guardedAttributes[0]->newInstance()->columns;
+                break;
+            }
+
+            if ($unguardedAttributes !== []) {
+                $guarded = [];
+                break;
+            }
+
+            $guarded = static::guardConfigurationFromTraits($reflection->getTraits());
+
+            if ($guarded !== null) {
+                break;
+            }
+        } while ($reflection = $reflection->getParentClass());
+
+        return static::$guardConfigurations[$class] = [
+            'guarded' => $guarded,
+            'propertyDefault' => $propertyDefault,
+        ];
+    }
+
+    /**
+     * Resolve guard configuration declared by traits at one class level.
+     *
+     * @param array<class-string, ReflectionClass<object>> $traits
+     * @return null|array<int, string>
+     */
+    protected static function guardConfigurationFromTraits(array $traits): ?array
+    {
+        $unguarded = false;
+
+        foreach ($traits as $trait) {
+            $guardedAttributes = $trait->getAttributes(Guarded::class);
+
+            if ($guardedAttributes !== []) {
+                return $guardedAttributes[0]->newInstance()->columns;
+            }
+
+            $unguarded = $unguarded
+                || $trait->getAttributes(Unguarded::class) !== [];
+        }
+
+        return $unguarded ? [] : null;
     }
 
     /**
@@ -189,7 +280,7 @@ trait GuardsAttributes
         // If the key is in the "fillable" array, we can of course assume that it's
         // a fillable attribute. Otherwise, we will check the guarded array when
         // we need to determine if the attribute is black-listed on the model.
-        if (in_array($key, $this->getFillable())) {
+        if (in_array($key, $this->getFillable(), true)) {
             return true;
         }
 
@@ -214,7 +305,7 @@ trait GuardsAttributes
             return false;
         }
 
-        return $this->getGuarded() == ['*']
+        return $this->getGuarded() === ['*']
                || ! empty(preg_grep('/^' . preg_quote($key, '/') . '$/i', $this->getGuarded()))
                || ! $this->isGuardableColumn($key);
     }
@@ -240,7 +331,7 @@ trait GuardsAttributes
             static::$guardableColumns[get_class($this)] = $columns;
         }
 
-        return in_array($key, static::$guardableColumns[get_class($this)]);
+        return in_array($key, static::$guardableColumns[get_class($this)], true);
     }
 
     /**
@@ -248,7 +339,7 @@ trait GuardsAttributes
      */
     public function totallyGuarded(): bool
     {
-        return count($this->getFillable()) === 0 && $this->getGuarded() == ['*'];
+        return count($this->getFillable()) === 0 && $this->getGuarded() === ['*'];
     }
 
     /**

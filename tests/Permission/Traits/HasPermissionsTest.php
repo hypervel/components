@@ -6,12 +6,15 @@ namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Events\PermissionAttachedEvent;
 use Hypervel\Permission\Events\PermissionDetachedEvent;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
+use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
@@ -28,6 +31,13 @@ class HasPermissionsTest extends TestCase
         $this->testUser->givePermissionTo($this->testUserPermission);
 
         $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
+    }
+
+    public function testItCanCheckAPermissionByItsId(): void
+    {
+        $this->testUser->givePermissionTo($this->testUserPermission);
+
+        $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission->getKey()));
     }
 
     public function testItCanAssignAPermissionToAUserWithANonDefaultGuard(): void
@@ -72,6 +82,14 @@ class HasPermissionsTest extends TestCase
         $this->testUser->revokePermissionTo($this->testUserPermission);
 
         $this->assertFalse($this->testUser->hasPermissionTo($this->testUserPermission));
+    }
+
+    public function testItSilentlyIgnoresValuesThatCannotBeResolvedToAPermission(): void
+    {
+        $this->testUser->givePermissionTo(['edit-articles', true]);
+
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertCount(1, $this->testUser->permissions);
     }
 
     public function testItCanAssignAndRemoveAPermissionUsingEnums(): void
@@ -490,6 +508,56 @@ class HasPermissionsTest extends TestCase
             ['edit-articles', 'edit-news'],
             $this->testUser->getPermissionsViaRoles()->pluck('name')->sort()->values()->all(),
         );
+    }
+
+    public function testViaRolePermissionPivotsAreCompleteAndDoNotAliasTheCatalog(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUserRole->denyPermissionTo('edit-news');
+        $this->testUser->assignRole('testRole');
+
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $catalogPermission = $registrar->getPermissions(['name' => 'edit-articles'], true)->firstOrFail();
+        $catalogRole = $catalogPermission->getRelation('roles')->sole();
+        $catalogPivot = $catalogRole->getRelation('pivot');
+        $liveCatalogPivot = $this->testUserPermission->roles()->firstOrFail()->getRelation('pivot');
+
+        $this->assertInstanceOf(Pivot::class, $catalogPivot);
+        $this->assertInstanceOf(Pivot::class, $liveCatalogPivot);
+        $this->assertSame($registrar->pivotPermission, $catalogPivot->getForeignKey());
+        $this->assertSame($registrar->pivotRole, $catalogPivot->getRelatedKey());
+        $this->assertSame(
+            (new ClassInvoker($liveCatalogPivot))->getDeleteQuery()->toSql(),
+            (new ClassInvoker($catalogPivot))->getDeleteQuery()->toSql(),
+        );
+        $this->assertSame(
+            (new ClassInvoker($liveCatalogPivot))->getDeleteQuery()->getBindings(),
+            (new ClassInvoker($catalogPivot))->getDeleteQuery()->getBindings(),
+        );
+
+        $viaPermission = $this->testUser->getPermissionsViaRoles()->firstWhere('name', 'edit-articles');
+        $this->assertInstanceOf(Model::class, $viaPermission);
+        $viaPivot = $viaPermission->getRelation('pivot');
+        $liveViaPivot = $this->testUserRole->permissions()->firstOrFail()->getRelation('pivot');
+
+        $this->assertInstanceOf(Pivot::class, $viaPivot);
+        $this->assertInstanceOf(Pivot::class, $liveViaPivot);
+        $this->assertNotSame($catalogPivot, $viaPivot);
+        $this->assertSame($registrar->pivotRole, $viaPivot->getForeignKey());
+        $this->assertSame($registrar->pivotPermission, $viaPivot->getRelatedKey());
+        $this->assertSame(
+            (new ClassInvoker($liveViaPivot))->getDeleteQuery()->toSql(),
+            (new ClassInvoker($viaPivot))->getDeleteQuery()->toSql(),
+        );
+        $this->assertSame(
+            (new ClassInvoker($liveViaPivot))->getDeleteQuery()->getBindings(),
+            (new ClassInvoker($viaPivot))->getDeleteQuery()->getBindings(),
+        );
+
+        $viaPivot->setAttribute('is_denied', true);
+
+        $this->assertFalse((bool) $catalogPivot->getAttribute('is_denied'));
+        $this->assertFalse($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
     }
 
     public function testItCanListAllTheCoupledPermissionsBothDirectlyAndViaRoles(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
@@ -170,6 +171,88 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertSame(['title' => 'Ms.'], $model->getPrevious());
     }
 
+    public function testGetDirtyUsesOverriddenAttributesAccessor(): void
+    {
+        $model = new TestOverriddenAttributesUpdateModel;
+        $model->setRawAttributes(['name' => 'Taylor'], true);
+        $model->name = 'Abigail';
+        TestOverriddenAttributesUpdateModel::$getAttributesCalls = 0;
+
+        $this->assertSame(['name' => 'Abigail'], $model->getDirty());
+        $this->assertSame(1, TestOverriddenAttributesUpdateModel::$getAttributesCalls);
+    }
+
+    public function testSaveRetainsAllLogicalChangesWhenUpdateValuesAreFiltered(): void
+    {
+        $model = TestSelectiveUpdateModel::create([
+            'name' => 'Taylor',
+            'title' => 'Ms.',
+        ]);
+
+        $model->name = 'Abigail';
+        $model->title = 'Dr.';
+        $model->save();
+
+        $stored = TestSelectiveUpdateModel::query()->findOrFail($model->getKey());
+
+        $this->assertSame('Taylor', $stored->name);
+        $this->assertSame('Dr.', $stored->title);
+        $this->assertSame(['name' => 'Abigail', 'title' => 'Dr.'], $model->getChanges());
+        $this->assertSame(['name' => 'Taylor', 'title' => 'Ms.'], $model->getPrevious());
+    }
+
+    public function testSaveRetainsLogicalValuesWhenUpdateValuesAreTransformed(): void
+    {
+        $model = TestTransformedUpdateModel::create([
+            'name' => 'Taylor',
+            'title' => 'Ms.',
+        ]);
+
+        $model->title = 'Dr.';
+        $model->save();
+
+        $stored = TestTransformedUpdateModel::query()->findOrFail($model->getKey());
+
+        $this->assertSame('stored:Dr.', $stored->title);
+        $this->assertSame('Dr.', $model->title);
+        $this->assertSame(['title' => 'Dr.'], $model->getChanges());
+        $this->assertSame(['title' => 'Ms.'], $model->getPrevious());
+    }
+
+    public function testSaveDoesNotRecomputeChangedCastValuesBeforeUpdatedEvent(): void
+    {
+        $model = TestCountingUpdateModel::create([
+            'name' => 'Taylor',
+            'title' => new TestUpdateValue('Ms.'),
+        ])->fresh();
+
+        $model->title = new TestUpdateValue('Dr.');
+        TestCountingUpdateCast::$setCalls = 0;
+        TestCountingUpdateModel::$setCallsAfterDirty = 0;
+        $updatedState = null;
+
+        TestCountingUpdateModel::updated(function (TestCountingUpdateModel $updated) use (&$updatedState): void {
+            $updatedState = [
+                'changes' => $updated->getChanges(),
+                'raw' => $updated->rawTitle(),
+                'set_calls_after_dirty' => TestCountingUpdateModel::$setCallsAfterDirty,
+                'set_calls' => TestCountingUpdateCast::$setCalls,
+                'stored' => $updated->newQuery()
+                    ->whereKey($updated->getKey())
+                    ->toBase()
+                    ->value('title'),
+            ];
+        });
+
+        $model->save();
+
+        // Equality alone would pass without exercising the update cast at all.
+        $this->assertGreaterThan(0, $updatedState['set_calls_after_dirty']);
+        $this->assertSame($updatedState['set_calls_after_dirty'], $updatedState['set_calls']);
+        $this->assertSame($updatedState['stored'], $updatedState['raw']);
+        $this->assertSame(['title' => $updatedState['stored']], $updatedState['changes']);
+    }
+
     public function testIncrementSyncsPrevious()
     {
         $model = TestUpdateModel3::create([
@@ -211,4 +294,122 @@ class TestUpdateModel3 extends Model
     protected array $fillable = ['counter'];
 
     protected array $casts = ['deleted_at' => 'datetime'];
+}
+
+class TestSelectiveUpdateModel extends TestUpdateModel1
+{
+    /**
+     * Get the attributes that should be updated.
+     *
+     * @return array<string, mixed>
+     */
+    protected function getDirtyForUpdate(): array
+    {
+        return array_intersect_key(parent::getDirtyForUpdate(), ['title' => true]);
+    }
+}
+
+class TestOverriddenAttributesUpdateModel extends TestUpdateModel1
+{
+    public static int $getAttributesCalls = 0;
+
+    /**
+     * Get all of the current attributes on the model.
+     *
+     * @return array<string, mixed>
+     */
+    public function getAttributes(): array
+    {
+        ++static::$getAttributesCalls;
+
+        return parent::getAttributes();
+    }
+}
+
+class TestTransformedUpdateModel extends TestUpdateModel1
+{
+    /**
+     * Get the attributes that should be updated.
+     *
+     * @return array<string, mixed>
+     */
+    protected function getDirtyForUpdate(): array
+    {
+        $dirty = parent::getDirtyForUpdate();
+
+        if (array_key_exists('title', $dirty)) {
+            $dirty['title'] = 'stored:' . $dirty['title'];
+        }
+
+        return $dirty;
+    }
+}
+
+class TestCountingUpdateModel extends TestUpdateModel1
+{
+    public static int $setCallsAfterDirty = 0;
+
+    protected array $casts = [
+        'title' => TestCountingUpdateCast::class,
+    ];
+
+    /**
+     * Get the attributes that should be updated.
+     *
+     * @return array<string, mixed>
+     */
+    protected function getDirtyForUpdate(): array
+    {
+        $dirty = parent::getDirtyForUpdate();
+        static::$setCallsAfterDirty = TestCountingUpdateCast::$setCalls;
+
+        return $dirty;
+    }
+
+    /**
+     * Get the raw title without merging cached casts.
+     */
+    public function rawTitle(): ?string
+    {
+        return $this->attributes['title'] ?? null;
+    }
+}
+
+/** @implements CastsAttributes<TestUpdateValue, TestUpdateValue> */
+class TestCountingUpdateCast implements CastsAttributes
+{
+    public static int $setCalls = 0;
+
+    /**
+     * Transform the stored title.
+     *
+     * @param array<string, mixed> $attributes
+     */
+    public function get(Model $model, string $key, mixed $value, array $attributes): ?TestUpdateValue
+    {
+        return $value === null
+            ? null
+            : new TestUpdateValue(explode(':', $value, 2)[0]);
+    }
+
+    /**
+     * Transform the title for storage.
+     *
+     * @param array<string, mixed> $attributes
+     */
+    public function set(Model $model, string $key, mixed $value, array $attributes): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return $value->value . ':' . ++self::$setCalls;
+    }
+}
+
+class TestUpdateValue
+{
+    public function __construct(public string $value)
+    {
+    }
 }

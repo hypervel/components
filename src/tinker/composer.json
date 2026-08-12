@@ -38,6 +38,7 @@
         "hypervel/foundation": "^0.4",
         "hypervel/support": "^0.4",
         "psy/psysh": "^0.12.22",
+        "symfony/console": "^8.1",
         "symfony/var-dumper": "^8.1"
     },
     "suggest": {

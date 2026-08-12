@@ -24,12 +24,16 @@ class PlainTextOnlyTextObject implements ObjectContract
      */
     public function __construct(string $text, int $maxLength = 3000, int $minLength = 1)
     {
-        if (strlen($text) < $minLength) {
+        if (mb_strlen($text, 'UTF-8') < $minLength) {
             throw new InvalidArgumentException('Text must be at least ' . $minLength . ' character(s) long.');
         }
 
-        if (strlen($text) > $maxLength) {
-            $text = substr($text, 0, $maxLength - 3) . '...';
+        if (mb_strlen($text, 'UTF-8') > $maxLength) {
+            if (! mb_check_encoding($text, 'UTF-8')) {
+                throw new InvalidArgumentException('Text must be valid UTF-8.');
+            }
+
+            $text = mb_substr($text, 0, $maxLength - 3, 'UTF-8') . '...';
         }
 
         $this->text = $text;

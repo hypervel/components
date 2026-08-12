@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Validation\ValidationBatchDatabaseCheckerTest;
 
 use Closure;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
@@ -13,7 +15,10 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\BatchDatabaseChecker;
+use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\PrecomputedPresenceVerifier;
+use Hypervel\Validation\Rules\Exists;
+use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\Validator;
 use RuntimeException;
 
@@ -36,12 +41,15 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         ]);
     }
 
-    public function testBuildVerifierReturnsNullWhenNoLookups()
+    public function testBuildVerifierReturnsNullWhenNoLookups(): void
     {
-        $this->assertNull(BatchDatabaseChecker::buildVerifier([], null));
+        $presenceVerifier = $this->app->make('validation.presence');
+        $this->assertInstanceOf(DatabasePresenceVerifier::class, $presenceVerifier);
+
+        $this->assertNull(BatchDatabaseChecker::buildVerifier([], $presenceVerifier));
     }
 
-    public function testDistinctCountSemanticsForArrayValuedExists()
+    public function testDistinctCountSemanticsForArrayValuedExists(): void
     {
         $verifier = new PrecomputedPresenceVerifier;
         $verifier->addLookup('batch_test_users', 'email', ['user1@example.com']);
@@ -57,7 +65,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
 
     // ─── End-to-end validator tests ──────────────────────────────────────
 
-    public function testBatchingActivatesEndToEndForStringFormExists()
+    public function testBatchingActivatesEndToEndForStringFormExists(): void
     {
         $data = ['items' => []];
         for ($i = 0; $i < 10; ++$i) {
@@ -69,9 +77,13 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         ]);
 
         DB::enableQueryLog();
-        $result = $validator->passes();
-        $queryLog = DB::getQueryLog();
-        DB::disableQueryLog();
+
+        try {
+            $result = $validator->passes();
+            $queryLog = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
 
         $this->assertTrue($result);
 
@@ -82,7 +94,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertLessThanOrEqual(2, count($existsQueries), 'Batching should collapse N exists queries into 1-2 batch queries');
     }
 
-    public function testBatchingProducesCorrectPassFailResults()
+    public function testBatchingProducesCorrectPassFailResults(): void
     {
         $validator = $this->makeValidator(
             ['items' => [
@@ -99,7 +111,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertFalse($validator->errors()->has('items.2.email'));
     }
 
-    public function testOriginalPresenceVerifierIsRestoredAfterExceptionDuringBatchedValidation()
+    public function testOriginalPresenceVerifierIsRestoredAfterExceptionDuringBatchedValidation(): void
     {
         $validator = $this->makeValidator(
             [
@@ -126,7 +138,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertSame($originalVerifier, $validator->getPresenceVerifier());
     }
 
-    public function testDifferentWildcardQueryShapesOnSameTableColumnFallBackToRealVerifier()
+    public function testDifferentWildcardQueryShapesOnSameTableColumnFallBackToRealVerifier(): void
     {
         $validator = $this->makeValidator(
             ['items' => [
@@ -144,7 +156,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testNonWildcardRuleBlocksBatchingForSameTableColumn()
+    public function testNonWildcardRuleBlocksBatchingForSameTableColumn(): void
     {
         $validator = $this->makeValidator(
             [
@@ -163,7 +175,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testArrayFormExistsRuleWithExtraConditionsBlocksBatchingForSameTableColumn()
+    public function testArrayFormExistsRuleWithExtraConditionsBlocksBatchingForSameTableColumn(): void
     {
         $validator = $this->makeValidator(
             [
@@ -185,7 +197,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertFalse($validator->errors()->has('items.1.email'));
     }
 
-    public function testFieldReferenceIgnoreIsNotBatched()
+    public function testFieldReferenceIgnoreIsNotBatched(): void
     {
         $validator = $this->makeValidator(
             ['items' => [
@@ -201,7 +213,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testModelClassRuleResolvesCorrectly()
+    public function testModelClassRuleResolvesCorrectly(): void
     {
         $validator = $this->makeValidator(
             ['items' => [
@@ -214,9 +226,9 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testObjectFormExistsRulesBatchCorrectly()
+    public function testObjectFormExistsRulesBatchCorrectly(): void
     {
-        $rule = new \Hypervel\Validation\Rules\Exists('batch_test_users', 'email');
+        $rule = new Exists('batch_test_users', 'email');
 
         $validator = $this->makeValidator(
             ['items' => [
@@ -229,9 +241,9 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testObjectFormUniqueRuleWithIgnoreBatchesCorrectly()
+    public function testObjectFormUniqueRuleWithIgnoreBatchesCorrectly(): void
     {
-        $rule = (new \Hypervel\Validation\Rules\Unique('batch_test_users', 'email'))
+        $rule = (new Unique('batch_test_users', 'email'))
             ->ignore(1, 'id');
 
         $validator = $this->makeValidator(
@@ -249,7 +261,45 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertFalse($validator->errors()->has('items.2.email'));
     }
 
-    public function testArrayFormExistsRuleBlocksBatchingForSameTableColumn()
+    public function testStringFormUniqueRuleUnescapesIgnoredValueBeforeBatching(): void
+    {
+        $email = 'slash\id@example.com';
+
+        $this->app->make('db')->table('batch_test_users')->insert([
+            'email' => $email,
+            'status' => 'active',
+        ]);
+
+        $rule = (string) (new Unique('batch_test_users', 'email'))
+            ->ignore($email, 'email');
+
+        $validator = $this->makeValidator(
+            ['items' => [
+                ['email' => $email],
+                ['email' => 'new@example.com'],
+            ]],
+            ['items.*.email' => ['required', $rule]],
+        );
+
+        DB::enableQueryLog();
+
+        try {
+            $result = $validator->passes();
+            $queryLog = DB::getQueryLog();
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        $this->assertTrue($result);
+
+        $uniqueQueries = array_filter($queryLog, function ($entry) {
+            return str_contains($entry['query'], 'batch_test_users');
+        });
+
+        $this->assertCount(1, $uniqueQueries);
+    }
+
+    public function testArrayFormExistsRuleBlocksBatchingForSameTableColumn(): void
     {
         $validator = $this->makeValidator(
             [
@@ -268,7 +318,7 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testNonBatchableStringWildcardRuleDoesNotCorruptResults()
+    public function testNonBatchableStringWildcardRuleDoesNotCorruptResults(): void
     {
         $validator = $this->makeValidator(
             ['items' => [
@@ -287,9 +337,9 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testObjectFormExistsWithInferredColumnAndDifferentShapeBlocksBatchingForSameTableColumn()
+    public function testObjectFormExistsWithInferredColumnAndDifferentShapeBlocksBatchingForSameTableColumn(): void
     {
-        $rule = (new \Hypervel\Validation\Rules\Exists('batch_test_users'))
+        $rule = (new Exists('batch_test_users'))
             ->where('status', 'active');
 
         $validator = $this->makeValidator(
@@ -310,6 +360,56 @@ class ValidationBatchDatabaseCheckerTest extends DatabaseTestCase
         $this->assertTrue($validator->errors()->has('email'));
         $this->assertFalse($validator->errors()->has('items.0.email'));
         $this->assertFalse($validator->errors()->has('items.1.email'));
+    }
+
+    public function testArrayValuedExistsRulesBatchOneDimensionalValues(): void
+    {
+        $validator = $this->makeValidator(
+            ['items' => [
+                ['emails' => ['user1@example.com', 'user2@example.com', 'user1@example.com']],
+                ['emails' => ['user3@example.com', 'missing@example.com']],
+            ]],
+            ['items.*.emails' => ['required', 'array', 'exists:batch_test_users,email']],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertFalse($validator->errors()->has('items.0.emails'));
+        $this->assertTrue($validator->errors()->has('items.1.emails'));
+    }
+
+    public function testValidatorAwareMutationDisablesPresencePrecomputation(): void
+    {
+        $validator = $this->makeValidator(
+            ['items' => [['email' => 'user1@example.com']]],
+            ['items.*.email' => [
+                new class implements Rule, ValidatorAwareRule {
+                    private Validator $validator;
+
+                    public function setValidator(Validator $validator): static
+                    {
+                        $this->validator = $validator;
+
+                        return $this;
+                    }
+
+                    public function passes(string $attribute, mixed $value): bool
+                    {
+                        $this->validator->setValue($attribute, 'user2@example.com');
+
+                        return true;
+                    }
+
+                    public function message(): string
+                    {
+                        return 'The value could not be prepared.';
+                    }
+                },
+                'unique:batch_test_users,email',
+            ]],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('items.0.email'));
     }
 
     private function makeValidator(array $data, array $rules): Validator

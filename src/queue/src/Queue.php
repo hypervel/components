@@ -27,6 +27,7 @@ use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Context;
@@ -58,7 +59,7 @@ abstract class Queue
     protected array $config = [];
 
     /**
-     * Indicates that jobs should be dispatched after all database transactions have committed.
+     * Indicates that jobs should be dispatched after the open parent database transactions have committed.
      */
     protected bool $dispatchAfterCommit = false;
 
@@ -389,13 +390,40 @@ abstract class Queue
     {
         $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);
 
-        return tap($callback($this, $payload, $queue, $delay), function ($jobId) use ($queue, $job, $payload, $delay) {
-            $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
-        });
+        try {
+            $jobId = $callback($this, $payload, $queue, $delay);
+        } catch (Throwable $exception) {
+            $this->raiseJobQueueingFailedEvent($queue, $job, $payload, $delay, $exception);
+
+            throw $exception;
+        }
+
+        $this->raiseJobQueuedEvent($queue, $jobId, $job, $payload, $delay);
+
+        return $jobId;
     }
 
     /**
-     * Determine if the job should be dispatched after all database transactions have committed.
+     * Partition jobs by whether they should be deferred until the active transaction commits.
+     *
+     * @return array{0: array, 1: array}
+     */
+    protected function partitionJobsByAfterCommit(
+        array $jobs,
+        ?DatabaseTransactionsManager $transactions
+    ): array {
+        if ($transactions === null || $transactions->callbackApplicableTransactions()->isEmpty()) {
+            return [[], $jobs];
+        }
+
+        return Collection::make($jobs)
+            ->partition(fn ($job) => $this->shouldDispatchAfterCommit($job))
+            ->map(fn ($partition) => $partition->values()->all())
+            ->all();
+    }
+
+    /**
+     * Determine if the job should be dispatched after the open parent database transactions have committed.
      *
      * @param Closure|object|string $job
      */
@@ -462,6 +490,27 @@ abstract class Queue
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
             $events->dispatch(new JobQueueing($this->connectionName, $queue, $job, $payload, $delay));
+        }
+    }
+
+    /**
+     * Raise the job queueing failed event.
+     *
+     * @param Closure|object|string $job
+     */
+    protected function raiseJobQueueingFailedEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay, Throwable $exception): void
+    {
+        if ($this->container->bound('events')) {
+            /** @var EventDispatcher $events */
+            $events = $this->container->make('events');
+
+            if (! $events->hasListeners(JobQueueingFailed::class)) {
+                return;
+            }
+
+            $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
+
+            $events->dispatch(new JobQueueingFailed($this->connectionName, $queue, $job, $payload, $delay, $exception));
         }
     }
 

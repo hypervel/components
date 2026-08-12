@@ -27,7 +27,6 @@ class JobEncryptionTest extends QueueTestCase
 
         $app['config']->set('app.key', Str::random(32));
         $app['config']->set('queue.default', 'database');
-        $this->driver = 'database';
     }
 
     #[Override]

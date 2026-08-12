@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Protocols\Pusher;
 
-use Hypervel\Cache\RateLimiter;
+use Hypervel\RateLimiter\Limit;
+use Hypervel\RateLimiter\Limiter;
 use Hypervel\Reverb\Contracts\Connection;
 use Hypervel\Reverb\Events\ConnectionClosed;
 use Hypervel\Reverb\Events\ConnectionEstablished;
@@ -25,16 +26,12 @@ use Throwable;
 class Server
 {
     /**
-     * Cached rate limiter instance.
-     */
-    protected ?RateLimiter $rateLimiter = null;
-
-    /**
      * Create a new server instance.
      */
     public function __construct(
         protected ChannelManager $channels,
         protected EventHandler $handler,
+        protected Limiter $messageRateLimiter,
     ) {
     }
 
@@ -140,7 +137,19 @@ class Server
                 MessageReceived::dispatch($from, $message);
             }
         } catch (Throwable $e) {
-            $this->error($from, $e);
+            $terminateOnLimit = $e instanceof RateLimitExceeded
+                && ($from->app()->rateLimiting()['terminate_on_limit'] ?? false);
+
+            try {
+                $this->error($from, $e);
+            } finally {
+                // Attempt the 4301 frame before closing: a push to a disconnected fd fails
+                // Sender::check() and is dropped. The finally keeps termination guaranteed
+                // when a MessageSent listener or the logger throws.
+                if ($terminateOnLimit) {
+                    $from->terminate();
+                }
+            }
         }
     }
 
@@ -191,8 +200,7 @@ class Server
 
         if ($connection->hasInitializedRateLimiter()) {
             try {
-                ($this->rateLimiter ??= new RateLimiter(app('cache')->store('worker-array')))
-                    ->clear('reverb:message:' . $connection->id());
+                $this->messageRateLimiter->clear($this->messageLimit($connection));
                 $connection->clearRateLimiterInitialized();
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
@@ -270,22 +278,22 @@ class Server
             return;
         }
 
-        $config = $connection->app()->rateLimiting();
-
-        $this->rateLimiter ??= new RateLimiter(app('cache')->store('worker-array'));
-
-        $key = 'reverb:message:' . $connection->id();
-
-        if ($this->rateLimiter->tooManyAttempts($key, $config['max_attempts'])) {
-            if ($config['terminate_on_limit'] ?? false) {
-                $connection->terminate();
-            }
-
+        if ($this->messageRateLimiter->consume($this->messageLimit($connection))->denied()) {
             throw new RateLimitExceeded;
         }
 
-        $this->rateLimiter->increment($key, $config['decay_seconds'] ?? 1);
         $connection->markRateLimiterInitialized();
+    }
+
+    /**
+     * Build the message limit for a connection.
+     */
+    protected function messageLimit(Connection $connection): Limit
+    {
+        $config = $connection->app()->rateLimiting();
+
+        return Limit::perSecond((int) $config['max_attempts'], (int) $config['decay_seconds'])
+            ->by('reverb:message:' . $connection->id());
     }
 
     /**

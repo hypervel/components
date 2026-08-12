@@ -33,12 +33,15 @@
         "hypervel/database": "^0.4",
         "hypervel/events": "^0.4",
         "hypervel/filesystem": "^0.4",
-        "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/reflection": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/validation": "^0.4"
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1"
+    },
+    "suggest": {
+        "hypervel/foundation": "Required for the @vite, @viteReactRefresh, and @fonts directives."
     },
     "autoload": {
         "psr-4": {

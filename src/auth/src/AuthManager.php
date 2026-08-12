@@ -125,8 +125,8 @@ class AuthManager implements FactoryContract
             $this->createUserProvider($config['provider'] ?? null),
             $this->app->make('session.store'),
             $this->app,
-            rehashOnLogin: $repository->boolean('hashing.rehash_on_login', true),
-            timeboxDuration: $repository->integer('auth.timebox_duration', 200000),
+            rehashOnLogin: $repository->boolean('hashing.rehash_on_login'),
+            timeboxDuration: $repository->integer('auth.timebox_duration'),
             hashKey: $repository->get('app.key'),
         );
 
@@ -261,8 +261,12 @@ class AuthManager implements FactoryContract
      * provider is not an EloquentUserProvider, or caching is disabled,
      * this is a no-op.
      */
-    public function clearUserCache(mixed $identifier, ?string $guard = null): void
+    public function clearUserCache(mixed $identifier, UnitEnum|string|null $guard = null): void
     {
+        if ($guard instanceof UnitEnum) {
+            $guard = (string) enum_value($guard);
+        }
+
         $guardInstance = $this->guard($guard);
 
         // getProvider() lives on the GuardHelpers trait, not the Guard

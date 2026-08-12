@@ -13,6 +13,7 @@ use Hypervel\Http\Response as BaseResponse;
 use Hypervel\Inertia\AlwaysProp;
 use Hypervel\Inertia\DeferProp;
 use Hypervel\Inertia\Inertia;
+use Hypervel\Inertia\InertiaState;
 use Hypervel\Inertia\MergeProp;
 use Hypervel\Inertia\OptionalProp;
 use Hypervel\Inertia\ProvidesInertiaProperties;
@@ -74,6 +75,24 @@ class ResponseTest extends TestCase
         $this->assertArrayNotHasKey('clearHistory', $page);
         $this->assertArrayNotHasKey('encryptHistory', $page);
         $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"}},"url":"\/user\/123","version":"123"}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testViewDataCannotOverrideTheInertiaPage(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $response = new Response('User/Edit', [], ['user' => ['name' => 'Jonathan']], 'app', '123');
+        $response->withViewData('page', ['component' => 'Override']);
+
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+        $rendered = $view->render();
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame($page, InertiaState::current()->page);
+        $this->assertStringContainsString('"component":"User\/Edit"', $rendered);
+        $this->assertStringNotContainsString('"component":"Override"', $rendered);
     }
 
     public function testServerResponseWithDeferredProp(): void
@@ -1302,6 +1321,7 @@ class ResponseTest extends TestCase
 
         $response->with(['foo' => 'bar', 'baz' => 'qux'])
             ->with(['quux' => 'corge'])
+            ->with(0, 'zero')
             ->with(new class implements ProvidesInertiaProperties {
                 /**
                  * @return Collection<string, string>
@@ -1320,6 +1340,7 @@ class ResponseTest extends TestCase
         $this->assertSame('bar', $page['props']['foo']);
         $this->assertSame('qux', $page['props']['baz']);
         $this->assertSame('corge', $page['props']['quux']);
+        $this->assertSame('zero', $page['props'][0]);
     }
 
     public function testOncePropsAreAlwaysResolvedOnInitialPageLoad(): void

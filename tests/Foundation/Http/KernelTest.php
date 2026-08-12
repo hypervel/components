@@ -402,6 +402,7 @@ class KernelTest extends TestCase
 
         $kernel = new Kernel($app, $router);
         $request = Request::create('/');
+        $transportStartedAt = $request->startedAt();
         $captured = null;
         CarbonImmutable::setTestNow('2026-07-23 12:34:56 UTC');
 
@@ -420,6 +421,7 @@ class KernelTest extends TestCase
         $this->assertNotSame($original, $captured);
         $this->assertSame($original?->getTimestamp(), $captured?->getTimestamp());
         $this->assertNull($kernel->requestStartedAt());
+        $this->assertTrue($transportStartedAt->equalTo($request->startedAt()));
     }
 
     public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines(): void

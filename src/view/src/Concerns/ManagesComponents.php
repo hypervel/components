@@ -52,6 +52,9 @@ trait ManagesComponents
         }
     }
 
+    /**
+     * Push a component onto the stack.
+     */
     protected function pushComponentStack(View|Htmlable|Closure|string $view): int
     {
         $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
@@ -61,6 +64,9 @@ trait ManagesComponents
         return count($componentStack);
     }
 
+    /**
+     * Pop the current component from the stack.
+     */
     protected function popComponentStack(): View|Htmlable|Closure|string|null
     {
         $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
@@ -70,6 +76,9 @@ trait ManagesComponents
         return $view;
     }
 
+    /**
+     * Append data for the current component.
+     */
     protected function appendComponentData(array $data): void
     {
         $componentData = CoroutineContext::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
@@ -77,7 +86,10 @@ trait ManagesComponents
         CoroutineContext::set(static::COMPONENT_DATA_CONTEXT_KEY, $componentData);
     }
 
-    protected function createSlotContext()
+    /**
+     * Create the slot context for the current component.
+     */
+    protected function createSlotContext(): void
     {
         $slots = CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []);
         $slots[$this->currentComponent()] = [];
@@ -194,6 +206,9 @@ trait ManagesComponents
         }
     }
 
+    /**
+     * Set slot data for the current component.
+     */
     protected function setSlotData(string $name, string|ComponentSlot|null $content): void
     {
         $currentComponent = $this->currentComponent();
@@ -203,6 +218,9 @@ trait ManagesComponents
         CoroutineContext::set(static::SLOTS_CONTEXT_KEY, $slots);
     }
 
+    /**
+     * Push a slot onto the stack.
+     */
     protected function pushSlotStack(array $value): void
     {
         $currentComponent = $this->currentComponent();
@@ -212,6 +230,9 @@ trait ManagesComponents
         CoroutineContext::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
     }
 
+    /**
+     * Pop the current slot from the stack.
+     */
     protected function popSlotStack(): array
     {
         $currentComponent = $this->currentComponent();
@@ -255,5 +276,7 @@ trait ManagesComponents
         CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, []);
         CoroutineContext::set(static::COMPONENT_DATA_CONTEXT_KEY, []);
         CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+        CoroutineContext::set(static::SLOTS_CONTEXT_KEY, []);
+        CoroutineContext::set(static::SLOT_STACK_CONTEXT_KEY, []);
     }
 }

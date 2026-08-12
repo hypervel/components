@@ -122,6 +122,15 @@ class PermissionRegistrarTest extends TestCase
         $this->assertSame($teamId, $this->app->make(PermissionRegistrar::class)->getPermissionsTeamId());
     }
 
+    public function testItCanChangeTeamIdUsingAModelInstance(): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $registrar->setPermissionsTeamId($this->testUser);
+
+        $this->assertSame($this->testUser->getKey(), $registrar->getPermissionsTeamId());
+    }
+
     public function testPermissionLookupUsesGuardExactCatalogIndex(): void
     {
         $permissionClass = $this->app->make(PermissionContract::class);

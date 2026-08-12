@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Console\Scheduling\SubMinuteSchedulingTest;
 
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Console\Events\ScheduledTaskSkipped;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
 use Hypervel\Console\Scheduling\EventMutex;
@@ -14,6 +15,7 @@ use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
@@ -249,12 +251,51 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(60, $runs);
     }
 
-    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceScheduleIsPaused(): void
+    public function testPausedSubMinuteEventsAreSkippedAtTheirNaturalCadenceFromStart(): void
     {
         $runs = 0;
+        $skips = 0;
         $this->schedule->call(function () use (&$runs) {
             ++$runs;
         })->everySecond();
+
+        $this->app->make(Dispatcher::class)->listen(
+            ScheduledTaskSkipped::class,
+            function () use (&$skips): void {
+                ++$skips;
+            },
+        );
+
+        config(['cache.default' => 'worker-array']);
+        CarbonImmutable::setTestNow(now()->startOfMinute());
+        Sleep::fake();
+        Sleep::whenFakingSleep(fn ($duration) => CarbonImmutable::setTestNow(now()->add($duration)));
+
+        $this->artisan('schedule:pause')
+            ->expectsOutputToContain('Scheduled task processing has been paused.');
+
+        $this->artisan('schedule:run', ['--once' => true])
+            ->assertSuccessful();
+
+        Sleep::assertSleptTimes(600);
+        $this->assertSame(0, $runs);
+        $this->assertSame(60, $skips);
+    }
+
+    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceScheduleIsPaused(): void
+    {
+        $runs = 0;
+        $skips = 0;
+        $this->schedule->call(function () use (&$runs) {
+            ++$runs;
+        })->everySecond();
+
+        $this->app->make(Dispatcher::class)->listen(
+            ScheduledTaskSkipped::class,
+            function () use (&$skips): void {
+                ++$skips;
+            },
+        );
 
         CarbonImmutable::setTestNow(now()->startOfMinute());
         $startedAt = now();
@@ -274,6 +315,7 @@ class SubMinuteSchedulingTest extends TestCase
 
         Sleep::assertSleptTimes(600);
         $this->assertEquals(30, $runs);
+        $this->assertSame(30, $skips);
     }
 
     public function testSubMinuteSchedulingRespectsFilters(): void

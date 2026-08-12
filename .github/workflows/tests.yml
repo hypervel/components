@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
@@ -49,10 +51,68 @@ jobs:
         run: PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
 
       - name: Run framework test suite
-        run: vendor/bin/phpunit -c phpunit.xml.dist
+        run: vendor/bin/paratest -c phpunit.xml.dist
 
       - name: Run Testbench package-mode suite
         run: php src/testbench/bin/testbench package:test --parallel tests/Testbench
 
+      # Local equivalent: composer test:dogfood. Direct commands bypass Composer's process timeout in CI.
+      - name: Install Testbench dogfood package dependencies
+        working-directory: dogfood/testbench-package
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
       - name: Run Testbench dogfood package suite
-        run: composer test:dogfood
+        working-directory: dogfood/testbench-package
+        run: vendor/bin/testbench package:test --parallel
+
+  wayfinder_tests:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
+    name: Wayfinder
+
+    container:
+      image: phpswoole/swoole:6.2.0-php8.4
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Setup PHP extensions
+        uses: ./.github/actions/setup-php
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install Composer dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.24.0 --activate
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Wayfinder tests
+        run: pnpm test:wayfinder
+
+      - name: Run Wayfinder tests against cached routes
+        run: pnpm test:wayfinder:cached
+
+      - name: Type-check generated Wayfinder output
+        run: pnpm typecheck:wayfinder

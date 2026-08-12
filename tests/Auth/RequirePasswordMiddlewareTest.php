@@ -398,7 +398,11 @@ class RequirePasswordMiddlewareTest extends TestCase
             $responseFactory ?? m::mock(ResponseFactory::class),
             $urlGenerator ?? m::mock(UrlGenerator::class),
             $auth,
-            $config ?? new Repository,
+            $config ?? new Repository([
+                'auth' => [
+                    'password_timeout' => 10800,
+                ],
+            ]),
         );
     }
 }

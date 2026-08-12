@@ -15,6 +15,7 @@ use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\StrCache;
@@ -87,6 +88,11 @@ class BelongsToMany extends Relation
      * Any pivot table restrictions for whereNull clauses.
      */
     protected array $pivotWhereNulls = [];
+
+    /**
+     * Any pivot table restrictions for whereBetween clauses.
+     */
+    protected array $pivotWhereBetweens = [];
 
     /**
      * The default values for the pivot columns.
@@ -356,6 +362,8 @@ class BelongsToMany extends Relation
      */
     public function wherePivotBetween(mixed $column, array $values, string $boolean = 'and', bool $not = false): static
     {
+        $this->pivotWhereBetweens[] = func_get_args();
+
         return $this->whereBetween($this->qualifyPivotColumn($column), $values, $boolean, $not);
     }
 
@@ -860,7 +868,7 @@ class BelongsToMany extends Relation
      */
     protected function shouldSelect(array $columns = ['*']): array
     {
-        if ($columns == ['*']) {
+        if ($columns === ['*']) {
             $columns = [$this->related->qualifyColumn('*')];
         }
 
@@ -917,8 +925,12 @@ class BelongsToMany extends Relation
      *
      * @return \Hypervel\Contracts\Pagination\CursorPaginator<int, object{pivot: TPivotModel}&TRelatedModel>
      */
-    public function cursorPaginate(?int $perPage = null, array $columns = ['*'], string $cursorName = 'cursor', ?string $cursor = null): mixed
-    {
+    public function cursorPaginate(
+        ?int $perPage = null,
+        array $columns = ['*'],
+        string $cursorName = 'cursor',
+        Cursor|string|null $cursor = null,
+    ): mixed {
         $this->query->addSelect($this->shouldSelect($columns));
 
         return tap($this->query->cursorPaginate($perPage, $columns, $cursorName, $cursor), function ($paginator) {

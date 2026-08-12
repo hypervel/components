@@ -34,6 +34,6 @@ final class PasswordConfirmation
             return $config->integer($key);
         }
 
-        return $config->integer('auth.password_timeout', 10800);
+        return $config->integer('auth.password_timeout');
     }
 }

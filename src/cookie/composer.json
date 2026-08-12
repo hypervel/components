@@ -35,7 +35,8 @@
         "hypervel/contracts": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "symfony/http-foundation": "^8.1"
     },
     "config": {
         "sort-packages": true

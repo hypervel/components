@@ -8,11 +8,11 @@ use Composer\InstalledVersions;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Foundation\Events\DiagnosingHealth;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithViews;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\TestCase;
-use Override;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
@@ -25,25 +25,15 @@ class DiscoversTest extends TestCase
     use InteractsWithViews;
     use WithWorkbench;
 
-    #[Override]
-    protected function setUp(): void
-    {
-        if (! \defined('HYPERVEL_START')) {
-            \define('HYPERVEL_START', microtime(true));
-        }
-
-        parent::setUp();
-    }
-
     #[Test]
-    public function itCanResolveWebRoutesFromDiscovers()
+    public function itCanResolveWebRoutesFromDiscovers(): void
     {
         $this->get('/api/hello')
             ->assertOk();
     }
 
     #[Test]
-    public function itCanResolveWebRoutesUsingMacroFromDiscovers()
+    public function itCanResolveWebRoutesUsingMacroFromDiscovers(): void
     {
         $contentType = package_version_compare('symfony/http-foundation', '7.4.0', '>=')
             ? 'text/plain; charset=utf-8'
@@ -56,12 +46,16 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveHealthCheckFromDiscovers()
+    public function itCanResolveHealthCheckFromDiscovers(): void
     {
-        $this->get('/up')
+        CarbonImmutable::setTestNow('2026-08-06 12:00:00 UTC');
+
+        $this->call('GET', '/up', server: [
+            'REQUEST_TIME_FLOAT' => CarbonImmutable::now()->subSeconds(5)->getPreciseTimestamp(6) / 1_000_000,
+        ])
             ->assertOk()
             ->assertSee('HTTP request received')
-            ->assertSee('Response rendered in');
+            ->assertSee('Response rendered in 5000ms.');
     }
 
     #[Test]
@@ -80,7 +74,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveViewsFromDiscovers()
+    public function itCanResolveViewsFromDiscovers(): void
     {
         $this->get('/testbench')
             ->assertOk()
@@ -89,7 +83,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveErrorsViewsFromDiscovers()
+    public function itCanResolveErrorsViewsFromDiscovers(): void
     {
         $this->get('/root')
             ->assertStatus(418)
@@ -98,19 +92,19 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveRouteNameFromDiscovers()
+    public function itCanResolveRouteNameFromDiscovers(): void
     {
         $this->assertSame(url('/testbench'), route('testbench'));
     }
 
     #[Test]
-    public function itCanResolveCommandsFromDiscovers()
+    public function itCanResolveCommandsFromDiscovers(): void
     {
         $this->artisan('workbench:inspire')->assertOk();
     }
 
     #[Test]
-    public function itCanDiscoverConfigFiles()
+    public function itCanDiscoverConfigFiles(): void
     {
         $this->assertSame(InstalledVersions::isInstalled('hypervel/components'), config('workbench.installed'));
 
@@ -118,7 +112,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanDiscoverViewsFiles()
+    public function itCanDiscoverViewsFiles(): void
     {
         $this->view('workbench::testbench')
             ->assertSee('Alert Component')
@@ -130,7 +124,7 @@ class DiscoversTest extends TestCase
     }
 
     #[Test]
-    public function itCanDiscoverTranslationFiles()
+    public function itCanDiscoverTranslationFiles(): void
     {
         $this->assertSame('Good Morning', __('workbench::welcome.morning'));
     }
@@ -138,13 +132,13 @@ class DiscoversTest extends TestCase
     #[Test]
     #[TestWith(['Workbench\Database\Factories\Hypervel\Foundation\Auh\UserFactory', 'Hypervel\Foundation\Auh\User'])]
     #[TestWith(['Workbench\Database\Factories\UserFactory', 'Workbench\App\Models\User'])]
-    public function itCanDiscoverDatabaseFactoriesFromModel(string $factory, string $model)
+    public function itCanDiscoverDatabaseFactoriesFromModel(string $factory, string $model): void
     {
         $this->assertSame($factory, Factory::resolveFactoryName($model));
     }
 
     #[Test]
-    public function itCanDiscoverModelFromFactory()
+    public function itCanDiscoverModelFromFactory(): void
     {
         $this->assertSame('Workbench\App\Models\User', \Workbench\Database\Factories\UserFactory::new()->modelName());
     }

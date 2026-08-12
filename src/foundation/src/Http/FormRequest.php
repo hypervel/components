@@ -270,8 +270,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
         foreach (array_keys(Arr::dot($input)) as $inputKey) {
             if (! isset($knownFields[$inputKey])) {
-                /** @var string $message */
-                $message = $validator->getTranslator()->get('validation.prohibited', [
+                $message = $validator->getTranslator()->string('validation.prohibited', [
                     'attribute' => str_replace('_', ' ', $inputKey),
                 ]);
 

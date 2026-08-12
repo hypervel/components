@@ -34,7 +34,6 @@ class UniqueJobTest extends QueueTestCase
 
         $app['config']->set('cache.default', 'database');
         $app['config']->set('queue.default', 'database');
-        $this->driver = 'database';
     }
 
     public function testUniqueJobsAreNotDispatched()

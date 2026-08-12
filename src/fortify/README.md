@@ -1,11 +1,7 @@
 Fortify for Hypervel
 ===
 
-Backend controllers and scaffolding for Hypervel authentication.
-
-Ported from: https://github.com/laravel/fortify
-
-See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documentation.
+Documentation: https://hypervel.org/docs/fortify
 
 ## Differences From Laravel
 
@@ -22,4 +18,7 @@ See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documenta
 - Fortify caches accepted TOTP codes for the full configured verification window to prevent replay for as long as the code remains acceptable.
 - Recovery code replacement operates on decoded JSON entries.
 - Fortify omits Laravel's deprecated `Rules\Password`.
+- Fortify keeps Laravel's directly writable static configuration properties private so worker-lifetime state remains typed and resettable. Use `authenticateThrough()`, `authenticateUsing()`, `confirmPasswordsUsing()`, `encryptUsing()`, and `ignoreRoutes()` instead.
 - Fortify tightens loose upstream comparisons and application-model event docs where Hypervel can express the real contract.
+
+Ported from: https://github.com/laravel/fortify

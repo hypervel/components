@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Database\Eloquent\Casts\ArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Encryption\Encrypter as RealEncrypter;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Schema;
@@ -338,6 +340,84 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         ]);
 
         $this->assertNull($subject->fresh()->secret_array);
+    }
+
+    public function testChangedEncryptedArrayObjectMatchesStoredValueAtUpdatedEvent(): void
+    {
+        $encrypter = new RealEncrypter(str_repeat('a', 16));
+        Crypt::swap($encrypter);
+        Model::encryptUsing($encrypter);
+
+        $subject = new EncryptedCast;
+        $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
+        $subject->secret_array = ['key1' => 'value1'];
+        $subject->save();
+
+        $subject = $subject->fresh();
+        $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
+        $subject->secret_array['key2'] = 'value2';
+        $updatedState = null;
+
+        EncryptedCast::updated(function (EncryptedCast $updated) use (&$updatedState): void {
+            $updatedState = [
+                'changed' => $updated->getChanges()['secret_array'],
+                'stored' => $updated->newQuery()
+                    ->whereKey($updated->getKey())
+                    ->toBase()
+                    ->value('secret_array'),
+            ];
+        });
+
+        $subject->save();
+
+        $this->assertSame($updatedState['stored'], $updatedState['changed']);
+        $this->assertSame(
+            '{"key1":"value1","key2":"value2"}',
+            $encrypter->decryptString($updatedState['stored'])
+        );
+    }
+
+    public function testValidAssignmentCanReplaceDecryptableMalformedJson(): void
+    {
+        $encrypter = new RealEncrypter(str_repeat('a', 16));
+        Crypt::swap($encrypter);
+        Model::encryptUsing($encrypter);
+
+        $original = $encrypter->encrypt('{invalid', false);
+        $id = EncryptedCast::query()->insertGetId(['secret_json' => $original]);
+        $subject = EncryptedCast::query()->findOrFail($id);
+
+        $subject->secret_json = ['valid' => true];
+
+        $this->assertTrue($subject->isDirty('secret_json'));
+        $this->assertTrue($subject->save());
+        $this->assertSame(['valid' => true], $subject->fresh()->secret_json);
+        $this->assertNotSame(
+            $original,
+            EncryptedCast::query()->whereKey($id)->toBase()->value('secret_json'),
+        );
+    }
+
+    public function testUndecryptableOriginalCannotBeOverwrittenThroughDirtyChecking(): void
+    {
+        $encrypter = new RealEncrypter(str_repeat('a', 16));
+        $wrongEncrypter = new RealEncrypter(str_repeat('b', 16));
+        Crypt::swap($encrypter);
+        Model::encryptUsing($encrypter);
+
+        $original = $wrongEncrypter->encrypt('{"recoverable":true}', false);
+        $id = EncryptedCast::query()->insertGetId(['secret_json' => $original]);
+        $subject = EncryptedCast::query()->findOrFail($id);
+        $subject->secret_json = ['replacement' => true];
+
+        $this->assertThrows(
+            fn () => $subject->isDirty('secret_json'),
+            DecryptException::class,
+        );
+        $this->assertSame(
+            $original,
+            EncryptedCast::query()->whereKey($id)->toBase()->value('secret_json'),
+        );
     }
 
     public function testCustomEncrypterCanBeSpecified()

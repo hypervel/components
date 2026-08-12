@@ -47,7 +47,21 @@ class CompiledRouteCollection extends AbstractRouteCollection
      *
      * @var array<string, Route>
      */
-    protected array $cachedRoutesByName = [];
+    protected array $nameCache = [];
+
+    /**
+     * A cache of route names grouped by the HTTP method they respond to, built from the route attributes.
+     *
+     * @var null|array<string, array<int, string>>
+     */
+    protected ?array $routeNamesByMethod = null;
+
+    /**
+     * A cache of route names keyed by their controller action, built from the route attributes.
+     *
+     * @var null|array<string, string>
+     */
+    protected ?array $routeNameByAction = null;
 
     /**
      * Port lookup map for compiled routes, keyed by "METHOD domain+uri".
@@ -218,7 +232,20 @@ class CompiledRouteCollection extends AbstractRouteCollection
      */
     public function get(?string $method = null): array
     {
-        return $this->getRoutesByMethod()[$method] ?? [];
+        if (is_null($method)) {
+            return $this->getRoutes();
+        }
+
+        $routes = (new Collection($this->routeNamesByMethod()[$method] ?? []))
+            ->mapWithKeys(function (string $name): array {
+                $route = $this->getByName($name);
+
+                return [$route->getDomain() . $route->uri => $route];
+            })
+            ->all();
+
+        // Dynamically added routes take precedence over cached routes with the same URI...
+        return $this->routes->get($method) + $routes;
     }
 
     /**
@@ -237,7 +264,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
     public function getByName(string $name): ?Route
     {
         if (isset($this->attributes[$name])) {
-            return $this->cachedRoutesByName[$name]
+            return $this->nameCache[$name]
                 ??= $this->newRoute($this->attributes[$name]);
         }
 
@@ -249,16 +276,10 @@ class CompiledRouteCollection extends AbstractRouteCollection
      */
     public function getByAction(string $action): ?Route
     {
-        $attributes = (new Collection($this->attributes))->first(function (array $attributes) use ($action): bool {
-            if (isset($attributes['action']['controller'])) {
-                return trim($attributes['action']['controller'], '\\') === $action;
-            }
+        $name = $this->routeNameByAction()[$action] ?? null;
 
-            return $attributes['action']['uses'] === $action;
-        });
-
-        if ($attributes) {
-            return $this->newRoute($attributes);
+        if ($name !== null) {
+            return $this->getByName($name);
         }
 
         return $this->routes->getByAction($action);
@@ -294,7 +315,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
         $routes = [];
 
         foreach (array_keys($this->attributes) as $name) {
-            $routes[] = $this->getByName($name);
+            $routes[] = $this->getByName((string) $name);
         }
 
         return array_merge($routes, $this->routes->getRoutes());
@@ -303,26 +324,22 @@ class CompiledRouteCollection extends AbstractRouteCollection
     /**
      * Get all of the routes keyed by their HTTP verb / method.
      *
-     * @return array<string, array<string, Route>>
+     * @return array<string, array<array-key, Route>>
      */
     public function getRoutesByMethod(): array
     {
-        return (new Collection($this->getRoutes()))
-            ->groupBy(function (Route $route): array { // @phpstan-ignore argument.type (groupBy supports array-returning callbacks for multi-group assignment)
-                return $route->methods();
-            })
-            ->map(function (Collection $routes): array {
-                return $routes->mapWithKeys(function (Route $route): array {
-                    return [$route->getDomain() . $route->uri => $route];
-                })->all();
-            })
+        return (new Collection($this->routeNamesByMethod()))
+            ->keys()
+            ->merge(array_keys($this->routes->getRoutesByMethod()))
+            ->unique()
+            ->mapWithKeys(fn (string $method): array => [$method => $this->get($method)])
             ->all();
     }
 
     /**
      * Get all of the routes keyed by their name.
      *
-     * @return array<string, Route>
+     * @return array<array-key, Route>
      */
     public function getRoutesByName(): array
     {
@@ -330,6 +347,47 @@ class CompiledRouteCollection extends AbstractRouteCollection
             ->keyBy(function (Route $route): ?string {
                 return $route->getName();
             })
+            ->all();
+    }
+
+    /**
+     * Get the cached route names grouped by the HTTP method they respond to.
+     *
+     * @return array<string, array<int, string>>
+     */
+    protected function routeNamesByMethod(): array
+    {
+        if (! is_null($this->routeNamesByMethod)) {
+            return $this->routeNamesByMethod;
+        }
+
+        return $this->routeNamesByMethod = (new Collection($this->attributes))
+            ->groupBy(fn (array $attributes): array => $attributes['methods'], preserveKeys: true)
+            ->map(fn (Collection $group): array => $group->keys()
+                ->map(fn (int|string $name): string => (string) $name)
+                ->all())
+            ->all();
+    }
+
+    /**
+     * Get the cached route names keyed by their controller action.
+     *
+     * @return array<string, string>
+     */
+    protected function routeNameByAction(): array
+    {
+        if (! is_null($this->routeNameByAction)) {
+            return $this->routeNameByAction;
+        }
+
+        return $this->routeNameByAction = (new Collection($this->attributes))
+            ->map(fn (array $attributes): mixed => isset($attributes['action']['controller'])
+                ? trim($attributes['action']['controller'], '\\')
+                : ($attributes['action']['uses'] ?? null))
+            ->filter(fn (mixed $action): bool => is_string($action))
+            ->reverse()
+            ->flip()
+            ->map(fn (int|string $name): string => (string) $name)
             ->all();
     }
 

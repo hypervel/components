@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Database\QueryException;
 use Hypervel\Permission\Events\PermissionAttachedEvent;
@@ -15,6 +17,7 @@ use Hypervel\Permission\Exceptions\PermissionPartitionViolation;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Permission\Support\PermissionPartition;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionUser;
@@ -50,6 +53,139 @@ class PartitionRelationsTest extends PartitionTestCase
         $this->assertTrue($user->hasRole($roleA));
         $this->assertTrue($user->hasDirectPermission($permissionA));
         $this->assertTrue($user->hasPermissionTo($permissionA));
+    }
+
+    public function testWarmPermissionPivotRetainsItsPartitionIdentity(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $permissionA = PartitionedPermission::create(['name' => 'articles.edit']);
+        $user->givePermissionTo($permissionA);
+
+        $warmPermission = $user->getDirectPermissions()->sole();
+        $warmPivot = $warmPermission->getRelation('pivot');
+        $relationPivot = $user->permissions()->firstOrFail()->getRelation('pivot');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $this->assertInstanceOf(MorphPivot::class, $warmPivot);
+        $this->assertInstanceOf(MorphPivot::class, $relationPivot);
+        $this->assertSame(Config::morphKey(), $warmPivot->getForeignKey());
+        $this->assertSame($registrar->pivotPermission, $warmPivot->getRelatedKey());
+        $this->assertSame(Config::MORPH_TYPE, $warmPivot->getMorphType());
+
+        $warmQuery = (new ClassInvoker($warmPivot))->getDeleteQuery();
+        $relationQuery = (new ClassInvoker($relationPivot))->getDeleteQuery();
+
+        $this->assertSame($relationQuery->toSql(), $warmQuery->toSql());
+        $this->assertSame($relationQuery->getBindings(), $warmQuery->getBindings());
+
+        $this->setPartition(self::PARTITION_B);
+        $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
+        $user->givePermissionTo($permissionB);
+
+        $warmPivot->setAttribute('is_denied', true);
+        $this->assertTrue($warmPivot->save());
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'permission_test_id' => $permissionA->getKey(),
+            'is_denied' => true,
+        ]);
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_B,
+            'permission_test_id' => $permissionB->getKey(),
+            'is_denied' => false,
+        ]);
+
+        $this->assertSame(1, $warmPivot->delete());
+        $this->assertDatabaseMissing(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'permission_test_id' => $permissionA->getKey(),
+        ]);
+        $this->assertDatabaseHas(Config::modelHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_B,
+            'permission_test_id' => $permissionB->getKey(),
+        ]);
+    }
+
+    public function testWarmRolePermissionPivotsRetainTheirPartitionIdentity(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $roleA = PartitionedRole::create(['name' => 'member']);
+        $permissionA = PartitionedPermission::create(['name' => 'articles.edit']);
+        $deniedPermission = PartitionedPermission::create(['name' => 'articles.delete']);
+        $roleA->givePermissionTo($permissionA);
+        $roleA->denyPermissionTo($deniedPermission);
+        $user->assignRole($roleA);
+
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $catalogPermission = $registrar->getPermissions(['name' => 'articles.edit'], true)->firstOrFail();
+        $catalogRole = $catalogPermission->getRelation('roles')->sole();
+        $catalogPivot = $catalogRole->getRelation('pivot');
+        $liveCatalogPivot = $permissionA->roles()->firstOrFail()->getRelation('pivot');
+
+        $this->assertInstanceOf(Pivot::class, $catalogPivot);
+        $this->assertInstanceOf(Pivot::class, $liveCatalogPivot);
+        $this->assertSame($registrar->pivotPermission, $catalogPivot->getForeignKey());
+        $this->assertSame($registrar->pivotRole, $catalogPivot->getRelatedKey());
+
+        $catalogQuery = (new ClassInvoker($catalogPivot))->getDeleteQuery();
+        $liveCatalogQuery = (new ClassInvoker($liveCatalogPivot))->getDeleteQuery();
+
+        $this->assertSame($liveCatalogQuery->toSql(), $catalogQuery->toSql());
+        $this->assertSame($liveCatalogQuery->getBindings(), $catalogQuery->getBindings());
+
+        $viaPermission = $user->getPermissionsViaRoles()->firstWhere('name', 'articles.edit');
+        $this->assertInstanceOf(PartitionedPermission::class, $viaPermission);
+        $viaPivot = $viaPermission->getRelation('pivot');
+        $liveViaPivot = $roleA->permissions()->firstOrFail()->getRelation('pivot');
+
+        $this->assertInstanceOf(Pivot::class, $viaPivot);
+        $this->assertInstanceOf(Pivot::class, $liveViaPivot);
+        $this->assertNotSame($catalogPivot, $viaPivot);
+        $this->assertSame($registrar->pivotRole, $viaPivot->getForeignKey());
+        $this->assertSame($registrar->pivotPermission, $viaPivot->getRelatedKey());
+
+        $viaQuery = (new ClassInvoker($viaPivot))->getDeleteQuery();
+        $liveViaQuery = (new ClassInvoker($liveViaPivot))->getDeleteQuery();
+
+        $this->assertSame($liveViaQuery->toSql(), $viaQuery->toSql());
+        $this->assertSame($liveViaQuery->getBindings(), $viaQuery->getBindings());
+
+        $viaPivot->setAttribute('is_denied', true);
+
+        $this->assertFalse((bool) $catalogPivot->getAttribute('is_denied'));
+        $this->assertFalse($user->hasDeniedPermissionViaRoles($permissionA));
+
+        $this->setPartition(self::PARTITION_B);
+        $roleB = PartitionedRole::create(['name' => 'member']);
+        $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
+        $roleB->givePermissionTo($permissionB);
+        $user->assignRole($roleB);
+
+        $this->assertTrue($viaPivot->save());
+        $this->assertDatabaseHas(Config::roleHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'permission_test_id' => $permissionA->getKey(),
+            'role_test_id' => $roleA->getKey(),
+            'is_denied' => true,
+        ]);
+        $this->assertDatabaseHas(Config::roleHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_B,
+            'permission_test_id' => $permissionB->getKey(),
+            'role_test_id' => $roleB->getKey(),
+            'is_denied' => false,
+        ]);
+
+        $this->assertSame(1, $viaPivot->delete());
+        $this->assertDatabaseMissing(Config::roleHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_A,
+            'permission_test_id' => $permissionA->getKey(),
+            'role_test_id' => $roleA->getKey(),
+        ]);
+        $this->assertDatabaseHas(Config::roleHasPermissionsTable(), [
+            'workspace_id' => self::PARTITION_B,
+            'permission_test_id' => $permissionB->getKey(),
+            'role_test_id' => $roleB->getKey(),
+        ]);
     }
 
     public function testPublicRelationAttachAddsTheCapturedPartition(): void

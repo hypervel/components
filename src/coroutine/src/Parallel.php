@@ -6,6 +6,7 @@ namespace Hypervel\Coroutine;
 
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
 use Throwable;
 
 use function sprintf;
@@ -62,9 +63,14 @@ class Parallel
      * @param bool $throw Whether to throw on errors
      * @return array The results keyed by callback key
      * @throws ParallelExecutionException When $throw is true and errors occurred
+     * @throws RunningInNonCoroutineException When running in non-coroutine context
      */
     public function wait(bool $throw = true): array
     {
+        if (! Coroutine::inCoroutine()) {
+            throw new RunningInNonCoroutineException('Parallel execution requires an active coroutine.');
+        }
+
         // Reset per-run state so previous runs cannot leak into this one. Without this, a
         // failure from an earlier wait() would remain in $throwables and surface through
         // getThrowables() on subsequent runs, regardless of the current run's outcome.

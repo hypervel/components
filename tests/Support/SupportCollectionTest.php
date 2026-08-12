@@ -11,16 +11,19 @@ use CachingIterator;
 use Error;
 use Exception;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\ItemNotFoundException;
+use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\MultipleItemsFoundException;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JsonException;
 use JsonSerializable;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -758,6 +761,28 @@ class SupportCollectionTest extends TestCase
         $this->assertSame($expected, $results);
         $this->assertStringContainsString("\n", $results);
         $this->assertStringContainsString('    ', $results);
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToJsonThrowsForInvalidUtf8($collection): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new $collection(["\xB1\x31"]))->toJson();
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToPrettyJsonPropagatesInvalidUtf8Failure($collection): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new $collection(["\xB1\x31"]))->toPrettyJson();
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToJsonHonorsInvalidUtf8Substitution($collection): void
+    {
+        $this->assertSame('["\ufffd1"]', (new $collection(["\xB1\x31"]))->toJson(JSON_INVALID_UTF8_SUBSTITUTE));
     }
 
     #[DataProvider('collectionClassProvider')]
@@ -3094,6 +3119,57 @@ class SupportCollectionTest extends TestCase
         $instance = $collection::fromJson($json);
 
         $this->assertSame($array, $instance->toArray());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testJsonRoundTripsAtTheSupportNestingLimit($collection): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $instance = new $collection($value);
+
+        $this->assertSame($value, $collection::fromJson($instance->toJson())->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToJsonRejectsOneLevelOverTheSupportNestingLimit($collection): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->expectException(JsonException::class);
+
+        (new $collection($value))->toJson();
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testJsonSerializeDecodesJsonableItemsAtTheSupportNestingLimit($collection): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $jsonable = new class(Json::encode($value)) implements Jsonable {
+            public function __construct(private readonly string $json)
+            {
+            }
+
+            public function toJson(int $options = 0): string
+            {
+                return $this->json;
+            }
+        };
+
+        $this->assertSame([$value], (new $collection([$jsonable]))->jsonSerialize());
     }
 
     #[DataProvider('collectionClassProvider')]

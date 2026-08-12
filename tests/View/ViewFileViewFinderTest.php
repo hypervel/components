@@ -13,12 +13,12 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class ViewFileViewFinderTest extends TestCase
 {
-    public function testBasicViewFinding()
+    public function testBasicViewFinding(): void
     {
         $finder = $this->getFinder();
         $finder->getFilesystem()->shouldReceive('exists')->once()->with(__DIR__ . '/foo.blade.php')->andReturn(true);
 
-        $this->assertEquals(__DIR__ . '/foo.blade.php', $finder->find('foo'));
+        $this->assertEquals(__DIR__ . '/foo.blade.php', $finder->find(view: 'foo'));
     }
 
     public function testCascadingFileLoading()

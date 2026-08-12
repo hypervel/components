@@ -6,15 +6,19 @@ namespace Hypervel\Testing\Concerns;
 
 use Closure;
 use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testing\ParallelConsoleOutput;
 use ParaTest\Options;
+use ParaTest\RunnerInterface;
+use ParaTest\WrapperRunner\WrapperRunner;
 use PHPUnit\TextUI\Configuration\PhpHandler;
 use RuntimeException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 trait RunsInParallel
 {
@@ -34,14 +38,9 @@ trait RunsInParallel
     protected Options $options;
 
     /**
-     * The output instance.
-     */
-    protected OutputInterface $output;
-
-    /**
      * The original test runner.
      */
-    protected \ParaTest\RunnerInterface $runner;
+    protected RunnerInterface $runner;
 
     /**
      * Create a new test runner instance.
@@ -55,7 +54,7 @@ trait RunsInParallel
         }
 
         $runnerResolver = static::$runnerResolver ?: function (Options $options, OutputInterface $output) {
-            return new \ParaTest\WrapperRunner\WrapperRunner($options, $output);
+            return new WrapperRunner($options, $output);
         };
 
         $this->runner = $runnerResolver($options, $output);
@@ -90,20 +89,38 @@ trait RunsInParallel
     {
         (new PhpHandler)->handle($this->options->configuration->php());
 
-        $this->forEachProcess(function () {
-            ParallelTesting::callSetUpProcessCallbacks();
-        });
+        $attemptedTokens = [];
+        $exception = null;
+        $exitCode = RunnerInterface::EXCEPTION_EXIT;
 
         try {
-            $exitCode = $this->runner->run();
-        } finally {
-            $this->forEachProcess(function () {
-                ParallelTesting::callTearDownProcessCallbacks();
+            $this->forEachProcess(function () use (&$attemptedTokens): void {
+                $attemptedTokens[] = (string) ParallelTesting::token();
+                ParallelTesting::callSetUpProcessCallbacks();
             });
+
+            $exitCode = $this->runner->run();
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        // Re-running the overridable setup loop cannot guarantee the same owned token set.
+        foreach ($attemptedTokens as $token) {
+            try {
+                $this->forProcess($token, fn () => ParallelTesting::callTearDownProcessCallbacks());
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
 
         return $exitCode;
     }
+
+    // ParaTest 7 returns the final exit code from run() and exposes no getExitCode() method.
 
     /**
      * Apply the given callback for each process.
@@ -111,17 +128,43 @@ trait RunsInParallel
     protected function forEachProcess(callable $callback): void
     {
         Collection::range(1, $this->options->processes)->each(function ($token) use ($callback): void {
-            $application = $this->createApplication();
-
-            try {
-                ParallelTesting::resolveTokenUsing(fn () => (string) $token);
-
-                $callback($application);
-            } finally {
-                ParallelTesting::resolveTokenUsing(null);
-                $application->flush();
-            }
+            $this->forProcess((string) $token, $callback);
         });
+    }
+
+    /**
+     * Apply the given callback for one process.
+     */
+    protected function forProcess(string $token, callable $callback): void
+    {
+        $application = $this->createApplication();
+        $exception = null;
+
+        try {
+            ParallelTesting::resolveTokenUsing(fn () => $token);
+
+            $callback($application);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        ParallelTesting::resolveTokenUsing(null);
+
+        try {
+            $application->terminate();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
+            $application->flush();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -129,7 +172,7 @@ trait RunsInParallel
      *
      * @throws RuntimeException
      */
-    protected function createApplication(): \Hypervel\Contracts\Foundation\Application
+    protected function createApplication(): ApplicationContract
     {
         $applicationResolver = static::$applicationResolver ?: function () {
             $path = Application::inferBasePath() . '/bootstrap/app.php';

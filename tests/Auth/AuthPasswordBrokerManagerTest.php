@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\Passwords\PasswordBroker as PasswordBrokerImplementation;
 use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
-use Hypervel\Contracts\Auth\PasswordBroker;
+use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Tests\TestCase;
@@ -127,6 +129,25 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $this->assertSame('0', (new PasswordBrokerManager($container))->getDefaultDriver());
     }
 
+    public function testResolveBrokerNameForGuardAcceptsEnumIdentifiers(): void
+    {
+        $manager = new PasswordBrokerManager($this->makeContainer([
+            'auth' => [
+                'guards' => [
+                    'staff' => [
+                        'passwords' => 'staff-broker',
+                    ],
+                    'Api' => [
+                        'passwords' => 'api-broker',
+                    ],
+                ],
+            ],
+        ]));
+
+        $this->assertSame('staff-broker', $manager->resolveBrokerNameForGuard(AuthPasswordBrokerStringEnum::Staff));
+        $this->assertSame('api-broker', $manager->resolveBrokerNameForGuard(AuthPasswordBrokerUnitEnum::Api));
+    }
+
     public function testDefaultDriverThrowsWhenGuardDeclaresNoBroker(): void
     {
         $container = $this->makeContainer([
@@ -164,6 +185,15 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $manager->setDefaultDriver('other');
 
         $this->assertSame('other', $manager->getDefaultDriver());
+    }
+
+    public function testSetDefaultDriverAcceptsAnIntBackedZeroEnum(): void
+    {
+        $manager = new PasswordBrokerManager(new Container);
+
+        $manager->setDefaultDriver(AuthPasswordBrokerIntEnum::Zero);
+
+        $this->assertSame('0', $manager->getDefaultDriver());
     }
 
     public function testSetDefaultDriverIsCoroutineIsolated(): void
@@ -213,6 +243,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
             ],
             'auth' => [
+                'timebox_duration' => 200000,
                 'passwords' => [
                     'admins' => [
                         'provider' => 'admins',
@@ -234,7 +265,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
             ->with(null)
             ->andReturn(m::mock(ConnectionInterface::class));
 
-        $this->assertInstanceOf(PasswordBroker::class, (new PasswordBrokerManager($container))->broker('admins'));
+        $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('admins'));
     }
 
     public function testBrokerWithExplicitFalseyNameDoesNotFallBackToDefaultDriver(): void
@@ -244,6 +275,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
             ],
             'auth' => [
+                'timebox_duration' => 200000,
                 'passwords' => [
                     '0' => [
                         'provider' => 'zero',
@@ -265,7 +297,33 @@ class AuthPasswordBrokerManagerTest extends TestCase
             ->with(null)
             ->andReturn(m::mock(ConnectionInterface::class));
 
-        $this->assertInstanceOf(PasswordBroker::class, (new PasswordBrokerManager($container))->broker('0'));
+        $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('0'));
+    }
+
+    public function testBrokerNormalizesEnumsBeforeCaching(): void
+    {
+        $broker = m::mock(PasswordBrokerContract::class);
+        $manager = new AuthPasswordBrokerManagerStub(new Container);
+        $manager->resolvedBroker = $broker;
+
+        $this->assertSame($broker, $manager->broker(AuthPasswordBrokerIntEnum::Zero));
+        $this->assertSame($broker, $manager->broker('0'));
+        $this->assertSame(['0'], $manager->resolvedNames);
+    }
+
+    public function testRefreshingDispatcherUpdatesOnlyConcreteResolvedBrokers(): void
+    {
+        $manager = new AuthPasswordBrokerManagerStub(new Container);
+        $concreteBroker = m::mock(PasswordBrokerImplementation::class);
+        $customBroker = m::mock(PasswordBrokerContract::class);
+        $events = m::mock(Dispatcher::class);
+        $concreteBroker->shouldReceive('setDispatcher')->once()->with($events);
+        $manager->seedBroker('concrete', $concreteBroker);
+        $manager->seedBroker('custom', $customBroker);
+
+        $manager->refreshEventDispatcher($events);
+
+        $this->assertSame($customBroker, $manager->broker('custom'));
     }
 
     public function testBrokerFailsFastWhenAppKeyIsNotConfigured(): void
@@ -312,4 +370,45 @@ class AuthPasswordBrokerManagerTest extends TestCase
 
         return $auth;
     }
+}
+
+class AuthPasswordBrokerManagerStub extends PasswordBrokerManager
+{
+    public PasswordBrokerContract $resolvedBroker;
+
+    /** @var list<string> */
+    public array $resolvedNames = [];
+
+    /**
+     * Seed a resolved broker.
+     */
+    public function seedBroker(string $name, PasswordBrokerContract $broker): void
+    {
+        $this->brokers[$name] = $broker;
+    }
+
+    /**
+     * Resolve the configured broker stub.
+     */
+    protected function resolve(string $name): PasswordBrokerContract
+    {
+        $this->resolvedNames[] = $name;
+
+        return $this->resolvedBroker;
+    }
+}
+
+enum AuthPasswordBrokerStringEnum: string
+{
+    case Staff = 'staff';
+}
+
+enum AuthPasswordBrokerIntEnum: int
+{
+    case Zero = 0;
+}
+
+enum AuthPasswordBrokerUnitEnum
+{
+    case Api;
 }

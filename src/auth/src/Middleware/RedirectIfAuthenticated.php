@@ -73,7 +73,7 @@ class RedirectIfAuthenticated
         $routes = Route::getRoutes()->get('GET');
 
         foreach (['dashboard', 'home'] as $uri) {
-            if (isset($routes[$uri])) { /* @phpstan-ignore isset.offset (route collection may be string-keyed by URI) */
+            if (isset($routes[$uri])) {
                 return '/' . $uri;
             }
         }

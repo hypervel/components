@@ -59,7 +59,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | This option determines if your data will only be synced with your search
-    | indexes after every open database transaction has been committed. This
+    | indexes after the open parent database transactions have committed. This
     | prevents discarded data from being synchronized with your indexes.
     |
     */

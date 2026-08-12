@@ -304,6 +304,101 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertSame(['id', 'secret'], $model->getGuarded());
     }
 
+    public function testChildGuardedPropertyOverridesInheritedUnguardedAttribute(): void
+    {
+        $model = new ModelWithGuardedPropertyExtendingUnguardedParent;
+        $anonymousModel = new class extends UnguardedBaseModel {
+            protected array $guarded = ['*'];
+        };
+
+        $this->assertSame(['*'], $model->getGuarded());
+        $this->assertSame(['*'], $anonymousModel->getGuarded());
+    }
+
+    public function testChildUnguardedPropertyOverridesInheritedGuardedAttribute(): void
+    {
+        $model = new ModelWithUnguardedPropertyExtendingGuardedParent;
+
+        $this->assertSame([], $model->getGuarded());
+    }
+
+    public function testChildGuardedAttributeOverridesInheritedUnguardedAttribute(): void
+    {
+        $model = new ModelWithGuardedAttributeExtendingUnguardedParent;
+
+        $this->assertSame(['*'], $model->getGuarded());
+        $this->assertSame(['*'], (new ModelExtendingGuardedAttributeChild)->getGuarded());
+    }
+
+    public function testChildUnguardedAttributeOverridesInheritedGuardedConfiguration(): void
+    {
+        $this->assertSame([], (new ModelWithUnguardedAttributeExtendingGuardedParent)->getGuarded());
+        $this->assertSame([], (new ModelWithUnguardedAttributeExtendingGuardedPropertyParent)->getGuarded());
+    }
+
+    public function testClassGuardConfigurationOverridesTraitConfiguration(): void
+    {
+        $this->assertSame(['*'], (new ModelWithGuardedClassAndUnguardedTrait)->getGuarded());
+        $this->assertSame([], (new ModelWithUnguardedClassAndGuardedTrait)->getGuarded());
+    }
+
+    public function testGuardedWinsAcrossContradictoryTraitConfiguration(): void
+    {
+        $this->assertSame(['*'], (new ModelWithContradictoryGuardTraits)->getGuarded());
+    }
+
+    public function testGuardedWinsWhenClassDeclaresContradictoryGuardAttributes(): void
+    {
+        $this->assertSame(['*'], (new ModelWithContradictoryGuardAttributes)->getGuarded());
+    }
+
+    public function testGuardMetadataDoesNotReplaceConfigurationSetBeforeParentConstruction(): void
+    {
+        $this->assertSame(['runtime'], (new ModelWithPreParentGuardConfiguration)->getGuarded());
+    }
+
+    public function testGuardAndTableMetadataCachesAreUsedAndCleared(): void
+    {
+        new ModelWithUnguardedAttribute;
+        new ChildModelWithTableAttribute;
+
+        $reflection = new ReflectionClass(Model::class);
+        $guardConfigurationsProperty = $reflection->getProperty('guardConfigurations');
+        $classDeclaredAttributesProperty = $reflection->getProperty('classDeclaredAttributes');
+        $classPropertyDeclarersProperty = $reflection->getProperty('classPropertyDeclarers');
+
+        $guardConfigurations = $guardConfigurationsProperty->getValue();
+        $classDeclaredAttributes = $classDeclaredAttributesProperty->getValue();
+        $classPropertyDeclarers = $classPropertyDeclarersProperty->getValue();
+
+        $guardConfigurations[ModelWithUnguardedAttribute::class] = [
+            'guarded' => ['cached'],
+            'propertyDefault' => ['*'],
+        ];
+        $classDeclaredAttributes[ChildModelWithTableAttribute::class . '@' . Table::class] = false;
+
+        $guardConfigurationsProperty->setValue(null, $guardConfigurations);
+        $classDeclaredAttributesProperty->setValue(null, $classDeclaredAttributes);
+
+        $this->assertSame(['cached'], (new ModelWithUnguardedAttribute)->getGuarded());
+        $this->assertSame('parent_prop', (new ChildModelWithTableAttribute)->getTable());
+
+        $classDeclaredAttributes[ChildModelWithTableAttribute::class . '@' . Table::class] = true;
+        $classPropertyDeclarers[ChildModelWithTableAttribute::class . '@table'] = ChildModelWithTableAttribute::class;
+        $classDeclaredAttributesProperty->setValue(null, $classDeclaredAttributes);
+        $classPropertyDeclarersProperty->setValue(null, $classPropertyDeclarers);
+
+        $this->assertSame('parent_prop', (new ChildModelWithTableAttribute)->getTable());
+
+        Model::clearBootedModels();
+
+        $this->assertSame([], $guardConfigurationsProperty->getValue());
+        $this->assertSame([], $classDeclaredAttributesProperty->getValue());
+        $this->assertSame([], $classPropertyDeclarersProperty->getValue());
+        $this->assertSame([], (new ModelWithUnguardedAttribute)->getGuarded());
+        $this->assertSame('child_attr', (new ChildModelWithTableAttribute)->getTable());
+    }
+
     public function testHiddenAttribute(): void
     {
         $model = new ModelWithHiddenAttribute;
@@ -485,6 +580,48 @@ class DatabaseEloquentModelAttributesTest extends TestCase
 
         $this->assertInstanceOf(ModelWithTableAttribute::class, $unserialized);
         $this->assertSame('custom_table_name', $unserialized->getTable());
+    }
+
+    public function testRuntimeModelConfigurationSurvivesSerialization(): void
+    {
+        SerializableModelWithAttributes::$initializerRuns = 0;
+
+        $model = new SerializableModelWithAttributes;
+        $model->guard(['*']);
+        $model->fillable(['runtime_fillable']);
+        $model->setHidden(['runtime_hidden']);
+        $model->setVisible(['runtime_visible']);
+        $model->setAppends(['runtime_append']);
+        $model->mergeCasts(['payload' => 'integer']);
+        $model->setRawAttributes(['payload' => '42']);
+        $model->replaceTouchedRelations([]);
+        $model->timestamps = true;
+        $model->setTable('runtime_table');
+        $model->setConnection('default');
+        $model->setKeyName('id');
+        $model->setKeyType('int');
+        $model->setIncrementing(true);
+        $model->setDateFormat('Y-m-d');
+
+        $unserialized = unserialize(serialize($model));
+
+        $this->assertInstanceOf(SerializableModelWithAttributes::class, $unserialized);
+        $this->assertSame(['*'], $unserialized->getGuarded());
+        $this->assertSame(['runtime_fillable'], $unserialized->getFillable());
+        $this->assertSame(['runtime_hidden'], $unserialized->getHidden());
+        $this->assertSame(['runtime_visible'], $unserialized->getVisible());
+        $this->assertSame(['runtime_append'], $unserialized->getAppends());
+        $this->assertSame('integer', $unserialized->getCasts()['payload']);
+        $this->assertSame(42, $unserialized->getAttribute('payload'));
+        $this->assertSame([], $unserialized->getTouchedRelations());
+        $this->assertTrue($unserialized->usesTimestamps());
+        $this->assertSame('runtime_table', $unserialized->getTable());
+        $this->assertSame('default', $unserialized->getConnectionName());
+        $this->assertSame('id', $unserialized->getKeyName());
+        $this->assertSame('int', $unserialized->getKeyType());
+        $this->assertTrue($unserialized->getIncrementing());
+        $this->assertSame('Y-m-d', $unserialized->getDateFormat());
+        $this->assertSame(2, SerializableModelWithAttributes::$initializerRuns);
     }
 
     public function testTraitInitializerMergesAppendsWithAttribute(): void
@@ -709,6 +846,95 @@ class ModelWithUnguardedAttribute extends Model
 {
 }
 
+#[Unguarded]
+class UnguardedBaseModel extends Model
+{
+}
+
+class ModelWithGuardedPropertyExtendingUnguardedParent extends UnguardedBaseModel
+{
+    protected array $guarded = ['*'];
+}
+
+class ModelWithUnguardedPropertyExtendingGuardedParent extends GuardedBaseModel
+{
+    protected array $guarded = [];
+}
+
+#[Guarded('*')]
+class ModelWithGuardedAttributeExtendingUnguardedParent extends UnguardedBaseModel
+{
+}
+
+class ModelExtendingGuardedAttributeChild extends ModelWithGuardedAttributeExtendingUnguardedParent
+{
+}
+
+#[Unguarded]
+class ModelWithUnguardedAttributeExtendingGuardedParent extends GuardedBaseModel
+{
+}
+
+class GuardedPropertyBaseModel extends Model
+{
+    protected array $guarded = ['secret'];
+}
+
+#[Unguarded]
+class ModelWithUnguardedAttributeExtendingGuardedPropertyParent extends GuardedPropertyBaseModel
+{
+}
+
+#[Unguarded]
+trait UnguardedModelTrait
+{
+}
+
+#[Guarded('*')]
+trait GuardedModelTrait
+{
+}
+
+class ModelWithContradictoryGuardTraits extends Model
+{
+    use GuardedModelTrait;
+    use UnguardedModelTrait;
+}
+
+#[Guarded('*')]
+class ModelWithGuardedClassAndUnguardedTrait extends Model
+{
+    use UnguardedModelTrait;
+}
+
+#[Unguarded]
+class ModelWithUnguardedClassAndGuardedTrait extends Model
+{
+    use GuardedModelTrait;
+}
+
+#[Guarded('*')]
+#[Unguarded]
+class ModelWithContradictoryGuardAttributes extends Model
+{
+}
+
+#[Unguarded]
+class ModelWithPreParentGuardConfiguration extends Model
+{
+    /**
+     * Create a new model instance.
+     *
+     * @param array<string, mixed> $attributes
+     */
+    public function __construct(array $attributes = [])
+    {
+        $this->guard(['runtime']);
+
+        parent::__construct($attributes);
+    }
+}
+
 #[Hidden(['password', 'secret'])]
 class ModelWithHiddenAttribute extends Model
 {
@@ -848,4 +1074,55 @@ class ModelWithFillableAttributeAndTrait extends Model
 #[Fillable]
 class ModelWithEmptyFillableAttribute extends Model
 {
+}
+
+trait CountsModelInitializations
+{
+    protected function initializeCountsModelInitializations(): void
+    {
+        ++static::$initializerRuns;
+    }
+}
+
+#[Table(
+    name: 'attribute_table',
+    key: 'uuid',
+    keyType: 'string',
+    incrementing: false,
+    timestamps: false,
+)]
+#[Connection('secondary')]
+#[DateFormat('U')]
+#[Fillable('class_fillable')]
+#[Unguarded]
+#[Hidden('class_hidden')]
+#[Visible('class_visible')]
+#[Appends('class_append')]
+#[Touches('class_touch')]
+#[WithoutTimestamps]
+class SerializableModelWithAttributes extends Model
+{
+    use CountsModelInitializations;
+
+    public static int $initializerRuns = 0;
+
+    /**
+     * Replace the touched relationships.
+     *
+     * @param array<int, string> $relations
+     */
+    public function replaceTouchedRelations(array $relations): void
+    {
+        $this->touches = $relations;
+    }
+
+    /**
+     * Get the model's casts.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['payload' => 'string'];
+    }
 }

@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Middleware;
 
 use DateTimeInterface;
-use Hypervel\Cache\RateLimiter;
-use Hypervel\Cache\RateLimiting\Unlimited;
 use Hypervel\Container\Container;
-use Hypervel\Support\Arr;
+use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Limiter;
+use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Support\Collection;
 use UnitEnum;
 
@@ -25,6 +26,11 @@ class RateLimited
      * The name of the rate limiter.
      */
     protected string $limiterName;
+
+    /**
+     * The rate limiter store that should be used.
+     */
+    protected ?string $storeName = null;
 
     /**
      * The number of seconds before a job should be available again if the limit is exceeded.
@@ -65,32 +71,30 @@ class RateLimited
         return $this->handleJob(
             $job,
             $next,
-            Collection::make(Arr::wrap($limiterResponse))->map(function ($limit) {
-                return (object) [
-                    'key' => $this->limiter->resolveNamedLimiterKey(
-                        $this->limiterName,
-                        $limit,
-                    ),
-                    'maxAttempts' => $limit->maxAttempts,
-                    'decaySeconds' => $limit->decaySeconds,
-                ];
-            })->all()
+            Collection::wrap($limiterResponse)->all(),
+            $this->limiter->store(
+                $this->storeName ?? $this->limiter->limiterStore($this->limiterName)
+            ),
         );
     }
 
     /**
      * Handle a rate limited job.
+     *
+     * @param array<AdmissionPolicy> $limits
      */
-    protected function handleJob(mixed $job, callable $next, array $limits): mixed
+    protected function handleJob(mixed $job, callable $next, array $limits, Limiter $limiter): mixed
     {
+        // Laravel preflights every policy before recording hits. Atomic stores
+        // consume in order, so an earlier accepted decision is never rolled back.
         foreach ($limits as $limit) {
-            if ($this->limiter->tooManyAttempts($limit->key, $limit->maxAttempts)) {
+            $result = $limiter->consume($limit, $this->limiterName);
+
+            if ($result->denied()) {
                 return $this->shouldRelease
-                    ? $job->release($this->releaseAfter ?? $this->getTimeUntilNextRetry($limit->key))
+                    ? $job->release($this->releaseAfter ?? $result->retryAfter() + 3)
                     : false;
             }
-
-            $this->limiter->hit($limit->key, $limit->decaySeconds);
         }
 
         return $next($job);
@@ -116,12 +120,16 @@ class RateLimited
         return $this;
     }
 
+    // Hypervel selects Redis through the same store API as every other backend
+    // instead of exposing Laravel's Redis-only queue middleware and connection().
     /**
-     * Get the number of seconds that should elapse before the job is retried.
+     * Specify the rate limiter store that should be used.
      */
-    protected function getTimeUntilNextRetry(string $key): int
+    public function store(UnitEnum|string $store): static
     {
-        return $this->limiter->availableIn($key) + 3;
+        $this->storeName = (string) enum_value($store);
+
+        return $this;
     }
 
     /**
@@ -131,6 +139,7 @@ class RateLimited
     {
         return [
             'limiterName',
+            'storeName',
             'releaseAfter',
             'shouldRelease',
         ];
@@ -139,7 +148,7 @@ class RateLimited
     /**
      * Prepare the object after unserialization.
      */
-    public function __wakeup()
+    public function __wakeup(): void
     {
         $this->limiter = Container::getInstance()
             ->make(RateLimiter::class);

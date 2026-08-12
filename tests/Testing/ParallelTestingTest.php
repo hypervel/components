@@ -8,6 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use stdClass;
 
 class ParallelTestingTest extends TestCase
@@ -43,7 +44,7 @@ class ParallelTestingTest extends TestCase
         parent::tearDown();
     }
 
-    public function testTokenReturnsFalseWhenNotRunningInParallel()
+    public function testTokenReturnsFalseWhenNotRunningInParallel(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -52,7 +53,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($parallelTesting->token());
     }
 
-    public function testTokenReturnsValueFromResolver()
+    public function testTokenReturnsValueFromResolver(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -61,7 +62,7 @@ class ParallelTestingTest extends TestCase
         $this->assertSame('3', $parallelTesting->token());
     }
 
-    public function testInParallelReturnsFalseWithoutToken()
+    public function testInParallelReturnsFalseWithoutToken(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -71,7 +72,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($parallelTesting->inParallel());
     }
 
-    public function testInParallelReturnsFalseWithoutServerVariable()
+    public function testInParallelReturnsFalseWithoutServerVariable(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -81,7 +82,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($parallelTesting->inParallel());
     }
 
-    public function testInParallelReturnsTrueWithTokenAndServerVariable()
+    public function testInParallelReturnsTrueWithTokenAndServerVariable(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -91,7 +92,7 @@ class ParallelTestingTest extends TestCase
         $this->assertTrue($parallelTesting->inParallel());
     }
 
-    public function testOptionReturnsFalseByDefault()
+    public function testOptionReturnsFalseByDefault(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -99,7 +100,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($parallelTesting->option('without_databases'));
     }
 
-    public function testOptionUsesCustomResolver()
+    public function testOptionUsesCustomResolver(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -109,7 +110,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($parallelTesting->option('without_databases'));
     }
 
-    public function testOptionResolverCanBeReset()
+    public function testOptionResolverCanBeReset(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -120,7 +121,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($parallelTesting->option('anything'));
     }
 
-    public function testSetUpTestCaseCallbacksNotCalledWithoutParallelTesting()
+    public function testSetUpTestCaseCallbacksNotCalledWithoutParallelTesting(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -137,7 +138,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($called);
     }
 
-    public function testSetUpTestCaseCallbacksCalledWithToken()
+    public function testSetUpTestCaseCallbacksCalledWithToken(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -157,7 +158,7 @@ class ParallelTestingTest extends TestCase
         $this->assertSame($this, $receivedTestCase);
     }
 
-    public function testTearDownTestCaseCallbacksNotCalledWithoutParallelTesting()
+    public function testTearDownTestCaseCallbacksNotCalledWithoutParallelTesting(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -174,7 +175,7 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($called);
     }
 
-    public function testTearDownTestCaseCallbacksCalledWithToken()
+    public function testTearDownTestCaseCallbacksCalledWithToken(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -194,7 +195,7 @@ class ParallelTestingTest extends TestCase
         $this->assertSame($this, $receivedTestCase);
     }
 
-    public function testMultipleCallbacksAreCalledInOrder()
+    public function testMultipleCallbacksAreCalledInOrder(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -217,7 +218,7 @@ class ParallelTestingTest extends TestCase
         $this->assertSame(['first', 'second', 'third'], $order);
     }
 
-    public function testCallbacksReceiveCorrectTokenValue()
+    public function testCallbacksReceiveCorrectTokenValue(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -238,7 +239,7 @@ class ParallelTestingTest extends TestCase
         $this->assertSame(['5', '10'], $tokens);
     }
 
-    public function testTokenResolverCanBeReset()
+    public function testTokenResolverCanBeReset(): void
     {
         $parallelTesting = new ParallelTesting(new Container);
 
@@ -253,8 +254,99 @@ class ParallelTestingTest extends TestCase
         $this->assertFalse($parallelTesting->inParallel());
     }
 
+    public function testTearDownProcessCallbacksContinueAfterFailuresAndThrowTheFirstFailure(): void
+    {
+        $parallelTesting = new ParallelTesting(new Container);
+        $callbacks = [];
+
+        $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
+        $parallelTesting->resolveTokenUsing(fn () => '4');
+
+        $parallelTesting->tearDownProcess(function (string $token) use (&$callbacks): never {
+            $callbacks[] = "first:{$token}";
+
+            throw new RuntimeException('first failure');
+        });
+        $parallelTesting->tearDownProcess(function (string $token) use (&$callbacks): void {
+            $callbacks[] = "second:{$token}";
+        });
+        $parallelTesting->tearDownProcess(function (string $token) use (&$callbacks): never {
+            $callbacks[] = "third:{$token}";
+
+            throw new RuntimeException('third failure');
+        });
+
+        try {
+            $parallelTesting->callTearDownProcessCallbacks();
+            $this->fail('The teardown exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('first failure', $exception->getMessage());
+        }
+
+        $this->assertSame(['first:4', 'second:4', 'third:4'], $callbacks);
+    }
+
+    public function testTearDownTestCaseCallbacksContinueAfterFailuresAndThrowTheFirstFailure(): void
+    {
+        $parallelTesting = new ParallelTesting(new Container);
+        $callbacks = [];
+
+        $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
+        $parallelTesting->resolveTokenUsing(fn () => '6');
+
+        $parallelTesting->tearDownTestCase(function (string $token, mixed $testCase) use (&$callbacks): never {
+            $this->assertSame($this, $testCase);
+            $callbacks[] = "first:{$token}";
+
+            throw new RuntimeException('first failure');
+        });
+        $parallelTesting->tearDownTestCase(function (string $token, mixed $testCase) use (&$callbacks): void {
+            $this->assertSame($this, $testCase);
+            $callbacks[] = "second:{$token}";
+        });
+
+        try {
+            $parallelTesting->callTearDownTestCaseCallbacks($this);
+            $this->fail('The teardown exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('first failure', $exception->getMessage());
+        }
+
+        $this->assertSame(['first:6', 'second:6'], $callbacks);
+    }
+
+    public function testSetUpCallbacksRemainFailFast(): void
+    {
+        $parallelTesting = new ParallelTesting(new Container);
+        $callbacks = [];
+
+        $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
+        $parallelTesting->resolveTokenUsing(fn () => '8');
+
+        $parallelTesting->setUpProcess(function () use (&$callbacks): void {
+            $callbacks[] = 'first';
+        });
+        $parallelTesting->setUpProcess(function () use (&$callbacks): never {
+            $callbacks[] = 'second';
+
+            throw new RuntimeException('setup failed');
+        });
+        $parallelTesting->setUpProcess(function () use (&$callbacks): void {
+            $callbacks[] = 'third';
+        });
+
+        try {
+            $parallelTesting->callSetUpProcessCallbacks();
+            $this->fail('The setup exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('setup failed', $exception->getMessage());
+        }
+
+        $this->assertSame(['first', 'second'], $callbacks);
+    }
+
     #[DataProvider('allCallbackTypes')]
-    public function testAllCallbackTypesFireWhenInParallel(string $callback, array $callerArgs)
+    public function testAllCallbackTypesFireWhenInParallel(string $callback, array $callerArgs): void
     {
         $parallelTesting = new ParallelTesting(new Container);
         $caller = 'call' . ucfirst($callback) . 'Callbacks';

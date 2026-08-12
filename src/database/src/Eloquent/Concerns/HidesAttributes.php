@@ -31,6 +31,10 @@ trait HidesAttributes
     #[Initialize]
     public function initializeHidesAttributes(): void
     {
+        if ($this->modelClassAttributesInitialized) {
+            return;
+        }
+
         $this->mergeHidden(static::resolveClassAttribute(Hidden::class, 'columns') ?? []);
         $this->mergeVisible(static::resolveClassAttribute(Visible::class, 'columns') ?? []);
     }

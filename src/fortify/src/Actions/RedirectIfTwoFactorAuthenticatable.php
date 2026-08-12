@@ -26,8 +26,11 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
 {
     use DispatchesEvents;
 
+    /**
+     * Create a new controller instance.
+     */
     public function __construct(
-        protected readonly LoginRateLimiter $limiter,
+        protected LoginRateLimiter $limiter,
         protected readonly Config $config,
     ) {
     }
@@ -82,7 +85,7 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
             $this->throwFailedAuthenticationException($request);
         }
 
-        if ($this->config->boolean('hashing.rehash_on_login', true)) {
+        if ($this->config->boolean('hashing.rehash_on_login')) {
             $provider->rehashPasswordIfRequired($user, ['password' => $password]);
         }
 

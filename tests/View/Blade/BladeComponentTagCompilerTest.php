@@ -34,6 +34,18 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         );
     }
 
+    public function testUnnamedSlotsUseTheDefaultSlotName(): void
+    {
+        $this->mockViewFactory();
+        $result = $this->compiler()->compileSlots('<x-slot>
+</x-slot>');
+
+        $this->assertSame(
+            "@slot('slot', null, []) \n" . ' @endslot',
+            str_replace("\r\n", "\n", trim($result))
+        );
+    }
+
     public function testInlineSlotsCanBeCompiled()
     {
         $this->mockViewFactory();
@@ -158,6 +170,21 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $this->assertSame("<div>##BEGIN-COMPONENT-CLASS##@component('App\\View\\Components\\Card\\Card', 'card', [])
 <?php if (isset(\$attributes) && \$attributes instanceof Hypervel\\View\\ComponentAttributeBag): ?>
 <?php \$attributes = \$attributes->except(\\App\\View\\Components\\Card\\Card::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php \$component->withAttributes([]); ?>\n"
+            . '@endComponentClass##END-COMPONENT-CLASS##</div>', trim($result));
+    }
+
+    public function testCustomNamespaceNestedDefaultComponentParsing(): void
+    {
+        $this->mockViewFactory();
+
+        $result = $this->compiler(namespaces: ['nightshade' => 'Nightshade\View\Components'])
+            ->compileTags('<div><x-nightshade::accordion /></div>');
+
+        $this->assertSame("<div>##BEGIN-COMPONENT-CLASS##@component('Nightshade\\View\\Components\\Accordion\\Accordion', 'nightshade::accordion', [])
+<?php if (isset(\$attributes) && \$attributes instanceof Hypervel\\View\\ComponentAttributeBag): ?>
+<?php \$attributes = \$attributes->except(\\Nightshade\\View\\Components\\Accordion\\Accordion::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php \$component->withAttributes([]); ?>\n"
             . '@endComponentClass##END-COMPONENT-CLASS##</div>', trim($result));
@@ -961,5 +988,20 @@ class Card extends Component
     public function render(): View|Htmlable|Closure|string
     {
         return 'card';
+    }
+}
+
+namespace Nightshade\View\Components\Accordion;
+
+use Closure;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View;
+use Hypervel\View\Component;
+
+class Accordion extends Component
+{
+    public function render(): View|Htmlable|Closure|string
+    {
+        return 'accordion';
     }
 }

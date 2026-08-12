@@ -6,7 +6,6 @@ namespace Hypervel\Inertia;
 
 use BackedEnum;
 use Closure;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Contracts\Support\Arrayable;
@@ -39,7 +38,7 @@ class ResponseFactory
      */
     private function state(): InertiaState
     {
-        return CoroutineContext::getOrSet(InertiaState::CONTEXT_KEY, fn () => new InertiaState);
+        return InertiaState::current();
     }
 
     /**
@@ -83,7 +82,7 @@ class ResponseFactory
     {
         $sharedProps = $this->state()->sharedProps;
 
-        if ($key) {
+        if ($key !== null) {
             return Arr::get($sharedProps, $key, $default);
         }
 

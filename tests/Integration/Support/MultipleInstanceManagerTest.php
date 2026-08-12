@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Support;
 
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Support\Fixtures\MultipleInstanceManager;
+use Mockery as m;
 use RuntimeException;
 
 class MultipleInstanceManagerTest extends TestCase
@@ -29,6 +32,26 @@ class MultipleInstanceManagerTest extends TestCase
         $this->assertEquals(spl_object_hash($fooInstance), spl_object_hash($duplicateFooInstance));
         $this->assertEquals(spl_object_hash($barInstance), spl_object_hash($duplicateBarInstance));
         $this->assertEquals(spl_object_hash($mysqlInstance), spl_object_hash($duplicateMysqlInstance));
+    }
+
+    public function testSetApplicationRefreshesConfigWithoutRebuildingResolvedInstances(): void
+    {
+        $manager = new MultipleInstanceManager($this->app);
+        $resolved = $manager->instance('foo');
+        $config = new Repository([
+            'instances' => [
+                'configured' => [
+                    'driver' => 'foo',
+                    'source' => 'replacement',
+                ],
+            ],
+        ]);
+        $application = m::mock(Application::class);
+        $application->shouldReceive('make')->once()->with('config')->andReturn($config);
+
+        $this->assertSame($manager, $manager->setApplication($application));
+        $this->assertSame($resolved, $manager->instance('foo'));
+        $this->assertSame('replacement', $manager->instance('configured')->config['source']);
     }
 
     public function testUnresolvableInstancesThrowErrors()

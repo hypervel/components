@@ -15,23 +15,16 @@ use Hypervel\Support\Facades\Date;
 class ConfirmedPasswordStatusController extends Controller
 {
     /**
-     * Create a new controller instance.
-     */
-    public function __construct(
-        private readonly Config $config,
-    ) {
-    }
-
-    /**
      * Get the password confirmation status.
      */
     public function show(Request $request): JsonResponse
     {
+        $config = app(Config::class);
         $guard = Fortify::guardName();
         $lastConfirmation = (int) $request->session()->get(PasswordConfirmation::sessionKey($guard), 0);
         $lastConfirmed = Date::now()->unix() - $lastConfirmation;
         $seconds = $request->has('seconds') ? $request->integer('seconds') : null;
-        $confirmed = $lastConfirmed < PasswordConfirmation::timeout($this->config, $guard, $seconds);
+        $confirmed = $lastConfirmed < PasswordConfirmation::timeout($config, $guard, $seconds);
 
         return response()->json([
             'confirmed' => $confirmed,

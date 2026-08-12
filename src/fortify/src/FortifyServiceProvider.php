@@ -175,7 +175,7 @@ class FortifyServiceProvider extends ServiceProvider
 
             Route::group([
                 'domain' => $config->get('fortify.domain'),
-                'prefix' => $config->string('fortify.prefix', ''),
+                'prefix' => $config->string('fortify.prefix'),
             ], function (): void {
                 $this->loadRoutesFrom(__DIR__ . '/../routes/routes.php');
             });

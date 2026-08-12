@@ -7,10 +7,11 @@ namespace Hypervel\Tests\Pagination;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
+use JsonException;
 
 class PaginatorTest extends TestCase
 {
-    public function testSimplePaginatorReturnsRelevantContextInformation()
+    public function testSimplePaginatorReturnsRelevantContextInformation(): void
     {
         /** @var Paginator<int, string> $p */
         $p = new Paginator(['item3', 'item4', 'item5'], 2, 2);
@@ -36,35 +37,35 @@ class PaginatorTest extends TestCase
         $this->assertEquals($pageInfo, $p->toArray());
     }
 
-    public function testPaginatorRemovesTrailingSlashes()
+    public function testPaginatorRemovesTrailingSlashes(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 2, 2, ['path' => 'http://website.com/test/']);
 
         $this->assertSame('http://website.com/test?page=1', $p->previousPageUrl());
     }
 
-    public function testPaginatorGeneratesUrlsWithoutTrailingSlash()
+    public function testPaginatorGeneratesUrlsWithoutTrailingSlash(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 2, 2, ['path' => 'http://website.com/test']);
 
         $this->assertSame('http://website.com/test?page=1', $p->previousPageUrl());
     }
 
-    public function testItRetrievesThePaginatorOptions()
+    public function testItRetrievesThePaginatorOptions(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 2, 2, ['path' => 'http://website.com/test']);
 
         $this->assertSame(['path' => 'http://website.com/test'], $p->getOptions());
     }
 
-    public function testPaginatorReturnsPath()
+    public function testPaginatorReturnsPath(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 2, 2, ['path' => 'http://website.com/test']);
 
         $this->assertSame('http://website.com/test', $p->path());
     }
 
-    public function testCanTransformPaginatorItems()
+    public function testCanTransformPaginatorItems(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 3, 1, ['path' => 'http://website.com/test']);
 
@@ -76,7 +77,7 @@ class PaginatorTest extends TestCase
         $this->assertSame(['1', '2', '3'], $p->items());
     }
 
-    public function testPaginatorToJson()
+    public function testPaginatorToJson(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 3, 1);
         $results = $p->toJson();
@@ -86,7 +87,7 @@ class PaginatorTest extends TestCase
         $this->assertSame($expected, $results);
     }
 
-    public function testPaginatorToPrettyJson()
+    public function testPaginatorToPrettyJson(): void
     {
         $p = new Paginator(['item/1', 'item/2', 'item/3'], 3, 1);
         $results = $p->toPrettyJson();
@@ -104,14 +105,14 @@ class PaginatorTest extends TestCase
         $this->assertStringContainsString('item/1', $results);
     }
 
-    public function testPreviousPageUrlReturnsNullOnFirstPage()
+    public function testPreviousPageUrlReturnsNullOnFirstPage(): void
     {
         $p = new Paginator(['item1', 'item2'], 2, 1);
 
         $this->assertNull($p->previousPageUrl());
     }
 
-    public function testFragmentGetAndSet()
+    public function testFragmentGetAndSet(): void
     {
         $p = new Paginator(['item1', 'item2'], 2, 1);
 
@@ -122,7 +123,7 @@ class PaginatorTest extends TestCase
         $this->assertSame('section', $p->fragment());
     }
 
-    public function testFragmentAppearsInUrl()
+    public function testFragmentAppearsInUrl(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 2, 1);
         $p->fragment('top');
@@ -130,7 +131,7 @@ class PaginatorTest extends TestCase
         $this->assertSame('/?page=2#top', $p->url(2));
     }
 
-    public function testIsEmptyAndIsNotEmpty()
+    public function testIsEmptyAndIsNotEmpty(): void
     {
         $p = new Paginator([], 2, 1);
         $this->assertTrue($p->isEmpty());
@@ -141,14 +142,14 @@ class PaginatorTest extends TestCase
         $this->assertTrue($p->isNotEmpty());
     }
 
-    public function testCount()
+    public function testCount(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 3, 1);
 
         $this->assertSame(3, $p->count());
     }
 
-    public function testGetCollectionAndSetCollection()
+    public function testGetCollectionAndSetCollection(): void
     {
         $p = new Paginator(['item1', 'item2'], 2, 1);
 
@@ -162,7 +163,7 @@ class PaginatorTest extends TestCase
         $this->assertSame(['a', 'b', 'c'], $p->items());
     }
 
-    public function testArrayAccess()
+    public function testArrayAccess(): void
     {
         $p = new Paginator(['item1', 'item2', 'item3'], 3, 1);
 
@@ -184,7 +185,7 @@ class PaginatorTest extends TestCase
         $this->assertFalse(isset($p[0]));
     }
 
-    public function testWithPathIsFluent()
+    public function testWithPathIsFluent(): void
     {
         $p = new Paginator(['item1'], 1, 1);
 
@@ -193,7 +194,7 @@ class PaginatorTest extends TestCase
         $this->assertSame('http://example.com/items', $p->path());
     }
 
-    public function testGetUrlRange()
+    public function testGetUrlRange(): void
     {
         $p = new Paginator(['item1', 'item2'], 2, 1);
 
@@ -205,7 +206,7 @@ class PaginatorTest extends TestCase
         ], $range);
     }
 
-    public function testHasMorePagesWhen()
+    public function testHasMorePagesWhen(): void
     {
         $p = new Paginator(['item1', 'item2'], 2, 1);
 
@@ -218,7 +219,7 @@ class PaginatorTest extends TestCase
         $this->assertFalse($p->hasMorePages());
     }
 
-    public function testEscapeWhenCastingToString()
+    public function testEscapeWhenCastingToString(): void
     {
         $p = new Paginator(['item1'], 1, 1);
 
@@ -226,7 +227,7 @@ class PaginatorTest extends TestCase
         $this->assertSame($p, $result);
     }
 
-    public function testWithQueryString()
+    public function testWithQueryString(): void
     {
         Paginator::queryStringResolver(fn () => ['sort' => 'name', 'direction' => 'asc']);
 
@@ -234,5 +235,55 @@ class PaginatorTest extends TestCase
         $p->withQueryString();
 
         $this->assertSame('/?sort=name&direction=asc&page=2', $p->url(2));
+    }
+
+    public function testAppendsPreservesIntegerKeysAndSupportedValues(): void
+    {
+        $paginator = new Paginator(['item1', 'item2'], 1);
+
+        $paginator->appends([
+            2 => 'two',
+            5 => 4.25,
+            'enabled' => true,
+            'filters' => ['status' => 'active'],
+        ]);
+
+        $this->assertSame(
+            '/?2=two&5=4.25&enabled=1&filters%5Bstatus%5D=active&page=2',
+            $paginator->url(2),
+        );
+    }
+
+    public function testExplicitZeroPageDoesNotConsultTheResolver(): void
+    {
+        Paginator::currentPageResolver(fn () => 9);
+
+        $this->assertSame(1, (new Paginator(['item'], 1, 0))->currentPage());
+        $this->assertSame(9, (new Paginator(['item'], 1))->currentPage());
+    }
+
+    public function testPaginatorJsonThrowsForInvalidUtf8(): void
+    {
+        $paginator = new Paginator(["\xB1\x31"], 1);
+
+        $this->expectException(JsonException::class);
+
+        $paginator->toJson();
+    }
+
+    public function testPaginatorPrettyJsonPropagatesInvalidUtf8Failure(): void
+    {
+        $paginator = new Paginator(["\xB1\x31"], 1);
+
+        $this->expectException(JsonException::class);
+
+        $paginator->toPrettyJson();
+    }
+
+    public function testPaginatorJsonHonorsInvalidUtf8Substitution(): void
+    {
+        $paginator = new Paginator(["\xB1\x31"], 1);
+
+        $this->assertStringContainsString('\ufffd1', $paginator->toJson(JSON_INVALID_UTF8_SUBSTITUTE));
     }
 }

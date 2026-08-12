@@ -81,7 +81,7 @@ The dynamic resolver must run before matching paths because the returned configu
 | `http-a06` | Make client request header lookup PSR-7 case-insensitive and literal, including dotted names; use current `array_all()` coverage. |
 | `http-a07` | Treat only trimmed empty request content as no JSON; decode valid `"0"`. |
 | `http-a08` | Port current Laravel cache-header handling for bodyless HEAD responses. |
-| `http-a09` | Accept `Arrayable|array|JsonSerializable` payloads for body-bearing verbs and QUERY. |
+| `http-a09` | Accept `Arrayable\|array\|JsonSerializable` payloads for body-bearing verbs and QUERY. |
 | `http-a10` | Correct the complete throw/throwIf/throwUnless family, callback storage, and status-code types. |
 | `http-a11` | Remove duplicate HTTP/Testbench configuration defaults at their consumers; retain partial-bootstrap defaults owned by `LoadConfiguration`. |
 | `http-a12` | Mark Factory global middleware configuration as boot-only. |

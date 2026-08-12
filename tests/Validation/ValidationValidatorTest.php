@@ -25,6 +25,7 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
@@ -39,9 +40,9 @@ use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
 use Mockery as m;
-use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use ReflectionProperty;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
@@ -49,6 +50,24 @@ use UnitEnum;
 
 class ValidationValidatorTest extends TestCase
 {
+    private string $originalTimezone;
+
+    protected function setUp(): void
+    {
+        $this->originalTimezone = date_default_timezone_get();
+
+        parent::setUp();
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            date_default_timezone_set($this->originalTimezone);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     public function testNestedErrorMessagesAreRetrievedFromLocalArray()
     {
         $trans = $this->getArrayTranslator();
@@ -103,6 +122,45 @@ class ValidationValidatorTest extends TestCase
 
         $this->assertFalse($v->passes());
         $this->assertSame('post name is required', $v->errors()->all()[0]);
+    }
+
+    public function testWildcardArrayCustomMessagesHandleMissingRulesGracefully(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['users' => [['name' => 'Taylor']]],
+            ['users.*.name' => ['required', 'in:Otwell']],
+            ['users.*.name' => ['required' => 'user name is required']],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('validation.in', $validator->errors()->first('users.0.name'));
+    }
+
+    public function testExactArrayCustomMessagesHandleMissingRulesGracefully(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['name' => 'Taylor'],
+            ['name' => ['required', 'in:Otwell']],
+            ['name' => ['required' => 'name is required']],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('validation.in', $validator->errors()->first('name'));
+    }
+
+    public function testWildcardArrayCustomMessagesPreserveTypeSpecificSizeMessages(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['users' => [['name' => 'Taylor']]],
+            ['users.*.name' => 'size:3'],
+            ['users.*.name' => ['size' => ['string' => ':attribute must contain :size characters']]],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('users.0.name must contain 3 characters', $validator->errors()->first('users.0.name'));
     }
 
     public function testSometimesWorksOnNestedArrays()
@@ -1168,6 +1226,38 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('name should be of length 9', $v->messages()->first('name'));
     }
 
+    #[DataProvider('integerMessageParameterCases')]
+    public function testDocumentedIntegerParametersRenderInFailureMessages(
+        mixed $value,
+        array $rule,
+        string $messageKey,
+        string $message,
+        string $expected,
+    ): void {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['value' => $value],
+            ['value' => [$rule]],
+            [$messageKey => $message],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame($expected, $validator->errors()->first('value'));
+    }
+
+    public static function integerMessageParameterCases(): iterable
+    {
+        yield 'date format' => ['invalid', ['date_format', 2025], 'value.date_format', 'Format :format', 'Format 2025'];
+        yield 'decimal' => ['1.234', ['decimal', 2], 'value.decimal', 'Decimal :decimal', 'Decimal 2'];
+        yield 'digits' => ['123', ['digits', 2], 'value.digits', 'Digits :digits', 'Digits 2'];
+        yield 'minimum' => ['ab', ['min', 3], 'value.min', 'Minimum :min', 'Minimum 3'];
+        yield 'minimum digits' => ['12', ['min_digits', 3], 'value.min_digits', 'Minimum digits :min', 'Minimum digits 3'];
+        yield 'maximum' => ['ab', ['max', 1], 'value.max', 'Maximum :max', 'Maximum 1'];
+        yield 'maximum digits' => ['12', ['max_digits', 1], 'value.max_digits', 'Maximum digits :max', 'Maximum digits 1'];
+        yield 'multiple of' => [4, ['multiple_of', 3], 'value.multiple_of', 'Multiple :value', 'Multiple 3'];
+        yield 'size' => ['ab', ['size', 3], 'value.size', 'Size :size', 'Size 3'];
+    }
+
     public function testCustomValidationIsAppendedToMessages()
     {
         $trans = $this->getArrayTranslator();
@@ -1294,7 +1384,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateCurrentPassword()
+    public function testValidateCurrentPassword(): void
     {
         // Fails when user is not logged in.
         $auth = m::mock(Guard::class);
@@ -1309,6 +1399,7 @@ class ValidationValidatorTest extends TestCase
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
+        $trans->shouldReceive('string')->andReturnArg(0);
 
         $v = new Validator($trans, ['password' => 'foo'], ['password' => 'current_password']);
         $v->setContainer($container);
@@ -1333,6 +1424,7 @@ class ValidationValidatorTest extends TestCase
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
+        $trans->shouldReceive('string')->andReturnArg(0);
 
         $v = new Validator($trans, ['password' => 'foo'], ['password' => 'current_password']);
         $v->setContainer($container);
@@ -2367,6 +2459,33 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
+    public function testValidateBase64(): void
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['value' => base64_encode('Hypervel')], ['value' => 'base64']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['value' => ''], ['value' => 'required|base64']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['value' => 'not-base64!'], ['value' => 'base64']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['value' => 'YQ'], ['value' => 'base64']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['value' => 'YQ=='], ['value' => 'base64']);
+        $this->assertTrue($v->passes());
+    }
+
+    public function testValidateBase64DoesNotThrowOnNonStringValue(): void
+    {
+        $v = new Validator($this->getArrayTranslator(), ['value' => ['array']], ['value' => 'base64']);
+
+        $this->assertFalse($v->passes());
+    }
+
     public function testValidateConfirmed()
     {
         $trans = $this->getArrayTranslator();
@@ -3220,7 +3339,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateJson()
+    public function testValidateJson(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['foo' => 'aslksd'], ['foo' => 'json']);
@@ -3245,6 +3364,20 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['foo' => new Stringable('[]')], ['foo' => 'json']);
         $this->assertTrue($v->passes());
+
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $v = new Validator($trans, ['foo' => Json::encode($value)], ['foo' => 'json']);
+        $this->assertTrue($v->passes());
+
+        $value = ['value' => $value];
+        $json = json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1);
+        $v = new Validator($trans, ['foo' => $json], ['foo' => 'json']);
+        $this->assertFalse($v->passes());
     }
 
     public function testValidateBoolean()
@@ -5105,20 +5238,13 @@ class ValidationValidatorTest extends TestCase
     }
 
     #[DataProvider('activeUrlDataProvider')]
-    public function testValidateActiveUrl($data, $outcome)
+    public function testValidateActiveUrl($data, $outcome): void
     {
+        Validator::fakeDnsLookups();
+
         $trans = $this->getArrayTranslator();
-        $v = m::mock(
-            new Validator($trans, $data, ['x' => 'active_url']),
-            function (MockInterface $mock) {
-                $mock
-                    ->shouldAllowMockingProtectedMethods()
-                    ->shouldReceive('getDnsRecords')
-                    ->withAnyArgs()
-                    ->zeroOrMoreTimes()
-                    ->andReturn(['hit']);
-            }
-        );
+        $v = new Validator($trans, $data, ['x' => 'active_url']);
+
         $this->assertEquals($outcome, $v->passes());
     }
 
@@ -5146,6 +5272,65 @@ class ValidationValidatorTest extends TestCase
                 true,
             ],
         ];
+    }
+
+    public function testValidateActiveUrlWithFakedDnsLookups(): void
+    {
+        Validator::fakeDnsLookups();
+
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['x' => 'https://this-domain-does-not-exist.invalid'], ['x' => 'active_url']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => 'aslsdlks'], ['x' => 'active_url']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['x' => ['not-a-string']], ['x' => 'active_url']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['x' => 'http://foo..com'], ['x' => 'active_url']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['x' => 'http://127.0.0.1'], ['x' => 'active_url']);
+        $this->assertFalse($v->passes());
+    }
+
+    public function testValidateEmailWithDnsCheckWithFakedDnsLookups(): void
+    {
+        Validator::fakeDnsLookups();
+
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, ['x' => 'taylor@this-domain-does-not-exist.com'], ['x' => 'email:dns']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => 'taylor@this-domain-does-not-exist.com'], ['x' => 'email:rfc,dns']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => 'not-an-email'], ['x' => 'email:dns']);
+        $this->assertFalse($v->passes());
+
+        $v = new Validator($trans, ['x' => '.invalid@gmail.com'], ['x' => 'email:dns']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => 'taylor@this-domain-does-not-exist.invalid'], ['x' => 'email:dns']);
+        $this->assertFalse($v->passes());
+    }
+
+    public function testFakedDnsLookupsCanBeToggledAndAreFlushed(): void
+    {
+        $property = new ReflectionProperty(Validator::class, 'fakeDnsLookups');
+
+        Validator::fakeDnsLookups();
+        $this->assertTrue($property->getValue());
+
+        Validator::fakeDnsLookups(false);
+        $this->assertFalse($property->getValue());
+
+        Validator::fakeDnsLookups();
+        Validator::flushState();
+        $this->assertFalse($property->getValue());
     }
 
     public function testValidateImage()
@@ -5204,7 +5389,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateImageDimensions()
+    public function testValidateImageDimensions(): void
     {
         $this->mockContainer();
         // Knowing that demo image.png has width = 3 and height = 2
@@ -5258,11 +5443,11 @@ class ValidationValidatorTest extends TestCase
 
         // for min_ratio
         $v = new Validator($trans, ['x' => $uploadedFile], ['x' => 'dimensions:min_ratio=1/2']);
-        $this->assertTrue($v->fails());
+        $this->assertTrue($v->passes());
 
         // for max_ratio
         $v = new Validator($trans, ['x' => $uploadedFile], ['x' => 'dimensions:max_ratio=2/5']);
-        $this->assertTrue($v->passes());
+        $this->assertTrue($v->fails());
 
         // Knowing that demo image2.png has width = 4 and height = 2
         $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image2.png', '', null, null, true);
@@ -5321,13 +5506,13 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['x' => $uploadedFile], ['x' => 'dimensions:ratio=1']);
         $this->assertFalse($v->passes());
 
-        // evaluates to (64 / 65) > (1 / 1.0) which is true/fails
+        // evaluates to (64 / 65) < (1 / 1.0) outside the accepted image precision
         $v = new Validator($trans, ['x' => $uploadedFile], ['x' => 'dimensions:min_ratio=1']);
-        $this->assertFalse($v->fails());
+        $this->assertTrue($v->fails());
 
-        // evaluates to (64 / 65) < (1 / 1.0) which is false/passes
+        // evaluates to (64 / 65) < (1 / 1.0), which satisfies the maximum
         $v = new Validator($trans, ['x' => $uploadedFile], ['x' => 'dimensions:max_ratio=1']);
-        $this->assertFalse($v->passes());
+        $this->assertTrue($v->passes());
 
         // Knowing that demo image5.png has width = 1366 and height = 768
         $uploadedFile = new UploadedFile(__DIR__ . '/Fixtures/image5.png', '', null, null, true);
@@ -6619,7 +6804,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testWeakBeforeAndAfter()
+    public function testWeakBeforeAndAfter(): void
     {
         date_default_timezone_set('UTC');
         $trans = $this->getArrayTranslator();
@@ -6714,10 +6899,10 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['foo' => '2012-01-15 11:00', 'bar' => null], ['foo' => 'before_or_equal:bar']);
-        $this->assertTrue($v->fails());
+        $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['foo' => '2012-01-15 11:00', 'bar' => null], ['foo' => 'before_or_equal:bar', 'bar' => 'nullable']);
-        $this->assertTrue($v->fails());
+        $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['from' => '2020-08-05', 'to' => '2020-05-08'], ['from' => 'date_format:Y-m-d|before_or_equal:to', 'to' => 'date_format:Y-d-m']);
         $this->assertTrue($v->passes());
@@ -7050,6 +7235,22 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $v->messages()->setFormat(':message');
         $this->assertSame('foo!', $v->messages()->first('name'));
+    }
+
+    public function testFalseyFallbackMessagesUseTheTranslationKey(): void
+    {
+        foreach (['', '0'] as $message) {
+            $validator = new Validator(
+                $this->getArrayTranslator(),
+                ['name' => 'taylor'],
+                ['name' => 'foo_bar'],
+            );
+            $validator->addExtension('FooBar', static fn (): bool => false);
+            $validator->setFallbackMessages(['foo_bar' => $message]);
+
+            $this->assertFalse($validator->passes());
+            $this->assertSame('validation.foo_bar', $validator->errors()->first('name'));
+        }
     }
 
     public function testClassBasedCustomValidators()

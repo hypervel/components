@@ -18,7 +18,7 @@ interface BatchRepository
     /**
      * Retrieve information about an existing batch.
      */
-    public function find(int|string $batchId): ?Batch;
+    public function find(string $batchId): ?Batch;
 
     /**
      * Store a new pending batch.
@@ -28,32 +28,32 @@ interface BatchRepository
     /**
      * Increment the total number of jobs within the batch.
      */
-    public function incrementTotalJobs(int|string $batchId, int $amount): void;
+    public function incrementTotalJobs(string $batchId, int $amount): void;
 
     /**
      * Decrement the total number of pending jobs for the batch.
      */
-    public function decrementPendingJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts;
+    public function decrementPendingJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts;
 
     /**
      * Increment the total number of failed jobs for the batch.
      */
-    public function incrementFailedJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts;
+    public function incrementFailedJobs(string $batchId, string $jobId): ?UpdatedBatchJobCounts;
 
     /**
      * Mark the batch that has the given ID as finished.
      */
-    public function markAsFinished(int|string $batchId): void;
+    public function markAsFinished(string $batchId): void;
 
     /**
      * Cancel the batch that has the given ID.
      */
-    public function cancel(int|string $batchId): void;
+    public function cancel(string $batchId): void;
 
     /**
      * Delete the batch that has the given ID.
      */
-    public function delete(int|string $batchId): void;
+    public function delete(string $batchId): void;
 
     /**
      * Execute the given Closure within a storage specific transaction.

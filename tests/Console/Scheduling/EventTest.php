@@ -155,6 +155,14 @@ class EventTest extends TestCase
         $this->assertTrue($event->runsWhenPaused());
     }
 
+    public function testNeverCheckedRepeatableEventIsNotReadyToRepeat(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event->repeatSeconds = 1;
+
+        $this->assertFalse($event->shouldRepeatNow());
+    }
+
     public function testEventMarksSkippedWhenMutexAlreadyExists(): void
     {
         $eventMutex = m::mock(EventMutex::class);

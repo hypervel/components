@@ -25,7 +25,11 @@
     "require": {
         "php": "^8.4",
         "composer-runtime-api": "^2.2",
+        "guzzlehttp/guzzle": "^7.15.1",
         "laravel/serializable-closure": "^2.0.10",
+        "league/flysystem": "^3.25.1",
+        "league/uri": "^7.5.1",
+        "monolog/monolog": "^3.1",
         "nesbot/carbon": "^3.13.1",
         "psr/clock": "^1.0",
         "symfony/console": "^8.1",
@@ -62,6 +66,7 @@
         "hypervel/macroable": "^0.4",
         "hypervel/prompts": "^0.4",
         "hypervel/queue": "^0.4",
+        "hypervel/rate-limiter": "^0.4",
         "hypervel/reflection": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/server": "^0.4",
@@ -73,7 +78,11 @@
         "hypervel/websocket-server": "^0.4"
     },
     "suggest": {
-        "composer/semver": "Required to use PackageManifest::satisfies() for version constraint checking (^3.0)."
+        "algolia/algoliasearch-client-php": "Required to use the InteractsWithAlgolia trait (^4.0).",
+        "composer/semver": "Required to use PackageManifest::satisfies() for version constraint checking (^3.0).",
+        "fakerphp/faker": "Required to use the fake() helper and WithFaker trait (^1.24).",
+        "meilisearch/meilisearch-php": "Required to use the InteractsWithMeilisearch trait (^1.16).",
+        "typesense/typesense-php": "Required to use the InteractsWithTypesense trait (^5.2)."
     },
     "autoload": {
         "psr-4": {

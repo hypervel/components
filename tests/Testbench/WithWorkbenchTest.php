@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
+use Hypervel\Routing\Router;
 use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
@@ -20,7 +22,7 @@ class WithWorkbenchTest extends TestCase
     use WithWorkbench;
 
     #[Test]
-    public function itCanBeResolved()
+    public function itCanBeResolved(): void
     {
         $cachedConfig = Workbench::configuration();
 
@@ -29,7 +31,7 @@ class WithWorkbenchTest extends TestCase
         $this->assertSame($cachedConfig, static::cachedConfigurationForWorkbench());
 
         $this->assertSame([
-            'env' => ["APP_NAME='Testbench'"],
+            'env' => ['APP_NAME="Testbench"'],
             'bootstrappers' => [],
             'providers' => ['Workbench\App\Providers\WorkbenchServiceProvider'],
             'dont-discover' => ['hypervel/components'],
@@ -37,7 +39,7 @@ class WithWorkbenchTest extends TestCase
     }
 
     #[Test]
-    public function itCanBeManuallyResolved()
+    public function itCanBeManuallyResolved(): void
     {
         $cachedConfig = static::cachedConfigurationForWorkbench();
 
@@ -51,7 +53,7 @@ class WithWorkbenchTest extends TestCase
     }
 
     #[Test]
-    public function itCanFlushCachedCoreBindings()
+    public function itCanFlushCachedCoreBindings(): void
     {
         $reflection = new ReflectionClass(Workbench::class);
         $reflection->setStaticPropertyValue('cachedCoreBindings', [
@@ -68,7 +70,7 @@ class WithWorkbenchTest extends TestCase
     }
 
     #[Test]
-    public function itCanAutoDetectPackagesViaBootstrapProvidersFile()
+    public function itCanAutoDetectPackagesViaBootstrapProvidersFile(): void
     {
         $loadedProviders = collect($this->app->getLoadedProviders())->keys()->all();
 
@@ -76,7 +78,21 @@ class WithWorkbenchTest extends TestCase
     }
 
     #[Test]
-    public function itIgnoresStrayTestbenchAppBasePathEnvironmentValues()
+    public function itRegistersTheRouteProviderAndWorkbenchRoutesOnce(): void
+    {
+        $this->assertCount(1, $this->app->getProviders(RouteServiceProvider::class));
+
+        $routes = $this->app->make(Router::class)->getRoutes()->getRoutes();
+        $testbenchRoutes = array_filter(
+            $routes,
+            static fn ($route): bool => $route->uri() === 'testbench'
+        );
+
+        $this->assertCount(1, $testbenchRoutes);
+    }
+
+    #[Test]
+    public function itIgnoresStrayTestbenchAppBasePathEnvironmentValues(): void
     {
         $previousAppBasePathExists = array_key_exists('APP_BASE_PATH', $_ENV);
         $previousAppBasePath = $_ENV['APP_BASE_PATH'] ?? null;
@@ -108,7 +124,7 @@ class WithWorkbenchTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveUserModelFromWorkbench()
+    public function itCanResolveUserModelFromWorkbench(): void
     {
         $this->assertFalse(Env::has('AUTH_MODEL'));
         $this->assertSame('Workbench\App\Models\User', config('auth.providers.users.model'));
@@ -121,7 +137,7 @@ class WithWorkbenchTest extends TestCase
         string|false $seeder,
         array|false $workbenchSeeders,
         array|false $expected
-    ) {
+    ): void {
         $stub = new MergeSeedersTestStub($seed, $seeder);
 
         $config = new Config(['seeders' => $workbenchSeeders]);
@@ -129,7 +145,7 @@ class WithWorkbenchTest extends TestCase
         $this->assertSame($expected, $stub($config));
     }
 
-    public static function seedersDataProvider()
+    public static function seedersDataProvider(): iterable
     {
         yield [false, false, ['Workbench\Database\Seeders\DatabaseSeeder'], false];
         yield [true, false, ['Workbench\Database\Seeders\DatabaseSeeder'], ['Workbench\Database\Seeders\DatabaseSeeder']];

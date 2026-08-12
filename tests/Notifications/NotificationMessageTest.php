@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Notifications\Messages\SimpleMessage as Message;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class NotificationMessageTest extends TestCase
 {
-    public function testLevelCanBeRetrieved()
+    public function testLevelCanBeRetrieved(): void
     {
         $message = new Message;
         $this->assertSame('info', $message->level);
@@ -19,7 +19,7 @@ class NotificationMessageTest extends TestCase
         $this->assertSame('error', $message->level);
     }
 
-    public function testMessageFormatsMultiLineText()
+    public function testMessageFormatsMultiLineText(): void
     {
         $message = new Message;
         $message->with('

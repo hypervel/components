@@ -7,6 +7,11 @@ namespace Hypervel\Routing;
 use Closure;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
+use Laravel\SerializableClosure\SerializableClosure;
+use Laravel\SerializableClosure\Serializers\Native as NativeSerializer;
+use Laravel\SerializableClosure\Serializers\Signed as SignedSerializer;
+use Laravel\SerializableClosure\Support\SelfReference;
+use Laravel\SerializableClosure\UnsignedSerializableClosure;
 use ReflectionException;
 use ReflectionFunction;
 use ReflectionMethod;
@@ -42,7 +47,13 @@ class RouteSignatureParameters
     public static function fromAction(array $action, array $conditions = []): array
     {
         $callback = RouteAction::containsSerializedClosure($action)
-            ? unserialize($action['uses'])->getClosure()
+            ? unserialize($action['uses'], ['allowed_classes' => [
+                SerializableClosure::class,
+                UnsignedSerializableClosure::class,
+                NativeSerializer::class,
+                SignedSerializer::class,
+                SelfReference::class,
+            ]])->getClosure()
             : $action['uses'];
 
         if (is_string($callback)) {

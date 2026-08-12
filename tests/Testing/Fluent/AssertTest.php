@@ -14,7 +14,7 @@ use TypeError;
 
 class AssertTest extends TestCase
 {
-    public function testAssertHas()
+    public function testAssertHas(): void
     {
         $assert = AssertableJson::fromArray([
             'prop' => 'value',
@@ -23,7 +23,7 @@ class AssertTest extends TestCase
         $assert->has('prop');
     }
 
-    public function testAssertHasFailsWhenPropMissing()
+    public function testAssertHasFailsWhenPropMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -35,7 +35,7 @@ class AssertTest extends TestCase
         $assert->has('prop');
     }
 
-    public function testAssertHasNestedProp()
+    public function testAssertHasNestedProp(): void
     {
         $assert = AssertableJson::fromArray([
             'example' => [
@@ -46,7 +46,7 @@ class AssertTest extends TestCase
         $assert->has('example.nested');
     }
 
-    public function testAssertHasFailsWhenNestedPropMissing()
+    public function testAssertHasFailsWhenNestedPropMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'example' => [
@@ -60,7 +60,7 @@ class AssertTest extends TestCase
         $assert->has('example.another');
     }
 
-    public function testAssertHasCountItemsInProp()
+    public function testAssertHasCountItemsInProp(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -72,7 +72,7 @@ class AssertTest extends TestCase
         $assert->has('bar', 2);
     }
 
-    public function testAssertHasCountFailsWhenAmountOfItemsDoesNotMatch()
+    public function testAssertHasCountFailsWhenAmountOfItemsDoesNotMatch(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -87,7 +87,7 @@ class AssertTest extends TestCase
         $assert->has('bar', 1);
     }
 
-    public function testAssertHasCountFailsWhenPropMissing()
+    public function testAssertHasCountFailsWhenPropMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -102,7 +102,7 @@ class AssertTest extends TestCase
         $assert->has('baz', 1);
     }
 
-    public function testAssertHasFailsWhenSecondArgumentUnsupportedType()
+    public function testAssertHasFailsWhenSecondArgumentUnsupportedType(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'baz',
@@ -113,7 +113,7 @@ class AssertTest extends TestCase
         $assert->has('bar', 'invalid');
     }
 
-    public function testAssertHasOnlyCounts()
+    public function testAssertHasOnlyCounts(): void
     {
         $assert = AssertableJson::fromArray([
             'foo',
@@ -124,7 +124,7 @@ class AssertTest extends TestCase
         $assert->has(3);
     }
 
-    public function testAssertHasOnlyCountFails()
+    public function testAssertHasOnlyCountFails(): void
     {
         $assert = AssertableJson::fromArray([
             'foo',
@@ -138,7 +138,7 @@ class AssertTest extends TestCase
         $assert->has(2);
     }
 
-    public function testAssertHasOnlyCountFailsScoped()
+    public function testAssertHasOnlyCountFailsScoped(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -155,7 +155,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertHasWithWhereNotDoesNotFail()
+    public function testAssertHasWithWhereNotDoesNotFail(): void
     {
         $assert = AssertableJson::fromArray([
             'data' => [
@@ -176,7 +176,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertHasWithWhereNotFails()
+    public function testAssertHasWithWhereNotFails(): void
     {
         $assert = AssertableJson::fromArray([
             'data' => [
@@ -200,7 +200,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertHasWithWhereNotDoesNotFailClosure()
+    public function testAssertHasWithWhereNotDoesNotFailClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'data' => [
@@ -221,7 +221,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertHasWithWhereNotFailsClosure()
+    public function testAssertHasWithWhereNotFailsClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'data' => [
@@ -245,7 +245,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertCount()
+    public function testAssertCount(): void
     {
         $assert = AssertableJson::fromArray([
             'foo',
@@ -256,7 +256,7 @@ class AssertTest extends TestCase
         $assert->count(3);
     }
 
-    public function testAssertCountFails()
+    public function testAssertCountFails(): void
     {
         $assert = AssertableJson::fromArray([
             'foo',
@@ -270,7 +270,7 @@ class AssertTest extends TestCase
         $assert->count(2);
     }
 
-    public function testAssertCountFailsScoped()
+    public function testAssertCountFailsScoped(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -287,7 +287,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertBetween()
+    public function testAssertBetween(): void
     {
         $assert = AssertableJson::fromArray([
             'foo',
@@ -298,7 +298,7 @@ class AssertTest extends TestCase
         $assert->countBetween(1, 3);
     }
 
-    public function testAssertBetweenFails()
+    public function testAssertBetweenFails(): void
     {
         $assert = AssertableJson::fromArray([
             'foo',
@@ -312,7 +312,7 @@ class AssertTest extends TestCase
         $assert->countBetween(1, 2);
     }
 
-    public function testAssertBetweenLowestValueFails()
+    public function testAssertBetweenLowestValueFails(): void
     {
         $assert = AssertableJson::fromArray([
             'foo',
@@ -326,7 +326,7 @@ class AssertTest extends TestCase
         $assert->countBetween(4, 3);
     }
 
-    public function testAssertBetweenFailsScoped()
+    public function testAssertBetweenFailsScoped(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -344,7 +344,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertMissing()
+    public function testAssertMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [
@@ -355,7 +355,7 @@ class AssertTest extends TestCase
         $assert->missing('foo.baz');
     }
 
-    public function testAssertMissingFailsWhenPropExists()
+    public function testAssertMissingFailsWhenPropExists(): void
     {
         $assert = AssertableJson::fromArray([
             'prop' => 'value',
@@ -370,7 +370,7 @@ class AssertTest extends TestCase
         $assert->missing('foo.bar');
     }
 
-    public function testAssertMissingAll()
+    public function testAssertMissingAll(): void
     {
         $assert = AssertableJson::fromArray([
             'baz' => 'foo',
@@ -382,7 +382,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertMissingAllFailsWhenAtLeastOnePropExists()
+    public function testAssertMissingAllFailsWhenAtLeastOnePropExists(): void
     {
         $assert = AssertableJson::fromArray([
             'baz' => 'foo',
@@ -397,7 +397,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertMissingAllAcceptsMultipleArgumentsInsteadOfArray()
+    public function testAssertMissingAllAcceptsMultipleArgumentsInsteadOfArray(): void
     {
         $assert = AssertableJson::fromArray([
             'baz' => 'foo',
@@ -411,7 +411,7 @@ class AssertTest extends TestCase
         $assert->missingAll('bar', 'baz');
     }
 
-    public function testAssertWhereMatchesValue()
+    public function testAssertWhereMatchesValue(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -420,7 +420,7 @@ class AssertTest extends TestCase
         $assert->where('bar', 'value');
     }
 
-    public function testAssertWhereFailsWhenDoesNotMatchValue()
+    public function testAssertWhereFailsWhenDoesNotMatchValue(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -432,7 +432,7 @@ class AssertTest extends TestCase
         $assert->where('bar', 'invalid');
     }
 
-    public function testAssertWhereFailsWhenMissing()
+    public function testAssertWhereFailsWhenMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -444,7 +444,7 @@ class AssertTest extends TestCase
         $assert->where('baz', 'invalid');
     }
 
-    public function testAssertWhereFailsWhenMatchingLoosely()
+    public function testAssertWhereFailsWhenMatchingLoosely(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 1,
@@ -456,7 +456,7 @@ class AssertTest extends TestCase
         $assert->where('bar', true);
     }
 
-    public function testAssertWhereUsingClosure()
+    public function testAssertWhereUsingClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'baz',
@@ -467,7 +467,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertWhereFailsWhenDoesNotMatchValueUsingClosure()
+    public function testAssertWhereFailsWhenDoesNotMatchValueUsingClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'baz',
@@ -481,7 +481,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertWhereClosureArrayValuesAreAutomaticallyCastedToCollections()
+    public function testAssertWhereClosureArrayValuesAreAutomaticallyCastedToCollections(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -497,7 +497,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertWhereMatchesValueUsingArrayable()
+    public function testAssertWhereMatchesValueUsingArrayable(): void
     {
         $stub = ArrayableStubObject::make(['foo' => 'bar']);
 
@@ -508,7 +508,7 @@ class AssertTest extends TestCase
         $assert->where('bar', $stub);
     }
 
-    public function testAssertWhereMatchesValueUsingArrayableWhenSortedDifferently()
+    public function testAssertWhereMatchesValueUsingArrayableWhenSortedDifferently(): void
     {
         $assert = AssertableJson::fromArray([
             'data' => [
@@ -529,7 +529,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertWhereFailsWhenDoesNotMatchValueUsingArrayable()
+    public function testAssertWhereFailsWhenDoesNotMatchValueUsingArrayable(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => ['id' => 1, 'name' => 'Example'],
@@ -555,7 +555,7 @@ class AssertTest extends TestCase
             ]);
     }
 
-    public function testAssertWhereUsingBackedEnum()
+    public function testAssertWhereUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => BackedEnum::Test->value,
@@ -570,7 +570,7 @@ class AssertTest extends TestCase
         $assert->where('bar', BackedEnum::TestEmpty);
     }
 
-    public function testAssertWhereFailsUsingBackedEnum()
+    public function testAssertWhereFailsUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => BackedEnum::Test->value,
@@ -582,7 +582,7 @@ class AssertTest extends TestCase
         $assert->where('bar', BackedEnum::TestEmpty);
     }
 
-    public function testAssertWhereNullMatchesValue()
+    public function testAssertWhereNullMatchesValue(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => null,
@@ -591,7 +591,7 @@ class AssertTest extends TestCase
         $assert->whereNull('bar');
     }
 
-    public function testAssertWhereNullFailsWhenNotNull()
+    public function testAssertWhereNullFailsWhenNotNull(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -603,7 +603,7 @@ class AssertTest extends TestCase
         $assert->whereNull('bar');
     }
 
-    public function testAssertWhereNullFailsWhenMissing()
+    public function testAssertWhereNullFailsWhenMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -615,7 +615,7 @@ class AssertTest extends TestCase
         $assert->whereNull('baz');
     }
 
-    public function testAssertWhereNotNullMatchesValue()
+    public function testAssertWhereNotNullMatchesValue(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -624,7 +624,7 @@ class AssertTest extends TestCase
         $assert->whereNotNull('bar');
     }
 
-    public function testAssertWhereNotNullFailsWhenNull()
+    public function testAssertWhereNotNullFailsWhenNull(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => null,
@@ -636,7 +636,7 @@ class AssertTest extends TestCase
         $assert->whereNotNull('bar');
     }
 
-    public function testAssertWhereNotNullFailsWhenMissing()
+    public function testAssertWhereNotNullFailsWhenMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -648,7 +648,7 @@ class AssertTest extends TestCase
         $assert->whereNotNull('baz');
     }
 
-    public function testAssertWhereContainsFailsWithEmptyValue()
+    public function testAssertWhereContainsFailsWithEmptyValue(): void
     {
         $assert = AssertableJson::fromArray([]);
 
@@ -658,7 +658,7 @@ class AssertTest extends TestCase
         $assert->whereContains('foo', ['1']);
     }
 
-    public function testAssertWhereContainsFailsWithMissingValue()
+    public function testAssertWhereContainsFailsWithMissingValue(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => ['bar', 'baz'],
@@ -670,7 +670,7 @@ class AssertTest extends TestCase
         $assert->whereContains('foo', ['bar', 'baz', 'invalid']);
     }
 
-    public function testAssertWhereContainsFailsWithMissingNestedValue()
+    public function testAssertWhereContainsFailsWithMissingNestedValue(): void
     {
         $assert = AssertableJson::fromArray([
             ['id' => 1],
@@ -685,7 +685,7 @@ class AssertTest extends TestCase
         $assert->whereContains('id', [1, 2, 3, 4, 5]);
     }
 
-    public function testAssertWhereContainsFailsWhenDoesNotMatchType()
+    public function testAssertWhereContainsFailsWhenDoesNotMatchType(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [1, 2, 3, 4],
@@ -697,7 +697,7 @@ class AssertTest extends TestCase
         $assert->whereContains('foo', ['1']);
     }
 
-    public function testAssertWhereContainsFailsWhenDoesNotSatisfyClosure()
+    public function testAssertWhereContainsFailsWhenDoesNotSatisfyClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [1, 2, 3, 4],
@@ -711,7 +711,7 @@ class AssertTest extends TestCase
         }]);
     }
 
-    public function testAssertWhereContainsFailsWhenHavingExpectedValueButDoesNotSatisfyClosure()
+    public function testAssertWhereContainsFailsWhenHavingExpectedValueButDoesNotSatisfyClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [1, 2, 3, 4],
@@ -725,7 +725,7 @@ class AssertTest extends TestCase
         }]);
     }
 
-    public function testAssertWhereContainsFailsWhenSatisfiesClosureButDoesNotHaveExpectedValue()
+    public function testAssertWhereContainsFailsWhenSatisfiesClosureButDoesNotHaveExpectedValue(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [1, 2, 3, 4],
@@ -739,7 +739,7 @@ class AssertTest extends TestCase
         }]);
     }
 
-    public function testAssertWhereContainsWithNestedValue()
+    public function testAssertWhereContainsWithNestedValue(): void
     {
         $assert = AssertableJson::fromArray([
             ['id' => 1],
@@ -753,7 +753,7 @@ class AssertTest extends TestCase
         $assert->whereContains('id', [4, 3, 2, 1]);
     }
 
-    public function testAssertWhereContainsWithMatchingType()
+    public function testAssertWhereContainsWithMatchingType(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [1, 2, 3, 4],
@@ -763,7 +763,7 @@ class AssertTest extends TestCase
         $assert->whereContains('foo', [1]);
     }
 
-    public function testAssertWhereContainsWithNullValue()
+    public function testAssertWhereContainsWithNullValue(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => null,
@@ -773,7 +773,7 @@ class AssertTest extends TestCase
         $assert->whereContains('foo', [null]);
     }
 
-    public function testAssertWhereContainsWithOutOfOrderMatchingType()
+    public function testAssertWhereContainsWithOutOfOrderMatchingType(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [4, 1, 7, 3],
@@ -782,7 +782,7 @@ class AssertTest extends TestCase
         $assert->whereContains('foo', [1, 7, 4, 3]);
     }
 
-    public function testAssertWhereContainsWithOutOfOrderNestedMatchingType()
+    public function testAssertWhereContainsWithOutOfOrderNestedMatchingType(): void
     {
         $assert = AssertableJson::fromArray([
             ['bar' => 5],
@@ -793,7 +793,7 @@ class AssertTest extends TestCase
         $assert->whereContains('baz', 4);
     }
 
-    public function testAssertWhereContainsWithClosure()
+    public function testAssertWhereContainsWithClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [1, 2, 3, 4],
@@ -804,7 +804,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertWhereContainsWithNestedClosure()
+    public function testAssertWhereContainsWithNestedClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 1,
@@ -817,7 +817,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertWhereContainsWithMultipleClosure()
+    public function testAssertWhereContainsWithMultipleClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [1, 2, 3, 4],
@@ -833,7 +833,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertWhereContainsWithNullExpectation()
+    public function testAssertWhereContainsWithNullExpectation(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 1,
@@ -842,7 +842,7 @@ class AssertTest extends TestCase
         $assert->whereContains('foo', null);
     }
 
-    public function testAssertWhereContainsUsingBackedEnum()
+    public function testAssertWhereContainsUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [BackedEnum::Test->value],
@@ -857,7 +857,7 @@ class AssertTest extends TestCase
         $assert->whereContains('bar', BackedEnum::TestEmpty);
     }
 
-    public function testAssertWhereContainsFailsUsingBackedEnum()
+    public function testAssertWhereContainsFailsUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [BackedEnum::TestEmpty->value],
@@ -869,7 +869,7 @@ class AssertTest extends TestCase
         $assert->whereContains('bar', BackedEnum::Test);
     }
 
-    public function testAssertNestedWhereMatchesValue()
+    public function testAssertNestedWhereMatchesValue(): void
     {
         $assert = AssertableJson::fromArray([
             'example' => [
@@ -880,7 +880,7 @@ class AssertTest extends TestCase
         $assert->where('example.nested', 'nested-value');
     }
 
-    public function testAssertNestedWhereFailsWhenDoesNotMatchValue()
+    public function testAssertNestedWhereFailsWhenDoesNotMatchValue(): void
     {
         $assert = AssertableJson::fromArray([
             'example' => [
@@ -894,7 +894,7 @@ class AssertTest extends TestCase
         $assert->where('example.nested', 'another-value');
     }
 
-    public function testAssertNestedWhereUsingBackedEnum()
+    public function testAssertNestedWhereUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'example' => [
@@ -905,7 +905,7 @@ class AssertTest extends TestCase
         $assert->where('example.nested', BackedEnum::Test);
     }
 
-    public function testAssertNestedWhereFailsUsingBackedEnum()
+    public function testAssertNestedWhereFailsUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'example' => [
@@ -919,7 +919,7 @@ class AssertTest extends TestCase
         $assert->where('example.nested', BackedEnum::Test);
     }
 
-    public function testAssertWhereDoesNotMatchValue()
+    public function testAssertWhereDoesNotMatchValue(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -928,7 +928,7 @@ class AssertTest extends TestCase
         $assert->whereNot('bar', 'different_value');
     }
 
-    public function testAssertWhereNotFailsWhenMatchingValue()
+    public function testAssertWhereNotFailsWhenMatchingValue(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -940,7 +940,7 @@ class AssertTest extends TestCase
         $assert->whereNot('bar', 'value');
     }
 
-    public function testAssertWhereNotFailsWhenNotMissing()
+    public function testAssertWhereNotFailsWhenNotMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -952,7 +952,7 @@ class AssertTest extends TestCase
         $assert->whereNot('baz', 'value');
     }
 
-    public function testAssertWhereNotUsingClosure()
+    public function testAssertWhereNotUsingClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'baz',
@@ -963,7 +963,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertWhereNotFailsWhenMatchesValueUsingClosure()
+    public function testAssertWhereNotFailsWhenMatchesValueUsingClosure(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'baz',
@@ -977,7 +977,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testAssertWhereNotUsingBackedEnum()
+    public function testAssertWhereNotUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => BackedEnum::Test->value,
@@ -986,7 +986,7 @@ class AssertTest extends TestCase
         $assert->whereNot('bar', BackedEnum::TestEmpty);
     }
 
-    public function testAssertWhereNotFailsUsingBackedEnum()
+    public function testAssertWhereNotFailsUsingBackedEnum(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => BackedEnum::Test->value,
@@ -998,7 +998,7 @@ class AssertTest extends TestCase
         $assert->whereNot('bar', BackedEnum::Test);
     }
 
-    public function testScope()
+    public function testScope(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1018,7 +1018,7 @@ class AssertTest extends TestCase
         $this->assertTrue($called, 'The scoped query was never actually called.');
     }
 
-    public function testScopeFailsWhenPropMissing()
+    public function testScopeFailsWhenPropMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1035,7 +1035,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testScopeFailsWhenPropSingleValue()
+    public function testScopeFailsWhenPropSingleValue(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => 'value',
@@ -1048,7 +1048,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testScopeShorthand()
+    public function testScopeShorthand(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1066,7 +1066,7 @@ class AssertTest extends TestCase
         $this->assertTrue($called, 'The scoped query was never actually called.');
     }
 
-    public function testScopeShorthandWithoutCount()
+    public function testScopeShorthandWithoutCount(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1084,7 +1084,7 @@ class AssertTest extends TestCase
         $this->assertTrue($called, 'The scoped query was never actually called.');
     }
 
-    public function testScopeShorthandFailsWhenAssertingZeroItems()
+    public function testScopeShorthandFailsWhenAssertingZeroItems(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1101,7 +1101,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testScopeShorthandFailsWhenAmountOfItemsDoesNotMatch()
+    public function testScopeShorthandFailsWhenAmountOfItemsDoesNotMatch(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1118,7 +1118,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testScopeShorthandFailsWhenAssertingEmptyArray()
+    public function testScopeShorthandFailsWhenAssertingEmptyArray(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [],
@@ -1134,7 +1134,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testScopeShorthandFailsWhenAssertingEmptyArrayWithoutCount()
+    public function testScopeShorthandFailsWhenAssertingEmptyArrayWithoutCount(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [],
@@ -1150,7 +1150,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testScopeShorthandFailsWhenSecondArgumentUnsupportedType()
+    public function testScopeShorthandFailsWhenSecondArgumentUnsupportedType(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1166,7 +1166,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testFirstScope()
+    public function testFirstScope(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [
@@ -1182,7 +1182,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testFirstScopeFailsWhenNoProps()
+    public function testFirstScopeFailsWhenNoProps(): void
     {
         $assert = AssertableJson::fromArray([]);
 
@@ -1193,7 +1193,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testFirstNestedScopeFailsWhenNoProps()
+    public function testFirstNestedScopeFailsWhenNoProps(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [],
@@ -1208,7 +1208,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testFirstScopeFailsWhenPropSingleValue()
+    public function testFirstScopeFailsWhenPropSingleValue(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1221,7 +1221,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testEachScope()
+    public function testEachScope(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [
@@ -1237,7 +1237,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testEachScopeFailsWhenNoProps()
+    public function testEachScopeFailsWhenNoProps(): void
     {
         $assert = AssertableJson::fromArray([]);
 
@@ -1248,7 +1248,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testEachNestedScopeFailsWhenNoProps()
+    public function testEachNestedScopeFailsWhenNoProps(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [],
@@ -1263,7 +1263,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testEachScopeFailsWhenPropSingleValue()
+    public function testEachScopeFailsWhenPropSingleValue(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1276,7 +1276,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testFailsWhenNotInteractingWithAllPropsInScope()
+    public function testFailsWhenNotInteractingWithAllPropsInScope(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1293,7 +1293,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testDisableInteractionCheckForCurrentScope()
+    public function testDisableInteractionCheckForCurrentScope(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1307,7 +1307,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testCannotDisableInteractionCheckForDifferentScopes()
+    public function testCannotDisableInteractionCheckForDifferentScopes(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1330,7 +1330,7 @@ class AssertTest extends TestCase
         });
     }
 
-    public function testTopLevelPropInteractionDisabledByDefault()
+    public function testTopLevelPropInteractionDisabledByDefault(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1340,7 +1340,7 @@ class AssertTest extends TestCase
         $assert->has('foo');
     }
 
-    public function testTopLevelInteractionEnabledWhenInteractedFlagSet()
+    public function testTopLevelInteractionEnabledWhenInteractedFlagSet(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1355,7 +1355,7 @@ class AssertTest extends TestCase
             ->interacted();
     }
 
-    public function testAssertWhereAllMatchesValues()
+    public function testAssertWhereAllMatchesValues(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [
@@ -1374,7 +1374,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertWhereAllFailsWhenAtLeastOnePropDoesNotMatchValue()
+    public function testAssertWhereAllFailsWhenAtLeastOnePropDoesNotMatchValue(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1392,7 +1392,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertWhereTypeString()
+    public function testAssertWhereTypeString(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1401,7 +1401,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'string');
     }
 
-    public function testAssertWhereTypeInteger()
+    public function testAssertWhereTypeInteger(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 123,
@@ -1410,7 +1410,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'integer');
     }
 
-    public function testAssertWhereTypeBoolean()
+    public function testAssertWhereTypeBoolean(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => true,
@@ -1419,7 +1419,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'boolean');
     }
 
-    public function testAssertWhereTypeDouble()
+    public function testAssertWhereTypeDouble(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 12.3,
@@ -1428,7 +1428,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'double');
     }
 
-    public function testAssertWhereTypeArray()
+    public function testAssertWhereTypeArray(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => ['bar', 'baz'],
@@ -1439,7 +1439,7 @@ class AssertTest extends TestCase
         $assert->whereType('bar', 'array');
     }
 
-    public function testAssertWhereTypeNull()
+    public function testAssertWhereTypeNull(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => null,
@@ -1448,7 +1448,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'null');
     }
 
-    public function testAssertWhereAllType()
+    public function testAssertWhereAllType(): void
     {
         $assert = AssertableJson::fromArray([
             'one' => 'foo',
@@ -1471,7 +1471,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertWhereTypeWhenWrongTypeIsGiven()
+    public function testAssertWhereTypeWhenWrongTypeIsGiven(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1483,7 +1483,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'integer');
     }
 
-    public function testAssertWhereTypeWithUnionTypes()
+    public function testAssertWhereTypeWithUnionTypes(): void
     {
         $firstAssert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1497,7 +1497,7 @@ class AssertTest extends TestCase
         $secondAssert->whereType('foo', ['string', 'null']);
     }
 
-    public function testAssertWhereTypeWhenWrongUnionTypeIsGiven()
+    public function testAssertWhereTypeWhenWrongUnionTypeIsGiven(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 123,
@@ -1509,7 +1509,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', ['string', 'null']);
     }
 
-    public function testAssertWhereTypeWithPipeInUnionType()
+    public function testAssertWhereTypeWithPipeInUnionType(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1518,7 +1518,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'string|null');
     }
 
-    public function testAssertWhereTypeWithPipeInWrongUnionType()
+    public function testAssertWhereTypeWithPipeInWrongUnionType(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => 'bar',
@@ -1530,7 +1530,7 @@ class AssertTest extends TestCase
         $assert->whereType('foo', 'integer|null');
     }
 
-    public function testAssertHasAll()
+    public function testAssertHasAll(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [
@@ -1547,7 +1547,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertHasAllFailsWhenAtLeastOnePropMissing()
+    public function testAssertHasAllFailsWhenAtLeastOnePropMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [
@@ -1567,7 +1567,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertHasAllAcceptsMultipleArgumentsInsteadOfArray()
+    public function testAssertHasAllAcceptsMultipleArgumentsInsteadOfArray(): void
     {
         $assert = AssertableJson::fromArray([
             'foo' => [
@@ -1585,7 +1585,7 @@ class AssertTest extends TestCase
         $assert->hasAll('foo.bar', 'foo.baz', 'baz');
     }
 
-    public function testAssertCountMultipleProps()
+    public function testAssertCountMultipleProps(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1603,7 +1603,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testAssertCountMultiplePropsFailsWhenPropMissing()
+    public function testAssertCountMultiplePropsFailsWhenPropMissing(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [
@@ -1621,7 +1621,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         AssertableJson::macro('myCustomMacro', function () {
             throw new RuntimeException('My Custom Macro was called!');
@@ -1634,7 +1634,7 @@ class AssertTest extends TestCase
         $assert->myCustomMacro();
     }
 
-    public function testTappable()
+    public function testTappable(): void
     {
         $assert = AssertableJson::fromArray([
             'bar' => [

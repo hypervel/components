@@ -181,8 +181,8 @@ use function Hypervel\Coroutine\go;
  * @method false|float|Redis incrByFloat(string $key, float $value)
  * @method array|false|Redis info(string ...$sections)
  * @method bool isConnected()
- * @method void keys(string $pattern)
- * @method void lInsert(string $key, string $pos, mixed $pivot, mixed $value)
+ * @method array|false|Redis keys(string $pattern)
+ * @method false|int|Redis lInsert(string $key, string $pos, mixed $pivot, mixed $value)
  * @method false|int|Redis lLen(string $key)
  * @method false|Redis|string lMove(string $src, string $dst, string $wherefrom, string $whereto)
  * @method false|Redis|string blmove(string $src, string $dst, string $wherefrom, string $whereto, float $timeout)
@@ -213,7 +213,6 @@ use function Hypervel\Coroutine\go;
  * @method bool|Redis pfmerge(string $dst, array $srckeys)
  * @method bool|Redis|string ping(string|null $message = null)
  * @method bool|Redis psetex(string $key, int $expire, mixed $value)
- * @method void psubscribe(array|string $channels, \Closure $callback)
  * @method false|int|Redis pttl(string $key)
  * @method false|int|Redis publish(string $channel, string $message)
  * @method mixed pubsub(string $command, mixed $arg = null)
@@ -258,7 +257,6 @@ use function Hypervel\Coroutine\go;
  * @method mixed sort_ro(string $key, array|null $options = null)
  * @method false|int|Redis srem(string $key, mixed $value, mixed ...$other_values)
  * @method false|int|Redis strlen(string $key)
- * @method void subscribe(array|string $channels, \Closure $callback)
  * @method array|bool|Redis sunsubscribe(array $channels)
  * @method bool|Redis swapdb(int $src, int $dst)
  * @method array|Redis time()
@@ -1608,15 +1606,17 @@ abstract class RedisConnection extends BaseConnection
      * isn't cached yet (NOSCRIPT error).
      *
      * Unlike naive implementations that treat any `false` return as NOSCRIPT,
-     * this method properly distinguishes NOSCRIPT errors from other failures
-     * (syntax errors, OOM, WRONGTYPE, etc.) and throws on non-NOSCRIPT errors.
+     * this method wraps script and data errors returned by phpredis as `false`
+     * while native server, cluster, authentication, and transport exceptions
+     * propagate unchanged.
      *
      * @param string $script The Lua script to execute
      * @param array<string> $keys Redis keys (passed as KEYS[] in Lua)
      * @param array<mixed> $args Additional arguments (passed as ARGV[] in Lua)
      * @return mixed The script's return value
      *
-     * @throws LuaScriptException If script execution fails (non-NOSCRIPT error)
+     * @throws LuaScriptException If phpredis returns a non-NOSCRIPT script or data error
+     * @throws RedisException If Redis rejects execution or the connection fails
      */
     public function evalWithShaCache(string $script, array $keys = [], array $args = []): mixed
     {

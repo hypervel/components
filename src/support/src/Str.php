@@ -485,7 +485,7 @@ class Str
             return false;
         }
 
-        return json_validate($value, 512);
+        return Json::validate($value);
     }
 
     /**

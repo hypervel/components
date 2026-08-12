@@ -6,7 +6,6 @@ namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Contracts\Auth\PasswordBroker;
 use Hypervel\Contracts\Config\Repository as Config;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Hypervel\Fortify\Contracts\RequestPasswordResetLinkViewResponse;
@@ -20,18 +19,12 @@ use Hypervel\Support\Str;
 
 class PasswordResetLinkController extends Controller
 {
-    public function __construct(
-        private readonly Container $container,
-        private readonly Config $config,
-    ) {
-    }
-
     /**
      * Show the reset password link request view.
      */
     public function create(Request $request): RequestPasswordResetLinkViewResponse
     {
-        return $this->container->make(RequestPasswordResetLinkViewResponse::class);
+        return app(RequestPasswordResetLinkViewResponse::class);
     }
 
     /**
@@ -39,7 +32,9 @@ class PasswordResetLinkController extends Controller
      */
     public function store(SendPasswordResetLinkRequest $request): Responsable
     {
-        if ($this->config->boolean('fortify.lowercase_usernames', false) && $request->has(Fortify::email())) {
+        $config = app(Config::class);
+
+        if ($config->boolean('fortify.lowercase_usernames') && $request->has(Fortify::email())) {
             $request->merge([
                 Fortify::email() => Str::lower((string) $request->{Fortify::email()}),
             ]);
@@ -48,8 +43,8 @@ class PasswordResetLinkController extends Controller
         $status = $this->broker()->sendResetLink($request->only(Fortify::email()));
 
         return $status === Password::RESET_LINK_SENT
-            ? $this->container->make(SuccessfulPasswordResetLinkRequestResponse::class, ['status' => $status])
-            : $this->container->make(FailedPasswordResetLinkRequestResponse::class, ['status' => $status]);
+            ? app(SuccessfulPasswordResetLinkRequestResponse::class, ['status' => $status])
+            : app(FailedPasswordResetLinkRequestResponse::class, ['status' => $status]);
     }
 
     /**

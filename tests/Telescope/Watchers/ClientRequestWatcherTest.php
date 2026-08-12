@@ -15,11 +15,13 @@ use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Json;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\ClientRequestWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 
 enum ClientRequestWatcherTestIntTag: int
@@ -57,6 +59,247 @@ class ClientRequestWatcherTest extends FeatureTestCase
         $this->assertSame(201, $entry->content['response_status']);
         $this->assertSame(['content-type' => 'application/json', 'cache-control' => 'no-cache,private'], $entry->content['response_headers']);
         $this->assertSame(['foo' => 'bar'], $entry->content['response']);
+    }
+
+    public function testClientRequestWatcherHidesNestedFalseySecrets(): void
+    {
+        Telescope::hideRequestHeaders(['x-zero']);
+        Telescope::hideRequestParameters(['secret.zero', 'secret.false', 'secret.empty', 'secret.null']);
+        Telescope::hideResponseParameters(['secret.zero', 'secret.false', 'secret.empty', 'secret.null']);
+
+        $payload = ['secret' => [
+            'zero' => 0,
+            'false' => false,
+            'empty' => '',
+            'null' => null,
+        ]];
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'application/json'], json_encode($payload)),
+        ]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org', ['X-Zero' => '0'], json_encode($payload)),
+            ['hypervel_data' => $payload],
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+        $masked = [
+            'zero' => '********',
+            'false' => '********',
+            'empty' => '********',
+            'null' => '********',
+        ];
+
+        $this->assertSame('********', $entry->content['headers']['x-zero']);
+        $this->assertSame($masked, $entry->content['payload']['secret']);
+        $this->assertSame($masked, $entry->content['response']['secret']);
+    }
+
+    public function testStructuredRequestAndResponseRetainAndMaskAtTheEntryContentChildLimit(): void
+    {
+        Telescope::hideRequestParameters(['password']);
+        Telescope::hideResponseParameters(['password']);
+
+        $payload = [
+            'password' => 'secret',
+            'nested' => $this->nestedValue(Json::MAXIMUM_NESTING_DEPTH - 2),
+        ];
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'application/json'], Json::encode($payload)),
+        ]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org', ['Content-Type' => 'application/json'], Json::encode($payload)),
+            ['hypervel_data' => $payload],
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('********', $entry->content['payload']['password']);
+        $this->assertSame($payload['nested'], $entry->content['payload']['nested']);
+        $this->assertSame('********', $entry->content['response']['password']);
+        $this->assertSame($payload['nested'], $entry->content['response']['nested']);
+    }
+
+    public function testStructuredRequestAndMislabeledResponsePurgeOverTheEntryContentChildLimit(): void
+    {
+        $payload = [
+            'password' => 'secret',
+            'nested' => $this->nestedValue(Json::MAXIMUM_NESTING_DEPTH - 1),
+        ];
+        $client = $this->makeClient([
+            new Response(200, ['Content-Type' => 'text/html'], Json::encode($payload)),
+        ]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org', ['Content-Type' => 'application/json'], Json::encode($payload)),
+            ['hypervel_data' => $payload],
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Purged By Telescope', $entry->content['payload']);
+        $this->assertSame('Purged By Telescope', $entry->content['response']);
+    }
+
+    public function testRawBodyUsesThePsrPayloadFallback(): void
+    {
+        Telescope::hideRequestParameters(['password']);
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request(
+                'POST',
+                'https://hypervel.org/raw',
+                ['Content-Type' => 'application/json'],
+                '{"password":"secret","name":"Taylor"}',
+            ),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame([
+            'password' => '********',
+            'name' => 'Taylor',
+        ], $entry->content['payload']);
+    }
+
+    public function testRawJsonRequestRetainsAndMasksAtTheEntryContentChildLimit(): void
+    {
+        Telescope::hideRequestParameters(['password']);
+        $payload = [
+            'password' => 'secret',
+            'nested' => $this->nestedValue(Json::MAXIMUM_NESTING_DEPTH - 2),
+        ];
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/raw', ['Content-Type' => 'application/json'], Json::encode($payload)),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('********', $entry->content['payload']['password']);
+        $this->assertSame($payload['nested'], $entry->content['payload']['nested']);
+    }
+
+    #[DataProvider('jsonContentTypeProvider')]
+    public function testMalformedDeclaredJsonRequestIsPurged(string $contentType): void
+    {
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/raw', ['Content-Type' => $contentType], '{"password":"secret"'),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Purged By Telescope', $entry->content['payload']);
+    }
+
+    public static function jsonContentTypeProvider(): array
+    {
+        return [
+            ['application/json'],
+            ['application/problem+json'],
+        ];
+    }
+
+    public function testHeaderlessJsonRequestIsMaskedAndDeepHeaderlessJsonIsPurged(): void
+    {
+        Telescope::hideRequestParameters(['password']);
+        $client = $this->makeClient([
+            new Response(204),
+            new Response(204),
+        ]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/shallow', body: '{"password":"secret"}'),
+        );
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/deep', body: "\t\n" . Json::encode([
+                'password' => 'secret',
+                'nested' => $this->nestedValue(Json::MAXIMUM_NESTING_DEPTH - 1),
+            ])),
+        );
+
+        $entries = $this->loadTelescopeEntries()->keyBy(fn ($entry) => $entry->content['uri']);
+
+        $this->assertSame('********', $entries['https://hypervel.org/shallow']->content['payload']['password']);
+        $this->assertSame('Purged By Telescope', $entries['https://hypervel.org/deep']->content['payload']);
+    }
+
+    public function testRawUrlEncodedRequestMasksNestedFields(): void
+    {
+        Telescope::hideRequestParameters(['password', 'account.password']);
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request(
+                'POST',
+                'https://hypervel.org/form',
+                ['Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8'],
+                'password=secret&account[password]=nested-secret&name=Taylor',
+            ),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('********', $entry->content['payload']['password']);
+        $this->assertSame('********', $entry->content['payload']['account']['password']);
+        $this->assertSame('Taylor', $entry->content['payload']['name']);
+    }
+
+    public function testExplicitPlainTextRequestRetainsItsRawBody(): void
+    {
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/text', ['Content-Type' => 'text/plain'], 'password=secret'),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('password=secret', $entry->content['payload']);
+    }
+
+    public function testValidScalarJsonRequestRetainsItsRawRepresentation(): void
+    {
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/scalar', ['Content-Type' => 'application/json'], '42'),
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('42', $entry->content['payload']);
+    }
+
+    public function testUnencodableStructuredRequestIsPurged(): void
+    {
+        $client = $this->makeClient([new Response(204)]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('POST', 'https://hypervel.org/invalid'),
+            ['hypervel_data' => ['invalid' => INF]],
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame('Purged By Telescope', $entry->content['payload']);
     }
 
     public function testClientRequestWatcherRegistersRedirectResponse()
@@ -385,6 +628,24 @@ class ClientRequestWatcherTest extends FeatureTestCase
 
         $this->assertCount(1, $entries);
         $this->assertSame('https://recorded.example.com/api/data', $entries->first()->content['uri']);
+    }
+
+    public function testClientRequestWatcherHostIgnoreCanBeExtended(): void
+    {
+        $watcher = new class extends ClientRequestWatcher {
+            public function ignores(string $host): bool
+            {
+                return $this->shouldIgnoreHost($host);
+            }
+
+            protected function shouldIgnoreHost(string $host): bool
+            {
+                return str_ends_with($host, '.internal');
+            }
+        };
+
+        $this->assertTrue($watcher->ignores('api.internal'));
+        $this->assertFalse($watcher->ignores('hypervel.org'));
     }
 
     #[WithConfig('telescope.watchers', [
@@ -817,6 +1078,17 @@ class ClientRequestWatcherTest extends FeatureTestCase
         return new Client(array_merge($config, [
             'handler' => HandlerStack::create(new MockHandler($responses)),
         ]));
+    }
+
+    private function nestedValue(int $depth): array
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < $depth; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        return $value;
     }
 
     private function executeTransfer(

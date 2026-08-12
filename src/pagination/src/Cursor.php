@@ -6,6 +6,8 @@ namespace Hypervel\Pagination;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
+use JsonException;
 use UnexpectedValueException;
 
 /** @implements Arrayable<array-key, mixed> */
@@ -14,13 +16,21 @@ class Cursor implements Arrayable
     /**
      * Create a new cursor instance.
      *
-     * @param array<string, mixed> $parameters the parameters associated with the cursor
+     * @param array<array-key, mixed> $parameters the parameters associated with the cursor
      * @param bool $pointsToNextItems determine whether the cursor points to the next or previous set of items
+     *
+     * @throws InvalidArgumentException
      */
     public function __construct(
         protected array $parameters,
         protected bool $pointsToNextItems = true,
     ) {
+        // Query Builder's flattenValue() silently binds only the first nested scalar from an array.
+        foreach ($parameters as $parameterName => $parameter) {
+            if (is_array($parameter)) {
+                throw new InvalidArgumentException("Cursor parameter [{$parameterName}] must not be an array.");
+            }
+        }
     }
 
     /**
@@ -28,7 +38,7 @@ class Cursor implements Arrayable
      *
      * @throws UnexpectedValueException
      */
-    public function parameter(string $parameterName): string|int|null
+    public function parameter(string $parameterName): mixed
     {
         if (! array_key_exists($parameterName, $this->parameters)) {
             throw new UnexpectedValueException("Unable to find parameter [{$parameterName}] in pagination item.");
@@ -41,7 +51,7 @@ class Cursor implements Arrayable
      * Get the given parameters from the cursor.
      *
      * @param array<int, string> $parameterNames
-     * @return array<int, null|int|string>
+     * @return array<int, mixed>
      */
     public function parameters(array $parameterNames): array
     {
@@ -80,18 +90,20 @@ class Cursor implements Arrayable
 
     /**
      * Get the encoded string representation of the cursor to construct a URL.
+     *
+     * @throws JsonException
      */
     public function encode(): string
     {
-        return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($this->toArray())));
+        return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($this->toArray(), JSON_THROW_ON_ERROR)));
     }
 
     /**
      * Get a cursor instance from the encoded string representation.
      */
-    public static function fromEncoded(?string $encodedString): ?static
+    public static function fromEncoded(mixed $encodedString): ?static
     {
-        if ($encodedString === null) {
+        if (! is_string($encodedString)) {
             return null;
         }
 
@@ -101,10 +113,21 @@ class Cursor implements Arrayable
             return null;
         }
 
+        // Validate the complete envelope here so strict construction cannot raise a TypeError for its direction.
+        if (! is_array($parameters)
+            || ! array_key_exists('_pointsToNextItems', $parameters)
+            || ! is_bool($parameters['_pointsToNextItems'])) {
+            return null;
+        }
+
         $pointsToNextItems = $parameters['_pointsToNextItems'];
 
         unset($parameters['_pointsToNextItems']);
 
-        return new static($parameters, $pointsToNextItems);
+        try {
+            return new static($parameters, $pointsToNextItems);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
     }
 }

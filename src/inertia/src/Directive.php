@@ -13,15 +13,18 @@ class Directive
      */
     public static function compile(string $expression = ''): string
     {
-        $id = trim(trim($expression), "\\'\"") ?: 'app';
+        $id = trim(trim($expression), "\\'\"");
+        $id = $id === '' ? 'app' : $id;
 
         $template = '<?php
-            $__inertiaSsrResponse = \Hypervel\Inertia\InertiaState::dispatchSsr($page);
+            $__inertiaState = \Hypervel\Inertia\InertiaState::current();
+            $__inertiaState->page = $page;
+            $__inertiaSsrResponse = $__inertiaState->dispatchSsr();
 
             if ($__inertiaSsrResponse) {
                 echo $__inertiaSsrResponse->body;
             } else {
-                ?><script data-page="' . $id . '" type="application/json">{!! json_encode($page) !!}</script><div id="' . $id . '"></div><?php
+                ?><script data-page="' . $id . '" type="application/json">{!! json_encode($page, JSON_THROW_ON_ERROR) !!}</script><div id="' . $id . '"></div><?php
             }
         ?>';
 
@@ -36,7 +39,9 @@ class Directive
     public static function compileHead(string $expression = ''): string
     {
         $template = '<?php
-            $__inertiaSsrResponse = \Hypervel\Inertia\InertiaState::dispatchSsr($page);
+            $__inertiaState = \Hypervel\Inertia\InertiaState::current();
+            $__inertiaState->page = $page;
+            $__inertiaSsrResponse = $__inertiaState->dispatchSsr();
 
             if ($__inertiaSsrResponse) {
                 echo $__inertiaSsrResponse->head;

@@ -6,6 +6,7 @@ namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\RequestOptions;
 use Hypervel\Support\Arr;
+use SensitiveParameter;
 
 class TwitchProvider extends AbstractProvider implements ProviderInterface
 {
@@ -29,7 +30,7 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
         return 'https://id.twitch.tv/oauth2/token';
     }
 
-    protected function getUserByToken(string $token): array
+    protected function getUserByToken(#[SensitiveParameter] string $token): array
     {
         $response = $this->getHttpClient()->get(
             'https://api.twitch.tv/helix/users',
@@ -45,27 +46,6 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
         return json_decode((string) $response->getBody(), true);
     }
 
-    /**
-     * Create a user instance from the given data.
-     */
-    protected function userInstance(array $response, array $user): User
-    {
-        $this->setUser(
-            $this->mapUserToObject($user)
-        );
-
-        $scopes = Arr::get($response, 'scope', []);
-
-        if (! is_array($scopes)) {
-            $scopes = explode($this->scopeSeparator, $scopes);
-        }
-
-        return $this->getUser()->setToken(Arr::get($response, 'access_token'))
-            ->setRefreshToken(Arr::get($response, 'refresh_token'))
-            ->setExpiresIn(Arr::get($response, 'expires_in'))
-            ->setApprovedScopes($scopes);
-    }
-
     protected function mapUserToObject(array $user): User
     {
         $user = $user['data']['0'];
@@ -77,17 +57,5 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
             'email' => Arr::get($user, 'email'),
             'avatar' => $user['profile_image_url'],
         ]);
-    }
-
-    public function refreshToken(string $refreshToken): Token
-    {
-        $response = $this->getRefreshTokenResponse($refreshToken);
-
-        return new Token(
-            Arr::get($response, 'access_token'),
-            Arr::get($response, 'refresh_token'),
-            Arr::get($response, 'expires_in'),
-            Arr::get($response, 'scope', [])
-        );
     }
 }

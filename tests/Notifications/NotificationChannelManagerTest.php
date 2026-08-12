@@ -8,20 +8,24 @@ use Exception;
 use Hypervel\Bus\Queueable;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcherContract;
+use Hypervel\Contracts\Notifications\Factory as NotificationFactoryContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Application;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
+use Hypervel\Notifications\Events\NotificationDelivered;
 use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
-use Hypervel\Notifications\NotificationSender;
+use Hypervel\Notifications\NotificationServiceProvider;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\QueueRoutes;
@@ -74,6 +78,19 @@ class NotificationChannelManagerTest extends TestCase
         $this->assertInstanceOf(SlackNotificationRouterChannel::class, $manager->channel('slack'));
     }
 
+    public function testManagerAliasesResolveTheSameAutoSingleton(): void
+    {
+        $application = new Application;
+        $application->instance('config', new ConfigRepository([]));
+        Container::setInstance($application);
+        (new NotificationServiceProvider($application))->register();
+
+        $manager = $application->make(ChannelManager::class);
+
+        $this->assertSame($manager, $application->make(NotificationDispatcherContract::class));
+        $this->assertSame($manager, $application->make(NotificationFactoryContract::class));
+    }
+
     public function testNotificationCanBeDispatchedToDriver(): void
     {
         $container = $this->getContainer();
@@ -84,6 +101,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->shouldReceive('driver')->andReturn($driver = m::mock());
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $driver->shouldReceive('send')->once();
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationDelivered::class));
         $events->shouldReceive('dispatch')->with(m::type(NotificationSent::class));
 
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
@@ -99,6 +117,8 @@ class NotificationChannelManagerTest extends TestCase
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
         $driver->shouldReceive('send')->once();
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationSkipped::class));
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationDelivered::class));
         $events->shouldReceive('dispatch')->with(m::type(NotificationSent::class));
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestNotificationWithTwoChannels);
@@ -112,7 +132,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $manager->shouldNotReceive('driver');
-        $events->shouldNotReceive('dispatch');
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationSkipped::class));
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestCancelledNotification);
     }
@@ -126,6 +146,7 @@ class NotificationChannelManagerTest extends TestCase
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
         $driver->shouldReceive('send')->once();
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationDelivered::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationSent::class));
 
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestNotCancelledNotification);
@@ -143,69 +164,9 @@ class NotificationChannelManagerTest extends TestCase
         $driver->shouldReceive('send')->andThrow(new Exception);
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationFailed::class));
+        $events->shouldReceive('dispatch')->never()->with(m::type(NotificationDelivered::class));
         $events->shouldReceive('dispatch')->never()->with(m::type(NotificationSent::class));
 
-        $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
-    }
-
-    public function testNotificationFailedDispatchedOnlyOnceWhenFailed(): void
-    {
-        $this->expectException(Exception::class);
-
-        $container = $this->getContainer();
-
-        $events = $container->make(Dispatcher::class);
-        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
-        $manager->shouldReceive('driver')->andReturn($driver = m::mock());
-        $driver->shouldReceive('send')->andReturnUsing(function ($notifiable, $notification) use ($events) {
-            $events->dispatch(new NotificationFailed($notifiable, $notification, 'test'));
-            throw new Exception;
-        });
-        $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
-        // Simulate boot-time listener: when NotificationFailed is dispatched, set Context flag
-        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationFailed::class))->andReturnUsing(function () {
-            CoroutineContext::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true);
-        });
-        $events->shouldReceive('dispatch')->never()->with(m::type(NotificationSent::class));
-
-        $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
-    }
-
-    public function testNotificationFailedDispatchedOnlyOnceWhenMultipleFailed(): void
-    {
-        $this->expectException(Exception::class);
-
-        $container = $this->getContainer();
-
-        $events = $container->make(Dispatcher::class);
-        $manager = $container->make(ChannelManager::class, ['container' => $container]);
-        $manager->extend('test', function () use ($events) {
-            return new class($events) {
-                private int $count = 0;
-
-                public function __construct(private readonly Dispatcher $events)
-                {
-                }
-
-                public function send(mixed $notifiable, Notification $notification): void
-                {
-                    if ($this->count > 1) {
-                        throw new Exception;
-                    }
-
-                    ++$this->count;
-                }
-            };
-        });
-        $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
-        // Simulate boot-time listener: when NotificationFailed is dispatched, set Context flag
-        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationFailed::class))->andReturnUsing(function () {
-            CoroutineContext::set(NotificationSender::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, true);
-        });
-        $events->shouldReceive('dispatch')->twice()->with(m::type(NotificationSent::class));
-
-        $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
-        $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
     }
 
@@ -449,6 +410,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->shouldReceive('driver')->andReturn($driver = m::mock());
         $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $driver->shouldReceive('send')->once()->andReturn($response = m::mock());
+        $events->shouldReceive('dispatch')->with(m::type(NotificationDelivered::class));
         $events->shouldReceive('dispatch')->with(m::type(NotificationSent::class));
 
         $manager->send($notifiable = new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerWithAfterSendingMethodNotification);

@@ -29,13 +29,16 @@ function parallel(array $callables, int $concurrent = 0, bool|array $copyContext
  * @template TReturn
  *
  * @param Closure():TReturn $closure
+ * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
+ *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
+ *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
  * @return TReturn
  */
-function wait(Closure $closure, ?float $timeout = null)
+function wait(Closure $closure, ?float $timeout = null, bool|array $copyContext = false): mixed
 {
     return Container::getInstance()
         ->make(Waiter::class)
-        ->wait($closure, $timeout);
+        ->wait($closure, $timeout, $copyContext);
 }
 
 /**

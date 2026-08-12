@@ -9,8 +9,8 @@ use Hypervel\Testbench\TestCase;
 /**
  * Base test case for all integration routing tests.
  *
- * The routing package stores per-request state in Context (__routing.parameters,
- * __routing.original_parameters, __routing.controller.*, etc.). Without coroutine
+ * The routing package stores per-request state in Context (__routing.parameters.*,
+ * __routing.original_parameters.*, __routing.controller.*, etc.). Without coroutine
  * isolation, tests that trigger route matching or dispatch pollute the static
  * $nonCoroutineContext, causing cross-test contamination when the suite runs together.
  */

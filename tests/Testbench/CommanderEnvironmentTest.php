@@ -36,6 +36,23 @@ class CommanderEnvironmentTest extends TestCase
     }
 
     #[Test]
+    public function itMarksServeCommandsAfterSeparatedEnvironmentValuesAsNonConsole(): void
+    {
+        $commander = new CommanderHarness([], package_path());
+
+        $commander->prepareCommandEnvironmentPublic(new ArgvInput([
+            'testbench',
+            '--env',
+            'production',
+            'serve',
+        ]));
+
+        $this->assertSame('false', getenv('APP_RUNNING_IN_CONSOLE'));
+        $this->assertSame('false', $_ENV['APP_RUNNING_IN_CONSOLE']);
+        $this->assertSame('false', $_SERVER['APP_RUNNING_IN_CONSOLE']);
+    }
+
+    #[Test]
     public function itLeavesNonServeCommandsOnTheNormalConsolePath(): void
     {
         putenv('APP_RUNNING_IN_CONSOLE=true');

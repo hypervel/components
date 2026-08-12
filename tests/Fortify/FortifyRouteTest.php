@@ -109,4 +109,14 @@ class FortifyRouteTest extends TestCase
         $this->assertNotContains('auth.guard:admin', $middleware);
         $this->assertContains('guest', $middleware);
     }
+
+    #[WithConfig('fortify.views', false)]
+    public function testPasswordResetSubmissionRoutesRemainRegisteredWithoutViews(): void
+    {
+        $routes = Route::getRoutes();
+
+        $this->assertNull($routes->getByName('password.reset'));
+        $this->assertNotNull($routes->getByName('password.email'));
+        $this->assertNotNull($routes->getByName('password.update'));
+    }
 }

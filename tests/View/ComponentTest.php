@@ -11,7 +11,9 @@ use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\HtmlString;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;
@@ -21,9 +23,13 @@ use Mockery as m;
 
 class ComponentTest extends TestCase
 {
-    protected $viewFactory;
+    protected Factory $viewFactory;
 
-    protected $config;
+    protected Config $config;
+
+    protected Filesystem $filesystem;
+
+    protected string $compiledPath;
 
     protected function setUp(): void
     {
@@ -31,23 +37,108 @@ class ComponentTest extends TestCase
 
         $this->viewFactory = m::mock(Factory::class);
         $this->config = m::mock(Config::class);
+        $this->filesystem = new Filesystem;
+        $this->compiledPath = ParallelTesting::tempDir('ViewComponentTest');
+        $this->filesystem->deleteDirectory($this->compiledPath);
+        $this->filesystem->makeDirectory($this->compiledPath);
 
         $container = new Container;
         $container->instance('config', $this->config);
         $container->instance('view', $this->viewFactory);
         $container->instance(FactoryContract::class, $this->viewFactory);
+        $container->instance(Filesystem::class, $this->filesystem);
 
         Container::setInstance($container);
     }
 
-    public function testInlineViewsGetCreated()
+    protected function tearDown(): void
     {
-        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn('/tmp');
+        $this->filesystem->deleteDirectory($this->compiledPath);
+
+        parent::tearDown();
+    }
+
+    public function testInlineViewsGetCreated(): void
+    {
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn($this->compiledPath);
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(false);
-        $this->viewFactory->shouldReceive('addNamespace')->once()->with('__components', '/tmp');
+        $this->viewFactory->shouldReceive('replaceNamespace')->once()->with('__components', $this->compiledPath);
 
         $component = new TestInlineViewComponent;
         $this->assertSame('__components::57b7a54afa0eb51fd9b88eec031c9e9e', $component->resolveView());
+    }
+
+    public function testInlineViewsUseAtomicFilesystemPublication(): void
+    {
+        $contents = 'Atomically published';
+        $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
+        $filesystem = m::mock(Filesystem::class);
+
+        $filesystem->shouldReceive('exists')->once()->with($viewFile)->andReturn(false);
+        $filesystem->shouldReceive('ensureDirectoryExists')->once()->with($this->compiledPath);
+        $filesystem->shouldReceive('replace')->once()->with($viewFile, $contents);
+
+        Container::getInstance()->instance(Filesystem::class, $filesystem);
+
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn($this->compiledPath);
+        $this->viewFactory->shouldReceive('exists')->once()->with($contents)->andReturn(false);
+        $this->viewFactory->shouldReceive('replaceNamespace')->once()->with('__components', $this->compiledPath);
+
+        $component = new TestAtomicallyPublishedInlineViewComponent;
+
+        $this->assertSame('__components::' . hash('xxh128', $contents), $component->resolveView());
+    }
+
+    public function testCompleteInlineViewsAreNotRepublished(): void
+    {
+        $contents = 'Already published';
+        $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
+        $filesystem = m::mock(Filesystem::class);
+
+        $filesystem->shouldReceive('exists')->once()->with($viewFile)->andReturn(true);
+        $filesystem->shouldReceive('size')->once()->with($viewFile)->andReturn(strlen($contents));
+        $filesystem->shouldReceive('ensureDirectoryExists')->never();
+        $filesystem->shouldReceive('replace')->never();
+
+        Container::getInstance()->instance(Filesystem::class, $filesystem);
+
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn($this->compiledPath);
+        $this->viewFactory->shouldReceive('exists')->once()->with($contents)->andReturn(false);
+        $this->viewFactory->shouldReceive('replaceNamespace')->once()->with('__components', $this->compiledPath);
+
+        $component = new TestCompleteInlineViewComponent;
+
+        $this->assertSame('__components::' . hash('xxh128', $contents), $component->resolveView());
+    }
+
+    public function testEmptyInlineViewsArePublished(): void
+    {
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn($this->compiledPath);
+        $this->viewFactory->shouldReceive('exists')->once()->with('')->andReturn(false);
+        $this->viewFactory->shouldReceive('replaceNamespace')->once()->with('__components', $this->compiledPath);
+
+        $component = new TestEmptyInlineViewComponent;
+        $viewName = $component->resolveView();
+        $viewFile = $this->compiledPath . '/' . str_replace('__components::', '', $viewName) . '.blade.php';
+
+        $this->assertFileExists($viewFile);
+        $this->assertSame(0, filesize($viewFile));
+    }
+
+    public function testTruncatedInlineViewsAreReplaced(): void
+    {
+        $contents = 'Hello {{ $title }}';
+        $viewFile = $this->compiledPath . '/' . hash('xxh128', $contents) . '.blade.php';
+        file_put_contents($viewFile, 'truncated');
+
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn($this->compiledPath);
+        $this->viewFactory->shouldReceive('exists')->once()->with($contents)->andReturn(false);
+        $this->viewFactory->shouldReceive('replaceNamespace')->once()->with('__components', $this->compiledPath);
+
+        $component = new TestInlineViewComponent;
+
+        $this->assertSame('__components::' . hash('xxh128', $contents), $component->resolveView());
+        $this->assertSame($contents, file_get_contents($viewFile));
     }
 
     public function testRegularViewsGetReturnedUsingViewHelper()
@@ -60,11 +151,11 @@ class ComponentTest extends TestCase
         $this->assertSame($view, $component->resolveView());
     }
 
-    public function testRenderingStringClosureFromComponent()
+    public function testRenderingStringClosureFromComponent(): void
     {
-        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn('/tmp');
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn($this->compiledPath);
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(false);
-        $this->viewFactory->shouldReceive('addNamespace')->once()->with('__components', '/tmp');
+        $this->viewFactory->shouldReceive('replaceNamespace')->once()->with('__components', $this->compiledPath);
 
         $component = new class extends Component {
             protected $title;
@@ -92,7 +183,7 @@ class ComponentTest extends TestCase
         $this->assertSame('__components::9cc08f5001b343c093ee1a396da820dc', $viewPath);
 
         $hash = str_replace('__components::', '', $viewPath);
-        $this->assertSame('<p>Hello World</p>', file_get_contents("/tmp/{$hash}.blade.php"));
+        $this->assertSame('<p>Hello World</p>', file_get_contents("{$this->compiledPath}/{$hash}.blade.php"));
     }
 
     public function testRegularViewsGetReturnedUsingViewMethod()
@@ -105,10 +196,10 @@ class ComponentTest extends TestCase
         $this->assertSame($view, $component->resolveView());
     }
 
-    public function testRegularViewNamesGetReturned()
+    public function testRegularViewNamesGetReturned(): void
     {
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(true);
-        $this->viewFactory->shouldReceive('addNamespace')->never();
+        $this->viewFactory->shouldReceive('replaceNamespace')->never();
 
         $component = new TestRegularViewNameViewComponent;
 
@@ -193,7 +284,7 @@ class ComponentTest extends TestCase
         $this->assertSame($component, Component::resolve(['foo' => 'bar']));
     }
 
-    public function testBladeViewCacheWithRegularViewNameViewComponent()
+    public function testBladeViewCacheWithRegularViewNameViewComponent(): void
     {
         $component = new TestRegularViewNameViewComponent;
 
@@ -205,7 +296,8 @@ class ComponentTest extends TestCase
         $this->assertSame('alert', $component->resolveView());
 
         $cache = (fn () => $component::$bladeViewCache)->call($component);
-        $this->assertSame([$component::class . '::alert' => 'alert'], $cache);
+        $cacheKey = hash('xxh128', sprintf('%s::%s', $component::class, 'alert'));
+        $this->assertSame([$cacheKey => 'alert'], $cache);
 
         $component::flushCache();
 
@@ -218,21 +310,21 @@ class ComponentTest extends TestCase
         $this->assertSame('alert', $component->resolveView());
     }
 
-    public function testBladeViewCacheWithInlineViewComponent()
+    public function testBladeViewCacheWithInlineViewComponent(): void
     {
         $component = new TestInlineViewComponent;
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(false);
 
-        $this->config->shouldReceive('string')->twice()->with('view.compiled')->andReturn('/tmp');
+        $this->config->shouldReceive('string')->twice()->with('view.compiled')->andReturn($this->compiledPath);
 
-        $this->viewFactory->shouldReceive('addNamespace')
-            ->with('__components', '/tmp')
+        $this->viewFactory->shouldReceive('replaceNamespace')
+            ->with('__components', $this->compiledPath)
             ->twice();
 
         $compiledViewName = '__components::57b7a54afa0eb51fd9b88eec031c9e9e';
-        $contents = '::Hello {{ $title }}';
-        $cacheKey = $component::class . $contents;
+        $contents = 'Hello {{ $title }}';
+        $cacheKey = hash('xxh128', sprintf('%s::%s', $component::class, $contents));
 
         $this->assertSame($compiledViewName, $component->resolveView());
         $this->assertSame($compiledViewName, $component->resolveView());
@@ -241,6 +333,8 @@ class ComponentTest extends TestCase
 
         $cache = (fn () => $component::$bladeViewCache)->call($component);
         $this->assertSame([$cacheKey => $compiledViewName], $cache);
+        $this->assertSame(32, strlen($cacheKey));
+        $this->assertStringNotContainsString($contents, $cacheKey);
 
         $component::flushCache();
 
@@ -253,23 +347,23 @@ class ComponentTest extends TestCase
         $this->assertSame($compiledViewName, $component->resolveView());
     }
 
-    public function testBladeViewCacheWithInlineViewComponentWhereRenderDependsOnProps()
+    public function testBladeViewCacheWithInlineViewComponentWhereRenderDependsOnProps(): void
     {
         $componentA = new TestInlineViewComponentWhereRenderDependsOnProps('A');
         $componentB = new TestInlineViewComponentWhereRenderDependsOnProps('B');
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(false);
 
-        $this->config->shouldReceive('string')->twice()->with('view.compiled')->andReturn('/tmp');
+        $this->config->shouldReceive('string')->twice()->with('view.compiled')->andReturn($this->compiledPath);
 
-        $this->viewFactory->shouldReceive('addNamespace')
-            ->with('__components', '/tmp')
+        $this->viewFactory->shouldReceive('replaceNamespace')
+            ->with('__components', $this->compiledPath)
             ->twice();
 
         $compiledViewNameA = '__components::9b0498cbe3839becd0d496e05c553485';
         $compiledViewNameB = '__components::9d1b9bc4078a3e7274d3766ca02423f3';
-        $cacheAKey = $componentA::class . '::A';
-        $cacheBKey = $componentB::class . '::B';
+        $cacheAKey = hash('xxh128', sprintf('%s::%s', $componentA::class, 'A'));
+        $cacheBKey = hash('xxh128', sprintf('%s::%s', $componentB::class, 'B'));
 
         $this->assertSame($compiledViewNameA, $componentA->resolveView());
         $this->assertSame($compiledViewNameA, $componentA->resolveView());
@@ -374,6 +468,30 @@ class TestInlineViewComponent extends Component
     public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'Hello {{ $title }}';
+    }
+}
+
+class TestAtomicallyPublishedInlineViewComponent extends Component
+{
+    public function render(): ViewContract|Htmlable|Closure|string
+    {
+        return 'Atomically published';
+    }
+}
+
+class TestCompleteInlineViewComponent extends Component
+{
+    public function render(): ViewContract|Htmlable|Closure|string
+    {
+        return 'Already published';
+    }
+}
+
+class TestEmptyInlineViewComponent extends Component
+{
+    public function render(): ViewContract|Htmlable|Closure|string
+    {
+        return '';
     }
 }
 

@@ -29,8 +29,13 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR
         );
 
+        foreach (['guzzlehttp/promises', 'guzzlehttp/psr7', 'psr/http-message'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        }
+
         $this->assertSame('*', $composer['require']['ext-filter']);
-        $this->assertSame('*', $rootComposer['require']['ext-filter']);
         $this->assertSame(
             'Required to use Hypervel\Http\Testing\FileFactory::image().',
             $composer['suggest']['ext-gd']

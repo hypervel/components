@@ -383,7 +383,7 @@ class Builder
     ): PaginatorContract {
         $engine = $this->preparedEngine();
 
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = max(1, $page ?? Paginator::resolveCurrentPage($pageName));
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
@@ -426,7 +426,7 @@ class Builder
     ): LengthAwarePaginatorContract {
         $engine = $this->preparedEngine();
 
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = max(1, $page ?? Paginator::resolveCurrentPage($pageName));
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
@@ -468,7 +468,7 @@ class Builder
     ): LengthAwarePaginatorContract {
         $engine = $this->preparedEngine();
 
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = max(1, $page ?? Paginator::resolveCurrentPage($pageName));
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
@@ -505,7 +505,7 @@ class Builder
     ): PaginatorContract {
         $engine = $this->preparedEngine();
 
-        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+        $page = max(1, $page ?? Paginator::resolveCurrentPage($pageName));
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {

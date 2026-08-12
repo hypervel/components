@@ -535,6 +535,15 @@ class ResourceRegistrar
             $action['missing'] = $options['missing'];
         }
 
+        if (isset($options['metadata'])) {
+            // Route through the metadata boundary so a non-null, non-array option fails here;
+            // getMetadata() returns mixed and would otherwise silently serve the bad value.
+            $action['metadata'] = RouteGroup::mergeMetadata(
+                [],
+                $options['metadata']
+            );
+        }
+
         return $action;
     }
 
@@ -600,15 +609,15 @@ class ResourceRegistrar
      * Boot-only when setting. Verbs persist in a static property for the
      * worker lifetime and apply to every subsequent resource-route URI.
      */
-    public static function verbs(array $verbs = []): array
+    public static function verbs(array $verbs = []): ?array
     {
-        if (empty($verbs)) {
+        if ($verbs === []) {
             return static::$verbs;
         }
 
         static::$verbs = array_merge(static::$verbs, $verbs);
 
-        return static::$verbs;
+        return null;
     }
 
     /**

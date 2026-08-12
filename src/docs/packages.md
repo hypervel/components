@@ -1,0 +1,666 @@
+# Package Development
+
+- [Introduction](#introduction)
+    - [A Note on Facades](#a-note-on-facades)
+    - [Generating Facade Docblocks](#generating-facade-docblocks)
+- [Package Discovery](#package-discovery)
+    - [Test State Cleanup](#test-state-cleanup)
+- [Inspecting Installed Packages](#inspecting-installed-packages)
+- [Service Providers](#service-providers)
+    - [Provider Priority](#provider-priority)
+    - [Conditional Providers](#conditional-providers)
+    - [Class Map Overrides](#class-map-overrides)
+- [Resources](#resources)
+    - [Configuration](#configuration)
+    - [Routes](#routes)
+    - [Migrations](#migrations)
+    - [Language Files](#language-files)
+    - [Views](#views)
+    - [View Components](#view-components)
+    - ["About" Artisan Command](#about-artisan-command)
+- [Commands](#commands)
+    - [Optimize Commands](#optimize-commands)
+    - [Reload Commands](#reload-commands)
+- [Public Assets](#public-assets)
+- [Publishing File Groups](#publishing-file-groups)
+
+<a name="introduction"></a>
+## Introduction
+
+Packages are the primary way of adding functionality to Hypervel. Packages might be anything from a great way to work with dates like [Carbon](https://github.com/briannesbitt/Carbon) or a package that allows you to associate files with Eloquent models.
+
+There are different types of packages. Some packages are stand-alone, meaning they work with any PHP framework. Carbon and Pest are examples of stand-alone packages. Any of these packages may be used with Hypervel by requiring them in your `composer.json` file.
+
+On the other hand, other packages are specifically intended for use with Hypervel. These packages may have routes, controllers, views, and configuration specifically intended to enhance a Hypervel application. This guide primarily covers the development of those packages that are Hypervel specific.
+
+> [!WARNING]
+> Laravel-specific packages are not drop-in compatible with Hypervel because Hypervel runs in long-lived Swoole workers and handles concurrent requests and jobs with coroutines. However, porting a Laravel package is usually straightforward: replace Illuminate dependencies with Hypervel equivalents, update namespaces and types, and move request-specific state into context or coroutine-safe APIs. For a step-by-step guide, see the [porting from Laravel documentation](/docs/{{version}}/porting-from-laravel).
+
+<a name="a-note-on-facades"></a>
+### A Note on Facades
+
+When writing a Hypervel application, it generally does not matter if you use contracts or facades since both provide essentially equal levels of testability. However, when writing packages, your package will not typically have access to all of Hypervel's testing helpers. If you would like to be able to write your package tests as if the package were installed inside a typical Hypervel application, you may use the [Hypervel Testbench](/docs/{{version}}/testbench) package.
+
+<a name="generating-facade-docblocks"></a>
+### Generating Facade Docblocks
+
+If your package provides a facade, you may use Hypervel's Facade Documenter to generate its `@method` definitions from the underlying class. This keeps the facade's IDE metadata in sync without maintaining each method by hand.
+
+First, add the Facade Documenter to your package's development dependencies:
+
+```shell
+composer require --dev hypervel/facade-documenter
+```
+
+The facade's class docblock should contain an `@see` tag for the class it represents:
+
+```php
+/**
+ * @see \Courier\CourierManager
+ */
+class Courier extends Facade
+{
+    // ...
+}
+```
+
+You may then generate the facade's docblock by passing its fully qualified class name to the `facade.php` script:
+
+```shell
+php -f vendor/bin/facade.php -- Courier\\Facades\\Courier
+```
+
+You may pass several facade class names to the same command. The generator replaces the facade's class docblock with the generated `@method` and `@see` definitions. Any `@mixin` tags declared directly on the facade are preserved.
+
+To check the docblock without changing the file, add the `--lint` option. The command exits with a non-zero status when the generated docblock is not current, making it suitable for continuous integration:
+
+```shell
+php -f vendor/bin/facade.php -- --lint Courier\\Facades\\Courier
+```
+
+You may add the `--verbose` option to display the classes used to generate each facade.
+
+<a name="package-discovery"></a>
+## Package Discovery
+
+A Hypervel application's `bootstrap/providers.php` file contains the list of service providers that should be loaded by Hypervel. However, instead of requiring users to manually add your service provider to the list, you may define the provider in the `extra` section of your package's `composer.json` file so that it is automatically loaded by Hypervel. In addition to service providers, you may also list any [facades](/docs/{{version}}/facades) you would like to be registered:
+
+```json
+"extra": {
+    "hypervel": {
+        "providers": [
+            "Courier\\CourierServiceProvider"
+        ],
+        "aliases": {
+            "Courier": "Courier\\Facades\\Courier"
+        }
+    }
+},
+```
+
+Once your package has been configured for discovery, Hypervel will automatically register its service providers and facades when it is installed, creating a convenient installation experience for your package's users.
+
+<a name="opting-out-of-package-discovery"></a>
+#### Opting Out of Package Discovery
+
+If you are the consumer of a package and would like to disable package discovery for a package, you may list the package name in the `extra` section of your application's `composer.json` file:
+
+```json
+"extra": {
+    "hypervel": {
+        "dont-discover": [
+            "vendor/courier"
+        ]
+    }
+},
+```
+
+You may disable package discovery for all packages using the `*` character inside of your application's `dont-discover` directive:
+
+```json
+"extra": {
+    "hypervel": {
+        "dont-discover": [
+            "*"
+        ]
+    }
+},
+```
+
+<a name="test-state-cleanup"></a>
+### Test State Cleanup
+
+Packages that keep worker-lifetime state for tests may declare a test-state registrar:
+
+```json
+"extra": {
+    "hypervel": {
+        "test-state": [
+            "Vendor\\Package\\Testing\\TestState"
+        ]
+    }
+}
+```
+
+The registrar must be autoloadable from the package's normal `autoload` section and must define `register()`. Use the registrar as one package-level entry point that aggregates the cleanup for any stateful classes your package owns:
+
+```php
+<?php
+
+namespace Vendor\Package\Testing;
+
+use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
+
+class TestState
+{
+    public static function register(): void
+    {
+        AfterEachTestCleanup::flushUsing('vendor/package', fn () => static::flushState());
+    }
+
+    public static function flushState(): void
+    {
+        InvoiceNumbers::flushState();
+        TaxRates::flushState();
+        ReceiptMacros::flushState();
+    }
+}
+```
+
+Use your Composer package name as the callback name. Registrar classes are discovered during PHPUnit extension bootstrap, so package cleanup runs even in workers that only execute unit tests and never boot a Hypervel application.
+
+Test-state callbacks run after the test application has been destroyed. Use them for process-local state that can be reset directly, not cleanup that resolves container services. Use the appropriate testing trait to clean up external resources.
+
+<a name="inspecting-installed-packages"></a>
+## Inspecting Installed Packages
+
+If your package needs to determine whether another package is installed, you may resolve Hypervel's package manifest from the service container and inspect the packages discovered by Composer:
+
+```php
+use Hypervel\Foundation\PackageManifest;
+
+/**
+ * Register any package services.
+ */
+public function register(): void
+{
+    $manifest = $this->app->make(PackageManifest::class);
+
+    if ($manifest->hasPackage('hypervel/reverb')) {
+        // ...
+    }
+}
+```
+
+You may also retrieve the installed version of a package or determine if it satisfies a Composer version constraint:
+
+```php
+$version = $manifest->version('hypervel/reverb');
+
+if ($manifest->satisfies('hypervel/reverb', '^1.0')) {
+    // ...
+}
+```
+
+> [!NOTE]
+> The `satisfies` method requires the `composer/semver` package. If your package uses this method, you should require `composer/semver` in your package's `composer.json` file.
+
+<a name="service-providers"></a>
+## Service Providers
+
+[Service providers](/docs/{{version}}/providers) are the connection point between your package and Hypervel. A service provider is responsible for binding things into Hypervel's [service container](/docs/{{version}}/container) and informing Hypervel where to load package resources such as views, configuration, and language files.
+
+A service provider extends the `Hypervel\Support\ServiceProvider` class and contains two methods: `register` and `boot`. The base `ServiceProvider` class is located in the `hypervel/support` Composer package, which you should add to your own package's dependencies. To learn more about the structure and purpose of service providers, check out [their documentation](/docs/{{version}}/providers).
+
+<a name="provider-priority"></a>
+### Provider Priority
+
+Discovered package providers are registered after Hypervel's framework providers and before the application's own providers. If your package needs to be registered before another discovered provider, you may define a `priority` property on your service provider. Providers default to a priority of `0`. Providers with a higher priority value are registered first:
+
+```php
+/**
+ * The registration priority for this provider.
+ */
+public int $priority = 10;
+```
+
+<a name="conditional-providers"></a>
+### Conditional Providers
+
+If your package's service provider should only be loaded in some environments or configurations, you may override the `isEnabled` method. When this method returns `false`, Hypervel will skip the provider entirely:
+
+```php
+/**
+ * Determine if the provider should be registered.
+ */
+public function isEnabled(): bool
+{
+    return (bool) config('courier.enabled');
+}
+```
+
+<a name="class-map-overrides"></a>
+### Class Map Overrides
+
+Class map overrides are an advanced package-author escape hatch for replacing a class in a third-party dependency at autoload time when normal extension points are not sufficient. They are useful when a dependency needs to be adapted for Hypervel's long-lived Swoole workers, coroutine safety, or framework integration, but the dependency does not provide a clean way to customize the behavior.
+
+You may register class map overrides from your service provider's `register` method using the `classMap` method. The array keys are the original class names, and the array values are the replacement file paths:
+
+```php
+use VendorPackage\Client;
+
+/**
+ * Register any package services.
+ */
+public function register(): void
+{
+    $this->classMap([
+        Client::class => __DIR__.'/../Overrides/Client.php',
+    ]);
+}
+```
+
+The replacement file should define the original class name. In the example above, Composer is still being asked to load `VendorPackage\Client`; Hypervel simply tells Composer to load that class from your replacement file instead of the dependency's original file. The replacement should remain compatible with the original class's public API, since other code will still interact with it as `VendorPackage\Client`.
+
+Class map overrides mutate Composer's autoloader immediately and must be registered before the target class, interface, or trait has been loaded. If the target has already been loaded, Hypervel will throw an exception. For this reason, class map overrides should be registered in the service provider's `register` method before resolving services or referencing classes that may load the target.
+
+> [!WARNING]
+> Class map overrides affect the worker's autoloader for the lifetime of the process. They should only be used for boot-time package integration, not request-specific behavior.
+
+<a name="resources"></a>
+## Resources
+
+<a name="configuration"></a>
+### Configuration
+
+Typically, you will need to publish your package's configuration file to the application's `config` directory. This will allow users of your package to easily override your default configuration options. To allow your configuration files to be published, call the `publishes` method from the `boot` method of your service provider:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->publishes([
+        __DIR__.'/../config/courier.php' => config_path('courier.php'),
+    ]);
+}
+```
+
+Now, when users of your package execute Hypervel's `vendor:publish` command, your file will be copied to the specified publish location. Once your configuration has been published, its values may be accessed like any other configuration file:
+
+```php
+$value = config('courier.option');
+```
+
+> [!WARNING]
+> You should not define closures in your configuration files. They cannot be serialized correctly when users execute the `config:cache` Artisan command.
+
+<a name="default-package-configuration"></a>
+#### Default Package Configuration
+
+You may also merge your own package configuration file with the application's published copy. This will allow your users to define only the options they actually want to override in the published copy of the configuration file. To merge the configuration file values, use the `mergeConfigFrom` method within your service provider's `register` method.
+
+The `mergeConfigFrom` method accepts the path to your package's configuration file as its first argument and the name of the application's copy of the configuration file as its second argument:
+
+```php
+/**
+ * Register any package services.
+ */
+public function register(): void
+{
+    $this->mergeConfigFrom(
+        __DIR__.'/../config/courier.php', 'courier'
+    );
+}
+```
+
+> [!WARNING]
+> This method only merges the first level of the configuration array. If your users partially define a multi-dimensional configuration array, the missing options will not be merged.
+
+<a name="merging-configuration-arrays"></a>
+#### Merging Configuration Arrays
+
+If your package configuration contains arrays that should be merged one level deeper, you may override the `mergeableOptions` method on your service provider. This is useful for configuration arrays like `connections`, `stores`, or `guards`, where users should be able to define one option without replacing the rest of the package defaults:
+
+```php
+/**
+ * Get the configuration options that should be merged one level deeper.
+ *
+ * @return array<int, string>
+ */
+protected function mergeableOptions(string $name): array
+{
+    return match ($name) {
+        'courier' => ['connections'],
+        default => [],
+    };
+}
+```
+
+<a name="routes"></a>
+### Routes
+
+If your package contains routes, you may load them using the `loadRoutesFrom` method. This method will automatically determine if the application's routes are cached and will not load your routes file if the routes have already been cached:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+}
+```
+
+<a name="migrations"></a>
+### Migrations
+
+If your package contains [database migrations](/docs/{{version}}/migrations), you may use the `publishesMigrations` method to inform Hypervel that the given directory or file contains migrations. When Hypervel publishes the migrations, it will automatically update the timestamp within their filename to reflect the current date and time:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->publishesMigrations([
+        __DIR__.'/../database/migrations' => database_path('migrations'),
+    ]);
+}
+```
+
+<a name="language-files"></a>
+### Language Files
+
+If your package contains [language files](/docs/{{version}}/localization), you may use the `loadTranslationsFrom` method to inform Hypervel how to load them. For example, if your package is named `courier`, you should add the following to your service provider's `boot` method:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->loadTranslationsFrom(__DIR__.'/../lang', 'courier');
+}
+```
+
+Package translation lines are referenced using the `package::file.line` syntax convention. So, you may load the `courier` package's `welcome` line from the `messages` file like so:
+
+```php
+echo trans('courier::messages.welcome');
+```
+
+You can register JSON translation files for your package using the `loadJsonTranslationsFrom` method. This method accepts the path to the directory that contains your package's JSON translation files:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->loadJsonTranslationsFrom(__DIR__.'/../lang');
+}
+```
+
+<a name="publishing-language-files"></a>
+#### Publishing Language Files
+
+If you would like to publish your package's language files to the application's `lang/vendor` directory, you may use the service provider's `publishes` method. The `publishes` method accepts an array of package paths and their desired publish locations. For example, to publish the language files for the `courier` package, you may do the following:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->loadTranslationsFrom(__DIR__.'/../lang', 'courier');
+
+    $this->publishes([
+        __DIR__.'/../lang' => $this->app->langPath('vendor/courier'),
+    ]);
+}
+```
+
+Now, when users of your package execute Hypervel's `vendor:publish` Artisan command, your package's language files will be published to the specified publish location.
+
+<a name="views"></a>
+### Views
+
+To register your package's [views](/docs/{{version}}/views) with Hypervel, you need to tell Hypervel where the views are located. You may do this using the service provider's `loadViewsFrom` method. The `loadViewsFrom` method accepts two arguments: the path to your view templates and your package's name. For example, if your package's name is `courier`, you would add the following to your service provider's `boot` method:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->loadViewsFrom(__DIR__.'/../resources/views', 'courier');
+}
+```
+
+Package views are referenced using the `package::view` syntax convention. So, once your view path is registered in a service provider, you may load the `dashboard` view from the `courier` package like so:
+
+```php
+Route::get('/dashboard', function () {
+    return view('courier::dashboard');
+});
+```
+
+<a name="overriding-package-views"></a>
+#### Overriding Package Views
+
+When you use the `loadViewsFrom` method, Hypervel actually registers two locations for your views: the application's `resources/views/vendor` directory and the directory you specify. So, using the `courier` package as an example, Hypervel will first check if a custom version of the view has been placed in the `resources/views/vendor/courier` directory by the developer. Then, if the view has not been customized, Hypervel will search the package view directory you specified in your call to `loadViewsFrom`. This makes it easy for package users to customize / override your package's views.
+
+<a name="publishing-views"></a>
+#### Publishing Views
+
+If you would like to make your views available for publishing to the application's `resources/views/vendor` directory, you may use the service provider's `publishes` method. The `publishes` method accepts an array of package view paths and their desired publish locations:
+
+```php
+/**
+ * Bootstrap the package services.
+ */
+public function boot(): void
+{
+    $this->loadViewsFrom(__DIR__.'/../resources/views', 'courier');
+
+    $this->publishes([
+        __DIR__.'/../resources/views' => resource_path('views/vendor/courier'),
+    ]);
+}
+```
+
+Now, when users of your package execute Hypervel's `vendor:publish` Artisan command, your package's views will be copied to the specified publish location.
+
+<a name="view-components"></a>
+### View Components
+
+If you are building a package that uses Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Hypervel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
+
+```php
+use Hypervel\Support\Facades\Blade;
+use VendorPackage\View\Components\AlertComponent;
+
+/**
+ * Bootstrap your package's services.
+ */
+public function boot(): void
+{
+    Blade::component('package-alert', AlertComponent::class);
+}
+```
+
+Once your component has been registered, it may be rendered using its tag alias:
+
+```blade
+<x-package-alert/>
+```
+
+<a name="autoloading-package-components"></a>
+#### Autoloading Package Components
+
+Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Nightshade\Views\Components` namespace:
+
+```php
+use Hypervel\Support\Facades\Blade;
+
+/**
+ * Bootstrap your package's services.
+ */
+public function boot(): void
+{
+    Blade::componentNamespace('Nightshade\\Views\\Components', 'nightshade');
+}
+```
+
+This will allow the usage of package components by their vendor namespace using the `package-name::` syntax:
+
+```blade
+<x-nightshade::calendar />
+<x-nightshade::color-picker />
+```
+
+Blade will automatically detect the class that's linked to this component by pascal-casing the component name. Subdirectories are also supported using "dot" notation.
+
+<a name="anonymous-components"></a>
+#### Anonymous Components
+
+If your package contains anonymous components, they must be placed within a `components` directory of your package's "views" directory (as specified by the [loadViewsFrom method](#views)). Then, you may render them by prefixing the component name with the package's view namespace:
+
+```blade
+<x-courier::alert />
+```
+
+<a name="about-artisan-command"></a>
+### "About" Artisan Command
+
+Hypervel's built-in `about` Artisan command provides a synopsis of the application's environment and configuration. Packages may push additional information to this command's output via the `AboutCommand` class. Typically, this information may be added from your package service provider's `boot` method:
+
+```php
+use Hypervel\Foundation\Console\AboutCommand;
+
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    AboutCommand::add('My Package', fn () => ['Version' => '1.0.0']);
+}
+```
+
+<a name="commands"></a>
+## Commands
+
+To register your package's Artisan commands with Hypervel, you may use the `commands` method. This method expects an array of command class names. Once the commands have been registered, you may execute them using the [Artisan CLI](/docs/{{version}}/artisan):
+
+```php
+use Courier\Console\Commands\InstallCommand;
+use Courier\Console\Commands\NetworkCommand;
+
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    if ($this->app->runningInConsole()) {
+        $this->commands([
+            InstallCommand::class,
+            NetworkCommand::class,
+        ]);
+    }
+}
+```
+
+<a name="optimize-commands"></a>
+### Optimize Commands
+
+Hypervel's [optimize command](/docs/{{version}}/deployment#optimization) caches the application's configuration, events, routes, and views. Using the `optimizes` method, you may register your package's own Artisan commands that should be invoked when the `optimize` and `optimize:clear` commands are executed:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    if ($this->app->runningInConsole()) {
+        $this->optimizes(
+            optimize: 'package:optimize',
+            clear: 'package:clear-optimizations',
+        );
+    }
+}
+```
+
+<a name="reload-commands"></a>
+### Reload Commands
+
+Hypervel's [reload command](/docs/{{version}}/deployment#reloading-services) terminates any running services so they can be automatically restarted by a system process monitor. Using the `reloads` method, you may register your package's own Artisan commands that should be invoked when the `reload` command is executed:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    if ($this->app->runningInConsole()) {
+        $this->reloads('package:reload');
+    }
+}
+```
+
+<a name="public-assets"></a>
+## Public Assets
+
+Your package may have assets such as JavaScript, CSS, and images. To publish these assets to the application's `public` directory, use the service provider's `publishes` method. In this example, we will also add a `public` asset group tag, which may be used to easily publish groups of related assets:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->publishes([
+        __DIR__.'/../public' => public_path('vendor/courier'),
+    ], 'public');
+}
+```
+
+Now, when your package's users execute the `vendor:publish` command, your assets will be copied to the specified publish location. Since users will typically need to overwrite the assets every time the package is updated, they may use the `--force` flag:
+
+```shell
+php artisan vendor:publish --tag=public --force
+```
+
+<a name="publishing-file-groups"></a>
+## Publishing File Groups
+
+You may want to publish groups of package assets and resources separately. For instance, you might want to allow your users to publish your package's configuration files without being forced to publish your package's assets. You may do this by "tagging" them when calling the `publishes` method from a package's service provider. For example, let's use tags to define two publish groups for the `courier` package (`courier-config` and `courier-migrations`) in the `boot` method of the package's service provider:
+
+```php
+/**
+ * Bootstrap any package services.
+ */
+public function boot(): void
+{
+    $this->publishes([
+        __DIR__.'/../config/package.php' => config_path('package.php')
+    ], 'courier-config');
+
+    $this->publishesMigrations([
+        __DIR__.'/../database/migrations/' => database_path('migrations')
+    ], 'courier-migrations');
+}
+```
+
+Now your users may publish these groups separately by referencing their tag when executing the `vendor:publish` command:
+
+```shell
+php artisan vendor:publish --tag=courier-config
+```
+
+Your users can also publish all publishable files defined by your package's service provider using the `--provider` flag:
+
+```shell
+php artisan vendor:publish --provider="Your\Package\ServiceProvider"
+```

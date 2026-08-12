@@ -59,7 +59,7 @@ class CreatesApplicationTest extends TestCase
         $this->assertSame(TestFacade::class, $aliases['TestAlias']);
     }
 
-    public function testAfterLoadingEnvironmentFiresThroughTestbenchPath()
+    public function testAfterLoadingEnvironmentFiresThroughTestbenchPath(): void
     {
         // The bootstrapped event should have been dispatched by bootstrapWith()
         // in CreatesApplication::resolveApplicationConfiguration().

@@ -15,6 +15,7 @@ use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\FormatModel;
@@ -54,8 +55,6 @@ class RequestWatcher extends Watcher
             return;
         }
 
-        $startTime = (float) $event->request->server('REQUEST_TIME_FLOAT');
-
         Telescope::recordRequest(IncomingEntry::make([
             'ip_address' => $event->request->ip(),
             'uri' => str_replace($event->request->root(), '', $event->request->fullUrl()) ?: '/',
@@ -70,7 +69,7 @@ class RequestWatcher extends Watcher
             'response' => $this->response($event->response),
             'context' => $this->facadeContext(),
             'coroutine_context' => $this->getContext(),
-            'duration' => $startTime > 0 ? floor((microtime(true) - $startTime) * 1000) : null,
+            'duration' => floor($event->request->startedAt()->diffInMilliseconds()),
             'memory' => round(memory_get_peak_usage(true) / 1024 / 1024, 1),
         ]));
 
@@ -87,7 +86,8 @@ class RequestWatcher extends Watcher
             strtolower($event->request->method()),
             Collection::make($this->options['ignore_http_methods'] ?? [])->map(function ($method) {
                 return strtolower($method);
-            })->all()
+            })->all(),
+            true,
         );
     }
 
@@ -98,7 +98,8 @@ class RequestWatcher extends Watcher
     {
         return in_array(
             $event->response->getStatusCode(),
-            $this->options['ignore_status_codes'] ?? []
+            $this->options['ignore_status_codes'] ?? [],
+            true,
         );
     }
 
@@ -138,7 +139,7 @@ class RequestWatcher extends Watcher
     protected function hideParameters(array $data, array $hidden): array
     {
         foreach ($hidden as $parameter) {
-            if (Arr::get($data, $parameter)) {
+            if (Arr::has($data, $parameter)) {
                 Arr::set($data, $parameter, '********');
             }
         }
@@ -183,12 +184,19 @@ class RequestWatcher extends Watcher
         $content = $response->getContent();
 
         if (is_string($content)) {
-            if (is_array(json_decode($content, true))
-                && json_last_error() === JSON_ERROR_NONE
-            ) {
+            // One container of the storage limit is reserved for the entry-content root.
+            $maximumContainers = Json::MAXIMUM_NESTING_DEPTH - 1;
+            $decoded = json_decode($content, true, $maximumContainers + 1);
+            $jsonError = json_last_error();
+
+            if (is_array($decoded) && $jsonError === JSON_ERROR_NONE) {
                 return $this->contentWithinLimits($content)
-                    ? $this->hideParameters(json_decode($content, true), Telescope::$hiddenResponseParameters)
+                    ? $this->hideParameters($decoded, Telescope::$hiddenResponseParameters)
                     : 'Purged By Telescope';
+            }
+
+            if ($jsonError === JSON_ERROR_DEPTH) {
+                return 'Purged By Telescope';
             }
 
             if (Str::startsWith(strtolower($response->headers->get('Content-Type') ?? ''), 'text/plain')) {
@@ -221,7 +229,7 @@ class RequestWatcher extends Watcher
     {
         $limit = $this->options['size_limit'] ?? 64;
 
-        return intdiv(mb_strlen($content), 1000) <= $limit;
+        return strlen($content) <= $limit * 1024;
     }
 
     /**
@@ -229,6 +237,7 @@ class RequestWatcher extends Watcher
      */
     protected function extractDataFromView(View $view): array
     {
+        // Native encoding captures view object state instead of its published representation.
         return Collection::make($view->getData())->map(function ($value) {
             if ($value instanceof Model) {
                 return FormatModel::given($value);
@@ -238,11 +247,11 @@ class RequestWatcher extends Watcher
                     'class' => get_class($value),
                     'properties' => method_exists($value, 'formatForTelescope')
                         ? $value->formatForTelescope()
-                        : json_decode(json_encode($value), true),
+                        : Json::decode(json_encode($value, JSON_THROW_ON_ERROR)),
                 ];
             }
 
-            return json_decode(json_encode($value), true);
+            return Json::decode(json_encode($value, JSON_THROW_ON_ERROR));
         })->toArray();
     }
 

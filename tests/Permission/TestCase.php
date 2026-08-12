@@ -261,7 +261,7 @@ abstract class TestCase extends TestbenchTestCase
         try {
             return $middleware->handle($request, function (): Response {
                 return (new Response)->setContent('<html></html>');
-            }, $permission, $guard)->status();
+            }, $permission, $guard)->getStatusCode();
         } catch (UnauthorizedException $exception) {
             return $exception->getStatusCode();
         }

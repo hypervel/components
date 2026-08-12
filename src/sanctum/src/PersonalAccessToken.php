@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Carbon\CarbonInterface;
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -67,26 +68,48 @@ class PersonalAccessToken extends Model implements HasAbilities
     {
         parent::boot();
 
-        static::updating(function (PersonalAccessToken $model): void {
+        static::created(function (self $token): void {
             if (! config('sanctum.cache.enabled')) {
                 return;
             }
 
-            // Eloquent fires updating before adding updated_at, so this exact
-            // dirty set identifies Sanctum's internal audit write.
-            if (array_keys($model->getDirty()) === ['last_used_at']) {
-                self::forgetTokenEntry(self::getCache(), $model->id);
+            /** @var int|string $id */
+            $id = $token->getKey();
 
+            $token->settleCacheMutation(
+                fn () => static::forgetTokenEntry(static::getCache(), $id)
+            );
+        });
+
+        static::updated(function (self $token): void {
+            if (! config('sanctum.cache.enabled')) {
                 return;
             }
 
-            self::clearTokenCache($model->id);
+            /** @var int|string $id */
+            $id = $token->getKey();
+            $lastUsedAtOnly = $token->wasOnlyLastUsedAtChanged();
+
+            $token->settleCacheMutation(function () use ($id, $lastUsedAtOnly): void {
+                if ($lastUsedAtOnly) {
+                    static::forgetTokenEntry(static::getCache(), $id);
+
+                    return;
+                }
+
+                static::clearTokenCache($id);
+            });
         });
 
-        static::deleting(function (PersonalAccessToken $model): void {
-            if (config('sanctum.cache.enabled')) {
-                self::clearTokenCache($model->id);
+        static::deleted(function (self $token): void {
+            if (! config('sanctum.cache.enabled')) {
+                return;
             }
+
+            /** @var int|string $id */
+            $id = $token->getKey();
+
+            $token->settleCacheMutation(fn () => static::clearTokenCache($id));
         });
     }
 
@@ -103,7 +126,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     public static function findToken(string $token): ?static
     {
-        if (strpos($token, '|') === false) {
+        if (! str_contains($token, '|')) {
             // Hypervel only supports the id|token format created by createToken().
             // Laravel's legacy plain-token lookup is intentionally omitted because
             // Sanctum's cache and invalidation paths are keyed by token ID.
@@ -112,12 +135,17 @@ class PersonalAccessToken extends Model implements HasAbilities
 
         [$id, $plainToken] = explode('|', $token, 2);
 
-        if (! static::isValidTokenIdentifier($id)) {
+        if ($id === '' || $plainToken === '') {
+            return null;
+        }
+
+        if ((new static)->getKeyType() === 'int'
+            && (! ctype_digit($id) || filter_var($id, FILTER_VALIDATE_INT) === false)) {
             return null;
         }
 
         $accessToken = config('sanctum.cache.enabled')
-            ? self::findTokenUsingCache($id)
+            ? static::findTokenUsingCache($id)
             : static::find($id);
 
         if (! $accessToken) {
@@ -136,10 +164,10 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     protected static function findTokenUsingCache(string $id): ?static
     {
-        $cache = self::getCache();
+        $cache = static::getCache();
 
         return $cache->rememberNullable(
-            self::getCacheKey($id),
+            static::getCacheKey($id),
             config('sanctum.cache.ttl'),
             fn () => static::find($id)?->unsetRelation('tokenable')
         );
@@ -158,8 +186,10 @@ class PersonalAccessToken extends Model implements HasAbilities
             return $accessToken->getAttribute('tokenable');
         }
 
-        $cache = self::getCache();
-        $cacheKey = self::getCacheKey($accessToken->id) . ':tokenable';
+        $cache = static::getCache();
+        /** @var int|string $id */
+        $id = $accessToken->getKey();
+        $cacheKey = static::getCacheKey($id) . ':tokenable';
 
         // A scoped miss may be visible in another query context, so cache only positive tokenables.
         $tokenable = $cache->get($cacheKey);
@@ -180,26 +210,14 @@ class PersonalAccessToken extends Model implements HasAbilities
     }
 
     /**
-     * Determine if the token identifier can be queried by this model.
-     */
-    protected static function isValidTokenIdentifier(string $id): bool
-    {
-        if ($id === '') {
-            return false;
-        }
-
-        return (new static)->getKeyType() !== 'int' || ctype_digit($id);
-    }
-
-    /**
      * Determine if the token has a given ability.
      */
     public function can(UnitEnum|string $ability): bool
     {
         $ability = enum_value($ability);
 
-        return in_array('*', $this->abilities)
-               || array_key_exists($ability, array_flip($this->abilities));
+        return in_array('*', $this->abilities, true)
+               || in_array($ability, $this->abilities, true);
     }
 
     /**
@@ -215,9 +233,9 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     public static function clearTokenCache(int|string $tokenId): void
     {
-        $cache = self::getCache();
-        self::forgetTokenEntry($cache, $tokenId);
-        $cache->forget(self::getCacheKey($tokenId) . ':tokenable');
+        $cache = static::getCache();
+        static::forgetTokenEntry($cache, $tokenId);
+        $cache->forget(static::getCacheKey($tokenId) . ':tokenable');
     }
 
     /**
@@ -225,7 +243,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     protected static function forgetTokenEntry(CacheRepository $cache, int|string $tokenId): void
     {
-        $cache->forget(self::getCacheKey($tokenId));
+        $cache->forget(static::getCacheKey($tokenId));
     }
 
     /**
@@ -261,12 +279,45 @@ class PersonalAccessToken extends Model implements HasAbilities
         $connection->setRecordModificationState($hasModifiedRecords);
 
         if ($cacheEnabled) {
-            static::getCache()->put(
-                static::getCacheKey($this->id),
-                $this->withoutRelation('tokenable'),
-                config('sanctum.cache.ttl'),
+            /** @var int|string $id */
+            $id = $this->getKey();
+            $snapshot = $this->withoutRelation('tokenable');
+            $ttl = config('sanctum.cache.ttl');
+
+            $this->settleCacheMutation(
+                fn () => static::getCache()->put(static::getCacheKey($id), $snapshot, $ttl)
             );
         }
+    }
+
+    /**
+     * Determine whether only the last-used timestamp changed.
+     */
+    protected function wasOnlyLastUsedAtChanged(): bool
+    {
+        $changes = $this->getChanges();
+
+        if (($updatedAt = $this->getUpdatedAtColumn()) !== null) {
+            unset($changes[$updatedAt]);
+        }
+
+        return array_keys($changes) === ['last_used_at'];
+    }
+
+    /**
+     * Run a cache mutation after its database transaction settles.
+     */
+    protected function settleCacheMutation(Closure $callback): void
+    {
+        $connection = $this->getConnection();
+
+        if ($connection->getTransactionManager() === null && $connection->transactionLevel() === 0) {
+            $callback();
+
+            return;
+        }
+
+        $connection->afterCommit($callback);
     }
 
     /**

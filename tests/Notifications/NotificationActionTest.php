@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Notifications\Action;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class NotificationActionTest extends TestCase
 {
-    public function testActionIsCreatedProperly()
+    public function testActionIsCreatedProperly(): void
     {
         $action = new Action('Text', 'url');
 

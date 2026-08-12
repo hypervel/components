@@ -6,6 +6,7 @@ namespace Hypervel\Reverb\Servers\Hypervel;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Reverb\Contracts\ServerProvider;
@@ -64,7 +65,10 @@ class HypervelServerProvider extends ServerProvider
             $lockTable->column('locked_at', Table::TYPE_FLOAT);
             $lockTable->create();
 
-            $this->app->instance(SharedState::class, new SwooleTableSharedState($table, $lockTable));
+            $this->app->instance(
+                SharedState::class,
+                new SwooleTableSharedState($table, $lockTable, new StripedLock),
+            );
         }
 
         $this->app->singleton(

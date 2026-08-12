@@ -38,6 +38,117 @@ class HttpRequestTest extends TestCase
         $this->assertSame($request, $request->instance());
     }
 
+    public function testStartedAtUsesThePreciseServerTimestamp(): void
+    {
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $this->assertSame(1_700_000_000.123456, $request->server('REQUEST_TIME_FLOAT'));
+        $this->assertSame(1_700_000_000, $request->server('REQUEST_TIME'));
+        $this->assertSame(1_700_000_000_123_456.0, $request->startedAt()->getPreciseTimestamp(6));
+
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => '1700000000.654321',
+        ]);
+
+        $this->assertSame('1700000000.654321', $request->server('REQUEST_TIME_FLOAT'));
+        $this->assertSame(1_700_000_000_654_321.0, $request->startedAt()->getPreciseTimestamp(6));
+    }
+
+    public function testStartedAtCapturesAndNormalizesAPreciseFallback(): void
+    {
+        $before = microtime(true);
+        $request = new Request;
+        $after = microtime(true);
+
+        $startedAtTimestamp = $request->server('REQUEST_TIME_FLOAT');
+
+        $this->assertIsFloat($startedAtTimestamp);
+        $this->assertGreaterThanOrEqual($before, $startedAtTimestamp);
+        $this->assertLessThanOrEqual($after, $startedAtTimestamp);
+        $this->assertSame((int) $startedAtTimestamp, $request->server('REQUEST_TIME'));
+        $this->assertSame(
+            round($startedAtTimestamp * 1_000_000),
+            $request->startedAt()->getPreciseTimestamp(6)
+        );
+    }
+
+    public function testStartedAtReturnsTheSameInstantOnEveryCall(): void
+    {
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $this->assertSame(
+            $request->startedAt()->getPreciseTimestamp(6),
+            $request->startedAt()->getPreciseTimestamp(6)
+        );
+    }
+
+    public function testStartedAtRemainsStableWhenTheServerBagChanges(): void
+    {
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $request->server->set('REQUEST_TIME_FLOAT', 1_800_000_000.654321);
+
+        $this->assertSame(1_700_000_000_123_456.0, $request->startedAt()->getPreciseTimestamp(6));
+
+        $request->server->remove('REQUEST_TIME_FLOAT');
+
+        $this->assertSame(1_700_000_000_123_456.0, $request->startedAt()->getPreciseTimestamp(6));
+    }
+
+    public function testStartedAtIsPreservedByCloningAndDuplication(): void
+    {
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $clone = clone $request;
+        $duplicate = $request->duplicate();
+        $duplicateWithServer = $request->duplicate(server: [
+            'REQUEST_TIME_FLOAT' => 1_800_000_000.654321,
+        ]);
+
+        $this->assertSame(1_700_000_000_123_456.0, $clone->startedAt()->getPreciseTimestamp(6));
+        $this->assertSame(1_700_000_000_123_456.0, $duplicate->startedAt()->getPreciseTimestamp(6));
+        $this->assertSame(1_700_000_000_123_456.0, $duplicateWithServer->startedAt()->getPreciseTimestamp(6));
+        $this->assertSame(1_800_000_000.654321, $duplicateWithServer->server('REQUEST_TIME_FLOAT'));
+    }
+
+    public function testStartedAtIsPreservedWhenCreatingFromAnotherRequest(): void
+    {
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $createdFromRequest = Request::createFrom($request);
+        $createdFromBase = Request::createFromBase(SymfonyRequest::create('/', server: [
+            'REQUEST_TIME_FLOAT' => 1_800_000_000.654321,
+        ]));
+
+        $this->assertSame(1_700_000_000_123_456.0, $createdFromRequest->startedAt()->getPreciseTimestamp(6));
+        $this->assertSame(1_800_000_000_654_321.0, $createdFromBase->startedAt()->getPreciseTimestamp(6));
+    }
+
+    public function testInitializeStartsANewRequestTimingLifecycle(): void
+    {
+        $request = new Request(server: [
+            'REQUEST_TIME_FLOAT' => 1_700_000_000.123456,
+        ]);
+
+        $request->initialize(server: [
+            'REQUEST_TIME_FLOAT' => 1_800_000_000.654321,
+        ]);
+
+        $this->assertSame(1_800_000_000.654321, $request->server('REQUEST_TIME_FLOAT'));
+        $this->assertSame(1_800_000_000, $request->server('REQUEST_TIME'));
+        $this->assertSame(1_800_000_000_654_321.0, $request->startedAt()->getPreciseTimestamp(6));
+    }
+
     public function testMethodMethod(): void
     {
         $request = Request::create('', 'GET');

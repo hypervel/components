@@ -60,9 +60,13 @@ class InteractsWithMockeryTest extends TestCase
         yield 'foundation' => [FoundationMockeryTestCase::class];
     }
 
-    public function testComponentsBaseCaseStillVerifiesMockeryWhenExceptionCleanupFails(): void
+    /**
+     * @param class-string<ComponentsMockeryTestCase|TestbenchMockeryTestCase> $testCaseClass
+     */
+    #[DataProvider('exceptionCleanupCaseProvider')]
+    public function testBaseCasesStillVerifyMockeryWhenExceptionCleanupFails(string $testCaseClass): void
     {
-        $testCase = new ComponentsMockeryTestCase('placeholder');
+        $testCase = new $testCaseClass('placeholder');
         $testCase->failExceptionCleanup = true;
         m::mock()->shouldReceive('expected')->once();
 
@@ -74,6 +78,15 @@ class InteractsWithMockeryTest extends TestCase
         }
 
         $this->assertNull((new ReflectionProperty(m::class, '_container'))->getValue());
+    }
+
+    /**
+     * @return iterable<string, array{class-string<ComponentsMockeryTestCase|TestbenchMockeryTestCase>}>
+     */
+    public static function exceptionCleanupCaseProvider(): iterable
+    {
+        yield 'components' => [ComponentsMockeryTestCase::class];
+        yield 'testbench' => [TestbenchMockeryTestCase::class];
     }
 }
 
@@ -114,6 +127,8 @@ class ComponentsMockeryTestCase extends TestCase implements MockeryLifecycleTest
 
 class TestbenchMockeryTestCase extends TestbenchTestCase implements MockeryLifecycleTestCase
 {
+    public bool $failExceptionCleanup = false;
+
     public function placeholder(): void
     {
     }
@@ -126,6 +141,15 @@ class TestbenchMockeryTestCase extends TestbenchTestCase implements MockeryLifec
     public function assertionCount(): int
     {
         return $this->numberOfAssertionsPerformed();
+    }
+
+    protected function flushExceptionHandlerState(): void
+    {
+        if ($this->failExceptionCleanup) {
+            throw new RuntimeException('exception cleanup failed');
+        }
+
+        parent::flushExceptionHandlerState();
     }
 }
 

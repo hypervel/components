@@ -6,6 +6,7 @@ namespace Hypervel\Tests\View;
 
 use Closure;
 use ErrorException;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\View\Engine;
@@ -27,6 +28,7 @@ use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
 use Mockery as m;
 use ReflectionFunction;
+use RuntimeException;
 use stdClass;
 
 class ViewFactoryTest extends TestCase
@@ -607,6 +609,34 @@ class ViewFactoryTest extends TestCase
         $this->assertSame('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;', $factory->yieldContent('foo', $view));
     }
 
+    public function testExistingSectionDoesNotRenderDefaultView(): void
+    {
+        $factory = $this->getFactory();
+        $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
+        $factory->startSection('foo', 'section');
+
+        $engine = m::mock(Engine::class);
+        $engine->allows('get')->andReturnUsing(function () use ($factory): string {
+            $factory->startPush('default');
+            echo 'unused';
+            $factory->stopPush();
+
+            return 'default';
+        });
+
+        $factory->incrementRender();
+
+        try {
+            $default = new View($factory, $engine, 'default', 'default.php');
+
+            $this->assertSame('section', $factory->yieldContent('foo', $default));
+            $this->assertSame('', $factory->yieldPushContent('default'));
+        } finally {
+            $factory->decrementRender();
+            $factory->flushState();
+        }
+    }
+
     public function testBasicFragmentHandling()
     {
         $factory = $this->getFactory();
@@ -640,20 +670,21 @@ class ViewFactoryTest extends TestCase
         $factory->flushSections();
     }
 
-    public function testBasicSectionDefaultViewIsNotEscapedTwice()
+    public function testBasicSectionDefaultViewIsNotEscapedTwice(): void
     {
         $factory = $this->getFactory();
         $view = m::mock(View::class);
         $view->shouldReceive('render')->once()->andReturn('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;');
         $factory->startSection('foo', $view);
+        $this->assertSame('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;', $factory->getSections()['foo']);
         $this->assertSame('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;', $factory->yieldContent('foo'));
         $factory->flushSections();
     }
 
-    public function testSectionExtending()
+    public function testSectionExtending(): void
     {
         $factory = $this->getFactory();
-        $placeholder = $factory->getParentPlaceholder('foo');
+        $placeholder = Factory::parentPlaceholder('foo');
         $factory->startSection('foo');
         echo 'hi ' . $placeholder;
         $factory->stopSection();
@@ -664,10 +695,10 @@ class ViewFactoryTest extends TestCase
         $factory->flushSections();
     }
 
-    public function testSectionMultipleExtending()
+    public function testSectionMultipleExtending(): void
     {
         $factory = $this->getFactory();
-        $placeholder = $factory->getParentPlaceholder('foo');
+        $placeholder = Factory::parentPlaceholder('foo');
         $factory->startSection('foo');
         echo 'hello ' . $placeholder . ' nice to see you ' . $placeholder;
         $factory->stopSection();
@@ -742,6 +773,25 @@ class ViewFactoryTest extends TestCase
         $factory->startComponent(new HtmlString('laravel.com'));
         $contents = $factory->renderComponent();
         $this->assertSame('laravel.com', $contents);
+    }
+
+    public function testFlushStateResetsSlots(): void
+    {
+        $factory = $this->getFactory();
+
+        $factory->slot('title');
+        echo 'hypervel.com';
+        $factory->endSlot();
+
+        $factory->flushState();
+
+        [$slots, $slotStack] = (fn (): array => [
+            CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []),
+            CoroutineContext::get(static::SLOT_STACK_CONTEXT_KEY, []),
+        ])->call($factory);
+
+        $this->assertSame([], $slots);
+        $this->assertSame([], $slotStack);
     }
 
     public function testTranslation()
@@ -1029,6 +1079,30 @@ class ViewFactoryTest extends TestCase
         $factory->popLoop();
     }
 
+    public function testAddingUncountableLoop(): void
+    {
+        $factory = $this->getFactory();
+
+        $factory->addLoop('');
+
+        $expectedLoop = [
+            'iteration' => 0,
+            'index' => 0,
+            'remaining' => null,
+            'count' => null,
+            'first' => true,
+            'last' => null,
+            'odd' => false,
+            'even' => true,
+            'depth' => 1,
+            'parent' => null,
+        ];
+
+        $this->assertEquals([$expectedLoop], $factory->getLoopStack());
+
+        $factory->popLoop();
+    }
+
     public function testAddingLazyCollection()
     {
         $factory = $this->getFactory();
@@ -1091,6 +1165,44 @@ class ViewFactoryTest extends TestCase
         $factory->incrementLoopIndices();
 
         $this->assertTrue($factory->getLoopStack()[0]['last']);
+    }
+
+    public function testIncrementingLoopIndicesOfUncountable(): void
+    {
+        $factory = $this->getFactory();
+
+        $factory->addLoop('');
+
+        $factory->incrementLoopIndices();
+        $factory->incrementLoopIndices();
+
+        $this->assertEquals(2, $factory->getLoopStack()[0]['iteration']);
+        $this->assertEquals(1, $factory->getLoopStack()[0]['index']);
+        $this->assertFalse($factory->getLoopStack()[0]['first']);
+        $this->assertNull($factory->getLoopStack()[0]['remaining']);
+        $this->assertNull($factory->getLoopStack()[0]['last']);
+    }
+
+    public function testFailedRenderFlushesLoopState(): void
+    {
+        $factory = $this->getFactory();
+        $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
+
+        $engine = m::mock(Engine::class);
+        $engine->shouldReceive('get')->once()->andReturnUsing(function () use ($factory): never {
+            $factory->addLoop([1]);
+
+            throw new RuntimeException('render failed');
+        });
+
+        try {
+            (new View($factory, $engine, 'failed', 'failed.php'))->render();
+            $this->fail('The view should have failed to render.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('render failed', $exception->getMessage());
+        }
+
+        $this->assertSame([], $factory->getLoopStack());
     }
 
     public function testMacro()

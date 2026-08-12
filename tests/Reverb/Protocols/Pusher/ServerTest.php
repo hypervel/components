@@ -5,21 +5,25 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Reverb\Connection;
 use Hypervel\Reverb\Contracts\WebSocketConnection;
 use Hypervel\Reverb\Events\ConnectionClosed;
 use Hypervel\Reverb\Events\ConnectionEstablished;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\EventHandler;
+use Hypervel\Reverb\Protocols\Pusher\Exceptions\RateLimitExceeded;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Server;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Throwable;
 
 class ServerTest extends ReverbTestCase
 {
@@ -171,7 +175,7 @@ class ServerTest extends ReverbTestCase
         $exceptionHandler->shouldReceive('report')->once()->with($exception);
         $this->app->instance(ExceptionHandler::class, $exceptionHandler);
 
-        $server = new Server($this->app->make(ChannelManager::class), $handler);
+        $server = $this->app->makeWith(Server::class, ['handler' => $handler]);
         $server->message(
             $connection = new FakeConnection,
             json_encode([
@@ -665,7 +669,44 @@ class ServerTest extends ReverbTestCase
         $this->assertFalse($connection->wasTerminated);
     }
 
-    public function testMessageRateLimiterUsesWorkerLifetimeCacheStore(): void
+    public function testEnforcesRateLimitConfiguredWithNumericStrings(): void
+    {
+        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+            'enabled' => true,
+            'max_attempts' => '1',
+            'decay_seconds' => '60',
+            'terminate_on_limit' => false,
+        ]);
+
+        $this->server->open($connection = new FakeConnection);
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel'],
+            ])
+        );
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel-overflow'],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:error',
+            'data' => json_encode([
+                'code' => 4301,
+                'message' => 'Rate limit exceeded',
+            ]),
+        ]);
+    }
+
+    #[DefineEnvironment('withInvalidRateLimiterConfiguration')]
+    public function testMessageRateLimiterIsIndependentOfRateLimiterConfiguration(): void
     {
         $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
@@ -684,12 +725,11 @@ class ServerTest extends ReverbTestCase
             ])
         );
 
-        $this->assertTrue(
-            $this->app->make('cache')->store('worker-array')->has('reverb:message:' . $connection->id())
-        );
-        $this->assertFalse(
-            $this->app->make('cache')->store('array')->has('reverb:message:' . $connection->id())
-        );
+        $connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => 'test-channel',
+        ]);
 
         $this->server->message(
             $connection,
@@ -710,6 +750,16 @@ class ServerTest extends ReverbTestCase
         $this->assertFalse($connection->wasTerminated);
     }
 
+    protected function withInvalidRateLimiterConfiguration(ApplicationContract $app): void
+    {
+        $config = $app->make('config');
+        $stores = $config->array('rate-limiter.stores');
+        unset($stores['worker-array']);
+
+        $config->set('rate-limiter.default', 'missing');
+        $config->set('rate-limiter.stores', $stores);
+    }
+
     public function testCloseClearsInitializedMessageRateLimiterState(): void
     {
         $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
@@ -728,16 +778,28 @@ class ServerTest extends ReverbTestCase
             ])
         );
 
-        $cache = $this->app->make('cache')->store('worker-array');
-        $key = 'reverb:message:' . $connection->id();
-
         $this->assertTrue($connection->hasInitializedRateLimiter());
-        $this->assertTrue($cache->has($key));
 
         $this->server->close($connection);
 
         $this->assertFalse($connection->hasInitializedRateLimiter());
-        $this->assertFalse($cache->has($key));
+
+        $connection->resetReceived();
+
+        // Probe the cleared limiter state directly; production does not receive messages after close.
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'fresh-channel'],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher_internal:subscription_succeeded',
+            'data' => '{}',
+            'channel' => 'fresh-channel',
+        ]);
     }
 
     public function testTerminatesTheConnectionWhenRateLimitIsExceededAndConfiguredToTerminate(): void
@@ -776,6 +838,75 @@ class ServerTest extends ReverbTestCase
         ]);
 
         $this->assertTrue($connection->wasTerminated);
+    }
+
+    public function testTerminatesTheConnectionWhenSendingTheRateLimitErrorFails(): void
+    {
+        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+            'enabled' => true,
+            'max_attempts' => 1,
+            'decay_seconds' => 1,
+            'terminate_on_limit' => true,
+        ]);
+
+        $this->server->open($connection = new RateLimitErrorThrowingConnection);
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel'],
+            ])
+        );
+
+        $this->assertThrows(
+            fn () => $this->server->message(
+                $connection,
+                json_encode([
+                    'event' => 'pusher:subscribe',
+                    'data' => ['channel' => 'test-channel-2'],
+                ])
+            ),
+            RuntimeException::class,
+            'Rate limit error delivery failed.',
+        );
+
+        $this->assertTrue($connection->wasTerminated);
+    }
+
+    public function testEnabledRateLimitingRequiresDecaySeconds(): void
+    {
+        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+            'enabled' => true,
+            'max_attempts' => 1,
+            'terminate_on_limit' => false,
+        ]);
+
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldReceive('report')
+            ->once()
+            ->with(m::on(static fn (Throwable $exception): bool => str_contains(
+                $exception->getMessage(),
+                'Undefined array key "decay_seconds"',
+            )));
+        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+
+        $this->server->open($connection = new FakeConnection);
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel'],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:error',
+            'data' => json_encode([
+                'code' => 4200,
+                'message' => 'Invalid message format',
+            ]),
+        ]);
     }
 
     public function testAllowsUnlimitedMessagesWhenNoRateLimitIsConfigured(): void
@@ -890,5 +1021,21 @@ class ServerTest extends ReverbTestCase
         Event::assertDispatched(ConnectionClosed::class, function (ConnectionClosed $event) use ($connection) {
             return $event->connection === $connection;
         });
+    }
+}
+
+class RateLimitErrorThrowingConnection extends FakeConnection
+{
+    /**
+     * Send a message to the connection.
+     */
+    public function send(string $message): void
+    {
+        // The active check makes this fixture fail against terminate-before-send ordering.
+        if (! $this->wasTerminated && $message === json_encode((new RateLimitExceeded)->payload())) {
+            throw new RuntimeException('Rate limit error delivery failed.');
+        }
+
+        parent::send($message);
     }
 }

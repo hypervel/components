@@ -7,8 +7,9 @@ namespace Hypervel\Notifications\Channels;
 use GuzzleHttp\Client as HttpClient;
 use Hypervel\Notifications\Messages\SlackAttachment;
 use Hypervel\Notifications\Messages\SlackAttachmentField;
-use Hypervel\Notifications\Messages\SlackMessage;
+use Hypervel\Notifications\Messages\SlackMessage as LegacySlackMessage;
 use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
@@ -44,8 +45,12 @@ class SlackWebhookChannel
     /**
      * Build up a JSON payload for the Slack webhook.
      */
-    public function buildJsonPayload(SlackMessage $message): array
+    public function buildJsonPayload(SlackMessage|LegacySlackMessage $message): array
     {
+        if ($message instanceof SlackMessage) {
+            return ['json' => $message->toArray()];
+        }
+
         $optionalFields = array_filter([
             'channel' => data_get($message, 'channel'),
             'icon_emoji' => data_get($message, 'icon'),
@@ -67,7 +72,7 @@ class SlackWebhookChannel
     /**
      * Format the message's attachments.
      */
-    protected function attachments(SlackMessage $message): array
+    protected function attachments(LegacySlackMessage $message): array
     {
         return Collection::make($message->attachments)->map(function ($attachment) use ($message) {
             return array_filter([

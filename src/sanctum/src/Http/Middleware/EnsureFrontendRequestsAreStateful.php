@@ -61,7 +61,9 @@ class EnsureFrontendRequestsAreStateful
         $filtered = [];
 
         foreach ($middleware as $candidate) {
-            if ($candidate && ! in_array($candidate, $filtered, true)) {
+            if ($candidate !== null
+                && $candidate !== ''
+                && ! in_array($candidate, $filtered, true)) {
                 $filtered[] = $candidate;
             }
         }

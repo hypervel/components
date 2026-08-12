@@ -130,8 +130,8 @@ Keep current Laravel public APIs, named arguments, protected extension points, m
 | `support-29` | URL predicate parity defect | Minor | Port current single-label-domain support in `Str::isUrl()` for Mail, Stringable, and the framework `url` validation rule. |
 | `support-30` | Fake assertion type defect | Major | Make MailFake's shared assertion helper accept the count and address shapes its public methods support. |
 | `support-31` | Fake assertion type defect | Minor | Remove NotificationFake's non-callable string callback promise and port its complete current upstream unit suite. |
-| `contracts-10` | Queue type consistency | Minor | Widen the Mail queue contract to the framework's `UnitEnum|string|null` identifier boundary. |
-| `contracts-11` | Callback type consistency | Minor | Replace broad `mixed` callback parameters with Laravel's actual `Closure|string` boundary across the Mail contract, concrete implementation, fake, and facade. |
+| `contracts-10` | Queue type consistency | Minor | Widen the Mail queue contract to the framework's `UnitEnum\|string\|null` identifier boundary. |
+| `contracts-11` | Callback type consistency | Minor | Replace broad `mixed` callback parameters with Laravel's actual `Closure\|string` boundary across the Mail contract, concrete implementation, fake, and facade. |
 | `http-27` | Completed-package docs defect | Minor | Correct HTTP README ordering and add its canonical guide link. |
 | `filesystem-14` | Static-analysis type defect | Minor | Remove false `FilesystemAdapter` narrowing where supported pooled disks expose adapter methods outside the intentionally narrow contract. |
 

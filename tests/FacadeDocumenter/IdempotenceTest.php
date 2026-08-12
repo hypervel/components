@@ -6,7 +6,7 @@ namespace Hypervel\Tests\FacadeDocumenter;
 
 class IdempotenceTest extends FacadeDocumenterTestCase
 {
-    public function testSecondRunProducesByteIdenticalOutput()
+    public function testSecondRunProducesByteIdenticalOutput(): void
     {
         $this->writeAppFile(
             'Idempotence/Proxy.php',
@@ -63,7 +63,7 @@ class IdempotenceTest extends FacadeDocumenterTestCase
         $this->assertSame($afterFirstRun, $afterSecondRun, 'Second run mutated the file despite no underlying changes');
     }
 
-    public function testLintAfterGenerateExitsZero()
+    public function testLintAfterGenerateExitsZero(): void
     {
         $this->writeAppFile(
             'Idempotence/Lint/Proxy.php',

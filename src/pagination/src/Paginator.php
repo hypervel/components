@@ -10,8 +10,10 @@ use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Contracts\View\View;
 use Hypervel\Support\Collection;
 use IteratorAggregate;
+use JsonException;
 use JsonSerializable;
 
 /**
@@ -59,7 +61,7 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
      */
     protected function setCurrentPage(?int $currentPage): int
     {
-        $currentPage = $currentPage ?: static::resolveCurrentPage();
+        $currentPage = $currentPage ?? static::resolveCurrentPage();
 
         return $this->isValidPageNumber($currentPage) ? (int) $currentPage : 1;
     }
@@ -107,6 +109,8 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
      */
     public function render(?string $view = null, array $data = []): Htmlable
     {
+        // Laravel's View contract omits Htmlable, but factory-created views fulfill both contracts.
+        /** @var Htmlable&View */
         return static::viewFactory()->make($view ?: static::$defaultSimpleView, array_merge($data, [
             'paginator' => $this,
         ]));
@@ -165,14 +169,18 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
 
     /**
      * Convert the object to its JSON representation.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options);
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
      * Convert the object to pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string
     {

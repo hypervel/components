@@ -4,14 +4,38 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Mail\Attachment;
 use Hypervel\Notifications\Messages\MailMessage;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\TestCase;
 
 class NotificationMailMessageTest extends TestCase
 {
-    public function testTemplate()
+    protected string $filesystemRoot;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->filesystemRoot = ParallelTesting::tempDir('NotificationMailMessageTest');
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            (new Filesystem)->deleteDirectory($this->filesystemRoot);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
+    public function testTemplate(): void
     {
         $message = new MailMessage;
 
@@ -22,7 +46,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame('notifications::foo', $message->markdown);
     }
 
-    public function testHtmlAndPlainView()
+    public function testHtmlAndPlainView(): void
     {
         $message = new MailMessage;
 
@@ -38,7 +62,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $message->viewData);
     }
 
-    public function testHtmlView()
+    public function testHtmlView(): void
     {
         $message = new MailMessage;
 
@@ -53,7 +77,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $message->viewData);
     }
 
-    public function testPlainView()
+    public function testPlainView(): void
     {
         $message = new MailMessage;
 
@@ -68,7 +92,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $message->viewData);
     }
 
-    public function testCcIsSetCorrectly()
+    public function testCcIsSetCorrectly(): void
     {
         $message = new MailMessage;
         $message->cc('test@example.com');
@@ -97,7 +121,7 @@ class NotificationMailMessageTest extends TestCase
         ], $message->cc);
     }
 
-    public function testBccIsSetCorrectly()
+    public function testBccIsSetCorrectly(): void
     {
         $message = new MailMessage;
         $message->bcc('test@example.com');
@@ -126,7 +150,7 @@ class NotificationMailMessageTest extends TestCase
         ], $message->bcc);
     }
 
-    public function testReplyToIsSetCorrectly()
+    public function testReplyToIsSetCorrectly(): void
     {
         $message = new MailMessage;
         $message->replyTo('test@example.com');
@@ -155,7 +179,7 @@ class NotificationMailMessageTest extends TestCase
         ], $message->replyTo);
     }
 
-    public function testMetadataIsSetCorrectly()
+    public function testMetadataIsSetCorrectly(): void
     {
         $message = new MailMessage;
         $message->metadata('origin', 'test-suite');
@@ -167,7 +191,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame('1', $message->metadata['user_id']);
     }
 
-    public function testTagIsSetCorrectly()
+    public function testTagIsSetCorrectly(): void
     {
         $message = new MailMessage;
         $message->tag('test');
@@ -175,7 +199,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertContains('test', $message->tags);
     }
 
-    public function testCallbackIsSetCorrectly()
+    public function testCallbackIsSetCorrectly(): void
     {
         $callback = function () {
         };
@@ -186,7 +210,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame([$callback], $message->callbacks);
     }
 
-    public function testWhenCallback()
+    public function testWhenCallback(): void
     {
         $callback = function (MailMessage $mailMessage, $condition) {
             $this->assertTrue($condition);
@@ -203,7 +227,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame([], $message->cc);
     }
 
-    public function testWhenCallbackWithReturn()
+    public function testWhenCallbackWithReturn(): void
     {
         $callback = function (MailMessage $mailMessage, $condition) {
             $this->assertTrue($condition);
@@ -222,7 +246,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame([['bcc@example.com', null]], $message->bcc);
     }
 
-    public function testWhenCallbackWithDefault()
+    public function testWhenCallbackWithDefault(): void
     {
         $callback = function (MailMessage $mailMessage, $condition) {
             $this->assertSame('truthy', $condition);
@@ -245,7 +269,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame([['zero@example.com', null]], $message->cc);
     }
 
-    public function testUnlessCallback()
+    public function testUnlessCallback(): void
     {
         $callback = function (MailMessage $mailMessage, $condition) {
             $this->assertFalse($condition);
@@ -262,7 +286,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame([], $message->cc);
     }
 
-    public function testUnlessCallbackWithReturn()
+    public function testUnlessCallbackWithReturn(): void
     {
         $callback = function (MailMessage $mailMessage, $condition) {
             $this->assertFalse($condition);
@@ -281,7 +305,7 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame([['bcc@example.com', null]], $message->bcc);
     }
 
-    public function testUnlessCallbackWithDefault()
+    public function testUnlessCallbackWithDefault(): void
     {
         $callback = function (MailMessage $mailMessage, $condition) {
             $this->assertEquals(0, $condition);
@@ -304,7 +328,44 @@ class NotificationMailMessageTest extends TestCase
         $this->assertSame([['truthy@example.com', null]], $message->cc);
     }
 
-    public function testItAttachesFilesViaAttachableContractFromPath()
+    public function testItAttachesFilesFromStorage(): void
+    {
+        $this->bootstrapFilesystem();
+
+        $this->assertNotFalse(file_put_contents(
+            $this->filesystemRoot . '/invoices/1.pdf',
+            'pdf content'
+        ));
+
+        $message = new MailMessage;
+        $message->attachFromStorage('invoices/1.pdf');
+
+        $this->assertCount(1, $message->rawAttachments);
+        $this->assertSame('1.pdf', $message->rawAttachments[0]['name']);
+        $this->assertSame('pdf content', $message->rawAttachments[0]['data']);
+    }
+
+    public function testItAttachesFilesFromStorageDisk(): void
+    {
+        $this->bootstrapFilesystem();
+
+        $this->assertNotFalse(file_put_contents(
+            $this->filesystemRoot . '/s3/reports/report.txt',
+            'report content'
+        ));
+
+        $message = new MailMessage;
+        $message->attachFromStorageDisk('s3', 'reports/report.txt', 'monthly-report.txt', [
+            'mime' => 'text/plain',
+        ]);
+
+        $this->assertCount(1, $message->rawAttachments);
+        $this->assertSame('monthly-report.txt', $message->rawAttachments[0]['name']);
+        $this->assertSame('report content', $message->rawAttachments[0]['data']);
+        $this->assertSame('text/plain', $message->rawAttachments[0]['options']['mime']);
+    }
+
+    public function testItAttachesFilesViaAttachableContractFromPath(): void
     {
         $message = new MailMessage;
 
@@ -324,7 +385,7 @@ class NotificationMailMessageTest extends TestCase
         ], $message->attachments[0]);
     }
 
-    public function testItAttachesFilesViaAttachableContractFromData()
+    public function testItAttachesFilesViaAttachableContractFromData(): void
     {
         $mailMessage = new MailMessage;
 
@@ -344,7 +405,7 @@ class NotificationMailMessageTest extends TestCase
         ], $mailMessage->rawAttachments[0]);
     }
 
-    public function testItAttachesManyFiles()
+    public function testItAttachesManyFiles(): void
     {
         $mailMessage = new MailMessage;
         $attachable = new class implements Attachable {
@@ -386,5 +447,38 @@ class NotificationMailMessageTest extends TestCase
                 ],
             ],
         ], $mailMessage->attachments);
+    }
+
+    protected function bootstrapFilesystem(): void
+    {
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($this->filesystemRoot);
+        $filesystem->ensureDirectoryExists($this->filesystemRoot . '/invoices');
+        $filesystem->ensureDirectoryExists($this->filesystemRoot . '/s3/reports');
+
+        $container = new Container;
+        Container::setInstance($container);
+
+        $container->instance('config', new ConfigRepository([
+            'filesystems' => [
+                'default' => 'local',
+                'disks' => [
+                    'local' => [
+                        'driver' => 'local',
+                        'root' => $this->filesystemRoot,
+                    ],
+                    's3' => [
+                        'driver' => 'local',
+                        'root' => $this->filesystemRoot . '/s3',
+                    ],
+                ],
+            ],
+        ]));
+
+        $container->singleton(
+            'filesystem',
+            fn (Container $container): FilesystemManager => new FilesystemManager($container)
+        );
+        $container->alias('filesystem', FilesystemFactory::class);
     }
 }

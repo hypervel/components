@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Redis;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\ConcurrencyLease;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -85,9 +86,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // ConcurrencyLimiter::acquire() Lua script returns a slot name
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-key1');
+        $this->expectSlotClaim($redis, 'test-key1');
 
         // ConcurrencyLimiter::release() called after callback
         $redis->shouldReceive('eval')
@@ -115,9 +114,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $redis = $this->mockRedis();
         $releaseException = new RuntimeException('release failed');
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-key1');
+        $this->expectSlotClaim($redis, 'test-key1');
         $redis->shouldReceive('eval')
             ->once()
             ->andThrow($releaseException);
@@ -139,9 +136,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $redis = $this->mockRedis();
         $callbackException = new RuntimeException('callback failed');
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-key1');
+        $this->expectSlotClaim($redis, 'test-key1');
         $redis->shouldReceive('eval')
             ->once()
             ->andThrow(new RuntimeException('release failed'));
@@ -164,8 +159,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // ConcurrencyLimiter::acquire() always fails
-        $redis->shouldReceive('eval')
-            ->andReturn(false);
+        $this->expectSlotClaim($redis, false);
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0)->sleep(1);
@@ -189,8 +183,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
     {
         $redis = $this->mockRedis();
         // ConcurrencyLimiter::acquire() always fails
-        $redis->shouldReceive('eval')
-            ->andReturn(false);
+        $this->expectSlotClaim($redis, false);
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0)->sleep(1);
@@ -205,9 +198,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
     public function testAcquireReturnsLease(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-key1');
+        $this->expectSlotClaim($redis, 'test-key1');
 
         $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
         $builder->limit(5)->block(0);
@@ -218,9 +209,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
     public function testThenDoesNotRouteCallbackTimeoutExceptionToFailureCallback(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('eval')
-            ->once()
-            ->andReturn('test-key1');
+        $this->expectSlotClaim($redis, 'test-key1');
         $redis->shouldReceive('eval')
             ->once()
             ->andReturn(1);
@@ -279,5 +268,21 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $redis->shouldReceive('isCluster')->byDefault()->andReturnFalse();
 
         return $redis;
+    }
+
+    /**
+     * Expect a slot-claim script evaluation on one held Redis connection.
+     */
+    private function expectSlotClaim(m\MockInterface|RedisProxy $redis, false|string $result): void
+    {
+        $connection = m::mock(RedisConnection::class);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
+
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->andReturn($result);
     }
 }

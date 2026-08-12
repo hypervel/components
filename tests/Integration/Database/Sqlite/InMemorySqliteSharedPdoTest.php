@@ -15,6 +15,7 @@ use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Throwable;
 use TypeError;
 
@@ -470,6 +471,113 @@ class InMemorySqliteSharedPdoTest extends TestCase
             $this->assertSame($sharedPdo, $connection->getPdo());
 
             $pooled->release();
+        });
+    }
+
+    public function testPooledConnectionRefreshCleansUpSharedPdoTransaction(): void
+    {
+        $factory = $this->getPoolFactory();
+        $pool = $factory->getPool('memory_test');
+
+        run(function () use ($pool): void {
+            $sharedPdo = $pool->getSharedInMemorySqlitePdo();
+            $pooled = $pool->get();
+            $connection = $pooled->getConnection();
+            $rolledBack = false;
+
+            try {
+                $connection->statement('CREATE TABLE reconnect_transaction_test (id INTEGER PRIMARY KEY, value TEXT)');
+                $connection->statement("INSERT INTO reconnect_transaction_test VALUES (1, 'committed')");
+                $connection->beginTransaction();
+                $connection->afterRollBack(function () use (&$rolledBack): void {
+                    $rolledBack = true;
+                });
+                $connection->statement("INSERT INTO reconnect_transaction_test VALUES (2, 'uncommitted')");
+
+                $this->assertSame(1, $connection->transactionLevel());
+                $this->assertTrue($sharedPdo->inTransaction());
+
+                $connection->reconnect();
+
+                $this->assertSame($sharedPdo, $connection->getPdo());
+                $this->assertSame(0, $connection->transactionLevel());
+                $this->assertFalse($sharedPdo->inTransaction());
+                $this->assertTrue($rolledBack);
+                $this->assertSame(
+                    'committed',
+                    $connection->selectOne('SELECT value FROM reconnect_transaction_test WHERE id = 1')->value
+                );
+                $this->assertNull(
+                    $connection->selectOne('SELECT value FROM reconnect_transaction_test WHERE id = 2')
+                );
+
+                $connection->transaction(function (Connection $connection): void {
+                    $connection->statement("INSERT INTO reconnect_transaction_test VALUES (3, 'after reconnect')");
+                });
+
+                $this->assertSame(
+                    'after reconnect',
+                    $connection->selectOne('SELECT value FROM reconnect_transaction_test WHERE id = 3')->value
+                );
+            } finally {
+                if ($sharedPdo->inTransaction()) {
+                    $sharedPdo->rollBack();
+                }
+
+                $pooled->release();
+            }
+        });
+    }
+
+    public function testPooledConnectionRefreshRebindsSharedPdoAfterRollbackCallbackFailure(): void
+    {
+        $factory = $this->getPoolFactory();
+        $pool = $factory->getPool('memory_test');
+
+        run(function () use ($pool): void {
+            $sharedPdo = $pool->getSharedInMemorySqlitePdo();
+            $pooled = $pool->get();
+            $connection = $pooled->getConnection();
+            $failure = new RuntimeException('rollback callback failure');
+
+            try {
+                $connection->statement('CREATE TABLE reconnect_callback_test (id INTEGER PRIMARY KEY, value TEXT)');
+                $connection->beginTransaction();
+                $connection->afterRollBack(static function () use ($failure): never {
+                    throw $failure;
+                });
+                $connection->statement("INSERT INTO reconnect_callback_test VALUES (1, 'uncommitted')");
+
+                try {
+                    $connection->reconnect();
+                    $this->fail('Expected the rollback callback to fail.');
+                } catch (RuntimeException $exception) {
+                    $this->assertSame($failure, $exception);
+                }
+
+                $this->assertSame($sharedPdo, $connection->getRawPdo());
+                $this->assertSame($sharedPdo, $connection->getRawReadPdo());
+                $this->assertSame(0, $connection->transactionLevel());
+                $this->assertFalse($sharedPdo->inTransaction());
+                $this->assertNull(
+                    $connection->selectOne('SELECT value FROM reconnect_callback_test WHERE id = 1')
+                );
+
+                $connection->transaction(function (Connection $connection): void {
+                    $connection->statement("INSERT INTO reconnect_callback_test VALUES (2, 'after reconnect')");
+                });
+
+                $this->assertSame(
+                    'after reconnect',
+                    $connection->selectOne('SELECT value FROM reconnect_callback_test WHERE id = 2')->value
+                );
+            } finally {
+                if ($sharedPdo->inTransaction()) {
+                    $sharedPdo->rollBack();
+                }
+
+                $pooled->release();
+            }
         });
     }
 

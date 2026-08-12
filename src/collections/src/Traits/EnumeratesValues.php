@@ -14,6 +14,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\HigherOrderCollectionProxy;
+use JsonException;
 use JsonSerializable;
 use Stringable;
 use UnexpectedValueException;
@@ -188,8 +189,9 @@ trait EnumeratesValues
      *
      * @return static<TKey, TValue>
      */
-    public static function fromJson(string $json, int $depth = 512, int $flags = 0, mixed ...$args): static
+    public static function fromJson(string $json, int $depth = 513, int $flags = 0, mixed ...$args): static
     {
+        // Support depends on Collections, so this native depth cannot reference Support\Json; 513 reads 512 containers.
         return new static(json_decode($json, true, $depth, $flags), ...$args);
     }
 
@@ -933,7 +935,8 @@ trait EnumeratesValues
         return array_map(function ($value) {
             return match (true) {
                 $value instanceof JsonSerializable => $value->jsonSerialize(),
-                $value instanceof Jsonable => json_decode($value->toJson(), true),
+                // Support depends on Collections, so this native depth cannot reference Support\Json; 513 reads 512 containers.
+                $value instanceof Jsonable => json_decode($value->toJson(), true, 513),
                 $value instanceof Arrayable => $value->toArray(),
                 default => $value,
             };
@@ -942,14 +945,18 @@ trait EnumeratesValues
 
     /**
      * Get the collection of items as JSON.
+     *
+     * @throws JsonException
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options);
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
      * Get the collection of items as pretty print formatted JSON.
+     *
+     * @throws JsonException
      */
     public function toPrettyJson(int $options = 0): string
     {
