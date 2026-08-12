@@ -213,23 +213,45 @@ This command precompiles all your Blade views so they are not compiled on demand
 > [!NOTE]
 > When deploying to [SonicStack](https://sonicstack.io), it is not necessary to use the `reload` command, as gracefully reloading all services is handled automatically.
 
-After deploying a new version of your application, any long-running services such as the Hypervel server (which serves both HTTP and Hypervel Reverb), queue workers, and scheduler should be reloaded / restarted to use the new code. Hypervel provides a single `reload` Artisan command that will signal these services:
+Long-running services do not automatically see changes made by a deployment. Hypervel provides a `reload` Artisan command that reloads the server's event and task workers, signals queue workers to restart, and interrupts the scheduler:
 
 ```shell
 php artisan reload
 ```
 
-The `reload` command gracefully reloads the Hypervel server and signals queue workers and the scheduler to restart. If you are not using [SonicStack](https://sonicstack.io), you should manually configure a process monitor that can detect when your reloadable processes exit and automatically restart them.
+If you are not using [SonicStack](https://sonicstack.io), you should configure a process monitor to restart services such as queue workers when they exit.
 
-To reload only the Hypervel server, you may use the `server:reload` command. This command reloads the server's event workers and any configured task workers:
+To reload only the Hypervel server, you may use the `server:reload` command:
 
 ```shell
 php artisan server:reload
 ```
 
-The command will fail if the configured PID file cannot be read, does not contain a valid process ID, or the reload signal cannot be delivered.
+This command replaces the server's event workers and any configured task workers. Before a replacement worker begins accepting work, Hypervel reloads the environment and configuration, then refreshes framework services that were created from the previous configuration. This includes resolved cache stores, database connections, queue connections, log channels, filesystem disks, and other services owned by framework and package providers.
 
-Neither `reload` nor `server:reload` restarts custom server processes. Restart the server when server-process code or configuration changes.
+You may also inject the `ServerReloader` service when a deployment tool or application command needs to reload the server programmatically:
+
+```php
+use Hypervel\Server\ServerReloader;
+
+/**
+ * Execute the console command.
+ */
+public function handle(ServerReloader $serverReloader): void
+{
+    // Perform deployment work...
+
+    $serverReloader->reload();
+}
+```
+
+The command and service will fail if the configured PID file cannot be read, does not contain a valid process ID, or a reload signal cannot be delivered.
+
+Some changes belong to the server's master process and require a full restart. These include listening ports, Swoole settings, worker counts, routes, middleware, event listeners, package enablement, custom server-process definitions, the dump output format, and changed or preloaded PHP code. Cache and Rate Limiter Swoole table definitions also require a restart because shared tables can only be created before workers are forked. If a newly configured table is used after a reload, Hypervel will fail explicitly instead of creating a separate table inside one worker.
+
+The server reload does not restart queue workers, the scheduler, Horizon, or custom server processes. Use the `reload` command for queue workers and the scheduler. Restart Horizon and custom server processes through their own lifecycle controls.
+
+If refreshed configuration is invalid, replacement workers will fail before they become ready and may continue restarting until the configuration is corrected. Fix the configuration, then run `server:reload` again. Hypervel does not hide the error or continue with partially refreshed worker state.
 
 <a name="debug-mode"></a>
 ## Debug Mode
