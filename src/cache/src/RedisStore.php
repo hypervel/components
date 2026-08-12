@@ -325,6 +325,10 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Set the tag mode.
      *
+     * Any mode requires Redis 8.0 or later, Valkey 9.0 or later, and
+     * PhpRedis 6.3.0 or later. These additional requirements do not apply
+     * to all mode.
+     *
      * Boot-only. Mutates state on a per-worker singleton; runtime mutation
      * races across coroutines.
      */
