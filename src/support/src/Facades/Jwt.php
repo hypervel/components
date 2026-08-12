@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
+ * @method static void reloadConfiguration()
  * @method static \Hypervel\Jwt\Providers\Lcobucci createLcobucciDriver()
  * @method static string getDefaultDriver()
  * @method static string encode(array $payload)
