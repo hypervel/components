@@ -39,9 +39,21 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     protected string $fallback = '';
 
     /**
+     * The base locale used by the translator.
+     */
+    protected string $locale;
+
+    /**
      * The array of loaded translation groups.
      */
     protected array $loaded = [];
+
+    /**
+     * The translation lines registered at boot.
+     *
+     * @var array<string, array<string, array<string, list<array{item: string, value: mixed}>>>>
+     */
+    protected array $registeredLines = [];
 
     /**
      * The message selector.
@@ -77,9 +89,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function __construct(
         protected Loader $loader,
-        protected string $locale
+        string $locale
     ) {
-        $this->setLocale($locale);
+        $this->setBaseLocale($locale);
     }
 
     /**
@@ -318,7 +330,14 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         foreach ($lines as $key => $value) {
             [$group, $item] = explode('.', $key, 2);
 
-            Arr::set($this->loaded, "{$namespace}.{$group}.{$locale}.{$item}", $value);
+            $this->registeredLines[$namespace][$group][$locale][] = [
+                'item' => $item,
+                'value' => $value,
+            ];
+
+            if ($this->isLoaded($namespace, $group, $locale)) {
+                Arr::set($this->loaded, "{$namespace}.{$group}.{$locale}.{$item}", $value);
+            }
         }
     }
 
@@ -335,6 +354,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         // given namespace, group, and locale. We'll set the lines in this array of
         // lines that have already been loaded so that we can easily access them.
         $lines = $this->loader->load($locale, $group, $namespace);
+
+        foreach ($this->registeredLines[$namespace][$group][$locale] ?? [] as $registeredLine) {
+            Arr::set($lines, $registeredLine['item'], $registeredLine['value']);
+        }
 
         $this->loaded[$namespace][$group][$locale] = $lines;
     }
@@ -530,12 +553,37 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function setLocale(string $locale): void
     {
+        $this->assertValidLocale($locale);
+
+        CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
+    }
+
+    /**
+     * Set the base locale used by the translator.
+     *
+     * Boot-only. The locale is shared by the worker's Translator instance and
+     * affects requests without a coroutine-local locale override.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function setBaseLocale(string $locale): void
+    {
+        $this->assertValidLocale($locale);
+
+        $this->locale = $locale;
+    }
+
+    /**
+     * Ensure the locale is safe to use as part of a translation path.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function assertValidLocale(string $locale): void
+    {
         // Mirrors the trust-boundary check in FileLoader::load(); keep both predicates identical.
         if (Str::contains($locale, ['/', '\\']) || $locale === '.' || $locale === '..') {
             throw new InvalidArgumentException('Invalid characters present in locale.');
         }
-
-        CoroutineContext::set(self::LOCALE_CONTEXT_KEY, $locale);
     }
 
     /**
@@ -555,7 +603,21 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function setFallback(string $fallback): void
     {
+        $this->assertValidLocale($fallback);
+
         $this->fallback = $fallback;
+    }
+
+    /**
+     * Forget the loaded translation groups.
+     *
+     * Boot or tests only. The groups are shared by the worker's Translator instance,
+     * and forgetting them during request handling can expose different loaded state
+     * to concurrent coroutines while the groups are repopulated.
+     */
+    public function forgetLoadedGroups(): void
+    {
+        $this->loaded = [];
     }
 
     /**
