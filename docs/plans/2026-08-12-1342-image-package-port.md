@@ -10,7 +10,7 @@ This is a new Laravel package port. Implement it serially, one file at a time. C
 
 ## Status
 
-The Image implementation, framework integration, PIE correction, local verification, and review are complete. No local work remains; the committed branch must pass the backup PR's CI checks.
+The Image implementation, framework integration, PIE correction, review corrections, local verification, and code review are complete. No local work remains; the updated branch must pass the backup PR's CI checks.
 
 ## References and verified facts
 
@@ -47,7 +47,7 @@ Verified upstream defects to fix in the port:
 | Materialization replaces the source and clears the pipeline, so inspection can make later transformations decode/re-encode an intermediate result despite the documented “encoded once at the end” contract. | Retain the original source and full recipe; cache final bytes per image instance. |
 | `dominantColor()` runs a copied pipeline and discards the result, so `toBytes()` repeats it. | Inspect `toBytes()` and retain its processed-byte cache. |
 | The Intervention requirement check runs after manager construction, so a missing package throws a raw class-not-found `Error`. | Check before `createManager()` and remove `ImageManager`'s hidden optional-method hook. |
-| Intervention v3 is installable even though the adapter calls v4-only APIs. | Suggest Intervention, conflict with `<4.0 || >=5.0`, and test against current 4.x. |
+| Intervention v3 is installable even though the adapter calls v4-only APIs. | Suggest Intervention, conflict with `<4.0 \|\| >=5.0`, and test against current 4.x. |
 | HEIC fallback and processing catch `Throwable`, masking custom-driver `TypeError`/PHP `Error` as image input failures. | Catch decoder/processing `Exception`; let programming errors surface. `ImageSource` remains `Throwable`-wide only to publish the identical object, never to translate it. |
 | Stream/base64 lazy resolvers use `?: throw`, so they accidentally reject the non-empty byte string `'0'` along with the deliberately invalid false/empty results. | Reject only `false` and `''`; preserve empty-input errors while allowing every non-empty byte string to reach normal image validation. |
 | A hash already materialized on a parent is copied to a variant. | Reset all output/derived caches in `Image::__clone()`. |
@@ -377,7 +377,7 @@ For every copied file: `cp`, read the complete destination, then namespace/type/
 - [x] `src/image/src/Drivers/InterventionDriver.php` — copy upstream; check requirements before manager creation; type the retained manager as `ImageManagerInterface`; use strict MIME membership; keep upstream's encoding-block `finally` and other decoded-image/sample cleanup; catch no programming errors; type handler lookup to `Transformation`; add the boot-only handler warning. Do not cache encoders/finfo/handler lookups or widen the encoding cleanup across the transformation loop, since local images are released naturally when the frame unwinds.
 - [x] `src/image/src/Image.php` — copy upstream; keep the public constructor signature exactly `Closure|string $contents, ?UploadedFile $file = null` and build the internal `ImageSource` inside it. Replace stored closure/string contents and `processed` with the holder, retained pipeline, processed/derived instance caches, `process()`, and `__clone()` as specified. Delete `newClone()` and clone directly in `using()`/`withClone()`. Use `UnitEnum|string|null` on all four storing APIs, strict format membership, native Hypervel `Responsable`, `Exception`-only wrapping/fallback, a direct early-return dimensions cache rather than an immediately invoked closure, and an end-of-class `flushState()` for macros. `(string)` remains a data URI; `ImageSource` never appears in a public signature or another package.
 - [x] `src/image/src/ImageException.php` — copy upstream; add strict types/namespace, retain `RuntimeException` inheritance.
-- [x] `src/image/src/ImageManager.php` — copy upstream; use explicit false/empty checks for streams/base64; share lazy holders through `Image`; accept `UnitEnum|string|null`; turn null storage reads into a path-specific `ImageException`; remove `enum_value()`; keep the `createDriver()` override's image-specific `InvalidArgumentException` rewrap and `applyTransformationHandlers()`, remove only its hidden `ensureRequirementsAreMet` hook, and narrow `parent::createDriver()` with an accurate local `@var Driver` rather than a runtime branch. Add the boot-only `transformUsing()` warning and use `$this->config->string('images.default')`: the provider-merged config is the sole `gd` default.
+- [x] `src/image/src/ImageManager.php` — copy upstream; use explicit false/empty checks for streams/base64; share lazy holders through `Image`; accept `UnitEnum|string|null`; keep local-path reads direct because the concrete filesystem returns a string or throws `FileNotFoundException`; turn null storage reads into a path-specific `ImageException`; reject HTTP client/server errors before reading remote response bodies and preserve the native `RequestException` with its status and response instead of wrapping it; remove `enum_value()`; keep the `createDriver()` override's image-specific `InvalidArgumentException` rewrap and `applyTransformationHandlers()`, remove only its hidden `ensureRequirementsAreMet` hook, and narrow `parent::createDriver()` with an accurate local `@var Driver` rather than a runtime branch. Add the boot-only `transformUsing()` warning and use `$this->config->string('images.default')`: the provider-merged config is the sole `gd` default.
 - [x] `src/image/src/ImageOutputOptions.php` — copy upstream; type `public const int DEFAULT_QUALITY = 70`; preserve the documented format/quality shapes and `hasChanges()`.
 - [x] `src/image/src/ImagePipeline.php` — copy upstream; add strict types; retain output-only cloning and `hasChanges()`. Do not deep-clone transformations.
 - [x] `src/image/src/ImageServiceProvider.php` — copy upstream; remove deferred-provider machinery without a package-local divergence comment because `ServiceProvider` already records that framework-wide omission at its owning boundary; merge package config; bind canonical `image` singleton by closure; publish `images.php` under `image-config` while running in console.
@@ -459,8 +459,8 @@ Every test class extends `Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCa
   - separate images interleaving through one singleton stateless custom driver retain their own contents/pipelines;
   - do not lock or promise one processing call when the exact same `Image` object is concurrently materialized.
   Run immediately.
-- [x] `tests/Image/Drivers/GdDriverTest.php` — copy upstream, use Hypervel base/imports/types, preserve GD/codec attributes, and cover every transformation, format, dimensions, alpha-free dominant color, custom immutable transformation, unsupported input, quality, and raw-output path. Run immediately.
-- [x] `tests/Image/Drivers/ImagickDriverTest.php` — copy upstream, keep capability checks for AVIF/HEIC delegates, cover the same driver surface and HEIC display dimensions. Run immediately; it must run in CI after the setup action change.
+- [x] `tests/Image/Drivers/GdDriverTest.php` — copy upstream, use Hypervel base/imports/types, guard WebP and AVIF tests with their GD function capabilities, and cover every transformation, format, dimensions, alpha-free dominant color, custom immutable transformation, unsupported input, quality, and raw-output path. Run immediately.
+- [x] `tests/Image/Drivers/ImagickDriverTest.php` — copy upstream, keep capability checks for WebP/AVIF/HEIC delegates, cover the same driver surface and HEIC display dimensions. Run immediately; it must run in CI after the setup action change.
 - [x] `tests/Image/Drivers/InterventionDriverTest.php` — create a test-local subclass whose overridden `ensureRequirementsAreMet()` throws and whose `createManager()` records if it ran; assert manager construction never runs. Also prove handler mutation is boot-scoped behavior. Use only the existing protected extension point and add no production seam solely for testing. Run immediately.
 - [x] `tests/Image/ImageManagerTest.php` — copy upstream and add/correct:
   - replace upstream's standalone empty-repository `gd` fallback test with a manager test that reads configured `images.default`; the provider test below owns the merged `gd` default so no duplicate manager fallback is reinstated;
@@ -471,9 +471,11 @@ Every test class extends `Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCa
   - lazy source resolution only once across sequential variants;
   - custom backend works directly through `Driver`, with no Intervention inheritance;
   - direct public-API processing installs a concrete `Container`, never an unrelated contract in the global slot;
+  - remote URL responses reject HTTP client/server errors before their bodies reach image decoding;
+  - path, storage, and URL laziness expectations apply to the application mock actually resolved by the manager;
   - driver caches and transformation handler application remain worker-lifetime.
   Run immediately.
-- [x] `tests/Image/ImageServiceProviderTest.php` — create Testbench coverage, register `ImageServiceProvider` through `getPackageProviders()`, and verify the merged `gd` default, publishable config, canonical alias, and one worker-lifetime manager/driver instance across resolutions. Add no deferred-provider note: the framework owner already records the omission, Laravel has no matching provider test, and no upstream test is skipped. Run immediately.
+- [x] `tests/Image/ImageServiceProviderTest.php` — create Testbench coverage, register `ImageServiceProvider` through `getPackageProviders()`, and verify the merged packaged config independently of ambient `IMAGE_DRIVER`, publishable config, canonical alias, and one worker-lifetime manager/driver instance across resolutions. Pin the alias test to the GD config and skip it when GD is unavailable. Add no deferred-provider note: the framework owner already records the omission, Laravel has no matching provider test, and no upstream test is skipped. Run immediately.
 - [x] `tests/Image/ImageTest.php` — copy upstream and preserve its public API breadth, then correct/add:
   - direct `toFormat()` for every supported spelling and HEIF normalization;
   - strict format rejection and every clamp boundary;
@@ -489,7 +491,7 @@ Every test class extends `Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCa
   - `flushState()` removes macros;
   - native Responsable signature/data URI string behavior.
   Replace the reflected `processed`-flag test with the retained-recipe behavioral test. Run immediately.
-- [x] `tests/Integration/Image/ImageTest.php` — copy upstream into Hypervel Integration, register `ImageServiceProvider` through Testbench's `getPackageProviders()` hook, and correct PNG coverage to call/assert PNG. Keep Laravel's Integration path because mirroring it avoids collision with the distinct unit `tests/Image/ImageTest.php`; it needs no external-service workflow, and `phpunit.xml.dist` already includes this directory. Preserve real GD end-to-end transformation, storage, request, facade, branching, idempotence, format, quality, hash, public visibility, and no-argument overload tests. Add a real materialize/append test proving the final output is encoded once from the full recipe. Run immediately.
+- [x] `tests/Integration/Image/ImageTest.php` — copy upstream into Hypervel Integration, register `ImageServiceProvider` through Testbench's `getPackageProviders()` hook, correct PNG coverage to call/assert PNG, and guard only WebP-encoding methods when GD lacks WebP rather than skipping the whole suite. Keep Laravel's Integration path because mirroring it avoids collision with the distinct unit `tests/Image/ImageTest.php`; it needs no external-service workflow, and `phpunit.xml.dist` already includes this directory. Preserve real GD end-to-end transformation, storage, request, facade, branching, idempotence, format, quality, hash, public visibility, and no-argument overload tests. Add a real materialize/append test proving the final output is encoded once from the full recipe. Run immediately.
 - [x] `tests/Testing/PHPUnit/AfterEachTestSubscriberTest.php` — add `Image` to the framework macro cleanup regression so the optional grouped path is exercised. Run immediately.
 - [x] `tests/Validation/ValidationValidatorTest.php` — extend the existing `testValidateImage(): void` matrix with AVIF, HEIC, and HEIF uploaded-file extensions while preserving the SVG opt-in cases. Run immediately.
 
@@ -507,13 +509,13 @@ Then run the cross-cutting metadata and facade owners:
 - [x] `src/docs/images.md` — first run `cp ../../../examples/laravel/docs/images.md src/docs/images.md` from this worktree, then read the complete copied destination before editing it in place. Do not draft a replacement document from scratch. Convert namespaces/links/prose to Hypervel and include:
   - install `hypervel/image`; Intervention plus GD/Imagick only for bundled drivers;
   - config publishing with the exact `php artisan vendor:publish --tag=image-config` command used by the provider;
-  - uploaded, storage, bytes, base64, local path, URL, and stream sources; streams remain caller-owned/open until first materialization;
+  - uploaded, storage, bytes, base64, local path, URL, and stream sources; remote client/server errors fail before decoding, while streams remain caller-owned/open until first materialization;
   - immutable retained recipes, ordered transformations, one final encode, inspection/materialization caching, and variant-first concurrent use;
   - WebP/JPEG/PNG/GIF/AVIF/HEIC/BMP helpers, public `toFormat()`, HEIF normalization, and quality/optimize behavior;
   - bytes/base64/data URI, with `(string)` correctly documented as a data URI;
   - all storage overloads and `UnitEnum` disk names;
   - MIME/extension/dimensions/dominant color and direct route returns through `Responsable`;
-  - full backend-neutral custom driver example implementing `process`, `dimensions`, `dominantColor`, and `transformUsing`;
+  - clearly labeled incomplete, backend-neutral custom driver skeleton covering `process`, `dimensions`, `dominantColor`, and `transformUsing` without pretending to implement a specific third-party backend;
   - boot-only registration, worker-cached stateless drivers/handlers, a read-only/non-retained pipeline argument, and no per-image/request/native-handle retention;
   - no image-specific tenancy API: use tenant-scoped filesystem disks/paths, and make tenant-varying custom backends resolve context inside each operation rather than cached-driver construction;
   - immutable custom transformation requirement and readonly example;
