@@ -9,6 +9,7 @@ The result must feel familiar to Saloon users and Laravel developers, but it mus
 - connectors contain stable integration configuration and are safe for worker reuse, while mutable requests and pending state remain operation-owned;
 - request customization uses Hypervel HTTP's familiar fluent vocabulary without exposing framework-neutral stores as the primary API;
 - request-specific state is coroutine-local;
+- shared platform credentials, tenant-owned credentials, and tenant-specific endpoints can be isolated without mutating worker-global config or connector state;
 - immutable class metadata and reusable HTTP transports are worker-cached with bounded keys;
 - network concurrency is explicit and bounded;
 - framework HTTP, cache, rate-limiter, events, console, collections, and testing behavior remains authoritative;
@@ -90,7 +91,7 @@ Document these durable differences and their replacements in the guide. The READ
 - Pool response and exception handlers receive the result and iterable key; the removed aggregate-promise argument has no coroutine equivalent.
 - Response-detected rate limits return a cooldown duration from `resolveRateLimitCooldown()`. Cooldown detection records the response and never resends recursively; the normal connector/request retry policy remains authoritative, and any configured next attempt must pass the recorded cooldown first.
 - Static `MockConfig` is replaced by manager-backed `Saloon::fixturePath()` and `Saloon::throwOnMissingFixtures()` test configuration that the framework test subscriber resets with the container after each test.
-- Framework-only Nightwatch and Pulse integrations are omitted. Real Saloon network requests already flow through Hypervel HTTP's event and Telescope path.
+- Framework-only Nightwatch and Pulse integrations are omitted. Real Saloon network requests already flow through Hypervel HTTP's event and Telescope path, carry the canonical `TelescopeTag::Saloon` tag, accept additional tags through `withTelescopeTags()`, and may opt out through `withoutTelescope()`.
 - `xmlReader()` is omitted rather than depending on a Saloon-namespaced optional package that requires the original `Saloon\Http\Response` type. Keep `xml()` and `dom()`; declare `ext-simplexml` and Symfony DomCrawler as direct package dependencies so advertised response methods always work after installation.
 
 Do not preserve removed methods as aliases or forwarding wrappers. The guide must show the supported replacement for every meaningful removed surface.
@@ -113,9 +114,10 @@ Request remains caller-owned and mutable while preparing one operation. It imple
 
 - the concrete `Sender`;
 - the framework cache factory and rate-limiter manager passed into operation-owned pending requests;
-- global request, response, and fatal middleware registered during worker boot.
+- global request, response, and fatal middleware registered during worker boot;
+- one optional cache-scope resolver registered during worker boot.
 
-Public global middleware mutators must carry the standard `Boot-only.` warning because they affect every later request in the worker. Copy the configured pipe definitions into each new operation pipeline; running or mutating a request must never alter the manager's worker-global definitions.
+Public global middleware mutators and `resolveCacheScopeUsing()` must carry the standard `Boot-only.` warning because they affect every later request in the worker. Copy the configured pipe definitions into each new operation pipeline; running or mutating a request must never alter the manager's worker-global definitions. The cache resolver has the signature `Closure(PendingRequest): ?string`; passing null clears it. Evaluate it against the current operation rather than capturing a tenant instance at service-provider boot. The manager remains container-owned worker state, so normal test application teardown clears the callback without static cleanup.
 
 The active global `MockClient`, stray-request setting, fixture path override, and missing-fixture behavior are test state on `SaloonManager`. This matches Hypervel HTTP's testing model: every pool child sees the same recorder, while `AfterEachTestSubscriber` resets the container and manager between tests. Do not duplicate this with static state or coroutine-context bridging. These APIs are tests-only and are not a runtime per-request customization surface.
 
@@ -135,7 +137,9 @@ Use Hypervel's `Conditionable`, `Macroable`, `class_uses_recursive()`, `value()`
 
 ### Laravel-style request surface
 
-Request and PendingRequest expose the Hypervel HTTP names for behavior they share with the framework: body format and attachment methods, `withQueryParameters()`, `withHeader()` / `withHeaders()` / `replaceHeaders()`, content negotiation, `withUserAgent()`, cookies, authentication, redirects, TLS verification, response sinks, `timeout()`, `connectTimeout()`, `retry()`, `withOptions()`, and conditional throwing. Match Hypervel HTTP signatures where the behavior is the same, including `withNtlmAuth()` and the `retry(array|int $times, Closure|int $sleepMilliseconds = 0, ?callable $when = null, bool $throw = true)` policy. Implement these methods directly against Saloon's operation repositories; do not forward calls to an early framework PendingRequest or create a second mutable option source.
+Request and PendingRequest expose the Hypervel HTTP names for behavior they share with the framework: body format and attachment methods, `withQueryParameters()`, `withHeader()` / `withHeaders()` / `replaceHeaders()`, content negotiation, `withUserAgent()`, cookies, authentication, redirects, TLS verification, response sinks, `timeout()`, `connectTimeout()`, `retry()`, `withOptions()`, `withTelescopeTags()`, `withoutTelescope()`, and conditional throwing. Match Hypervel HTTP signatures where the behavior is the same, including `withTelescopeTags(array $tags)` with `array<int, string|UnitEnum>` PHPDoc, `withNtlmAuth()`, and the `retry(array|int $times, Closure|int $sleepMilliseconds = 0, ?callable $when = null, bool $throw = true)` policy. Implement these methods directly against Saloon's operation repositories; do not forward calls to an early framework PendingRequest or create a second mutable option source.
+
+`withTelescopeTags()` sets the operation's user tags, while `withoutTelescope()` disables recording for that operation. A connector that wants either behavior for every request applies it in `boot(PendingRequest)`; do not add mutable Telescope state or fluent request-building methods to Connector. These options affect observation only and never cache identity.
 
 Use Laravel-style noun and conversion accessors where they apply on the redesigned operation classes: `method()`, `uri()`, `headers()`, `request()`, `connector()`, `pendingRequest()`, and `toPsrRequest()`. Do not retain parallel `get*` aliases. These accessors return resolved values, never a mutable repository.
 
@@ -155,7 +159,7 @@ Add a stateless `Hypervel\Saloon\Http\Sender` injected with `Hypervel\Http\Clien
 
 Connector instances cannot receive framework services through their normal user constructors, so `Connector::send()` resolves the canonical `saloon` manager once at the call boundary and delegates the operation. This is the only container fallback on the send path. The manager, sender, and the framework services they use all receive constructor injection and can be rebound by applications and tests. Pending requests receive the already-resolved cache/rate services from the manager; plugin traits must not perform repeated container lookups.
 
-`withOptions()` accepts real Guzzle transport options such as redirects, proxy, TLS/certificates, streaming, and stats callbacks; dedicated fluent methods own timeouts. Fail fast when raw options contain `headers`, `query`, `cookies`, `body`, `json`, `form_params`, `multipart`, `auth`, `delay`, or `http_errors`: Saloon's operation state and manager own those values, and accepting a second source would make cache/fake identity contradict the transmitted request or bypass Saloon authentication/error handling. One internal validator owns this key set and checks the merged operation options after request middleware, the default connection before provider registration, and any connector-selected connection before use. Hypervel HTTP separately rejects handler, object-pool, transport-sharing, and connection-cap options outside registered connections. Do not silently strip or override an invalid placement.
+`withOptions()` accepts real Guzzle transport options such as redirects, proxy, TLS/certificates, streaming, and stats callbacks, plus Hypervel HTTP's Telescope observation options; dedicated fluent methods own timeouts. Fail fast when raw options contain `headers`, `query`, `cookies`, `body`, `json`, `form_params`, `multipart`, `auth`, `delay`, or `http_errors`: Saloon's operation state and manager own those values, and accepting a second source would make cache/fake identity contradict the transmitted request or bypass Saloon authentication/error handling. One internal validator owns this key set and checks the merged operation options after request middleware, the default connection before provider registration, and any connector-selected connection before use. Hypervel HTTP separately rejects handler, object-pool, transport-sharing, and connection-cap options outside registered connections. Do not silently strip or override an invalid placement.
 
 Port Saloon's HTTP method enum and add the standardized `QUERY` method from RFC 10008. It is a normal body-capable method on the existing send path; do not add method-specific transport, retry, or cache machinery.
 
@@ -164,9 +168,12 @@ For each attempt, the sender must:
 1. call `Factory::createPendingRequest()` so framework global middleware, fakes, events, and test controls apply;
 2. select the fixed registered connection returned by `Connector::resolveHttpConnection()` or the configured package default;
 3. apply the final Saloon URI, headers, cookies, auth, TLS/certificate settings, and validated Guzzle options;
-4. attach the prepared Saloon body stream through Hypervel HTTP's raw-body method;
-5. add one request middleware that invokes Saloon's final PSR request hook after previously registered Hypervel request middleware and records the final application-owned request on the Saloon pending request before Guzzle adds automatic transport headers;
-6. send once and wrap the resulting Hypervel response.
+4. read the effective connection and operation Telescope tags, prepend `TelescopeTag::Saloon`, and set the combined tags through Hypervel HTTP while preserving `telescope_enabled: false`;
+5. attach the prepared Saloon body stream through Hypervel HTTP's raw-body method;
+6. add one request middleware that invokes Saloon's final PSR request hook after previously registered Hypervel request middleware and records the final application-owned request on the Saloon pending request before Guzzle adds automatic transport headers;
+7. send once and wrap the resulting Hypervel response.
+
+Add `Saloon = 'saloon'` and its description to the framework-owned `Hypervel\Contracts\Telescope\TelescopeTag` enum. Saloon depends only on that contracts enum, never the optional Telescope package, and adds no Telescope middleware or recorder. The existing HTTP watcher remains the sole owner of recording and converts enum tags to their public string values.
 
 ```php
 $httpRequest = $this->http->createPendingRequest()
@@ -459,6 +466,10 @@ Default cacheable methods are GET, HEAD, and OPTIONS. Cache successful responses
 
 The default key includes connector class, request class, method, final logical URI, normalized headers, cookies, dedicated authentication/certificate state, prepared body bytes, and normalized transport options that can change the successful response (`allow_redirects`, certificates/keys, content decoding, `curl`, `expect`, IP-family/IDN selection, proxy, TLS verification/crypto method, and HTTP version), then hashes the canonical representation once with SHA-256. Omit only timing, diagnostics, observation callbacks, and execution-shape controls that cannot change successful response bytes or metadata. This cache key is a response-isolation boundary over attacker-controlled and tenant-specific values, so collision resistance matters more than the small CPU saving from an internal checksum. Lowercase and sort header names while preserving each header's value order; sort other associative maps recursively without reordering lists. Export cookie jars to stable cookie fields and reject any default identity value that cannot be represented safely. Only a package prefix and hash enter the backend. A custom `cacheKey()` replaces the canonical identity material but is still hashed, keeping backend keys bounded and preventing raw secrets from becoming key names. For a seekable prepared stream, hash from its current logical contents and restore the original position. Require a custom key for a non-seekable body rather than consuming it.
 
+Applications that need an explicit tenant or account partition may register `Saloon::resolveCacheScopeUsing(Closure(PendingRequest): ?string)` during worker boot. Resolve it once per PendingRequest when caching is active and include the non-null result as a separate length-prefixed segment after either the canonical identity or a custom cache key, before the final hash. The scope therefore applies consistently to reads, writes, and invalidation without weakening the normal request identity or exposing the raw tenant value in the backend key. The current PendingRequest lets one callback scope only selected integrations; returning null deliberately permits sharing. Passing null to the registration method clears the callback.
+
+This resolver is an application isolation policy, not a requirement for default correctness. Tenant-owned credentials already differ through authentication or header state, and tenant-specific endpoints already differ through the final URI. Do not infer cache scope from credentials, hosts, connector names, or tenant IDs, and do not add cache tags, per-tenant stores, database partition columns, or a resolver registry.
+
 Reject caching when Guzzle's `sink` option is configured. A cache hit cannot reproduce its file/resource write side effect without duplicating transport behavior inside the cache layer; callers that need both features should export the returned Saloon response explicitly. Streaming remains supported, but cacheable responses are buffered by definition.
 
 The default key is deliberately owned by the fully merged Saloon request before the transport boundary. A custom PSR hook or global Hypervel HTTP option/middleware that changes response identity after that point must also override the applicable connector/request cache-key hook; attempting to reproduce the lower transport layer during a cache lookup would duplicate side effects and make cache hits execute part of that stack. Document this constraint next to custom PSR middleware and lower HTTP customization. Cache-key work runs only when connector or request caching is enabled.
@@ -483,7 +494,7 @@ Place integration code under `Hypervel\Saloon\RateLimit`. Do not port Saloon's m
 
 ```php
 /** @return list<AdmissionPolicy> */
-abstract protected function resolveRateLimits(): array;
+abstract protected function resolveRateLimits(PendingRequest $pendingRequest): array;
 
 protected function resolveRateLimitStore(): UnitEnum|string|null
 {
@@ -496,7 +507,9 @@ protected function waitForRateLimits(): bool
 }
 ```
 
-Before the network send, atomically `consume()` each policy under a stable limiter name derived from the resource class. Run admission after fake/cache lookup and skip it for a short-circuit response, which must not spend external API capacity. A denied result either throws `RateLimitReachedException` containing the policy/result or sleeps for its `retryAfter()` and retries that same policy when waiting is enabled. Continue to the next policy only after the current one allows the request, so an earlier successful reservation is never consumed twice. Use `Sleep`; never poll more frequently than the store's returned delay.
+The PendingRequest argument lets a stable connector choose tenant-plan or operation-specific policies without retaining mutable tenant state. Before the network send, atomically `consume()` each policy under the stable named limiter `saloon:` followed by the resource FQCN. This makes Hypervel's existing `RateLimiter::resolveKeyScopeUsing()` callback authoritative for tenant/account partitioning; non-global policies receive the current scope, while `globally()` policies deliberately remain shared across tenants. A single resource may return both a tenant policy and a service-wide global policy so one operation consumes both.
+
+Run admission after fake/cache lookup and skip it for a short-circuit response, which must not spend external API capacity. A denied result either throws `RateLimitReachedException` containing the policy/result or sleeps for its `retryAfter()` and retries that same policy when waiting is enabled. Continue to the next policy only after the current one allows the request, so an earlier successful reservation is never consumed twice. Use `Sleep`; never poll more frequently than the store's returned delay.
 
 A connector and its request may both use `HasRateLimits`. Apply both sets—connector policies in declaration order, then request policies—rather than silently choosing one owner. Each resource keeps its own store, wait, cooldown-key, and response-cooldown hooks; the default class-based keys make connector cooldowns integration-wide and request cooldowns endpoint-specific.
 
@@ -530,7 +543,7 @@ Reuse existing numeric state columns; cooldown needs only `expires_at`, so no mi
 
 For resources using `HasRateLimits`, inspect the transport response before user response middleware, then parse `Retry-After` as non-negative delta seconds or an HTTP date with immutable dates. A valid, representable future delay imposes the cooldown even if later middleware throws. Return the original 429 through normal response/error handling; cooldown detection itself must not recursively resend it. A later operation—or a new attempt explicitly requested by the normal retry policy—sees the shared cooldown and throws or waits according to the resource policy. Missing, malformed, unrepresentable, zero, or already elapsed delays do not create state.
 
-Inspect the resource cooldown before consuming configured admission policies so a blocked operation does not spend capacity without reaching the network. `resolveRateLimitCooldownKey(PendingRequest)` returns the resource class by default and may include a stable tenant/account credential identity when the remote API limits those independently. `resolveRateLimitCooldown(Response)` returns the parsed 429 delay by default and may be overridden to recognize a provider-specific status, body, or header. Returning null records no cooldown. These two protected hooks replace the upstream mutable custom-response Limit callback without adding a second persistence model.
+Inspect the resource cooldown before consuming configured admission policies so a blocked operation does not spend capacity without reaching the network. Use the same `saloon:` resource limiter name for cooldown inspection, recording, and clearing, so the framework key-scope resolver partitions ordinary tenant cooldowns exactly like admission. `resolveRateLimitCooldownKey(PendingRequest)` returns the resource class by default and may include stable provider-account or credential identity when the remote API imposes cooldowns at that boundary. Do not infer that identity from credentials or hosts: providers variously limit by token, account, host, or source IP, so the resource hook must state the remote contract explicitly. `resolveRateLimitCooldown(Response)` returns the parsed 429 delay by default and may be overridden to recognize a provider-specific status, body, or header. Returning null records no cooldown. These two protected hooks replace the upstream mutable custom-response Limit callback without adding a second persistence model.
 
 ## Provider, configuration, facade, and commands
 
@@ -567,6 +580,8 @@ return [
 
 Do not add per-tenant config mutations, arbitrary registries, a sender class option, or object-pool settings. Connectors carry dynamic tenant credentials/base URLs through their own constructor and hooks.
 
+Expose the cache-scope resolver through `SaloonManager` and the Saloon facade rather than package config. The guide registers it from an application service provider's `boot()` method and captures only a worker-safe tenant-context service; the callback must resolve the current tenant when invoked. Use Hypervel's existing `RateLimiter::resolveKeyScopeUsing()` alongside it for named Saloon rate limits instead of adding a Saloon-specific rate-scope API.
+
 Generator commands write files to `integrations_path` and use `integrations_namespace` when it is set. A null namespace resolves to the application's root namespace plus `Http\Integrations`; never guess a namespace by converting an arbitrary filesystem path. Path and namespace remain independently configurable for applications with custom Composer mappings.
 
 Port the Laravel plugin's established command names and prompts:
@@ -592,10 +607,11 @@ Write `src/docs/saloon.md` as a complete public guide, not a change log or imple
 - fakes, partial fakes, response sequences, fixtures, redaction, typed assertions, and stray-request prevention;
 - bounded pools and context propagation;
 - cache duration/store/key/invalidation behavior, buffering, and the cache-plus-sink restriction;
+- multi-tenant integrations with complete examples for shared platform credentials, tenant-owned credentials, dynamic tenant endpoints, and selective response sharing. Show a boot-time `Saloon::resolveCacheScopeUsing()` callback that scopes only the intended connectors, returns null when sharing is safe, and resolves the current tenant at invocation time rather than capturing one tenant during boot. Explain that authentication state and the final URI already isolate BYO credentials and tenant-specific endpoints in the default key, while a cache scope expresses additional application isolation policy;
 - API pagination and why it is separate from view pagination;
-- admission policies, stores, waiting, 429 cooldowns, and multi-policy reservation behavior;
-- events, macros, console generators, and extension points;
-- named connection reuse, fixed connection names, bounded pool concurrency, rejected unsafe handler caps, the distinction between request rates and aggregate in-flight requests, and why object pooling is not used;
+- admission policies, stores, waiting, 429 cooldowns, and multi-policy reservation behavior. Include a `RateLimiter::resolveKeyScopeUsing()` example restricted to limiter names beginning with `saloon:`, a tenant-plan policy resolved from the current PendingRequest, and a service-wide `globally()` policy consumed by the same operation. Show when `resolveRateLimitCooldownKey()` should add provider account or credential identity;
+- events, macros, console generators, and extension points. Include request-level and connector `boot()` examples for additional Telescope tags and `withoutTelescope()`, explain that every recorded network request already includes `saloon`, and make clear that fakes and cache hits never reach the HTTP watcher;
+- named connection reuse, bounded pool concurrency, rejected unsafe handler caps, the distinction between request rates and aggregate in-flight requests, and why object pooling is not used. Show one fixed registered connection safely serving many tenant-selected hosts and warn against deriving connection names from tenant IDs, credentials, or hosts because that would create an unbounded worker registry;
 - coroutine/worker ownership, immutable OAuth/connector configuration, operation-only cache/debug controls, and security-sensitive URL/token behavior.
 
 Use examples that compile against the final API. Avoid internal implementation language unless it explains a user-visible constraint. Add the guide to the docs navigation in the same location as HTTP/API integration documentation.
@@ -604,13 +620,13 @@ Use examples that compile against the final API. Avoid internal implementation l
 
 1. **Inventory and skeleton.** Rebuild the source/test inventories from all five upstream packages. Create one implementation checklist entry per source and test file, marking each as port, merge, adapt, or deliberately omitted with its replacement. Add package/root Composer wiring through Composer commands for resolved dependencies, then the provider/config/facade skeleton.
 2. **HTTP owner fixes.** Reject unsafe connection-cap options, isolate registered asynchronous handlers while preserving synchronous reuse, correct safe named-connection handler options, post-mutation body preparation, nullable raw-body content types, scalar object decoding, the response-exception factory, tests, and HTTP docs first so the Saloon sender can rely on the final transport contract.
-3. **Core values and repositories.** Port enums (including `QUERY`), contracts, the reduced exception hierarchy, data values, internal header/query/option/body repositories, helpers still needed after framework substitutions, and authentication.
-4. **Core operation path.** Port the stable Connector, mutable SelfBuilding Request, side-effect-free PendingRequest construction, Response subclass with exception suppression, Laravel-style fluent surface, middleware, retry/error handling, request-clone independence, response-data-dependent subclass selection, DTO generic propagation/type fixtures, plugin boot caching, manager state, events, and the concrete Sender. Run each new/changed test file immediately.
+3. **Core values and repositories.** Port enums (including `QUERY`), add the contracts-owned Saloon Telescope tag, port contracts, the reduced exception hierarchy, data values, internal header/query/option/body repositories, helpers still needed after framework substitutions, and authentication.
+4. **Core operation path.** Port the stable Connector, mutable SelfBuilding Request, side-effect-free PendingRequest construction, Response subclass with exception suppression, Laravel-style fluent surface including Telescope controls, middleware, retry/error handling, request-clone independence, response-data-dependent subclass selection, DTO generic propagation/type fixtures, plugin boot caching, manager state, events, canonical Telescope tagging, and the concrete Sender. Run each new/changed test file immediately.
 5. **Fakes and fixtures.** Port MockClient, strict and partial fake behavior, fake/recorded responses, sequences, fixture storage/redaction, typed facade assertions, manager-backed tests-only state, and subscriber-owned container cleanup.
 6. **OAuth 2.** Port grant flows and token models using immutable dates and the AuthorizationUrl state contract.
 7. **Pool.** Replace promise tests with bounded coroutine, context propagation, failure settlement, and non-coroutine entry tests.
-8. **Cache and pagination.** Port each module against Hypervel repositories/collections and the new pool, deleting replaced plugin drivers and promise code rather than leaving adapters.
-9. **Cooldown and rate limits.** Add and verify Cooldown across every framework store, then implement the Saloon rate-limit trait and 429 handling on it.
+8. **Cache and pagination.** Port each module against Hypervel repositories/collections and the new pool, including the manager-backed cache-scope resolver, while deleting replaced plugin drivers and promise code rather than leaving adapters.
+9. **Cooldown and rate limits.** Add and verify Cooldown across every framework store, then implement operation-aware Saloon policies, stable named limiter scopes, and 429 handling on it.
 10. **Console and documentation.** Port commands/stubs, write the guide and minimal README, update navigation and both package metadata locations.
 11. **Completeness sweep.** Compare every upstream source/test symbol against the inventory; verify removed framework-neutral/deprecated classes have no consumers, no references rooted in the upstream `Saloon\` or `Illuminate\` namespaces, and no Laravel adapter, promise, sender factory, plugin driver, OAuth 1, mutable connector request/debug/cache/auth/retry state, mutable OAuth setters, or stale namespace references remain.
 
@@ -625,17 +641,17 @@ Place unit/package tests under `tests/Saloon` and external HTTP tests under `tes
 Cover:
 
 - Worker-reused connectors with fixed configuration, explicitly constructed tenant connectors with isolated readonly configuration, connector injection into a default worker-shared controller, fresh Request resolution at an operation call site, honored explicit bindings, direct construction, side-effect-free pending construction, independent cloning of every initialized mutable request repository/pipeline/cookie/retry/cache-control value, and repeated sends that create independent pending state.
-- Property merge precedence, authentication, the full shared Hypervel HTTP fluent surface, all supported methods including body-bearing `QUERY`, HTTP(S)-only base/endpoint joining, endpoint/repository query merging (duplicates, zero/false/empty-string names and values, valueless pairs, exact and nested-family overrides, literal bracket keys, plus/percent-encoded names, nested/Arrayable/JsonSerializable/Stringable/non-finite values), header normalization, body formats, structured JSON/form/query normalization, string `"0"`, empty/null streams, custom JSON flags, multipart boundaries/metadata/numeric normalization/defaults, one-time prepared-body identity across fake/cache/network paths, stream ownership, cookies, accepted transport options, rejected request-shaping/authentication/error options, TLS/certificates, stable base-URL override resolvers, final PSR middleware replacement, and one HTTP attempt per Saloon attempt.
+- Property merge precedence, authentication, the full shared Hypervel HTTP fluent surface, all supported methods including body-bearing `QUERY`, HTTP(S)-only base/endpoint joining, endpoint/repository query merging (duplicates, zero/false/empty-string names and values, valueless pairs, exact and nested-family overrides, literal bracket keys, plus/percent-encoded names, nested/Arrayable/JsonSerializable/Stringable/non-finite values), header normalization, body formats, structured JSON/form/query normalization, string `"0"`, empty/null streams, custom JSON flags, multipart boundaries/metadata/numeric normalization/defaults, one-time prepared-body identity across fake/cache/network paths, stream ownership, cookies, accepted transport options, rejected request-shaping/authentication/error options, TLS/certificates, Telescope controls, stable base-URL override resolvers, final PSR middleware replacement, and one HTTP attempt per Saloon attempt.
 - Response inheritance without duplicated framework methods, scalar/array/object JSON, invalid JSON, seekable and lazily buffered non-seekable streams, retained framework response metadata, exception-safe path/resource export and ownership, inherited reason/header/status/ArrayAccess helpers, response-data-dependent custom response selection (including a resolver that buffers a non-seekable body before selecting a subclass), general/client/server exception selection through every throwing method, DTO runtime behavior and static type inference, exception chains, cached/mocked false resets, and XML/DOM.
 - Request/PendingRequest debugging ownership, connector boot customization, request/response debugging order, one PSR-hook invocation, custom callbacks, seekable-position preservation, non-consuming request-stream markers, buffered non-seekable response bodies, raw-output credential warning, and the direct-exit path in an isolated subprocess with no process-global test hook.
 - Middleware ordering/names/replacement, fixed terminal-phase ordering after ordinary request middleware, plugin boot order/inheritance, cached metadata, global boot middleware, listener guards, retries/backoff, per-attempt rematerialization after seekable prepared/final-hook stream and multipart restoration, non-seekable retry rejection, and `Sleep` fakes.
-- Saloon sending/sent events exactly once for sender, fake, and cache-hit responses; real Hypervel HTTP event/Telescope visibility without duplicate Saloon instrumentation on short-circuit paths.
+- Saloon sending/sent events exactly once for sender, fake, and cache-hit responses; real Hypervel HTTP event/Telescope visibility without duplicate Saloon instrumentation on short-circuit paths. Assert the contracts enum value and description, automatic `saloon` tagging, preservation of effective connection and operation tags, connector `boot()` defaults, request overrides, and complete suppression through `withoutTelescope()`.
 
 ### Worker and coroutine safety
 
 - One reused connector can send concurrent requests with different operation headers, authentication, middleware, cookies, and mocks without shared state; separately constructed tenant connectors keep their readonly credentials and base URLs isolated.
 - Global middleware persists intentionally from boot; manager-backed global mocks, stray settings, and fixture overrides persist only for the current test and are removed by the subscriber's container reset. Explicit request-owned mocks remain operation-local.
-- Pool children inherit ordinary application context and record on the manager's current test mock.
+- Pool children inherit ordinary application context and record on the manager's current test mock. Concurrent parents with different tenant context must keep cache-scope and rate-limit resolver results isolated in every child.
 - Named handler identity is reused by synchronous requests while pending requests, clients, stacks, and cookie jars are fresh; registered asynchronous requests use fresh handlers and remain safe across concurrent coroutines.
 - Real-server sequential sends through one named connection retain the same local connection after the first request, confirmed through transfer stats without a timing threshold; concurrent registered asynchronous sends complete without sharing a multi-handler.
 - Macro and plugin metadata cleanup is owned by `AfterEachTestSubscriber`; direct `flushState()` tests verify every static property.
@@ -665,6 +681,7 @@ Cover:
 
 - Request-over-connector configuration, request-only cache controls over a stable caching connector, connector/request key hooks, package/framework default store selection, duration types, supported methods, successful-only writes, hits, false cached reset, invalidation, and expiry.
 - Canonical map/list handling, case-insensitive header identity, header/cookie/auth/certificate/response-affecting transport-option isolation, prepared-body distinction, request-middleware mutations before lookup, custom PSR-middleware keys, unsupported identity-value rejection, custom keys, seekable position restoration, rejection of non-seekable default-key bodies, and the cache-plus-sink guard.
+- Cache-scope registration and clearing, connector-selective null scopes, distinct entries for two tenant scopes over an otherwise identical shared-credential request, same-scope hits, deliberate null-scope sharing, scope application to custom keys and invalidation, and no resolver call when caching is disabled. Assert that backend keys never expose the raw scope. Prove separately that different BYO authentication and different final tenant endpoints isolate the default key without a scope callback.
 - Concurrent coroutine use against framework cache repositories without package-owned process state.
 
 ### Pagination
@@ -674,8 +691,8 @@ Cover:
 
 ### Rate limiter and cooldown
 
-- Fixed/sliding/leaky/unlimited policies through Saloon, store selection, resource/key scoping, callback-policy rejection, threshold-free atomic admission, multiple policy order, denied exceptions, waiting with `Sleep`, fake/cache bypass, and no network call before admission.
-- Retry-After seconds/date/invalid/past values, resource/tenant cooldown keys, provider-specific cooldown detection, shared 429 cooldown, cooldown-before-admission ordering, no cooldown-recursive resend, explicit retries passing through the recorded cooldown, and next-operation wait/fail behavior.
+- Fixed/sliding/leaky/unlimited policies through Saloon, store selection, `resolveRateLimits(PendingRequest)` operation/tenant-plan selection, stable `saloon:` resource limiter names, callback-policy rejection, threshold-free atomic admission, multiple policy order, denied exceptions, waiting with `Sleep`, fake/cache bypass, and no network call before admission. Verify two tenant scopes remain independent, a `globally()` service policy is shared, and one operation consumes both policies.
+- Retry-After seconds/date/invalid/past values, tenant-scoped cooldowns under the same named limiter, explicit provider account/credential cooldown keys, provider-specific cooldown detection, shared 429 cooldown within one resolved scope, cooldown-before-admission ordering, no cooldown-recursive resend, explicit retries passing through the recorded cooldown, and next-operation wait/fail behavior.
 - Cooldown contract tests across worker-array, database, Redis, and Swoole stores: stable identity, atomic max extension, concurrent blocks, authoritative clocks, overflow, inspect, expiry, clear, and pruning.
 
 ### Static analysis
@@ -684,7 +701,7 @@ Cover:
 
 ### Package and console
 
-- Root/subpackage autoload, replace, provider and facade discovery metadata, config merge/publish, fixed connection registration, optional provider loading, dependency completeness, and HTTP raw bodies with an explicitly absent content type.
+- Root/subpackage autoload, replace, provider and facade discovery metadata including `resolveCacheScopeUsing()`, config merge/publish, fixed connection registration, optional provider loading, dependency completeness, and HTTP raw bodies with an explicitly absent content type.
 - Every generator/list command, prompt, independent custom integration path and namespace, stub publication, and generated syntax.
 - README/doc navigation and examples checked against actual classes and signatures.
 
