@@ -10,7 +10,7 @@ This is a new Laravel package port. Implement it serially, one file at a time. C
 
 ## Status
 
-Implementation, full local verification, self-review, peer-review corrections, and peer signoff are complete in the components and framework worktrees. No implementation or review work remains.
+The Image implementation, framework integration, PIE correction, local verification, and review are complete. No local work remains; the committed branch must pass the backup PR's CI checks.
 
 ## References and verified facts
 
@@ -54,7 +54,7 @@ Verified upstream defects to fix in the port:
 | The hash-cache test never calls the clone; PNG integration coverage calls `toWebp()`; invalid-stream cleanup is not exception-safe. | Correct the tests while porting them. |
 | Docs claim `(string) $image` returns bytes, but `toString()` returns a data URI; custom-driver example omits two required methods. | Correct and complete the Hypervel docs. |
 | The Image HEIC/AVIF follow-up expanded Laravel's `image` validation rule to AVIF, HEIC, and HEIF without adding a focused validation regression, while current Laravel and Hypervel validation docs still list only the older formats. | Port the validator change, add explicit coverage for all three formats, and correct both Hypervel validation-documentation locations. |
-| CI's GD build lacks WebP/AVIF and installs no Imagick, leaving the headline paths failing or permanently skipped. | Install both GD codecs and the latest stable Imagick release in the shared PHP setup action. |
+| CI's GD build lacks WebP/AVIF and installs no Imagick, leaving the headline paths failing or permanently skipped. PECL also rewrites Imagick's shipped arginfo headers before their stub sources, so `make install` needlessly regenerates them and depends on a second network download of PHP-Parser that can fail after the extension has compiled. | Install both GD codecs and use checksum-verified PIE 1.4.9 for the latest compatible stable `phpredis/phpredis` and `imagick/imagick` releases. Keep PHP's build tooling for bundled extensions. PIE preserves release timestamps and installs/enables third-party extensions without the broken PECL extraction path. |
 | The global container slot accepts any `ContainerContract` but `getInstance(): static` cannot return one; the inherited slot also cannot guarantee the called subclass. Laravel's own global-container consumers call concrete-only `makeWith()`, so unrelated contract implementations are not functional framework containers. | Type the shared slot, getter, and setter as `self`, retaining `Container`, `Application`, subclasses, and concrete mocks while removing the PHPStan assignment suppression. |
 
 Do not add finfo, encoder, transformation-handler, or format metadata caches. A 20,000-call real-JPEG measurement found fresh `finfo` construction adds about 0.5 microseconds / 2.6% to MIME detection, which is noise beside image decode/encode. Do not optimize the linear custom-handler scan either; it is bounded by the short transformation pipeline and negligible beside processing.
@@ -308,17 +308,14 @@ composer require --dev 'intervention/image:^4.2' --no-interaction
 
 The root components manifest also needs the conflict because it replaces the split package. Its untracked lock is local only; run `composer update --no-interaction` after all manifest edits and never commit the lock.
 
-## Implementation checklist
+## Implemented design
 
 ### 1. Dependency and CI foundation
 
-- [ ] `.github/actions/setup-php/action.yml` — add `libwebp-dev`, `libavif-dev`, and `libmagickwand-dev`; configure GD with `--with-webp --with-avif`; install and enable PECL's latest stable `imagick` release only when absent. Preserve the existing conditional extension setup and full installer output, then run a PHP assertion that fails setup unless `imagewebp()`, `imageavif()`, and the Imagick extension are available. This prevents a future base image's incomplete preinstalled GD from bypassing configuration, keeps extension compatibility current, makes installation failures diagnosable, and prevents codec tests from being silently skipped.
+- [x] `.github/actions/setup-php/action.yml` — add `libwebp-dev`, `libavif-dev`, `libmagickwand-dev`, and PIE's `curl`/`unzip` runtime dependencies; configure bundled GD with `--with-webp --with-avif`; keep all PHP-bundled extensions on `docker-php-ext-install`. For absent third-party extensions, download PIE 1.4.9 only when needed, verify its independently confirmed SHA-256 digest, and install unversioned `phpredis/phpredis` and `imagick/imagick` packages one at a time so PIE resolves the latest compatible stable releases. PIE owns extension enabling, so do not call `docker-php-ext-enable` for its packages. Preserve full installer output, then run the existing PHP assertion that fails setup unless `imagewebp()`, `imageavif()`, and the Imagick extension are available. This prevents an incomplete preinstalled GD from bypassing configuration, avoids PECL's broken Imagick arginfo regeneration path, keeps extension releases current independently of the pinned installer, and prevents codec tests from being silently skipped.
 
-```shell
-php -r 'foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing {$function}().\n"); exit(1); } } if (! extension_loaded("imagick")) { fwrite(STDERR, "Missing imagick extension.\n"); exit(1); }'
-```
-- [ ] `composer.json` — use Composer to add Intervention 4.2 dev dependency, then add `"Hypervel\\Image\\": "src/image/src/"` autoload, `hypervel/image` replace entry, `ImageServiceProvider` discovery, and the Intervention conflict in existing alphabetical sections. Do not add Image to default providers.
-- [ ] `src/jwt/composer.json` — declare the existing provider's direct `hypervel/foundation` dependency because it also calls Foundation's `config_path()` helper; do not rely on `hypervel/support` to supply that package transitively.
+- [x] `composer.json` — use Composer to add Intervention 4.2 dev dependency, then add `"Hypervel\\Image\\": "src/image/src/"` autoload, `hypervel/image` replace entry, `ImageServiceProvider` discovery, and the Intervention conflict in existing alphabetical sections. Do not add Image to default providers.
+- [x] `src/jwt/composer.json` — declare the existing provider's direct `hypervel/foundation` dependency because it also calls Foundation's `config_path()` helper; do not rely on `hypervel/support` to supply that package transitively.
 
 After the package skeleton exists, run:
 
@@ -329,9 +326,9 @@ composer update --no-interaction
 
 ### 2. Package skeleton
 
-- [ ] `src/image/composer.json` — copy `src/cache/composer.json`, then edit it to the dependency/discovery metadata specified above. Keep root support/authors/branch conventions and `"Hypervel\\Image\\": "src/"` autoload.
-- [ ] `src/image/LICENSE.md` — copy Laravel Image's license, preserve Taylor Otwell, and add Hypervel copyright as the cache package does.
-- [ ] `src/image/README.md` — copy the cache README as the skeleton, then reduce it to:
+- [x] `src/image/composer.json` — copy `src/cache/composer.json`, then edit it to the dependency/discovery metadata specified above. Keep root support/authors/branch conventions and `"Hypervel\\Image\\": "src/"` autoload.
+- [x] `src/image/LICENSE.md` — copy Laravel Image's license, preserve Taylor Otwell, and add Hypervel copyright as the cache package does.
+- [x] `src/image/README.md` — copy the cache README as the skeleton, then reduce it to:
 
 ```markdown
 Image for Hypervel
@@ -348,14 +345,14 @@ Custom image drivers and transformation handlers must be registered during worke
 Ported from: https://github.com/laravel/framework
 ```
 
-- [ ] `src/image/config/images.php` — copy Laravel's config, add strict types, replace Laravel prose with Hypervel, retain `IMAGE_DRIVER`, default `gd`, and the supported built-in list.
+- [x] `src/image/config/images.php` — copy Laravel's config, add strict types, replace Laravel prose with Hypervel, retain `IMAGE_DRIVER`, default `gd`, and the supported built-in list.
 
 Do not copy Laravel's package-local `.gitattributes` or read-only split-repository pull-request workflow. Hypervel's components root owns repository attributes and CI, while the split tooling owns package repository publication; no existing `src/*` package carries either file.
 
 ### 3. Contracts, one file at a time
 
-- [ ] `src/contracts/src/Image/Driver.php` — copy upstream; add strict types/Hypervel namespaces and fully typed methods. Keep the backend-neutral four-method surface. Document that `process()` treats its pipeline as read-only and never retains it. Add the boot-only warning to `transformUsing()` because every conforming first-party/custom driver is worker-cached by the manager.
-- [ ] `src/contracts/src/Image/Transformation.php` — copy upstream; add strict types/namespace and a concise contract docblock requiring immutable implementations because clones share transformation objects.
+- [x] `src/contracts/src/Image/Driver.php` — copy upstream; add strict types/Hypervel namespaces and fully typed methods. Keep the backend-neutral four-method surface. Document that `process()` treats its pipeline as read-only and never retains it. Add the boot-only warning to `transformUsing()` because every conforming first-party/custom driver is worker-cached by the manager.
+- [x] `src/contracts/src/Image/Transformation.php` — copy upstream; add strict types/namespace and a concise contract docblock requiring immutable implementations because clones share transformation objects.
 
 The public driver surface remains:
 
@@ -375,28 +372,28 @@ interface Driver
 
 For every copied file: `cp`, read the complete destination, then namespace/type/adapt it. Preserve upstream member order unless a specified correctness change requires replacement.
 
-- [ ] `src/image/src/Drivers/GdDriver.php` — copy upstream; return `ImageManagerInterface` from `createManager()` and use Intervention's GD driver.
-- [ ] `src/image/src/Drivers/ImagickDriver.php` — same for Imagick.
-- [ ] `src/image/src/Drivers/InterventionDriver.php` — copy upstream; check requirements before manager creation; type the retained manager as `ImageManagerInterface`; use strict MIME membership; keep upstream's encoding-block `finally` and other decoded-image/sample cleanup; catch no programming errors; type handler lookup to `Transformation`; add the boot-only handler warning. Do not cache encoders/finfo/handler lookups or widen the encoding cleanup across the transformation loop, since local images are released naturally when the frame unwinds.
-- [ ] `src/image/src/Image.php` — copy upstream; keep the public constructor signature exactly `Closure|string $contents, ?UploadedFile $file = null` and build the internal `ImageSource` inside it. Replace stored closure/string contents and `processed` with the holder, retained pipeline, processed/derived instance caches, `process()`, and `__clone()` as specified. Delete `newClone()` and clone directly in `using()`/`withClone()`. Use `UnitEnum|string|null` on all four storing APIs, strict format membership, native Hypervel `Responsable`, `Exception`-only wrapping/fallback, a direct early-return dimensions cache rather than an immediately invoked closure, and an end-of-class `flushState()` for macros. `(string)` remains a data URI; `ImageSource` never appears in a public signature or another package.
-- [ ] `src/image/src/ImageException.php` — copy upstream; add strict types/namespace, retain `RuntimeException` inheritance.
-- [ ] `src/image/src/ImageManager.php` — copy upstream; use explicit false/empty checks for streams/base64; share lazy holders through `Image`; accept `UnitEnum|string|null`; turn null storage reads into a path-specific `ImageException`; remove `enum_value()`; keep the `createDriver()` override's image-specific `InvalidArgumentException` rewrap and `applyTransformationHandlers()`, remove only its hidden `ensureRequirementsAreMet` hook, and narrow `parent::createDriver()` with an accurate local `@var Driver` rather than a runtime branch. Add the boot-only `transformUsing()` warning and use `$this->config->string('images.default')`: the provider-merged config is the sole `gd` default.
-- [ ] `src/image/src/ImageOutputOptions.php` — copy upstream; type `public const int DEFAULT_QUALITY = 70`; preserve the documented format/quality shapes and `hasChanges()`.
-- [ ] `src/image/src/ImagePipeline.php` — copy upstream; add strict types; retain output-only cloning and `hasChanges()`. Do not deep-clone transformations.
-- [ ] `src/image/src/ImageServiceProvider.php` — copy upstream; remove deferred-provider machinery without a package-local divergence comment because `ServiceProvider` already records that framework-wide omission at its owning boundary; merge package config; bind canonical `image` singleton by closure; publish `images.php` under `image-config` while running in console.
-- [ ] `src/image/src/ImageSource.php` — create the internal source holder exactly from the lifecycle design; use the existing `Locker`, terminal result/exception publication, resolver release, non-string validation, object-ID lifetime comment, and interruption guard.
-- [ ] `src/image/src/Transformations/Blur.php` — copy upstream; strict types/namespace; readonly `int $amount`.
-- [ ] `src/image/src/Transformations/Contain.php` — readonly `int $width`, `int $height`, `?string $background`.
-- [ ] `src/image/src/Transformations/Cover.php` — readonly positive width/height.
-- [ ] `src/image/src/Transformations/Crop.php` — readonly width/height/x/y.
-- [ ] `src/image/src/Transformations/FlipHorizontally.php` — marker transformation.
-- [ ] `src/image/src/Transformations/FlipVertically.php` — marker transformation.
-- [ ] `src/image/src/Transformations/Grayscale.php` — marker transformation.
-- [ ] `src/image/src/Transformations/Orient.php` — marker transformation.
-- [ ] `src/image/src/Transformations/Resize.php` — readonly nullable width/height.
-- [ ] `src/image/src/Transformations/Rotate.php` — readonly float angle and nullable background.
-- [ ] `src/image/src/Transformations/Scale.php` — readonly nullable width/height.
-- [ ] `src/image/src/Transformations/Sharpen.php` — readonly `int $amount`.
+- [x] `src/image/src/Drivers/GdDriver.php` — copy upstream; return `ImageManagerInterface` from `createManager()` and use Intervention's GD driver.
+- [x] `src/image/src/Drivers/ImagickDriver.php` — same for Imagick.
+- [x] `src/image/src/Drivers/InterventionDriver.php` — copy upstream; check requirements before manager creation; type the retained manager as `ImageManagerInterface`; use strict MIME membership; keep upstream's encoding-block `finally` and other decoded-image/sample cleanup; catch no programming errors; type handler lookup to `Transformation`; add the boot-only handler warning. Do not cache encoders/finfo/handler lookups or widen the encoding cleanup across the transformation loop, since local images are released naturally when the frame unwinds.
+- [x] `src/image/src/Image.php` — copy upstream; keep the public constructor signature exactly `Closure|string $contents, ?UploadedFile $file = null` and build the internal `ImageSource` inside it. Replace stored closure/string contents and `processed` with the holder, retained pipeline, processed/derived instance caches, `process()`, and `__clone()` as specified. Delete `newClone()` and clone directly in `using()`/`withClone()`. Use `UnitEnum|string|null` on all four storing APIs, strict format membership, native Hypervel `Responsable`, `Exception`-only wrapping/fallback, a direct early-return dimensions cache rather than an immediately invoked closure, and an end-of-class `flushState()` for macros. `(string)` remains a data URI; `ImageSource` never appears in a public signature or another package.
+- [x] `src/image/src/ImageException.php` — copy upstream; add strict types/namespace, retain `RuntimeException` inheritance.
+- [x] `src/image/src/ImageManager.php` — copy upstream; use explicit false/empty checks for streams/base64; share lazy holders through `Image`; accept `UnitEnum|string|null`; turn null storage reads into a path-specific `ImageException`; remove `enum_value()`; keep the `createDriver()` override's image-specific `InvalidArgumentException` rewrap and `applyTransformationHandlers()`, remove only its hidden `ensureRequirementsAreMet` hook, and narrow `parent::createDriver()` with an accurate local `@var Driver` rather than a runtime branch. Add the boot-only `transformUsing()` warning and use `$this->config->string('images.default')`: the provider-merged config is the sole `gd` default.
+- [x] `src/image/src/ImageOutputOptions.php` — copy upstream; type `public const int DEFAULT_QUALITY = 70`; preserve the documented format/quality shapes and `hasChanges()`.
+- [x] `src/image/src/ImagePipeline.php` — copy upstream; add strict types; retain output-only cloning and `hasChanges()`. Do not deep-clone transformations.
+- [x] `src/image/src/ImageServiceProvider.php` — copy upstream; remove deferred-provider machinery without a package-local divergence comment because `ServiceProvider` already records that framework-wide omission at its owning boundary; merge package config; bind canonical `image` singleton by closure; publish `images.php` under `image-config` while running in console.
+- [x] `src/image/src/ImageSource.php` — create the internal source holder exactly from the lifecycle design; use the existing `Locker`, terminal result/exception publication, resolver release, non-string validation, object-ID lifetime comment, and interruption guard.
+- [x] `src/image/src/Transformations/Blur.php` — copy upstream; strict types/namespace; readonly `int $amount`.
+- [x] `src/image/src/Transformations/Contain.php` — readonly `int $width`, `int $height`, `?string $background`.
+- [x] `src/image/src/Transformations/Cover.php` — readonly positive width/height.
+- [x] `src/image/src/Transformations/Crop.php` — readonly width/height/x/y.
+- [x] `src/image/src/Transformations/FlipHorizontally.php` — marker transformation.
+- [x] `src/image/src/Transformations/FlipVertically.php` — marker transformation.
+- [x] `src/image/src/Transformations/Grayscale.php` — marker transformation.
+- [x] `src/image/src/Transformations/Orient.php` — marker transformation.
+- [x] `src/image/src/Transformations/Resize.php` — readonly nullable width/height.
+- [x] `src/image/src/Transformations/Rotate.php` — readonly float angle and nullable background.
+- [x] `src/image/src/Transformations/Scale.php` — readonly nullable width/height.
+- [x] `src/image/src/Transformations/Sharpen.php` — readonly `int $amount`.
 
 Representative transformation shape:
 
@@ -415,21 +412,21 @@ After source is ported, grep all `src/` and `tests/` for `Illuminate\\Image`, `I
 
 ### 5. Framework integrations, one file at a time
 
-- [ ] `src/container/src/Container.php` — model the one inherited global slot as native `?self`; return `self` from `getInstance()` and accept/return `?self` from the tests-only `setInstance()`. Remove the impossible `null|static` property docblock and assignment suppression. Do not add a contract adapter, subclass guard, separate registry, or runtime rejection branch.
-- [ ] `src/filesystem/composer.json` — add a `hypervel/image` suggestion for image creation across adapters, scoped proxies, and pooled proxies.
-- [ ] `src/filesystem/src/Concerns/InteractsWithPooledFilesystem.php` — add a lazy `image()` implementation that reads through the proxy's public `get()` only at materialization; never return an image closure capturing a released borrowed adapter.
-- [ ] `src/filesystem/src/FilesystemAdapter.php` — copy upstream method into the same relative position; return lazy `Image`; convert a null `get()` result into `ImageException` naming the path.
-- [ ] `src/filesystem/src/ScopedFilesystemProxy.php` — explicitly map `image()` through the fail-closed tenant boundary by capturing one validated prefix and resolved disk, then lazily reading the resulting scoped path. Add the inline WHY comment from the design above, report only the unscoped caller path on failure, and do not route through `call()`/`__call()` or expose scoped internals. Preserve the existing explicit `allowRootPassthrough` opt-out.
-- [ ] `src/foundation/src/Application.php` — add canonical `'image' => [ImageManager::class]` alias alphabetically.
-- [ ] `src/http/composer.json` — add `hypervel/image` suggestion for request upload conversion.
-- [ ] `src/http/src/Concerns/InteractsWithInput.php` — copy upstream `image(string $key): ?Image` after `file()`; preserve uploaded file on the image.
-- [ ] `src/horizon/src/Events/LongWaitDetected.php` — restore upstream's `make(..., $parameters)` call while retaining Hypervel's renamed constructor keys. `makeWith()` is only an alias, and the old divergence is no longer needed now that `make()` accepts parameters.
-- [ ] `src/support/src/Facades/App.php` — regenerate only this facade after correcting the inherited container methods; its generated getter/setter signatures must match the concrete shared slot.
-- [ ] `src/support/src/Facades/Image.php` — copy upstream facade, strip its generated method inventory to the `@see ImageManager` source, use canonical `image` accessor, then generate its docblock with the targeted facade documenter.
-- [ ] `src/support/src/Facades/Request.php` — regenerate only this facade after adding the request method.
-- [ ] `src/support/src/Facades/Storage.php` — regenerate only this facade after adding the filesystem method.
-- [ ] `src/testing/src/PHPUnit/AfterEachTestSubscriber.php` — call a new optional `flushImageState()` between Horizon and Inertia; use `callIfExists(Image::class, 'flushState')` and no container resolution.
-- [ ] `src/validation/src/Concerns/ValidatesAttributes.php` — port AVIF/HEIC/HEIF support into `validateImage()` and make the touched `allow_svg` membership check strict. This rule remains usable without the Image package or Intervention and needs no new validation-package dependency.
+- [x] `src/container/src/Container.php` — model the one inherited global slot as native `?self`; return `self` from `getInstance()` and accept/return `?self` from the tests-only `setInstance()`. Remove the impossible `null|static` property docblock and assignment suppression. Do not add a contract adapter, subclass guard, separate registry, or runtime rejection branch.
+- [x] `src/filesystem/composer.json` — add a `hypervel/image` suggestion for image creation across adapters, scoped proxies, and pooled proxies.
+- [x] `src/filesystem/src/Concerns/InteractsWithPooledFilesystem.php` — add a lazy `image()` implementation that reads through the proxy's public `get()` only at materialization; never return an image closure capturing a released borrowed adapter.
+- [x] `src/filesystem/src/FilesystemAdapter.php` — copy upstream method into the same relative position; return lazy `Image`; convert a null `get()` result into `ImageException` naming the path.
+- [x] `src/filesystem/src/ScopedFilesystemProxy.php` — explicitly map `image()` through the fail-closed tenant boundary by capturing one validated prefix and resolved disk, then lazily reading the resulting scoped path. Add the inline WHY comment from the design above, report only the unscoped caller path on failure, and do not route through `call()`/`__call()` or expose scoped internals. Preserve the existing explicit `allowRootPassthrough` opt-out.
+- [x] `src/foundation/src/Application.php` — add canonical `'image' => [ImageManager::class]` alias alphabetically.
+- [x] `src/http/composer.json` — add `hypervel/image` suggestion for request upload conversion.
+- [x] `src/http/src/Concerns/InteractsWithInput.php` — copy upstream `image(string $key): ?Image` after `file()`; preserve uploaded file on the image.
+- [x] `src/horizon/src/Events/LongWaitDetected.php` — restore upstream's `make(..., $parameters)` call while retaining Hypervel's renamed constructor keys. `makeWith()` is only an alias, and the old divergence is no longer needed now that `make()` accepts parameters.
+- [x] `src/support/src/Facades/App.php` — regenerate only this facade after correcting the inherited container methods; its generated getter/setter signatures must match the concrete shared slot.
+- [x] `src/support/src/Facades/Image.php` — copy upstream facade, strip its generated method inventory to the `@see ImageManager` source, use canonical `image` accessor, then generate its docblock with the targeted facade documenter.
+- [x] `src/support/src/Facades/Request.php` — regenerate only this facade after adding the request method.
+- [x] `src/support/src/Facades/Storage.php` — regenerate only this facade after adding the filesystem method.
+- [x] `src/testing/src/PHPUnit/AfterEachTestSubscriber.php` — call a new optional `flushImageState()` between Horizon and Inertia; use `callIfExists(Image::class, 'flushState')` and no container resolution.
+- [x] `src/validation/src/Concerns/ValidatesAttributes.php` — port AVIF/HEIC/HEIF support into `validateImage()` and make the touched `allow_svg` membership check strict. This rule remains usable without the Image package or Intervention and needs no new validation-package dependency.
 
 Targeted facade generation must call the documenter directly, not the all-facades helper:
 
@@ -446,26 +443,26 @@ At review, use the full facade docblock test to detect drift; do not run the hel
 
 Every test class extends `Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`, declares strict types, gives test/lifecycle methods `: void`, and relies on inherited coroutine execution. When a test uses Mockery, import it as `m`. Use PHPUnit extension/function attributes for unavailable codec capabilities.
 
-- [ ] `tests/Container/ContainerTest.php` — add one focused shared-slot regression: install an `Application` through `Container::setInstance()` and assert both base and subclass getters return the identical object. Do not test PHP's native rejection of an unrelated contract.
-- [ ] `tests/Pool/HeartbeatConnectionTest.php` — change the helper's global mock from `ContainerContract` to concrete `Container`; `Pool` continues receiving it through the contract boundary. Run immediately.
-- [ ] `tests/Filesystem/ClientPooledFilesystemTest.php` — prove image creation acquires no client lease, first materialization performs one balanced borrow/read, repeated bytes reuse the source, and a missing path uses the shared caller-path error message. Run immediately.
-- [ ] `tests/Filesystem/FilesystemAdapterTest.php` — merge Laravel's adapter image test plus missing-path lazy failure coverage asserting the shared caller-path error message. Run this file immediately.
-- [ ] `tests/Filesystem/PackageMetadataTest.php` — create a focused split-manifest regression asserting the non-empty `hypervel/image` suggestion. Run immediately.
-- [ ] `tests/Filesystem/FilesystemPoolProxyTest.php` — prove the whole-driver proxy also defers its balanced lease/read until materialization and never leaves an adapter borrowed by the returned image. Run immediately.
-- [ ] `tests/Filesystem/ScopedFilesystemProxyTest.php` — prove `image()` captures one non-empty normalized tenant prefix and one resolved disk at creation, remains content-lazy, reads only the captured scoped path after context changes, and inherits through the cloud proxy. Assert an empty prefix fails at `image()` creation by default; explicit root passthrough reads the unscoped path. For a missing image, assert the shared message contains the caller path and excludes the tenant prefix. Run immediately.
-- [ ] `tests/Sentry/Features/StorageIntegrationTest.php` — classify `FilesystemAdapter::image()` as intentionally inherited by the Sentry decorator because its lazy closure calls the outer adapter's already-instrumented `get()` method. Do not add a redundant decorator override or a second span. Run immediately.
-- [ ] `tests/Http/HttpRequestTest.php` — port upstream `testImageMethod` and `testImageMethodReturnsNullForMissingKey` 1:1, preserving the uploaded-image and missing/non-file cases. Run immediately.
-- [ ] `tests/Http/PackageMetadataTest.php` — extend the existing package metadata owner to assert the non-empty `hypervel/image` suggestion while preserving its existing fake-image `ext-gd` assertion. Run immediately.
-- [ ] `tests/Image/CoroutineSafetyTest.php` — create focused public regressions:
+- [x] `tests/Container/ContainerTest.php` — add one focused shared-slot regression: install an `Application` through `Container::setInstance()` and assert both base and subclass getters return the identical object. Do not test PHP's native rejection of an unrelated contract.
+- [x] `tests/Pool/HeartbeatConnectionTest.php` — change the helper's global mock from `ContainerContract` to concrete `Container`; `Pool` continues receiving it through the contract boundary. Run immediately.
+- [x] `tests/Filesystem/ClientPooledFilesystemTest.php` — prove image creation acquires no client lease, first materialization performs one balanced borrow/read, repeated bytes reuse the source, and a missing path uses the shared caller-path error message. Run immediately.
+- [x] `tests/Filesystem/FilesystemAdapterTest.php` — merge Laravel's adapter image test plus missing-path lazy failure coverage asserting the shared caller-path error message. Run this file immediately.
+- [x] `tests/Filesystem/PackageMetadataTest.php` — create a focused split-manifest regression asserting the non-empty `hypervel/image` suggestion. Run immediately.
+- [x] `tests/Filesystem/FilesystemPoolProxyTest.php` — prove the whole-driver proxy also defers its balanced lease/read until materialization and never leaves an adapter borrowed by the returned image. Run immediately.
+- [x] `tests/Filesystem/ScopedFilesystemProxyTest.php` — prove `image()` captures one non-empty normalized tenant prefix and one resolved disk at creation, remains content-lazy, reads only the captured scoped path after context changes, and inherits through the cloud proxy. Assert an empty prefix fails at `image()` creation by default; explicit root passthrough reads the unscoped path. For a missing image, assert the shared message contains the caller path and excludes the tenant prefix. Run immediately.
+- [x] `tests/Sentry/Features/StorageIntegrationTest.php` — classify `FilesystemAdapter::image()` as intentionally inherited by the Sentry decorator because its lazy closure calls the outer adapter's already-instrumented `get()` method. Do not add a redundant decorator override or a second span. Run immediately.
+- [x] `tests/Http/HttpRequestTest.php` — port upstream `testImageMethod` and `testImageMethodReturnsNullForMissingKey` 1:1, preserving the uploaded-image and missing/non-file cases. Run immediately.
+- [x] `tests/Http/PackageMetadataTest.php` — extend the existing package metadata owner to assert the non-empty `hypervel/image` suggestion while preserving its existing fake-image `ext-gd` assertion. Run immediately.
+- [x] `tests/Image/CoroutineSafetyTest.php` — create focused public regressions:
   - two cloned images racing one yielding lazy resolver call it once and receive identical bytes;
   - both waiters receive the resolver's original terminal exception type/message and the resolver runs once;
   - separate images interleaving through one singleton stateless custom driver retain their own contents/pipelines;
   - do not lock or promise one processing call when the exact same `Image` object is concurrently materialized.
   Run immediately.
-- [ ] `tests/Image/Drivers/GdDriverTest.php` — copy upstream, use Hypervel base/imports/types, preserve GD/codec attributes, and cover every transformation, format, dimensions, alpha-free dominant color, custom immutable transformation, unsupported input, quality, and raw-output path. Run immediately.
-- [ ] `tests/Image/Drivers/ImagickDriverTest.php` — copy upstream, keep capability checks for AVIF/HEIC delegates, cover the same driver surface and HEIC display dimensions. Run immediately; it must run in CI after the setup action change.
-- [ ] `tests/Image/Drivers/InterventionDriverTest.php` — create a test-local subclass whose overridden `ensureRequirementsAreMet()` throws and whose `createManager()` records if it ran; assert manager construction never runs. Also prove handler mutation is boot-scoped behavior. Use only the existing protected extension point and add no production seam solely for testing. Run immediately.
-- [ ] `tests/Image/ImageManagerTest.php` — copy upstream and add/correct:
+- [x] `tests/Image/Drivers/GdDriverTest.php` — copy upstream, use Hypervel base/imports/types, preserve GD/codec attributes, and cover every transformation, format, dimensions, alpha-free dominant color, custom immutable transformation, unsupported input, quality, and raw-output path. Run immediately.
+- [x] `tests/Image/Drivers/ImagickDriverTest.php` — copy upstream, keep capability checks for AVIF/HEIC delegates, cover the same driver surface and HEIC display dimensions. Run immediately; it must run in CI after the setup action change.
+- [x] `tests/Image/Drivers/InterventionDriverTest.php` — create a test-local subclass whose overridden `ensureRequirementsAreMet()` throws and whose `createManager()` records if it ran; assert manager construction never runs. Also prove handler mutation is boot-scoped behavior. Use only the existing protected extension point and add no production seam solely for testing. Run immediately.
+- [x] `tests/Image/ImageManagerTest.php` — copy upstream and add/correct:
   - replace upstream's standalone empty-repository `gd` fallback test with a manager test that reads configured `images.default`; the provider test below owns the merged `gd` default so no duplicate manager fallback is reinstated;
   - backed and unit enum disks;
   - stream/base64 false, empty, and string `'0'` strict behavior;
@@ -476,8 +473,8 @@ Every test class extends `Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCa
   - direct public-API processing installs a concrete `Container`, never an unrelated contract in the global slot;
   - driver caches and transformation handler application remain worker-lifetime.
   Run immediately.
-- [ ] `tests/Image/ImageServiceProviderTest.php` — create Testbench coverage, register `ImageServiceProvider` through `getPackageProviders()`, and verify the merged `gd` default, publishable config, canonical alias, and one worker-lifetime manager/driver instance across resolutions. Add no deferred-provider note: the framework owner already records the omission, Laravel has no matching provider test, and no upstream test is skipped. Run immediately.
-- [ ] `tests/Image/ImageTest.php` — copy upstream and preserve its public API breadth, then correct/add:
+- [x] `tests/Image/ImageServiceProviderTest.php` — create Testbench coverage, register `ImageServiceProvider` through `getPackageProviders()`, and verify the merged `gd` default, publishable config, canonical alias, and one worker-lifetime manager/driver instance across resolutions. Add no deferred-provider note: the framework owner already records the omission, Laravel has no matching provider test, and no upstream test is skipped. Run immediately.
+- [x] `tests/Image/ImageTest.php` — copy upstream and preserve its public API breadth, then correct/add:
   - direct `toFormat()` for every supported spelling and HEIF normalization;
   - strict format rejection and every clamp boundary;
   - one resolver call for repeated raw `toBytes()`;
@@ -492,9 +489,9 @@ Every test class extends `Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCa
   - `flushState()` removes macros;
   - native Responsable signature/data URI string behavior.
   Replace the reflected `processed`-flag test with the retained-recipe behavioral test. Run immediately.
-- [ ] `tests/Integration/Image/ImageTest.php` — copy upstream into Hypervel Integration, register `ImageServiceProvider` through Testbench's `getPackageProviders()` hook, and correct PNG coverage to call/assert PNG. Keep Laravel's Integration path because mirroring it avoids collision with the distinct unit `tests/Image/ImageTest.php`; it needs no external-service workflow, and `phpunit.xml.dist` already includes this directory. Preserve real GD end-to-end transformation, storage, request, facade, branching, idempotence, format, quality, hash, public visibility, and no-argument overload tests. Add a real materialize/append test proving the final output is encoded once from the full recipe. Run immediately.
-- [ ] `tests/Testing/PHPUnit/AfterEachTestSubscriberTest.php` — add `Image` to the framework macro cleanup regression so the optional grouped path is exercised. Run immediately.
-- [ ] `tests/Validation/ValidationValidatorTest.php` — extend the existing `testValidateImage(): void` matrix with AVIF, HEIC, and HEIF uploaded-file extensions while preserving the SVG opt-in cases. Run immediately.
+- [x] `tests/Integration/Image/ImageTest.php` — copy upstream into Hypervel Integration, register `ImageServiceProvider` through Testbench's `getPackageProviders()` hook, and correct PNG coverage to call/assert PNG. Keep Laravel's Integration path because mirroring it avoids collision with the distinct unit `tests/Image/ImageTest.php`; it needs no external-service workflow, and `phpunit.xml.dist` already includes this directory. Preserve real GD end-to-end transformation, storage, request, facade, branching, idempotence, format, quality, hash, public visibility, and no-argument overload tests. Add a real materialize/append test proving the final output is encoded once from the full recipe. Run immediately.
+- [x] `tests/Testing/PHPUnit/AfterEachTestSubscriberTest.php` — add `Image` to the framework macro cleanup regression so the optional grouped path is exercised. Run immediately.
+- [x] `tests/Validation/ValidationValidatorTest.php` — extend the existing `testValidateImage(): void` matrix with AVIF, HEIC, and HEIF uploaded-file extensions while preserving the SVG opt-in cases. Run immediately.
 
 Then run the cross-cutting metadata and facade owners:
 
@@ -505,9 +502,9 @@ Then run the cross-cutting metadata and facade owners:
 
 ### 7. User documentation
 
-- [ ] `src/docs/documentation.md` — add Images between HTTP Client and JSON Schema in Digging Deeper.
-- [ ] `src/docs/filesystem.md` — merge Laravel's `Storage::disk(...)->image(...)` integration at the natural file-retrieval surface and link to the Images page; make the general scoped-resolver section point out that `image()` resolves and captures the disk/prefix at image creation, then explain that boundary at the image surface together with fail-closed empty prefixes and the existing explicit root-passthrough opt-out.
-- [ ] `src/docs/images.md` — first run `cp ../../../examples/laravel/docs/images.md src/docs/images.md` from this worktree, then read the complete copied destination before editing it in place. Do not draft a replacement document from scratch. Convert namespaces/links/prose to Hypervel and include:
+- [x] `src/docs/documentation.md` — add Images between HTTP Client and JSON Schema in Digging Deeper.
+- [x] `src/docs/filesystem.md` — merge Laravel's `Storage::disk(...)->image(...)` integration at the natural file-retrieval surface and link to the Images page; make the general scoped-resolver section point out that `image()` resolves and captures the disk/prefix at image creation, then explain that boundary at the image surface together with fail-closed empty prefixes and the existing explicit root-passthrough opt-out.
+- [x] `src/docs/images.md` — first run `cp ../../../examples/laravel/docs/images.md src/docs/images.md` from this worktree, then read the complete copied destination before editing it in place. Do not draft a replacement document from scratch. Convert namespaces/links/prose to Hypervel and include:
   - install `hypervel/image`; Intervention plus GD/Imagick only for bundled drivers;
   - config publishing with the exact `php artisan vendor:publish --tag=image-config` command used by the provider;
   - uploaded, storage, bytes, base64, local path, URL, and stream sources; streams remain caller-owned/open until first materialization;
@@ -521,8 +518,8 @@ Then run the cross-cutting metadata and facade owners:
   - no image-specific tenancy API: use tenant-scoped filesystem disks/paths, and make tenant-varying custom backends resolve context inside each operation rather than cached-driver construction;
   - immutable custom transformation requirement and readonly example;
   - prominent queue recommendation for large images because retained source plus outputs and codec work consume request memory/CPU.
-- [ ] `src/docs/requests.md` — merge Laravel's uploaded-file `$request->image(...)` integration at the uploaded-files surface and link to the Images page.
-- [ ] `src/docs/validation.md` — correct both the `image` rule and fluent `File::image()` prose to list AVIF, HEIC, and HEIF alongside the existing formats; preserve the SVG security/opt-in guidance.
+- [x] `src/docs/requests.md` — merge Laravel's uploaded-file `$request->image(...)` integration at the uploaded-files surface and link to the Images page.
+- [x] `src/docs/validation.md` — correct both the `image` rule and fluent `File::image()` prose to list AVIF, HEIC, and HEIF alongside the existing formats; preserve the SVG security/opt-in guidance.
 
 Complete custom driver skeleton:
 
@@ -558,7 +555,7 @@ Do not describe correctness fixes or internal caches as Laravel differences. The
 
 The public `hypervel/framework` meta-package must install the new core image component after the split package is available. Perform this companion change in its own clean worktree and a feature branch based on `0.4`, then validate its manifest:
 
-- [ ] `contrib/hypervel/framework/composer.json` — add `hypervel/image:^0.4`; expand the existing `ext-gd` suggestion to cover the GD image driver; add `ext-imagick` and `intervention/image:^4.0` suggestions. The split package's conflict enforces the supported Intervention major.
+- [x] `contrib/hypervel/framework/composer.json` — add `hypervel/image:^0.4`; expand the existing `ext-gd` suggestion to cover the GD image driver; add `ext-imagick` and `intervention/image:^4.0` suggestions. The split package's conflict enforces the supported Intervention major.
 
 Do not add `config/images.php` to the application skeleton: the discovered package merges its default and publishes an override on demand.
 
