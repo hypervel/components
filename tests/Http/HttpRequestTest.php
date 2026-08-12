@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Carbon\Unit;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
 use Hypervel\Routing\Route;
 use Hypervel\Session\Store;
 use Hypervel\Support\CarbonImmutable as Carbon;
@@ -1291,6 +1292,27 @@ class HttpRequestTest extends TestCase
         ];
         $request = Request::create('/', 'GET', [], [], $files);
         $this->assertInstanceOf(SymfonyUploadedFile::class, $request->file('foo'));
+    }
+
+    public function testImageMethod(): void
+    {
+        $files = [
+            'avatar' => [
+                'size' => 500,
+                'name' => 'avatar.jpg',
+                'tmp_name' => __FILE__,
+                'type' => 'image/jpeg',
+                'error' => null,
+            ],
+        ];
+        $request = Request::create('/', 'GET', [], [], $files);
+        $this->assertInstanceOf(Image::class, $request->image('avatar'));
+    }
+
+    public function testImageMethodReturnsNullForMissingKey(): void
+    {
+        $request = Request::create('/', 'GET', [], [], []);
+        $this->assertNull($request->image('avatar'));
     }
 
     public function testHasFileMethod(): void

@@ -10,11 +10,11 @@ use JsonException;
 class PackageMetadataTest extends TestCase
 {
     /**
-     * Ensure HTTP extension dependencies are declared consistently.
+     * Ensure HTTP runtime and optional dependencies are declared consistently.
      *
      * @throws JsonException
      */
-    public function testExtensionDependenciesAreDeclared(): void
+    public function testRuntimeAndOptionalDependenciesAreDeclared(): void
     {
         $composer = json_decode(
             file_get_contents(__DIR__ . '/../../src/http/composer.json'),
@@ -40,5 +40,8 @@ class PackageMetadataTest extends TestCase
             'Required to use Hypervel\Http\Testing\FileFactory::image().',
             $composer['suggest']['ext-gd']
         );
+        $this->assertArrayHasKey('hypervel/image', $composer['suggest']);
+        $this->assertIsString($composer['suggest']['hypervel/image']);
+        $this->assertNotSame('', trim($composer['suggest']['hypervel/image']));
     }
 }
