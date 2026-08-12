@@ -21,14 +21,25 @@ class CliDumper extends BaseCliDumper
     protected const string DUMPING_CONTEXT_KEY = '__foundation.cli_dumper.dumping';
 
     /**
+     * The console output instance.
+     *
+     * This remains separate from the constructor parameter because Symfony's
+     * inherited `$output` PHPDoc describes a dump destination and PHPStan
+     * applies it to a promoted property with the same name.
+     */
+    protected OutputInterface $output;
+
+    /**
      * Create a new CLI dumper instance.
      */
     public function __construct(
-        protected OutputInterface $output,
+        OutputInterface $output,
         protected string $basePath,
         protected string $compiledViewPath,
     ) {
         parent::__construct();
+
+        $this->output = $output;
 
         $this->setColors($this->supportsColors());
     }
