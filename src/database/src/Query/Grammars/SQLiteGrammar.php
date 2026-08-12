@@ -198,22 +198,6 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
-     * Compile a group limit clause.
-     */
-    protected function compileGroupLimit(Builder $query): string
-    {
-        $version = $query->getConnection()->getServerVersion();
-
-        if (version_compare($version, '3.25.0', '>=')) {
-            return parent::compileGroupLimit($query);
-        }
-
-        $query->groupLimit = null;
-
-        return $this->compileSelect($query);
-    }
-
-    /**
      * Compile an update statement into SQL.
      */
     public function compileUpdate(Builder $query, array $values): string
@@ -327,7 +311,7 @@ class SQLiteGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
 
         return "update {$table} set {$columns} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -376,7 +360,7 @@ class SQLiteGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
 
         return "delete from {$table} where {$this->wrap('rowid')} in ({$selectSql})";
     }

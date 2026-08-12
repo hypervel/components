@@ -324,13 +324,20 @@ $users = $query->addSelect('age')->get();
 <a name="query-timeouts"></a>
 #### Query Timeouts
 
-When using MariaDB or MySQL, the `timeout` method may be used to limit a select query's execution time in seconds:
+When using MariaDB or MySQL, the `timeout` method may be used to limit a complete select statement's execution time in seconds. Apply the timeout to the outer query after composing any subqueries or unions:
 
 ```php
+$activeMemberships = DB::table('memberships')
+    ->select('user_id')
+    ->where('active', true);
+
 $users = DB::table('users')
+    ->whereIn('id', $activeMemberships)
     ->timeout(2)
     ->get();
 ```
+
+Embedded queries cannot define independent timeouts, and a timed query cannot be passed to the `explain` method. The timeout applies only to select statements; it does not limit insert, update, or delete statements, nor does it provide a transaction-wide lock wait timeout.
 
 <a name="index-hints"></a>
 #### Index Hints
