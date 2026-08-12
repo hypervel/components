@@ -9,7 +9,7 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RequiresAnyTagModeRedis;
+use Hypervel\Foundation\Testing\Concerns\RequiresHashFieldExpiration;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
@@ -30,7 +30,7 @@ use Redis as PhpRedis;
 abstract class RedisCacheIntegrationTestCase extends TestCase
 {
     use InteractsWithRedis;
-    use RequiresAnyTagModeRedis;
+    use RequiresHashFieldExpiration;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -78,7 +78,7 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
         $mode = $mode instanceof TagMode ? $mode : TagMode::from($mode);
 
         if ($mode === TagMode::Any) {
-            $this->skipIfAnyTagModeUnsupported();
+            $this->skipIfHashFieldExpirationUnsupported();
         }
 
         $this->store()->setTagMode($mode);
@@ -259,26 +259,6 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
         return $this->getTagMode()->isAnyMode()
             ? $this->anyModeTagHasEntry($tagName, $cacheKey)
             : $this->allModeTagHasEntry($tagName, $cacheKey);
-    }
-
-    /**
-     * Run a test callback for both tag modes.
-     *
-     * This is useful for tests that should verify behavior in both modes.
-     * The callback receives the current TagMode being tested.
-     *
-     * @param callable(TagMode): void $callback
-     */
-    protected function forBothModes(callable $callback): void
-    {
-        foreach ([TagMode::All, TagMode::Any] as $mode) {
-            $this->setTagMode($mode);
-
-            // Flush to clean state between modes
-            Redis::flushByPattern('*');
-
-            $callback($mode);
-        }
     }
 
     /**
