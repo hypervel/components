@@ -648,6 +648,20 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isShared(ContainerConcreteStub::class));
     }
 
+    public function testForgetInstanceResolvesAliasBeforeForgettingCachedInstance(): void
+    {
+        $container = new Container;
+        $container->singleton(ContainerConcreteStub::class);
+        $container->alias(ContainerConcreteStub::class, 'container.stub');
+
+        $first = $container->make('container.stub');
+        $container->forgetInstance('container.stub');
+        $second = $container->make('container.stub');
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($second, $container->make(ContainerConcreteStub::class));
+    }
+
     public function testForgetInstanceForgetsScopedInstance()
     {
         $container = new Container;
