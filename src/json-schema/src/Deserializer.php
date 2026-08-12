@@ -14,7 +14,7 @@ class Deserializer
      *
      * @var array<int, string>
      */
-    protected const TYPE_SPECIFIC_KEYWORDS = [
+    protected const array TYPE_SPECIFIC_KEYWORDS = [
         'minLength', 'maxLength', 'pattern', 'format',
         'minimum', 'maximum', 'multipleOf',
         'items', 'minItems', 'maxItems', 'uniqueItems',
@@ -26,7 +26,7 @@ class Deserializer
      *
      * @var array<int, string>
      */
-    protected const UNSUPPORTED_ASSERTION_KEYWORDS = [
+    protected const array UNSUPPORTED_ASSERTION_KEYWORDS = [
         'const', 'not', 'allOf', 'if', 'dependentSchemas', 'dependentRequired',
         'prefixItems', 'contains', 'patternProperties', 'propertyNames',
         'unevaluatedItems', 'unevaluatedProperties',
@@ -37,12 +37,12 @@ class Deserializer
     /**
      * The maximum number of schema fragments that may be expanded.
      */
-    protected const MAX_NODES = 20000;
+    protected const int MAX_NODES = 20000;
 
     /**
      * The maximum number of distinct references on one active path.
      */
-    protected const MAX_REFERENCE_DEPTH = 256;
+    protected const int MAX_REFERENCE_DEPTH = 256;
 
     /**
      * The number of schema fragments expanded so far.

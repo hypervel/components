@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
 use Hypervel\Tests\TestCase;
@@ -912,6 +913,18 @@ class SupportStrTest extends TestCase
         $this->assertFalse(Str::isJson(''));
         $this->assertFalse(Str::isJson(null));
         $this->assertFalse(Str::isJson([]));
+
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->assertTrue(Str::isJson(Json::encode($value)));
+
+        $value = ['value' => $value];
+
+        $this->assertFalse(Str::isJson(json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1)));
     }
 
     public function testIsMatch(): void

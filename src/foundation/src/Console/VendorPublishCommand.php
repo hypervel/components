@@ -29,7 +29,7 @@ class VendorPublishCommand extends Command
     /**
      * The migration filename pattern.
      */
-    protected const MIGRATION_NAME_PATTERN = '/^\d{4}_\d{2}_\d{2}_\d{6}_(.+)$/';
+    protected const string MIGRATION_NAME_PATTERN = '/^\d{4}_\d{2}_\d{2}_\d{6}_(.+)$/';
 
     /**
      * The console command signature.

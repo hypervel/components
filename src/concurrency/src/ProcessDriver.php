@@ -14,8 +14,6 @@ use Hypervel\Process\Pool;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Defer\DeferredCallback;
 use Laravel\SerializableClosure\SerializableClosure;
-use RuntimeException;
-use Throwable;
 
 use function Hypervel\Support\defer;
 
@@ -55,69 +53,7 @@ class ProcessDriver implements Driver
                 throw new Exception('Concurrent process failed with exit code [' . $result->exitCode() . ']. Message: ' . $result->errorOutput());
             }
 
-            $output = $result->output();
-
-            if (($position = strpos($output, "\x1f\x8b")) !== false) {
-                $output = substr($output, 0, $position);
-            }
-
-            $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
-
-            if (! is_array($payload)
-                || ! array_key_exists('successful', $payload)
-                || ! is_bool($payload['successful'])) {
-                throw new RuntimeException('Invalid concurrent process response envelope.');
-            }
-
-            /** @var array{
-             *     successful: bool,
-             *     result?: string,
-             *     exception?: class-string<Throwable>,
-             *     message?: string,
-             *     parameters?: array<string, mixed>
-             * } $payload
-             */
-            if ($payload['successful'] === false) {
-                if ((array_key_exists('exception', $payload) && ! is_string($payload['exception']))
-                    || (array_key_exists('message', $payload) && ! is_string($payload['message']))
-                    || (array_key_exists('parameters', $payload) && ! is_array($payload['parameters']))) {
-                    throw new RuntimeException('Invalid concurrent process response envelope.');
-                }
-
-                $exceptionClass = $payload['exception'] ?? RuntimeException::class;
-                $message = $payload['message'] ?? 'Serialized closure execution failed.';
-                $parameters = $payload['parameters'] ?? ['message' => $message];
-
-                try {
-                    $exception = new $exceptionClass(...$parameters);
-                } catch (Throwable $constructionException) {
-                    throw new RuntimeException($message, previous: $constructionException);
-                }
-
-                if (! $exception instanceof Throwable) {
-                    throw new RuntimeException($message);
-                }
-
-                throw $exception;
-            }
-
-            $encodedResult = $payload['result'] ?? null;
-            $serializedResult = is_string($encodedResult)
-                ? base64_decode($encodedResult, true)
-                : false;
-
-            if ($serializedResult === false) {
-                throw new RuntimeException('Unable to decode the concurrent process result.');
-            }
-
-            // Malformed payloads warn and return false, which is also a valid serialized result.
-            $unserializedResult = @unserialize($serializedResult);
-
-            if ($unserializedResult === false && $serializedResult !== serialize(false)) {
-                throw new RuntimeException('Unable to decode the concurrent process result.');
-            }
-
-            return [$key => $unserializedResult];
+            return [$key => SerializedClosureResult::decode($result->output())];
         })->all();
     }
 

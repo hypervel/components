@@ -17,12 +17,12 @@ class Number
     /**
      * Context key for the per-request locale override.
      */
-    public const LOCALE_CONTEXT_KEY = '__support.number.locale';
+    public const string LOCALE_CONTEXT_KEY = '__support.number.locale';
 
     /**
      * Context key for the per-request currency override.
      */
-    public const CURRENCY_CONTEXT_KEY = '__support.number.currency';
+    public const string CURRENCY_CONTEXT_KEY = '__support.number.currency';
 
     /**
      * The current default locale.

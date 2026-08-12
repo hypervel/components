@@ -121,12 +121,12 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     /**
      * The default pagination view name.
      */
-    protected const DEFAULT_VIEW = 'pagination::tailwind';
+    protected const string DEFAULT_VIEW = 'pagination::tailwind';
 
     /**
      * The default simple pagination view name.
      */
-    protected const DEFAULT_SIMPLE_VIEW = 'pagination::simple-tailwind';
+    protected const string DEFAULT_SIMPLE_VIEW = 'pagination::simple-tailwind';
 
     /**
      * The default pagination view.

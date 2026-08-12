@@ -16,7 +16,7 @@ use Hypervel\Redis\RedisConnection;
  */
 class PutMany
 {
-    private const CHUNK_SIZE = 1000;
+    private const int CHUNK_SIZE = 1000;
 
     /**
      * Create a new put many with tags operation instance.

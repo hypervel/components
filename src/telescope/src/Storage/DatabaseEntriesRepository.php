@@ -10,6 +10,7 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Json;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
@@ -18,6 +19,7 @@ use Hypervel\Telescope\EntryResult;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\EntryUpdate;
 use Hypervel\Telescope\IncomingEntry;
+use JsonException;
 use Throwable;
 
 class DatabaseEntriesRepository implements EntriesRepository, ClearableRepository, PrunableRepository, TerminableRepository
@@ -25,7 +27,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * Context key for the per-request monitored tags cache.
      */
-    protected const MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
+    protected const string MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
 
     /**
      * The database connection name that should be used.
@@ -126,13 +128,44 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
 
         $entries->chunk($this->chunkSize)->each(function ($chunked) use ($table) {
             $table->insert($chunked->map(function ($entry) {
-                $entry->content = json_encode($entry->content, JSON_INVALID_UTF8_SUBSTITUTE);
+                /** @var array $content */
+                $content = $entry->content;
+                $entry->content = $this->encodeContent($content);
 
                 return $entry->toArray();
             })->toArray());
         });
 
         $this->storeTags($entries->pluck('tags', 'uuid'));
+    }
+
+    /**
+     * Encode entry content for storage.
+     */
+    protected function encodeContent(array $content): string
+    {
+        try {
+            return Json::encode($content, JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (JsonException $exception) {
+            if ($exception->getCode() !== JSON_ERROR_DEPTH) {
+                throw $exception;
+            }
+        }
+
+        // A one-key wrapper has the same root depth as the field in the full content array.
+        foreach ($content as $key => $value) {
+            try {
+                Json::encode([$key => $value], JSON_INVALID_UTF8_SUBSTITUTE);
+            } catch (JsonException $exception) {
+                if ($exception->getCode() !== JSON_ERROR_DEPTH) {
+                    throw $exception;
+                }
+
+                $content[$key] = 'Purged By Telescope';
+            }
+        }
+
+        return Json::encode($content, JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -144,31 +177,41 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
             $occurrences = [];
             $lastUuids = [];
 
-            $chunked->groupBy(fn ($exception) => $exception->familyHash())
+            $families = $chunked->groupBy(fn ($exception) => $exception->familyHash())
+                ->sortKeys();
+
+            $families
                 ->each(function ($family, $familyHash) use (&$occurrences, &$lastUuids): void {
                     $occurrences[$familyHash] = $this->countExceptionOccurences($family->first());
                     $lastUuids[$familyHash] = $family->last()->uuid;
-
-                    $this->table('telescope_entries')
-                        ->where('type', EntryType::EXCEPTION)
-                        ->where('family_hash', $familyHash)
-                        ->where('should_display_on_index', true)
-                        ->update(['should_display_on_index' => false]);
                 });
 
-            $this->table('telescope_entries')->insert($chunked->map(function ($exception) use (&$occurrences, $lastUuids) {
+            $rows = $chunked->map(function ($exception) use (&$occurrences, $lastUuids) {
                 $familyHash = $exception->familyHash();
                 ++$occurrences[$familyHash];
 
                 return array_merge($exception->toArray(), [
                     'family_hash' => $familyHash,
                     'should_display_on_index' => $exception->uuid === $lastUuids[$familyHash],
-                    'content' => json_encode(
-                        array_merge($exception->content, ['occurrences' => $occurrences[$familyHash]]),
-                        JSON_INVALID_UTF8_SUBSTITUTE
+                    'content' => $this->encodeContent(
+                        array_merge($exception->content, ['occurrences' => $occurrences[$familyHash]])
                     ),
                 ]);
-            })->toArray());
+            })->toArray();
+
+            $connection = DB::connection($this->connection);
+
+            $connection->transaction(function () use ($connection, $families, $rows): void {
+                $families->each(function ($family, $familyHash) use ($connection): void {
+                    $connection->table('telescope_entries')
+                        ->where('type', EntryType::EXCEPTION)
+                        ->where('family_hash', $familyHash)
+                        ->where('should_display_on_index', true)
+                        ->update(['should_display_on_index' => false]);
+                });
+
+                $connection->table('telescope_entries')->insert($rows);
+            });
         });
 
         $this->storeTags($exceptions->pluck('tags', 'uuid'));
@@ -231,9 +274,8 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
                 continue;
             }
 
-            $content = json_encode(
-                array_merge(json_decode($entry->content, true) ?: [], $update->changes),
-                JSON_INVALID_UTF8_SUBSTITUTE,
+            $content = $this->encodeContent(
+                array_merge(Json::decode($entry->content), $update->changes)
             );
 
             $this->table('telescope_entries')

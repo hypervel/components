@@ -11,7 +11,7 @@ class RequestException extends HttpClientException
     /**
      * The default truncation length for exception messages.
      */
-    public const DEFAULT_TRUNCATE_AT = 120;
+    public const int DEFAULT_TRUNCATE_AT = 120;
 
     /**
      * The current truncation length for the exception message.

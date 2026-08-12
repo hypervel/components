@@ -6,9 +6,9 @@ namespace Hypervel\Contracts\Engine\WebSocket;
 
 interface WebSocketInterface
 {
-    public const ON_MESSAGE = 'message';
+    public const string ON_MESSAGE = 'message';
 
-    public const ON_CLOSE = 'close';
+    public const string ON_CLOSE = 'close';
 
     /**
      * Register an event callback.

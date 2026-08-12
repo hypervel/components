@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Database\Eloquent\Casts\ArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
@@ -373,6 +374,49 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         $this->assertSame(
             '{"key1":"value1","key2":"value2"}',
             $encrypter->decryptString($updatedState['stored'])
+        );
+    }
+
+    public function testValidAssignmentCanReplaceDecryptableMalformedJson(): void
+    {
+        $encrypter = new RealEncrypter(str_repeat('a', 16));
+        Crypt::swap($encrypter);
+        Model::encryptUsing($encrypter);
+
+        $original = $encrypter->encrypt('{invalid', false);
+        $id = EncryptedCast::query()->insertGetId(['secret_json' => $original]);
+        $subject = EncryptedCast::query()->findOrFail($id);
+
+        $subject->secret_json = ['valid' => true];
+
+        $this->assertTrue($subject->isDirty('secret_json'));
+        $this->assertTrue($subject->save());
+        $this->assertSame(['valid' => true], $subject->fresh()->secret_json);
+        $this->assertNotSame(
+            $original,
+            EncryptedCast::query()->whereKey($id)->toBase()->value('secret_json'),
+        );
+    }
+
+    public function testUndecryptableOriginalCannotBeOverwrittenThroughDirtyChecking(): void
+    {
+        $encrypter = new RealEncrypter(str_repeat('a', 16));
+        $wrongEncrypter = new RealEncrypter(str_repeat('b', 16));
+        Crypt::swap($encrypter);
+        Model::encryptUsing($encrypter);
+
+        $original = $wrongEncrypter->encrypt('{"recoverable":true}', false);
+        $id = EncryptedCast::query()->insertGetId(['secret_json' => $original]);
+        $subject = EncryptedCast::query()->findOrFail($id);
+        $subject->secret_json = ['replacement' => true];
+
+        $this->assertThrows(
+            fn () => $subject->isDirty('secret_json'),
+            DecryptException::class,
+        );
+        $this->assertSame(
+            $original,
+            EncryptedCast::query()->whereKey($id)->toBase()->value('secret_json'),
         );
     }
 

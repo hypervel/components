@@ -19,7 +19,7 @@ abstract class IntegrationTestCase extends TestCase
 {
     use InteractsWithRedis;
 
-    public const HORIZON_PREFIX = 'hypervel_test_horizon:';
+    public const string HORIZON_PREFIX = 'hypervel_test_horizon:';
 
     protected array $originalQueueConfig = [];
 

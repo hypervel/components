@@ -460,7 +460,7 @@ class PostgresGrammar extends Grammar
         // strip the leading boolean we will do so when using as the only where.
         $joinWheres = $this->compileUpdateJoinWheres($query);
 
-        if (trim($baseWheres) == '') {
+        if (trim($baseWheres) === '') {
             return 'where ' . $this->removeLeadingBoolean($joinWheres);
         }
 
@@ -496,7 +496,7 @@ class PostgresGrammar extends Grammar
         $values = (new Collection($values))
             ->map(function ($value, $column) {
                 return is_array($value) || ($this->isJsonSelector($column) && ! $this->isExpression($value))
-                    ? json_encode($value)
+                    ? json_encode($value, JSON_THROW_ON_ERROR)
                     : $value;
             })
             ->all();
@@ -532,7 +532,7 @@ class PostgresGrammar extends Grammar
     {
         $values = (new Collection($values))->map(function ($value, $column) {
             return is_array($value) || ($this->isJsonSelector($column) && ! $this->isExpression($value))
-                ? json_encode($value)
+                ? json_encode($value, JSON_THROW_ON_ERROR)
                 : $value;
         })->all();
 

@@ -6,8 +6,11 @@ namespace Hypervel\Tests\Foundation;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use RuntimeException;
+use UnexpectedValueException;
 
 class FoundationPackageManifestTest extends TestCase
 {
@@ -15,32 +18,26 @@ class FoundationPackageManifestTest extends TestCase
 
     private string $manifestPath;
 
-    /**
-     * Temporary directories created by this test.
-     *
-     * @var array<int, string>
-     */
-    private array $tempDirectories = [];
+    private Filesystem $filesystem;
+
+    private string $tempDirectory;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->filesystem = new Filesystem;
         $this->basePath = __DIR__ . '/Fixtures';
-        $this->manifestPath = sys_get_temp_dir() . '/hypervel_test_packages_' . getmypid() . '.php';
+        $this->tempDirectory = ParallelTesting::tempDir('FoundationPackageManifestTest');
+        $this->manifestPath = $this->tempDirectory . '/packages.php';
 
-        @unlink($this->manifestPath);
+        $this->filesystem->deleteDirectory($this->tempDirectory);
+        $this->filesystem->ensureDirectoryExists($this->tempDirectory);
     }
 
     protected function tearDown(): void
     {
-        @unlink($this->manifestPath);
-
-        $filesystem = new Filesystem;
-
-        foreach ($this->tempDirectories as $directory) {
-            $filesystem->deleteDirectory($directory);
-        }
+        $this->filesystem->deleteDirectory($this->tempDirectory);
 
         PackageManifest::flushState();
 
@@ -49,18 +46,15 @@ class FoundationPackageManifestTest extends TestCase
 
     private function makeManifest(): PackageManifest
     {
-        return new PackageManifest(new Filesystem, $this->basePath, $this->manifestPath);
+        return new PackageManifest($this->filesystem, $this->basePath, $this->manifestPath);
     }
 
     private function makeTempComposerRoot(string $name): string
     {
-        $path = sys_get_temp_dir() . '/hypervel_package_manifest_' . getmypid() . '_' . $name;
-        $filesystem = new Filesystem;
+        $path = $this->tempDirectory . '/' . $name;
 
-        $filesystem->deleteDirectory($path);
-        $filesystem->ensureDirectoryExists($path . '/vendor/composer');
-
-        $this->tempDirectories[] = $path;
+        $this->filesystem->deleteDirectory($path);
+        $this->filesystem->ensureDirectoryExists($path . '/vendor/composer');
 
         return $path;
     }
@@ -192,93 +186,318 @@ class FoundationPackageManifestTest extends TestCase
         );
     }
 
-    public function testDiscoverInstalledPackagesReturnsEmptyArrayForMalformedInstalledJson(): void
+    public function testDiscoverInstalledPackagesFailsForMalformedInstalledJson(): void
     {
-        $filesystem = new Filesystem;
         $basePath = $this->makeTempComposerRoot('malformed-installed-json');
-        $filesystem->put($basePath . '/vendor/composer/installed.json', '{');
+        $this->filesystem->put($basePath . '/vendor/composer/installed.json', '{');
+
+        $this->expectException(JsonException::class);
+        $this->expectExceptionMessage('Syntax error');
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
+    }
+
+    public function testRootWildcardSkipsMalformedInstalledJsonBeforeParsing(): void
+    {
+        $basePath = $this->makeTempComposerRoot('wildcard-malformed-installed-json');
+        $this->filesystem->put($basePath . '/composer.json', json_encode([
+            'extra' => [
+                'hypervel' => [
+                    'dont-discover' => ['*'],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+        $this->filesystem->put($basePath . '/vendor/composer/installed.json', '{');
+
+        $ignore = PackageManifest::packagesToIgnoreFromComposer($this->filesystem, $basePath);
 
         $this->assertSame(
             [],
-            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+            PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', $ignore)
         );
     }
 
-    public function testDiscoverInstalledPackagesReturnsEmptyArrayForMalformedPackagesShape(): void
+    public function testDiscoverInstalledPackagesFailsForNonArrayRoot(): void
     {
-        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('non-array-installed-root');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, 'null');
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage("Composer metadata [{$path}] must contain an array.");
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
+    }
+
+    public function testDiscoverInstalledPackagesFailsForNonArrayPackagesMember(): void
+    {
         $basePath = $this->makeTempComposerRoot('malformed-packages-shape');
-        $filesystem->put($basePath . '/vendor/composer/installed.json', json_encode([
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
             'packages' => 'invalid',
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage("Composer metadata [{$path}] member [packages] must contain an array.");
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
+    }
+
+    public function testDiscoverInstalledPackagesFailsForNonArrayPackageEntry(): void
+    {
+        $basePath = $this->makeTempComposerRoot('non-array-package-entry');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => ['invalid'],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage("Composer metadata package [0] in [{$path}] must contain an array.");
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
+    }
+
+    public function testDiscoverInstalledPackagesFailsForNamelessPackageEntry(): void
+    {
+        $basePath = $this->makeTempComposerRoot('nameless-package-entry');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => [['version' => 'v1.0.0']],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage(
+            "Composer metadata package [0] in [{$path}] member [name] must be a non-empty string."
+        );
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
+    }
+
+    public function testDiscoverInstalledPackagesFailsForEmptyFormattedPackageName(): void
+    {
+        $basePath = $this->makeTempComposerRoot('empty-formatted-package-name');
+        $vendorPath = $basePath . '/vendor';
+        $path = $vendorPath . '/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => [['name' => $vendorPath . '/']],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage(
+            "Composer metadata package [0] in [{$path}] has an empty formatted package name."
+        );
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $vendorPath, []);
+    }
+
+    public function testDiscoverInstalledPackagesFailsForInvalidVersion(): void
+    {
+        $basePath = $this->makeTempComposerRoot('invalid-version');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => [[
+                'name' => 'vendor/package',
+                'version' => [],
+            ]],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage(
+            "Composer metadata package [vendor/package] in [{$path}] member [version] must be a string or null."
+        );
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
+    }
+
+    public function testDiscoverInstalledPackagesFailsForInvalidHypervelExtra(): void
+    {
+        $basePath = $this->makeTempComposerRoot('invalid-package-hypervel-extra');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => [[
+                'name' => 'vendor/package',
+                'extra' => ['hypervel' => 'invalid'],
+            ]],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage(
+            "Composer metadata package [0] in [{$path}] member [extra.hypervel] must contain an array."
+        );
+
+        PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', []);
+    }
+
+    public function testSpecificallyIgnoredPackagesSkipInvalidConsumedMetadata(): void
+    {
+        $basePath = $this->makeTempComposerRoot('ignored-invalid-metadata');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => [
+                [
+                    'name' => 'vendor/invalid-version',
+                    'version' => [],
+                ],
+                [
+                    'name' => 'vendor/invalid-extra',
+                    'extra' => ['hypervel' => 'invalid'],
+                ],
+            ],
         ], JSON_THROW_ON_ERROR));
 
         $this->assertSame(
             [],
-            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+            PackageManifest::discoverInstalledPackages(
+                $this->filesystem,
+                $basePath . '/vendor',
+                ['vendor/invalid-version', 'vendor/invalid-extra']
+            )
         );
     }
 
-    public function testDiscoverInstalledPackagesSkipsMalformedPackageEntries(): void
+    public function testDiscoverInstalledPackagesToleratesNonArrayParentExtra(): void
     {
-        $filesystem = new Filesystem;
-        $basePath = $this->makeTempComposerRoot('malformed-package-entries');
-        $filesystem->put($basePath . '/vendor/composer/installed.json', json_encode([
-            'packages' => [
-                'invalid',
-                [
-                    'version' => 'v1.0.0',
-                ],
-                [
-                    'name' => 'vendor-a/package-a',
-                    'version' => 'v1.0.0',
-                ],
-                [
-                    'name' => 'vendor-a/package-b',
-                    'version' => 'v2.0.0',
-                    'extra' => [
-                        'hypervel' => 'invalid',
+        $basePath = $this->makeTempComposerRoot('non-array-parent-extra');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => [[
+                'name' => 'vendor/package',
+                'extra' => 'invalid',
+            ]],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(
+            ['vendor/package' => ['version' => null]],
+            PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', [])
+        );
+    }
+
+    public function testDiscoverInstalledPackagesPreservesConsumerOwnedHypervelValues(): void
+    {
+        $basePath = $this->makeTempComposerRoot('consumer-owned-hypervel-values');
+        $path = $basePath . '/vendor/composer/installed.json';
+        $this->filesystem->put($path, json_encode([
+            'packages' => [[
+                'name' => 'vendor/package',
+                'version' => 'v1.2.3',
+                'extra' => [
+                    'hypervel' => [
+                        'providers' => 'Vendor\Package\Provider',
+                        'aliases' => ['Package' => 'Vendor\Package\Facade'],
                     ],
                 ],
-            ],
+            ]],
         ], JSON_THROW_ON_ERROR));
 
         $this->assertSame(
             [
-                'vendor-a/package-a' => [
-                    'version' => 'v1.0.0',
-                ],
-                'vendor-a/package-b' => [
-                    'version' => 'v2.0.0',
+                'vendor/package' => [
+                    'providers' => 'Vendor\Package\Provider',
+                    'aliases' => ['Package' => 'Vendor\Package\Facade'],
+                    'version' => 'v1.2.3',
                 ],
             ],
-            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+            PackageManifest::discoverInstalledPackages($this->filesystem, $basePath . '/vendor', [])
         );
     }
 
-    public function testPackagesToIgnoreFromComposerReturnsEmptyArrayForMalformedComposerJson(): void
+    public function testRootHypervelExtraReturnsNullForMissingComposerJson(): void
     {
-        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('missing-root-composer-json');
+
+        $this->assertNull(PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state'));
+        $this->assertSame([], PackageManifest::packagesToIgnoreFromComposer($this->filesystem, $basePath));
+    }
+
+    public function testRootHypervelExtraFailsForMalformedComposerJson(): void
+    {
         $basePath = $this->makeTempComposerRoot('malformed-composer-json');
-        $filesystem->put($basePath . '/composer.json', '{');
+        $this->filesystem->put($basePath . '/composer.json', '{');
 
-        $this->assertSame(
-            [],
-            PackageManifest::packagesToIgnoreFromComposer($filesystem, $basePath)
-        );
+        $this->expectException(JsonException::class);
+        $this->expectExceptionMessage('Syntax error');
+
+        PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state');
     }
 
-    public function testRootHypervelExtraReturnsNullForMalformedHypervelMetadata(): void
+    public function testRootHypervelExtraFailsForNonArrayRoot(): void
     {
-        $filesystem = new Filesystem;
-        $basePath = $this->makeTempComposerRoot('malformed-root-hypervel-metadata');
-        $filesystem->put($basePath . '/composer.json', json_encode([
+        $basePath = $this->makeTempComposerRoot('non-array-root-composer');
+        $path = $basePath . '/composer.json';
+        $this->filesystem->put($path, 'null');
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage("Composer metadata [{$path}] must contain an array.");
+
+        PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state');
+    }
+
+    public function testRootHypervelExtraFailsForInvalidExplicitHypervelMetadata(): void
+    {
+        $basePath = $this->makeTempComposerRoot('invalid-root-hypervel-metadata');
+        $path = $basePath . '/composer.json';
+        $this->filesystem->put($path, json_encode([
+            'extra' => ['hypervel' => 'invalid'],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage(
+            "Composer metadata root package in [{$path}] member [extra.hypervel] must contain an array."
+        );
+
+        PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state');
+    }
+
+    public function testRootHypervelExtraToleratesNonArrayParentExtra(): void
+    {
+        $basePath = $this->makeTempComposerRoot('non-array-root-extra');
+        $this->filesystem->put($basePath . '/composer.json', json_encode([
+            'extra' => 'invalid',
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertNull(PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state'));
+    }
+
+    public function testRootHypervelExtraPreservesConsumerOwnedValues(): void
+    {
+        $basePath = $this->makeTempComposerRoot('consumer-owned-root-extra');
+        $this->filesystem->put($basePath . '/composer.json', json_encode([
             'extra' => [
-                'hypervel' => 'invalid',
+                'hypervel' => [
+                    'test-state' => 'Vendor\Package\Registrar',
+                    'dont-discover' => ['vendor/package'],
+                ],
             ],
         ], JSON_THROW_ON_ERROR));
 
-        $this->assertNull(PackageManifest::rootHypervelExtra($filesystem, $basePath, 'test-state'));
-        $this->assertSame([], PackageManifest::packagesToIgnoreFromComposer($filesystem, $basePath));
+        $this->assertSame(
+            'Vendor\Package\Registrar',
+            PackageManifest::rootHypervelExtra($this->filesystem, $basePath, 'test-state')
+        );
+        $this->assertSame(
+            ['vendor/package'],
+            PackageManifest::packagesToIgnoreFromComposer($this->filesystem, $basePath)
+        );
+    }
+
+    public function testBuildFailurePreservesExistingManifest(): void
+    {
+        $basePath = $this->makeTempComposerRoot('build-failure');
+        $manifestPath = $basePath . '/packages.php';
+        $existingManifest = "<?php return ['existing/package' => ['version' => 'v1.0.0']];";
+        $this->filesystem->put($basePath . '/composer.json', '{}');
+        $this->filesystem->put($basePath . '/vendor/composer/installed.json', '{');
+        $this->filesystem->put($manifestPath, $existingManifest);
+        $manifest = new PackageManifest($this->filesystem, $basePath, $manifestPath);
+
+        try {
+            $manifest->build();
+            $this->fail('Expected malformed installed metadata to fail the manifest build.');
+        } catch (JsonException $exception) {
+            $this->assertSame('Syntax error', $exception->getMessage());
+        }
+
+        $this->assertSame($existingManifest, $this->filesystem->get($manifestPath));
     }
 
     public function testVersionReturnsPackageVersion()
@@ -349,19 +568,21 @@ class FoundationPackageManifestTest extends TestCase
         $this->assertContains('Hypervel\Tests\Foundation\Bootstrap\TestTwoServiceProvider', $providers);
     }
 
-    public function testManifestIsCachedAfterFirstRead()
+    public function testManifestIsCachedAfterFirstRead(): void
     {
-        $manifest = $this->makeManifest();
+        $basePath = $this->makeTempComposerRoot('cached-manifest');
+        $this->filesystem->copy(
+            $this->basePath . '/vendor/composer/installed.json',
+            $basePath . '/vendor/composer/installed.json'
+        );
+        $manifest = new PackageManifest($this->filesystem, $basePath, $this->manifestPath);
 
-        // First call builds and caches
-        $providers1 = $manifest->providers();
+        $providers = $manifest->providers();
 
-        // Delete the installed.json — should still work from cache
-        $manifest->build();
+        $this->filesystem->delete($basePath . '/vendor/composer/installed.json');
+        $this->filesystem->delete($this->manifestPath);
 
-        $providers2 = $manifest->providers();
-
-        $this->assertSame($providers1, $providers2);
+        $this->assertSame($providers, $manifest->providers());
     }
 
     public function testBuildDoesNotApplyRuntimeIgnoresToDiskCache()

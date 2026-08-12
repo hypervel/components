@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Console;
+namespace Hypervel\Concurrency\Console;
 
 use Error;
 use Exception;
@@ -15,7 +15,7 @@ use Throwable;
 #[AsCommand(name: 'invoke-serialized-closure')]
 class InvokeSerializedClosureCommand extends Command
 {
-    private const JSON_FLAGS = JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION;
+    private const int JSON_FLAGS = JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION;
 
     protected ?string $signature = 'invoke-serialized-closure {code? : The serialized closure}';
 
@@ -53,6 +53,7 @@ class InvokeSerializedClosureCommand extends Command
 
                 if ($parameters !== null) {
                     // Named arguments must survive JSON without changing types or nested state.
+                    // This subtree is one container shallower than the envelope decoded at native depth 513.
                     $encodedParameters = json_encode($parameters, self::JSON_FLAGS);
 
                     if (json_decode($encodedParameters, true, 512, JSON_THROW_ON_ERROR) !== $parameters) {

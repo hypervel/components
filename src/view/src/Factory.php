@@ -31,12 +31,12 @@ class Factory implements FactoryContract
     /**
      * The number of active rendering operations.
      */
-    protected const RENDER_COUNT_CONTEXT_KEY = '__view.render_count';
+    protected const string RENDER_COUNT_CONTEXT_KEY = '__view.render_count';
 
     /**
      * The "once" block IDs that have been rendered.
      */
-    protected const RENDERED_ONCE_CONTEXT_KEY = '__view.rendered_once';
+    protected const string RENDERED_ONCE_CONTEXT_KEY = '__view.rendered_once';
 
     /**
      * The IoC container instance.

@@ -711,7 +711,9 @@ class StorePostRequest extends FormRequest
         'views' => 'integer',
         'is_featured' => 'boolean',
         'tags' => 'array',
+        'related_posts' => 'collection',
         'metadata' => 'json',
+        'settings' => 'object',
         'rating' => 'decimal:2',
     ];
 
@@ -727,8 +729,10 @@ class StorePostRequest extends FormRequest
             'published_at' => ['required', 'date'],
             'views' => ['required', 'integer', 'min:0'],
             'is_featured' => ['required', 'boolean'],
-            'tags' => ['required', 'array'],
+            'tags' => ['required', 'json'],
+            'related_posts' => ['required', 'json'],
             'metadata' => ['required', 'json'],
+            'settings' => ['required', 'json'],
             'rating' => ['required', 'numeric', 'between:0,5'],
         ];
     }

@@ -17,7 +17,7 @@ class TaggedCache implements StorageContract
      * of the cache; in any mode keys are plain, so the prefix provides
      * that isolation instead.
      */
-    private const DIRECT_KEY_PREFIX = 'jwt_blacklist:';
+    private const string DIRECT_KEY_PREFIX = 'jwt_blacklist:';
 
     protected string $tag = 'jwt_blacklist';
 

@@ -333,7 +333,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Top-level connection config keys that should be applied through setOption.
      */
-    private const CONNECTION_LEVEL_PHPREDIS_OPTIONS = [
+    private const array CONNECTION_LEVEL_PHPREDIS_OPTIONS = [
         'read_timeout',
         'max_retries',
         'backoff_algorithm',

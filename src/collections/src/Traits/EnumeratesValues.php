@@ -72,7 +72,7 @@ trait EnumeratesValues
     /**
      * The default methods that can be proxied.
      */
-    protected const DEFAULT_PROXIES = [
+    protected const array DEFAULT_PROXIES = [
         'average',
         'avg',
         'contains',
@@ -189,8 +189,9 @@ trait EnumeratesValues
      *
      * @return static<TKey, TValue>
      */
-    public static function fromJson(string $json, int $depth = 512, int $flags = 0, mixed ...$args): static
+    public static function fromJson(string $json, int $depth = 513, int $flags = 0, mixed ...$args): static
     {
+        // Support depends on Collections, so this native depth cannot reference Support\Json; 513 reads 512 containers.
         return new static(json_decode($json, true, $depth, $flags), ...$args);
     }
 
@@ -934,7 +935,8 @@ trait EnumeratesValues
         return array_map(function ($value) {
             return match (true) {
                 $value instanceof JsonSerializable => $value->jsonSerialize(),
-                $value instanceof Jsonable => json_decode($value->toJson(), true),
+                // Support depends on Collections, so this native depth cannot reference Support\Json; 513 reads 512 containers.
+                $value instanceof Jsonable => json_decode($value->toJson(), true, 513),
                 $value instanceof Arrayable => $value->toArray(),
                 default => $value,
             };

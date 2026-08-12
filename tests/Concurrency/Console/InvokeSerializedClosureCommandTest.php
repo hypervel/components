@@ -2,14 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation\Console;
+namespace Hypervel\Tests\Concurrency\Console;
 
 use Closure;
 use ErrorException;
+use Hypervel\Concurrency\SerializedClosureResult;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Foundation\Console\Fixtures\ConcurrentProcessExceptionFixtures;
+use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use RuntimeException;
@@ -28,7 +30,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
         ], $output);
 
         /** @var array{successful: bool, result: string} $result */
-        $result = json_decode($output->fetch(), true);
+        $result = Json::decode($output->fetch());
 
         $this->assertTrue($result['successful']);
         $this->assertSame('Hello, World!', $this->decodeResult($result));
@@ -49,7 +51,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
             Artisan::call('invoke-serialized-closure', [], $output);
 
             /** @var array{successful: bool, result: string} $result */
-            $result = json_decode($output->fetch(), true);
+            $result = Json::decode($output->fetch());
 
             $this->assertTrue($result['successful']);
             $this->assertSame('From Environment', $this->decodeResult($result));
@@ -69,7 +71,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
         Artisan::call('invoke-serialized-closure', [], $output);
 
         /** @var array{successful: bool, result: string} $result */
-        $result = json_decode($output->fetch(), true);
+        $result = Json::decode($output->fetch());
 
         $this->assertTrue($result['successful']);
         $this->assertNull($this->decodeResult($result));
@@ -88,7 +90,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
         ], $output);
 
         /** @var array{successful: bool, exception: string, message: string, parameters: array<string, mixed>} $result */
-        $result = json_decode($output->fetch(), true);
+        $result = Json::decode($output->fetch());
 
         $this->assertFalse($result['successful']);
         $this->assertSame(RuntimeException::class, $result['exception']);
@@ -109,7 +111,7 @@ class InvokeSerializedClosureCommandTest extends TestCase
         ], $output);
 
         /** @var array{successful: bool, exception: string, parameters: array<string, mixed>} $result */
-        $result = json_decode($output->fetch(), true);
+        $result = Json::decode($output->fetch());
 
         $this->assertFalse($result['successful']);
         $this->assertSame(InvokeSerializedClosureCustomParameterException::class, $result['exception']);
@@ -217,6 +219,38 @@ class InvokeSerializedClosureCommandTest extends TestCase
 
         $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_VALUE_EXCEPTION, $result['exception']);
         $this->assertSame(['value' => 1.0], $result['parameters']);
+    }
+
+    public function testItTransportsTheMaximumReconstructibleExceptionParameterDepth(): void
+    {
+        $value = $this->nestedValue(510);
+        $output = $this->invokeSerializedClosureOutput(
+            static fn () => ConcurrentProcessExceptionFixtures::throwPublicValue($value)
+        );
+        $caught = null;
+
+        try {
+            SerializedClosureResult::decode($output);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+        $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_VALUE_EXCEPTION, $caught::class);
+        $this->assertSame($value, $caught->value);
+    }
+
+    public function testItDegradesExceptionParametersBeyondTheTransportDepth(): void
+    {
+        $value = $this->nestedValue(511);
+        $result = $this->invokeSerializedClosure(
+            static fn () => ConcurrentProcessExceptionFixtures::throwPublicValue($value)
+        );
+
+        $this->assertSame(RuntimeException::class, $result['exception']);
+        $this->assertStringContainsString('PublicValueException', $result['message']);
+        $this->assertStringContainsString('could not be encoded', $result['message']);
+        $this->assertSame(['message' => $result['message']], $result['parameters']);
     }
 
     public function testItPreservesPublicFalseyExceptionParameters(): void
@@ -346,13 +380,21 @@ class InvokeSerializedClosureCommandTest extends TestCase
      */
     private function invokeSerializedClosure(Closure $closure): array
     {
+        return Json::decode($this->invokeSerializedClosureOutput($closure));
+    }
+
+    /**
+     * Invoke a serialized closure and return its response envelope.
+     */
+    private function invokeSerializedClosureOutput(Closure $closure): string
+    {
         $output = new BufferedOutput;
 
         Artisan::call('invoke-serialized-closure', [
             'code' => serialize(new SerializableClosure($closure)),
         ], $output);
 
-        return json_decode($output->fetch(), true, 512, JSON_THROW_ON_ERROR);
+        return $output->fetch();
     }
 
     /**
@@ -367,6 +409,20 @@ class InvokeSerializedClosureCommandTest extends TestCase
         $this->assertNotFalse($serialized);
 
         return unserialize($serialized);
+    }
+
+    /**
+     * Build a value with the given number of array containers.
+     */
+    private function nestedValue(int $containers): array
+    {
+        $value = ['leaf'];
+
+        for ($depth = 1; $depth < $containers; ++$depth) {
+            $value = [$value];
+        }
+
+        return $value;
     }
 }
 

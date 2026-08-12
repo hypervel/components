@@ -17,7 +17,7 @@ class StorageStore implements Store
     /**
      * The expiration timestamp stored for items cached forever.
      */
-    protected const PERMANENT_TIMESTAMP = 9999999999;
+    protected const int PERMANENT_TIMESTAMP = 9999999999;
 
     /**
      * The filesystem disk instance.

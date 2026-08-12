@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Session\CookieSessionHandler;
 use Hypervel\Session\Store;
+use Hypervel\Support\Json;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Uri;
@@ -1013,6 +1014,60 @@ class SessionStoreTest extends TestCase
         $session->save();
 
         $this->assertInstanceOf(ViewErrorBag::class, $session->get('errors'));
+    }
+
+    public function testJsonSessionRoundTripsAtTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $storedPayload = null;
+        $writer = m::mock(SessionHandlerInterface::class);
+        $writer->shouldReceive('read')->once()->andReturn('{}');
+        $writer->shouldReceive('write')->once()->andReturnUsing(
+            function (string $sessionId, string $payload) use (&$storedPayload): bool {
+                $storedPayload = $payload;
+
+                return true;
+            }
+        );
+
+        $session = new Store('name', $writer, $this->getSessionId(), 'json');
+        $session->start();
+        $session->put('nested', $value);
+        $session->save();
+
+        $reader = m::mock(SessionHandlerInterface::class);
+        $reader->shouldReceive('read')->once()->andReturn($storedPayload);
+
+        $restored = new Store('name', $reader, $this->getSessionId(), 'json');
+        $restored->start();
+
+        $this->assertSame($value, $restored->get('nested'));
+    }
+
+    public function testJsonSessionRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $handler = m::mock(SessionHandlerInterface::class);
+        $handler->shouldReceive('read')->once()->andReturn('{}');
+        $handler->shouldReceive('write')->never();
+
+        $session = new Store('name', $handler, $this->getSessionId(), 'json');
+        $session->start();
+        $session->put('nested', $value);
+
+        $this->expectException(JsonException::class);
+
+        $session->save();
     }
 
     public function testStartingJsonSessionRetainsLiveErrorBagWhenStorageHasNone(): void

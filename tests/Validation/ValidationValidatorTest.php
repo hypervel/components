@@ -25,6 +25,7 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
@@ -3338,7 +3339,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testValidateJson()
+    public function testValidateJson(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['foo' => 'aslksd'], ['foo' => 'json']);
@@ -3363,6 +3364,20 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['foo' => new Stringable('[]')], ['foo' => 'json']);
         $this->assertTrue($v->passes());
+
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $v = new Validator($trans, ['foo' => Json::encode($value)], ['foo' => 'json']);
+        $this->assertTrue($v->passes());
+
+        $value = ['value' => $value];
+        $json = json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1);
+        $v = new Validator($trans, ['foo' => $json], ['foo' => 'json']);
+        $this->assertFalse($v->passes());
     }
 
     public function testValidateBoolean()

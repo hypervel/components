@@ -23,7 +23,7 @@ class CookieJar implements JarContract
     /**
      * Context key for the queued cookies.
      */
-    protected const QUEUE_CONTEXT_KEY = '__cookie.queue';
+    protected const string QUEUE_CONTEXT_KEY = '__cookie.queue';
 
     /**
      * The default path (if specified).

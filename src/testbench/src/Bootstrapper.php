@@ -16,7 +16,7 @@ use Throwable;
 
 class Bootstrapper
 {
-    protected const RUNTIME_PROCESS_MARKER = '.testbench-process';
+    protected const string RUNTIME_PROCESS_MARKER = '.testbench-process';
 
     protected static ?ConfigContract $configuration = null;
 

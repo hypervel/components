@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Concurrency;
+namespace Hypervel\Tests\Concurrency;
 
 use Carbon\CarbonInterval;
 use Exception;
@@ -18,13 +18,10 @@ use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Concurrency as ConcurrencyFacade;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
-use Hypervel\Tests\Foundation\Console\Fixtures\ConcurrentProcessExceptionFixtures;
-use JsonException;
 use RuntimeException;
-use stdClass;
 use Swoole\Coroutine as SwooleCoroutine;
-use TypeError;
 
 class ConcurrencyTest extends TestCase
 {
@@ -110,6 +107,8 @@ class ConcurrencyTest extends TestCase
 
     public function testRunRethrowsExceptionFromEarliestInputPositionWhenMultipleTasksFail()
     {
+        $caught = null;
+
         try {
             $this->coroutineDriver->run([
                 function () {
@@ -122,11 +121,12 @@ class ConcurrencyTest extends TestCase
                     throw new RuntimeException('second in input');
                 },
             ]);
-
-            $this->fail('Expected exception was not thrown');
         } catch (RuntimeException $e) {
-            $this->assertSame('first in input', $e->getMessage());
+            $caught = $e;
         }
+
+        $this->assertNotNull($caught, 'Expected exception was not thrown');
+        $this->assertSame('first in input', $caught->getMessage());
     }
 
     public function testRunWithEmptyArrayReturnsEmptyArray()
@@ -451,86 +451,6 @@ class ConcurrencyTest extends TestCase
         });
     }
 
-    public function testProcessDriverReturnsBinaryResultsLosslessly(): void
-    {
-        $driver = $this->processDriverFor([
-            'successful' => true,
-            'result' => base64_encode(serialize("binary-\xFF\x00\x8B")),
-        ]);
-
-        $this->assertSame(["binary-\xFF\x00\x8B"], $driver->run(static fn () => null));
-    }
-
-    public function testProcessDriverIgnoresAppendedGzipOutput(): void
-    {
-        $driver = $this->processDriverFor([
-            'successful' => true,
-            'result' => base64_encode(serialize('result')),
-        ], "\x1f\x8bcompressed-output");
-
-        $this->assertSame(['result'], $driver->run(static fn () => null));
-    }
-
-    public function testProcessDriverRejectsMalformedJsonOutput(): void
-    {
-        $this->expectException(JsonException::class);
-
-        $this->processDriverForOutput('{malformed')->run(static fn () => null);
-    }
-
-    public function testProcessDriverRejectsInvalidResponseEnvelopes(): void
-    {
-        $outputs = [
-            'scalar' => json_encode('invalid', JSON_THROW_ON_ERROR),
-            'missing status' => json_encode([], JSON_THROW_ON_ERROR),
-            'non-boolean status' => json_encode(['successful' => 1], JSON_THROW_ON_ERROR),
-            'non-string exception' => json_encode(['successful' => false, 'exception' => []], JSON_THROW_ON_ERROR),
-            'non-string message' => json_encode(['successful' => false, 'message' => []], JSON_THROW_ON_ERROR),
-            'non-array parameters' => json_encode(['successful' => false, 'parameters' => 'invalid'], JSON_THROW_ON_ERROR),
-        ];
-
-        foreach ($outputs as $description => $output) {
-            try {
-                $this->processDriverForOutput($output)->run(static fn () => null);
-                $this->fail("Expected the {$description} response envelope to be rejected.");
-            } catch (RuntimeException $exception) {
-                $this->assertSame('Invalid concurrent process response envelope.', $exception->getMessage());
-            }
-        }
-    }
-
-    public function testProcessDriverRejectsMalformedBase64Results(): void
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to decode the concurrent process result.');
-
-        $this->processDriverFor([
-            'successful' => true,
-            'result' => '*not-base64*',
-        ])->run(static fn () => null);
-    }
-
-    public function testProcessDriverRejectsMalformedSerializedResults(): void
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to decode the concurrent process result.');
-
-        $this->processDriverFor([
-            'successful' => true,
-            'result' => base64_encode('not-serialized'),
-        ])->run(static fn () => null);
-    }
-
-    public function testProcessDriverPreservesFalseResults(): void
-    {
-        $driver = $this->processDriverFor([
-            'successful' => true,
-            'result' => base64_encode(serialize(false)),
-        ]);
-
-        $this->assertSame([false], $driver->run(static fn () => null));
-    }
-
     public function testProcessDriverPreservesPublicFalseyExceptionParameters(): void
     {
         $driver = $this->processDriverFor([
@@ -544,117 +464,33 @@ class ConcurrencyTest extends TestCase
                 'detail' => null,
             ],
         ]);
+        $caught = null;
 
         try {
             $driver->run(static fn () => null);
-            $this->fail('Expected the transported exception to be thrown.');
         } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $exception::class);
-            $this->assertSame(0, $exception->status);
-            $this->assertFalse($exception->retry);
-            $this->assertSame('', $exception->reason);
-            $this->assertNull($exception->detail);
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+        $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $caught::class);
+        $this->assertSame(0, $caught->status);
+        $this->assertFalse($caught->retry);
+        $this->assertSame('', $caught->reason);
+        $this->assertNull($caught->detail);
     }
 
-    public function testProcessDriverUsesInaccessibleOptionalDefaults(): void
+    public function testProcessDriverReportsFailedChildProcessesBeforeDecoding(): void
     {
-        $driver = $this->processDriverFor([
-            'successful' => false,
-            'exception' => ConcurrentProcessExceptionFixtures::HIDDEN_OPTIONAL_EXCEPTION,
-            'message' => 'status=7',
-            'parameters' => ['status' => 0],
-        ]);
+        $factory = $this->app->make(ProcessFactory::class);
+        $factory->fake(fn () => $factory->result(
+            errorOutput: 'child failed',
+            exitCode: 5,
+        ));
+        $driver = new ProcessDriver($factory);
 
-        try {
-            $driver->run(static fn () => null);
-            $this->fail('Expected the transported exception to be thrown.');
-        } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::HIDDEN_OPTIONAL_EXCEPTION, $exception::class);
-            $this->assertSame('status=0', $exception->getMessage());
-        }
-    }
-
-    public function testProcessDriverReconstructsNamedVariadicAndInheritedParameters(): void
-    {
-        $variadic = $this->processDriverFor([
-            'successful' => false,
-            'exception' => ConcurrentProcessExceptionFixtures::VARIADIC_EXCEPTION,
-            'message' => 'context:first,second',
-            'parameters' => ['context' => 'context'],
-        ]);
-
-        try {
-            $variadic->run(static fn () => null);
-            $this->fail('Expected the transported exception to be thrown.');
-        } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::VARIADIC_EXCEPTION, $exception::class);
-            $this->assertSame('context:', $exception->getMessage());
-        }
-
-        $inherited = $this->processDriverFor([
-            'successful' => false,
-            'exception' => ConcurrentProcessExceptionFixtures::INHERITED_PUBLIC_EXCEPTION,
-            'message' => 'status=7',
-            'parameters' => ['status' => 7],
-        ]);
-
-        try {
-            $inherited->run(static fn () => null);
-            $this->fail('Expected the transported exception to be thrown.');
-        } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::INHERITED_PUBLIC_EXCEPTION, $exception::class);
-            $this->assertSame('status=7', $exception->getMessage());
-        }
-    }
-
-    public function testProcessDriverReconstructsZeroArgumentExceptionsWithoutSyntheticArguments(): void
-    {
-        $driver = $this->processDriverFor([
-            'successful' => false,
-            'exception' => ConcurrentProcessExceptionFixtures::ZERO_ARGUMENT_EXCEPTION,
-            'message' => 'zero arguments',
-            'parameters' => [],
-        ]);
-
-        try {
-            $driver->run(static fn () => null);
-            $this->fail('Expected the transported exception to be thrown.');
-        } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::ZERO_ARGUMENT_EXCEPTION, $exception::class);
-            $this->assertSame(0, $exception->argumentCount);
-        }
-    }
-
-    public function testProcessDriverContainsConstructorFailuresDuringReconstruction(): void
-    {
-        $driver = $this->processDriverFor([
-            'successful' => false,
-            'exception' => ConcurrentProcessExceptionFixtures::MISMATCHED_PUBLIC_PROPERTY_EXCEPTION,
-            'message' => 'status=5',
-            'parameters' => ['status' => 'v5'],
-        ]);
-
-        try {
-            $driver->run(static fn () => null);
-            $this->fail('Expected the transported exception to be thrown.');
-        } catch (RuntimeException $exception) {
-            $this->assertSame('status=5', $exception->getMessage());
-            $this->assertInstanceOf(TypeError::class, $exception->getPrevious());
-        }
-    }
-
-    public function testProcessDriverRejectsNonThrowableExceptionClasses(): void
-    {
-        $driver = $this->processDriverFor([
-            'successful' => false,
-            'exception' => stdClass::class,
-            'message' => 'remote failure',
-            'parameters' => [],
-        ]);
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('remote failure');
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Concurrent process failed with exit code [5]. Message: child failed');
 
         $driver->run(static fn () => null);
     }
@@ -696,18 +532,12 @@ class ConcurrencyTest extends TestCase
      *
      * @param array<string, mixed> $payload
      */
-    private function processDriverFor(array $payload, string $suffix = ''): ProcessDriver
-    {
-        return $this->processDriverForOutput(json_encode($payload, JSON_THROW_ON_ERROR) . $suffix);
-    }
-
-    /**
-     * Create a process driver that returns the given output.
-     */
-    private function processDriverForOutput(string $output): ProcessDriver
+    private function processDriverFor(array $payload): ProcessDriver
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn () => $factory->result(output: $output));
+        $factory->fake(fn () => $factory->result(
+            output: json_encode($payload, JSON_THROW_ON_ERROR)
+        ));
 
         return new ProcessDriver($factory);
     }

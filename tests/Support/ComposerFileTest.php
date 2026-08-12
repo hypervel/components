@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Support;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Composer;
+use Hypervel\Support\Json;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use JsonException;
@@ -78,17 +79,56 @@ class ComposerFileTest extends TestCase
 
     public function testModifyRejectsUnencodableCallbackOutput(): void
     {
-        file_put_contents($this->composerFile, '{}');
+        file_put_contents($this->composerFile, $original = '{}');
         $stream = fopen('php://memory', 'r');
 
         try {
-            $this->expectException(JsonException::class);
+            try {
+                (new Composer(new Filesystem, $this->tempDirectory))->modify(
+                    fn (): array => ['stream' => $stream],
+                );
 
-            (new Composer(new Filesystem, $this->tempDirectory))->modify(
-                fn (): array => ['stream' => $stream],
-            );
+                $this->fail('Expected JSON encoding to fail.');
+            } catch (JsonException) {
+                $this->assertSame($original, file_get_contents($this->composerFile));
+            }
         } finally {
             fclose($stream);
+        }
+    }
+
+    public function testModifyRoundTripsTheMaximumSupportedNestingDepth(): void
+    {
+        file_put_contents($this->composerFile, '{}');
+        $value = $this->nestedValue(Json::MAXIMUM_NESTING_DEPTH - 1);
+        $composer = new Composer(new Filesystem, $this->tempDirectory);
+
+        $composer->modify(fn (): array => ['nested' => $value]);
+        $composer->modify(function (array $metadata) use ($value): array {
+            $this->assertSame($value, $metadata['nested']);
+
+            return [...$metadata, 'verified' => true];
+        });
+
+        $this->assertSame(
+            ['nested' => $value, 'verified' => true],
+            Json::decode(file_get_contents($this->composerFile))
+        );
+    }
+
+    public function testModifyRejectsOneLevelOverTheMaximumBeforeReplacingTheFile(): void
+    {
+        file_put_contents($this->composerFile, $original = '{"name":"hypervel/app"}');
+        $value = $this->nestedValue(Json::MAXIMUM_NESTING_DEPTH);
+
+        try {
+            (new Composer(new Filesystem, $this->tempDirectory))->modify(
+                fn (): array => ['nested' => $value],
+            );
+
+            $this->fail('Expected JSON encoding to fail.');
+        } catch (JsonException) {
+            $this->assertSame($original, file_get_contents($this->composerFile));
         }
     }
 
@@ -108,6 +148,17 @@ class ComposerFileTest extends TestCase
             $this->assertSame('Unable to replace Composer file.', $exception->getMessage());
             $this->assertSame($original, file_get_contents($this->composerFile));
         }
+    }
+
+    private function nestedValue(int $containers): array|string
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < $containers; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        return $value;
     }
 }
 

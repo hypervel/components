@@ -27,12 +27,12 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     /**
      * Context key for the per-request default channel override.
      */
-    protected const DEFAULT_CHANNEL_CONTEXT_KEY = '__notifications.default_channel';
+    protected const string DEFAULT_CHANNEL_CONTEXT_KEY = '__notifications.default_channel';
 
     /**
      * Context key for the per-request default locale override.
      */
-    protected const DEFAULT_LOCALE_CONTEXT_KEY = '__notifications.default_locale';
+    protected const string DEFAULT_LOCALE_CONTEXT_KEY = '__notifications.default_locale';
 
     /**
      * The default channel used to deliver messages.

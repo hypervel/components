@@ -343,7 +343,7 @@ class SQLiteGrammar extends Grammar
         $values = (new Collection($values))
             ->reject(fn ($value, $key) => $this->isJsonSelector($key))
             ->merge($groups)
-            ->map(fn ($value) => is_array($value) ? json_encode($value) : $value)
+            ->map(fn ($value) => is_array($value) ? json_encode($value, JSON_THROW_ON_ERROR) : $value)
             ->all();
 
         $cleanBindings = Arr::except($bindings, 'select');

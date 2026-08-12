@@ -29,12 +29,12 @@ class Scout
     /**
      * The default job class that makes models searchable.
      */
-    protected const DEFAULT_MAKE_SEARCHABLE_JOB = MakeSearchable::class;
+    protected const string DEFAULT_MAKE_SEARCHABLE_JOB = MakeSearchable::class;
 
     /**
      * The default job class that removes models from the search index.
      */
-    protected const DEFAULT_REMOVE_FROM_SEARCH_JOB = RemoveFromSearch::class;
+    protected const string DEFAULT_REMOVE_FROM_SEARCH_JOB = RemoveFromSearch::class;
 
     /**
      * Coroutine-local context key indicating that scout:import is currently running.
@@ -42,12 +42,12 @@ class Scout
      * Coroutine-local rather than process-global so concurrent coroutines in the
      * same process don't leak the import flag into each other.
      */
-    public const IMPORTING_CONTEXT_KEY = '__scout.importing';
+    public const string IMPORTING_CONTEXT_KEY = '__scout.importing';
 
     /**
      * Coroutine-local context key for the active scout:import progress reporter.
      */
-    public const IMPORT_PROGRESS_CONTEXT_KEY = '__scout.import_progress';
+    public const string IMPORT_PROGRESS_CONTEXT_KEY = '__scout.import_progress';
 
     /**
      * The job class that makes models searchable.

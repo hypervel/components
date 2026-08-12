@@ -37,15 +37,15 @@ class QueueFeature extends Feature
         pushScope as private pushScopeTrait;
     }
 
-    private const QUEUE_SPAN_OP_QUEUE_PUBLISH = 'queue.publish';
+    private const string QUEUE_SPAN_OP_QUEUE_PUBLISH = 'queue.publish';
 
-    private const QUEUE_PAYLOAD_BAGGAGE_DATA = 'sentry_baggage_data';
+    private const string QUEUE_PAYLOAD_BAGGAGE_DATA = 'sentry_baggage_data';
 
-    private const QUEUE_PAYLOAD_TRACE_PARENT_DATA = 'sentry_trace_parent_data';
+    private const string QUEUE_PAYLOAD_TRACE_PARENT_DATA = 'sentry_trace_parent_data';
 
-    private const QUEUE_PAYLOAD_PUBLISH_TIME = 'sentry_publish_time';
+    private const string QUEUE_PAYLOAD_PUBLISH_TIME = 'sentry_publish_time';
 
-    private const QUEUE_PAYLOAD_DESTINATION_NAME = 'sentry_destination_name';
+    private const string QUEUE_PAYLOAD_DESTINATION_NAME = 'sentry_destination_name';
 
     public function isApplicable(): bool
     {

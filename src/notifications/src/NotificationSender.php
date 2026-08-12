@@ -43,7 +43,7 @@ class NotificationSender
      * listener would leak into the persistent $listeners array. The boot-time listener
      * marks an active attempt when its channel dispatches NotificationFailed before throwing.
      */
-    public const FAILED_EVENT_DISPATCHED_CONTEXT_KEY = '__notifications.failed_dispatched';
+    public const string FAILED_EVENT_DISPATCHED_CONTEXT_KEY = '__notifications.failed_dispatched';
 
     /**
      * Create a new notification sender instance.

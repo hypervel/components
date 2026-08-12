@@ -11,7 +11,7 @@ use InvalidArgumentException;
  */
 class Timeout
 {
-    private const MAXIMUM_VALUE = 99_999_999;
+    private const int MAXIMUM_VALUE = 99_999_999;
 
     /**
      * Encode seconds as a gRPC timeout header value.

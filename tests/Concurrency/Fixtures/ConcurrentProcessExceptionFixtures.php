@@ -2,32 +2,32 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation\Console\Fixtures;
+namespace Hypervel\Tests\Concurrency\Fixtures;
 
 use DateTimeImmutable;
 use RuntimeException;
 
 class ConcurrentProcessExceptionFixtures
 {
-    public const PUBLIC_FALSEY_EXCEPTION = PublicFalseyValuesException::class;
+    public const string PUBLIC_FALSEY_EXCEPTION = PublicFalseyValuesException::class;
 
-    public const OPTIONAL_MESSAGE_EXCEPTION = OptionalMessageException::class;
+    public const string OPTIONAL_MESSAGE_EXCEPTION = OptionalMessageException::class;
 
-    public const HIDDEN_OPTIONAL_EXCEPTION = HiddenOptionalException::class;
+    public const string HIDDEN_OPTIONAL_EXCEPTION = HiddenOptionalException::class;
 
-    public const VARIADIC_EXCEPTION = VariadicException::class;
+    public const string VARIADIC_EXCEPTION = VariadicException::class;
 
-    public const INHERITED_PUBLIC_EXCEPTION = InheritedPublicException::class;
+    public const string INHERITED_PUBLIC_EXCEPTION = InheritedPublicException::class;
 
-    public const PUBLIC_VALUE_EXCEPTION = PublicValueException::class;
+    public const string PUBLIC_VALUE_EXCEPTION = PublicValueException::class;
 
-    public const ZERO_ARGUMENT_EXCEPTION = ZeroArgumentException::class;
+    public const string ZERO_ARGUMENT_EXCEPTION = ZeroArgumentException::class;
 
-    public const TYPED_STORED_VARIADIC_EXCEPTION = TypedStoredVariadicException::class;
+    public const string TYPED_STORED_VARIADIC_EXCEPTION = TypedStoredVariadicException::class;
 
-    public const UNTYPED_STORED_VARIADIC_EXCEPTION = UntypedStoredVariadicException::class;
+    public const string UNTYPED_STORED_VARIADIC_EXCEPTION = UntypedStoredVariadicException::class;
 
-    public const MISMATCHED_PUBLIC_PROPERTY_EXCEPTION = MismatchedPublicPropertyException::class;
+    public const string MISMATCHED_PUBLIC_PROPERTY_EXCEPTION = MismatchedPublicPropertyException::class;
 
     /**
      * Throw an exception containing public falsey constructor values.
@@ -131,6 +131,14 @@ class ConcurrentProcessExceptionFixtures
     public static function throwFloatValue(): never
     {
         throw new PublicValueException(1.0);
+    }
+
+    /**
+     * Throw an exception with the given public constructor value.
+     */
+    public static function throwPublicValue(mixed $value): never
+    {
+        throw new PublicValueException($value);
     }
 
     /**

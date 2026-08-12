@@ -23,7 +23,7 @@ class ResponseBridge
      *
      * @var list<string>
      */
-    protected const FORBIDDEN_TRAILER_NAMES = [
+    protected const array FORBIDDEN_TRAILER_NAMES = [
         'host',
         'content-length',
         'transfer-encoding',

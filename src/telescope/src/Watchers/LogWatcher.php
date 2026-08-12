@@ -18,7 +18,7 @@ class LogWatcher extends Watcher
     /**
      * The available log level priorities.
      */
-    protected const PRIORITIES = [
+    protected const array PRIORITIES = [
         LogLevel::DEBUG => 100,
         LogLevel::INFO => 200,
         LogLevel::NOTICE => 250,

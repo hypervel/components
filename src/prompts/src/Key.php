@@ -6,99 +6,99 @@ namespace Hypervel\Prompts;
 
 class Key
 {
-    public const UP = "\e[A";
+    public const string UP = "\e[A";
 
-    public const SHIFT_UP = "\e[1;2A";
+    public const string SHIFT_UP = "\e[1;2A";
 
-    public const PAGE_UP = "\e[5~";
+    public const string PAGE_UP = "\e[5~";
 
-    public const DOWN = "\e[B";
+    public const string DOWN = "\e[B";
 
-    public const SHIFT_DOWN = "\e[1;2B";
+    public const string SHIFT_DOWN = "\e[1;2B";
 
-    public const PAGE_DOWN = "\e[6~";
+    public const string PAGE_DOWN = "\e[6~";
 
-    public const RIGHT = "\e[C";
+    public const string RIGHT = "\e[C";
 
-    public const LEFT = "\e[D";
+    public const string LEFT = "\e[D";
 
-    public const UP_ARROW = "\eOA";
+    public const string UP_ARROW = "\eOA";
 
-    public const DOWN_ARROW = "\eOB";
+    public const string DOWN_ARROW = "\eOB";
 
-    public const RIGHT_ARROW = "\eOC";
+    public const string RIGHT_ARROW = "\eOC";
 
-    public const LEFT_ARROW = "\eOD";
+    public const string LEFT_ARROW = "\eOD";
 
-    public const ESCAPE = "\e";
+    public const string ESCAPE = "\e";
 
-    public const DELETE = "\e[3~";
+    public const string DELETE = "\e[3~";
 
-    public const BACKSPACE = "\177";
+    public const string BACKSPACE = "\177";
 
-    public const ENTER = "\n";
+    public const string ENTER = "\n";
 
-    public const SPACE = ' ';
+    public const string SPACE = ' ';
 
-    public const TAB = "\t";
+    public const string TAB = "\t";
 
-    public const SHIFT_TAB = "\e[Z";
+    public const string SHIFT_TAB = "\e[Z";
 
-    public const HOME = ["\e[1~", "\eOH", "\e[H", "\e[7~"];
+    public const array HOME = ["\e[1~", "\eOH", "\e[H", "\e[7~"];
 
-    public const END = ["\e[4~", "\eOF", "\e[F", "\e[8~"];
+    public const array END = ["\e[4~", "\eOF", "\e[F", "\e[8~"];
 
     /**
      * Cancel/SIGINT.
      */
-    public const CTRL_C = "\x03";
+    public const string CTRL_C = "\x03";
 
     /**
      * Previous/Up.
      */
-    public const CTRL_P = "\x10";
+    public const string CTRL_P = "\x10";
 
     /**
      * Next/Down.
      */
-    public const CTRL_N = "\x0E";
+    public const string CTRL_N = "\x0E";
 
     /**
      * Forward/Right.
      */
-    public const CTRL_F = "\x06";
+    public const string CTRL_F = "\x06";
 
     /**
      * Back/Left.
      */
-    public const CTRL_B = "\x02";
+    public const string CTRL_B = "\x02";
 
     /**
      * Backspace.
      */
-    public const CTRL_H = "\x08";
+    public const string CTRL_H = "\x08";
 
     /**
      * Home.
      */
-    public const CTRL_A = "\x01";
+    public const string CTRL_A = "\x01";
 
     /**
      * EOF.
      */
-    public const CTRL_D = "\x04";
+    public const string CTRL_D = "\x04";
 
     /**
      * End.
      */
-    public const CTRL_E = "\x05";
+    public const string CTRL_E = "\x05";
 
     /**
      * Negative affirmation.
      */
-    public const CTRL_U = "\x15";
+    public const string CTRL_U = "\x15";
 
-    public const OPTION_BACKSPACE = "\e\177";
+    public const string OPTION_BACKSPACE = "\e\177";
 
     /**
      * Checks for the constant values for the given match and returns the match.

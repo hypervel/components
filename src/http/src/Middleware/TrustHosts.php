@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 class TrustHosts
 {
     // Never matches; keeps trusted-host validation enabled when no hosts are trusted.
-    private const REJECT_ALL_HOST_PATTERN = '(?!)';
+    private const string REJECT_ALL_HOST_PATTERN = '(?!)';
 
     /**
      * The application instance.

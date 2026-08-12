@@ -12,12 +12,12 @@ class Once
     /**
      * The context key for the current once instance.
      */
-    protected const INSTANCE_CONTEXT_KEY = '__support.once.instance';
+    protected const string INSTANCE_CONTEXT_KEY = '__support.once.instance';
 
     /**
      * The context key for the once enabled flag.
      */
-    protected const ENABLED_CONTEXT_KEY = '__support.once.enabled';
+    protected const string ENABLED_CONTEXT_KEY = '__support.once.enabled';
 
     /**
      * Create a new once instance.

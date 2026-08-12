@@ -29,7 +29,7 @@ use function Hypervel\Prompts\info;
 #[AsCommand(name: 'wayfinder:generate')]
 class GenerateCommand extends Command
 {
-    private const GENERATED_IDENTIFIERS = [
+    private const array GENERATED_IDENTIFIERS = [
         'queryParams',
         'applyUrlDefaults',
         'validateParameters',

@@ -15,7 +15,7 @@ use Hypervel\Telescope\Telescope;
 
 class ScheduleWatcher extends Watcher
 {
-    protected const LAST_RECORDED_TASK_CONTEXT_KEY = '__telescope.schedule_watcher.last_recorded_task';
+    protected const string LAST_RECORDED_TASK_CONTEXT_KEY = '__telescope.schedule_watcher.last_recorded_task';
 
     /**
      * The application instance.

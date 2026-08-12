@@ -30,7 +30,7 @@ class Prune
     /**
      * Default number of keys to process per SCAN iteration.
      */
-    private const DEFAULT_SCAN_COUNT = 1000;
+    private const int DEFAULT_SCAN_COUNT = 1000;
 
     /**
      * Create a new prune operation instance.

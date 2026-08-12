@@ -11,7 +11,7 @@ class MimeTypeExtensionGuesser
      *
      * @see https://github.com/symfony/mime/blob/7.1/MimeTypes.php
      */
-    protected const MAP = [
+    protected const array MAP = [
         'application/acrobat' => ['pdf'],
         'application/andrew-inset' => ['ez'],
         'application/annodex' => ['anx'],
@@ -1770,7 +1770,7 @@ class MimeTypeExtensionGuesser
         'zz-application/zz-winassoc-xls' => ['xls', 'xlc', 'xll', 'xlm', 'xlw', 'xla', 'xlt', 'xld'],
     ];
 
-    protected const REVERSE_MAP = [
+    protected const array REVERSE_MAP = [
         '123' => ['application/lotus123', 'application/vnd.lotus-1-2-3', 'application/wk1', 'application/x-123', 'application/x-lotus123', 'zz-application/zz-winassoc-123'],
         '1km' => ['application/vnd.1000minds.decision-model+xml'],
         '32x' => ['application/x-genesis-32x-rom'],

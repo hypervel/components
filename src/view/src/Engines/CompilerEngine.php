@@ -20,7 +20,7 @@ class CompilerEngine extends PhpEngine
     /**
      * The context key for a stack of the compiled template path.
      */
-    public const COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
+    public const string COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
 
     /**
      * The view paths that were compiled or are not expired, keyed by the path.

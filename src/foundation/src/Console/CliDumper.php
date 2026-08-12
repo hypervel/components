@@ -18,7 +18,7 @@ class CliDumper extends BaseCliDumper
 {
     use ResolvesDumpSource;
 
-    protected const DUMPING_CONTEXT_KEY = '__foundation.cli_dumper.dumping';
+    protected const string DUMPING_CONTEXT_KEY = '__foundation.cli_dumper.dumping';
 
     /**
      * Create a new CLI dumper instance.

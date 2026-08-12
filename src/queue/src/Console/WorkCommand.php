@@ -31,9 +31,9 @@ class WorkCommand extends Command
 {
     use InteractsWithTime;
 
-    protected const CURRENT_COMMAND_CONTEXT_KEY = '__queue.worker.current_command';
+    protected const string CURRENT_COMMAND_CONTEXT_KEY = '__queue.worker.current_command';
 
-    protected const LATEST_STARTED_AT_CONTEXT_KEY = '__queue.worker.latest_started_at';
+    protected const string LATEST_STARTED_AT_CONTEXT_KEY = '__queue.worker.latest_started_at';
 
     /**
      * The console command name.

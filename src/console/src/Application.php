@@ -36,7 +36,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * The CoroutineContext key holding the output from the previous command.
      */
-    protected const LAST_OUTPUT_CONTEXT_KEY = '__console.last_output';
+    protected const string LAST_OUTPUT_CONTEXT_KEY = '__console.last_output';
 
     /**
      * The console application bootstrappers.
