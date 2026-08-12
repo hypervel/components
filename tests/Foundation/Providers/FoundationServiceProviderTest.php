@@ -8,16 +8,22 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\ArrayMaintenanceMode;
+use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\DevCommands;
+use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\MaintenanceModeManager;
+use Hypervel\Foundation\Providers\FoundationServiceProvider;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
+use ReflectionProperty;
+use Symfony\Component\VarDumper\VarDumper;
 
 class FoundationServiceProviderTest extends TestCase
 {
@@ -142,5 +148,98 @@ class FoundationServiceProviderTest extends TestCase
         $driver = (new MaintenanceModeManager($this->app))->driver();
 
         $this->assertInstanceOf(ArrayMaintenanceMode::class, $driver);
+    }
+
+    public function testReloadConfigurationRefreshesTimezoneAndMaintenanceModeState(): void
+    {
+        $manager = $this->app->make(MaintenanceModeManager::class);
+        $initialDriver = new ArrayMaintenanceMode;
+        $refreshedDriver = new ArrayMaintenanceMode;
+        $refreshedDriver->activate(['message' => 'refreshed']);
+        $manager->extend('initial', fn () => $initialDriver);
+        $manager->extend('refreshed', fn () => $refreshedDriver);
+        config([
+            'app.maintenance.driver' => 'initial',
+            'app.maintenance.refresh_interval' => 0,
+        ]);
+
+        $initialMode = $this->app->make(MaintenanceModeContract::class);
+
+        $this->assertFalse($initialMode->active());
+
+        config([
+            'app.maintenance.driver' => 'refreshed',
+            'app.timezone' => 'Pacific/Auckland',
+        ]);
+
+        $this->app->getProvider(FoundationServiceProvider::class)->reloadConfiguration();
+
+        $refreshedMode = $this->app->make(MaintenanceModeContract::class);
+
+        $this->assertSame('Pacific/Auckland', date_default_timezone_get());
+        $this->assertNotSame($initialMode, $refreshedMode);
+        $this->assertTrue($refreshedMode->active());
+        $this->assertSame(['message' => 'refreshed'], $refreshedMode->data());
+    }
+
+    #[DataProvider('explicitDumperFormats')]
+    public function testExplicitDumperFormatInstallsHypervelHandlerAndRestoresEnvironment(
+        string $format,
+        string $expectedDumper,
+    ): void {
+        $handlerProperty = new ReflectionProperty(VarDumper::class, 'handler');
+        $originalHandler = $handlerProperty->getValue();
+        $originalFormatExists = array_key_exists('VAR_DUMPER_FORMAT', $_SERVER);
+        $originalFormat = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
+        $sentinelHandler = static function (): void {
+        };
+
+        unset($_SERVER['VAR_DUMPER_FORMAT']);
+        VarDumper::setHandler($sentinelHandler);
+        $_SERVER['VAR_DUMPER_FORMAT'] = $format;
+
+        try {
+            $provider = new FoundationServiceProvider($this->app);
+            (new ReflectionClass($provider))->getMethod('registerDumper')->invoke($provider);
+
+            $this->assertSame($format, $_SERVER['VAR_DUMPER_FORMAT']);
+            $this->assertNotSame($sentinelHandler, $handlerProperty->getValue());
+            $this->assertInstanceOf(
+                $expectedDumper,
+                (new ReflectionClass($provider))->getProperty('dumper')->getValue($provider),
+            );
+        } finally {
+            unset($_SERVER['VAR_DUMPER_FORMAT']);
+            VarDumper::setHandler($originalHandler);
+
+            if ($originalFormatExists) {
+                $_SERVER['VAR_DUMPER_FORMAT'] = $originalFormat;
+            }
+        }
+    }
+
+    public static function explicitDumperFormats(): array
+    {
+        return [
+            'CLI' => ['cli', CliDumper::class],
+            'HTML' => ['html', HtmlDumper::class],
+        ];
+    }
+
+    public function testReloadConfigurationUpdatesRetainedDumper(): void
+    {
+        $provider = $this->app->getProvider(FoundationServiceProvider::class);
+        $reflection = new ReflectionClass($provider);
+        $dumper = $reflection->getProperty('dumper')->getValue($provider);
+
+        config(['view.compiled' => '/tmp/reloaded-compiled-views']);
+
+        $provider->reloadConfiguration();
+
+        $this->assertSame($dumper, $reflection->getProperty('dumper')->getValue($provider));
+        $this->assertSame(
+            '/tmp/reloaded-compiled-views',
+            (new ReflectionClass($dumper))->getProperty('compiledViewPath')->getValue($dumper),
+        );
     }
 }

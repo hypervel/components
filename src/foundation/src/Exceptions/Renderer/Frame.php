@@ -4,19 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions\Renderer;
 
-use Hypervel\Foundation\Concerns\ResolvesDumpSource;
+use Hypervel\Foundation\Concerns\ResolvesSourceHref;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
 use function Hypervel\Filesystem\join_paths;
 
 class Frame
 {
-    use ResolvesDumpSource;
-
-    /**
-     * The compiled view path (required by ResolvesDumpSource, unused by Frame).
-     */
-    protected string $compiledViewPath = '';
+    use ResolvesSourceHref;
 
     /**
      * Whether this frame is the main (first non-vendor) frame.

@@ -196,7 +196,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Console\VendorPublishCommand::flushState();
         \Hypervel\Foundation\DevCommands::flushState();
         \Hypervel\Foundation\Events\DiscoverEvents::flushState();
-        \Hypervel\Foundation\Exceptions\Renderer\Frame::flushState();
         \Hypervel\Foundation\Http\FormRequest::flushState();
         \Hypervel\Foundation\Http\HtmlDumper::flushState();
         \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::flushState();
