@@ -760,6 +760,9 @@ $flight = Flight::firstOrNew(
 );
 ```
 
+> [!NOTE]
+> If `firstOrCreate` or `updateOrCreate` encounters a concurrent insert, it attempts to retrieve the winning row from the write connection. Inside a repeatable-read transaction, a row committed after the transaction's snapshot may remain invisible, in which case the original unique constraint violation is rethrown. For idempotent collision handling in this situation, retry the complete transaction from outside it.
+
 <a name="retrieving-aggregates"></a>
 ### Retrieving Aggregates
 

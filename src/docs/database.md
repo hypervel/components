@@ -510,10 +510,10 @@ DB::transaction(function () {
 });
 ```
 
-<a name="handling-deadlocks"></a>
-#### Handling Deadlocks
+<a name="handling-concurrency-errors"></a>
+#### Handling Concurrency Errors
 
-The `transaction` method accepts an optional second argument which defines the number of times a transaction should be retried when a deadlock occurs. Once these attempts have been exhausted, an exception will be thrown:
+The `transaction` method accepts an optional second argument which defines the number of times a transaction should be attempted. After a complete rollback, Hypervel retries detected deadlocks, serialization failures, and database lock errors. Unique constraint violations are not retried. Once the configured attempts have been exhausted, the exception will be thrown:
 
 ```php
 use Hypervel\Support\Facades\DB;
