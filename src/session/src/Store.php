@@ -59,9 +59,9 @@ class Store implements Session
     protected const array SUPPORTED_SERIALIZATIONS = ['json', 'php'];
 
     /**
-     * The length of session ID strings.
+     * The length of CSRF token strings.
      */
-    protected const int SESSION_ID_LENGTH = 40;
+    protected const int CSRF_TOKEN_LENGTH = 40;
 
     /**
      * The context key for whether this session has been started.
@@ -587,7 +587,15 @@ class Store implements Session
     {
         $this->flush();
 
-        return $this->migrate(true);
+        $migrated = $this->migrate(true);
+
+        if ($migrated) {
+            // The selected guard may still cache the invalidated user. Keep the
+            // empty replacement unowned until a later login rotates it again.
+            UserSessionIdentity::suppress($this->getId());
+        }
+
+        return $migrated;
     }
 
     /**
@@ -683,7 +691,7 @@ class Store implements Session
      */
     public function isValidId(?string $id): bool
     {
-        return is_string($id) && ctype_alnum($id) && strlen($id) === self::SESSION_ID_LENGTH;
+        return SessionId::isValid($id);
     }
 
     /**
@@ -691,7 +699,7 @@ class Store implements Session
      */
     protected function generateSessionId(): string
     {
-        return Str::random(self::SESSION_ID_LENGTH);
+        return SessionId::generate();
     }
 
     /**
@@ -717,7 +725,7 @@ class Store implements Session
      */
     public function regenerateToken(): void
     {
-        $this->put('_token', Str::random(self::SESSION_ID_LENGTH));
+        $this->put('_token', Str::random(self::CSRF_TOKEN_LENGTH));
     }
 
     /**
