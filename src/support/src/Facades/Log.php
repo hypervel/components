@@ -17,6 +17,7 @@ namespace Hypervel\Support\Facades;
  * @method static void setDefaultDriver(\UnitEnum|string $name)
  * @method static \Hypervel\Log\LogManager extend(string $driver, \Closure $callback)
  * @method static void forgetChannel(string|null $driver = null)
+ * @method static \Hypervel\Log\LogManager forgetChannels()
  * @method static array getChannels()
  * @method static void emergency(\Hypervel\Contracts\Support\Arrayable|\Hypervel\Contracts\Support\Jsonable|\Stringable|array|string $message, mixed[] $context = [])
  * @method static void alert(\Hypervel\Contracts\Support\Arrayable|\Hypervel\Contracts\Support\Jsonable|\Stringable|array|string $message, mixed[] $context = [])

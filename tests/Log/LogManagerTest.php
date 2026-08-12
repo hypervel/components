@@ -524,6 +524,22 @@ class LogManagerTest extends TestCase
         $this->assertEmpty($manager->getChannels());
     }
 
+    public function testForgetChannelsClearsEveryChannelAndPreservesCustomCreators(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('logging.channels.first', ['driver' => 'custom']);
+        $config->set('logging.channels.second', ['driver' => 'custom']);
+        $manager = new LogManager($this->app);
+        $manager->extend('custom', static fn () => new LoggerSpy);
+        $first = $manager->channel('first');
+        $second = $manager->channel('second');
+
+        $this->assertSame($manager, $manager->forgetChannels());
+
+        $this->assertNotSame($first, $manager->channel('first'));
+        $this->assertNotSame($second, $manager->channel('second'));
+    }
+
     public function testLogManagerCanBuildOnDemandChannel()
     {
         $manager = new LogManager($this->app);
