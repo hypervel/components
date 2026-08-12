@@ -11,11 +11,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class StrictTraceContinuationIntegrationTest extends SentryTestCase
 {
-    private const INCOMING_TRACE_ID = '566e3688a61d4bc888951642d6f14a19';
+    private const string INCOMING_TRACE_ID = '566e3688a61d4bc888951642d6f14a19';
 
-    private const INCOMING_PARENT_SPAN_ID = '566e3688a61d4bc8';
+    private const string INCOMING_PARENT_SPAN_ID = '566e3688a61d4bc8';
 
-    private const INCOMING_SENTRY_TRACE_HEADER = self::INCOMING_TRACE_ID . '-' . self::INCOMING_PARENT_SPAN_ID . '-1';
+    private const string INCOMING_SENTRY_TRACE_HEADER = self::INCOMING_TRACE_ID . '-' . self::INCOMING_PARENT_SPAN_ID . '-1';
 
     private function registerRoutes(): void
     {

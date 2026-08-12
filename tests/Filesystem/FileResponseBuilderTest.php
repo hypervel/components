@@ -568,7 +568,7 @@ class FileResponseBuilderStreamState
 
 class FileResponseBuilderStreamWrapper
 {
-    public const PROTOCOL = 'hypervel-file-response-test';
+    public const string PROTOCOL = 'hypervel-file-response-test';
 
     /** @var resource */
     public $context;

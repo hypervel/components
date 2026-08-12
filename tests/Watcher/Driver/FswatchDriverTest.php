@@ -503,7 +503,7 @@ class FswatchDriverStreamState
 
 class FswatchDriverStreamWrapper
 {
-    public const PROTOCOL = 'hypervel-fswatch-driver-test';
+    public const string PROTOCOL = 'hypervel-fswatch-driver-test';
 
     /** @var resource */
     public $context;

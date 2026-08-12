@@ -1884,10 +1884,10 @@ class DeserializerTest extends TestCase
 
 class JsonSchemaDepthLimitedDeserializer extends Deserializer
 {
-    protected const MAX_REFERENCE_DEPTH = 1;
+    protected const int MAX_REFERENCE_DEPTH = 1;
 }
 
 class JsonSchemaNodeLimitedDeserializer extends Deserializer
 {
-    protected const MAX_NODES = 1;
+    protected const int MAX_NODES = 1;
 }

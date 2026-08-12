@@ -279,7 +279,7 @@ class ConsoleApplicationProgrammaticTest extends TestCase
 
 class ProgrammaticParityCommand extends Command
 {
-    public const EXIT_CODE = 17;
+    public const int EXIT_CODE = 17;
 
     protected ?string $signature = 'test:programmatic-parity {argument=default} {--flag=}';
 
