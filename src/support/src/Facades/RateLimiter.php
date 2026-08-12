@@ -15,6 +15,7 @@ namespace Hypervel\Support\Facades;
  * @method static array getInstanceConfig(string $name)
  * @method static mixed instance(string|null $name = null)
  * @method static \Hypervel\RateLimiter\RateLimiter forgetInstance(array|string|null $name = null)
+ * @method static \Hypervel\RateLimiter\RateLimiter forgetInstances()
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\RateLimiter\RateLimiter extend(string $name, \Closure $callback)
  * @method static \Hypervel\RateLimiter\RateLimiter setApplication(\Hypervel\Contracts\Foundation\Application $app)

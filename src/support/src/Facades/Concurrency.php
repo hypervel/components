@@ -16,6 +16,7 @@ use Hypervel\Concurrency\ConcurrencyManager;
  * @method static array getInstanceConfig(string $name)
  * @method static mixed instance(string|null $name = null)
  * @method static \Hypervel\Concurrency\ConcurrencyManager forgetInstance(array|string|null $name = null)
+ * @method static \Hypervel\Concurrency\ConcurrencyManager forgetInstances()
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Concurrency\ConcurrencyManager extend(string $name, \Closure $callback)
  * @method static \Hypervel\Concurrency\ConcurrencyManager setApplication(\Hypervel\Contracts\Foundation\Application $app)
