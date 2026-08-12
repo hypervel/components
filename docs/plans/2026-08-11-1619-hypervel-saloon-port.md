@@ -28,7 +28,7 @@ Use these checked-in sources as the implementation references:
 - `examples/saloon/rate-limit-plugin`: public rate-limit use cases and tests.
 - `examples/saloon/laravel-plugin`: service provider, facade, events, console generators, stubs, and Laravel-facing tests.
 - `src/http`: the concrete transport, response wrapper, named connections, middleware, events, fakes, and Telescope integration.
-- `src/cache`, `src/rate-limiter`, `src/coroutine`, `src/context`, `src/events`, `src/collections`, `src/console`, `src/prompts`, and `src/testing`: the framework-owned primitives used by the port.
+- `src/cache`, `src/rate-limiter`, `src/coroutine`, `src/events`, `src/collections`, `src/console`, `src/prompts`, and `src/testing`: the framework-owned primitives used by the port.
 - `src/permission`: the package skeleton reference for a third-party ecosystem port.
 
 Local measurements found negligible wrapper construction cost and no meaningful request-time difference between raw Guzzle with a reused handler and Hypervel HTTP with a registered connection. Use Hypervel HTTP because it removes the duplicated Saloon sender/factory layer while retaining named connection reuse, framework middleware, fakes, events, and Telescope. Do not layer Saloon over `hypervel/api-client`: it is an alternative high-level integration model, and composing both would duplicate request/response/middleware lifecycles. Benchmark complete single sends and pools against upstream after implementation; do not add timing assertions to CI.
@@ -60,7 +60,7 @@ Keep Saloon's `Traits` convention throughout this port. Do not introduce a paral
 
 The package Composer file must declare every dependency it uses directly, including the required Hypervel components and PSR/Guzzle types referenced by source. Wire `Hypervel\Saloon\` into the root autoloader, add `hypervel/saloon` to root `replace`, and register the provider and facade alias in both Composer metadata locations. Saloon is optional and must not be added to `DefaultProviders`.
 
-The expected direct runtime set is `hypervel/cache`, `collections`, `conditionable`, `console`, `container`, `context`, `contracts`, `coroutine`, `events`, `filesystem`, `foundation`, `http`, `macroable`, `prompts`, `rate-limiter`, `reflection`, and `support`; `guzzlehttp/guzzle`, `guzzlehttp/psr7`, `psr/http-message`, `symfony/console`, `symfony/dom-crawler`, `symfony/finder`, `symfony/var-dumper`, `ext-dom`, `ext-mbstring`, and `ext-simplexml`. `foundation` owns the path helpers used by published config, `reflection` owns the closure-type inspection used by test assertions, and generator prompts, Symfony Console/Finder types, and multibyte string functions are used directly. Confirm the final set from actual imports and use Composer commands for root dependency changes; do not rely on transitive packages.
+The expected direct runtime set is `hypervel/cache`, `collections`, `conditionable`, `console`, `container`, `contracts`, `coroutine`, `events`, `filesystem`, `foundation`, `http`, `macroable`, `prompts`, `rate-limiter`, `reflection`, and `support`; `guzzlehttp/guzzle`, `guzzlehttp/psr7`, `psr/http-message`, `symfony/console`, `symfony/dom-crawler`, `symfony/finder`, `symfony/var-dumper`, `ext-dom`, `ext-mbstring`, and `ext-simplexml`. `foundation` owns the path helpers used by published config, `reflection` owns the closure-type inspection used by test assertions, and generator prompts, Symfony Console/Finder types, and multibyte string functions are used directly. `hypervel/coroutine` owns pool context propagation, so Saloon does not depend directly on `hypervel/context`. Confirm the final set from actual imports and use Composer commands for root dependency changes; do not rely on transitive packages.
 
 Add:
 
@@ -89,7 +89,7 @@ Document these durable differences and their replacements in the guide. The READ
 - Pool concurrency is a positive integer; callable concurrency policies and promise-returning APIs are not retained.
 - Pool response and exception handlers receive the result and iterable key; the removed aggregate-promise argument has no coroutine equivalent.
 - Response-detected rate limits return a cooldown duration from `resolveRateLimitCooldown()`. Cooldown detection records the response and never resends recursively; the normal connector/request retry policy remains authoritative, and any configured next attempt must pass the recorded cooldown first.
-- Static `MockConfig` is replaced by coroutine-safe `Saloon::fixturePath()` and `Saloon::throwOnMissingFixtures()` test configuration.
+- Static `MockConfig` is replaced by manager-backed `Saloon::fixturePath()` and `Saloon::throwOnMissingFixtures()` test configuration that the framework test subscriber resets with the container after each test.
 - Framework-only Nightwatch and Pulse integrations are omitted. Real Saloon network requests already flow through Hypervel HTTP's event and Telescope path.
 - `xmlReader()` is omitted rather than depending on a Saloon-namespaced optional package that requires the original `Saloon\Http\Response` type. Keep `xml()` and `dom()`; declare `ext-simplexml` and Symfony DomCrawler as direct package dependencies so advertised response methods always work after installation.
 
@@ -117,9 +117,9 @@ Request remains caller-owned and mutable while preparing one operation. It imple
 
 Public global middleware mutators must carry the standard `Boot-only.` warning because they affect every later request in the worker. Copy the configured pipe definitions into each new operation pipeline; running or mutating a request must never alter the manager's worker-global definitions.
 
-The active global `MockClient`, stray-request setting, fixture path override, and missing-fixture behavior are test/invocation state. Store them under package-prefixed `CoroutineContext` keys. `Saloon::fake()`, `MockClient::global()`, and related assertion APIs resolve the manager and operate on the current coroutine; they must not use a static global mock. A pool child created with context propagation shares the same mock object, allowing pooled requests to be recorded by the calling test without exposing it to unrelated requests.
+The active global `MockClient`, stray-request setting, fixture path override, and missing-fixture behavior are test state on `SaloonManager`. This matches Hypervel HTTP's testing model: every pool child sees the same recorder, while `AfterEachTestSubscriber` resets the container and manager between tests. Do not duplicate this with static state or coroutine-context bridging. These APIs are tests-only and are not a runtime per-request customization surface.
 
-Expose `Saloon::fixturePath(string $path)` and `Saloon::throwOnMissingFixtures(bool $throw = true)` as `Tests only.` mutators of that coroutine state. `MockClient::destroyGlobal()` clears only the current context. Keep the explicit MockClient send argument and request-owned fake support; do not put a mutable mock on Connector.
+Expose `Saloon::fixturePath(string $path)` and `Saloon::throwOnMissingFixtures(bool $throw = true)` as `Tests only.` manager mutators. `Saloon::fake()`, `MockClient::global()`, assertion APIs, and `MockClient::destroyGlobal()` delegate to the manager. Keep the explicit MockClient send argument and request-owned fake support for operation-specific behavior; do not put a mutable mock on Connector.
 
 Use config only for worker defaults such as the fixture directory. Never mutate config to change a mock or tenant-specific connector during a request.
 
@@ -248,19 +248,17 @@ The provider registers one fixed connection, `saloon` by default, from `saloon.c
 
 Each request gets a fresh Hypervel pending request, Guzzle client, middleware stack, and cookie jar. The named connection reuses only the low-level handler, whose cURL handles retain keep-alive sockets, DNS state, and TLS sessions. This is the correct hot-connection mechanism. Do not use `hypervel/object-pool`: clients, stacks, and cookie jars are operation-local, while the reusable transport resource already has a narrower owner.
 
-`saloon.connection.options` keeps Saloon's 10-second connect timeout and 30-second request timeout unless an application publishes different values. It enables Guzzle's best-effort handler transport sharing so reusable easy handles can share DNS and TLS-session state when the installed cURL supports it. Do not duplicate a TLS setting in Saloon config: Hypervel HTTP already sets TLS 1.2 as the minimum, while Guzzle negotiates TLS 1.3 when both peers support it. The connection also accepts the normal registered-connection options documented by Hypervel HTTP, including handler connection caps. Pool concurrency bounds each Saloon pool; handler caps provide an optional worker-wide ceiling.
+`saloon.connection.options` keeps Saloon's 10-second connect timeout and 30-second request timeout unless an application publishes different values. It enables Guzzle's best-effort handler transport sharing so reusable easy handles can share DNS and TLS-session state when the installed cURL supports it. Do not duplicate a TLS setting in Saloon config: Hypervel HTTP already sets TLS 1.2 as the minimum, while Guzzle negotiates TLS 1.3 when both peers support it. Pool concurrency bounds each explicit fan-out operation, while Hypervel rate-limiter policies can enforce per-tenant and service-wide request rates across workers and servers.
 
 ## HTTP transport corrections
 
-Guzzle's handler supports `max_host_connections`, `max_total_connections`, and `multiplex` at handler construction. Hypervel HTTP currently forwards only `transport_sharing` to `Utils::chooseHandler()` and leaks the cap keys into per-request options, where they cannot configure the handler. Fix this at the HTTP-owned boundary before Saloon advertises caps.
+With Hypervel's supported cURL transport, Guzzle accepts `max_host_connections` and `max_total_connections` only by selecting a bare `CurlMultiHandler`. A worker-shared bare multi handler cannot be driven concurrently by Swoole coroutines; doing so raises a fatal `Swoole\Error`. Hypervel HTTP currently accepts these keys in registered connections but forwards them as ineffective request options. Reject both keys at the HTTP-owned boundary rather than advertising a silent no-op or enabling an unsafe handler.
 
-Centralize the handler-only key set in `ReservedOptions` and make `Factory` split registered connection config into:
+Keep handler construction limited to transport sharing and the safe `multiplex` handler setting:
 
 ```php
 $handlerOptions = Arr::only($config, [
     'transport_sharing',
-    'max_host_connections',
-    'max_total_connections',
 ]);
 
 if (($config['multiplex'] ?? null) === Multiplexing::NONE) {
@@ -268,15 +266,17 @@ if (($config['multiplex'] ?? null) === Multiplexing::NONE) {
 }
 ```
 
-`multiplex` remains in request options for every mode; only `Multiplexing::NONE` also configures handler selection. Remove transport sharing and connection caps from request options. Reject handler-owned options passed through global options, fluent `withOptions()`, raw request options, or per-send overrides with a message directing the caller to `registerConnection()`. Validate their value domains through Guzzle's accepted constants and positive-integer-or-null cap rules instead of silently coercing them.
+`multiplex` remains in request options for every mode; only `Multiplexing::NONE` also configures handler selection. Remove transport sharing from request options. Add both cap keys to `ReservedOptions`' unconditional rejection set so registered connections, global options, fluent `withOptions()`, raw request options, and per-send overrides fail with guidance to use bounded coroutine fan-out or the rate limiter. Do not add a package-owned aggregate concurrency semaphore without a concrete API contract that requires one.
 
-Update `tests/Http/HttpConnectionTest.php` and `src/docs/http-client.md` with handler forwarding, request-option separation, invalid placement, reconfiguration invalidation, and cap examples.
+Registered asynchronous requests expose a separate framework defect. `PendingRequest::buildHandlerStack()` currently gives every request on a named connection the same worker-lived handler. The synchronous path safely uses its private easy-handle branch, but asynchronous requests drive the shared multi-handler and concurrent coroutines can fatal. Use the registered handler only when `! $this->async`; asynchronous requests build a fresh handler, while synchronous requests retain warm connection reuse. Add concurrent registered-async and sequential registered-sync regressions and correct the HTTP connection documentation.
+
+Update `tests/Http/HttpConnectionTest.php`, `tests/Integration/Engine/HttpClientConnectionTest.php`, and `src/docs/http-client.md` with safe handler forwarding, request-option separation, cap rejection at every entry point, registered-async isolation, synchronous reuse, and reconfiguration invalidation.
 
 Hypervel HTTP currently runs Guzzle's `prepare_body` middleware before registered request middleware and `beforeSending()` callbacks. A supported callback that replaces the PSR body can therefore retain the old automatic `Content-Length`, `Transfer-Encoding`, or `Expect` headers; replacing a 17-byte JSON body with a one-byte stream currently sends `Content-Length: 17`. Fix the owner rather than special-casing Saloon: remove `prepare_body` from the default stack and reinsert it after user middleware and before the recorder, stub, and transport handlers. Keep prepared-body identity tracking before user middleware so body replacement still invalidates logical request data. This preserves middleware order, makes every supported PSR body replacement safe, and lets Saloon's PSR hook run once before final body preparation. Add HTTP regressions for request middleware and `beforeSending()` body replacements, explicit caller-supplied content headers, request-data invalidation, fakes, and real handler capture.
 
 Hypervel's `PendingRequest::withBody()` currently always writes a content type. Widen its second parameter to `?string`, retaining `application/json` as the default and skipping `contentType()` only when the caller explicitly passes null. This lets Saloon attach its prepared raw stream without inventing a content type; the Saloon header repository is applied afterwards. Add focused HTTP tests and document the nullable form. Existing Laravel-style calls are unchanged.
 
-Add a protected `Hypervel\Http\Client\Response::newRequestException(): RequestException` factory and use it in `toException()`, `throwIfStatus()`, and `throwUnlessStatus()`. The default returns the existing framework exception. Saloon Response overrides it to return its client, server, or general request exception without copying the framework's throwing methods.
+Add a protected `Hypervel\Http\Client\Response::newRequestException(): RequestException` factory and use it in `toException()`, `throwIfStatus()`, and `throwUnlessStatus()`. The default returns the existing framework exception. Saloon Response overrides it to return its client, server, or general request exception without copying the status-specific throwing methods.
 
 ```php
 protected function newRequestException(): RequestException
@@ -285,11 +285,13 @@ protected function newRequestException(): RequestException
 }
 ```
 
-This is a protected extension seam for response subclasses, not a second exception pipeline. Test the unchanged framework exception type plus Saloon's general, 4xx, and 5xx selections through every throwing method.
+This is a protected extension seam for response subclasses, not a second exception pipeline. Saloon must override `throw()` narrowly because its supported `shouldThrowRequestException()` hook may suppress an exception for a response that still reports `failed()`; the inherited framework method assumes those two decisions cannot differ and would otherwise execute `throw null`. Gate on `toException()` instead, return the response when it is null, and preserve the framework callback signature when it is present. Test suppression plus the unchanged framework exception type and Saloon's general, 4xx, and 5xx selections through every throwing method.
 
 ## Request orchestration
 
 Retain Saloon's higher-level middleware pipeline because it operates on connectors, requests, DTOs, fakes, cache entries, and rate policies rather than raw HTTP messages. Keep named pipes, ordering, request/response/fatal phases, connector and request middleware hooks, plugin boot hooks, authentication, and custom failure handlers. Retain `SoloRequest` and its `NullConnector` for one-off calls that do not need an integration connector; they use the same sender and lifecycle as normal requests.
+
+Constructing a PendingRequest only assembles operation state and applies defaults. It must not boot plugins, consume a fake or cache entry, inspect or reserve rate-limit state, sleep, dispatch sending/sent events, or touch the network. Every hook and effect begins in the manager's send loop, so callers may inspect or further customize a pending request safely before sending it.
 
 Store pipes in first/default/last buckets when they are registered and maintain a name set for duplicate detection. Processing then walks the three buckets directly without repartitioning and allocating a merged array on every attempt; flatten only for the infrequent pipeline-copy API. Preserve insertion order inside each bucket.
 
@@ -336,9 +338,9 @@ Carry user-defined DTO types through static analysis without adding a runtime DT
 
 ## Coroutine-native pool
 
-Replace the Guzzle promise pool with `Hypervel\Saloon\Http\Pool`. Keep the familiar ability to supply an iterable of keyed Request instances or a producer receiving the pool's Connector and returning that iterable, plus response and exception handlers. Reject any other item before trying to send it. `Connector::pool()` and the Pool constructor retain Saloon's default concurrency of 5 but accept only a positive integer; callable concurrency policies add complexity without a verified use that cannot be expressed by choosing a limit before sending. Keep concurrency explicit on each pool rather than adding a duplicate package setting. Applications needing a worker-wide ceiling use named HTTP connection caps.
+Replace the Guzzle promise pool with `Hypervel\Saloon\Http\Pool`. Keep the familiar ability to supply an iterable of keyed Request instances or a producer receiving the pool's Connector and returning that iterable, plus response and exception handlers. Reject any other item before trying to send it. `Connector::pool()` and the Pool constructor retain Saloon's default concurrency of 5 but accept only a positive integer; callable concurrency policies add complexity without a verified use that cannot be expressed by choosing a limit before sending. Keep concurrency explicit on each pool rather than adding a duplicate package setting. Use framework admission policies for per-tenant and service-wide request rates; do not present them as aggregate in-flight connection limits.
 
-Within a coroutine, create `WaitConcurrent($concurrency)` and call `fork()` for each item so request, tenant, log, and active mock context propagates to each child. Iteration blocks when the bound is full, so a large lazy iterable does not create an unbounded callback queue. Array writes and handler invocation remain inside the child; always join before returning.
+Within a coroutine, create `WaitConcurrent($concurrency)` and call `fork()` for each item so request, tenant, log, and other application context propagates to each child. The manager's tests-only mock is already shared by object identity and needs no context entry. Iteration blocks when the bound is full, so a large lazy iterable does not create an unbounded callback queue. Array writes and handler invocation remain inside the child; always join before returning.
 
 Response and exception handlers execute in their request's child coroutine. Document this so handlers that update shared application state use an appropriate coroutine-safe service; the pool must not serialize handlers and erase the concurrency benefit.
 
@@ -390,7 +392,7 @@ try {
 
 Add `process(): void` for large or continuously produced lazy iterables whose response handler owns each successful response. It runs the same private orchestration with response collection disabled; successfully handled send failures are discarded immediately, while unhandled failures and callback failures remain available for the final exception. Do not implement a second scheduling path. This keeps successful-result memory bounded rather than forcing every response into an array. `send()` is the Laravel-style collecting API and has memory proportional to its returned results.
 
-For normal CLI code outside a coroutine, enter one coroutine with `Hypervel\Coroutine\run()`, copy only Saloon's mock, stray-request, and fixture context keys from non-coroutine storage into that root, capture the result/exception, and execute the same implementation. This keeps CLI fakes working without copying unrelated process context. Do not add a slower sequential fallback. Validate concurrency as a positive integer.
+For normal CLI code outside a coroutine, enter one coroutine with `Hypervel\Coroutine\run()`, capture the result or exception, and execute the same implementation. Manager-backed test state remains visible to the root and its children without context copying. Do not add a slower sequential fallback. Validate concurrency as a positive integer.
 
 ## OAuth 2 and authentication
 
@@ -424,7 +426,7 @@ Build authorization query strings without blanket `array_filter()`: valid falsey
 
 ## Fakes, fixtures, and assertions
 
-Port request matching, response sequences, closure responses, wildcard URL matching, mock response builders, recorded requests/responses, fixtures, redaction hooks, and non-deprecated assertions. The global facade and `MockClient::global()` both delegate to the coroutine-local manager state. Saloon fakes take precedence and populate Saloon's mocked flag, recordings, and assertions. A lower-level Hypervel HTTP fake still prevents transport and remains visible through HTTP's own recorder, but it does not pretend to be a Saloon `MockClient` response.
+Port request matching, response sequences, closure responses, wildcard URL matching, mock response builders, recorded requests/responses, fixtures, redaction hooks, and non-deprecated assertions. The global facade and `MockClient::global()` both delegate to the manager's tests-only state. Saloon fakes take precedence and populate Saloon's mocked flag, recordings, and assertions. A lower-level Hypervel HTTP fake still prevents transport and remains visible through HTTP's own recorder, but it does not pretend to be a Saloon `MockClient` response.
 
 An unmatched MockClient remains strict by default. Give it the familiar `preventStrayRequests(bool $prevent = true)` and `allowStrayRequests(?array $only = null)` controls: allowing null permits any unmatched request to continue through the normal cache/admission/send lifecycle, while an array permits only matching URL patterns. The manager owns this branch after the mock lookup; the response matcher returns a nullable fake and never returns a PendingRequest sentinel or widens the fake-response union. Document the array as `list<string>` and match it against the final logical URI.
 
@@ -593,7 +595,7 @@ Write `src/docs/saloon.md` as a complete public guide, not a change log or imple
 - API pagination and why it is separate from view pagination;
 - admission policies, stores, waiting, 429 cooldowns, and multi-policy reservation behavior;
 - events, macros, console generators, and extension points;
-- named connection reuse, fixed connection names, concurrency, handler caps, and why object pooling is not used;
+- named connection reuse, fixed connection names, bounded pool concurrency, rejected unsafe handler caps, the distinction between request rates and aggregate in-flight requests, and why object pooling is not used;
 - coroutine/worker ownership, immutable OAuth/connector configuration, operation-only cache/debug controls, and security-sensitive URL/token behavior.
 
 Use examples that compile against the final API. Avoid internal implementation language unless it explains a user-visible constraint. Add the guide to the docs navigation in the same location as HTTP/API integration documentation.
@@ -601,10 +603,10 @@ Use examples that compile against the final API. Avoid internal implementation l
 ## Implementation sequence
 
 1. **Inventory and skeleton.** Rebuild the source/test inventories from all five upstream packages. Create one implementation checklist entry per source and test file, marking each as port, merge, adapt, or deliberately omitted with its replacement. Add package/root Composer wiring through Composer commands for resolved dependencies, then the provider/config/facade skeleton.
-2. **HTTP owner fixes.** Correct named-connection handler options, post-mutation body preparation, nullable raw-body content types, scalar object decoding, the response-exception factory, tests, and HTTP docs first so the Saloon sender can rely on the final transport contract.
+2. **HTTP owner fixes.** Reject unsafe connection-cap options, isolate registered asynchronous handlers while preserving synchronous reuse, correct safe named-connection handler options, post-mutation body preparation, nullable raw-body content types, scalar object decoding, the response-exception factory, tests, and HTTP docs first so the Saloon sender can rely on the final transport contract.
 3. **Core values and repositories.** Port enums (including `QUERY`), contracts, the reduced exception hierarchy, data values, internal header/query/option/body repositories, helpers still needed after framework substitutions, and authentication.
-4. **Core operation path.** Port the stable Connector, mutable SelfBuilding Request, PendingRequest, Response subclass, Laravel-style fluent surface, middleware, retry/error handling, request-clone independence, response-data-dependent subclass selection, DTO generic propagation/type fixtures, plugin boot caching, manager state, events, and the concrete Sender. Run each new/changed test file immediately.
-5. **Fakes and fixtures.** Port MockClient, strict and partial fake behavior, fake/recorded responses, sequences, fixture storage/redaction, typed facade assertions, coroutine state, and test cleanup.
+4. **Core operation path.** Port the stable Connector, mutable SelfBuilding Request, side-effect-free PendingRequest construction, Response subclass with exception suppression, Laravel-style fluent surface, middleware, retry/error handling, request-clone independence, response-data-dependent subclass selection, DTO generic propagation/type fixtures, plugin boot caching, manager state, events, and the concrete Sender. Run each new/changed test file immediately.
+5. **Fakes and fixtures.** Port MockClient, strict and partial fake behavior, fake/recorded responses, sequences, fixture storage/redaction, typed facade assertions, manager-backed tests-only state, and subscriber-owned container cleanup.
 6. **OAuth 2.** Port grant flows and token models using immutable dates and the AuthorizationUrl state contract.
 7. **Pool.** Replace promise tests with bounded coroutine, context propagation, failure settlement, and non-coroutine entry tests.
 8. **Cache and pagination.** Port each module against Hypervel repositories/collections and the new pool, deleting replaced plugin drivers and promise code rather than leaving adapters.
@@ -622,7 +624,7 @@ Place unit/package tests under `tests/Saloon` and external HTTP tests under `tes
 
 Cover:
 
-- Worker-reused connectors with fixed configuration, explicitly constructed tenant connectors with isolated readonly configuration, connector injection into a default worker-shared controller, fresh Request resolution at an operation call site, honored explicit bindings, direct construction, independent cloning of every initialized mutable request repository/pipeline/cookie/retry/cache-control value, and repeated sends that create independent pending state.
+- Worker-reused connectors with fixed configuration, explicitly constructed tenant connectors with isolated readonly configuration, connector injection into a default worker-shared controller, fresh Request resolution at an operation call site, honored explicit bindings, direct construction, side-effect-free pending construction, independent cloning of every initialized mutable request repository/pipeline/cookie/retry/cache-control value, and repeated sends that create independent pending state.
 - Property merge precedence, authentication, the full shared Hypervel HTTP fluent surface, all supported methods including body-bearing `QUERY`, HTTP(S)-only base/endpoint joining, endpoint/repository query merging (duplicates, zero/false/empty-string names and values, valueless pairs, exact and nested-family overrides, literal bracket keys, plus/percent-encoded names, nested/Arrayable/JsonSerializable/Stringable/non-finite values), header normalization, body formats, structured JSON/form/query normalization, string `"0"`, empty/null streams, custom JSON flags, multipart boundaries/metadata/numeric normalization/defaults, one-time prepared-body identity across fake/cache/network paths, stream ownership, cookies, accepted transport options, rejected request-shaping/authentication/error options, TLS/certificates, stable base-URL override resolvers, final PSR middleware replacement, and one HTTP attempt per Saloon attempt.
 - Response inheritance without duplicated framework methods, scalar/array/object JSON, invalid JSON, seekable and lazily buffered non-seekable streams, retained framework response metadata, exception-safe path/resource export and ownership, inherited reason/header/status/ArrayAccess helpers, response-data-dependent custom response selection (including a resolver that buffers a non-seekable body before selecting a subclass), general/client/server exception selection through every throwing method, DTO runtime behavior and static type inference, exception chains, cached/mocked false resets, and XML/DOM.
 - Request/PendingRequest debugging ownership, connector boot customization, request/response debugging order, one PSR-hook invocation, custom callbacks, seekable-position preservation, non-consuming request-stream markers, buffered non-seekable response bodies, raw-output credential warning, and the direct-exit path in an isolated subprocess with no process-global test hook.
@@ -632,9 +634,10 @@ Cover:
 ### Worker and coroutine safety
 
 - One reused connector can send concurrent requests with different operation headers, authentication, middleware, cookies, and mocks without shared state; separately constructed tenant connectors keep their readonly credentials and base URLs isolated.
-- Global middleware persists intentionally from boot; per-coroutine mocks, stray settings, and fixture overrides do not cross coroutines.
-- Pool children inherit the calling context and record on its mock; unrelated parent coroutines remain isolated.
-- Named handler identity is reused while pending requests, clients, stacks, and cookie jars are fresh.
+- Global middleware persists intentionally from boot; manager-backed global mocks, stray settings, and fixture overrides persist only for the current test and are removed by the subscriber's container reset. Explicit request-owned mocks remain operation-local.
+- Pool children inherit ordinary application context and record on the manager's current test mock.
+- Named handler identity is reused by synchronous requests while pending requests, clients, stacks, and cookie jars are fresh; registered asynchronous requests use fresh handlers and remain safe across concurrent coroutines.
+- Real-server sequential sends through one named connection retain the same local connection after the first request, confirmed through transfer stats without a timing threshold; concurrent registered asynchronous sends complete without sharing a multi-handler.
 - Macro and plugin metadata cleanup is owned by `AfterEachTestSubscriber`; direct `flushState()` tests verify every static property.
 - A bounded set of connector/request classes produces a bounded metadata cache with no per-request keys.
 
@@ -646,7 +649,7 @@ Cover:
 - The no-handler path throws after settlement; the handler path returns successful keys; callback failures are preserved separately from send failures.
 - A lazy producer or scheduler failure still joins every started child and remains available with partial responses and any child failures.
 - `process()` retains no successful responses or successfully handled failures while consuming a large lazy iterable, and shares the exact scheduler/error path with `send()`.
-- Parent context propagation and non-coroutine CLI entry both use the same behavior, including a mock configured before the root coroutine starts.
+- Parent application-context propagation and non-coroutine CLI entry both use the same behavior, including a manager mock configured before the root coroutine starts.
 
 ### Fakes and fixtures
 
