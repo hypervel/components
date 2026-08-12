@@ -55,7 +55,7 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Configuration options that are Hypervel-specific and should not be sent to the base PHP SDK.
      */
-    protected const HYPERVEL_SPECIFIC_OPTIONS = [
+    protected const array HYPERVEL_SPECIFIC_OPTIONS = [
         // These settings are Hypervel-specific and the PHP SDK will throw errors if it receives them
         'tracing',
         'breadcrumbs',
@@ -70,7 +70,7 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Options that should be resolved from the container instead of being passed directly to the SDK.
      */
-    protected const OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
+    protected const array OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
         'logger',
     ];
 

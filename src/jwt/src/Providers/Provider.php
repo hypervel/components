@@ -8,23 +8,23 @@ use Hypervel\Support\Arr;
 
 abstract class Provider
 {
-    public const ALGO_HS256 = 'HS256';
+    public const string ALGO_HS256 = 'HS256';
 
-    public const ALGO_HS384 = 'HS384';
+    public const string ALGO_HS384 = 'HS384';
 
-    public const ALGO_HS512 = 'HS512';
+    public const string ALGO_HS512 = 'HS512';
 
-    public const ALGO_RS256 = 'RS256';
+    public const string ALGO_RS256 = 'RS256';
 
-    public const ALGO_RS384 = 'RS384';
+    public const string ALGO_RS384 = 'RS384';
 
-    public const ALGO_RS512 = 'RS512';
+    public const string ALGO_RS512 = 'RS512';
 
-    public const ALGO_ES256 = 'ES256';
+    public const string ALGO_ES256 = 'ES256';
 
-    public const ALGO_ES384 = 'ES384';
+    public const string ALGO_ES384 = 'ES384';
 
-    public const ALGO_ES512 = 'ES512';
+    public const string ALGO_ES512 = 'ES512';
 
     /**
      * Constructor.

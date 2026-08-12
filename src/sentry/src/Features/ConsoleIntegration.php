@@ -13,7 +13,7 @@ use Symfony\Component\Console\Input\InputInterface;
 
 class ConsoleIntegration extends Feature
 {
-    private const FEATURE_KEY = 'command_info';
+    private const string FEATURE_KEY = 'command_info';
 
     public function isApplicable(): bool
     {

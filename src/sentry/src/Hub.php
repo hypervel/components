@@ -29,9 +29,9 @@ use function sprintf;
 
 class Hub implements HubInterface
 {
-    public const CONTEXT_STACK_KEY = '__sentry.stack';
+    public const string CONTEXT_STACK_KEY = '__sentry.stack';
 
-    public const CONTEXT_LAST_EVENT_ID_KEY = '__sentry.last_event_id';
+    public const string CONTEXT_LAST_EVENT_ID_KEY = '__sentry.last_event_id';
 
     public function __construct(protected ?ClientInterface $client = null, protected ?Scope $scope = null)
     {

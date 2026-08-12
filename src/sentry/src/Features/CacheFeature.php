@@ -45,7 +45,7 @@ class CacheFeature extends Feature
      */
     public bool $detectSessionKeyOnConsole = false;
 
-    private const FEATURE_KEY = 'cache';
+    private const string FEATURE_KEY = 'cache';
 
     public function isApplicable(): bool
     {

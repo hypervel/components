@@ -23,12 +23,12 @@ class ModelObserver
     /**
      * Context key prefix for storing whether syncing is disabled per model class.
      */
-    protected const SYNCING_DISABLED_CONTEXT_KEY_PREFIX = '__scout.syncing_disabled.';
+    protected const string SYNCING_DISABLED_CONTEXT_KEY_PREFIX = '__scout.syncing_disabled.';
 
     /**
      * Context key for storing whether the current coroutine is forcing a search update.
      */
-    protected const FORCE_SAVING_CONTEXT_KEY = '__scout.force_saving';
+    protected const string FORCE_SAVING_CONTEXT_KEY = '__scout.force_saving';
 
     /**
      * Indicates if Scout will dispatch the observer's events after the open parent database transactions have committed.

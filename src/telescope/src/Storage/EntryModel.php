@@ -21,10 +21,8 @@ class EntryModel extends Model
 
     /**
      * The name of the "updated at" column.
-     *
-     * @var null|string
      */
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     /**
      * The attributes that should be cast to native types.

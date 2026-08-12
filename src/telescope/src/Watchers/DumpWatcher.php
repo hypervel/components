@@ -15,7 +15,7 @@ use Throwable;
 
 class DumpWatcher extends Watcher
 {
-    protected const DEFAULT_INSTALLED = false;
+    protected const bool DEFAULT_INSTALLED = false;
 
     /**
      * Whether the Telescope dump handler is installed.

@@ -12,7 +12,7 @@ use LogicException;
  */
 class CallContextStore
 {
-    private const CALL_CONTEXT_KEY = '__grpc.call';
+    private const string CALL_CONTEXT_KEY = '__grpc.call';
 
     /**
      * Store the active server call context.
