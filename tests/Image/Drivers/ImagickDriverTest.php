@@ -52,6 +52,8 @@ class ImagickDriverTest extends TestCase
 
     public function testProcessesOptimizeToWebp(): void
     {
+        $this->ensureImageFormatCanBeEncoded('webp');
+
         $driver = new ImagickDriver;
 
         $pipeline = $this->pipeline(format: 'webp');
@@ -208,6 +210,8 @@ class ImagickDriverTest extends TestCase
 
     public function testProcessesCoverAndOptimizeTogether(): void
     {
+        $this->ensureImageFormatCanBeEncoded('webp');
+
         $driver = new ImagickDriver;
         $contents = $this->fakeImageContents(300, 300);
 
@@ -388,6 +392,8 @@ class ImagickDriverTest extends TestCase
 
     public function testFormatConversionPreservesDimensions(): void
     {
+        $this->ensureImageFormatCanBeEncoded('webp');
+
         $driver = new ImagickDriver;
         $contents = $this->fakeImageContents(300, 200);
 

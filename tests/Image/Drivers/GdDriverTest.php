@@ -44,6 +44,7 @@ class GdDriverTest extends TestCase
         $this->assertSame(50, $height);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testProcessesOptimizeToWebp(): void
     {
         $driver = new GdDriver;
@@ -122,6 +123,7 @@ class GdDriverTest extends TestCase
         $this->assertSame(IMAGETYPE_BMP, getimagesizefromstring($result)[2]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testProcessesCoverAndOptimizeTogether(): void
     {
         $driver = new GdDriver;
@@ -302,6 +304,7 @@ class GdDriverTest extends TestCase
         $this->assertSame(80, $height);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testFormatConversionPreservesDimensions(): void
     {
         $driver = new GdDriver;

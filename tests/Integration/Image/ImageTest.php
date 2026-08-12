@@ -11,6 +11,7 @@ use Hypervel\Image\ImageServiceProvider;
 use Hypervel\Support\Facades\Image as ImageFacade;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\RequiresFunction;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 #[RequiresPhpExtension('gd')]
@@ -131,6 +132,7 @@ class ImageTest extends TestCase
         $this->assertSame(IMAGETYPE_PNG, getimagesizefromstring($result)[2]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testToWebpAndToBytes(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -160,6 +162,7 @@ class ImageTest extends TestCase
         $this->assertNotSame($contents, $result);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testImmutabilityWithVariants(): void
     {
         $image = new Image($this->fakeImageContents(400, 400));
@@ -182,6 +185,7 @@ class ImageTest extends TestCase
         $this->assertSame(IMAGETYPE_WEBP, $largeSize[2]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testStoreSavesToDisk(): void
     {
         Storage::fake('local');
@@ -196,6 +200,7 @@ class ImageTest extends TestCase
         $this->assertStringEndsWith('.webp', $files[0]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testStoreAsSavesWithCustomName(): void
     {
         Storage::fake('local');
@@ -207,6 +212,7 @@ class ImageTest extends TestCase
         Storage::disk('local')->assertExists('images/avatar.webp');
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testMimeTypeAfterFormatConversion(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -214,6 +220,7 @@ class ImageTest extends TestCase
         $this->assertSame('image/webp', $image->toWebp()->mimeType());
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testExtensionAfterFormatConversion(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -240,6 +247,7 @@ class ImageTest extends TestCase
         $this->assertLessThan(strlen($high), strlen($low));
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testFullAvatarPipeline(): void
     {
         Storage::fake('local');
@@ -257,6 +265,7 @@ class ImageTest extends TestCase
         $this->assertStringEndsWith('.webp', $files[0]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testTwoVariantsFromUploadedFile(): void
     {
         Storage::fake('local');
@@ -295,6 +304,7 @@ class ImageTest extends TestCase
         $this->assertSame($file, $large->file());
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testTwoVariantsFromRequestImage(): void
     {
         Storage::fake('local');
@@ -417,6 +427,7 @@ class ImageTest extends TestCase
         $this->assertSame([200, 200], getimagesizefromstring($result) ? [getimagesizefromstring($result)[0], getimagesizefromstring($result)[1]] : [0, 0]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testAllOperationsCombined(): void
     {
         $image = new Image($this->fakeImageContents(800, 600));
@@ -439,6 +450,7 @@ class ImageTest extends TestCase
         $this->assertSame(IMAGETYPE_WEBP, $size[2]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testToBytesIsIdempotent(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -474,6 +486,7 @@ class ImageTest extends TestCase
         $this->assertSame(150, $covered->height());
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testToBase64ProducesValidBase64(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -485,6 +498,7 @@ class ImageTest extends TestCase
         $this->assertSame($result->toBytes(), base64_decode($base64));
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testToDataUriProducesValidDataUri(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -495,6 +509,7 @@ class ImageTest extends TestCase
         $this->assertStringStartsWith('data:image/webp;base64,', $dataUri);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testStoreWithStringDiskOption(): void
     {
         Storage::fake('custom');
@@ -507,6 +522,7 @@ class ImageTest extends TestCase
         $this->assertCount(1, $files);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testStoreWithArrayOptions(): void
     {
         Storage::fake('custom');
@@ -557,6 +573,7 @@ class ImageTest extends TestCase
         Storage::disk('local')->assertExists('avatar.jpg');
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testStorePubliclySetsVisibility(): void
     {
         Storage::fake('local');
@@ -570,6 +587,7 @@ class ImageTest extends TestCase
         $this->assertCount(1, $files);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testStorePubliclyAs(): void
     {
         Storage::fake('local');
@@ -595,6 +613,7 @@ class ImageTest extends TestCase
         $this->assertStringEndsWith('.jpg', $files[0]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testHashNameChangesExtensionAfterFormatConversion(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -624,6 +643,7 @@ class ImageTest extends TestCase
         $this->assertSame(IMAGETYPE_JPEG, getimagesizefromstring($result)[2]);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testOptimizeShortcutProducesWebp(): void
     {
         $image = new Image($this->fakeImageContents(100, 100));
@@ -673,6 +693,7 @@ class ImageTest extends TestCase
         $this->assertSame([100, 100], $image->dimensions());
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testFormatConversionDoesNotChangeDimensions(): void
     {
         $image = new Image($this->fakeImageContents(300, 200));
@@ -701,6 +722,7 @@ class ImageTest extends TestCase
         $this->assertSame(200, $height);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testQualityAndFormatDoesNotChangeDimensions(): void
     {
         $image = new Image($this->fakeImageContents(300, 200));
@@ -737,6 +759,7 @@ class ImageTest extends TestCase
         $this->assertSame(300, $height);
     }
 
+    #[RequiresFunction('imagewebp')]
     public function testStoreWithDefaultDisk(): void
     {
         Storage::fake();
