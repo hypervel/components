@@ -227,14 +227,17 @@ class InvokeSerializedClosureCommandTest extends TestCase
         $output = $this->invokeSerializedClosureOutput(
             static fn () => ConcurrentProcessExceptionFixtures::throwPublicValue($value)
         );
+        $caught = null;
 
         try {
             SerializedClosureResult::decode($output);
-            $this->fail('Expected the transported exception to be thrown.');
         } catch (RuntimeException $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_VALUE_EXCEPTION, $exception::class);
-            $this->assertSame($value, $exception->value);
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+        $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_VALUE_EXCEPTION, $caught::class);
+        $this->assertSame($value, $caught->value);
     }
 
     public function testItDegradesExceptionParametersBeyondTheTransportDepth(): void

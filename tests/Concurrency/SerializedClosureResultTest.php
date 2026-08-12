@@ -12,7 +12,6 @@ use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use RuntimeException;
-use stdClass;
 use TypeError;
 
 class SerializedClosureResultTest extends TestCase
@@ -56,12 +55,16 @@ class SerializedClosureResultTest extends TestCase
         ];
 
         foreach ($payloads as $description => $payload) {
+            $caught = null;
+
             try {
                 SerializedClosureResult::decode(Json::encode($payload));
-                $this->fail("Expected the {$description} response envelope to be rejected.");
             } catch (RuntimeException $exception) {
-                $this->assertSame('Invalid serialized closure response envelope.', $exception->getMessage());
+                $caught = $exception;
             }
+
+            $this->assertNotNull($caught, "Expected the {$description} response envelope to be rejected.");
+            $this->assertSame('Invalid serialized closure response envelope.', $caught->getMessage());
         }
     }
 
@@ -71,20 +74,26 @@ class SerializedClosureResultTest extends TestCase
             'base64' => '*not-base64*',
             'serialized value' => base64_encode('not-serialized'),
         ] as $description => $result) {
+            $caught = null;
+
             try {
                 $this->decodePayload([
                     'successful' => true,
                     'result' => $result,
                 ]);
-                $this->fail("Expected the malformed {$description} to be rejected.");
             } catch (RuntimeException $exception) {
-                $this->assertSame('Unable to decode the serialized closure result.', $exception->getMessage());
+                $caught = $exception;
             }
+
+            $this->assertNotNull($caught, "Expected the malformed {$description} to be rejected.");
+            $this->assertSame('Unable to decode the serialized closure result.', $caught->getMessage());
         }
     }
 
     public function testItPreservesPublicFalseyExceptionParameters(): void
     {
+        $caught = null;
+
         try {
             $this->decodePayload([
                 'successful' => false,
@@ -97,14 +106,16 @@ class SerializedClosureResultTest extends TestCase
                     'detail' => null,
                 ],
             ]);
-            $this->fail('Expected the transported exception to be thrown.');
         } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $exception::class);
-            $this->assertSame(0, $exception->status);
-            $this->assertFalse($exception->retry);
-            $this->assertSame('', $exception->reason);
-            $this->assertNull($exception->detail);
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+        $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $caught::class);
+        $this->assertSame(0, $caught->status);
+        $this->assertFalse($caught->retry);
+        $this->assertSame('', $caught->reason);
+        $this->assertNull($caught->detail);
     }
 
     public function testItReconstructsOptionalVariadicAndInheritedParameters(): void
@@ -131,13 +142,17 @@ class SerializedClosureResultTest extends TestCase
         ];
 
         foreach ($payloads as $payload) {
+            $caught = null;
+
             try {
                 $this->decodePayload(['successful' => false, ...$payload]);
-                $this->fail('Expected the transported exception to be thrown.');
             } catch (Exception $exception) {
-                $this->assertSame($payload['exception'], $exception::class);
-                $this->assertSame($payload['expectedMessage'], $exception->getMessage());
+                $caught = $exception;
             }
+
+            $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+            $this->assertSame($payload['exception'], $caught::class);
+            $this->assertSame($payload['expectedMessage'], $caught->getMessage());
         }
     }
 
@@ -173,6 +188,8 @@ class SerializedClosureResultTest extends TestCase
         ];
 
         foreach ($payloads as $exceptionClass => $property) {
+            $caught = null;
+
             try {
                 $this->decodePayload([
                     'successful' => false,
@@ -180,16 +197,20 @@ class SerializedClosureResultTest extends TestCase
                     'message' => 'remote failure',
                     'parameters' => [],
                 ]);
-                $this->fail('Expected the transported exception to be thrown.');
             } catch (Exception $exception) {
-                $this->assertSame($exceptionClass, $exception::class);
-                $this->assertSame($property === 'argumentCount' ? 0 : [], $exception->{$property});
+                $caught = $exception;
             }
+
+            $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+            $this->assertSame($exceptionClass, $caught::class);
+            $this->assertSame($property === 'argumentCount' ? 0 : [], $caught->{$property});
         }
     }
 
     public function testItContainsConstructorFailuresDuringReconstruction(): void
     {
+        $caught = null;
+
         try {
             $this->decodePayload([
                 'successful' => false,
@@ -197,15 +218,19 @@ class SerializedClosureResultTest extends TestCase
                 'message' => 'status=5',
                 'parameters' => ['status' => 'v5'],
             ]);
-            $this->fail('Expected exception reconstruction to fail.');
         } catch (RuntimeException $exception) {
-            $this->assertSame('status=5', $exception->getMessage());
-            $this->assertInstanceOf(TypeError::class, $exception->getPrevious());
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected exception reconstruction to fail.');
+        $this->assertSame('status=5', $caught->getMessage());
+        $this->assertInstanceOf(TypeError::class, $caught->getPrevious());
     }
 
     public function testItContainsUnavailableExceptionClassesDuringReconstruction(): void
     {
+        $caught = null;
+
         try {
             $this->decodePayload([
                 'successful' => false,
@@ -213,24 +238,43 @@ class SerializedClosureResultTest extends TestCase
                 'message' => 'remote failure',
                 'parameters' => [],
             ]);
-            $this->fail('Expected exception reconstruction to fail.');
         } catch (RuntimeException $exception) {
-            $this->assertSame('remote failure', $exception->getMessage());
-            $this->assertNotNull($exception->getPrevious());
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected exception reconstruction to fail.');
+        $this->assertSame('remote failure', $caught->getMessage());
+        $this->assertInstanceOf(RuntimeException::class, $caught->getPrevious());
+        $this->assertSame(
+            'The transported exception class [Missing\SerializedClosureException] is not an available Throwable.',
+            $caught->getPrevious()->getMessage(),
+        );
     }
 
-    public function testItRejectsNonThrowableExceptionClasses(): void
+    public function testItRejectsNonThrowableExceptionClassesBeforeConstruction(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('remote failure');
+        NonThrowableConstructorProbe::$constructed = false;
+        $caught = null;
 
-        $this->decodePayload([
-            'successful' => false,
-            'exception' => stdClass::class,
-            'message' => 'remote failure',
-            'parameters' => [],
-        ]);
+        try {
+            $this->decodePayload([
+                'successful' => false,
+                'exception' => NonThrowableConstructorProbe::class,
+                'message' => 'remote failure',
+                'parameters' => [],
+            ]);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertNotNull($caught, 'Expected exception reconstruction to fail.');
+        $this->assertSame('remote failure', $caught->getMessage());
+        $this->assertInstanceOf(RuntimeException::class, $caught->getPrevious());
+        $this->assertSame(
+            'The transported exception class [' . NonThrowableConstructorProbe::class . '] is not an available Throwable.',
+            $caught->getPrevious()->getMessage(),
+        );
+        $this->assertFalse(NonThrowableConstructorProbe::$constructed);
     }
 
     public function testItUsesTheGenericFailureFallback(): void
@@ -244,6 +288,7 @@ class SerializedClosureResultTest extends TestCase
     public function testItReconstructsTheMaximumExceptionParameterDepth(): void
     {
         $value = $this->nestedValue(510);
+        $caught = null;
 
         try {
             $this->decodePayload([
@@ -252,11 +297,13 @@ class SerializedClosureResultTest extends TestCase
                 'message' => 'public value',
                 'parameters' => ['value' => $value],
             ]);
-            $this->fail('Expected the transported exception to be thrown.');
         } catch (RuntimeException $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_VALUE_EXCEPTION, $exception::class);
-            $this->assertSame($value, $exception->value);
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+        $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_VALUE_EXCEPTION, $caught::class);
+        $this->assertSame($value, $caught->value);
     }
 
     /**
@@ -292,5 +339,18 @@ class SerializedClosureResultTest extends TestCase
         }
 
         return $value;
+    }
+}
+
+class NonThrowableConstructorProbe
+{
+    public static bool $constructed = false;
+
+    /**
+     * Create a new non-Throwable constructor probe.
+     */
+    public function __construct()
+    {
+        self::$constructed = true;
     }
 }

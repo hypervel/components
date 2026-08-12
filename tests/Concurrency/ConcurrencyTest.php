@@ -107,6 +107,8 @@ class ConcurrencyTest extends TestCase
 
     public function testRunRethrowsExceptionFromEarliestInputPositionWhenMultipleTasksFail()
     {
+        $caught = null;
+
         try {
             $this->coroutineDriver->run([
                 function () {
@@ -119,11 +121,12 @@ class ConcurrencyTest extends TestCase
                     throw new RuntimeException('second in input');
                 },
             ]);
-
-            $this->fail('Expected exception was not thrown');
         } catch (RuntimeException $e) {
-            $this->assertSame('first in input', $e->getMessage());
+            $caught = $e;
         }
+
+        $this->assertNotNull($caught, 'Expected exception was not thrown');
+        $this->assertSame('first in input', $caught->getMessage());
     }
 
     public function testRunWithEmptyArrayReturnsEmptyArray()
@@ -461,17 +464,20 @@ class ConcurrencyTest extends TestCase
                 'detail' => null,
             ],
         ]);
+        $caught = null;
 
         try {
             $driver->run(static fn () => null);
-            $this->fail('Expected the transported exception to be thrown.');
         } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $exception::class);
-            $this->assertSame(0, $exception->status);
-            $this->assertFalse($exception->retry);
-            $this->assertSame('', $exception->reason);
-            $this->assertNull($exception->detail);
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+        $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $caught::class);
+        $this->assertSame(0, $caught->status);
+        $this->assertFalse($caught->retry);
+        $this->assertSame('', $caught->reason);
+        $this->assertNull($caught->detail);
     }
 
     public function testProcessDriverReportsFailedChildProcessesBeforeDecoding(): void

@@ -9,6 +9,13 @@ use RuntimeException;
 use Throwable;
 
 /**
+ * Decode serialized-closure responses produced by the framework subprocess command.
+ *
+ * The subprocess stream may also contain output from the application task, so the
+ * response envelope is validated before use. Task results may contain objects, so
+ * successful responses require unrestricted unserialization. Callers must never
+ * pass external input to this decoder.
+ *
  * @internal
  */
 class SerializedClosureResult
@@ -52,13 +59,13 @@ class SerializedClosureResult
             $parameters = $payload['parameters'] ?? ['message' => $message];
 
             try {
+                if (! is_a($exceptionClass, Throwable::class, true)) {
+                    throw new RuntimeException("The transported exception class [{$exceptionClass}] is not an available Throwable.");
+                }
+
                 $exception = new $exceptionClass(...$parameters);
             } catch (Throwable $constructionException) {
                 throw new RuntimeException($message, previous: $constructionException);
-            }
-
-            if (! $exception instanceof Throwable) {
-                throw new RuntimeException($message);
             }
 
             throw $exception;

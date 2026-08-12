@@ -36,17 +36,20 @@ class ProcessResultTest extends TestCase
                 'detail' => null,
             ],
         ]);
+        $caught = null;
 
         try {
             $result->output();
-            $this->fail('Expected the transported exception to be thrown.');
         } catch (Exception $exception) {
-            $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $exception::class);
-            $this->assertSame(0, $exception->status);
-            $this->assertFalse($exception->retry);
-            $this->assertSame('', $exception->reason);
-            $this->assertNull($exception->detail);
+            $caught = $exception;
         }
+
+        $this->assertNotNull($caught, 'Expected the transported exception to be thrown.');
+        $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $caught::class);
+        $this->assertSame(0, $caught->status);
+        $this->assertFalse($caught->retry);
+        $this->assertSame('', $caught->reason);
+        $this->assertNull($caught->detail);
     }
 
     public function testItReturnsRawNonClosureOutputWithoutInterpretingGzipMarkers(): void

@@ -185,7 +185,7 @@ class PackageManifestPackageTesterTest extends TestCase
      */
     private function processOutput(Process $process): string
     {
-        return $process->getOutput() . $process->getErrorOutput();
+        return $process->getOutput() . "\n" . $process->getErrorOutput();
     }
 
     /**
