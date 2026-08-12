@@ -28,6 +28,7 @@ use Hypervel\Contracts\Auth\StatefulGuard;
  * @method static array<int, string> getAuthContextKeys()
  * @method static \Hypervel\Auth\AuthManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static \Hypervel\Contracts\Auth\UserProvider|null createUserProvider(string|null $provider = null)
+ * @method static string|null getUserProviderName(\UnitEnum|string|null $guard = null)
  * @method static string|null getDefaultUserProvider()
  *
  * @see \Hypervel\Auth\AuthManager
