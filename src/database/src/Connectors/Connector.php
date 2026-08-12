@@ -6,6 +6,7 @@ namespace Hypervel\Database\Connectors;
 
 use Exception;
 use Hypervel\Database\DetectsLostConnections;
+use InvalidArgumentException;
 use PDO;
 use SensitiveParameter;
 use Throwable;
@@ -102,5 +103,21 @@ class Connector
     public function setDefaultOptions(array $options): void
     {
         $this->options = $options;
+    }
+
+    /**
+     * Get the configured lock timeout in seconds.
+     */
+    protected function getLockTimeout(array $config): ?int
+    {
+        if (! isset($config['lock_timeout'])) {
+            return null;
+        }
+
+        if (! is_int($config['lock_timeout']) || $config['lock_timeout'] < 1) {
+            throw new InvalidArgumentException('Database connection [lock_timeout] must be a positive integer.');
+        }
+
+        return $config['lock_timeout'];
     }
 }
