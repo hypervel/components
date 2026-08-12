@@ -9,7 +9,7 @@ use Hypervel\Engine\Http\V2\Request as Http2Request;
 
 class ResponseStreamingTest extends HttpServerIntegrationTestCase
 {
-    protected const BINARY_CONTENTS = '0123456789abcdefghijklmnopqrstuvwxyz';
+    protected const string BINARY_CONTENTS = '0123456789abcdefghijklmnopqrstuvwxyz';
 
     public function testCallbackAndIterableStreamsPassThroughOutboundMiddleware(): void
     {

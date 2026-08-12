@@ -125,7 +125,7 @@ class Connection implements ConnectionInterface
      */
     protected ?DatabaseTransactionsManager $transactionsManager = null;
 
-    public const READ_WRITE_TYPE_CONFIG_KEY = 'read_write_type';
+    public const string READ_WRITE_TYPE_CONFIG_KEY = 'read_write_type';
 
     /**
      * Indicates if changes have been made to the database.

@@ -12,9 +12,9 @@ use RuntimeException;
 
 class EnvTest extends TestCase
 {
-    private const ARRAY_KEY = 'TEST_ENV_ARRAY';
+    private const string ARRAY_KEY = 'TEST_ENV_ARRAY';
 
-    private const REQUIRED_KEY = 'TEST_REQUIRED_ENV';
+    private const string REQUIRED_KEY = 'TEST_REQUIRED_ENV';
 
     protected function setUp(): void
     {

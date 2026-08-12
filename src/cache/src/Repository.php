@@ -61,7 +61,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     /**
      * The cache key prefix used to track when a flexible cache value was last refreshed.
      */
-    public const FLEXIBLE_CREATED_KEY_PREFIX = 'hypervel:cache:flexible:created:';
+    public const string FLEXIBLE_CREATED_KEY_PREFIX = 'hypervel:cache:flexible:created:';
 
     /**
      * The cache store implementation.

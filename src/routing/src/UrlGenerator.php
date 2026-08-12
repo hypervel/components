@@ -30,27 +30,27 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Context key for the cached URL scheme.
      */
-    protected const CACHED_SCHEME_CONTEXT_KEY = '__routing.url.cached_scheme';
+    protected const string CACHED_SCHEME_CONTEXT_KEY = '__routing.url.cached_scheme';
 
     /**
      * Context key for the cached root URL.
      */
-    protected const CACHED_ROOT_CONTEXT_KEY = '__routing.url.cached_root';
+    protected const string CACHED_ROOT_CONTEXT_KEY = '__routing.url.cached_root';
 
     /**
      * Context key for the forced root URL override.
      */
-    protected const FORCED_ROOT_CONTEXT_KEY = '__routing.url.forced_root';
+    protected const string FORCED_ROOT_CONTEXT_KEY = '__routing.url.forced_root';
 
     /**
      * Context key for the forced asset root URL override.
      */
-    protected const FORCED_ASSET_ROOT_CONTEXT_KEY = '__routing.url.forced_asset_root';
+    protected const string FORCED_ASSET_ROOT_CONTEXT_KEY = '__routing.url.forced_asset_root';
 
     /**
      * Context key for request-scoped default route parameters.
      */
-    protected const DEFAULT_PARAMETERS_CONTEXT_KEY = '__routing.url.default_parameters';
+    protected const string DEFAULT_PARAMETERS_CONTEXT_KEY = '__routing.url.default_parameters';
 
     /**
      * The route collection.

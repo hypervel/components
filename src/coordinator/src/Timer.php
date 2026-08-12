@@ -12,7 +12,7 @@ use function Hypervel\Coroutine\go;
 
 class Timer
 {
-    public const STOP = 'stop';
+    public const string STOP = 'stop';
 
     /**
      * Timer IDs mapped to coroutine IDs, or zero until creation publishes the ID.

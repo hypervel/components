@@ -29,7 +29,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     /**
      * The default date format for DateTime properties.
      */
-    protected const DEFAULT_DATE_FORMAT = 'Y-m-d H:i:s';
+    protected const string DEFAULT_DATE_FORMAT = 'Y-m-d H:i:s';
 
     /**
      * Reflection parameters cache (class name => [ReflectionParameter]).

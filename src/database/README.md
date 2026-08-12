@@ -12,5 +12,6 @@ Documentation: https://hypervel.org/docs/database
 - Laravel's remaining directly deprecated Database compatibility forwarders are intentionally not ported. Use the current class-keyed factory resolver, schema blueprint and grammar APIs, and correctly named PostgreSQL truncation method instead.
 - `make:migration` omits Laravel's deprecated `--fullpath` option and obsolete Composer constructor dependency because migration creation no longer dumps autoload files.
 - `Blueprint::dropForeign()` widens Laravel's method signature with an optional constraint name when columns are supplied, allowing explicitly named foreign keys to be dropped portably across SQLite and the server databases. Custom `Blueprint` subclasses that override this method must accept the optional second argument.
+- Eloquent models that override `CREATED_AT` or `UPDATED_AT` must declare the compatible `?string` constant type, such as `public const ?string UPDATED_AT = null;`. Laravel's constants are untyped, but omitting the type from an override in Hypervel causes a fatal error.
 
 Ported from: https://github.com/laravel/framework

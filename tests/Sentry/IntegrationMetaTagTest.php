@@ -13,7 +13,7 @@ use function Sentry\configureScope;
 
 class IntegrationMetaTagTest extends SentryTestCase
 {
-    private const DANGEROUS_PAYLOAD = '</meta><script>alert("owned")</script>';
+    private const string DANGEROUS_PAYLOAD = '</meta><script>alert("owned")</script>';
 
     protected function tearDown(): void
     {

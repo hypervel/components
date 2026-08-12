@@ -26,12 +26,12 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Context key for the per-request locale override.
      */
-    protected const LOCALE_CONTEXT_KEY = '__translation.locale';
+    protected const string LOCALE_CONTEXT_KEY = '__translation.locale';
 
     /**
      * Context key for suppressing missing-key callbacks in the current coroutine.
      */
-    protected const MISSING_KEY_HANDLING_CONTEXT_KEY = '__translation.handle_missing_keys';
+    protected const string MISSING_KEY_HANDLING_CONTEXT_KEY = '__translation.handle_missing_keys';
 
     /**
      * The fallback locale used by the translator.

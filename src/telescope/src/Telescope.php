@@ -34,29 +34,29 @@ class Telescope
     use ListensForStorageOpportunities;
     use RegistersWatchers;
 
-    protected const DEFAULT_HIDDEN_REQUEST_HEADERS = [
+    protected const array DEFAULT_HIDDEN_REQUEST_HEADERS = [
         'authorization',
         'php-auth-pw',
     ];
 
-    protected const DEFAULT_HIDDEN_REQUEST_PARAMETERS = [
+    protected const array DEFAULT_HIDDEN_REQUEST_PARAMETERS = [
         'password',
         'password_confirmation',
     ];
 
-    public const ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
+    public const string ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
 
-    public const UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
+    public const string UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
 
-    public const SHOULD_RECORD_CONTEXT_KEY = '__telescope.should_record';
+    public const string SHOULD_RECORD_CONTEXT_KEY = '__telescope.should_record';
 
-    public const IS_RECORDING_CONTEXT_KEY = '__telescope.is_recording';
+    public const string IS_RECORDING_CONTEXT_KEY = '__telescope.is_recording';
 
-    public const HAS_STORED_CONTEXT_KEY = '__telescope.has_stored';
+    public const string HAS_STORED_CONTEXT_KEY = '__telescope.has_stored';
 
-    public const BATCH_ID_CONTEXT_KEY = '__telescope.batch_id';
+    public const string BATCH_ID_CONTEXT_KEY = '__telescope.batch_id';
 
-    protected const CSP_NONCE_CONTEXT_KEY = '__telescope.csp_nonce';
+    protected const string CSP_NONCE_CONTEXT_KEY = '__telescope.csp_nonce';
 
     /**
      * The callbacks that filter the entries that should be recorded.

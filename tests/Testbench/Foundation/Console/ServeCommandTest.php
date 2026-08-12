@@ -24,7 +24,7 @@ use function Hypervel\Testbench\package_path;
 
 class ServeCommandTest extends TestCase
 {
-    private const WORKING_PATH_ENV = 'TESTBENCH_WORKING_PATH';
+    private const string WORKING_PATH_ENV = 'TESTBENCH_WORKING_PATH';
 
     /** @var array{process: false|string, environment_exists: bool, environment: mixed, server_exists: bool, server: mixed} */
     private array $workingPathState;

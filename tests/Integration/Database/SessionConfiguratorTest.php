@@ -19,7 +19,7 @@ use PDO;
 
 class SessionConfiguratorTest extends DatabaseTestCase
 {
-    private const CONNECTION_NAME = 'session_configurator_test';
+    private const string CONNECTION_NAME = 'session_configurator_test';
 
     private DbPool $sessionPool;
 

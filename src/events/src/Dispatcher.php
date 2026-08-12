@@ -57,22 +57,22 @@ class Dispatcher implements DispatcherContract
     /**
      * Context key for whether event deferral is active.
      */
-    public const DEFERRING_CONTEXT_KEY = '__events.deferring';
+    public const string DEFERRING_CONTEXT_KEY = '__events.deferring';
 
     /**
      * Context key for the queue of deferred events.
      */
-    public const DEFERRED_EVENTS_CONTEXT_KEY = '__events.deferred_events';
+    public const string DEFERRED_EVENTS_CONTEXT_KEY = '__events.deferred_events';
 
     /**
      * Context key for the list of event classes to defer.
      */
-    public const EVENTS_TO_DEFER_CONTEXT_KEY = '__events.events_to_defer';
+    public const string EVENTS_TO_DEFER_CONTEXT_KEY = '__events.events_to_defer';
 
     /**
      * Context key for events queued via push() and dispatched via flush().
      */
-    public const PUSHED_EVENTS_CONTEXT_KEY = '__events.pushed';
+    public const string PUSHED_EVENTS_CONTEXT_KEY = '__events.pushed';
 
     /**
      * The IoC container instance.

@@ -54,7 +54,7 @@ class MailManager implements FactoryContract
     /**
      * Mailer-level keys that do not affect built-in transport construction.
      */
-    protected const TRANSPORT_PRESENTATION_KEYS = [
+    protected const array TRANSPORT_PRESENTATION_KEYS = [
         'from', 'reply_to', 'return_path', 'to', 'name', 'pool',
     ];
 

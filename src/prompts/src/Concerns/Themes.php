@@ -58,14 +58,14 @@ trait Themes
     /**
      * The default theme name.
      */
-    protected const DEFAULT_THEME = 'default';
+    protected const string DEFAULT_THEME = 'default';
 
     /**
      * The default theme registry.
      *
      * @var array<string, array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>>>
      */
-    protected const DEFAULT_THEMES = [
+    protected const array DEFAULT_THEMES = [
         self::DEFAULT_THEME => [
             TextPrompt::class => TextPromptRenderer::class,
             NumberPrompt::class => NumberPromptRenderer::class,

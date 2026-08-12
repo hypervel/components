@@ -72,7 +72,7 @@ trait EnumeratesValues
     /**
      * The default methods that can be proxied.
      */
-    protected const DEFAULT_PROXIES = [
+    protected const array DEFAULT_PROXIES = [
         'average',
         'avg',
         'contains',

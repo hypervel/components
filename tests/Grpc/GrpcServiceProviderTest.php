@@ -29,7 +29,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class GrpcServiceProviderTest extends TestCase
 {
-    private const ROUTES = __DIR__ . '/../../src/grpc/stubs/grpc.php';
+    private const string ROUTES = __DIR__ . '/../../src/grpc/stubs/grpc.php';
 
     public function testClientOnlyConfigurationDoesNotAppendAListener(): void
     {

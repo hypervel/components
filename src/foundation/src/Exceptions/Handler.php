@@ -74,17 +74,17 @@ class Handler implements ExceptionHandlerContract
     /**
      * Context key for the per-request reported exception deduplication map.
      */
-    public const REPORTED_EXCEPTION_MAP_CONTEXT_KEY = '__foundation.errors.reported_exception_map';
+    public const string REPORTED_EXCEPTION_MAP_CONTEXT_KEY = '__foundation.errors.reported_exception_map';
 
     /**
      * Context key for after-response callbacks.
      */
-    public const AFTER_RESPONSE_CONTEXT_KEY = '__foundation.errors.after_response';
+    public const string AFTER_RESPONSE_CONTEXT_KEY = '__foundation.errors.after_response';
 
     /**
      * Context key for the exception currently being reported.
      */
-    public const CURRENTLY_REPORTING_CONTEXT_KEY = '__foundation.errors.currently_reporting';
+    public const string CURRENTLY_REPORTING_CONTEXT_KEY = '__foundation.errors.currently_reporting';
 
     /**
      * A list of the exception types that are not reported.

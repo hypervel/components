@@ -360,17 +360,13 @@ class Flight extends Model
 {
     /**
      * The name of the "created at" column.
-     *
-     * @var string|null
      */
-    public const CREATED_AT = 'creation_date';
+    public const ?string CREATED_AT = 'creation_date';
 
     /**
      * The name of the "updated at" column.
-     *
-     * @var string|null
      */
-    public const UPDATED_AT = 'updated_date';
+    public const ?string UPDATED_AT = 'updated_date';
 }
 ```
 

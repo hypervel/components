@@ -6,32 +6,32 @@ beside this file. The only schema changes are the PHP namespace generation
 options required by this package.
 
 Generation requires the official `protoc` v35.1 release, matching the
-`google/protobuf` 5.35 runtime used by the package. Run this command from the
-components repository root:
+`google/protobuf` 5.35 runtime used by the package. Run the complete generation
+workflow from the components repository root:
 
 ```bash
-grpc_health_out="$(mktemp -d)"
-trap 'rm -rf "$grpc_health_out"' EXIT
-
-protoc \
-  --proto_path=src/grpc/resources/proto \
-  --php_out="$grpc_health_out" \
-  src/grpc/resources/proto/grpc/health/v1/health.proto
-
-rsync --archive --delete \
-  "$grpc_health_out/Hypervel/Grpc/Health/V1/" \
-  src/grpc/src/Health/V1/
-
-./vendor/bin/php-cs-fixer fix \
-  --config=.php-cs-fixer.php \
-  src/grpc/src/Health/V1
+composer generate:grpc-health
 ```
 
-The canonical checked-in form is the pinned protoc output followed by the
-Composer-locked repository fixer. The generated `DO NOT EDIT` marker prohibits
-hand edits; regeneration means running both steps above.
+The Composer command runs the pinned `protoc`, adds Hypervel's native PHP 8.4
+constant types, runs the Composer-locked repository fixer, and then replaces
+the generated health classes. The canonical checked-in form is the result of
+that complete workflow. The generated `DO NOT EDIT` marker prohibits hand
+edits. Native constant types are the only Hypervel typing adaptation; generated
+properties and method signatures intentionally remain as `protoc` emits them.
 
-Running the complete protoc, copy, and fixer workflow a second time must leave
-the generated directory unchanged. A protoc or fixer update is accepted only
-after `tests/Grpc`, `tests/Integration/Grpc`, both plaintext and TLS grpc-go
-client runs, and the repository-wide verification suite remain green.
+To update the generated health protocol:
+
+1. Copy `grpc/health/v1/health.proto` from the chosen `grpc/grpc-proto`
+   revision, retain the Hypervel PHP namespace options, and update the pinned
+   revision at the top of this file.
+2. When changing the protobuf runtime, update the `google/protobuf` Composer
+   requirement through Composer. When changing `protoc`, update the required
+   version in `bin/generate-grpc-health.sh` and the version documented above.
+3. Run `composer generate:grpc-health` and review the generated changes before
+   committing them.
+
+Running `composer generate:grpc-health` a second time must leave the generated
+directory unchanged. A protocol, protoc, runtime, or fixer update is accepted
+only after `tests/Grpc`, `tests/Integration/Grpc`, both plaintext and TLS
+grpc-go client runs, and the repository-wide verification suite remain green.

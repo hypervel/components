@@ -16,13 +16,13 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseMySqlConnectionTest extends MySqlTestCase
 {
-    public const TABLE = 'player';
+    public const string TABLE = 'player';
 
-    public const FLOAT_COL = 'float_col';
+    public const string FLOAT_COL = 'float_col';
 
-    public const JSON_COL = 'json_col';
+    public const string JSON_COL = 'json_col';
 
-    public const FLOAT_VAL = 0.2;
+    public const float FLOAT_VAL = 0.2;
 
     protected function afterRefreshingDatabase(): void
     {

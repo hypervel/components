@@ -25,7 +25,7 @@ use InvalidArgumentException;
 class GrpcServiceProvider extends ServiceProvider
 {
     /** @var list<string> */
-    private const TLS_KEYS = [
+    private const array TLS_KEYS = [
         'local_cert',
         'local_pk',
         'passphrase',
@@ -37,7 +37,7 @@ class GrpcServiceProvider extends ServiceProvider
     ];
 
     /** @var list<string> */
-    private const OWNED_SERVER_SETTINGS = [
+    private const array OWNED_SERVER_SETTINGS = [
         'open_http_protocol',
         'open_http2_protocol',
         'open_websocket_protocol',

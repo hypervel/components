@@ -15,7 +15,7 @@ use RuntimeException;
 
 class SlackWebApiChannel
 {
-    protected const SLACK_API_URL = 'https://slack.com/api/chat.postMessage';
+    protected const string SLACK_API_URL = 'https://slack.com/api/chat.postMessage';
 
     /**
      * Create a new Slack channel instance.

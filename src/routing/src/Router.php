@@ -46,9 +46,9 @@ class Router implements BindingRegistrar, RegistrarContract
     }
     use Tappable;
 
-    private const CURRENT_ROUTE_CONTEXT_KEY = '__routing.current_route';
+    private const string CURRENT_ROUTE_CONTEXT_KEY = '__routing.current_route';
 
-    private const CURRENT_REQUEST_CONTEXT_KEY = '__routing.current_request';
+    private const string CURRENT_REQUEST_CONTEXT_KEY = '__routing.current_request';
 
     /**
      * The event dispatcher instance.

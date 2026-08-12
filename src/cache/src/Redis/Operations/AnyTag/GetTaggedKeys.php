@@ -22,7 +22,7 @@ class GetTaggedKeys
      * Default threshold for switching from HKEYS to HSCAN.
      * Above this number of fields, use HSCAN for memory efficiency.
      */
-    private const DEFAULT_SCAN_THRESHOLD = 1000;
+    private const int DEFAULT_SCAN_THRESHOLD = 1000;
 
     /**
      * Create a new get tagged keys query instance.

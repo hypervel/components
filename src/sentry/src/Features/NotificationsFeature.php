@@ -21,7 +21,7 @@ class NotificationsFeature extends Feature
 {
     use TracksPushedScopesAndSpans;
 
-    private const FEATURE_KEY = 'notifications';
+    private const string FEATURE_KEY = 'notifications';
 
     public function isApplicable(): bool
     {

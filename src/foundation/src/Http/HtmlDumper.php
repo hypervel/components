@@ -18,19 +18,15 @@ class HtmlDumper extends BaseHtmlDumper
 
     /**
      * Where the source should be placed on "expanded" kind of dumps.
-     *
-     * @var string
      */
-    public const EXPANDED_SEPARATOR = 'class=sf-dump-expanded>';
+    public const string EXPANDED_SEPARATOR = 'class=sf-dump-expanded>';
 
     /**
      * Where the source should be placed on "non expanded" kind of dumps.
-     *
-     * @var string
      */
-    public const NON_EXPANDED_SEPARATOR = "\n</pre><script>";
+    public const string NON_EXPANDED_SEPARATOR = "\n</pre><script>";
 
-    protected const DUMPING_CONTEXT_KEY = '__foundation.html_dumper.dumping';
+    protected const string DUMPING_CONTEXT_KEY = '__foundation.html_dumper.dumping';
 
     /**
      * Create a new HTML dumper instance.

@@ -172,7 +172,7 @@ class TestModel2 extends Model
 {
     public ?string $table = 'test_model2';
 
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     protected array $guarded = [];
 

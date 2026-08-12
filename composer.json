@@ -401,6 +401,7 @@
         "lint": "php-cs-fixer fix --diff --dry-run",
         "lint:fix": "php-cs-fixer fix",
         "facade": "php -f src/facade-documenter/facade.php --",
+        "generate:grpc-health": "bash bin/generate-grpc-health.sh",
         "check": [
             "@test",
             "@test:testbench",

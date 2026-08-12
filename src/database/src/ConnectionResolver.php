@@ -28,7 +28,7 @@ class ConnectionResolver implements ConnectionResolverInterface
      * Shared with DatabaseManager::usingConnection() to ensure all access
      * paths respect the override.
      */
-    public const DEFAULT_CONNECTION_CONTEXT_KEY = '__database.default_connection';
+    public const string DEFAULT_CONNECTION_CONTEXT_KEY = '__database.default_connection';
 
     /**
      * The config-derived default connection name, captured at construction.

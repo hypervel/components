@@ -27,7 +27,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * Context key for the per-request monitored tags cache.
      */
-    protected const MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
+    protected const string MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
 
     /**
      * The database connection name that should be used.
