@@ -34,7 +34,7 @@
         "ext-mbstring": "*",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "guzzlehttp/guzzle": "^7.15.1",
         "nesbot/carbon": "^3.13.1",
         "nunomaduro/termwind": "^2.0",

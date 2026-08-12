@@ -148,7 +148,7 @@
         "ext-redis": "^6.1",
         "ext-session": "*",
         "ext-sockets": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "ext-tokenizer": "*",
         "ext-zlib": "*",
         "composer-runtime-api": "^2.2",
