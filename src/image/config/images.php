@@ -12,7 +12,7 @@ return [
     | used when manipulating or converting images. This driver is always
     | utilized unless another driver is explicitly specified instead.
     |
-    | Supported: "gd", "imagick"
+    | Bundled: "gd", "imagick"; registered custom drivers are also supported.
     |
     */
 

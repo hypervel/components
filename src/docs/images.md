@@ -64,7 +64,7 @@ You may publish Hypervel's image configuration file using the `image-config` tag
 php artisan vendor:publish --tag=image-config
 ```
 
-The image configuration file allows you to specify your application's default image driver. You may also specify the default driver using the `IMAGE_DRIVER` environment variable. The supported drivers are `gd` and `imagick`:
+The image configuration file allows you to specify your application's default image driver. You may also specify the default driver using the `IMAGE_DRIVER` environment variable. The bundled drivers are `gd` and `imagick`, and registered custom drivers may also be selected:
 
 ```ini
 IMAGE_DRIVER=imagick
@@ -142,6 +142,8 @@ $image = Image::fromPath(storage_path('app/avatars/photo.jpg'));
 $image = Image::fromUrl('https://example.com/photo.jpg');
 $image = Image::fromStream($stream);
 ```
+
+Remote URL requests are deferred until the image is first materialized. HTTP client and server error responses throw a `Hypervel\Http\Client\RequestException` from the [HTTP client](/docs/{{version}}/http-client#error-handling), and their response bodies are not passed to an image driver.
 
 Streams remain owned by the caller and must stay open until the image is first materialized, such as when it is inspected, converted to bytes, processed, or stored. Hypervel reads the stream once but does not close it for you.
 
@@ -379,7 +381,7 @@ Route::get('/avatar', function () {
 
 Hypervel's image manager extends the base `Hypervel\Support\Manager` class. You may register custom image drivers using the `extend` method available on the image manager and `Image` facade.
 
-The driver contract is backend-neutral. A custom driver may use vips, another PHP library, a command-line tool, or a remote service without extending the bundled Intervention driver or installing Intervention Image. A driver must implement all four methods on the `Hypervel\Contracts\Image\Driver` interface:
+The driver contract is backend-neutral. A custom driver may use vips, another PHP library, a command-line tool, or a remote service without extending the bundled Intervention driver or installing Intervention Image. A driver must implement all four methods on the `Hypervel\Contracts\Image\Driver` interface. The following incomplete skeleton illustrates the contract; replace each placeholder body with operations provided by your chosen backend:
 
 ```php
 <?php
