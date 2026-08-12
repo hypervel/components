@@ -35,6 +35,41 @@ class ViewBladeCompilerTest extends TestCase
         new BladeCompiler($this->getFiles(), '');
     }
 
+    public function testCompilerConfigurationCanBeReloaded(): void
+    {
+        $files = $this->getFiles();
+        $compiler = new BladeCompiler($files, '/old-cache');
+
+        $compiler->reloadConfiguration(
+            '/new-cache',
+            '/application',
+            false,
+            'compiled',
+            false,
+        );
+
+        $this->assertSame(
+            '/new-cache/' . hash('xxh128', 'v3/views/home.blade.php') . '.compiled',
+            $compiler->getCompiledPath('/application/views/home.blade.php'),
+        );
+        $this->assertTrue($compiler->isExpired('/application/views/home.blade.php'));
+    }
+
+    public function testInvalidReloadKeepsThePreviousCompilerConfiguration(): void
+    {
+        $compiler = new BladeCompiler($this->getFiles(), '/old-cache');
+        $compiledPath = $compiler->getCompiledPath('home.blade.php');
+
+        try {
+            $compiler->reloadConfiguration('', '/application', false, 'compiled', false);
+            $this->fail('Expected the invalid cache path to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Please provide a valid cache path.', $exception->getMessage());
+        }
+
+        $this->assertSame($compiledPath, $compiler->getCompiledPath('home.blade.php'));
+    }
+
     public function testIsExpiredReturnsTrueWhenModificationTimesWarrant(): void
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);

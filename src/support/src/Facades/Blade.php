@@ -38,6 +38,7 @@ namespace Hypervel\Support\Facades;
  * @method static void withDoubleEncoding()
  * @method static void withoutDoubleEncoding()
  * @method static void withoutComponentTags()
+ * @method static void reloadConfiguration(string $cachePath, string $basePath, bool $shouldCache, string $compiledExtension, bool $shouldCheckTimestamps)
  * @method static string getCompiledPath(string $path)
  * @method static bool isExpired(string $path)
  * @method static string newComponentHash(string $component)
