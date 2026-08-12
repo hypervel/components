@@ -780,6 +780,17 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Set the fallback asset URL root.
+     *
+     * Boot-only. The root is stored on the worker-shared URL generator and
+     * affects subsequent requests without a coroutine-local asset origin.
+     */
+    public function setAssetRoot(?string $root): void
+    {
+        $this->assetRoot = $root;
+    }
+
+    /**
      * Set a callback to be used to format the host of generated URLs.
      *
      * Boot-only. The callback persists on the singleton URL generator and
@@ -834,9 +845,9 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Set the current request instance.
      *
-     * Tests only. Per-request code should rely on RequestContext (read first by
-     * getRequest()); this setter writes the singleton UrlGenerator's fallback
-     * request used outside coroutine contexts, plus mutates the shared
+     * Boot or tests only. Per-request code should rely on RequestContext (read
+     * first by getRequest()); this setter writes the singleton UrlGenerator's
+     * fallback request used outside coroutine contexts, plus mutates the shared
      * routeGenerator — runtime use races across coroutines.
      */
     public function setRequest(Request $request): void

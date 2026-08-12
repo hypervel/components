@@ -879,6 +879,23 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('https://local-assets.example.com/app.js', $url->asset('app.js'));
     }
 
+    public function testAssetRootCanBeReconfigured(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://request.example.com/'),
+            'https://old-assets.example.com',
+        );
+
+        $url->setAssetRoot('https://new-assets.example.com');
+
+        $this->assertSame('https://new-assets.example.com/app.js', $url->asset('app.js'));
+
+        $url->setAssetRoot(null);
+
+        $this->assertSame('https://request.example.com/app.js', $url->asset('app.js'));
+    }
+
     public function testOriginResolverCanBeCleared(): void
     {
         $url = new UrlGenerator(

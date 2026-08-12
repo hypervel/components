@@ -39,6 +39,7 @@ namespace Hypervel\Support\Facades;
  * @method static void resolveOriginUsing(\Closure|null $resolver)
  * @method static void useOrigin(string|null $root)
  * @method static void useAssetOrigin(string|null $root)
+ * @method static void setAssetRoot(string|null $root)
  * @method static \Hypervel\Routing\UrlGenerator formatHostUsing(\Closure $callback)
  * @method static \Hypervel\Routing\UrlGenerator formatPathUsing(\Closure $callback)
  * @method static \Closure pathFormatter()
