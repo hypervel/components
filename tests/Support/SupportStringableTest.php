@@ -11,6 +11,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
@@ -79,7 +80,7 @@ class SupportStringableTest extends TestCase
         $this->assertFalse($this->stringable('01GJSNW9MAF-792C0XYY8RX6ssssss-QFT')->isUlid());
     }
 
-    public function testIsJson()
+    public function testIsJson(): void
     {
         $this->assertTrue($this->stringable('1')->isJson());
         $this->assertTrue($this->stringable('[1,2,3]')->isJson());
@@ -94,6 +95,18 @@ class SupportStringableTest extends TestCase
         $this->assertFalse($this->stringable('[{first: "John"}, {first: "Jane"}]')->isJson());
         $this->assertFalse($this->stringable('')->isJson());
         $this->assertFalse($this->stringable(null)->isJson());
+
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->assertTrue($this->stringable(Json::encode($value))->isJson());
+
+        $value = ['value' => $value];
+
+        $this->assertFalse($this->stringable(json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1))->isJson());
     }
 
     public function testIsMatch()

@@ -16,14 +16,17 @@ use Hypervel\Http\Response;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
+use stdClass;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\VarDumper\VarDumper;
 
 class TestResponseTest extends TestCase
 {
@@ -454,6 +457,56 @@ class TestResponseTest extends TestCase
             $this->assertSame($expected, $decoded->json());
             $this->assertSame($decoded, $response->decodeResponseJson());
         }
+    }
+
+    public function testDecodeResponseJsonAcceptsTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = TestResponse::fromBaseResponse(new Response(Json::encode(['nested' => $value])));
+
+        $this->assertSame(['nested' => $value], $response->decodeResponseJson()->json());
+    }
+
+    public function testDecodeResponseJsonRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = TestResponse::fromBaseResponse(new Response(
+            json_encode(['nested' => $value], JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1)
+        ));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Invalid JSON was returned from the route.');
+
+        $response->decodeResponseJson();
+    }
+
+    public function testDumpDecodesJsonAsObjectsAndPreservesInvalidBytes(): void
+    {
+        $dumped = [];
+        VarDumper::setHandler(function (mixed $value) use (&$dumped): void {
+            $dumped[] = $value;
+        });
+
+        try {
+            TestResponse::fromBaseResponse(new Response('{"nested":{"value":1}}'))->dump();
+            TestResponse::fromBaseResponse(new Response('{invalid'))->dump();
+        } finally {
+            VarDumper::setHandler(null);
+        }
+
+        $this->assertInstanceOf(stdClass::class, $dumped[0]);
+        $this->assertInstanceOf(stdClass::class, $dumped[0]->nested);
+        $this->assertSame('{invalid', $dumped[1]);
     }
 
     public function testDecodeResponseJsonRejectsNullLikeContentWithInvalidWhitespace(): void

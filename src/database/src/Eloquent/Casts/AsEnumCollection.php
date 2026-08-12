@@ -7,6 +7,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 use BackedEnum;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Support\enum_value;
@@ -31,7 +33,7 @@ class AsEnumCollection implements Castable
                 $this->arguments = $arguments;
             }
 
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Collection
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 if (! isset($attributes[$key])) {
                     return null;
@@ -52,18 +54,22 @@ class AsEnumCollection implements Castable
                 });
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): array
+            public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
-                $value = $value !== null
+                $encoded = $value !== null
                     ? Json::encode((new Collection($value))->map(function ($enum) {
                         return $this->getStorableEnumValue($enum);
                     })->jsonSerialize())
                     : null;
 
-                return [$key => $value];
+                if ($encoded === false) {
+                    throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+                }
+
+                return [$key => $encoded];
             }
 
-            public function serialize(mixed $model, string $key, mixed $value, array $attributes): array
+            public function serialize(Model $model, string $key, mixed $value, array $attributes): array
             {
                 return (new Collection($value))
                     ->map(fn ($enum) => $this->getStorableEnumValue($enum))

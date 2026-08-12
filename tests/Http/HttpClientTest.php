@@ -40,6 +40,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
+use Hypervel\Support\Json;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -1373,6 +1374,44 @@ class HttpClientTest extends TestCase
             'https://example.test',
             ['Content-Type' => 'application/json'],
             '{invalid',
+        ));
+
+        $this->expectException(JsonException::class);
+
+        $request->data();
+    }
+
+    public function testRequestDataReadsTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $request = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'application/json'],
+            Json::encode(['nested' => $value]),
+        ));
+
+        $this->assertSame(['nested' => $value], $request->data());
+    }
+
+    public function testRequestDataRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $request = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'application/json'],
+            json_encode(['nested' => $value], JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1),
         ));
 
         $this->expectException(JsonException::class);

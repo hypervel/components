@@ -179,7 +179,7 @@ class TableCommand extends DatabaseInspectionCommand
      */
     protected function displayJson(array $data): void
     {
-        $this->output->writeln(json_encode($data));
+        $this->output->writeln(json_encode($data, JSON_THROW_ON_ERROR));
     }
 
     /**

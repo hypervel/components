@@ -6,10 +6,12 @@ namespace Hypervel\Tests\Support;
 
 use ArrayObject;
 use DateTime;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ItemNotFoundException;
+use Hypervel\Support\Json;
 use Hypervel\Support\MultipleItemsFoundException;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -1852,6 +1854,28 @@ class SupportArrTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Items cannot be represented by a scalar value.');
         Arr::from(123);
+    }
+
+    public function testFromDecodesJsonableAtTheSupportNestingLimit(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $jsonable = new class(Json::encode($value)) implements Jsonable {
+            public function __construct(private readonly string $json)
+            {
+            }
+
+            public function toJson(int $options = 0): string
+            {
+                return $this->json;
+            }
+        };
+
+        $this->assertSame($value, Arr::from($jsonable));
     }
 
     public function testWrap(): void

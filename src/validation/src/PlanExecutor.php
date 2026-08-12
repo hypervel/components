@@ -7,6 +7,7 @@ namespace Hypervel\Validation;
 use Brick\Math\BigNumber;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\Enums\SizeMode;
@@ -230,8 +231,7 @@ trait PlanExecutor
     /**
      * Inline JSON validation matching validateJson() behavior.
      *
-     * Checks for array/null, non-stringable objects, then validates via
-     * json_validate() (PHP 8.3+) or json_decode() + json_last_error().
+     * Checks for array/null and non-stringable objects before validation.
      */
     private function executeInlineJson(mixed $value): bool
     {
@@ -243,15 +243,7 @@ trait PlanExecutor
             return false;
         }
 
-        $value = (string) $value;
-
-        if (function_exists('json_validate')) {
-            return json_validate($value);
-        }
-
-        json_decode($value);
-
-        return json_last_error() === JSON_ERROR_NONE;
+        return Json::validate((string) $value);
     }
 
     /**

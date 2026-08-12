@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\DataObject;
 use InvalidArgumentException;
@@ -34,7 +35,9 @@ class AsDataObject implements CastsAttributes
         mixed $value,
         array $attributes,
     ): ?DataObject {
-        if (! $data = json_decode((string) $value, true)) {
+        $data = Json::decode((string) $value);
+
+        if (! is_array($data)) {
             return null;
         }
 
@@ -54,8 +57,14 @@ class AsDataObject implements CastsAttributes
         string $key,
         mixed $value,
         array $attributes,
-    ): string {
-        return json_encode($value);
+    ): array {
+        $encoded = Json::encode($value);
+
+        if ($encoded === false) {
+            throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+        }
+
+        return [$key => $encoded];
     }
 
     /**

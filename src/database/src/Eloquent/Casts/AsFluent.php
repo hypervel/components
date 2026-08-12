@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Fluent;
 
 class AsFluent implements Castable
@@ -18,14 +20,31 @@ class AsFluent implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes {
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Fluent
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?Fluent
             {
-                return isset($value) ? new Fluent(Json::decode($value)) : null;
+                if (! isset($value)) {
+                    return null;
+                }
+
+                $data = Json::decode($value);
+
+                // Custom decoders may return objects, which Fluent supports alongside arrays.
+                return is_array($data) || is_object($data) ? new Fluent($data) : null;
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): ?array
+            public function set(Model $model, string $key, mixed $value, array $attributes): ?array
             {
-                return isset($value) ? [$key => Json::encode($value)] : null;
+                if (! isset($value)) {
+                    return null;
+                }
+
+                $encoded = Json::encode($value);
+
+                if ($encoded === false) {
+                    throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+                }
+
+                return [$key => $encoded];
             }
         };
     }

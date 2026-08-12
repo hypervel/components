@@ -6,6 +6,7 @@ namespace Hypervel\Http\Client;
 
 use ArrayAccess;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Uri;
 use InvalidArgumentException;
@@ -183,7 +184,7 @@ class Request implements ArrayAccess
                 return $this->data;
             }
 
-            $data = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+            $data = Json::decode($body);
 
             if (! is_array($data)) {
                 throw new InvalidArgumentException('The request JSON body must decode to an array.');

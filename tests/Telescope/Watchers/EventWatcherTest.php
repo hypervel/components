@@ -13,6 +13,7 @@ use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
@@ -220,6 +221,54 @@ class EventWatcherTest extends FeatureTestCase
         } finally {
             $filesystem->deleteDirectory($directory);
         }
+    }
+
+    public function testPlainObjectPayloadRoundTripsAtTheMaximumNestingDepth(): void
+    {
+        $nested = $this->nestedValue(511);
+        $payload = (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['nested' => $nested]],
+        );
+
+        $this->assertSame($nested, $payload[0]['properties']['nested']);
+    }
+
+    public function testEventWatcherPurgesLiftedDeepPayloadWithoutLosingTheEntry(): void
+    {
+        $this->app->make(EventWatcher::class)->recordEvent('custom-event', [
+            (object) ['nested' => $this->nestedValue(511)],
+        ]);
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::EVENT, $entry->type);
+        $this->assertSame('custom-event', $entry->content['name']);
+        $this->assertSame('Purged By Telescope', $entry->content['payload']);
+        $this->assertSame([], $entry->content['listeners']);
+    }
+
+    public function testUnencodablePlainObjectPayloadRaisesTheNativeJsonException(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['value' => NAN]],
+        );
+    }
+
+    private function nestedValue(int $depth): array
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < $depth; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        return $value;
     }
 }
 

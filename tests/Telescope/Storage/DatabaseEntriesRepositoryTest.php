@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Telescope\Storage;
 
 use Exception;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 use Hypervel\Telescope\EntryType;
@@ -15,6 +16,8 @@ use Hypervel\Telescope\IncomingExceptionEntry;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
 use Hypervel\Telescope\Storage\EntryQueryOptions;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use JsonException;
+use TypeError;
 
 class DatabaseEntriesRepositoryTest extends FeatureTestCase
 {
@@ -196,6 +199,200 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
         });
     }
 
+    public function testNormalAndExceptionEntriesRoundTripAtTheMaximumNestingDepth(): void
+    {
+        $batchId = (string) Str::uuid();
+        $normal = (new IncomingEntry(['nested' => $this->nestedValue(511)]))
+            ->batchId($batchId)
+            ->type(EntryType::LOG);
+        $exception = $this->exceptionEntry($batchId, 511);
+        $expectedNormalContent = $normal->content;
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $repository->store(collect([$normal, $exception]));
+
+        $normalContent = Json::decode(
+            DB::table('telescope_entries')->where('uuid', $normal->uuid)->value('content'),
+        );
+        $exceptionContent = Json::decode(
+            DB::table('telescope_entries')->where('uuid', $exception->uuid)->value('content'),
+        );
+
+        $this->assertSame($expectedNormalContent, $normalContent);
+        $this->assertSame($exception->content['nested'], $exceptionContent['nested']);
+        $this->assertSame(1, $exceptionContent['occurrences']);
+    }
+
+    public function testStorePurgesEveryTopLevelFieldOverTheMaximumNestingDepth(): void
+    {
+        $batchId = (string) Str::uuid();
+        $entry = (new IncomingEntry([
+            'first' => $this->nestedValue(512),
+            'second' => $this->nestedValue(512),
+            'safe' => 'retained',
+        ]))
+            ->batchId($batchId)
+            ->type(EntryType::LOG)
+            ->tags(['deep']);
+        $sibling = (new IncomingEntry(['message' => 'stored']))
+            ->batchId($batchId)
+            ->type(EntryType::LOG)
+            ->tags(['sibling']);
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $repository->store(collect([$entry, $sibling]));
+
+        $content = Json::decode(
+            DB::table('telescope_entries')->where('uuid', $entry->uuid)->value('content'),
+        );
+
+        $this->assertSame('Purged By Telescope', $content['first']);
+        $this->assertSame('Purged By Telescope', $content['second']);
+        $this->assertSame('retained', $content['safe']);
+        $this->assertDatabaseHas('telescope_entries', ['uuid' => $sibling->uuid]);
+        $this->assertDatabaseHas('telescope_entries_tags', ['entry_uuid' => $entry->uuid, 'tag' => 'deep']);
+        $this->assertDatabaseHas('telescope_entries_tags', ['entry_uuid' => $sibling->uuid, 'tag' => 'sibling']);
+    }
+
+    public function testStoreRethrowsNonDepthErrorsFoundAfterDepthRecoveryStarts(): void
+    {
+        // Depth must fail first so the field-level retry exposes the later INF/NAN error.
+        $entry = (new IncomingEntry([
+            'deep' => $this->nestedValue(512),
+            'invalid' => INF,
+        ]))->type(EntryType::LOG);
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        try {
+            $repository->store(collect([$entry]));
+            $this->fail('Expected the non-depth JSON encoding error to be rethrown.');
+        } catch (JsonException $exception) {
+            $this->assertSame(JSON_ERROR_INF_OR_NAN, $exception->getCode());
+        }
+
+        $this->assertDatabaseMissing('telescope_entries', ['uuid' => $entry->uuid]);
+    }
+
+    public function testExceptionPurgesDeepContextWithoutLosingFamilyStateOrTags(): void
+    {
+        $batchId = (string) Str::uuid();
+        $exception = $this->exceptionEntry($batchId, 512)->tags(['deep']);
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $repository->store(collect([$exception]));
+
+        $row = DB::table('telescope_entries')->where('uuid', $exception->uuid)->first();
+        $content = Json::decode($row->content);
+
+        $this->assertSame('error', $content['message']);
+        $this->assertSame('Purged By Telescope', $content['nested']);
+        $this->assertSame(1, $content['occurrences']);
+        $this->assertTrue((bool) $row->should_display_on_index);
+        $this->assertDatabaseHas('telescope_entries_tags', ['entry_uuid' => $exception->uuid, 'tag' => 'deep']);
+    }
+
+    public function testUnencodableExceptionLeavesThePreviousFamilyEntryVisibleAndStopsTheBatch(): void
+    {
+        $batchId = (string) Str::uuid();
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+        $persisted = $this->exceptionEntry($batchId, 1)->tags(['persisted']);
+        $repository->store(collect([$persisted]));
+
+        $original = DB::table('telescope_entries')->where('uuid', $persisted->uuid)->first();
+        $error = new Exception('error');
+        $invalid = (new IncomingExceptionEntry($error, [
+            'file' => 'same.php',
+            'line' => 10,
+            'message' => 'error',
+            'invalid' => INF,
+        ]))->batchId($batchId)->type(EntryType::EXCEPTION)->tags(['invalid']);
+        $ordinary = (new IncomingEntry(['message' => 'not stored']))
+            ->batchId($batchId)
+            ->type(EntryType::LOG)
+            ->tags(['ordinary']);
+
+        try {
+            $repository->store(collect([$invalid, $ordinary]));
+            $this->fail('Expected the non-depth JSON encoding error to be rethrown.');
+        } catch (JsonException $exception) {
+            $this->assertSame(JSON_ERROR_INF_OR_NAN, $exception->getCode());
+        }
+
+        $retained = DB::table('telescope_entries')->where('uuid', $persisted->uuid)->first();
+
+        $this->assertSame($original->content, $retained->content);
+        $this->assertTrue((bool) $retained->should_display_on_index);
+        $this->assertDatabaseMissing('telescope_entries', ['uuid' => $invalid->uuid]);
+        $this->assertDatabaseMissing('telescope_entries', ['uuid' => $ordinary->uuid]);
+        $this->assertDatabaseMissing('telescope_entries_tags', ['entry_uuid' => $invalid->uuid]);
+        $this->assertDatabaseMissing('telescope_entries_tags', ['entry_uuid' => $ordinary->uuid]);
+    }
+
+    public function testUpdatePreservesMaximumDepthContentWhileMergingChanges(): void
+    {
+        $entry = EntryModelFactory::new()->create(['content' => $this->nestedValue(512)]);
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $repository->update(collect([
+            new EntryUpdate($entry->uuid, $entry->type, ['updated' => true]),
+        ]));
+
+        $content = Json::decode(
+            DB::table('telescope_entries')->where('uuid', $entry->uuid)->value('content'),
+        );
+
+        $this->assertTrue($content['updated']);
+        unset($content['updated']);
+        $this->assertSame($entry->content, $content);
+    }
+
+    public function testUpdatePurgesDeepFieldsAndContinuesWithLaterUpdates(): void
+    {
+        $deep = EntryModelFactory::new()->create(['content' => ['existing' => true]]);
+        $later = EntryModelFactory::new()->create(['content' => ['existing' => true]]);
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        $failedUpdates = $repository->update(collect([
+            (new EntryUpdate($deep->uuid, $deep->type, ['nested' => $this->nestedValue(512)]))
+                ->addTags(['updated']),
+            new EntryUpdate($later->uuid, $later->type, ['later' => true]),
+        ]));
+
+        $deepContent = Json::decode(
+            DB::table('telescope_entries')->where('uuid', $deep->uuid)->value('content'),
+        );
+        $laterContent = Json::decode(
+            DB::table('telescope_entries')->where('uuid', $later->uuid)->value('content'),
+        );
+
+        $this->assertTrue($failedUpdates->isEmpty());
+        $this->assertTrue($deepContent['existing']);
+        $this->assertSame('Purged By Telescope', $deepContent['nested']);
+        $this->assertTrue($laterContent['later']);
+        $this->assertDatabaseHas('telescope_entries_tags', ['entry_uuid' => $deep->uuid, 'tag' => 'updated']);
+    }
+
+    public function testUpdateRejectsMalformedAndWrongShapeContentWithoutChangingStoredBytes(): void
+    {
+        $repository = $this->app->make(DatabaseEntriesRepository::class);
+
+        foreach (['{invalid' => JsonException::class, 'null' => TypeError::class] as $content => $exceptionClass) {
+            $entry = EntryModelFactory::new()->create();
+            DB::table('telescope_entries')->where('uuid', $entry->uuid)->update(['content' => $content]);
+            $update = new EntryUpdate($entry->uuid, $entry->type, ['updated' => true]);
+
+            $this->assertThrows(
+                fn () => $repository->update(collect([$update])),
+                $exceptionClass,
+            );
+
+            $this->assertSame(
+                $content,
+                DB::table('telescope_entries')->where('uuid', $entry->uuid)->value('content'),
+            );
+        }
+    }
+
     public function testStoreExceptionsAggregatesFamiliesWithinEachChunk(): void
     {
         $batchId = (string) Str::uuid();
@@ -231,5 +428,28 @@ class DatabaseEntriesRepositoryTest extends FeatureTestCase
         $this->assertSame(2, json_decode($entries[$first->uuid]->content, true)['occurrences']);
         $this->assertSame(1, json_decode($entries[$other->uuid]->content, true)['occurrences']);
         $this->assertSame(3, json_decode($entries[$last->uuid]->content, true)['occurrences']);
+    }
+
+    private function exceptionEntry(string $batchId, int $nestedDepth): IncomingExceptionEntry
+    {
+        $exception = new Exception('error');
+
+        return (new IncomingExceptionEntry($exception, [
+            'file' => 'same.php',
+            'line' => 10,
+            'message' => 'error',
+            'nested' => $this->nestedValue($nestedDepth),
+        ]))->batchId($batchId)->type(EntryType::EXCEPTION);
+    }
+
+    private function nestedValue(int $depth): array
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < $depth; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        return $value;
     }
 }

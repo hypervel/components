@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 class Json
 {
+    private const int MAXIMUM_NESTING_DEPTH = 512;
+
     /**
      * The custom JSON encoder.
      *
@@ -25,9 +27,12 @@ class Json
      */
     public static function encode(mixed $value, int $flags = 0): mixed
     {
-        return isset(static::$encoder)
-            ? (static::$encoder)($value, $flags)
-            : json_encode($value, $flags);
+        if (isset(static::$encoder)) {
+            return (static::$encoder)($value, $flags);
+        }
+
+        // Eloquent writers replace false with an error that names the model attribute.
+        return json_encode($value, $flags, self::MAXIMUM_NESTING_DEPTH);
     }
 
     /**
@@ -35,9 +40,14 @@ class Json
      */
     public static function decode(mixed $value, ?bool $associative = true): mixed
     {
-        return isset(static::$decoder)
-            ? (static::$decoder)($value, $associative)
-            : json_decode($value, $associative);
+        if (isset(static::$decoder)) {
+            return (static::$decoder)($value, $associative);
+        }
+
+        // An empty string is Eloquent's established empty stored representation.
+        return $value === ''
+            ? null
+            : json_decode($value, $associative, self::MAXIMUM_NESTING_DEPTH + 1, JSON_THROW_ON_ERROR);
     }
 
     /**

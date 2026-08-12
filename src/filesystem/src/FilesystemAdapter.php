@@ -15,6 +15,7 @@ use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -275,7 +276,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     {
         $content = $this->get($path);
 
-        return is_null($content) ? null : json_decode($content, true, 512, $flags);
+        return is_null($content) ? null : json_decode($content, true, Json::MAXIMUM_NESTING_DEPTH + 1, $flags);
     }
 
     /**
