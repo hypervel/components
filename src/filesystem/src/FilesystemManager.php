@@ -56,12 +56,12 @@ class FilesystemManager implements FactoryContract
     /**
      * The logical name used while resolving on-demand disks.
      */
-    protected const ON_DEMAND_DISK_NAME = 'ondemand';
+    protected const string ON_DEMAND_DISK_NAME = 'ondemand';
 
     /**
      * Google Cloud Storage client constructor options supported by the installed SDK.
      */
-    protected const GCS_CLIENT_OPTIONS = [
+    protected const array GCS_CLIENT_OPTIONS = [
         'apiEndpoint',
         'projectId',
         'authCache',

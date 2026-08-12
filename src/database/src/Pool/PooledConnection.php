@@ -35,7 +35,7 @@ class PooledConnection implements PoolConnectionInterface
     /**
      * Maximum allowed errors before marking connection as stale.
      */
-    protected const MAX_ERROR_COUNT = 100;
+    protected const int MAX_ERROR_COUNT = 100;
 
     protected ?Connection $connection = null;
 

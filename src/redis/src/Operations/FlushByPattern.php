@@ -52,7 +52,7 @@ final class FlushByPattern
      * Number of keys to buffer before executing a batch delete.
      * Balances memory usage vs. number of Redis round-trips.
      */
-    private const BUFFER_SIZE = 1000;
+    private const int BUFFER_SIZE = 1000;
 
     /**
      * Create a new pattern flush instance.

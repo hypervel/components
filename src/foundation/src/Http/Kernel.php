@@ -88,7 +88,7 @@ class Kernel implements KernelContract
      * and an instance property would be overwritten by whichever coroutine
      * called handle() most recently.
      */
-    protected const REQUEST_STARTED_AT_CONTEXT_KEY = '__http.kernel.request_started_at';
+    protected const string REQUEST_STARTED_AT_CONTEXT_KEY = '__http.kernel.request_started_at';
 
     /**
      * The priority-sorted list of middleware.

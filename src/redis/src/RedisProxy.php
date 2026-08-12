@@ -40,19 +40,19 @@ class RedisProxy implements ConnectionContract
     /**
      * Context key prefix for per-connection pool state.
      */
-    public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
+    public const string CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
 
     /**
      * Context key prefix for the coroutine owning deferred pool cleanup.
      */
-    private const DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
+    private const string DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
 
     /**
      * Methods that must be called while explicitly holding a pool connection.
      *
      * These methods must remain excluded from Redis facade generation.
      */
-    private const CONNECTION_BOUND_METHODS = [
+    private const array CONNECTION_BOUND_METHODS = [
         'auth',
         'check',
         'client',

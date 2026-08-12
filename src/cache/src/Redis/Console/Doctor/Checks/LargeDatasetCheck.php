@@ -14,7 +14,7 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class LargeDatasetCheck implements CheckInterface
 {
-    private const ITEM_COUNT = 500;
+    private const int ITEM_COUNT = 500;
 
     public function name(): string
     {

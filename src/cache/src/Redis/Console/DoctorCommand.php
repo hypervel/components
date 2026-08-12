@@ -67,7 +67,7 @@ class DoctorCommand extends Command
      * Unique prefix to prevent collision with production data.
      * Mode-agnostic - just identifies doctor test data.
      */
-    private const TEST_PREFIX = '_doctor:test:';
+    private const string TEST_PREFIX = '_doctor:test:';
 
     /**
      * Execute the console command.

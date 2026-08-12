@@ -18,13 +18,13 @@ class StoreContext
      * The maximum expiry timestamp (Year 9999) for "forever" items.
      * Used in the tag registry to represent items with no expiration.
      */
-    public const MAX_EXPIRY = 253402300799;
+    public const int MAX_EXPIRY = 253402300799;
 
     /**
      * The value stored in tag hash fields.
      * We only need to track membership, so we use a minimal placeholder value.
      */
-    public const TAG_FIELD_VALUE = '1';
+    public const string TAG_FIELD_VALUE = '1';
 
     private readonly TagKeyBuilder $tagKeyBuilder;
 

@@ -27,7 +27,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      * Suffixed with the handler's object ID so multiple handler instances
      * within the same coroutine maintain independent existence state.
      */
-    protected const DATABASE_EXISTS_CONTEXT_KEY_PREFIX = '__session.database.exists.';
+    protected const string DATABASE_EXISTS_CONTEXT_KEY_PREFIX = '__session.database.exists.';
 
     /**
      * Create a new database session handler instance.

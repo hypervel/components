@@ -17,7 +17,7 @@ class PendingEventAttributes
      *
      * @var array<int, string>
      */
-    public const DEFERRED_EVENT_METHODS = [
+    public const array DEFERRED_EVENT_METHODS = [
         'before',
         'after',
         'then',

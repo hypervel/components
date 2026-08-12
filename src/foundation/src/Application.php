@@ -46,10 +46,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * The Hypervel framework version.
-     *
-     * @var string
      */
-    public const VERSION = '0.4';
+    public const string VERSION = '0.4';
 
     /**
      * The base path for the Hypervel installation.

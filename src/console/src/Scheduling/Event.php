@@ -43,17 +43,17 @@ class Event
     /**
      * Context key prefix for the current run's exit code.
      */
-    protected const EXIT_CODE_CONTEXT_KEY_PREFIX = '__console.scheduling_exit_code.';
+    protected const string EXIT_CODE_CONTEXT_KEY_PREFIX = '__console.scheduling_exit_code.';
 
     /**
      * Context key prefix for the current run's process.
      */
-    protected const PROCESS_CONTEXT_KEY_PREFIX = '__console.scheduling_process.';
+    protected const string PROCESS_CONTEXT_KEY_PREFIX = '__console.scheduling_process.';
 
     /**
      * Context key prefix for the current run's overlap skip state.
      */
-    protected const SKIPPED_BECAUSE_OVERLAPPING_CONTEXT_KEY_PREFIX = '__console.scheduling_skipped_because_overlapping.';
+    protected const string SKIPPED_BECAUSE_OVERLAPPING_CONTEXT_KEY_PREFIX = '__console.scheduling_skipped_because_overlapping.';
 
     /**
      * The command string.

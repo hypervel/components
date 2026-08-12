@@ -110,7 +110,7 @@ use Hypervel\Support\DateFactory;
  */
 class Date extends Facade
 {
-    public const DEFAULT_FACADE = DateFactory::class;
+    public const string DEFAULT_FACADE = DateFactory::class;
 
     /**
      * Get the registered name of the component.

@@ -12,7 +12,7 @@ class RequestSharedData
     /**
      * The coroutine context key for request-scoped shared view data.
      */
-    protected const CONTEXT_KEY = '__view.request_shared_data';
+    protected const string CONTEXT_KEY = '__view.request_shared_data';
 
     /**
      * Get the shared data for the current request.
