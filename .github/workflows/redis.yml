@@ -73,6 +73,7 @@ jobs:
           vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis
 
   valkey_9:
     runs-on: ubuntu-latest
@@ -139,3 +140,4 @@ jobs:
           vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis
