@@ -29,6 +29,7 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(\UnitEnum|string $name)
  * @method static string getName(string|null $connection = null)
+ * @method static \Hypervel\Queue\QueueManager forgetConnections()
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Contracts\Container\Container getApplication()
  * @method static \Hypervel\Queue\QueueManager setApplication(\Hypervel\Contracts\Container\Container $app)
