@@ -168,7 +168,7 @@ Do not add table recreation, config diffing, worker coordination, or another lif
 
 Add the smallest plural reset or setter that matches each existing manager/class responsibility:
 
-The plural manager reset methods return `static`, matching existing Laravel-style fluent resets such as `forgetDrivers()`, `forgetGuards()`, and `forgetMailers()`.
+The plural manager reset methods return `static`, matching existing Laravel-style fluent resets such as `forgetDrivers()`, `forgetGuards()`, and `forgetMailers()`. Translator's cache-only `forgetLoadedGroups()` follows its existing void mutator convention.
 
 | Owner | API | Required behavior |
 |---|---|---|
@@ -182,9 +182,14 @@ The plural manager reset methods return `static`, matching existing Laravel-styl
 | URL generator | existing `setRequest()` | Change its warning from `Tests only.` to `Boot or tests only.` because Routing legitimately refreshes the fallback request at worker boot. |
 | View compiler | `reloadConfiguration(...)` | Update the retained compiler's five config-derived fields without losing application-registered compilation behavior. |
 | Translator | `setBaseLocale(string)` | Update the retained worker-wide base locale without changing a coroutine-local override. |
+| Translator | `forgetLoadedGroups()` | Clear file-loaded groups while preserving lines registered through `addLines()`. |
 | Redirector | existing `setSession()` | Add a `Boot-only.` warning because Session refreshes the retained Redirector. |
 | Telescope database repository | `setConnection(string)` | Update the connection used by the retained repository. |
 | Telescope database repository | `setChunkSize(?int)` | Apply the constructor's existing falsy-to-default rule. |
+
+Foundation retains the source-aware CLI or HTML dumper created during master bootstrap. Explicit `VAR_DUMPER_FORMAT=cli|html` temporarily removes that variable only while installing the matching Hypervel handler, then restores it in `finally`; `server` and TCP formats remain Symfony-owned. Both dumper `register()` methods return the constructed instance, and the shared dump-source concern exposes `setCompiledViewPath(string)` so reload mutates the retained dumper instead of replacing the global handler. This preserves Telescope's wrapper around that handler. Dumper selection itself remains restart-owned.
+
+Keep editor-link resolution in its own shared concern. Exception renderer frames need only editor links; they must not inherit dump-source configuration and worker-lifetime resolver APIs merely to reuse that logic.
 
 Extract `DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE = 1000`; initialize the property and setter fallback from the same constant, and make the constructor delegate to the two setters.
 
@@ -211,11 +216,16 @@ Correct the ownership model:
 - Declare `protected string $locale` as a normal property; keep only the loader promoted.
 - Make the constructor call `setBaseLocale()` so that setter is the single assignment path.
 - Extract `assertValidLocale()` and call it from both `setLocale()` and `setBaseLocale()`.
+- Call the same validator from `setFallback()` so invalid refreshed configuration fails before the replacement worker becomes ready.
 - Keep the `/`, `\`, `.`, and `..` path checks unchanged.
 - Move the cross-file validation comment to the shared validator and update `FileLoader`'s matching comment.
 - `setBaseLocale()` changes only the property. An existing coroutine-local `setLocale()` override continues to win.
 - Keep `setBaseLocale()` off the Translation contract. It is a framework concrete lifecycle operation, not a requirement for application-supplied translators.
 - Update the Translation README's existing Laravel-difference sentence to name `setBaseLocale()` as the boot-only counterpart. Do not add framework-lifecycle API detail to the application localization guide.
+
+Keep lines registered through the boot-only `addLines()` API separate from loader results. Store them as an ordered operation list indexed by namespace, group, and locale. A list is required because parent and child dot-path writes must replay in their original order; a keyed map changes `Arr::set()` results when a parent is overwritten between child writes. `addLines()` records each operation and applies it immediately only when that group is already loaded. `load()` reads the loader first, then replays that group's operations. Do not load eagerly from `addLines()`: later-booting providers may still add loader paths or namespace hints.
+
+Add `forgetLoadedGroups(): void` with a `Boot or tests only.` warning. It clears only loader results; registered operations remain for the next load. Keep `setLoaded()` as the exact loaded-cache setter. Do not deduplicate registered operations: boot-only use is bounded, and deduplication would have to reproduce parent/child ordering semantics.
 
 ## Provider Refresh Matrix
 
@@ -223,7 +233,7 @@ Correct the ownership model:
 
 | Provider | Refresh behavior |
 |---|---|
-| Foundation | Reapply `app.timezone`; rerun dumper registration with current `view.compiled`; clear maintenance-mode manager drivers; flush the boot-reachable `WorkerCachedMaintenanceMode` snapshot; forget `MaintenanceModeContract`. A provider may populate that snapshot by calling `Application::isDownForMaintenance()` before the fork, and an interval of zero would otherwise retain it forever. Add the standard `Boot or tests only.` warning to `flushCache()`. |
+| Foundation | Reapply `app.timezone`; update the retained source-aware dumper with current `view.compiled`; clear maintenance-mode manager drivers; flush the boot-reachable `WorkerCachedMaintenanceMode` snapshot; forget `MaintenanceModeContract`. A provider may populate that snapshot by calling `Application::isDownForMaintenance()` before the fork, and an interval of zero would otherwise retain it forever. Add the standard `Boot or tests only.` warning to `flushCache()`. |
 | Routing | Preserve routes, middleware, and the URL generator. Replace the fallback request from current `app.url`, set the asset root, and call `forceHttps()` with the current boolean so both enabling and disabling apply. Preserve Redirector and ResponseFactory identities. |
 | Session | Clear Session manager drivers and forget `session.store`. If canonical `redirect` is resolved, update the retained Redirector with the refreshed store. ResponseFactory keeps its retained Redirector reference. |
 | Auth | Clear resolved guards. Cache validation remains on `AfterWorkerStart`. |
@@ -243,7 +253,7 @@ Correct the ownership model:
 | Notifications | Clear ChannelManager drivers and forget MailChannel. |
 | Object Pool | On `BeforeServerFork`, flush an already resolved `PoolManager`; keep the existing recycler on `AfterWorkerStart`. Do not add a worker-start flush: the master manager is empty after the fork-time flush, and a second flush could close a pool created by an earlier worker-start listener. `ObjectPool::destroyObject()` already contains user cleanup failures, so do not add exception aggregation to `PoolManager::flush()`. |
 | Queue | Clear connections. For an already resolved manager, restore configured `background` and `deferred` exception callbacks through one protected provider method used by registration and reload. Keep the exception-handler guard, per-connector `InvalidArgumentException` handling, and eager restoration limited to those two already-eager connections. Forget `queue.connection` and `queue.failer`. |
-| Translation | If canonical `translator` is resolved and is the framework Translator, set base locale and fallback from config and clear loaded groups. Preserve loader paths/namespaces, extensions, callbacks, selector, and stringable handlers. |
+| Translation | If canonical `translator` is resolved and is the framework Translator, set base locale and fallback from config, then call `forgetLoadedGroups()`. Preserve registered lines, loader paths/namespaces, extensions, callbacks, selector, and stringable handlers. |
 | View | Preserve Factory, FileViewFinder, Blade compiler, EngineResolver, and resolved engine identities. Update the retained finder paths and flush only its lookup cache. Update the retained framework compiler's config fields through `Compiler::reloadConfiguration()` while preserving directives, conditions, tags, echo format, precompilers, components, and other registrations. Clear `CompilerEngine`'s boot-reachable compile-check map so a view rendered during provider boot cannot bypass refreshed cache or timestamp policy. Do not forget the compiler or engine: normal engine eviction rebuilds around the same compiler singleton, while Sentry's resolver rebuilds a decorator around its captured old engine. |
 
 Foundation reapplies the timezone after mutation replay because `LoadConfiguration` sets it before replay, and a recorded boot mutation may then change `app.timezone`. It does not reapply `mb_internal_encoding`; that value is deliberately fixed to UTF-8 rather than config-derived.
@@ -301,12 +311,13 @@ Worker configuration refresh updates inherited config-backed state for replaceme
 - Cache and Rate Limiter Swoole table definitions;
 - gRPC, Reverb, Sentry, Telescope watcher, Fortify, and Horizon topology;
 - preloaded or changed PHP code.
+- dump output format selected through `VAR_DUMPER_FORMAT`.
 
 Changing those requires a full server or process restart. Queue workers, the scheduler, Horizon, and custom server processes are not signaled by `ServerReloader` and must be restarted through their own lifecycle controls.
 
 ## Documentation
 
-Update `src/boost/docs/providers.md` in Laravel-docs prose:
+Update `src/docs/providers.md` in Laravel-docs prose:
 
 - Correct all three claims that providers register or boot at worker startup. Explain that the server application registers and boots before forking, and workers inherit that state.
 - Preserve the accurate conclusion that deferred providers provide no useful optimization because registration cost is amortized, while correcting the lifecycle explanation.
@@ -314,7 +325,7 @@ Update `src/boost/docs/providers.md` in Laravel-docs prose:
 - Explain the difference between master bootstrap, worker configuration refresh, and per-worker startup events.
 - Link to the deployment reload section with `/docs/{{version}}/...` syntax.
 
-Update `src/boost/docs/deployment.md` in the same style:
+Update `src/docs/deployment.md` in the same style:
 
 - Document injecting `ServerReloader` and calling `reload()`.
 - Explain that `server:reload` and the service replace event workers and configured task workers.
@@ -335,6 +346,7 @@ Remove the completed service-provider reload item from `docs/todo.md`. Do not du
 - Prove Fortify, Sentry, and Horizon replay their full derivations from rebuilt config without captures; include Sentry's explicit-channel preservation and current-level fallback branches.
 - Prove an invalid refreshed configuration prevents the worker-start path from completing.
 - Extend `WorkerStartCallbackTest` to prove stdout configuration is provider-owned and the event order remains correct.
+- Prove explicit CLI/HTML formats install Hypervel's source-aware handler while restoring `VAR_DUMPER_FORMAT`, and prove Foundation reload mutates the retained dumper without removing Telescope's wrapper.
 
 ### Shared APIs and identity
 
@@ -344,7 +356,8 @@ Remove the completed service-provider reload item from `docs/todo.md`. Do not du
 - Add URL generator tests for refreshed request, asset root, and both `forceHttps(true)` and `forceHttps(false)` paths while retaining identity.
 - Prove Session refresh preserves Redirector and ResponseFactory identities while replacing the session store.
 - Prove Cookie refresh mutates the retained CookieJar used by existing middleware/session handler objects.
-- Prove Translation construction creates no coroutine override, base refresh changes the fallback value, an explicit request override still wins, both setters reject invalid locales, loaded groups clear, and extensions/callbacks remain.
+- Prove Translation construction creates no coroutine override, base refresh changes the fallback value, an explicit request override still wins, locale and fallback setters reject invalid locales, loaded groups clear, and extensions/callbacks remain.
+- Prove pre-load `addLines()` registrations preserve unrelated loader lines and override matching lines. Prove parent/child/repeated-parent operations replay in call order, and default, namespaced, and JSON-group registrations survive refresh while new loader results are read.
 - Strengthen the existing Translation coroutine isolation assertion and extend the existing invalid-locale test rather than creating duplicate test files.
 - Prove View preserves Factory, finder, compiler, EngineResolver, and resolved engine identities while updating finder paths and compiler configuration. Preserve finder hints/extensions and Blade registrations. Seed the compile-check map with a pre-fork render, change `view.cache` or enable timestamp checks, and prove the next render uses the refreshed policy; do not use a changed compiled path or relative hash because a missing target file self-heals without proving the reset.
 - Prove Telescope updates the three retained repository views without constructing a direct DatabaseEntriesRepository auto-singleton.
