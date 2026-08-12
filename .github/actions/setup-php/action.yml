@@ -8,36 +8,49 @@ runs:
       shell: bash
       run: |
         apt-get update -qq
-        apt-get install -y -qq libgmp-dev libicu-dev libpq-dev libpng-dev libjpeg-dev libfreetype6-dev libwebp-dev libavif-dev libmagickwand-dev libsqlite3-dev
+        apt-get install -y -qq curl libgmp-dev libicu-dev libpq-dev libpng-dev libjpeg-dev libfreetype6-dev libwebp-dev libavif-dev libmagickwand-dev libsqlite3-dev unzip
 
         # Core extensions (installed via docker-php-ext-install)
-        core_extensions="pcntl intl gmp pdo_pgsql pdo_mysql pdo_sqlite sqlite3 bcmath gd fileinfo"
-        to_install=""
-        for ext in $core_extensions; do
-          if ! php -m 2>/dev/null | grep -qi "^${ext}$"; then
-            to_install="$to_install $ext"
+        bundled_extensions=(pcntl intl gmp pdo_pgsql pdo_mysql pdo_sqlite sqlite3 bcmath gd fileinfo)
+        bundled_extensions_to_install=()
+        for extension in "${bundled_extensions[@]}"; do
+          if ! php -m 2>/dev/null | grep -qi "^${extension}$"; then
+            bundled_extensions_to_install+=("$extension")
           fi
         done
 
-        if [ -n "$to_install" ]; then
-          if echo "$to_install" | grep -q "gd"; then
+        if [ ${#bundled_extensions_to_install[@]} -gt 0 ]; then
+          if [[ " ${bundled_extensions_to_install[*]} " == *" gd "* ]]; then
             docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif
           fi
-          docker-php-ext-install -j$(nproc) $to_install
+          docker-php-ext-install -j"$(nproc)" "${bundled_extensions_to_install[@]}"
         fi
 
-        # PECL extensions
+        # Third-party extensions (installed and enabled via PIE)
+        pie_packages=()
         if ! php -m 2>/dev/null | grep -qi "^redis$"; then
-          pecl install redis
-          docker-php-ext-enable redis
+          pie_packages+=(phpredis/phpredis)
         fi
 
         if ! php -m 2>/dev/null | grep -qi "^imagick$"; then
-          pecl install imagick
-          docker-php-ext-enable imagick
+          pie_packages+=(imagick/imagick)
         fi
 
-        php -r 'foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing {$function}().\n"); exit(1); } } if (! extension_loaded("imagick")) { fwrite(STDERR, "Missing imagick extension.\n"); exit(1); }'
+        if [ ${#pie_packages[@]} -gt 0 ]; then
+          pie_version=1.4.9
+          pie_checksum=19a31ddd4bfd08b9eb5eaad2e5f63e76e7919cae7683852da41c80da704ad6c0
+
+          curl -fsSL "https://github.com/php/pie/releases/download/${pie_version}/pie.phar" -o /tmp/pie.phar
+          printf '%s  %s\n' "$pie_checksum" /tmp/pie.phar | sha256sum --check
+          chmod +x /tmp/pie.phar
+
+          # Stable PIE 1.4 installs one extension package per invocation.
+          for pie_package in "${pie_packages[@]}"; do
+            /tmp/pie.phar install "$pie_package"
+          done
+        fi
+
+        php -r 'foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing {$function}(): GD was preinstalled without this codec, so the conditional GD build did not run.\n"); exit(1); } } if (! extension_loaded("imagick")) { fwrite(STDERR, "Missing imagick extension after setup: PIE did not enable the installed extension.\n"); exit(1); }'
 
         # Disable Swoole shortnames to avoid shadowing foundation helpers
         echo "swoole.use_shortname=Off" > /usr/local/etc/php/conf.d/99-swoole-shortname.ini
