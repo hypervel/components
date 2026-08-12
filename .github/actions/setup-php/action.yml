@@ -8,7 +8,7 @@ runs:
       shell: bash
       run: |
         apt-get update -qq
-        apt-get install -y -qq libgmp-dev libicu-dev libpq-dev libpng-dev libjpeg-dev libfreetype6-dev libsqlite3-dev > /dev/null
+        apt-get install -y -qq libgmp-dev libicu-dev libpq-dev libpng-dev libjpeg-dev libfreetype6-dev libwebp-dev libavif-dev libmagickwand-dev libsqlite3-dev > /dev/null
 
         # Core extensions (installed via docker-php-ext-install)
         core_extensions="pcntl intl gmp pdo_pgsql pdo_mysql pdo_sqlite sqlite3 bcmath gd fileinfo"
@@ -21,7 +21,7 @@ runs:
 
         if [ -n "$to_install" ]; then
           if echo "$to_install" | grep -q "gd"; then
-            docker-php-ext-configure gd --with-freetype --with-jpeg > /dev/null
+            docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif > /dev/null
           fi
           docker-php-ext-install -j$(nproc) $to_install > /dev/null
         fi
@@ -31,6 +31,13 @@ runs:
           pecl install redis > /dev/null
           docker-php-ext-enable redis > /dev/null
         fi
+
+        if ! php -m 2>/dev/null | grep -qi "^imagick$"; then
+          pecl install imagick-3.8.1 > /dev/null
+          docker-php-ext-enable imagick > /dev/null
+        fi
+
+        php -r 'foreach (["imagewebp", "imageavif"] as $function) { if (! function_exists($function)) { fwrite(STDERR, "Missing {$function}().\n"); exit(1); } } if (! extension_loaded("imagick")) { fwrite(STDERR, "Missing imagick extension.\n"); exit(1); }'
 
         # Disable Swoole shortnames to avoid shadowing foundation helpers
         echo "swoole.use_shortname=Off" > /usr/local/etc/php/conf.d/99-swoole-shortname.ini
