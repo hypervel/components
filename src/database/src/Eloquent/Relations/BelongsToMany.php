@@ -559,7 +559,7 @@ class BelongsToMany extends Relation
      * @return (
      *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
-     *     : TRelatedModel&object{pivot: TPivotModel}
+     *     : TRelatedModel
      * )
      */
     public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
@@ -574,7 +574,7 @@ class BelongsToMany extends Relation
     /**
      * Get the first related model record matching the attributes or instantiate it.
      *
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return TRelatedModel
      */
     public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
     {
@@ -588,7 +588,7 @@ class BelongsToMany extends Relation
     /**
      * Get the first record matching the attributes. If the record is not found, create it.
      *
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return TRelatedModel
      */
     public function firstOrCreate(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
@@ -598,8 +598,10 @@ class BelongsToMany extends Relation
             } else {
                 try {
                     $this->getQuery()->withSavepointIfNeeded(fn () => $this->attach($instance, $joining, $touch));
-                } catch (UniqueConstraintViolationException) {
-                    // Nothing to do, the model was already attached...
+                } catch (UniqueConstraintViolationException $exception) {
+                    if (! $this->hasAttachedPivot($instance)) {
+                        throw $exception;
+                    }
                 }
             }
         }
@@ -610,29 +612,43 @@ class BelongsToMany extends Relation
     /**
      * Attempt to create the record. If a unique constraint violation occurs, attempt to find the matching record.
      *
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return TRelatedModel
      */
     public function createOrFirst(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values)), $joining, $touch));
-        } catch (UniqueConstraintViolationException $e) {
+        } catch (UniqueConstraintViolationException $exception) {
             // ...
         }
 
+        $instance = $this->related->where($attributes)->useWritePdo()->first() ?? throw $exception;
+
         try {
-            return tap($this->related->where($attributes)->first() ?? throw $e, function ($instance) use ($joining, $touch) {
-                $this->getQuery()->withSavepointIfNeeded(fn () => $this->attach($instance, $joining, $touch));
-            });
-        } catch (UniqueConstraintViolationException $e) {
-            return (clone $this)->useWritePdo()->where($attributes)->first() ?? throw $e;
+            $this->getQuery()->withSavepointIfNeeded(fn () => $this->attach($instance, $joining, $touch));
+        } catch (UniqueConstraintViolationException $attachException) {
+            if (! $this->hasAttachedPivot($instance)) {
+                throw $attachException;
+            }
         }
+
+        return $instance;
+    }
+
+    /**
+     * Determine if the related model is attached through the current pivot constraints.
+     */
+    protected function hasAttachedPivot(Model $instance): bool
+    {
+        return $this->newPivotStatementForId($instance->getKey())
+            ->useWritePdo()
+            ->exists();
     }
 
     /**
      * Create or update a related record matching the attributes, and fill it with values.
      *
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return TRelatedModel
      */
     public function updateOrCreate(array $attributes, Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
@@ -1197,7 +1213,7 @@ class BelongsToMany extends Relation
      * Save a new model and attach it to the parent model.
      *
      * @param TRelatedModel $model
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return TRelatedModel
      */
     public function save(Model $model, array $pivotAttributes = [], bool $touch = true): Model
     {
@@ -1212,7 +1228,7 @@ class BelongsToMany extends Relation
      * Save a new model without raising any events and attach it to the parent model.
      *
      * @param TRelatedModel $model
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return TRelatedModel
      */
     public function saveQuietly(Model $model, array $pivotAttributes = [], bool $touch = true): Model
     {
@@ -1258,7 +1274,7 @@ class BelongsToMany extends Relation
     /**
      * Create a new instance of the related model.
      *
-     * @return object{pivot: TPivotModel}&TRelatedModel
+     * @return TRelatedModel
      */
     public function create(array $attributes = [], array $joining = [], bool $touch = true): Model
     {
@@ -1279,7 +1295,7 @@ class BelongsToMany extends Relation
     /**
      * Create an array of new instances of the related models.
      *
-     * @return array<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return array<int, TRelatedModel>
      */
     public function createMany(iterable $records, array $joinings = []): array
     {
