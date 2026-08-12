@@ -17,6 +17,7 @@ use Mockery;
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(\UnitEnum|string $name)
  * @method static \Hypervel\Cache\CacheManager forgetDriver(\UnitEnum|array|string|null $name = null)
+ * @method static \Hypervel\Cache\CacheManager forgetDrivers()
  * @method static void purge(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Cache\CacheManager extend(string $driver, \Closure $callback)
  * @method static \Hypervel\Cache\CacheManager setApplication(\Hypervel\Contracts\Container\Container $app)
