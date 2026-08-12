@@ -127,6 +127,25 @@ class AuthEventsTest extends SentryTestCase
         $this->assertNull($scope->getUser()->getEmail());
     }
 
+    public function testAuthenticatedEventPreservesFalseyUserFields(): void
+    {
+        $user = new AuthEventsTestUserModel;
+
+        $user->forceFill([
+            'id' => 0,
+            'username' => '',
+            'email' => '',
+        ]);
+
+        $this->dispatchHypervelEvent(new Authenticated('test', $user));
+
+        $sentryUser = $this->getCurrentSentryScope()->getUser();
+        $this->assertNotNull($sentryUser);
+        $this->assertSame(0, $sentryUser->getId());
+        $this->assertSame('', $sentryUser->getUsername());
+        $this->assertSame('', $sentryUser->getEmail());
+    }
+
     public function testAuthenticatedEventDoesNotFillUserOnScopeWhenPIIShouldNotBeSent(): void
     {
         $this->resetApplicationWithConfig([

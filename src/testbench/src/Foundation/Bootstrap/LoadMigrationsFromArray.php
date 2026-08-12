@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Foundation\Bootstrap;
 
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
+use InvalidArgumentException;
+use RuntimeException;
 
 use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\load_migration_paths;
@@ -23,7 +26,7 @@ final class LoadMigrationsFromArray
 {
     /**
      * @param array<int, string>|bool|string $migrations
-     * @param array<int, class-string>|bool|class-string $seeders
+     * @param array<int, mixed>|bool|string $seeders
      */
     public function __construct(
         public readonly array|bool|string $migrations = [],
@@ -52,22 +55,27 @@ final class LoadMigrationsFromArray
     {
         $app->make(EventDispatcher::class)
             ->listen(DatabaseRefreshed::class, function (DatabaseRefreshed $event) use ($app): void {
-                if (is_bool($this->seeders)) {
-                    if ($this->seeders) {
-                        $app->make(ConsoleKernel::class)->call('db:seed');
+                if ($this->seeders === true) {
+                    if ($app->make(ConsoleKernel::class)->call('db:seed') !== Command::SUCCESS) {
+                        throw new RuntimeException('Default seeder failed.');
                     }
 
                     return;
                 }
 
-                Collection::wrap($this->seeders)
-                    ->flatten()
-                    ->filter(static fn (mixed $seederClass): bool => $seederClass !== null && is_string($seederClass) && class_exists($seederClass))
-                    ->each(static function (string $seederClass) use ($app): void {
-                        $app->make(ConsoleKernel::class)->call('db:seed', [
-                            '--class' => $seederClass,
-                        ]);
-                    });
+                foreach (Collection::wrap($this->seeders)->flatten() as $seederClass) {
+                    if (! is_string($seederClass)) {
+                        throw new InvalidArgumentException('Testbench seeders must be existing class strings.');
+                    }
+
+                    if (! class_exists($seederClass)) {
+                        throw new InvalidArgumentException("Seeder class [{$seederClass}] does not exist.");
+                    }
+
+                    if ($app->make(ConsoleKernel::class)->call('db:seed', ['--class' => $seederClass]) !== Command::SUCCESS) {
+                        throw new RuntimeException("Seeder [{$seederClass}] failed.");
+                    }
+                }
             });
     }
 

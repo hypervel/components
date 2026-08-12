@@ -17,9 +17,9 @@ use Throwable;
  */
 final class RedisVersionCheck implements EnvironmentCheckInterface
 {
-    private const REDIS_REQUIRED_VERSION = '8.0.0';
+    private const string REDIS_REQUIRED_VERSION = '8.0.0';
 
-    private const VALKEY_REQUIRED_VERSION = '9.0.0';
+    private const string VALKEY_REQUIRED_VERSION = '9.0.0';
 
     private ?string $serviceName = null;
 

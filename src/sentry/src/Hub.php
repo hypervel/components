@@ -29,11 +29,9 @@ use function sprintf;
 
 class Hub implements HubInterface
 {
-    public const CONTEXT_STACK_KEY = '__sentry.stack';
+    public const string CONTEXT_STACK_KEY = '__sentry.stack';
 
-    public const CONTEXT_LAST_EVENT_ID_KEY = '__sentry.last_event_id';
-
-    public const CONTEXT_REQUEST_COROUTINE_ID_KEY = '__sentry.coroutine_id';
+    public const string CONTEXT_LAST_EVENT_ID_KEY = '__sentry.last_event_id';
 
     public function __construct(protected ?ClientInterface $client = null, protected ?Scope $scope = null)
     {
@@ -64,19 +62,17 @@ class Hub implements HubInterface
     public function pushScope(): Scope
     {
         $clonedScope = clone $this->getScope();
-        CoroutineContext::override(static::CONTEXT_STACK_KEY, function ($layers) use ($clonedScope) {
-            $layers = $layers ?? [];
-            $layers[] = new Layer($this->getClient(), $clonedScope);
-
-            return $layers;
-        });
+        $layers = $this->getStack();
+        $layers[] = new Layer($this->getClient(), $clonedScope);
+        CoroutineContext::set(static::CONTEXT_STACK_KEY, $layers);
 
         return $clonedScope;
     }
 
     public function popScope(): bool
     {
-        $currentLayers = CoroutineContext::get(static::CONTEXT_STACK_KEY, []);
+        $currentLayers = $this->getStack();
+
         if (count($currentLayers) === 1) {
             return false; // Cannot pop the last scope, as it would leave no layers in the stack
         }
@@ -218,8 +214,9 @@ class Hub implements HubInterface
                         $samplingContext->getParentSampled(),
                         $options->getTracesSampleRate() ?? 0
                     );
-                    $sampleSource = $samplingContext->getParentSampled(
-                    ) !== null ? 'parent:sampling_decision' : 'config:traces_sample_rate';
+                    $sampleSource = $samplingContext->getParentSampled() !== null
+                        ? 'parent:sampling_decision'
+                        : 'config:traces_sample_rate';
                 }
             }
 
@@ -289,14 +286,29 @@ class Hub implements HubInterface
 
         $transaction->initSpanRecorder();
 
-        $profilesSampleRate = $options->getProfilesSampleRate();
+        $profilesSampleSource = 'config:profiles_sample_rate';
+        $profilesSampler = $options->getProfilesSampler();
+
+        if ($profilesSampler !== null) {
+            $profilesSampleRate = $profilesSampler($samplingContext);
+            $profilesSampleSource = 'config:profiles_sampler';
+        } else {
+            $profilesSampleRate = $options->getProfilesSampleRate();
+        }
+
         if ($profilesSampleRate === null) {
             $logger->info(
                 sprintf(
-                    'Transaction [%s] is not profiling because `profiles_sample_rate` option is not set.',
+                    'Transaction [%s] is not profiling because neither `profiles_sample_rate` nor `profiles_sampler` option is set.',
                     (string) $transaction->getTraceId()
                 )
             );
+        } elseif (! $this->isValidSampleRate($profilesSampleRate)) {
+            $logger->warning(sprintf(
+                'Transaction [%s] is not profiling because profile sample rate (decided by %s) is invalid.',
+                (string) $transaction->getTraceId(),
+                $profilesSampleSource,
+            ));
         } elseif ($this->sample($profilesSampleRate)) {
             $logger->info(
                 sprintf(
@@ -396,13 +408,24 @@ class Hub implements HubInterface
      */
     private function getStackTop(): Layer
     {
-        $stack = CoroutineContext::getOrSet(self::CONTEXT_STACK_KEY, function () {
-            $scope = $this->scope ?? new Scope;
-
-            return [new Layer($this->getClient(), $scope)];
-        });
+        $stack = $this->getStack();
 
         return end($stack);
+    }
+
+    /**
+     * Get the current coroutine's initialized layer stack.
+     *
+     * @return list<Layer>
+     */
+    private function getStack(): array
+    {
+        return CoroutineContext::getOrSet(static::CONTEXT_STACK_KEY, function (): array {
+            return [new Layer(
+                $this->getClient(),
+                clone ($this->scope ?? new Scope),
+            )];
+        });
     }
 
     private function sample(mixed $sampleRate): bool

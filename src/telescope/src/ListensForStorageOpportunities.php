@@ -20,7 +20,7 @@ use Hypervel\Telescope\Contracts\EntriesRepository;
 
 trait ListensForStorageOpportunities
 {
-    public const PROCESSING_JOBS_CONTEXT_KEY = '__telescope.processing_jobs';
+    public const string PROCESSING_JOBS_CONTEXT_KEY = '__telescope.processing_jobs';
 
     /**
      * The callback that determines if Telescope should start recording.

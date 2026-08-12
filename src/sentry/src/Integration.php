@@ -19,6 +19,8 @@ use Sentry\Metrics\TraceMetrics;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
 use Sentry\Tracing\TransactionSource;
+use Sentry\Transport\Result;
+use Sentry\Transport\ResultStatus;
 use Throwable;
 
 use function Sentry\addBreadcrumb;
@@ -30,7 +32,7 @@ use const SWOOLE_VERSION;
 
 class Integration implements IntegrationInterface
 {
-    private const CONTEXT_TRANSACTION_KEY = '__sentry.transaction';
+    private const string CONTEXT_TRANSACTION_KEY = '__sentry.transaction';
 
     public function setupOnce(): void
     {
@@ -113,21 +115,19 @@ class Integration implements IntegrationInterface
     }
 
     /**
-     * Block until all events are processed by the PHP SDK client.
-     *
-     * @internal this is not part of the public API and is here temporarily until
-     *  the underlying issue can be resolved, this method will be removed
+     * Flush buffered events without waiting for delivery.
      */
     public static function flushEvents(): void
     {
-        $client = SentrySdk::getCurrentHub()->getClient();
+        self::flush(null, false);
+    }
 
-        if ($client !== null) {
-            $client->flush();
-
-            Logs::getInstance()->flush();
-            TraceMetrics::getInstance()->flush();
-        }
+    /**
+     * Flush buffered events and wait for the captured delivery generation.
+     */
+    public static function drainEvents(?int $timeout = null): Result
+    {
+        return self::flush($timeout, true);
     }
 
     /**
@@ -220,6 +220,27 @@ class Integration implements IntegrationInterface
     private static function escapeMetaTagContent(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Flush buffered SDK telemetry before flushing its client transport.
+     */
+    private static function flush(?int $timeout, bool $drain): Result
+    {
+        $client = SentrySdk::getCurrentHub()->getClient();
+
+        if ($client === null) {
+            return new Result(ResultStatus::success());
+        }
+
+        if ($drain) {
+            $timeout = max(1, $timeout ?? (int) ceil($client->getOptions()->getHttpTimeout()));
+        }
+
+        Logs::getInstance()->flush();
+        TraceMetrics::getInstance()->flush();
+
+        return $client->flush($timeout);
     }
 
     /**

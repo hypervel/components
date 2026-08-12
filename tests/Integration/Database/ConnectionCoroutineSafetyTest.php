@@ -606,7 +606,7 @@ class UnguardedTestUser extends Model
 
 class CoroutineSessionConfigurator implements SessionConfigurator
 {
-    public const CONTEXT_KEY = '__database.session_configurator_test';
+    public const string CONTEXT_KEY = '__database.session_configurator_test';
 
     public int $stateCalls = 0;
 

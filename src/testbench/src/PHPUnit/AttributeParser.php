@@ -97,17 +97,14 @@ class AttributeParser
      */
     protected static function resolveAttribute(ReflectionAttribute $attribute): array
     {
-        /** @var array{0: null|class-string, 1: null|object} */
-        return rescue(static function () use ($attribute): array { // @phpstan-ignore argument.unresolvableType
-            $instance = isset(class_implements($attribute->getName())[Resolvable::class])
-                ? transform($attribute->newInstance(), static fn (Resolvable $instance) => $instance->resolve())
-                : $attribute->newInstance();
+        $instance = isset(class_implements($attribute->getName())[Resolvable::class])
+            ? transform($attribute->newInstance(), static fn (Resolvable $instance) => $instance->resolve()) // @phpstan-ignore argument.unresolvableType
+            : $attribute->newInstance();
 
-            if ($instance === null) {
-                return [null, null];
-            }
+        if ($instance === null) {
+            return [null, null];
+        }
 
-            return [$instance::class, $instance];
-        }, [null, null], false);
+        return [$instance::class, $instance];
     }
 }

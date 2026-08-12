@@ -459,7 +459,8 @@ class Arr
             $items instanceof Arrayable => $items->toArray(),
             $items instanceof WeakMap => iterator_to_array($items, false),
             $items instanceof Traversable => iterator_to_array($items),
-            $items instanceof Jsonable => json_decode($items->toJson(), true),
+            // Support depends on Collections, so this native depth cannot reference Support\Json; 513 reads 512 containers.
+            $items instanceof Jsonable => json_decode($items->toJson(), true, 513),
             $items instanceof JsonSerializable => (array) $items->jsonSerialize(),
             is_object($items) => (array) $items, // @phpstan-ignore function.alreadyNarrowedType
             default => throw new InvalidArgumentException('Items cannot be represented by a scalar value.'),

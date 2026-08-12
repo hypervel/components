@@ -13,7 +13,7 @@ use Traversable;
 final class Metadata implements Countable, IteratorAggregate
 {
     /** @internal */
-    public const OWNED_KEYS = [
+    public const array OWNED_KEYS = [
         'host',
         'content-type',
         'content-length',

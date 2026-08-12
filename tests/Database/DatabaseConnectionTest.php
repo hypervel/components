@@ -26,6 +26,7 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Testbench\TestCase;
+use LogicException;
 use Mockery as m;
 use PDO;
 use PDOException;
@@ -994,6 +995,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame(1, $connection->transactionLevel());
         $this->assertCount(1, $manager->getPendingTransactions());
         $this->assertSame($pdo, $connection->getRawPdo());
+        $this->assertTrue($connection->hasUnknownSessionState());
 
         $connection->rollBack();
     }
@@ -1036,8 +1038,6 @@ class DatabaseConnectionTest extends TestCase
 
     public function testNonLostPhysicalRollbackFailureKeepsActiveStateAndMarksTheSessionUnknown(): void
     {
-        Connection::configureSessionUsing(new StatementPathSessionConfigurator);
-
         $failure = new RuntimeException('rollback failure');
         $pdo = $this->getMockBuilder(PDOStub::class)
             ->onlyMethods(['beginTransaction', 'inTransaction', 'rollBack'])
@@ -1190,6 +1190,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertCount(0, $manager->getPendingTransactions());
         $this->assertNull($connection->getRawPdo());
         $this->assertNull($connection->getRawReadPdo());
+
+        $connection->setPdo($pdo);
+
+        $this->assertTrue($connection->hasUnknownSessionState());
     }
 
     public function testDisconnectTreatsLostPhysicalRollbackFailureAsAlreadyTerminal(): void
@@ -1378,6 +1382,59 @@ class DatabaseConnectionTest extends TestCase
         $connection->resetForPool();
 
         $this->assertSame($readPdo, $connection->getReadPdo());
+    }
+
+    public function testForeignKeyConstraintSuppressionDepthIsConnectionOwned(): void
+    {
+        $connection = $this->getMockConnection();
+
+        $this->assertTrue($connection->beginForeignKeyConstraintSuppression());
+        $this->assertFalse($connection->beginForeignKeyConstraintSuppression());
+
+        $connection->endForeignKeyConstraintSuppression();
+        $connection->endForeignKeyConstraintSuppression();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('No foreign key constraint suppression scope is active.');
+
+        $connection->endForeignKeyConstraintSuppression();
+    }
+
+    public function testResetForPoolMarksALeakedForeignKeySuppressionScopeUnknown(): void
+    {
+        $connection = $this->getMockConnection();
+
+        $connection->beginForeignKeyConstraintSuppression();
+        $connection->resetForPool();
+
+        $this->assertTrue($connection->hasUnknownSessionState());
+        $this->assertTrue($connection->beginForeignKeyConstraintSuppression());
+
+        $connection->endForeignKeyConstraintSuppression();
+    }
+
+    public function testResetForPoolDoesNotResolveALazyConnectionForALeakedForeignKeySuppressionScope(): void
+    {
+        $resolutions = 0;
+        $connection = new Connection(
+            static function () use (&$resolutions): PDO {
+                ++$resolutions;
+
+                return new PDOStub;
+            },
+            'test_db',
+            '',
+            ['name' => 'test', 'driver' => 'mysql']
+        );
+
+        $connection->beginForeignKeyConstraintSuppression();
+        $connection->resetForPool();
+
+        $this->assertSame(0, $resolutions);
+        $this->assertFalse($connection->hasUnknownSessionState());
+        $this->assertTrue($connection->beginForeignKeyConstraintSuppression());
+
+        $connection->endForeignKeyConstraintSuppression();
     }
 
     public function testQueryExceptionContainsReadConnectionDetailsWhenUsingReadPdo()

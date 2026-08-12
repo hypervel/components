@@ -17,7 +17,7 @@ use Hypervel\Redis\RedisConnection;
  */
 class GetTagItems
 {
-    private const CHUNK_SIZE = 1000;
+    private const int CHUNK_SIZE = 1000;
 
     /**
      * Create a new tag items query instance.

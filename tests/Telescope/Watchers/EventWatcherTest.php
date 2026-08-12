@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Closure;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use JsonException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
@@ -118,17 +123,40 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertNull($entry);
     }
 
+    #[DataProvider('frameworkEventProvider')]
+    public function testEventWatcherIgnoresFrameworkEventPrefixes(string $eventName): void
+    {
+        $this->app->make(EventWatcher::class)->recordEvent($eventName, []);
+
+        $this->assertSame([], Telescope::getEntriesQueue());
+    }
+
+    public static function frameworkEventProvider(): array
+    {
+        return [
+            ['Hypervel\Database\Events\QueryExecuted'],
+            ['eloquent.created: App\Models\User'],
+            ['bootstrapped: Hypervel\Foundation\Bootstrap\BootProviders'],
+            ['bootstrapping: Hypervel\Foundation\Bootstrap\BootProviders'],
+            ['creating: Hypervel\Log\Logger'],
+            ['composing: dashboard'],
+        ];
+    }
+
     #[DataProvider('formatListenersProvider')]
-    public function testFormatListeners($listener, $formatted)
+    public function testFormatListeners(mixed $listener, string $formatted): void
     {
         Event::listen(DummyEvent::class, $listener);
 
         $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');
 
-        $this->assertSame($formatted, $method->invoke(new EventWatcher, DummyEvent::class)[0]['name']);
+        $this->assertSame(
+            $formatted,
+            $method->invoke($this->app->make(EventWatcher::class), DummyEvent::class)[0]['name'],
+        );
     }
 
-    public static function formatListenersProvider()
+    public static function formatListenersProvider(): array
     {
         return [
             'class string' => [
@@ -165,6 +193,82 @@ class EventWatcherTest extends FeatureTestCase
                 sprintf('Closure at %s[%s:%s]', __FILE__, __LINE__ - 2, __LINE__ - 1),
             ],
         ];
+    }
+
+    public function testClosureListenerPathContainingAtIsNotTreatedAsAClass(): void
+    {
+        $directory = ParallelTesting::tempDir('TelescopeEventWatcherTest@listener');
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+
+        try {
+            $path = $directory . '/listener.php';
+            file_put_contents($path, '<?php return static function (): void {};');
+
+            /** @var Closure $listener */
+            $listener = require $path;
+            Event::listen(DummyEvent::class, $listener);
+
+            $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');
+            $formatted = $method->invoke(
+                $this->app->make(EventWatcher::class),
+                DummyEvent::class,
+            )[0];
+
+            $this->assertStringContainsString('@listener', $formatted['name']);
+            $this->assertFalse($formatted['queued']);
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testPlainObjectPayloadRoundTripsAtTheMaximumNestingDepth(): void
+    {
+        $nested = $this->nestedValue(511);
+        $payload = (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['nested' => $nested]],
+        );
+
+        $this->assertSame($nested, $payload[0]['properties']['nested']);
+    }
+
+    public function testEventWatcherPurgesLiftedDeepPayloadWithoutLosingTheEntry(): void
+    {
+        $this->app->make(EventWatcher::class)->recordEvent('custom-event', [
+            (object) ['nested' => $this->nestedValue(511)],
+        ]);
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::EVENT, $entry->type);
+        $this->assertSame('custom-event', $entry->content['name']);
+        $this->assertSame('Purged By Telescope', $entry->content['payload']);
+        $this->assertSame([], $entry->content['listeners']);
+    }
+
+    public function testUnencodablePlainObjectPayloadRaisesTheNativeJsonException(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['value' => NAN]],
+        );
+    }
+
+    private function nestedValue(int $depth): array
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < $depth; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        return $value;
     }
 }
 

@@ -8,18 +8,94 @@ use FilesystemIterator;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Console\TestCommand;
+use Hypervel\Testing\Coverage;
 use Hypervel\Testing\ParallelRunner;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\Profile\ProfileExtension;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 use Symfony\Component\Console\Tester\CommandTester;
+use Throwable;
 
 use function Hypervel\Testbench\package_path;
 
 class TestCommandTest extends TestCase
 {
+    /** @var array<string, array{bool, null|string}> */
+    private array $originalConfigurationFiles = [];
+
+    /** @var array{bool, null|list<string>} */
+    private array $originalArguments;
+
+    protected function setUp(): void
+    {
+        $this->originalArguments = [
+            array_key_exists('argv', $_SERVER),
+            $_SERVER['argv'] ?? null,
+        ];
+
+        parent::setUp();
+
+        foreach (['phpunit.xml', 'custom-phpunit.xml'] as $file) {
+            $path = $this->app->basePath($file);
+            $this->originalConfigurationFiles[$path] = [
+                is_file($path),
+                is_file($path) ? (string) file_get_contents($path) : null,
+            ];
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        $exception = null;
+
+        try {
+            $profileFiles = glob($this->app->basePath('.hypervel-phpunit-profile-*.xml')) ?: [];
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+            $profileFiles = [];
+        }
+
+        foreach ($profileFiles as $path) {
+            try {
+                unlink($path);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        foreach ($this->originalConfigurationFiles as $path => [$existed, $contents]) {
+            try {
+                if ($existed) {
+                    file_put_contents($path, $contents);
+                } elseif (is_file($path)) {
+                    unlink($path);
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($this->originalArguments[0]) {
+            $_SERVER['argv'] = $this->originalArguments[1];
+        } else {
+            unset($_SERVER['argv']);
+        }
+
+        try {
+            parent::tearDown();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
     #[Test]
     public function itInjectsTheProfileExtensionIntoATemporaryConfigurationFile(): void
     {
@@ -54,7 +130,6 @@ class TestCommandTest extends TestCase
     public function itRunsProfiledTestsWithRelativeConfigurationPaths(): void
     {
         $basePath = $this->createProfileProject();
-        $originalArguments = $_SERVER['argv'] ?? [];
         $_SERVER['argv'] = ['artisan', 'test', '--profile'];
 
         $command = new TestCommandHarness(['profile' => true, 'without-tty' => true], $basePath);
@@ -69,7 +144,6 @@ class TestCommandTest extends TestCase
             $this->assertStringContainsString('Top 10 slowest tests', $display);
             $this->assertStringContainsString('ProfileExampleTest', $display);
         } finally {
-            $_SERVER['argv'] = $originalArguments;
             $this->removeDirectory($basePath);
         }
     }
@@ -78,7 +152,6 @@ class TestCommandTest extends TestCase
     public function itShowsNativePhpunitOutputForSequentialTests(): void
     {
         $basePath = $this->createProfileProject();
-        $originalArguments = $_SERVER['argv'] ?? [];
         $_SERVER['argv'] = ['artisan', 'test'];
 
         $command = new TestCommandHarness(['without-tty' => true], $basePath);
@@ -93,9 +166,38 @@ class TestCommandTest extends TestCase
             $this->assertStringContainsString('OK (1 test', $display);
             $this->assertStringContainsString('1 assertion', $display);
         } finally {
-            $_SERVER['argv'] = $originalArguments;
             $this->removeDirectory($basePath);
         }
+    }
+
+    #[Test]
+    public function itBuildsCompleteApplicationTestBinaryPaths(): void
+    {
+        $phpunitCommand = new TestCommandHarness;
+        $paratestCommand = new TestCommandHarness(['parallel' => true]);
+        $pestCommand = new TestCommandHarness(usesPest: true);
+        $parallelPestCommand = new TestCommandHarness(['parallel' => true], usesPest: true);
+
+        foreach ([$phpunitCommand, $paratestCommand, $pestCommand, $parallelPestCommand] as $command) {
+            $command->setHypervel($this->app);
+        }
+
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/phpunit/phpunit/phpunit')],
+            $phpunitCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/brianium/paratest/bin/paratest')],
+            $paratestCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest')],
+            $pestCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest'), '--parallel'],
+            $parallelPestCommand->binaryPublic(),
+        );
     }
 
     #[Test]
@@ -192,15 +294,15 @@ class TestCommandTest extends TestCase
     #[Test]
     public function itClearsConfiguredEnvironmentVariablesFromEveryEnvironmentStore(): void
     {
-        $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-test-command-env-'
-            . getmypid() . '-' . bin2hex(random_bytes(6));
+        $basePath = ParallelTesting::tempDir('TestCommandEnvironment');
         $environmentFile = '.env.command-clear';
         $keys = [
             'HYPERVEL_TEST_COMMAND_CLEAR_ONE',
             'HYPERVEL_TEST_COMMAND_CLEAR_TWO',
         ];
 
-        mkdir($basePath, 0777, true);
+        $this->removeDirectory($basePath);
+        mkdir($basePath, 0700, true);
         file_put_contents($basePath . DIRECTORY_SEPARATOR . $environmentFile, implode("\n", [
             'HYPERVEL_TEST_COMMAND_CLEAR_ONE=one',
             'HYPERVEL_TEST_COMMAND_CLEAR_TWO=two',
@@ -300,6 +402,175 @@ XML);
         $this->assertNotContains('80', $arguments);
     }
 
+    #[Test]
+    public function itRejectsAnUnpublishedTemporaryConfigurationFile(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            $this->markTestSkipped('Permission checks are unreliable when running as root.');
+        }
+
+        // A crashed run can leave this fixture read-only, so it never reuses a path.
+        $basePath = ParallelTesting::tempDir(
+            'TestCommandUnpublishedConfiguration-' . bin2hex(random_bytes(6)),
+        );
+
+        mkdir($basePath, 0700, true);
+        try {
+            file_put_contents($basePath . DIRECTORY_SEPARATOR . 'phpunit.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php"/>
+XML);
+            chmod($basePath, 0555);
+
+            $command = new TestCommandHarness(['profile' => true], $basePath);
+            $command->setHypervel($this->app);
+
+            $command->phpUnitConfigurationFilePublic();
+            $this->fail('The temporary configuration write failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringStartsWith(
+                "Unable to write temporary PHPUnit configuration [{$basePath}/.hypervel-phpunit-profile-",
+                $exception->getMessage(),
+            );
+        } finally {
+            chmod($basePath, 0700);
+            $this->removeDirectory($basePath);
+        }
+    }
+
+    #[Test]
+    public function itCleansEveryOwnedResourceWhenArgumentConstructionFails(): void
+    {
+        $this->writePhpunitConfiguration();
+        $_SERVER['argv'] = ['artisan', 'test', '--profile'];
+
+        $command = new TestCommandFailureHarness(['profile' => true, 'without-tty' => true]);
+        $command->phpunitArgumentsException = new RuntimeException('arguments failed');
+        $command->setHypervel($this->app);
+
+        try {
+            (new CommandTester($command))->execute([]);
+            $this->fail('The argument construction exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('arguments failed', $exception->getMessage());
+        }
+
+        $this->assertCommandResourcesWereRemoved($command);
+        $this->assertSame(['temporary configuration', 'profile directory'], $command->cleanupOrder);
+    }
+
+    #[Test]
+    public function itCleansEveryOwnedResourceAfterANonInterruptSignal(): void
+    {
+        $this->writePhpunitConfiguration();
+        $_SERVER['argv'] = ['artisan', 'test', '--profile'];
+
+        $command = new TestCommandFailureHarness(['profile' => true, 'without-tty' => true]);
+        $command->processCode = 'posix_kill(getmypid(), SIGTERM);';
+        $command->setHypervel($this->app);
+
+        try {
+            (new CommandTester($command))->execute([]);
+            $this->fail('The process signal exception was not thrown.');
+        } catch (Throwable $throwable) {
+            $this->assertSame('The process has been signaled with signal "15".', $throwable->getMessage());
+        }
+
+        $this->assertCommandResourcesWereRemoved($command);
+        $this->assertSame(['temporary configuration', 'profile directory'], $command->cleanupOrder);
+    }
+
+    #[Test]
+    public function itCleansEveryOwnedResourceWhenProfileReportingFails(): void
+    {
+        $this->writePhpunitConfiguration();
+        $_SERVER['argv'] = ['artisan', 'test', '--profile'];
+
+        $command = new TestCommandFailureHarness(['profile' => true, 'without-tty' => true]);
+        $command->profileReportException = new RuntimeException('report failed');
+        $command->setHypervel($this->app);
+
+        try {
+            (new CommandTester($command))->execute([]);
+            $this->fail('The profile report exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('report failed', $exception->getMessage());
+        }
+
+        $this->assertCommandResourcesWereRemoved($command);
+        $this->assertSame(['temporary configuration', 'profile directory'], $command->cleanupOrder);
+    }
+
+    #[Test]
+    public function itPreservesTheOperationFailureWhileExhaustingCleanup(): void
+    {
+        $this->writePhpunitConfiguration();
+        $_SERVER['argv'] = ['artisan', 'test', '--profile'];
+
+        $command = new TestCommandFailureHarness(['profile' => true, 'without-tty' => true]);
+        $command->allocateCoverageInBinary = true;
+        $command->profileReportException = new RuntimeException('operation failed');
+        $command->temporaryConfigurationCleanupException = new RuntimeException('temporary cleanup failed');
+        $command->coverageCleanupException = new RuntimeException('coverage cleanup failed');
+        $command->profileCleanupException = new RuntimeException('profile cleanup failed');
+        $command->setHypervel($this->app);
+
+        try {
+            (new CommandTester($command))->execute([]);
+            $this->fail('The operation exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('operation failed', $exception->getMessage());
+        }
+
+        $this->assertCommandResourcesWereRemoved($command);
+        $this->assertSame(
+            ['temporary configuration', 'coverage', 'profile directory'],
+            $command->cleanupOrder,
+        );
+    }
+
+    #[Test]
+    public function itThrowsTheFirstCleanupFailureAndStillRunsLaterCleanup(): void
+    {
+        $this->writePhpunitConfiguration();
+        $_SERVER['argv'] = ['artisan', 'test', '--profile'];
+
+        $command = new TestCommandFailureHarness(['profile' => true, 'without-tty' => true]);
+        $command->allocateCoverageInBinary = true;
+        $command->temporaryConfigurationCleanupException = new RuntimeException('temporary cleanup failed');
+        $command->coverageCleanupException = new RuntimeException('coverage cleanup failed');
+        $command->profileCleanupException = new RuntimeException('profile cleanup failed');
+        $command->setHypervel($this->app);
+
+        try {
+            (new CommandTester($command))->execute([]);
+            $this->fail('The cleanup exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('temporary cleanup failed', $exception->getMessage());
+        }
+
+        $this->assertCommandResourcesWereRemoved($command);
+        $this->assertSame(
+            ['temporary configuration', 'coverage', 'profile directory'],
+            $command->cleanupOrder,
+        );
+    }
+
+    /**
+     * Assert that every command-owned filesystem resource was removed.
+     */
+    protected function assertCommandResourcesWereRemoved(TestCommandFailureHarness $command): void
+    {
+        $this->assertNotNull($command->createdTemporaryConfigurationFile);
+        $this->assertFileDoesNotExist($command->createdTemporaryConfigurationFile);
+        $this->assertNotNull($command->createdProfileDirectory);
+        $this->assertDirectoryDoesNotExist($command->createdProfileDirectory);
+
+        if ($command->coverageReporter !== null) {
+            $this->assertFileDoesNotExist($command->coverageReporter->path());
+        }
+    }
+
     /**
      * Write a PHPUnit configuration file into the disposable testbench app.
      */
@@ -339,10 +610,10 @@ XML);
      */
     protected function createProfileProject(): string
     {
-        $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-profile-project-'
-            . getmypid() . '-' . bin2hex(random_bytes(6));
+        $basePath = ParallelTesting::tempDir('TestCommandProfileProject');
 
-        mkdir($basePath . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'Feature', 0777, true);
+        $this->removeDirectory($basePath);
+        mkdir($basePath . DIRECTORY_SEPARATOR . 'tests' . DIRECTORY_SEPARATOR . 'Feature', 0700, true);
         symlink(package_path('vendor'), $basePath . DIRECTORY_SEPARATOR . 'vendor');
 
         file_put_contents($basePath . DIRECTORY_SEPARATOR . 'phpunit.xml', <<<'XML'
@@ -408,7 +679,7 @@ PHP
     }
 }
 
-final class TestCommandHarness extends TestCommand
+class TestCommandHarness extends TestCommand
 {
     /**
      * Create a new test command harness.
@@ -419,6 +690,7 @@ final class TestCommandHarness extends TestCommand
         private readonly array $options = [],
         private readonly ?string $basePath = null,
         private readonly ?array $commonArguments = null,
+        private readonly bool $usesPest = false,
     ) {
         parent::__construct();
     }
@@ -442,7 +714,7 @@ final class TestCommandHarness extends TestCommand
     #[Override]
     protected function usingPest(): bool
     {
-        return false;
+        return $this->usesPest;
     }
 
     /**
@@ -467,6 +739,16 @@ final class TestCommandHarness extends TestCommand
         }
 
         return $this->basePath . ($paths === [] ? '' : DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $paths));
+    }
+
+    /**
+     * Expose the resolved binary command.
+     *
+     * @return array<int, string>
+     */
+    public function binaryPublic(): array
+    {
+        return $this->binary();
     }
 
     /**
@@ -533,5 +815,155 @@ final class TestCommandHarness extends TestCommand
     public function clearEnvPublic(): void
     {
         $this->clearEnv();
+    }
+}
+
+class TestCommandFailureHarness extends TestCommandHarness
+{
+    public bool $allocateCoverageInBinary = false;
+
+    public string $processCode = 'exit(0);';
+
+    public ?Throwable $phpunitArgumentsException = null;
+
+    public ?Throwable $profileReportException = null;
+
+    public ?Throwable $temporaryConfigurationCleanupException = null;
+
+    public ?Throwable $coverageCleanupException = null;
+
+    public ?Throwable $profileCleanupException = null;
+
+    public ?string $createdTemporaryConfigurationFile = null;
+
+    public ?string $createdProfileDirectory = null;
+
+    public ?TestCommandFailureCoverage $coverageReporter = null;
+
+    /** @var list<string> */
+    public array $cleanupOrder = [];
+
+    /**
+     * Get the PHP binary to execute.
+     *
+     * @return array<int, string>
+     */
+    #[Override]
+    protected function binary(): array
+    {
+        if ($this->allocateCoverageInBinary) {
+            $this->coverage();
+        }
+
+        return [PHP_BINARY, '-r', $this->processCode, '--'];
+    }
+
+    /**
+     * Get the array of arguments for running PHPUnit.
+     *
+     * @param array<int, string> $options
+     * @return array<int, string>
+     */
+    #[Override]
+    protected function phpunitArguments(array $options): array
+    {
+        $arguments = parent::phpunitArguments($options);
+
+        if ($this->phpunitArgumentsException !== null) {
+            throw $this->phpunitArgumentsException;
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * Add the profile extension to a temporary PHPUnit configuration file.
+     */
+    #[Override]
+    protected function profileConfigurationFile(string $file): string
+    {
+        return $this->createdTemporaryConfigurationFile = parent::profileConfigurationFile($file);
+    }
+
+    /**
+     * Get the profile directory.
+     */
+    #[Override]
+    protected function profileDirectory(): string
+    {
+        return $this->createdProfileDirectory = parent::profileDirectory();
+    }
+
+    /**
+     * Get the coverage reporter.
+     */
+    #[Override]
+    protected function coverage(): Coverage
+    {
+        return $this->coverage ??= $this->coverageReporter ??= new TestCommandFailureCoverage($this);
+    }
+
+    /**
+     * Report the slowest tests.
+     */
+    #[Override]
+    protected function reportProfile(): void
+    {
+        if ($this->profileReportException !== null) {
+            throw $this->profileReportException;
+        }
+    }
+
+    /**
+     * Remove the temporary PHPUnit configuration file.
+     */
+    #[Override]
+    protected function cleanupTemporaryConfigurationFile(): void
+    {
+        $this->cleanupOrder[] = 'temporary configuration';
+        parent::cleanupTemporaryConfigurationFile();
+
+        if ($this->temporaryConfigurationCleanupException !== null) {
+            throw $this->temporaryConfigurationCleanupException;
+        }
+    }
+
+    /**
+     * Remove profile data.
+     */
+    #[Override]
+    protected function cleanupProfileDirectory(): void
+    {
+        $this->cleanupOrder[] = 'profile directory';
+        parent::cleanupProfileDirectory();
+
+        if ($this->profileCleanupException !== null) {
+            throw $this->profileCleanupException;
+        }
+    }
+}
+
+class TestCommandFailureCoverage extends Coverage
+{
+    /**
+     * Create a coverage cleanup harness.
+     */
+    public function __construct(private readonly TestCommandFailureHarness $command)
+    {
+        parent::__construct();
+    }
+
+    /**
+     * Remove temporary coverage data.
+     */
+    #[Override]
+    public function cleanup(): void
+    {
+        $this->command->cleanupOrder[] = 'coverage';
+        parent::cleanup();
+
+        if ($this->command->coverageCleanupException !== null) {
+            throw $this->command->coverageCleanupException;
+        }
     }
 }

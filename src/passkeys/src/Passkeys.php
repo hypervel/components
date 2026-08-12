@@ -16,9 +16,9 @@ use RuntimeException;
 
 class Passkeys
 {
-    private const DEFAULT_PASSKEY_MODEL = Passkey::class;
+    private const string DEFAULT_PASSKEY_MODEL = Passkey::class;
 
-    private const DEFAULT_REGISTERS_ROUTES = true;
+    private const bool DEFAULT_REGISTERS_ROUTES = true;
 
     /** @var class-string<Passkey> */
     private static string $passkeyModel = self::DEFAULT_PASSKEY_MODEL;

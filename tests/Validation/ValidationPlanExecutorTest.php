@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Support\Json;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
@@ -72,6 +73,27 @@ class ValidationPlanExecutorTest extends TestCase
         yield 'HexColor fails' => [CheckType::HexColor, 'red', false];
         yield 'MacAddress passes' => [CheckType::MacAddress, '00:1B:44:11:3A:B7', true];
         yield 'MacAddress fails' => [CheckType::MacAddress, 'not-mac', false];
+    }
+
+    public function testJsonCheckUsesTheSupportNestingLimit(): void
+    {
+        $validator = $this->makeValidator();
+        $check = new InlineCheck(CheckType::Json);
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->assertTrue($validator->publicExecuteInline($check, Json::encode($value), 'field'));
+
+        $value = ['value' => $value];
+
+        $this->assertFalse($validator->publicExecuteInline(
+            $check,
+            json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1),
+            'field'
+        ));
     }
 
     #[DataProvider('charClassCases')]

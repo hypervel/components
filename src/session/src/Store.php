@@ -15,6 +15,7 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Json;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
@@ -35,32 +36,32 @@ class Store implements Session
     /**
      * The context key used to store the active session for the current request.
      */
-    public const CONTEXT_KEY = '__session.store';
+    public const string CONTEXT_KEY = '__session.store';
 
     /**
      * Context key for whether the session has been started.
      */
-    public const STARTED_CONTEXT_KEY_PREFIX = '__session.store.started.';
+    public const string STARTED_CONTEXT_KEY_PREFIX = '__session.store.started.';
 
     /**
      * Context key for the session attributes.
      */
-    public const ATTRIBUTES_CONTEXT_KEY_PREFIX = '__session.store.attributes.';
+    public const string ATTRIBUTES_CONTEXT_KEY_PREFIX = '__session.store.attributes.';
 
     /**
      * Context key for the session ID.
      */
-    public const ID_CONTEXT_KEY_PREFIX = '__session.store.id.';
+    public const string ID_CONTEXT_KEY_PREFIX = '__session.store.id.';
 
     /**
      * The supported session serialization strategies.
      */
-    protected const SUPPORTED_SERIALIZATIONS = ['json', 'php'];
+    protected const array SUPPORTED_SERIALIZATIONS = ['json', 'php'];
 
     /**
      * The length of session ID strings.
      */
-    protected const SESSION_ID_LENGTH = 40;
+    protected const int SESSION_ID_LENGTH = 40;
 
     /**
      * The context key for whether this session has been started.
@@ -168,7 +169,11 @@ class Store implements Session
     {
         if ($data = $this->handler->read($this->getId())) {
             if ($this->serialization === 'json') {
-                $data = json_decode($this->prepareForUnserialize($data), true);
+                $data = json_decode(
+                    $this->prepareForUnserialize($data),
+                    true,
+                    Json::MAXIMUM_NESTING_DEPTH + 1
+                );
             } else {
                 $data = @unserialize($this->prepareForUnserialize($data));
             }

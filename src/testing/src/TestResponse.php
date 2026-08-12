@@ -17,6 +17,7 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
@@ -24,9 +25,11 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testing\Concerns\AssertsStatusCodes;
+use Hypervel\Testing\Constraints\SeeInHtml;
 use Hypervel\Testing\Constraints\SeeInOrder;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Testing\TestResponseAssert as PHPUnit;
+use JsonException;
 use LogicException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -65,6 +68,11 @@ class TestResponse implements ArrayAccess
      * The streamed content of the response.
      */
     protected ?string $streamedContent = null;
+
+    /**
+     * The decoded response JSON.
+     */
+    protected ?AssertableJsonString $decodedResponseJson = null;
 
     /**
      * Create a new test response instance.
@@ -598,6 +606,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given array matches the streamed JSON response content.
+     *
+     * @throws JsonException
      */
     public function assertStreamedJsonContent(array $value): static
     {
@@ -606,6 +616,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given string or array of strings are contained within the response.
+     *
+     * @param list<string>|string $value
      */
     public function assertSee(array|string $value, bool $escape = true): static
     {
@@ -622,6 +634,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given HTML string or array of HTML strings are contained within the response.
+     *
+     * @param list<string>|string $value
      */
     public function assertSeeHtml(array|string $value): static
     {
@@ -630,6 +644,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given strings are contained in order within the response.
+     *
+     * @param list<string> $values
      */
     public function assertSeeInOrder(array $values, bool $escape = true): static
     {
@@ -642,6 +658,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given HTML strings are contained in order within the response.
+     *
+     * @param list<string> $values
      */
     public function assertSeeHtmlInOrder(array $values): static
     {
@@ -650,6 +668,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given string or array of strings are contained within the response text.
+     *
+     * @param list<string>|string $value
      */
     public function assertSeeText(array|string $value, bool $escape = true): static
     {
@@ -657,32 +677,29 @@ class TestResponse implements ArrayAccess
 
         $values = $escape ? array_map(e(...), $value) : $value;
 
-        $content = $this->decodedResponseText();
-
-        foreach ($values as $value) {
-            PHPUnit::withResponse($this)->assertStringContainsString(
-                html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8'),
-                $content
-            );
-        }
+        PHPUnit::withResponse($this)->assertThat($values, new SeeInHtml($this->getContent()));
 
         return $this;
     }
 
     /**
      * Assert that the given strings are contained in order within the response text.
+     *
+     * @param list<string> $values
      */
     public function assertSeeTextInOrder(array $values, bool $escape = true): static
     {
         $values = $escape ? array_map(e(...), $values) : $values;
 
-        PHPUnit::withResponse($this)->assertThat($values, new SeeInOrder(strip_tags($this->getContent())));
+        PHPUnit::withResponse($this)->assertThat($values, new SeeInHtml($this->getContent(), true));
 
         return $this;
     }
 
     /**
      * Assert that the given string or array of strings are not contained within the response.
+     *
+     * @param list<string>|string $value
      */
     public function assertDontSee(array|string $value, bool $escape = true): static
     {
@@ -699,6 +716,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given HTML string or array of HTML strings are not contained within the response.
+     *
+     * @param list<string>|string $value
      */
     public function assertDontSeeHtml(array|string $value): static
     {
@@ -707,6 +726,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the given string or array of strings are not contained within the response text.
+     *
+     * @param list<string>|string $value
      */
     public function assertDontSeeText(array|string $value, bool $escape = true): static
     {
@@ -714,24 +735,9 @@ class TestResponse implements ArrayAccess
 
         $values = $escape ? array_map(e(...), $value) : $value;
 
-        $content = $this->decodedResponseText();
-
-        foreach ($values as $value) {
-            PHPUnit::withResponse($this)->assertStringNotContainsString(
-                html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8'),
-                $content
-            );
-        }
+        PHPUnit::withResponse($this)->assertThat($values, new SeeInHtml($this->getContent(), negate: true));
 
         return $this;
-    }
-
-    /**
-     * Get the response text with HTML entities decoded for plain-text assertions.
-     */
-    protected function decodedResponseText(): string
-    {
-        return html_entity_decode(strip_tags($this->getContent()), ENT_QUOTES, 'UTF-8');
     }
 
     /**
@@ -762,6 +768,34 @@ class TestResponse implements ArrayAccess
     public function assertJsonPath(string $path, mixed $expect): static
     {
         $this->decodeResponseJson()->assertPath($path, $expect);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the expected values and types exist at the given paths in the response.
+     *
+     * @param array<string, mixed> $paths
+     */
+    public function assertJsonPaths(array $paths): static
+    {
+        foreach ($paths as $path => $expected) {
+            $this->assertJsonPath($path, $expected);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the given paths in the response contain all of the expected values without looking at the order.
+     *
+     * @param array<string, array<array-key, mixed>> $paths
+     */
+    public function assertJsonPathsCanonicalizing(array $paths): static
+    {
+        foreach ($paths as $path => $expected) {
+            $this->assertJsonPathCanonicalizing($path, $expected);
+        }
 
         return $this;
     }
@@ -844,6 +878,20 @@ class TestResponse implements ArrayAccess
     public function assertJsonMissingPath(string $path): static
     {
         $this->decodeResponseJson()->assertMissingPath($path);
+
+        return $this;
+    }
+
+    /**
+     * Assert that the response does not contain the given paths.
+     *
+     * @param list<string> $paths
+     */
+    public function assertJsonMissingPaths(array $paths): static
+    {
+        foreach ($paths as $path) {
+            $this->assertJsonMissingPath($path);
+        }
 
         return $this;
     }
@@ -1050,22 +1098,26 @@ class TestResponse implements ArrayAccess
      */
     public function decodeResponseJson(): AssertableJsonString
     {
-        if ($this->isStreamedResponse()) {
-            $testJson = new AssertableJsonString($this->streamedContent());
-        } else {
-            $testJson = new AssertableJsonString($this->getContent());
+        if ($this->decodedResponseJson !== null) {
+            return $this->decodedResponseJson;
         }
 
+        $content = $this->isStreamedResponse()
+            ? $this->streamedContent()
+            : $this->getContent();
+        $testJson = new AssertableJsonString($content);
         $decodedResponse = $testJson->json();
 
-        if (is_null($decodedResponse) || $decodedResponse === false) {
+        // JSON permits only space, tab, line feed, and carriage return around a value.
+        if ($decodedResponse === null && trim($content, " \t\n\r") !== 'null') {
             if ($this->exception) {
                 throw $this->exception;
             }
+
             PHPUnit::withResponse($this)->fail('Invalid JSON was returned from the route.');
         }
 
-        return $testJson;
+        return $this->decodedResponseJson = $testJson;
     }
 
     /**
@@ -1345,12 +1397,23 @@ class TestResponse implements ArrayAccess
      */
     public function assertSessionHasAll(array $bindings): static
     {
+        $actual = [];
+        $expected = [];
+
         foreach ($bindings as $key => $value) {
             if (is_int($key)) {
                 $this->assertSessionHas($value);
-            } else {
+            } elseif ($value instanceof Closure || $value === null) {
+                // A null expectation asserts that the session key is present and not null.
                 $this->assertSessionHas($key, $value);
+            } else {
+                $expected[$key] = $value;
+                $actual[$key] = $this->session()->get($key);
             }
+        }
+
+        if ($expected !== []) {
+            PHPUnit::withResponse($this)->assertEquals($expected, $actual);
         }
 
         return $this;
@@ -1383,6 +1446,29 @@ class TestResponse implements ArrayAccess
         } else {
             PHPUnit::withResponse($this)->assertEquals($value, $this->session()->getOldInput($key));
         }
+
+        return $this;
+    }
+
+    /**
+     * Assert that the session is missing a given key in the flashed input array.
+     *
+     * @param list<string>|string $key
+     */
+    public function assertSessionMissingInput(array|string $key): static
+    {
+        if (is_array($key)) {
+            foreach ($key as $item) {
+                $this->assertSessionMissingInput($item);
+            }
+
+            return $this;
+        }
+
+        PHPUnit::withResponse($this)->assertFalse(
+            $this->session()->hasOldInput($key),
+            "Session has unexpected key [{$key}]."
+        );
 
         return $this;
     }
@@ -1441,6 +1527,8 @@ class TestResponse implements ArrayAccess
 
     /**
      * Assert that the session has no errors.
+     *
+     * @throws JsonException
      */
     public function assertSessionHasNoErrors(): static
     {
@@ -1529,7 +1617,7 @@ class TestResponse implements ArrayAccess
     {
         $content = $this->content();
 
-        if (json_validate($content)) {
+        if (Json::validate($content)) {
             $this->ddJson($key);
         }
 
@@ -1561,10 +1649,11 @@ class TestResponse implements ArrayAccess
     {
         $content = $this->getContent();
 
-        $json = json_decode($content);
-
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $content = $json;
+        try {
+            // Keep debugging output object-shaped like Laravel's native decode.
+            $content = Json::decode($content, assoc: false);
+        } catch (JsonException) {
+            // Invalid response bodies are still useful when dumped verbatim.
         }
 
         if (! is_null($key)) {

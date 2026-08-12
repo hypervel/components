@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Query\Processors\SQLiteProcessor;
 use Hypervel\Tests\TestCase;
+use UnexpectedValueException;
 
 class DatabaseSQLiteProcessorTest extends TestCase
 {
@@ -34,5 +35,185 @@ class DatabaseSQLiteProcessorTest extends TestCase
         }
 
         $this->assertEquals($expected, $processor->processColumns($listing));
+    }
+
+    public function testProcessIndexesKeepsPublicShapeAndPreservesSchemaStateMetadata(): void
+    {
+        $processor = new SQLiteProcessor;
+        $results = [
+            [
+                'name' => 'MixedCase_Index',
+                'columns' => '656D61696C',
+                'unique' => 1,
+                'primary' => 0,
+                'sql' => 'CREATE UNIQUE INDEX "MixedCase_Index" ON "users" ("email")',
+                'origin' => 'c',
+                'reconstructible' => 1,
+                'collations' => '42494E415259',
+                'descending' => '0',
+            ],
+            [
+                'name' => 'sqlite_autoindex_users_1',
+                'columns' => null,
+                'unique' => 1,
+                'primary' => 0,
+                'sql' => null,
+                'origin' => 'u',
+                'reconstructible' => 0,
+                'collations' => null,
+                'descending' => null,
+            ],
+        ];
+
+        $this->assertSame([
+            [
+                'name' => 'mixedcase_index',
+                'columns' => ['email'],
+                'type' => null,
+                'unique' => true,
+                'primary' => false,
+            ],
+            [
+                'name' => 'sqlite_autoindex_users_1',
+                'columns' => [],
+                'type' => null,
+                'unique' => true,
+                'primary' => false,
+            ],
+        ], $processor->processIndexes($results));
+
+        $this->assertSame([
+            [
+                'name' => 'mixedcase_index',
+                'physical_name' => 'MixedCase_Index',
+                'columns' => ['email'],
+                'type' => null,
+                'unique' => true,
+                'primary' => false,
+                'sql' => 'CREATE UNIQUE INDEX "MixedCase_Index" ON "users" ("email")',
+                'origin' => 'c',
+                'reconstructible' => true,
+                'collations' => ['BINARY'],
+                'descending' => [false],
+            ],
+            [
+                'name' => 'sqlite_autoindex_users_1',
+                'physical_name' => 'sqlite_autoindex_users_1',
+                'columns' => [],
+                'type' => null,
+                'unique' => true,
+                'primary' => false,
+                'sql' => null,
+                'origin' => 'u',
+                'reconstructible' => false,
+                'collations' => null,
+                'descending' => null,
+            ],
+        ], $processor->processIndexesForSchemaState($results));
+    }
+
+    public function testProcessIndexMetadataPreservesCommaBearingValues(): void
+    {
+        $processor = new SQLiteProcessor;
+        $results = [[
+            'name' => 'sqlite_autoindex_contacts_1',
+            'columns' => '656D61696C2C61646472657373',
+            'unique' => 1,
+            'primary' => 0,
+            'sql' => null,
+            'origin' => 'u',
+            'reconstructible' => 0,
+            'collations' => '636F6D6D612C6E616D65',
+            'descending' => '1',
+        ]];
+
+        $this->assertSame([
+            'name' => 'sqlite_autoindex_contacts_1',
+            'physical_name' => 'sqlite_autoindex_contacts_1',
+            'columns' => ['email,address'],
+            'type' => null,
+            'unique' => true,
+            'primary' => false,
+            'sql' => null,
+            'origin' => 'u',
+            'reconstructible' => false,
+            'collations' => ['comma,name'],
+            'descending' => [true],
+        ], $processor->processIndexesForSchemaState($results)[0]);
+
+        $this->assertSame(['email,address'], $processor->processIndexes($results)[0]['columns']);
+    }
+
+    public function testProcessIndexMetadataRejectsInvalidHexadecimalValues(): void
+    {
+        $processor = new SQLiteProcessor;
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('The SQLite schema metadata contains invalid hexadecimal text.');
+
+        $processor->processIndexesForSchemaState([[
+            'name' => 'contacts_index',
+            'columns' => 'not-hexadecimal',
+            'unique' => 0,
+            'primary' => 0,
+            'sql' => 'CREATE INDEX contacts_index ON contacts (email)',
+            'origin' => 'c',
+            'reconstructible' => 1,
+            'collations' => '42494E415259',
+            'descending' => '0',
+        ]]);
+    }
+
+    /**
+     * Process composite primary-key indexes as lists.
+     */
+    public function testProcessCompositePrimaryKeyIndexesAsLists(): void
+    {
+        $processor = new SQLiteProcessor;
+        $results = [
+            [
+                'name' => 'users_email_index',
+                'columns' => '656D61696C',
+                'unique' => 0,
+                'primary' => 0,
+                'sql' => 'CREATE INDEX "users_email_index" ON "users" ("email")',
+                'origin' => 'c',
+                'reconstructible' => 1,
+                'collations' => '42494E415259',
+                'descending' => '0',
+            ],
+            [
+                'name' => 'primary',
+                'columns' => '74656E616E745F6964,6964',
+                'unique' => 1,
+                'primary' => 1,
+                'sql' => null,
+                'origin' => 'pk',
+                'reconstructible' => 1,
+                'collations' => null,
+                'descending' => null,
+            ],
+            [
+                'name' => 'sqlite_autoindex_users_1',
+                'columns' => '74656E616E745F6964,6964',
+                'unique' => 1,
+                'primary' => 1,
+                'sql' => null,
+                'origin' => 'pk',
+                'reconstructible' => 1,
+                'collations' => '42494E415259,42494E415259',
+                'descending' => '0,0',
+            ],
+        ];
+
+        $indexes = $processor->processIndexesForSchemaState($results);
+
+        $this->assertTrue(array_is_list($indexes));
+        $this->assertSame(['users_email_index', 'sqlite_autoindex_users_1'], array_column($indexes, 'name'));
+
+        $publicIndexes = $processor->processIndexes($results);
+
+        $this->assertTrue(array_is_list($publicIndexes));
+        $this->assertSame(['users_email_index', 'sqlite_autoindex_users_1'], array_column($publicIndexes, 'name'));
     }
 }

@@ -54,6 +54,6 @@ class Xml
             throw new InvalidArgumentException('Syntax error.');
         }
 
-        return json_decode(json_encode($respObject), true);
+        return Json::decode(Json::encode($respObject));
     }
 }

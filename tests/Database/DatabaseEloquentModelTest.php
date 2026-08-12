@@ -5141,7 +5141,7 @@ class ModelWithUpdatedAtNull extends Model
 {
     protected ?string $table = 'stub';
 
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 }
 
 class UnsavedModel extends Model

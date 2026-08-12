@@ -32,7 +32,7 @@ final class NullSentinel
     /**
      * Sentinel value stored in place of null by the nullable cache methods.
      */
-    public const VALUE = ['__hypervel_cache_null_sentinel' => true];
+    public const array VALUE = ['__hypervel_cache_null_sentinel' => true];
 
     /**
      * Unwrap a value read from the cache — sentinel becomes null; anything else passes through.

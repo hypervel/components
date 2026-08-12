@@ -22,6 +22,18 @@ class PackageMetadataTest extends TestCase
             512,
             JSON_THROW_ON_ERROR
         );
+        $rootComposer = json_decode(
+            file_get_contents(__DIR__ . '/../../composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+
+        foreach (['guzzlehttp/promises', 'guzzlehttp/psr7', 'psr/http-message'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        }
 
         $this->assertSame('*', $composer['require']['ext-filter']);
         $this->assertSame(

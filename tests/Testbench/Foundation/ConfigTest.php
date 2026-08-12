@@ -4,14 +4,38 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use Hypervel\Testbench\TestbenchServiceProvider;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\Fixtures\Providers\ChildServiceProvider;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 class ConfigTest extends TestCase
 {
+    protected string $temporaryDirectory;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->temporaryDirectory = ParallelTesting::tempDir('TestbenchConfigTest');
+
+        $filesystem = new Filesystem;
+        $filesystem->deleteDirectory($this->temporaryDirectory);
+        $filesystem->makeDirectory($this->temporaryDirectory, recursive: true);
+    }
+
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->temporaryDirectory);
+
+        parent::tearDown();
+    }
+
     #[Test]
     public function itCanLoadConfigurationFile(): void
     {
@@ -155,5 +179,65 @@ class ConfigTest extends TestCase
         $this->assertSame([
             TestbenchServiceProvider::class,
         ], $config['providers']);
+    }
+
+    #[Test]
+    public function itUsesSuppliedDefaultsForAnEmptyYamlDocument(): void
+    {
+        file_put_contents($this->temporaryDirectory . '/testbench.yaml', '');
+
+        $config = Config::loadFromYaml($this->temporaryDirectory, defaults: [
+            'providers' => [TestbenchServiceProvider::class],
+        ]);
+
+        $this->assertSame([TestbenchServiceProvider::class], $config['providers']);
+    }
+
+    #[Test]
+    public function itNormalizesNullableDocumentedMappings(): void
+    {
+        file_put_contents(
+            $this->temporaryDirectory . '/testbench.yaml',
+            "purge: null\nworkbench: null\n",
+        );
+
+        $config = Config::loadFromYaml($this->temporaryDirectory);
+
+        $this->assertSame([], $config['purge']);
+        $this->assertSame([], $config['workbench']);
+    }
+
+    #[Test]
+    #[DataProvider('invalidYamlRoots')]
+    public function itRejectsANonMappingYamlRoot(string $yaml): void
+    {
+        file_put_contents($this->temporaryDirectory . '/testbench.yaml', $yaml);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The Testbench configuration root must be a mapping.');
+
+        Config::loadFromYaml($this->temporaryDirectory);
+    }
+
+    /**
+     * Provide invalid YAML document roots.
+     */
+    public static function invalidYamlRoots(): array
+    {
+        return [
+            'scalar' => ['invalid'],
+            'non-empty list' => ["- first\n- second\n"],
+        ];
+    }
+
+    #[Test]
+    public function itRejectsANonMappingDocumentedSection(): void
+    {
+        file_put_contents($this->temporaryDirectory . '/testbench.yaml', "purge: invalid\n");
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The Testbench [purge] configuration must be a mapping.');
+
+        Config::loadFromYaml($this->temporaryDirectory);
     }
 }

@@ -6,10 +6,13 @@ namespace Hypervel\Sentry\Aspects;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\TransferStats;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Sentry\Integration;
+use Hypervel\Sentry\SdkCapabilities;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\UriInterface;
 use Sentry\Breadcrumb;
 use Sentry\SentrySdk;
 use Sentry\Tracing\Span;
@@ -30,7 +33,7 @@ use function Sentry\getTraceparent;
  * - Preservation of any existing on_stats callback
  * - Per-request opt-out via the no_sentry_aspect option
  *
- * This catches ALL Guzzle usage: Http:: facade, direct new Client(),
+ * This catches all Guzzle usage: Http:: facade, direct new Client(),
  * and third-party packages using Guzzle internally.
  */
 class GuzzleHttpClientAspect extends AbstractAspect
@@ -47,10 +50,13 @@ class GuzzleHttpClientAspect extends AbstractAspect
      * Create a new aspect instance.
      */
     public function __construct(
-        private readonly \Hypervel\Contracts\Config\Repository $config,
+        private readonly Repository $config,
+        SdkCapabilities $capabilities,
     ) {
-        $this->tracingEnabled = $this->config->boolean('sentry.tracing.http_client_requests', true);
-        $this->breadcrumbsEnabled = $this->config->boolean('sentry.breadcrumbs.http_client_requests', true);
+        $this->tracingEnabled = $capabilities->canRecordSpans()
+            && $this->config->boolean('sentry.tracing.http_client_requests', true);
+        $this->breadcrumbsEnabled = $capabilities->canRecordBreadcrumbs()
+            && $this->config->boolean('sentry.breadcrumbs.http_client_requests', true);
     }
 
     /**
@@ -58,14 +64,9 @@ class GuzzleHttpClientAspect extends AbstractAspect
      */
     public function process(ProceedingJoinPoint $proceedingJoinPoint): mixed
     {
-        if (! $this->tracingEnabled && ! $this->breadcrumbsEnabled) {
-            return $proceedingJoinPoint->process();
-        }
-
         $options = $proceedingJoinPoint->arguments['keys']['options'] ?? [];
 
-        // Check for per-request or per-client opt-out
-        if ($this->isOptedOut($options, $proceedingJoinPoint->getInstance())) {
+        if ($this->isOptedOut($options)) {
             return $proceedingJoinPoint->process();
         }
 
@@ -73,7 +74,7 @@ class GuzzleHttpClientAspect extends AbstractAspect
         $request = $proceedingJoinPoint->arguments['keys']['request'];
 
         // Inject trace headers before the request is sent
-        if ($this->tracingEnabled && $this->shouldAttachTracingHeaders($request)) {
+        if ($this->shouldAttachTracingHeaders($request)) {
             $request = $request
                 ->withHeader('sentry-trace', getTraceparent())
                 ->withHeader('baggage', getBaggage());
@@ -82,7 +83,6 @@ class GuzzleHttpClientAspect extends AbstractAspect
 
         // Start a child span for tracing (finished in the on_stats callback)
         $span = null;
-        $parentSpan = null;
         if ($this->tracingEnabled) {
             $parentSpan = SentrySdk::getCurrentHub()->getSpan();
 
@@ -103,8 +103,6 @@ class GuzzleHttpClientAspect extends AbstractAspect
                         ->setOrigin('auto.http.guzzle')
                         ->setDescription($method . ' ' . $partialUri)
                 );
-
-                SentrySdk::getCurrentHub()->setSpan($span);
             }
         }
 
@@ -114,13 +112,17 @@ class GuzzleHttpClientAspect extends AbstractAspect
         $existingOnStats = $options['on_stats'] ?? null;
         $recordBreadcrumbs = $this->breadcrumbsEnabled;
 
-        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $stats) use ($existingOnStats, $span, $parentSpan, $recordBreadcrumbs): void {
+        if ($span === null && ! $recordBreadcrumbs) {
+            return $proceedingJoinPoint->process();
+        }
+
+        $proceedingJoinPoint->arguments['keys']['options']['on_stats'] = static function (TransferStats $stats) use ($existingOnStats, $span, $recordBreadcrumbs): void {
             if ($recordBreadcrumbs) {
                 self::recordBreadcrumb($stats);
             }
 
             if ($span !== null) {
-                self::finishSpan($span, $parentSpan, $stats);
+                self::finishSpan($span, $stats);
             }
 
             if (is_callable($existingOnStats)) {
@@ -135,10 +137,6 @@ class GuzzleHttpClientAspect extends AbstractAspect
             if ($span !== null && $span->getEndTimestamp() === null) {
                 $span->setStatus(SpanStatus::internalError());
                 $span->finish();
-
-                if ($parentSpan !== null) {
-                    SentrySdk::getCurrentHub()->setSpan($parentSpan);
-                }
             }
 
             throw $exception;
@@ -148,7 +146,7 @@ class GuzzleHttpClientAspect extends AbstractAspect
     /**
      * Finish the span with response data from the transfer stats.
      */
-    private static function finishSpan(Span $span, ?Span $parentSpan, TransferStats $stats): void
+    private static function finishSpan(Span $span, TransferStats $stats): void
     {
         $response = $stats->getResponse();
 
@@ -163,10 +161,6 @@ class GuzzleHttpClientAspect extends AbstractAspect
         }
 
         $span->finish();
-
-        if ($parentSpan !== null) {
-            SentrySdk::getCurrentHub()->setSpan($parentSpan);
-        }
     }
 
     /**
@@ -222,22 +216,9 @@ class GuzzleHttpClientAspect extends AbstractAspect
     /**
      * Determine if the request has opted out of Sentry instrumentation.
      */
-    private function isOptedOut(array $options, ?object $client): bool
+    private function isOptedOut(array $options): bool
     {
-        // Per-request opt-out
-        if (($options['no_sentry_aspect'] ?? null) === true) {
-            return true;
-        }
-
-        // Per-client opt-out via client config
-        if ($client instanceof Client) {
-            $clientConfig = (fn () => $this->config)->call($client);
-            if (($clientConfig['no_sentry_aspect'] ?? null) === true) {
-                return true;
-            }
-        }
-
-        return false;
+        return ($options['no_sentry_aspect'] ?? false) === true;
     }
 
     /**
@@ -263,7 +244,7 @@ class GuzzleHttpClientAspect extends AbstractAspect
     /**
      * Build a partial URI string excluding query and fragment.
      */
-    private static function buildPartialUri(\Psr\Http\Message\UriInterface $uri): string
+    private static function buildPartialUri(UriInterface $uri): string
     {
         $result = $uri->getScheme() . '://' . $uri->getHost();
 

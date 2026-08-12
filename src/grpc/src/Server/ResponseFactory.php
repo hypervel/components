@@ -34,16 +34,16 @@ use UnexpectedValueException;
 class ResponseFactory
 {
     /** @internal */
-    public const COMPRESSION_ATTRIBUTE = '_grpc.response_compression';
+    public const string COMPRESSION_ATTRIBUTE = '_grpc.response_compression';
 
     /** @var list<string> */
-    private const STATUS_TRAILER_NAMES = [
+    private const array STATUS_TRAILER_NAMES = [
         'grpc-status',
         'grpc-message',
         'grpc-status-details-bin',
     ];
 
-    private const MAX_SERVER_FIELD_NAME_LENGTH = 127;
+    private const int MAX_SERVER_FIELD_NAME_LENGTH = 127;
 
     private readonly FrameEncoder $frames;
 

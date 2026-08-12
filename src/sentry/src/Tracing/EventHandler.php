@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Tracing;
 
-use Exception;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Events as DatabaseEvents;
 use Hypervel\Routing\Events as RoutingEvents;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
@@ -17,6 +17,7 @@ use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;
 use Sentry\Tracing\SpanStatus;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class EventHandler
 {
@@ -37,9 +38,11 @@ class EventHandler
         DatabaseEvents\TransactionRolledBack::class => 'transactionRolledBack',
     ];
 
-    private const CONTEXT_PARENT_SPANS_KEY = '__sentry.tracing.parent_spans';
+    private const string CONTEXT_RESPONSE_SPANS_KEY = '__sentry.tracing.response_spans';
 
-    public const CONTEXT_CURRENT_SPANS_KEY = '__sentry.tracing.current_spans';
+    public const string CONTEXT_TRANSACTION_SPANS_KEY = '__sentry.tracing.transaction_spans';
+
+    private const string CONTEXT_CLEANUP_REGISTERED_KEY = '__sentry.tracing.cleanup_registered';
 
     private readonly bool $traceSqlQueries;
 
@@ -87,7 +90,7 @@ class EventHandler
 
         try {
             $this->{$handlerMethod}(...$arguments);
-        } catch (Exception) {
+        } catch (Throwable) {
             // Ignore to prevent bubbling up errors in the SDK
         }
     }
@@ -114,13 +117,18 @@ class EventHandler
      */
     protected function queryExecutedHandler(DatabaseEvents\QueryExecuted $query): void
     {
-        $parentSpan = SentrySdk::getCurrentHub()->getSpan();
+        $transactionSpans = CoroutineContext::get(self::CONTEXT_TRANSACTION_SPANS_KEY, []);
+        $connectionSpans = $transactionSpans[spl_object_id($query->connection)] ?? [];
+        $parentSpan = $connectionSpans === []
+            ? SentrySdk::getCurrentHub()->getSpan()
+            : end($connectionSpans);
 
         // If there is no sampled span there is no need to handle the event
         if ($parentSpan === null || ! $parentSpan->getSampled()) {
             return;
         }
 
+        $now = microtime(true);
         $context = SpanContext::make()
             ->setOp('db.sql.query')
             ->setData([
@@ -130,10 +138,17 @@ class EventHandler
                 'server.port' => $query->connection->getConfig('port'),
             ])
             ->setOrigin('auto.db')
-            ->setDescription($query->sql)
-            ->setStartTimestamp(microtime(true) - $query->time / 1000);
+            ->setDescription($query->sql);
 
-        $context->setEndTimestamp($context->getStartTimestamp() + $query->time / 1000);
+        if ($query->time === null) {
+            $context
+                ->setStartTimestamp($now)
+                ->setEndTimestamp($now);
+        } else {
+            $context
+                ->setStartTimestamp($now - $query->time / 1000)
+                ->setEndTimestamp($now);
+        }
 
         if ($this->traceSqlBindings) {
             $context->setData(array_merge($context->getData(), [
@@ -141,7 +156,9 @@ class EventHandler
             ]));
         }
 
-        if ($this->traceSqlQueryOrigin && $query->time >= $this->traceSqlQueryOriginThresholdMs) {
+        if ($this->traceSqlQueryOrigin
+            && $query->time !== null
+            && $query->time >= $this->traceSqlQueryOriginThresholdMs) {
             $queryOrigin = $this->resolveEventOrigin();
 
             if ($queryOrigin !== null) {
@@ -157,7 +174,7 @@ class EventHandler
      */
     protected function responsePreparedHandler(RoutingEvents\ResponsePrepared $event): void
     {
-        $span = $this->popSpan();
+        $span = $this->popResponseSpan();
 
         if ($span !== null) {
             $span->finish();
@@ -182,12 +199,13 @@ class EventHandler
             return;
         }
 
-        $this->pushSpan(
+        $this->pushResponseSpan(
             $parentSpan->startChild(
                 SpanContext::make()
                     ->setOp('http.route.response')
                     ->setOrigin('auto.http.server')
-            )
+            ),
+            $parentSpan,
         );
     }
 
@@ -196,19 +214,25 @@ class EventHandler
      */
     protected function transactionBeginningHandler(DatabaseEvents\TransactionBeginning $event): void
     {
-        $parentSpan = SentrySdk::getCurrentHub()->getSpan();
+        $connectionId = spl_object_id($event->connection);
+        $transactionSpans = CoroutineContext::get(self::CONTEXT_TRANSACTION_SPANS_KEY, []);
+        $connectionSpans = $transactionSpans[$connectionId] ?? [];
+        $parentSpan = $connectionSpans === []
+            ? SentrySdk::getCurrentHub()->getSpan()
+            : end($connectionSpans);
 
         if ($parentSpan === null || ! $parentSpan->getSampled()) {
             return;
         }
 
-        $this->pushSpan(
-            $parentSpan->startChild(
-                SpanContext::make()
-                    ->setOp('db.transaction')
-                    ->setOrigin('auto.db')
-            )
+        $connectionSpans[] = $parentSpan->startChild(
+            SpanContext::make()
+                ->setOp('db.transaction')
+                ->setOrigin('auto.db')
         );
+        $transactionSpans[$connectionId] = $connectionSpans;
+        CoroutineContext::set(self::CONTEXT_TRANSACTION_SPANS_KEY, $transactionSpans);
+        $this->registerCleanup();
     }
 
     /**
@@ -216,7 +240,7 @@ class EventHandler
      */
     protected function transactionCommittedHandler(DatabaseEvents\TransactionCommitted $event): void
     {
-        $span = $this->popSpan();
+        $span = $this->popTransactionSpan($event);
 
         if ($span !== null) {
             $span->setStatus(SpanStatus::ok());
@@ -229,7 +253,7 @@ class EventHandler
      */
     protected function transactionRolledBackHandler(DatabaseEvents\TransactionRolledBack $event): void
     {
-        $span = $this->popSpan();
+        $span = $this->popTransactionSpan($event);
 
         if ($span !== null) {
             $span->setStatus(SpanStatus::internalError());
@@ -238,43 +262,106 @@ class EventHandler
     }
 
     /**
-     * Push a span onto the coroutine-local stack and set it as current on the hub.
+     * Push a response span and install it as current on the Hub.
      */
-    private function pushSpan(Span $span): void
+    private function pushResponseSpan(Span $span, Span $parent): void
     {
-        $hub = SentrySdk::getCurrentHub();
-
-        $parentStack = CoroutineContext::get(self::CONTEXT_PARENT_SPANS_KEY, []);
-        $parentStack[] = $hub->getSpan();
-        CoroutineContext::set(self::CONTEXT_PARENT_SPANS_KEY, $parentStack);
-
-        $hub->setSpan($span);
-
-        $currentStack = CoroutineContext::get(self::CONTEXT_CURRENT_SPANS_KEY, []);
-        $currentStack[] = $span;
-        CoroutineContext::set(self::CONTEXT_CURRENT_SPANS_KEY, $currentStack);
+        $responseSpans = CoroutineContext::get(self::CONTEXT_RESPONSE_SPANS_KEY, []);
+        $responseSpans[] = ['span' => $span, 'parent' => $parent];
+        CoroutineContext::set(self::CONTEXT_RESPONSE_SPANS_KEY, $responseSpans);
+        SentrySdk::getCurrentHub()->setSpan($span);
+        $this->registerCleanup();
     }
 
     /**
-     * Pop a span from the coroutine-local stack and restore the parent span.
+     * Pop a response span and restore its parent on the Hub.
      */
-    private function popSpan(): ?Span
+    private function popResponseSpan(): ?Span
     {
-        $currentStack = CoroutineContext::get(self::CONTEXT_CURRENT_SPANS_KEY, []);
+        $responseSpans = CoroutineContext::get(self::CONTEXT_RESPONSE_SPANS_KEY, []);
 
-        if ($currentStack === []) {
+        if ($responseSpans === []) {
             return null;
         }
 
-        $parentStack = CoroutineContext::get(self::CONTEXT_PARENT_SPANS_KEY, []);
-        $parent = array_pop($parentStack);
-        CoroutineContext::set(self::CONTEXT_PARENT_SPANS_KEY, $parentStack);
+        $entry = array_pop($responseSpans);
+        CoroutineContext::set(self::CONTEXT_RESPONSE_SPANS_KEY, $responseSpans);
+        SentrySdk::getCurrentHub()->setSpan($entry['parent']);
 
-        SentrySdk::getCurrentHub()->setSpan($parent);
+        return $entry['span'];
+    }
 
-        $span = array_pop($currentStack);
-        CoroutineContext::set(self::CONTEXT_CURRENT_SPANS_KEY, $currentStack);
+    /**
+     * Pop the current transaction span for an exact connection.
+     */
+    private function popTransactionSpan(
+        DatabaseEvents\TransactionCommitted|DatabaseEvents\TransactionRolledBack $event
+    ): ?Span {
+        $transactionSpans = CoroutineContext::get(self::CONTEXT_TRANSACTION_SPANS_KEY, []);
+        $connectionId = spl_object_id($event->connection);
+        $connectionSpans = $transactionSpans[$connectionId] ?? [];
+
+        if ($connectionSpans === []) {
+            return null;
+        }
+
+        $span = array_pop($connectionSpans);
+
+        if ($connectionSpans === []) {
+            unset($transactionSpans[$connectionId]);
+        } else {
+            $transactionSpans[$connectionId] = $connectionSpans;
+        }
+
+        CoroutineContext::set(self::CONTEXT_TRANSACTION_SPANS_KEY, $transactionSpans);
 
         return $span;
+    }
+
+    /**
+     * Register cleanup for response and transaction spans without terminals.
+     */
+    private function registerCleanup(): void
+    {
+        if (CoroutineContext::get(self::CONTEXT_CLEANUP_REGISTERED_KEY, false)) {
+            return;
+        }
+
+        CoroutineContext::set(self::CONTEXT_CLEANUP_REGISTERED_KEY, true);
+        Coroutine::defer(static function (): void {
+            $hub = SentrySdk::getCurrentHub();
+            $responseSpans = CoroutineContext::get(self::CONTEXT_RESPONSE_SPANS_KEY, []);
+
+            while (($entry = array_pop($responseSpans)) !== null) {
+                $hub->setSpan($entry['parent']);
+                self::finishAbandonedSpan($entry['span']);
+            }
+
+            CoroutineContext::forget(self::CONTEXT_RESPONSE_SPANS_KEY);
+
+            $transactionSpans = CoroutineContext::get(self::CONTEXT_TRANSACTION_SPANS_KEY, []);
+
+            foreach ($transactionSpans as $connectionSpans) {
+                while (($span = array_pop($connectionSpans)) !== null) {
+                    self::finishAbandonedSpan($span);
+                }
+            }
+
+            CoroutineContext::forget(self::CONTEXT_TRANSACTION_SPANS_KEY);
+            CoroutineContext::forget(self::CONTEXT_CLEANUP_REGISTERED_KEY);
+        });
+    }
+
+    /**
+     * Finish an abandoned span as an internal failure.
+     */
+    private static function finishAbandonedSpan(Span $span): void
+    {
+        if ($span->getEndTimestamp() !== null) {
+            return;
+        }
+
+        $span->setStatus(SpanStatus::internalError());
+        $span->finish();
     }
 }

@@ -31,4 +31,36 @@ class DatabaseMariaDbSchemaBuilderTest extends MariaDbTestCase
 
         Schema::drop('users');
     }
+
+    public function testWithoutForeignKeyConstraintsPreservesIncomingStateAndNests(): void
+    {
+        $connection = DB::connection();
+        $outer = $connection->getSchemaBuilder();
+        $inner = $connection->getSchemaBuilder();
+
+        try {
+            $outer->enableForeignKeyConstraints();
+
+            $outer->withoutForeignKeyConstraints(function () use ($connection, $inner): void {
+                $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+
+                $inner->withoutForeignKeyConstraints(function () use ($connection): void {
+                    $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+                });
+
+                $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+            });
+
+            $this->assertSame(1, (int) $connection->scalar('select @@foreign_key_checks'));
+
+            $outer->disableForeignKeyConstraints();
+            $outer->withoutForeignKeyConstraints(function () use ($connection): void {
+                $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+            });
+
+            $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+        } finally {
+            $outer->enableForeignKeyConstraints();
+        }
+    }
 }

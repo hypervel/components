@@ -30,7 +30,7 @@ Key paths:
 
 | Path | Description |
 |------|-------------|
-| `src/boost/docs/` | Hypervel documentation. |
+| `src/docs/` | Hypervel documentation and the source for the `hypervel/docs` package. |
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
 | `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
 | `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
@@ -130,10 +130,11 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **Treat past owner decisions as context, not constraints** — Previous owner approvals and completed plans explain history but do not determine the best design today. Never retain or reject a design merely because it was previously approved; decide from current requirements, code, and evidence.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
 - **Check dependency versions before adding them** — Before adding a package dependency to the root `composer.json`, check Packagist for the latest compatible stable version. The root `composer.lock` is intentionally untracked; run `composer update` after adding or merging dependency changes, do not treat an outdated local lock as a repository defect, and never commit it.
+- **Keep Composer metadata functional** — Declare an `ext-*` requirement only when the extension is not guaranteed by Hypervel's minimum PHP version. Add a `suggest` entry only when installing that package enables a concrete, documented feature; conditional interoperability, class-string references, tests, or metadata completeness do not qualify.
 
 ### Documentation
 
-- **Use one source of truth** — Put all user documentation in `src/boost/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
+- **Use one source of truth** — Put all user documentation in `src/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
 - **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Prefer natural explanations and examples over implementation language; avoid internal jargon, stiff wording, and needless detail.
 
 #### Package READMEs
@@ -167,7 +168,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 ### Code conventions
 
 - **New Hypervel-owned code and packages must be Laravel-style** — Design new packages and public surfaces as if they were first-party Laravel packages ported to and enhanced for Hypervel. APIs, naming, class responsibilities, code patterns, and directory structure must be ergonomic, intuitive, and immediately familiar to Laravel developers, while internals remain coroutine-safe and optimized for Hypervel's long-lived Swoole runtime and high-performance requirements. Apply the requirements under [Audit changes during modification and code review](#audit-changes-during-modification-and-code-review) from initial design onward.
-- **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, and properties are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type). PHP does not allow return types on `__construct()` or `__destruct()`.
+- **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, properties, and class constants are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type). PHP does not allow return types on `__construct()` or `__destruct()`.
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
 - **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
@@ -433,7 +434,7 @@ PHPUnit loads test files directly (not via autoloading), so the namespace doesn'
 
 ### Temp directories for file I/O
 
-Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, delete any leftover copy and create it fresh in `setUp`, then delete it again via `Filesystem::deleteDirectory()` in `tearDown`. Use `sys_get_temp_dir()` directly only when the system temporary path itself is the behavior under test. See `FoundationViteTest` or `OptionTest` for the pattern.
+Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the paths table above). For any test that only needs an isolated scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, delete any leftover copy and create it fresh in `setUp`, then delete it again via `Filesystem::deleteDirectory()` in `tearDown`. Use `sys_get_temp_dir()` directly only when the system temporary path itself is the behavior under test. See `FoundationViteTest` or `OptionTest` for the pattern.
 
 The Testbench skeleton clone is shared for the whole worker, so tests that write under `BASE_PATH` must restore or delete the exact files they touch in `tearDown()`. For `.env` files, prefer `useEnvironmentPath()` with an isolated `ParallelTesting::tempDir()` directory.
 
@@ -699,6 +700,8 @@ The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
 Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
+`phpstan.types.neon.dist` validates only the committed `types/` fixtures. Never pass source or test paths to it.
+
 **When fixing phpstan errors:**
 
 1. **Investigate before coding.** For each error: read the code, check the Laravel equivalent's types (native and docblock), trace through callers and dependents. Report findings with the single, most correct fix.
@@ -717,7 +720,7 @@ Full PHPStan runs through `composer fix` at checkpoints. During implementation, 
 ### Policy
 
 When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
-- Modernizing PHP types (PHP 8.4+ features, strict types, strict comparisons)
+- Modernizing PHP types, including native parameter, return, property, and class-constant types, plus other appropriate PHP 8.4+ features, strict types, and strict comparisons
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
 - Converting container array access (`$app['events']`) to `make()`, and untyped `$config->get()` calls to the typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)

@@ -38,7 +38,7 @@ class CacheManager implements FactoryContract
     /**
      * The context key prefix for memoized cache repositories.
      */
-    protected const MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
+    protected const string MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
 
     /**
      * The array of resolved cache stores.

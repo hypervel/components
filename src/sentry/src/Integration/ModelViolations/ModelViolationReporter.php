@@ -22,13 +22,16 @@ abstract class ModelViolationReporter
 {
     use ResolvesEventOrigin;
 
-    private const CONTEXT_REPORTED_PREFIX = '__sentry.model_violations.reported.';
+    private const string CONTEXT_REPORTED_PREFIX = '__sentry.model_violations.reported.';
+
+    private ?Closure $callback;
 
     public function __construct(
-        private ?Closure $callback,
+        ?callable $callback,
         private readonly bool $suppressDuplicateReports,
         private readonly bool $reportAfterResponse,
     ) {
+        $this->callback = $callback === null ? null : Closure::fromCallable($callback);
     }
 
     /**

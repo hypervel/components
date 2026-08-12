@@ -17,7 +17,7 @@ class AboutCommandTest extends TestCase
     use InteractsWithSqliteDatabaseFile;
 
     #[Test]
-    public function itIncludesTestbenchInformationInTheAboutCommandOutput()
+    public function itIncludesTestbenchInformationInTheAboutCommandOutput(): void
     {
         $this->withoutSqliteDatabase(function (): void {
             $process = remote('about --json');

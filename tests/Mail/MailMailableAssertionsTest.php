@@ -224,12 +224,33 @@ class MailMailableAssertionsTest extends TestCase
         $mailable = new MailableAssertionsStub;
 
         $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('contains "First Item" in specified order');
 
         $mailable->assertSeeInOrderInHtml([
             'It\'s a wonderful day',
             'First Item',
             'Sixth Item',
         ]);
+    }
+
+    public function testMailableOrderedTextAssertionsDoNotSkipStringZero(): void
+    {
+        $mailable = new MailableAssertionsStub;
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('contains "0" in specified order');
+
+        $mailable->assertSeeInOrderInText(['Sixth Item', '0']);
+    }
+
+    public function testMailableOrderedHtmlAssertionsDoNotSkipStringZero(): void
+    {
+        $mailable = new MailableAssertionsStub;
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('contains "0" in specified order');
+
+        $mailable->assertSeeInOrderInHtml(['Sixth Item', '0']);
     }
 }
 

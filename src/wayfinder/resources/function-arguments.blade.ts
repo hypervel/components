@@ -1,25 +1,28 @@
 @if ($parameters->isNotEmpty())
 {!! $args !!}{!! when($parameters->every->optional, '?') !!}: {
     @foreach ($parameters as $parameter)
-        {{ $parameter->name }}{!! when($parameter->optional, '?') !!}: {!! $parameter->types !!}
+        {{ $parameter->name }}{!! when($parameter->optional, '?') !!}: {!! $parameter->types !!}{!! when($parameter->optional, ' | null') !!}
         @if ($parameter->key)
-            | { {!! $parameter->key !!}: {!! $parameter->types !!} }
+            | { {!! $parameter->keyName() !!}: {!! $parameter->types !!} }
         @endif,
     @endforeach
 }
 
 | [
     @foreach ($parameters as $parameter)
-        {{ $parameter->safeName() }}: {!! $parameter->types !!}
+        {{ $parameter->safeName() }}{!! when(
+            $parameters->slice($loop->index)->every->optional,
+            '?',
+        ) !!}: {!! $parameter->types !!}{!! when($parameter->optional, ' | null') !!}
         @if ($parameter->key)
-            | { {!! $parameter->key !!}: {!! $parameter->types !!} }
+            | { {!! $parameter->keyName() !!}: {!! $parameter->types !!} }
          @endif
         {!! when(!$loop->last, ', ') !!}
     @endforeach
 ]
 
-@if ($parameters->count() === 1) | {!! $parameters->first()->types !!}
-    @if($parameters->first()->key) | { {!! $parameters->first()->key !!}: {!! $parameters->first()->types !!} }@endif
+@if ($parameters->count() === 1) | {!! $parameters->first()->types !!}{!! when($parameters->first()->optional, ' | null') !!}
+    @if($parameters->first()->key) | { {!! $parameters->first()->keyName() !!}: {!! $parameters->first()->types !!} }@endif
 @endif
 ,
 @endif

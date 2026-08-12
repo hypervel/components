@@ -96,6 +96,8 @@ class Commander
     {
         $input = new ArgvInput;
         $output = new ConsoleOutput;
+        $status = 1;
+        $failure = null;
 
         $this->prepareCommandEnvironment($input);
 
@@ -109,12 +111,21 @@ class Commander
 
             $kernel->terminate($input, $status);
         } catch (Throwable $error) {
-            $status = $this->handleException($output, $error);
-        } finally {
-            TerminatingConsole::handle();
-            Workbench::flush();
+            try {
+                $status = $this->handleException($output, $error);
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            }
+        }
 
-            $this->unregisterSignals();
+        $cleanupFailure = $this->cleanUpCommand();
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        if ($cleanupFailure !== null) {
+            $status = $this->handleException($output, $cleanupFailure);
         }
 
         exit($status);
@@ -131,8 +142,13 @@ class Commander
 
             TerminatingConsole::beforeWhen(
                 ! is_symlink(join_paths($appBasePath, 'vendor')),
-                static function () use ($appBasePath) {
-                    (static::TESTBENCH)::deleteVendorSymlink($appBasePath);
+                function () use ($appBasePath): void {
+                    $app = (static::TESTBENCH)::deleteVendorSymlink($appBasePath);
+                    $failure = $this->terminateAndFlushApplication($app);
+
+                    if ($failure !== null) {
+                        throw $failure;
+                    }
                 }
             );
 
@@ -140,16 +156,25 @@ class Commander
 
             $hasEnvironmentFile = static fn () => is_file(join_paths($appBasePath, '.env'));
 
-            tap(
-                (static::TESTBENCH)::createVendorSymlink($appBasePath, $vendorPath),
-                function ($app) use ($filesystem, $hasEnvironmentFile) {
-                    $this->copyTestbenchConfigurationFile($app, $filesystem, $this->workingPath);
+            $temporaryApplication = (static::TESTBENCH)::createVendorSymlink($appBasePath, $vendorPath);
+            $failure = null;
 
-                    if (! $hasEnvironmentFile()) {
-                        $this->copyTestbenchDotEnvFile($app, $filesystem, $this->workingPath);
-                    }
+            try {
+                $this->copyTestbenchConfigurationFile($temporaryApplication, $filesystem, $this->workingPath);
+
+                if (! $hasEnvironmentFile()) {
+                    $this->copyTestbenchDotEnvFile($temporaryApplication, $filesystem, $this->workingPath);
                 }
-            );
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
+            }
+
+            $cleanupFailure = $this->terminateAndFlushApplication($temporaryApplication);
+            $failure ??= $cleanupFailure;
+
+            if ($failure !== null) {
+                throw $failure;
+            }
 
             $this->app = (static::TESTBENCH)::create(
                 basePath: $appBasePath,
@@ -164,6 +189,56 @@ class Commander
         }
 
         return $this->app;
+    }
+
+    /**
+     * Terminate and flush a temporary application.
+     */
+    private function terminateAndFlushApplication(ApplicationContract $app): ?Throwable
+    {
+        $failure = null;
+
+        try {
+            $app->terminate();
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
+        }
+
+        try {
+            $app->flush();
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        return $failure;
+    }
+
+    /**
+     * Run every command cleanup phase.
+     */
+    private function cleanUpCommand(): ?Throwable
+    {
+        $failure = null;
+
+        try {
+            TerminatingConsole::handle();
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
+        }
+
+        try {
+            Workbench::flush();
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        try {
+            $this->unregisterSignals();
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        return $failure;
     }
 
     /**
@@ -288,17 +363,20 @@ class Commander
         $signals = [SIGTERM, SIGINT, SIGHUP, SIGUSR1, SIGUSR2, SIGQUIT];
 
         foreach ($signals as $signal) {
-            pcntl_signal($signal, function () use ($signal) {
-                TerminatingConsole::handle();
-                Workbench::flush();
-
-                $this->unregisterSignals();
-
+            pcntl_signal($signal, function () use ($signal): never {
                 $status = match ($signal) {
                     SIGINT => 130,
                     SIGTERM => 143,
                     default => 128 + $signal,
                 };
+
+                if (($failure = $this->cleanUpCommand()) !== null) {
+                    try {
+                        $this->handleException(new ConsoleOutput, $failure);
+                    } catch (Throwable) {
+                        fwrite(STDERR, $failure->getMessage() . PHP_EOL);
+                    }
+                }
 
                 if ($status === 130) {
                     exit;

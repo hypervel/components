@@ -1,7 +1,7 @@
 Wayfinder for Hypervel
 ===
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/wayfinder)
+Documentation: https://hypervel.org/docs/wayfinder
 
 Differences From Laravel
 ---
@@ -10,3 +10,5 @@ Differences From Laravel
   `URL::useOrigin()` overrides instead of Laravel's global forced root state, so
   Wayfinder generates relative URLs with the configured `app.url` base path and
   explicit route domains.
+
+Ported from: https://github.com/laravel/wayfinder

@@ -9,6 +9,8 @@ use Hypervel\Sentry\LogChannel;
 use Hypervel\Sentry\Logs\LogChannel as LogsLogChannel;
 use Hypervel\Sentry\Logs\LogsHandler;
 use Hypervel\Sentry\SentryHandler;
+use Monolog\Formatter\LineFormatter;
+use Monolog\Logger;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use Sentry\Event;
@@ -63,6 +65,13 @@ class LogChannelTest extends SentryTestCase
         $this->assertSame(FingersCrossedHandler::class, get_class($currentHandler));
         $this->assertFalse((new ReflectionProperty($currentHandler, 'stopBuffering'))->getValue($currentHandler));
         $this->assertInstanceOf(LogsHandler::class, $currentHandler->getHandler());
+    }
+
+    public function testLogsHandlerCreatesItsDefaultBatchFormatter(): void
+    {
+        $handler = new LogsHandler(Logger::DEBUG);
+
+        $this->assertInstanceOf(LineFormatter::class, $handler->getBatchFormatter());
     }
 
     #[DataProvider('handlerDataProvider')]

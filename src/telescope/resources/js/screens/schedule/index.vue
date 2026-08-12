@@ -7,6 +7,7 @@ export default {}
         <tr slot="table-header">
             <th scope="col">Command</th>
             <th scope="col">Expression</th>
+            <th scope="col">Status</th>
             <th scope="col">Happened</th>
             <th scope="col"></th>
         </tr>
@@ -20,6 +21,15 @@ export default {}
 
             <td class="table-fit text-muted">
                 {{ slotProps.entry.content.expression }}
+            </td>
+
+            <td class="table-fit">
+                <span
+                    class="badge"
+                    :class="slotProps.entry.content.status === 'finished' ? 'badge-success' : 'badge-danger'"
+                >
+                    {{ slotProps.entry.content.status }}
+                </span>
             </td>
 
             <td

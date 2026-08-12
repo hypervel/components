@@ -8,9 +8,9 @@ use InvalidArgumentException;
 
 final readonly class ConnectionName
 {
-    public const READ = 'read';
+    public const string READ = 'read';
 
-    public const WRITE = 'write';
+    public const string WRITE = 'write';
 
     /**
      * Create a new parsed connection name instance.

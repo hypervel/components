@@ -19,7 +19,7 @@ class InteractsWithRedisParallelTest extends TestCase
      *
      * @var list<string>
      */
-    private const REDIS_ENVIRONMENT_KEYS = [
+    private const array REDIS_ENVIRONMENT_KEYS = [
         'REDIS_HOST',
         'REDIS_DB',
         'REDIS_TEST_DB_MIN',

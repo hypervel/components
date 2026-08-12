@@ -90,7 +90,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\PendingRequest dump()
  * @method static \Hypervel\Http\Client\PendingRequest dd()
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response get(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array|string|null $query = null)
- * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response head(string $url, array|string|null $query = null)
+ * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response head(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array|string|null $query = null)
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response query(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response post(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])
  * @method static \GuzzleHttp\Promise\PromiseInterface|\Hypervel\Http\Client\Response patch(string $url, \Hypervel\Contracts\Support\Arrayable|\JsonSerializable|array $data = [])

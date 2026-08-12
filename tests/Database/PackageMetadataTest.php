@@ -59,6 +59,7 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
+        $this->assertArrayHasKey('fakerphp/faker', $composer['suggest']);
         $this->assertArrayNotHasKey('hypervel/config', $composer['require']);
     }
 }

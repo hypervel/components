@@ -8,13 +8,14 @@ use Closure;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
 use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use RuntimeException;
 use Throwable;
 
-class ClientPooledFilesystem implements Cloud
+class ClientPooledFilesystem implements Cloud, InvalidatesPool
 {
     use InteractsWithPooledFilesystem;
 

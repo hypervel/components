@@ -37,12 +37,12 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Context key for the coroutine-local build stack.
      */
-    protected const BUILD_STACK_CONTEXT_KEY = '__container.build_stack';
+    protected const string BUILD_STACK_CONTEXT_KEY = '__container.build_stack';
 
     /**
      * Context key for the coroutine-local resolution depth counter.
      */
-    public const DEPTH_CONTEXT_KEY = '__container.depth';
+    public const string DEPTH_CONTEXT_KEY = '__container.depth';
 
     /**
      * Context key for the coroutine-local resolving stack.
@@ -53,7 +53,7 @@ class Container implements ArrayAccess, ContainerContract
      * positives when call() pushes a class name that is then re-resolved
      * inside the method body.
      */
-    protected const RESOLVING_STACK_CONTEXT_KEY = '__container.resolving_stack';
+    protected const string RESOLVING_STACK_CONTEXT_KEY = '__container.resolving_stack';
 
     /**
      * Maximum resolution depth before assuming a circular dependency.
@@ -62,17 +62,17 @@ class Container implements ArrayAccess, ContainerContract
      * abstract names differ from the concretes pushed by build(), making
      * the direct in_array check insufficient.
      */
-    protected const MAX_RESOLUTION_DEPTH = 500;
+    protected const int MAX_RESOLUTION_DEPTH = 500;
 
     /**
      * Context key for the coroutine-local parameter override stack.
      */
-    protected const PARAMETER_OVERRIDES_CONTEXT_KEY = '__container.parameter_overrides';
+    protected const string PARAMETER_OVERRIDES_CONTEXT_KEY = '__container.parameter_overrides';
 
     /**
      * Context key prefix for coroutine-local scoped instances.
      */
-    protected const SCOPED_CONTEXT_PREFIX = '__container.scoped.';
+    protected const string SCOPED_CONTEXT_PREFIX = '__container.scoped.';
 
     /**
      * The current globally available container (if any).

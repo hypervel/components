@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Concerns\ParsesSearchPath;
+use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Override;
 
 /**
@@ -13,6 +14,45 @@ use Override;
 class PostgresBuilder extends Builder
 {
     use ParsesSearchPath;
+
+    /**
+     * Execute the given schema blueprint.
+     */
+    #[Override]
+    public function executeBlueprint(Blueprint $blueprint): void
+    {
+        $statements = $blueprint->toSql();
+
+        // CREATE INDEX CONCURRENTLY cannot run in a transaction block, so online lists stay unwrapped.
+        if (count($statements) > 1
+            && $this->connection->transactionLevel() === 0
+            && $this->grammar->supportsSchemaTransactions()
+            && $this->commandsAreDeclaredOn($blueprint, PostgresGrammar::class)
+            && ! $this->hasOnlineCommand($blueprint)
+        ) {
+            $this->connection->transaction(
+                fn () => $this->executeStatements($statements)
+            );
+
+            return;
+        }
+
+        $this->executeStatements($statements);
+    }
+
+    /**
+     * Determine whether the blueprint contains an online command.
+     */
+    protected function hasOnlineCommand(Blueprint $blueprint): bool
+    {
+        foreach ($blueprint->getCommands() as $command) {
+            if (! $command->shouldBeSkipped && $command->online) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /**
      * Drop all tables from the database.
@@ -34,9 +74,9 @@ class PostgresBuilder extends Builder
             return;
         }
 
-        $this->connection->statement(
-            $this->grammar->compileDropAllTables($tables)
-        );
+        $this->executeStatements([
+            $this->grammar->compileDropAllTables($tables),
+        ]);
     }
 
     /**
@@ -51,9 +91,9 @@ class PostgresBuilder extends Builder
             return;
         }
 
-        $this->connection->statement(
-            $this->grammar->compileDropAllViews($views)
-        );
+        $this->executeStatements([
+            $this->grammar->compileDropAllViews($views),
+        ]);
     }
 
     /**
@@ -76,11 +116,15 @@ class PostgresBuilder extends Builder
         }
 
         if (! empty($types)) {
-            $this->connection->statement($this->grammar->compileDropAllTypes($types));
+            $this->executeStatements([
+                $this->grammar->compileDropAllTypes($types),
+            ]);
         }
 
         if (! empty($domains)) {
-            $this->connection->statement($this->grammar->compileDropAllDomains($domains));
+            $this->executeStatements([
+                $this->grammar->compileDropAllDomains($domains),
+            ]);
         }
     }
 

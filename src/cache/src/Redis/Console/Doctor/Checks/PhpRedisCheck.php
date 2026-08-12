@@ -13,7 +13,7 @@ use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
  */
 final class PhpRedisCheck implements EnvironmentCheckInterface
 {
-    private const REQUIRED_VERSION = '6.3.0';
+    private const string REQUIRED_VERSION = '6.3.0';
 
     private ?string $installedVersion = null;
 

@@ -4,6 +4,12 @@
     "engines": {
         "node": ">=22.19.0"
     },
+    "devEngines": {
+        "packageManager": {
+            "name": "npm",
+            "version": ">=11.10.0"
+        }
+    },
     "scripts": {
         "dev": "vite",
         "build": "vite build",

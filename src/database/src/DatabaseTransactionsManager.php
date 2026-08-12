@@ -16,11 +16,11 @@ use Throwable;
  */
 class DatabaseTransactionsManager
 {
-    protected const COMMITTED_CONTEXT_KEY = '__database.transactions.committed';
+    protected const string COMMITTED_CONTEXT_KEY = '__database.transactions.committed';
 
-    protected const PENDING_CONTEXT_KEY = '__database.transactions.pending';
+    protected const string PENDING_CONTEXT_KEY = '__database.transactions.pending';
 
-    protected const CURRENT_CONTEXT_KEY = '__database.transactions.current';
+    protected const string CURRENT_CONTEXT_KEY = '__database.transactions.current';
 
     /**
      * Get all committed transactions for the current coroutine.

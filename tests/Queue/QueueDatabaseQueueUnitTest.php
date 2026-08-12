@@ -4,15 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\Batchable;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\Events\JobQueued;
+use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
@@ -22,6 +29,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
+use RuntimeException;
 use stdClass;
 
 class QueueDatabaseQueueUnitTest extends TestCase
@@ -201,6 +209,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             currentTime: 1732502704,
             availableAt: 1732502704,
         );
+        $queue->setContainer(new Container);
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
@@ -238,6 +247,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1732502704,
         );
+        $queue->setContainer(new Container);
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insert')
@@ -249,6 +259,196 @@ class QueueDatabaseQueueUnitTest extends TestCase
             });
 
         $queue->bulk([new DatabaseBulkAttributeDelayJob]);
+    }
+
+    public function testBulkRaisesExactSuccessEventsAroundOneInsert(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $dispatcher = new Dispatcher($container = new Container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
+        $query->shouldReceive('insert')->once()->andReturnTrue();
+
+        $events = [];
+        $dispatcher->listen(JobQueueing::class, static function (JobQueueing $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $dispatcher->listen(JobQueued::class, static function (JobQueued $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        $this->assertTrue($queue->bulk(['first', 'second'], queue: 'emails'));
+        $this->assertSame([
+            JobQueueing::class,
+            JobQueueing::class,
+            JobQueued::class,
+            JobQueued::class,
+        ], array_map(static fn (object $event): string => $event::class, $events));
+        $this->assertSame(['first', 'second', 'first', 'second'], array_column($events, 'job'));
+        $this->assertNull($events[2]->id);
+        $this->assertNull($events[3]->id);
+    }
+
+    public function testBulkRaisesExactFailureEventsWhenInsertThrows(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $dispatcher = new Dispatcher($container = new Container);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+
+        $exception = new RuntimeException('Insert failed.');
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection)->once();
+        $query->shouldReceive('insert')->once()->andThrow($exception);
+
+        $events = [];
+        $dispatcher->listen(JobQueueing::class, static function (JobQueueing $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $dispatcher->listen(JobQueueingFailed::class, static function (JobQueueingFailed $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        try {
+            $queue->bulk(['first', 'second'], queue: 'emails');
+            $this->fail('Expected the bulk insert to fail.');
+        } catch (RuntimeException $actual) {
+            $this->assertSame($exception, $actual);
+        }
+
+        $this->assertSame([
+            JobQueueing::class,
+            JobQueueing::class,
+            JobQueueingFailed::class,
+            JobQueueingFailed::class,
+        ], array_map(static fn (object $event): string => $event::class, $events));
+        $this->assertSame(['first', 'second', 'first', 'second'], array_column($events, 'job'));
+        $this->assertSame($exception, $events[2]->exception);
+        $this->assertSame($exception, $events[3]->exception);
+    }
+
+    public function testBulkSplitsImmediateAndAfterCommitJobsAndReacquiresTheQueue(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502704));
+
+        $queue = new TestDatabaseQueue(
+            resolver: $immediateResolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $deferredQueue = new TestDatabaseQueue(
+            resolver: $deferredResolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502804,
+        );
+
+        $transactions = new DatabaseTransactionsManager;
+        $transactions->begin('default', 1);
+        $container = new Container;
+        $container->instance('db.transactions', $transactions);
+        $queue->setContainer($container);
+        $deferredQueue->setContainer(new Container);
+
+        $immediateConnection = m::mock(ConnectionInterface::class);
+        $immediateConnection->shouldReceive('table')->with('table')->andReturn($immediateQuery = m::mock(Builder::class));
+        $immediateResolver->shouldReceive('connection')->with(null)->andReturn($immediateConnection)->once();
+        $immediateRecords = [];
+        $immediateQuery->shouldReceive('insert')->once()->andReturnUsing(static function (array $records) use (&$immediateRecords): bool {
+            $immediateRecords = $records;
+
+            return true;
+        });
+
+        $deferredConnection = m::mock(ConnectionInterface::class);
+        $deferredConnection->shouldReceive('table')->with('table')->andReturn($deferredQuery = m::mock(Builder::class));
+        $deferredResolver->shouldReceive('connection')->with(null)->andReturn($deferredConnection)->once();
+        $deferredRecords = [];
+        $deferredQuery->shouldReceive('insert')->once()->andReturnUsing(static function (array $records) use (&$deferredRecords): bool {
+            $deferredRecords = $records;
+
+            return true;
+        });
+
+        $reacquired = false;
+        $queue->setAfterCommitDispatcher(static function (Closure $callback) use ($deferredQueue, &$reacquired): mixed {
+            $reacquired = true;
+
+            return $callback($deferredQueue);
+        });
+
+        $this->assertTrue($queue->bulk(['immediate', new DatabaseBulkAfterCommitDelayJob], queue: 'emails'));
+        $this->assertFalse($reacquired);
+        $this->assertCount(1, $immediateRecords);
+        $this->assertSame(1732502704, $immediateRecords[0]['available_at']);
+        $this->assertSame([], $deferredRecords);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502804));
+        $transactions->commit('default', 1, 0);
+
+        $this->assertTrue($reacquired);
+        $this->assertCount(1, $deferredRecords);
+        $this->assertSame(1732502813, $deferredRecords[0]['available_at']);
+        $this->assertSame(9, json_decode($deferredRecords[0]['payload'], true)['delay']);
+        $this->assertSame(1732502704, json_decode($deferredRecords[0]['payload'], true)['createdAt']);
+    }
+
+    public function testBulkRollbackDoesNotBeginAnEnqueueAttempt(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: $resolver = m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+        $transactions = new DatabaseTransactionsManager;
+        $transactions->begin('default', 1);
+        $dispatcher = new Dispatcher($container = new Container);
+        $container->instance('db.transactions', $transactions);
+        $container->instance('events', $dispatcher);
+        $queue->setContainer($container);
+
+        $resolver->shouldNotReceive('connection');
+        $dispatched = [];
+        $dispatcher->listen(JobQueueing::class, static function (JobQueueing $event) use (&$dispatched): void {
+            $dispatched[] = $event;
+        });
+
+        $reacquired = false;
+        $queue->setAfterCommitDispatcher(static function () use (&$reacquired): never {
+            $reacquired = true;
+
+            throw new RuntimeException('The queue must not be reacquired after rollback.');
+        });
+
+        $this->assertNull($queue->bulk([new DatabaseBulkAfterCommitDelayJob], queue: 'emails'));
+        $transactions->rollback('default', 0);
+
+        $this->assertFalse($reacquired);
+        $this->assertSame([], $dispatched);
     }
 
     public function testBuildDatabaseRecordWithPayloadAtTheEnd()
@@ -485,6 +685,11 @@ class MyBatchableJob
 
 #[Delay(9)]
 class DatabaseBulkAttributeDelayJob
+{
+}
+
+#[Delay(9)]
+class DatabaseBulkAfterCommitDelayJob implements ShouldQueueAfterCommit
 {
 }
 

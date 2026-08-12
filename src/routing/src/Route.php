@@ -59,17 +59,17 @@ class Route
      * mutable state (parameters, controller instances) must be stored in
      * coroutine-local Context rather than on the Route instance.
      */
-    private const PARAMS_CONTEXT_KEY_PREFIX = '__routing.parameters.';
+    private const string PARAMS_CONTEXT_KEY_PREFIX = '__routing.parameters.';
 
     /**
      * Context key for coroutine-local original route parameters.
      */
-    private const ORIGINAL_PARAMS_CONTEXT_KEY_PREFIX = '__routing.original_parameters.';
+    private const string ORIGINAL_PARAMS_CONTEXT_KEY_PREFIX = '__routing.original_parameters.';
 
     /**
      * Context key prefix for coroutine-local controller instances.
      */
-    private const CONTROLLER_CONTEXT_KEY_PREFIX = '__routing.controller.';
+    private const string CONTROLLER_CONTEXT_KEY_PREFIX = '__routing.controller.';
 
     /**
      * The URI pattern the route responds to.

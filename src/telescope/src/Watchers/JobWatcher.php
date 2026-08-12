@@ -32,7 +32,7 @@ class JobWatcher extends Watcher
      *
      * @var array<int, class-string>
      */
-    protected $ignoredJobClasses = [
+    protected array $ignoredJobClasses = [
         \Hypervel\Telescope\Jobs\ProcessPendingUpdates::class,
     ];
 
@@ -64,7 +64,7 @@ class JobWatcher extends Watcher
             ? get_class($payload['data']['command'])
             : $payload['job'];
 
-        if (in_array($job, $this->ignoredJobClasses)) {
+        if (in_array($job, $this->ignoredJobClasses, true)) {
             return null;
         }
 
@@ -107,13 +107,14 @@ class JobWatcher extends Watcher
         $update = [
             'status' => 'processed',
             'context' => $this->facadeContext(),
+            'exception' => null,
         ];
 
         Telescope::recordUpdate(EntryUpdate::make(
             $uuid,
             EntryType::JOB,
             $update
-        ));
+        )->removeTags(['failed']));
 
         /* @phpstan-ignore-next-line */
         $this->updateBatch($event->job->payload());
@@ -242,15 +243,9 @@ class JobWatcher extends Watcher
             return;
         }
 
-        $wasRecordingEnabled = Telescope::isRecording();
-
-        Telescope::stopRecording();
-
-        $batchId = $this->getBatchId($payload['data']);
-
-        if ($wasRecordingEnabled) {
-            Telescope::startRecording();
-        }
+        $batchId = Telescope::withoutRecording(
+            fn () => $this->getBatchId($payload['data']),
+        );
 
         if (! is_null($batchId)) {
             $batch = app(BatchRepository::class)->find($batchId);

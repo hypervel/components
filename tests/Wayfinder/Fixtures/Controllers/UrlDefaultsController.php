@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
 class UrlDefaultsController
 {
-    public function onlyDefaults()
+    public function onlyDefaults(): void
     {
     }
 
-    public function mixedDefaults()
+    public function mixedDefaults(): void
+    {
+    }
+
+    public function parsedDefaults(): void
     {
     }
 }

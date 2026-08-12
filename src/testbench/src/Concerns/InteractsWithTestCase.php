@@ -21,16 +21,13 @@ use function Hypervel\Testbench\hypervel_or_fail;
 trait InteractsWithTestCase
 {
     /**
-     * Cached application bootstrap file path.
-     */
-    protected static string|bool|null $cacheApplicationBootstrapFile = null;
-
-    /**
-     * Cached traits used by test case.
+     * Cached traits used by each test case class.
      *
-     * @var null|array<class-string, class-string>
+     * Every class composing this trait shares one static slot with its subclasses.
+     *
+     * @var array<class-string, array<class-string, class-string>>
      */
-    protected static ?array $cachedTestCaseUses = null;
+    protected static array $cachedTestCaseUses = [];
 
     /**
      * Programmatically added class-level testing features.
@@ -72,13 +69,11 @@ trait InteractsWithTestCase
      */
     public static function cachedUsesForTestCase(): array
     {
-        if (static::$cachedTestCaseUses === null) {
-            /** @var array<class-string, class-string> $uses */
-            $uses = array_flip(class_uses_recursive(static::class));
-            static::$cachedTestCaseUses = $uses;
-        }
+        /** @var array<class-string, class-string> $uses */
+        $uses = static::$cachedTestCaseUses[static::class]
+            ??= array_flip(class_uses_recursive(static::class));
 
-        return static::$cachedTestCaseUses;
+        return $uses;
     }
 
     /**
@@ -137,21 +132,24 @@ trait InteractsWithTestCase
     {
         $exception = null;
 
-        try {
-            $app = hypervel_or_fail($this->app);
-            $callbacks = $this->resolvePhpUnitAttributes()
-                ->flatten()
-                ->filter(static fn ($instance) => $instance instanceof AfterEach);
+        if ($this->app !== null) {
+            $app = $this->app;
 
-            foreach ($callbacks as $callback) {
-                try {
-                    $callback->afterEach($app);
-                } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
+            try {
+                $callbacks = $this->resolvePhpUnitAttributes()
+                    ->flatten()
+                    ->filter(static fn ($instance) => $instance instanceof AfterEach);
+
+                foreach ($callbacks as $callback) {
+                    try {
+                        $callback->afterEach($app);
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
+                    }
                 }
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
             }
-        } catch (Throwable $throwable) {
-            $exception = $throwable;
         }
 
         static::$testCaseMethodTestingFeatures = [];
@@ -197,7 +195,6 @@ trait InteractsWithTestCase
 
         static::$testCaseTestingFeatures = [];
         static::$testCaseMethodTestingFeatures = [];
-        static::$cacheApplicationBootstrapFile = null;
 
         if ($exception !== null) {
             throw $exception;

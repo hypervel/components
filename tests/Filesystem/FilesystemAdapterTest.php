@@ -18,9 +18,11 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use JsonException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
@@ -272,18 +274,67 @@ class FilesystemAdapterTest extends TestCase
         $this->assertNull($filesystemAdapter->get('file.txt'));
     }
 
-    public function testJsonReturnsDecodedJsonData()
+    public function testJsonReturnsDecodedJsonData(): void
     {
         $this->filesystem->write('file.json', '{"foo": "bar"}');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $this->assertSame(['foo' => 'bar'], $filesystemAdapter->json('file.json'));
     }
 
-    public function testJsonReturnsNullIfJsonDataIsInvalid()
+    public function testJsonReturnsNullIfJsonDataIsInvalid(): void
     {
         $this->filesystem->write('file.json', '{"foo":');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $this->assertNull($filesystemAdapter->json('file.json'));
+    }
+
+    public function testJsonReturnsNullIfFileIsMissing(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertNull($filesystemAdapter->json('missing.json'));
+    }
+
+    public function testJsonReadsTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->filesystem->write('file.json', Json::encode($value));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertSame($value, $filesystemAdapter->json('file.json'));
+    }
+
+    public function testJsonRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->filesystem->write(
+            'file.json',
+            json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1)
+        );
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertNull($filesystemAdapter->json('file.json'));
+    }
+
+    public function testJsonSupportsThrowingDecodeFlags(): void
+    {
+        $this->filesystem->write('file.json', '{"foo":');
+
+        $this->expectException(JsonException::class);
+
+        (new FilesystemAdapter($this->filesystem, $this->adapter))->json('file.json', JSON_THROW_ON_ERROR);
     }
 
     public function testJsonReturnsDecodedScalarData(): void
@@ -1114,6 +1165,69 @@ class FilesystemAdapterTest extends TestCase
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['url' => 'https://example.org/', 'prefix' => 'images']);
 
         $this->assertEquals('https://example.org/images/picture.jpeg', $filesystemAdapter->url('picture.jpeg'));
+    }
+
+    public function testLocalUrlsEncodeRawPathsAndPreservePrefixes(): void
+    {
+        $path = 'nested/report%2F v?x#y+z.txt';
+        $encodedPath = 'nested/report%252F%20v%3Fx%23y%2Bz.txt';
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $this->assertSame('/storage/' . $encodedPath, $filesystemAdapter->url($path));
+        $this->assertSame('/storage/leading.txt', $filesystemAdapter->url('/leading.txt'));
+        $this->assertSame('/storage/foo.txt', $filesystemAdapter->url('/public/foo.txt'));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
+            'prefix' => 'my images',
+        ]);
+        $this->assertSame(
+            '/storage/my%20images/' . $encodedPath,
+            $filesystemAdapter->url($path),
+        );
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
+            'url' => 'https://example.org/storage/',
+            'prefix' => 'images',
+        ]);
+        $this->assertSame(
+            'https://example.org/storage/images/' . $encodedPath,
+            $filesystemAdapter->url($path),
+        );
+        $this->assertSame(
+            'https://example.org/storage/images/leading.txt',
+            $filesystemAdapter->url('/leading.txt'),
+        );
+    }
+
+    public function testFtpUrlsEncodeRawPathsWithAndWithoutAConfiguredBaseUrl(): void
+    {
+        $path = 'nested/report%2F v?x#y+z.txt';
+        $encodedPath = 'nested/report%252F%20v%3Fx%23y%2Bz.txt';
+
+        $filesystemAdapter = new class($this->filesystem, $this->adapter) extends FilesystemAdapter {
+            /**
+             * Get the FTP URL for the given path.
+             */
+            public function ftpUrl(string $path): string
+            {
+                return $this->getFtpUrl($path);
+            }
+        };
+        $this->assertSame($encodedPath, $filesystemAdapter->ftpUrl($path));
+
+        $filesystemAdapter = new class($this->filesystem, $this->adapter, ['url' => 'https://ftp.example.com/files']) extends FilesystemAdapter {
+            /**
+             * Get the FTP URL for the given path.
+             */
+            public function ftpUrl(string $path): string
+            {
+                return $this->getFtpUrl($path);
+            }
+        };
+        $this->assertSame(
+            'https://ftp.example.com/files/' . $encodedPath,
+            $filesystemAdapter->ftpUrl($path),
+        );
     }
 
     public function testGetChecksum()

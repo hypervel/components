@@ -19,7 +19,7 @@ use Hypervel\Redis\RedisConnection;
  */
 class Forever
 {
-    private const FOREVER_SCORE = -1;
+    private const int FOREVER_SCORE = -1;
 
     public function __construct(
         private readonly StoreContext $context,

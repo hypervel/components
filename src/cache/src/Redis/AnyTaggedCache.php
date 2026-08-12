@@ -16,6 +16,7 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -77,7 +78,16 @@ class AnyTaggedCache extends AnyModeTaggedCache
             fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
         );
 
-        $result = $this->store->anyTagOps()->put()->execute($key, $value, $seconds, $this->tags->getNames());
+        try {
+            $result = $this->store->anyTagOps()->put()->execute($key, $value, $seconds, $this->tags->getNames());
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(
@@ -99,6 +109,10 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
+        if ($values === []) {
+            return true;
+        }
+
         if ($ttl === null) {
             return $this->putManyForever($values);
         }
@@ -127,7 +141,18 @@ class AnyTaggedCache extends AnyModeTaggedCache
             )
         );
 
-        $result = $this->store->anyTagOps()->putMany()->execute($values, $seconds, $this->tags->getNames());
+        try {
+            $result = $this->store->anyTagOps()->putMany()->execute($values, $seconds, $this->tags->getNames());
+        } catch (Throwable $exception) {
+            foreach ($values as $key => $value) {
+                $this->event(
+                    KeyWriteFailed::class,
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
+                );
+            }
+
+            throw $exception;
+        }
 
         foreach ($values as $key => $value) {
             if ($result) {
@@ -179,7 +204,16 @@ class AnyTaggedCache extends AnyModeTaggedCache
             NullSentinel::unwrap($value)
         ));
 
-        $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
+        try {
+            $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyWriteFailed::class,
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(

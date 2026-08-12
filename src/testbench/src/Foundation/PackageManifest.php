@@ -10,6 +10,7 @@ use Hypervel\Foundation\PackageManifest as FoundationPackageManifest;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Override;
+use UnexpectedValueException;
 
 use function Hypervel\Testbench\is_testbench_cli;
 use function Hypervel\Testbench\package_path;
@@ -134,19 +135,22 @@ class PackageManifest extends FoundationPackageManifest
     {
         $package = $this->providersFromTestbench();
 
-        if (! is_array($package)) {
+        if ($package === null) {
             return [];
         }
 
+        $composerFile = package_path('composer.json');
+        $location = "root package in [{$composerFile}]";
+
         return [
-            $this->format($package['name']) => $package['extra']['hypervel'] ?? [],
+            static::packageName($package, $location, $this->vendorPath) => static::hypervelExtra($package, $location),
         ];
     }
 
     /**
      * Get the root package composer metadata.
      *
-     * @return null|array{name: string, extra?: array{hypervel?: array<string, mixed>}}
+     * @return null|array<string, mixed>
      */
     protected function providersFromTestbench(): ?array
     {
@@ -155,7 +159,13 @@ class PackageManifest extends FoundationPackageManifest
         // clone manifest.
         if ((is_testbench_cli() || Env::has('TESTBENCH_PACKAGE_TESTER'))
             && is_file($composerFile = package_path('composer.json'))) {
-            return $this->files->json($composerFile);
+            $package = $this->files->json($composerFile, JSON_THROW_ON_ERROR);
+
+            if (! is_array($package)) {
+                throw new UnexpectedValueException("Composer metadata [{$composerFile}] must contain an array.");
+            }
+
+            return $package;
         }
 
         return null;

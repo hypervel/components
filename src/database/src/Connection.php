@@ -25,6 +25,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
+use LogicException;
 use PDO;
 use PDOStatement;
 use RuntimeException;
@@ -115,11 +116,16 @@ class Connection implements ConnectionInterface
     protected int $transactions = 0;
 
     /**
+     * The depth of the active foreign key constraint suppression scope.
+     */
+    protected int $foreignKeyConstraintSuppressionDepth = 0;
+
+    /**
      * The transaction manager instance.
      */
     protected ?DatabaseTransactionsManager $transactionsManager = null;
 
-    public const READ_WRITE_TYPE_CONFIG_KEY = 'read_write_type';
+    public const string READ_WRITE_TYPE_CONFIG_KEY = 'read_write_type';
 
     /**
      * Indicates if changes have been made to the database.
@@ -1015,13 +1021,42 @@ class Connection implements ConnectionInterface
     }
 
     /**
+     * Begin a foreign key constraint suppression scope.
+     *
+     * @internal
+     */
+    public function beginForeignKeyConstraintSuppression(): bool
+    {
+        return ++$this->foreignKeyConstraintSuppressionDepth === 1;
+    }
+
+    /**
+     * End a foreign key constraint suppression scope.
+     *
+     * @internal
+     */
+    public function endForeignKeyConstraintSuppression(): void
+    {
+        if ($this->foreignKeyConstraintSuppressionDepth === 0) {
+            throw new LogicException('No foreign key constraint suppression scope is active.');
+        }
+
+        --$this->foreignKeyConstraintSuppressionDepth;
+    }
+
+    /**
      * Reset all wrapper state for pool release.
      *
-     * Physical database session state is preserved and synchronized against
+     * Trustworthy physical session state is preserved and synchronized against
      * the next coroutine's desired state when the PDO is handed out again.
      */
     public function resetForPool(): void
     {
+        if ($this->foreignKeyConstraintSuppressionDepth > 0) {
+            $this->markCurrentSessionStateUnknown();
+            $this->foreignKeyConstraintSuppressionDepth = 0;
+        }
+
         // Clear registered callbacks
         $this->beforeExecutingCallbacks = [];
         $this->beforeStartingTransaction = [];
@@ -1424,13 +1459,26 @@ class Connection implements ConnectionInterface
      */
     protected function markSessionStateUnknown(PDO $pdo): void
     {
-        if (static::$sessionConfigurators === []) {
-            return;
-        }
-
         $sessionState = static::physicalSessionState($pdo);
         $sessionState->appliedStates = [];
         $sessionState->unknown = true;
+    }
+
+    /**
+     * Mark the current write session's state as unknown.
+     *
+     * @internal
+     */
+    public function markCurrentSessionStateUnknown(): void
+    {
+        $pdo = $this->getRawPdo();
+
+        if (! $pdo instanceof PDO) {
+            // Cleanup must not resolve a lazy connection merely to invalidate a session that does not yet exist.
+            return;
+        }
+
+        $this->markSessionStateUnknown($pdo);
     }
 
     /**

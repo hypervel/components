@@ -22,7 +22,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     /**
      * The expiration timestamp stored for items cached forever.
      */
-    protected const PERMANENT_TIMESTAMP = 9999999999;
+    protected const int PERMANENT_TIMESTAMP = 9999999999;
 
     /**
      * The Filesystem instance.

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Http;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Http\JsonResponse;
+use Hypervel\Support\Json;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonSerializable;
@@ -109,6 +110,37 @@ class HttpJsonResponseTest extends TestCase
         $response = JsonResponse::fromJsonString($jsonString);
 
         $this->assertSame('bar', $response->getData()->foo);
+    }
+
+    public function testDataRoundTripsAtTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = new JsonResponse(['nested' => $value]);
+
+        $this->assertSame(['nested' => $value], $response->getData(assoc: true));
+
+        $response->setEncodingOptions(JSON_UNESCAPED_SLASHES);
+
+        $this->assertSame(['nested' => $value], $response->getData(assoc: true));
+        $this->assertNotSame('null', $response->getContent());
+    }
+
+    public function testDataRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+
+        new JsonResponse(['nested' => $value]);
     }
 }
 

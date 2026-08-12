@@ -24,7 +24,6 @@ class PackageMetadataTest extends TestCase
         );
 
         foreach ([
-            'ext-json',
             'ext-mbstring',
             'ext-pcntl',
             'ext-posix',

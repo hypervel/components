@@ -341,6 +341,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof WorkerStopping
                 && $event->reason === WorkerStopReason::TimedOut
+                && $event->terminatesImmediately
         ))->once();
     }
 
@@ -421,7 +422,10 @@ class QueueWorkerTest extends TestCase
         }
 
         $this->assertNull($worker->sleptFor);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerStopping::class))->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof WorkerStopping
+                && $event->terminatesImmediately
+        ))->once();
     }
 
     public function testWorkerCanWorkUntilQueueIsEmpty()
@@ -1050,7 +1054,8 @@ class QueueWorkerTest extends TestCase
                 && $event->reason === WorkerStopReason::QueueEmpty
                 && $event->jobsProcessed === 2
                 && $event->lastJobProcessedAt !== null
-                && $event->memoryUsage > 0;
+                && $event->memoryUsage > 0
+                && ! $event->terminatesImmediately;
         }));
     }
 

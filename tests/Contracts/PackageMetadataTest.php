@@ -33,10 +33,13 @@ class PackageMetadataTest extends TestCase
             'monolog/monolog',
             'nesbot/carbon',
             'psr/container',
+            'psr/http-message',
             'psr/log',
             'psr/simple-cache',
             'symfony/http-kernel',
         ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
     }

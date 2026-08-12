@@ -48,18 +48,6 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
 
                 return null;
             });
-
-            if ($config->get('sentry_test.override_dsn') !== true) {
-                $config->set('sentry.dsn', 'https://publickey@sentry.dev/123');
-            }
-
-            foreach ($this->defaultSetupConfig as $key => $value) {
-                $config->set($key, $value);
-            }
-
-            foreach ($this->setupConfig as $key => $value) {
-                $config->set($key, $value);
-            }
         });
 
         $app->extend(ExceptionHandler::class, function (ExceptionHandler $handler) {
@@ -80,6 +68,20 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
 
     protected function getPackageProviders(ApplicationContract $app): array
     {
+        $config = $app->make('config');
+
+        if ($config->get('sentry_test.override_dsn') !== true) {
+            $config->set('sentry.dsn', 'https://publickey@sentry.dev/123');
+        }
+
+        foreach ($this->defaultSetupConfig as $key => $value) {
+            $config->set($key, $value);
+        }
+
+        foreach ($this->setupConfig as $key => $value) {
+            $config->set($key, $value);
+        }
+
         return [
             SentryServiceProvider::class,
         ];
@@ -96,7 +98,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
     {
         $this->setupConfig = $config;
 
-        $this->refreshApplication();
+        $this->reloadApplication();
     }
 
     protected function dispatchHypervelEvent(object $event, array $payload = []): void

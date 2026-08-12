@@ -8,17 +8,17 @@ use InvalidArgumentException;
 
 final readonly class PoolOptions
 {
-    public const DEFAULT_IDLE_TTL = 300.0;
+    public const float DEFAULT_IDLE_TTL = 300.0;
 
-    private const DEFAULT_MIN_RETAINED_OBJECTS = 1;
+    private const int DEFAULT_MIN_RETAINED_OBJECTS = 1;
 
-    private const DEFAULT_MAX_OBJECTS = 10;
+    private const int DEFAULT_MAX_OBJECTS = 10;
 
-    private const DEFAULT_WAIT_TIMEOUT = 3.0;
+    private const float DEFAULT_WAIT_TIMEOUT = 3.0;
 
-    private const DEFAULT_MAX_LIFETIME = 60.0;
+    private const float DEFAULT_MAX_LIFETIME = 60.0;
 
-    private const DEFAULT_MAX_IDLE_TIME = 0.0;
+    private const float DEFAULT_MAX_IDLE_TIME = 0.0;
 
     /**
      * Create normalized pool options.

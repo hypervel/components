@@ -11,12 +11,20 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use PDO;
 use ReflectionClass;
 
 class DatabaseQueryGrammarTest extends TestCase
 {
+    public function testJsonContainsBindingRejectsUnencodableValues(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new Grammar(m::mock(Connection::class)))->prepareBindingForJsonContains(NAN);
+    }
+
     public function testWrapIdentifierEscapesOneIdentifierWithoutApplyingTheTablePrefix(): void
     {
         $connection = m::mock(Connection::class);

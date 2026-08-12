@@ -22,7 +22,7 @@ class BatchWatcher extends Watcher
     }
 
     /**
-     * Record a job being created.
+     * Record a batch being dispatched.
      */
     public function recordBatch(BatchDispatched $event): ?IncomingEntry
     {

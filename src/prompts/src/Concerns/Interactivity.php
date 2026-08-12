@@ -13,7 +13,7 @@ trait Interactivity
     /**
      * Context key for the interactive mode override.
      */
-    protected const INTERACTIVE_CONTEXT_KEY = '__prompts.interactive';
+    protected const string INTERACTIVE_CONTEXT_KEY = '__prompts.interactive';
 
     /**
      * Whether to render the prompt interactively.

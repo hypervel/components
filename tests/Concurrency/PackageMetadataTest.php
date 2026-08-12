@@ -29,6 +29,10 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
 
-        $this->assertSame($rootComposer['require']['nesbot/carbon'], $composer['require']['nesbot/carbon']);
+        foreach (['nesbot/carbon', 'symfony/console'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        }
     }
 }

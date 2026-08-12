@@ -38,6 +38,7 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory as ViewFactory;
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
 use Sentry\Integration as SdkIntegration;
@@ -46,6 +47,7 @@ use Sentry\Logs\Logs;
 use Sentry\SentrySdk;
 use Sentry\Serializer\RepresentationSerializer;
 use Sentry\State\HubInterface;
+use Sentry\State\Layer;
 use Throwable;
 
 class SentryServiceProvider extends ServiceProvider
@@ -53,7 +55,7 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Configuration options that are Hypervel-specific and should not be sent to the base PHP SDK.
      */
-    protected const HYPERVEL_SPECIFIC_OPTIONS = [
+    protected const array HYPERVEL_SPECIFIC_OPTIONS = [
         // These settings are Hypervel-specific and the PHP SDK will throw errors if it receives them
         'tracing',
         'breadcrumbs',
@@ -63,14 +65,12 @@ class SentryServiceProvider extends ServiceProvider
         'integrations',
         // We have this setting to allow us to capture the .env LOG_LEVEL for the sentry_logs channel
         'logs_channel_level',
-        // Kept for backwards compatibility
-        'breadcrumbs.sql_bindings',
     ];
 
     /**
      * Options that should be resolved from the container instead of being passed directly to the SDK.
      */
-    protected const OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
+    protected const array OPTIONS_TO_RESOLVE_FROM_CONTAINER = [
         'logger',
     ];
 
@@ -95,10 +95,11 @@ class SentryServiceProvider extends ServiceProvider
 
         // Only register event/middleware/tracing if a DSN is set or Spotlight is enabled.
         // No events can be sent without a DSN or Spotlight.
-        if ($this->hasDsnSet() || $this->hasSpotlightEnabled()) {
+        if ($this->isActive()) {
             $this->bindEvents();
             $this->registerMiddleware();
             $this->bootTracing();
+            $this->registerCoroutineContextPropagation();
         }
 
         if ($this->app->runningInConsole()) {
@@ -107,8 +108,6 @@ class SentryServiceProvider extends ServiceProvider
         }
 
         $this->registerAboutCommandIntegration();
-
-        $this->registerCoroutineContextPropagation();
     }
 
     /**
@@ -128,7 +127,9 @@ class SentryServiceProvider extends ServiceProvider
 
         $this->registerLogChannels();
 
-        $this->aspects(GuzzleHttpClientAspect::class);
+        if ($this->isActive()) {
+            $this->aspects(GuzzleHttpClientAspect::class);
+        }
     }
 
     /**
@@ -169,8 +170,8 @@ class SentryServiceProvider extends ServiceProvider
 
             $clientBuilder = ClientBuilder::create($options);
 
-            $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
-            $clientBuilder->setSdkVersion(Version::SDK_VERSION);
+            $clientBuilder->setSdkIdentifier(Version::getSdkIdentifier());
+            $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
             // Set the pooled transport for async sending via Swoole coroutines
             $poolConfig = $this->app->make('config')->array('sentry.pool', []);
@@ -199,7 +200,6 @@ class SentryServiceProvider extends ServiceProvider
 
             $userIntegrations = $this->resolveIntegrationsFromUserConfig(
                 is_array($userIntegrationOption) ? $userIntegrationOption : [],
-                $userConfig['tracing']['default_integrations'] ?? true
             );
 
             $options->setIntegrations(static function (array $integrations) use ($options, $userIntegrations, $userIntegrationOption): array {
@@ -220,7 +220,7 @@ class SentryServiceProvider extends ServiceProvider
                         }
 
                         // Remove the default request integration so it can be re-added with
-                        // a Hypervel-specific request fetcher that reads from coroutine context
+                        // a Hypervel-specific request fetcher that reads from coroutine context.
                         if ($integration instanceof SdkIntegration\RequestIntegration) {
                             return false;
                         }
@@ -330,13 +330,13 @@ class SentryServiceProvider extends ServiceProvider
 
         $httpKernel = $this->app->make(HttpKernelInterface::class);
 
-        // Tracing middleware is prepended so it starts the transaction as early as possible
-        // in handle() and finishes the app span in terminate(). The transaction itself is
-        // finished later by a Coroutine::defer() to capture after-response work.
+        // The second prepend makes Flush outermost, so its defer runs after tracing and feature finalizers.
         $httpKernel->prependMiddleware(TracingMiddleware::class);
+        $httpKernel->prependMiddleware(FlushEventsMiddleware::class);
 
-        $httpKernel->pushMiddleware(SetRequestIpMiddleware::class);
-        $httpKernel->pushMiddleware(FlushEventsMiddleware::class);
+        if (SentrySdk::getCurrentHub()->getClient()?->getOptions()->shouldSendDefaultPii() === true) {
+            $httpKernel->pushMiddleware(SetRequestIpMiddleware::class);
+        }
     }
 
     /**
@@ -344,15 +344,24 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function bootTracing(): void
     {
+        $tracingConfig = $this->getUserConfig()['tracing'] ?? [];
+
         // Register the tracing middleware as scoped so each coroutine gets its own instance.
         // Per-request state ($transaction, $appSpan, $didRouteMatch) is isolated between concurrent requests.
-        $this->app->scoped(TracingMiddleware::class);
+        $this->app->scoped(
+            TracingMiddleware::class,
+            static fn () => new TracingMiddleware(
+                ($tracingConfig['continue_after_response'] ?? true) === true,
+            ),
+        );
+
+        if (SentrySdk::getCurrentHub()->getClient()?->getOptions()->isTracingEnabled() !== true) {
+            return;
+        }
 
         $this->app->booted(function () {
             TracingMiddleware::setBootedTimestamp();
         });
-
-        $tracingConfig = $this->getUserConfig()['tracing'] ?? [];
 
         $this->bindTracingEvents($tracingConfig);
         $this->bindViewEngine($tracingConfig);
@@ -450,21 +459,34 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Register the coroutine context propagation hook.
      *
-     * Copies the Sentry scope stack and HTTP request context from parent to child
-     * coroutines so that breadcrumbs, user context, and request data are available
-     * in child coroutines (e.g., async jobs, parallel queries).
+     * Copy isolated Sentry scope and request values into child coroutines.
      */
     protected function registerCoroutineContextPropagation(): void
     {
         /* @phpstan-ignore-next-line */
-        Coroutine::afterCreated(function () {
+        Coroutine::afterCreated(function (): void {
             $parentId = Coroutine::parentId();
+            $stack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY)
+                ?? CoroutineContext::get(Hub::CONTEXT_STACK_KEY, null, $parentId);
 
-            foreach ([Hub::CONTEXT_STACK_KEY, Request::class] as $key) {
-                $value = CoroutineContext::get($key, null, $parentId);
-                if ($value !== null) {
-                    CoroutineContext::set($key, $value);
-                }
+            if ($stack !== null) {
+                CoroutineContext::set(
+                    Hub::CONTEXT_STACK_KEY,
+                    array_map(
+                        static fn (Layer $layer): Layer => new Layer(
+                            $layer->getClient(),
+                            clone $layer->getScope(),
+                        ),
+                        $stack,
+                    ),
+                );
+            }
+
+            $request = CoroutineContext::get(Request::class)
+                ?? CoroutineContext::get(Request::class, null, $parentId);
+
+            if ($request !== null) {
+                CoroutineContext::set(Request::class, clone $request);
             }
         });
     }
@@ -477,17 +499,13 @@ class SentryServiceProvider extends ServiceProvider
         $features = $this->app->make('config')->array('sentry.features', []);
 
         foreach ($features as $feature) {
-            $this->app->singleton($feature);
-        }
-
-        foreach ($features as $feature) {
             try {
                 /** @var Feature $featureInstance */
                 $featureInstance = $this->app->make($feature);
 
                 $featureInstance->register();
-            } catch (Throwable) {
-                // Ensure that features do not break the whole application
+            } catch (Throwable $exception) {
+                $this->reportFeatureFailure($feature, 'register', $exception);
             }
         }
     }
@@ -497,7 +515,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function bootFeatures(): void
     {
-        $bootActive = $this->hasDsnSet() || $this->hasSpotlightEnabled();
+        $bootActive = $this->isActive();
 
         $features = $this->app->make('config')->array('sentry.features', []);
 
@@ -509,10 +527,29 @@ class SentryServiceProvider extends ServiceProvider
                 $bootActive
                     ? $featureInstance->boot()
                     : $featureInstance->bootInactive();
-            } catch (Throwable) {
-                // Ensure that features do not break the whole application
+            } catch (Throwable $exception) {
+                $this->reportFeatureFailure(
+                    $feature,
+                    $bootActive ? 'boot' : 'bootInactive',
+                    $exception,
+                );
             }
         }
+    }
+
+    /**
+     * Report a feature phase that did not complete.
+     */
+    private function reportFeatureFailure(string $feature, string $phase, Throwable $exception): void
+    {
+        $this->app->make(LoggerInterface::class)->warning(
+            "Sentry feature [{$feature}] failed during [{$phase}]. The phase did not complete, any effects applied before the failure remain in place, and the phase will not be retried for this worker lifetime.",
+            [
+                'feature' => $feature,
+                'phase' => $phase,
+                'exception' => $exception,
+            ],
+        );
     }
 
     /**
@@ -572,7 +609,7 @@ class SentryServiceProvider extends ServiceProvider
      *
      * @return SdkIntegration\IntegrationInterface[]
      */
-    private function resolveIntegrationsFromUserConfig(array $userIntegrations, bool $enableDefaultTracingIntegrations): array
+    private function resolveIntegrationsFromUserConfig(array $userIntegrations): array
     {
         $integrationsToResolve = $userIntegrations;
 
@@ -612,13 +649,19 @@ class SentryServiceProvider extends ServiceProvider
     }
 
     /**
+     * Determine if Sentry has an active endpoint.
+     */
+    protected function isActive(): bool
+    {
+        return $this->hasDsnSet() || $this->hasSpotlightEnabled();
+    }
+
+    /**
      * Check if a DSN was set in the config.
      */
     protected function hasDsnSet(): bool
     {
-        $config = $this->getUserConfig();
-
-        return ! empty($config['dsn']);
+        return $this->app->make(SdkCapabilities::class)->hasDsnSet();
     }
 
     /**
@@ -626,9 +669,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function hasSpotlightEnabled(): bool
     {
-        $config = $this->getUserConfig();
-
-        return ($config['spotlight'] ?? false) === true;
+        return $this->app->make(SdkCapabilities::class)->hasSpotlightEnabled();
     }
 
     /**

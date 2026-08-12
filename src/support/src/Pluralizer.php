@@ -15,7 +15,7 @@ class Pluralizer
      *
      * @var list<string>
      */
-    protected const DEFAULT_UNCOUNTABLE = [
+    protected const array DEFAULT_UNCOUNTABLE = [
         'recommended',
         'related',
     ];

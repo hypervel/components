@@ -8,102 +8,149 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Hub;
+use Sentry\Event;
+use Sentry\State\Layer;
 use Sentry\State\Scope;
+use Swoole\Coroutine\Channel;
 
 class CoroutineContextPropagationTest extends SentryTestCase
 {
-    public function testChildCoroutineInheritsSentryStackFromParent()
+    public function testOrdinaryChildCoroutinesCloneParentSentryState(): void
     {
-        // Set up a Sentry scope stack in the parent coroutine
         $hub = $this->getSentryHubFromContainer();
         $hub->pushScope();
-        $hub->configureScope(function (Scope $scope) {
-            $scope->setTag('test_tag', 'parent_value');
+        $hub->configureScope(static function (Scope $scope): void {
+            $scope->setTag('owner', 'parent');
         });
-
-        $parentStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
-        $this->assertNotNull($parentStack);
-
-        $childStack = null;
-
-        $channel = new \Swoole\Coroutine\Channel(1);
-
-        Coroutine::create(function () use (&$childStack, $channel) {
-            $childStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
-            $channel->push(true);
-        });
-
-        $channel->pop(1.0);
-
-        $this->assertNotNull($childStack, 'Child coroutine should inherit the Sentry scope stack from parent');
-        $this->assertSame($parentStack, $childStack, 'Child coroutine should have the same scope stack reference as parent');
-    }
-
-    public function testChildCoroutineInheritsRequestContextFromParent()
-    {
-        // Set up a request in the parent coroutine context
-        $request = Request::create('/test', 'GET');
+        $span = $this->startTransaction();
+        $request = Request::create('/test?owner=parent');
         CoroutineContext::set(Request::class, $request);
 
-        $childRequest = null;
+        /** @var list<Layer> $parentStack */
+        $parentStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
+        $results = new Channel(2);
 
-        $channel = new \Swoole\Coroutine\Channel(1);
+        Coroutine::create(function () use ($hub, $results): void {
+            /** @var list<Layer> $stack */
+            $stack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
+            /** @var Request $request */
+            $request = CoroutineContext::get(Request::class);
+            $hub->configureScope(static function (Scope $scope): void {
+                $scope->setTag('child', 'first');
+            });
+            $request->query->set('owner', 'first');
 
-        Coroutine::create(function () use (&$childRequest, $channel) {
-            $childRequest = CoroutineContext::get(Request::class);
-            $channel->push(true);
+            $results->push([$stack, $request, $this->scopeTags($hub)]);
         });
 
-        $channel->pop(1.0);
+        Coroutine::create(function () use ($hub, $results): void {
+            $results->push([
+                CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
+                CoroutineContext::get(Request::class),
+                $this->scopeTags($hub),
+            ]);
+        });
 
-        $this->assertNotNull($childRequest, 'Child coroutine should inherit the Request context from parent');
-        $this->assertSame($request, $childRequest, 'Child coroutine should have the same Request instance as parent');
+        [$firstStack, $firstRequest, $firstTags] = $results->pop(1.0);
+        [$secondStack, $secondRequest, $secondTags] = $results->pop(1.0);
+
+        foreach ([$firstStack, $secondStack] as $childStack) {
+            $this->assertNotSame($parentStack, $childStack);
+            $this->assertCount(count($parentStack), $childStack);
+
+            foreach ($childStack as $index => $layer) {
+                $this->assertNotSame($parentStack[$index], $layer);
+                $this->assertNotSame($parentStack[$index]->getScope(), $layer->getScope());
+                $this->assertSame($parentStack[$index]->getClient(), $layer->getClient());
+            }
+
+            $this->assertSame($span, end($childStack)->getScope()->getSpan());
+        }
+
+        $this->assertNotSame($request, $firstRequest);
+        $this->assertNotSame($request, $secondRequest);
+        $this->assertNotSame($firstRequest, $secondRequest);
+        $this->assertSame('first', $firstRequest->query('owner'));
+        $this->assertSame('parent', $secondRequest->query('owner'));
+        $this->assertSame('parent', $request->query('owner'));
+        $this->assertSame(['owner' => 'parent', 'child' => 'first'], $firstTags);
+        $this->assertSame(['owner' => 'parent'], $secondTags);
+        $this->assertSame(['owner' => 'parent'], $this->scopeTags($hub));
     }
 
-    public function testChildCoroutineInheritsBothSentryStackAndRequest()
+    public function testForkClonesTheInstalledContextSnapshot(): void
     {
-        // Set up both Sentry stack and request context
         $hub = $this->getSentryHubFromContainer();
         $hub->pushScope();
-
-        $request = Request::create('/both-test', 'POST');
+        $request = Request::create('/fork');
         CoroutineContext::set(Request::class, $request);
-
+        /** @var list<Layer> $parentStack */
         $parentStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
+        $result = new Channel(1);
 
-        $childStack = null;
-        $childRequest = null;
-
-        $channel = new \Swoole\Coroutine\Channel(1);
-
-        Coroutine::create(function () use (&$childStack, &$childRequest, $channel) {
-            $childStack = CoroutineContext::get(Hub::CONTEXT_STACK_KEY);
-            $childRequest = CoroutineContext::get(Request::class);
-            $channel->push(true);
+        Coroutine::fork(static function () use ($result): void {
+            $result->push([
+                CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
+                CoroutineContext::get(Request::class),
+            ]);
         });
 
-        $channel->pop(1.0);
+        [$childStack, $childRequest] = $result->pop(1.0);
 
-        $this->assertSame($parentStack, $childStack);
-        $this->assertSame($request, $childRequest);
+        $this->assertNotSame($parentStack, $childStack);
+        $this->assertNotSame($parentStack[0], $childStack[0]);
+        $this->assertNotSame($parentStack[0]->getScope(), $childStack[0]->getScope());
+        $this->assertNotSame($request, $childRequest);
     }
 
-    public function testChildCoroutineWithoutParentContextGetsNull()
+    public function testSelectiveForkStillPropagatesSentryInfrastructureContext(): void
     {
-        // Ensure no request is set in the parent
+        $hub = $this->getSentryHubFromContainer();
+        $hub->pushScope();
+        $request = Request::create('/selective');
+        CoroutineContext::set(Request::class, $request);
+        CoroutineContext::set('selected', 'value');
+        $result = new Channel(1);
+
+        Coroutine::fork(static function () use ($result): void {
+            $result->push([
+                CoroutineContext::get(Hub::CONTEXT_STACK_KEY),
+                CoroutineContext::get(Request::class),
+                CoroutineContext::get('selected'),
+            ]);
+        }, ['selected']);
+
+        [$childStack, $childRequest, $selected] = $result->pop(1.0);
+
+        $this->assertNotNull($childStack);
+        $this->assertNotSame($request, $childRequest);
+        $this->assertSame('value', $selected);
+    }
+
+    public function testChildWithoutParentRequestContextGetsNull(): void
+    {
         CoroutineContext::forget(Request::class);
+        $result = new Channel(1);
 
-        $childRequest = 'sentinel';
-
-        $channel = new \Swoole\Coroutine\Channel(1);
-
-        Coroutine::create(function () use (&$childRequest, $channel) {
-            $childRequest = CoroutineContext::get(Request::class);
-            $channel->push(true);
+        Coroutine::create(static function () use ($result): void {
+            $result->push(CoroutineContext::get(Request::class) ?? 'missing');
         });
 
-        $channel->pop(1.0);
+        $this->assertSame('missing', $result->pop(1.0));
+    }
 
-        $this->assertNull($childRequest, 'Child coroutine should not have Request context when parent has none');
+    /**
+     * Get the tags applied by the current Hub scope.
+     *
+     * @return array<string, string>
+     */
+    private function scopeTags(Hub $hub): array
+    {
+        $event = Event::createEvent();
+        $hub->configureScope(static function (Scope $scope) use (&$event): void {
+            $event = $scope->applyToEvent($event);
+        });
+
+        return $event->getTags();
     }
 }

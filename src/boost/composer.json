@@ -24,7 +24,8 @@
         "source": "https://github.com/hypervel/components"
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "hypervel/docs": "^0.4"
     },
     "config": {
         "sort-packages": true

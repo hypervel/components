@@ -28,12 +28,12 @@ abstract class Prompt
     /**
      * Context key for the output instance override.
      */
-    protected const OUTPUT_CONTEXT_KEY = '__prompts.output';
+    protected const string OUTPUT_CONTEXT_KEY = '__prompts.output';
 
     /**
      * Context key for the custom validation callback override.
      */
-    protected const VALIDATE_USING_CONTEXT_KEY = '__prompts.validate_using';
+    protected const string VALIDATE_USING_CONTEXT_KEY = '__prompts.validate_using';
 
     /**
      * The current state of the prompt.

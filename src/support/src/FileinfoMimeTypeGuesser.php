@@ -26,7 +26,7 @@ use RuntimeException;
  */
 class FileinfoMimeTypeGuesser
 {
-    public const FINFO_CONTEXT_KEY_PREFIX = '__support.finfo_mime_type_guesser.';
+    public const string FINFO_CONTEXT_KEY_PREFIX = '__support.finfo_mime_type_guesser.';
 
     /**
      * @param null|string $magicFile A magic file to use with the finfo instance

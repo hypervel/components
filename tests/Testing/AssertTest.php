@@ -11,7 +11,7 @@ use stdClass;
 
 class AssertTest extends TestCase
 {
-    public function testArraySubset()
+    public function testArraySubset(): void
     {
         Assert::assertArraySubset([
             'string' => 'string',
@@ -23,7 +23,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testArraySubsetMayFail()
+    public function testArraySubsetMayFail(): void
     {
         $this->expectException(ExpectationFailedException::class);
 
@@ -38,7 +38,7 @@ class AssertTest extends TestCase
         ]);
     }
 
-    public function testArraySubsetWithStrict()
+    public function testArraySubsetWithStrict(): void
     {
         Assert::assertArraySubset([
             'string' => 'string',
@@ -50,7 +50,7 @@ class AssertTest extends TestCase
         ], true);
     }
 
-    public function testArraySubsetWithStrictMayFail()
+    public function testArraySubsetWithStrictMayFail(): void
     {
         $this->expectException(ExpectationFailedException::class);
 

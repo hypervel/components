@@ -10,13 +10,14 @@ use Hypervel\Testbench\Foundation\Console\Actions\EnsureDirectoryExists;
 use Hypervel\Tests\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
 
 class EnsureDirectoryExistsTest extends TestCase
 {
     #[Test]
-    public function itCanEnsureDirectoryExists()
+    public function itCanEnsureDirectoryExists(): void
     {
         $filesystem = m::mock(Filesystem::class);
         $components = m::mock(ComponentsFactory::class);
@@ -39,5 +40,26 @@ class EnsureDirectoryExistsTest extends TestCase
             filesystem: $filesystem,
             components: $components,
         ))->handle(['a', 'b', join_paths('c', 'd')]);
+    }
+
+    #[Test]
+    public function itFailsWhenThePlaceholderCannotBeCopied(): void
+    {
+        $filesystem = m::mock(Filesystem::class);
+        $components = m::mock(ComponentsFactory::class);
+        $filesystem->expects('isDirectory')->with('a')->andReturnFalse();
+        $filesystem->expects('ensureDirectoryExists')->with('a', 493, true);
+        $filesystem->expects('copy')
+            ->with(m::type('string'), join_paths('a', '.gitkeep'))
+            ->andReturnFalse();
+        $components->shouldNotReceive('task');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to create placeholder file [a/.gitkeep].');
+
+        (new EnsureDirectoryExists(
+            filesystem: $filesystem,
+            components: $components,
+        ))->handle(['a']);
     }
 }

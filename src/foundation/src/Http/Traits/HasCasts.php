@@ -14,6 +14,7 @@ use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Json;
 use RuntimeException;
 use UnitEnum;
 
@@ -384,9 +385,9 @@ trait HasCasts
     /**
      * Decode the given JSON back into an array or object.
      */
-    public function fromJson(string $value, bool $asObject = false)
+    public function fromJson(string $value, bool $asObject = false): mixed
     {
-        return json_decode($value, ! $asObject);
+        return Json::decode($value, ! $asObject);
     }
 
     /**
@@ -420,14 +421,6 @@ trait HasCasts
     public function getDateFormat(): string
     {
         return $this->dateFormat;
-    }
-
-    /**
-     * Encode the given value as JSON.
-     */
-    protected function asJson(mixed $value): false|string
-    {
-        return json_encode($value);
     }
 
     /**

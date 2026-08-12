@@ -13,7 +13,7 @@ use function Hypervel\Testbench\artisan;
 class ArtisanTest extends TestCase
 {
     #[Test]
-    public function itCanRunArtisanCommand()
+    public function itCanRunArtisanCommand(): void
     {
         $this->assertSame(Command::SUCCESS, artisan($this, 'env'));
         $this->assertSame(Command::SUCCESS, artisan($this->app, 'env'));

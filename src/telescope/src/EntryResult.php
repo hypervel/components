@@ -35,7 +35,7 @@ class EntryResult implements JsonSerializable
         public ?string $familyHash,
         public array $content,
         public CarbonInterface $createdAt,
-        private $tags = []
+        private array $tags = []
     ) {
     }
 

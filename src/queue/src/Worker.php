@@ -40,23 +40,23 @@ class Worker
 {
     use DetectsLostConnections;
 
-    public const EXIT_SUCCESS = 0;
+    public const int EXIT_SUCCESS = 0;
 
-    public const EXIT_ERROR = 1;
+    public const int EXIT_ERROR = 1;
 
-    public const EXIT_MEMORY_LIMIT = 12;
+    public const int EXIT_MEMORY_LIMIT = 12;
 
     /**
      * The cache key for the restart signal.
      *
      * IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
      */
-    public const RESTART_SIGNAL_CACHE_KEY = 'illuminate:queue:restart';
+    public const string RESTART_SIGNAL_CACHE_KEY = 'illuminate:queue:restart';
 
     /**
      * Signals installed when the worker daemon starts.
      */
-    protected const HANDLED_SIGNALS = [
+    protected const array HANDLED_SIGNALS = [
         SIGQUIT,
         SIGTERM,
         SIGINT,
@@ -1133,6 +1133,7 @@ class Worker
             $this->jobsProcessed,
             $this->lastJobProcessedAt,
             $this->currentMemoryUsage(),
+            terminatesImmediately: false,
         ));
 
         return $status;
@@ -1153,6 +1154,7 @@ class Worker
             $this->jobsProcessed,
             $this->lastJobProcessedAt,
             $this->currentMemoryUsage(),
+            terminatesImmediately: true,
         ));
 
         $this->terminateProcess($status);

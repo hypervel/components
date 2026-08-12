@@ -15,18 +15,23 @@ use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Events\JobFailed as QueueJobFailed;
+use Hypervel\Queue\Events\JobProcessed as QueueJobProcessed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Str;
+use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\JobWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
+use RuntimeException;
 use Throwable;
 
 #[WithMigration('queue')]
@@ -266,6 +271,42 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertSame(1, $job->payloadReads);
         $this->assertCount(0, $this->loadTelescopeEntries());
     }
+
+    public function testProcessedJobClearsPriorFailureState(): void
+    {
+        $entry = IncomingEntry::make(['status' => 'pending']);
+        Telescope::recordJob($entry);
+
+        $job = new TelescopeQueueJob(['telescope_uuid' => $entry->uuid]);
+        $watcher = $this->app->make(JobWatcher::class);
+
+        $watcher->recordFailedJob(new QueueJobFailed('database', $job, new Exception('failed')));
+        $watcher->recordProcessedJob(new QueueJobProcessed('database', $job));
+
+        $stored = $this->loadTelescopeEntries()->first();
+        $result = $this->app->make(EntriesRepository::class)->find($entry->uuid)->jsonSerialize();
+
+        $this->assertSame('processed', $stored->content['status']);
+        $this->assertNull($stored->content['exception']);
+        $this->assertNotContains('failed', $result['tags']);
+    }
+
+    public function testBatchIdFailureRestoresRecordingState(): void
+    {
+        $job = new TelescopeQueueJob([
+            'telescope_uuid' => (string) Str::orderedUuid(),
+            'data' => ['command' => 'serialized-command'],
+        ]);
+
+        try {
+            (new FailingBatchIdJobWatcher)->recordProcessedJob(new QueueJobProcessed('database', $job));
+            $this->fail('The batch ID failure was not propagated.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('batch lookup failed', $exception->getMessage());
+        }
+
+        $this->assertTrue(Telescope::isRecording());
+    }
 }
 
 class MockedBatchableJob implements ShouldQueue
@@ -442,5 +483,41 @@ class InvalidTelescopeQueueJob extends Job
     public function attempts(): int
     {
         return 1;
+    }
+}
+
+class TelescopeQueueJob extends Job
+{
+    public function __construct(
+        protected array $telescopePayload,
+    ) {
+    }
+
+    public function payload(): array
+    {
+        return $this->telescopePayload;
+    }
+
+    public function getJobId(): int|string|null
+    {
+        return null;
+    }
+
+    public function getRawBody(): string
+    {
+        return '{}';
+    }
+
+    public function attempts(): int
+    {
+        return 1;
+    }
+}
+
+class FailingBatchIdJobWatcher extends JobWatcher
+{
+    protected function getBatchId(array $data): ?string
+    {
+        throw new RuntimeException('batch lookup failed');
     }
 }

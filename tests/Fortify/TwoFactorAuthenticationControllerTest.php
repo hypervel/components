@@ -17,7 +17,6 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
-use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Fortify\Fixtures\UserWithTwoFactor;
@@ -72,7 +71,6 @@ class TwoFactorAuthenticationControllerTest extends TestCase
         $this->assertNotNull($user->twoFactorQrCodeSvg());
     }
 
-    #[ResetRefreshDatabaseState]
     public function testCallingTwoFactorAuthenticationEndpointWillNotOverwriteWithoutForceParameter(): void
     {
         Event::fake();
@@ -109,7 +107,6 @@ class TwoFactorAuthenticationControllerTest extends TestCase
         $this->assertNotNull($user->twoFactorQrCodeSvg());
     }
 
-    #[ResetRefreshDatabaseState]
     public function testCallingTwoFactorAuthenticationEndpointWillOverwriteWithForceParameter(): void
     {
         Event::fake();
@@ -175,7 +172,6 @@ class TwoFactorAuthenticationControllerTest extends TestCase
     }
 
     #[DefineEnvironment('withConfirmedTwoFactorAuthentication')]
-    #[ResetRefreshDatabaseState]
     public function testTwoFactorAuthenticationCanBeConfirmed(): void
     {
         Event::fake();
@@ -212,7 +208,6 @@ class TwoFactorAuthenticationControllerTest extends TestCase
     }
 
     #[DefineEnvironment('withConfirmedTwoFactorAuthentication')]
-    #[ResetRefreshDatabaseState]
     public function testTwoFactorAuthenticationCanNotBeConfirmedWithInvalidCode(): void
     {
         Event::fake();

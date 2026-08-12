@@ -11,9 +11,11 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Database\Eloquent\Collection as ModelCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Notifications\Events\NotificationDelivered;
 use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
@@ -41,7 +43,7 @@ class NotificationSender
      * listener would leak into the persistent $listeners array. The boot-time listener
      * marks an active attempt when its channel dispatches NotificationFailed before throwing.
      */
-    public const FAILED_EVENT_DISPATCHED_CONTEXT_KEY = '__notifications.failed_dispatched';
+    public const string FAILED_EVENT_DISPATCHED_CONTEXT_KEY = '__notifications.failed_dispatched';
 
     /**
      * Create a new notification sender instance.
@@ -116,15 +118,16 @@ class NotificationSender
             $notification->id = $id;
         }
 
-        if (! $this->shouldSendNotification($notifiable, $notification, $channel)) {
-            return;
-        }
-
         $previousFailureState = CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY);
         CoroutineContext::set(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY, false);
+        $response = null;
 
         try {
-            $response = $this->manager->driver($channel)->send($notifiable, $notification);
+            $shouldSend = $this->shouldSendNotification($notifiable, $notification, $channel);
+
+            if ($shouldSend) {
+                $response = $this->manager->driver($channel)->send($notifiable, $notification);
+            }
         } catch (Throwable $exception) {
             if (CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY) !== true) {
                 if ($exception instanceof HttpTransportException) {
@@ -148,6 +151,22 @@ class NotificationSender
                     $previousFailureState,
                 );
             }
+        }
+
+        if (! $shouldSend) {
+            if ($this->events->hasListeners(NotificationSkipped::class)) {
+                $this->events->dispatch(
+                    new NotificationSkipped($notifiable, $notification, $channel)
+                );
+            }
+
+            return;
+        }
+
+        if ($this->events->hasListeners(NotificationDelivered::class)) {
+            $this->events->dispatch(
+                new NotificationDelivered($notifiable, $notification, $channel, $response)
+            );
         }
 
         if (method_exists($notification, 'afterSending')) {

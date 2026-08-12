@@ -4,22 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Exception;
 use Hypervel\Cache\Events\CacheEvent;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\ForgettingKey;
 use Hypervel\Cache\Events\KeyForgetFailed;
 use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\KeyWriteFailed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\ManyKeysRetrievalFailed;
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Session\Session;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
+use Hypervel\Sentry\Features\Concerns\ResolvesSessionKey;
 use Hypervel\Sentry\Features\Concerns\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Features\Concerns\WorksWithSpans;
 use Hypervel\Sentry\Integration;
@@ -33,6 +34,7 @@ class CacheFeature extends Feature
     use WorksWithSpans;
     use TracksPushedScopesAndSpans;
     use ResolvesEventOrigin;
+    use ResolvesSessionKey;
 
     /**
      * Indicates whether to attempt to detect the session key when running in the console.
@@ -43,7 +45,7 @@ class CacheFeature extends Feature
      */
     public bool $detectSessionKeyOnConsole = false;
 
-    private const FEATURE_KEY = 'cache';
+    private const string FEATURE_KEY = 'cache';
 
     public function isApplicable(): bool
     {
@@ -75,6 +77,8 @@ class CacheFeature extends Feature
                 RetrievingManyKeys::class,
                 CacheHit::class,
                 CacheMissed::class,
+                KeyRetrievalFailed::class,
+                ManyKeysRetrievalFailed::class,
 
                 WritingKey::class,
                 WritingManyKeys::class,
@@ -129,11 +133,8 @@ class CacheFeature extends Feature
 
         $this->withParentSpanIfSampled(function (Span $parentSpan) use ($event) {
             if ($event instanceof RetrievingKey || $event instanceof RetrievingManyKeys) {
-                $keys = $this->normalizeKeyOrKeys(
-                    $event instanceof RetrievingKey
-                        ? [$event->key]
-                        : $event->keys
-                );
+                // Hypervel cache events contain resolved string keys, so upstream normalization is unnecessary.
+                $keys = $event instanceof RetrievingKey ? [$event->key] : $event->keys;
 
                 $displayKeys = $this->replaceSessionKeys($keys);
 
@@ -151,11 +152,7 @@ class CacheFeature extends Feature
             }
 
             if ($event instanceof WritingKey || $event instanceof WritingManyKeys) {
-                $keys = $this->normalizeKeyOrKeys(
-                    $event instanceof WritingKey
-                        ? [$event->key]
-                        : $event->keys
-                );
+                $keys = $event instanceof WritingKey ? [$event->key] : $event->keys;
 
                 $displayKeys = $this->replaceSessionKeys($keys);
 
@@ -194,10 +191,18 @@ class CacheFeature extends Feature
     protected function maybeHandleCacheEventAsEndOfSpan(CacheEvent $event): bool
     {
         // End of span for RetrievingKey and RetrievingManyKeys events
-        if ($event instanceof CacheHit || $event instanceof CacheMissed) {
-            $finishedSpan = $this->maybeFinishSpan(SpanStatus::ok());
+        if ($event instanceof CacheHit
+            || $event instanceof CacheMissed
+            || $event instanceof KeyRetrievalFailed
+            || $event instanceof ManyKeysRetrievalFailed) {
+            $failed = $event instanceof KeyRetrievalFailed || $event instanceof ManyKeysRetrievalFailed;
+            $finishedSpan = $this->maybeFinishSpan(
+                $failed ? SpanStatus::internalError() : SpanStatus::ok()
+            );
 
-            if ($finishedSpan !== null && count($finishedSpan->getData()['cache.key'] ?? []) === 1) {
+            if (! $failed
+                && $finishedSpan !== null
+                && count($finishedSpan->getData()['cache.key'] ?? []) === 1) {
                 $finishedSpan->setData([
                     'cache.hit' => $event instanceof CacheHit,
                 ]);
@@ -221,87 +226,13 @@ class CacheFeature extends Feature
 
         // End of span for ForgettingKey event
         if ($event instanceof KeyForgotten || $event instanceof KeyForgetFailed) {
-            $this->maybeFinishSpan();
+            $this->maybeFinishSpan(
+                $event instanceof KeyForgotten ? SpanStatus::ok() : SpanStatus::internalError()
+            );
 
             return true;
         }
 
         return false;
-    }
-
-    /**
-     * Retrieve the current session key if available.
-     */
-    private function getSessionKey(): ?string
-    {
-        try {
-            // Skip session resolution in the console to avoid unnecessary database connections
-            // (e.g. when using a database session driver during `artisan cache:clear`)
-            if (! $this->detectSessionKeyOnConsole && app()->runningInConsole()) {
-                return null;
-            }
-
-            /** @var Session $sessionStore */
-            $sessionStore = $this->container->make('session.store');
-
-            // It is safe for us to get the session ID here without checking if the session is started
-            // because getting the session ID does not start the session. In addition we need the ID before
-            // the session is started because the cache will retrieve the session ID from the cache before the session
-            // is considered started. So if we wait for the session to be started, we will not be able to replace the
-            // session key in the cache operation that is being executed to retrieve the session data from the cache.
-            return $sessionStore->getId();
-        } catch (Exception) {
-            // We can assume the session store is not available here so there is no session key to retrieve
-            // We capture a generic exception to avoid breaking the application because some code paths can
-            // result in an exception other than the expected `Hypervel\Contracts\Container\BindingResolutionException`
-            return null;
-        }
-    }
-
-    /**
-     * Replace a session key with a placeholder.
-     */
-    private function replaceSessionKey(?string $value): string
-    {
-        if (! is_string($value)) {
-            return '{empty key}';
-        }
-
-        return $value === $this->getSessionKey() ? '{sessionKey}' : $value;
-    }
-
-    /**
-     * Replace session keys in an array of keys with placeholders.
-     *
-     * @param string[] $values
-     *
-     * @return mixed[]
-     */
-    private function replaceSessionKeys(array $values): array
-    {
-        $sessionKey = $this->getSessionKey();
-
-        return array_map(static function ($value) use ($sessionKey) {
-            // @phpstan-ignore function.alreadyNarrowedType (defensive: event data may contain non-strings)
-            return is_string($value) && $value === $sessionKey ? '{sessionKey}' : $value;
-        }, $values);
-    }
-
-    /**
-     * Normalize the array of keys to a array of only strings.
-     *
-     * @param array<array-key, mixed>|string|string[] $keyOrKeys
-     *
-     * @return string[]
-     */
-    private function normalizeKeyOrKeys(array|string $keyOrKeys): array
-    {
-        if (is_string($keyOrKeys)) {
-            return [$keyOrKeys];
-        }
-
-        return collect($keyOrKeys)->map(function ($value, $key) {
-            return is_string($key) ? $key : $value;
-        })->values()->all();
     }
 }

@@ -10,8 +10,10 @@ use Countable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Testing\Assert as PHPUnit;
+use JsonException;
 use JsonSerializable;
 
 use function data_get;
@@ -27,7 +29,7 @@ class AssertableJsonString implements ArrayAccess, Countable
     /**
      * The decoded json contents.
      */
-    protected ?array $decoded = null;
+    protected mixed $decoded = null;
 
     /**
      * Create a new assertable JSON string instance.
@@ -38,12 +40,16 @@ class AssertableJsonString implements ArrayAccess, Countable
 
         if ($jsonable instanceof JsonSerializable) {
             $this->decoded = $jsonable->jsonSerialize();
-        } elseif ($jsonable instanceof Jsonable) {
-            $this->decoded = json_decode($jsonable->toJson(), true);
         } elseif (is_array($jsonable)) {
             $this->decoded = $jsonable;
         } else {
-            $this->decoded = json_decode($jsonable, true);
+            $json = $jsonable instanceof Jsonable ? $jsonable->toJson() : $jsonable;
+
+            try {
+                $this->decoded = Json::decode($json);
+            } catch (JsonException) {
+                $this->decoded = null;
+            }
         }
     }
 

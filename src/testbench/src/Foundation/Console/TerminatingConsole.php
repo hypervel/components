@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Foundation\Console;
 
-use Hypervel\Support\Collection;
+use Throwable;
 
 /**
  * @internal
@@ -45,12 +45,23 @@ final class TerminatingConsole
      */
     public static function handle(): void
     {
-        (new Collection(self::$beforeTerminatingCallbacks))
-            ->each(static function ($callback) {
-                call_user_func($callback);
-            });
+        $callbacks = self::$beforeTerminatingCallbacks;
+        self::$beforeTerminatingCallbacks = [];
+        $failure = null;
+
+        foreach ($callbacks as $callback) {
+            try {
+                $callback();
+            } catch (Throwable $throwable) {
+                $failure ??= $throwable;
+            }
+        }
 
         self::flush();
+
+        if ($failure !== null) {
+            throw $failure;
+        }
     }
 
     /**

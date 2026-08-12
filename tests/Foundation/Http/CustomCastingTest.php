@@ -12,13 +12,18 @@ use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
 use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Routing\Redirector;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rule;
+use Hypervel\Validation\ValidationException;
+use JsonException;
+use stdClass;
 
 class CustomCastingTest extends TestCase
 {
@@ -185,12 +190,13 @@ class CustomCastingTest extends TestCase
     /**
      * Test primitive type casting - array.
      */
-    public function testPrimitiveArrayCasting()
+    public function testPrimitiveArrayCasting(): void
     {
         $request = PrimitiveCastingRequest::create('/', 'POST', ['tags' => '["tag1","tag2"]']);
         $request->setContainer($this->app);
+        $request->validateResolved();
 
-        $tags = $request->casted('tags', false);
+        $tags = $request->casted('tags');
         $this->assertIsArray($tags);
         $this->assertSame(['tag1', 'tag2'], $tags);
     }
@@ -198,14 +204,83 @@ class CustomCastingTest extends TestCase
     /**
      * Test primitive type casting - collection.
      */
-    public function testPrimitiveCollectionCasting()
+    public function testPrimitiveCollectionCasting(): void
     {
-        $request = PrimitiveCastingRequest::create('/', 'POST', ['items' => json_encode(['item1', 'item2'])]);
+        $request = PrimitiveCastingRequest::create('/', 'POST', ['items' => '["item1","item2"]']);
         $request->setContainer($this->app);
+        $request->validateResolved();
 
-        $items = $request->casted('items', false);
+        $items = $request->casted('items');
         $this->assertInstanceOf(Collection::class, $items);
         $this->assertSame(['item1', 'item2'], $items->all());
+    }
+
+    public function testPrimitiveJsonCastsUseValidatedJsonStringsAtTheSupportNestingLimit(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $json = Json::encode($value);
+        $request = PrimitiveCastingRequest::create('/', 'POST', [
+            'tags' => $json,
+            'items' => $json,
+            'metadata' => $json,
+            'settings' => $json,
+        ]);
+        $request->setContainer($this->app);
+        $request->validateResolved();
+
+        $this->assertSame($value, $request->casted('tags'));
+        $this->assertSame($value, $request->casted('metadata'));
+        $this->assertSame($value, $request->casted('items')->all());
+        $settings = $request->casted('settings');
+        $this->assertInstanceOf(stdClass::class, $settings);
+        $this->assertEquals(Json::decode($json, assoc: false), $settings);
+    }
+
+    public function testPrimitiveJsonCastsRejectMalformedEmptyAndOverDepthRawInput(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $overDepth = json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1);
+
+        foreach (['{invalid', '', $overDepth] as $json) {
+            foreach (['tags', 'items', 'settings'] as $key) {
+                $request = PrimitiveCastingRequest::create('/', 'POST', [$key => $json]);
+                $request->setContainer($this->app);
+
+                $this->assertThrows(
+                    fn () => $request->casted($key, false),
+                    JsonException::class,
+                );
+            }
+        }
+    }
+
+    public function testValidatedJsonCastsRejectOneLevelOverTheSupportNestingLimit(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $request = PrimitiveCastingRequest::create('/', 'POST', [
+            'tags' => json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1),
+        ]);
+        $request->setContainer($this->app)
+            ->setRedirector($this->app->make(Redirector::class));
+
+        $this->expectException(ValidationException::class);
+
+        $request->validateResolved();
     }
 
     /**
@@ -455,6 +530,8 @@ class PrimitiveCastingRequest extends FormRequest
         'is_active' => 'bool',
         'tags' => 'array',
         'items' => 'collection',
+        'metadata' => 'json',
+        'settings' => 'object',
     ];
 
     public function rules(): array
@@ -463,8 +540,10 @@ class PrimitiveCastingRequest extends FormRequest
             'age' => 'numeric',
             'price' => 'numeric',
             'is_active' => 'boolean',
-            'tags' => 'string',
-            'items' => 'array',
+            'tags' => 'json',
+            'items' => 'json',
+            'metadata' => 'json',
+            'settings' => 'json',
         ];
     }
 }

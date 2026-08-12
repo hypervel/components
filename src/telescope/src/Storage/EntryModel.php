@@ -21,10 +21,8 @@ class EntryModel extends Model
 
     /**
      * The name of the "updated at" column.
-     *
-     * @var null|string
      */
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     /**
      * The attributes that should be cast to native types.
@@ -55,6 +53,7 @@ class EntryModel extends Model
     {
         $this->whereType($query, $type)
             ->whereBatchId($query, $options)
+            ->whereUuids($query, $options)
             ->whereTag($query, $options)
             ->whereFamilyHash($query, $options)
             ->whereBeforeSequence($query, $options)
@@ -88,30 +87,38 @@ class EntryModel extends Model
     }
 
     /**
-     * Scope the query for the given type.
+     * Scope the query for the given entry UUIDs.
      */
-    protected function whereTag(Builder $query, EntryQueryOptions $options): static
+    protected function whereUuids(Builder $query, EntryQueryOptions $options): static
     {
-        $query->when($options->tag, function ($query, $tag) {
-            $tags = Collection::make(explode(',', $tag))->map(fn ($tag) => trim($tag));
-
-            if ($tags->isEmpty()) {
-                return $query;
-            }
-
-            return $query->whereIn('uuid', function ($query) use ($tags) {
-                $query->select('entry_uuid')->from('telescope_entries_tags')
-                    ->whereIn('entry_uuid', function ($query) use ($tags) {
-                        $query->select('entry_uuid')->from('telescope_entries_tags')->whereIn('tag', $tags->all());
-                    });
-            });
-        });
+        if ($options->uuids !== null) {
+            $query->whereIn('uuid', $options->uuids);
+        }
 
         return $this;
     }
 
     /**
-     * Scope the query for the given type.
+     * Scope the query for the given tag.
+     */
+    protected function whereTag(Builder $query, EntryQueryOptions $options): static
+    {
+        if ($options->tag !== null) {
+            $tags = Collection::make(explode(',', $options->tag))->map(fn ($tag) => trim($tag));
+
+            $query->whereIn('uuid', function ($query) use ($tags) {
+                $query->select('entry_uuid')->from('telescope_entries_tags')
+                    ->whereIn('entry_uuid', function ($query) use ($tags) {
+                        $query->select('entry_uuid')->from('telescope_entries_tags')->whereIn('tag', $tags->all());
+                    });
+            });
+        }
+
+        return $this;
+    }
+
+    /**
+     * Scope the query for the given family hash.
      */
     protected function whereFamilyHash(Builder $query, EntryQueryOptions $options): static
     {
@@ -127,9 +134,9 @@ class EntryModel extends Model
      */
     protected function whereBeforeSequence(Builder $query, EntryQueryOptions $options): static
     {
-        $query->when($options->beforeSequence, function ($query, $beforeSequence) {
-            return $query->where('sequence', '<', $beforeSequence);
-        });
+        if ($options->beforeSequence !== null) {
+            $query->where('sequence', '<', $options->beforeSequence);
+        }
 
         return $this;
     }
@@ -139,7 +146,7 @@ class EntryModel extends Model
      */
     protected function filter(Builder $query, EntryQueryOptions $options): static
     {
-        if ($options->familyHash || $options->tag || $options->batchId) {
+        if ($options->familyHash || $options->tag !== null || $options->batchId) {
             return $this;
         }
 

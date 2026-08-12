@@ -34,7 +34,7 @@ class ExternalServiceOptInTest extends TestCase
      *
      * @var list<string>
      */
-    private const ENVIRONMENT_KEYS = [
+    private const array ENVIRONMENT_KEYS = [
         'REDIS_HOST',
         'MEILISEARCH_HOST',
         'TYPESENSE_HOST',

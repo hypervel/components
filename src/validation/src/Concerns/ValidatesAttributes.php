@@ -24,6 +24,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Validation\Enums\SizeMode;
 use Hypervel\Validation\FakeDnsGetRecordWrapper;
@@ -1524,14 +1525,7 @@ trait ValidatesAttributes
             return false;
         }
 
-        $value = (string) $value;
-        if (function_exists('json_validate')) {
-            return json_validate($value);
-        }
-
-        json_decode($value);
-
-        return json_last_error() === JSON_ERROR_NONE;
+        return Json::validate((string) $value);
     }
 
     /**

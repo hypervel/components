@@ -8,9 +8,9 @@ use InvalidArgumentException;
 
 class Base62
 {
-    public const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    public const string CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 
-    public const BASE = 62;
+    public const int BASE = 62;
 
     /**
      * Encode the given number to a base62 string.

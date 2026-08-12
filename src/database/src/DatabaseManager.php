@@ -41,7 +41,7 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Context key for query duration handlers that have run in the current coroutine.
      */
-    public const QUERY_DURATION_HANDLERS_CONTEXT_KEY = '__database.query_duration_handlers';
+    public const string QUERY_DURATION_HANDLERS_CONTEXT_KEY = '__database.query_duration_handlers';
 
     /**
      * The active connection instances.

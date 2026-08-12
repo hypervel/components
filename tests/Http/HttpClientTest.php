@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
+use Closure;
 use Exception;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
@@ -39,6 +40,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
+use Hypervel\Support\Json;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -46,6 +48,7 @@ use Hypervel\Support\Uri;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JsonException;
 use JsonSerializable;
 use Mockery as m;
 use OutOfBoundsException;
@@ -53,6 +56,7 @@ use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\VarDumper\VarDumper;
@@ -752,6 +756,7 @@ class HttpClientTest extends TestCase
 
         $fakeRequest = function (Request $request) use ($body) {
             self::assertSame($body, $request->body());
+            self::assertSame(['test' => 'phpunit'], $request->data());
             self::assertContains('application/json', $request->header('Content-Type'));
 
             return Factory::response(['my' => 'response']);
@@ -760,6 +765,30 @@ class HttpClientTest extends TestCase
         $this->factory->fake($fakeRequest);
 
         $this->factory->withBody($body)->send('get', 'http://foo.com/api');
+    }
+
+    public function testRawRequestBodyDoesNotPublishStructuredDataOption(): void
+    {
+        $hasStructuredDataOptions = [];
+        $this->factory->fake();
+
+        $captureOptions = function (callable $handler) use (&$hasStructuredDataOptions): callable {
+            return function (RequestInterface $request, array $options) use ($handler, &$hasStructuredDataOptions): PromiseInterface {
+                $hasStructuredDataOptions[] = array_key_exists('hypervel_data', $options);
+
+                return $handler($request, $options);
+            };
+        };
+
+        $this->factory
+            ->withMiddleware($captureOptions)
+            ->withBody('{"name":"Taylor"}')
+            ->post('https://example.test/raw');
+        $this->factory
+            ->withMiddleware($captureOptions)
+            ->send('POST', 'https://example.test/raw-option', ['body' => '<name>Taylor</name>']);
+
+        $this->assertSame([false, false], $hasStructuredDataOptions);
     }
 
     public function testSendRequestBodyWithStringable(): void
@@ -946,6 +975,33 @@ class HttpClientTest extends TestCase
         });
     }
 
+    #[DataProvider('bodylessFormRequestProvider')]
+    public function testBodylessFormRequestsIgnoreTheMissingFormPayload(
+        string $method,
+        array $arguments,
+        string $expectedUrl,
+        array $expectedData,
+    ): void {
+        $this->factory->fake();
+
+        $this->factory->asForm()->{$method}(...$arguments);
+
+        $this->factory->assertSent(function (Request $request) use ($expectedUrl, $expectedData) {
+            return $request->url() === $expectedUrl
+                && $request->data() === $expectedData;
+        });
+    }
+
+    public static function bodylessFormRequestProvider(): array
+    {
+        return [
+            'GET' => ['get', ['http://foo.com/get'], 'http://foo.com/get', []],
+            'GET with query' => ['get', ['http://foo.com/get', ['foo' => 'bar']], 'http://foo.com/get?foo=bar', ['foo' => 'bar']],
+            'HEAD' => ['head', ['http://foo.com/head'], 'http://foo.com/head', []],
+            'DELETE' => ['delete', ['http://foo.com/delete'], 'http://foo.com/delete', []],
+        ];
+    }
+
     public function testFormParamsNormalizeNonFiniteFloats(): void
     {
         $this->factory->fake();
@@ -999,6 +1055,70 @@ class HttpClientTest extends TestCase
             return $request->url() === 'http://foo.com/form'
                 && $request->body() === 'payload%5Bname%5D=Taylor';
         });
+    }
+
+    public function testCanSendNestedJsonSerializableFormData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asForm()->post('http://foo.com/form', [
+            'payload' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return ['name' => 'Taylor'];
+                }
+            },
+        ]);
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->body() === 'payload%5Bname%5D=Taylor'
+                && $request['payload']['name'] === 'Taylor';
+        });
+    }
+
+    public function testCanSendTopLevelJsonSerializableFormData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asForm()->post('http://foo.com/form', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return ['name' => 'Taylor'];
+            }
+        });
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->body() === 'name=Taylor'
+                && $request['name'] === 'Taylor';
+        });
+    }
+
+    #[DataProvider('invalidJsonSerializableFormDataProvider')]
+    public function testFormDataRejectsInvalidJsonSerializableValues(?string $serialized): void
+    {
+        $this->factory->fake();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTTP form data must resolve to an array.');
+
+        $this->factory->asForm()->post('http://foo.com/form', new class($serialized) implements JsonSerializable {
+            public function __construct(private ?string $serialized)
+            {
+            }
+
+            public function jsonSerialize(): mixed
+            {
+                return $this->serialized;
+            }
+        });
+    }
+
+    public static function invalidJsonSerializableFormDataProvider(): array
+    {
+        return [
+            'scalar' => ['name=Taylor'],
+            'null' => [null],
+        ];
     }
 
     #[DataProvider('methodsReceivingArrayableDataProvider')]
@@ -1067,6 +1187,27 @@ class HttpClientTest extends TestCase
             'post' => ['post'],
             'delete' => ['delete'],
         ];
+    }
+
+    public function testStructuredJsonValuesMatchTheTransmittedBody(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->post('http://foo.com/json', [
+            'serialized' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return 'json-value';
+                }
+            },
+            'arrayable' => new Fluent(['name' => 'Taylor']),
+        ]);
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->body() === '{"serialized":"json-value","arrayable":{"name":"Taylor"}}'
+                && $request['serialized'] === 'json-value'
+                && $request['arrayable'] === ['name' => 'Taylor'];
+        });
     }
 
     public function testCanSendJsonDataWithStringable()
@@ -1188,6 +1329,146 @@ class HttpClientTest extends TestCase
                 && $request->header('Content-Type') === ['application/json']
                 && $request->isJson();
         });
+    }
+
+    public function testRequestMediaTypesIgnoreCaseAndParameters(): void
+    {
+        $json = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'Application/Problem+JSON; Charset=UTF-8'],
+            '{"name":"Taylor"}',
+        ));
+        $form = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'Application/X-WWW-Form-Urlencoded; Charset=UTF-8'],
+            'name=Taylor',
+        ));
+
+        $this->assertTrue($json->isJson());
+        $this->assertSame(['name' => 'Taylor'], $json->data());
+        $this->assertTrue($form->isForm());
+        $this->assertSame(['name' => 'Taylor'], $form->data());
+    }
+
+    public function testRequestDataRejectsScalarJsonWithADescriptiveException(): void
+    {
+        $request = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'application/json'],
+            '1',
+        ));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The request JSON body must decode to an array.');
+
+        $request->data();
+    }
+
+    public function testRequestDataPreservesMalformedJsonDiagnostics(): void
+    {
+        $request = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'application/json'],
+            '{invalid',
+        ));
+
+        $this->expectException(JsonException::class);
+
+        $request->data();
+    }
+
+    public function testRequestDataReadsTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $request = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'application/json'],
+            Json::encode(['nested' => $value]),
+        ));
+
+        $this->assertSame(['nested' => $value], $request->data());
+    }
+
+    public function testRequestDataRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $request = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'application/json'],
+            json_encode(['nested' => $value], JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1),
+        ));
+
+        $this->expectException(JsonException::class);
+
+        $request->data();
+    }
+
+    #[DataProvider('emptyJsonReadMethodProvider')]
+    public function testJsonReadRequestsWithoutABodyHaveEmptyData(string $method): void
+    {
+        $observedData = null;
+        $this->factory->fake(function (Request $request) use (&$observedData) {
+            $observedData = $request->data();
+
+            return Factory::response();
+        });
+
+        $this->factory->asJson()->{$method}('https://example.test');
+
+        $this->assertSame([], $observedData);
+    }
+
+    public static function emptyJsonReadMethodProvider(): array
+    {
+        return [
+            'GET' => ['get'],
+            'HEAD' => ['head'],
+        ];
+    }
+
+    public function testEmptyRequestDataIsDecodedOnlyOnce(): void
+    {
+        $body = m::mock(StreamInterface::class);
+        $body->shouldReceive('__toString')->once()->andReturn('[]');
+        $request = new Request(new GuzzleRequest(
+            'POST',
+            'https://example.test',
+            ['Content-Type' => 'application/json'],
+            $body,
+        ));
+
+        $this->assertSame([], $request->data());
+        $this->assertSame([], $request->data());
+    }
+
+    public function testRequestMutationPreservesSubtypeAndNumericQueryKeys(): void
+    {
+        $request = new class(new GuzzleRequest('GET', 'https://example.test?0=zero&2=two&cursor=next')) extends Request {
+        };
+
+        $this->assertSame($request, $request->withData([]));
+        $this->assertSame($request, $request->withQuery([5 => 'five']));
+        $this->assertSame('0=zero&2=two&cursor=next&5=five', $request->toPsrRequest()->getUri()->getQuery());
+        $this->assertSame($request, $request->withoutQuery('cursor'));
+        $this->assertSame('0=zero&2=two&5=five', $request->toPsrRequest()->getUri()->getQuery());
+        $this->assertSame($request, $request->withoutQuery([2]));
+        $this->assertSame('0=zero&5=five', $request->toPsrRequest()->getUri()->getQuery());
     }
 
     public function testHeaderValuesProvidedThroughOptionsAreSerialized(): void
@@ -1478,6 +1759,78 @@ class HttpClientTest extends TestCase
                 && Str::startsWith($request->header('Content-Type')[0], 'multipart')
                 && $request[0]['name'] === 'foo'
                 && $request[0]['contents'] === 'bar';
+        });
+    }
+
+    #[DataProvider('structuredMultipartDataProvider')]
+    public function testCanSendStructuredMultipartData(Arrayable|JsonSerializable $data): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', $data);
+
+        $this->factory->assertSent(function (Request $request) {
+            return str_contains($request->body(), 'name="name"')
+                && $request[0]['name'] === 'name'
+                && $request[0]['contents'] === 'Taylor';
+        });
+    }
+
+    public static function structuredMultipartDataProvider(): array
+    {
+        return [
+            'Arrayable' => [new Fluent(['name' => 'Taylor'])],
+            'JsonSerializable' => [new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return ['name' => 'Taylor'];
+                }
+            }],
+        ];
+    }
+
+    public function testMultipartDataRejectsAJsonSerializableScalar(): void
+    {
+        $this->factory->fake();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTTP multipart data must resolve to an array.');
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return 'name=Taylor';
+            }
+        });
+    }
+
+    public function testCanSendNestedJsonSerializableMultipartData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->post('http://foo.com/multipart', [
+            'meta' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return ['name' => 'Taylor'];
+                }
+            },
+            [
+                'name' => 'fields',
+                'contents' => new class implements JsonSerializable {
+                    public function jsonSerialize(): mixed
+                    {
+                        return ['role' => 'admin'];
+                    }
+                },
+            ],
+        ]);
+
+        $this->factory->assertSent(function (Request $request) {
+            return str_contains($request->body(), 'name="meta[name]"')
+                && str_contains($request->body(), 'name="fields[role]"')
+                && $request[0]['contents'] === ['name' => 'Taylor']
+                && $request[1]['contents'] === ['role' => 'admin'];
         });
     }
 
@@ -1806,6 +2159,25 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testWithQueryParametersNormalizesNestedJsonSerializableValues(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withQueryParameters([
+            'filter' => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    return 'active';
+                }
+            },
+        ])->get('https://laravel.com');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'https://laravel.com?filter=active'
+                && $request->query() === ['filter' => 'active'];
+        });
+    }
+
     public function testGetWithArrayQueryParam()
     {
         $this->factory->fake();
@@ -1851,11 +2223,103 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testGetRecursivelyNormalizesJsonSerializableQueryData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('http://foo.com/get', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return [
+                    'payload' => new class implements JsonSerializable {
+                        public function jsonSerialize(): mixed
+                        {
+                            return ['name' => 'Taylor'];
+                        }
+                    },
+                ];
+            }
+        });
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/get?payload%5Bname%5D=Taylor'
+                && $request['payload']['name'] === 'Taylor';
+        });
+    }
+
+    public function testHeadRecursivelyNormalizesJsonSerializableQueryData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->head('http://foo.com/head', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return [
+                    'payload' => new class implements JsonSerializable {
+                        public function jsonSerialize(): mixed
+                        {
+                            return ['name' => 'Taylor'];
+                        }
+                    },
+                ];
+            }
+        });
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/head?payload%5Bname%5D=Taylor'
+                && $request['payload']['name'] === 'Taylor';
+        });
+    }
+
+    public function testGetAcceptsAStringFromJsonSerializableQueryData(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('http://foo.com/get', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return 'name=Taylor';
+            }
+        });
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/get?name=Taylor'
+                && $request['name'] === 'Taylor';
+        });
+    }
+
+    public function testGetRejectsInvalidJsonSerializableQueryData(): void
+    {
+        $this->factory->fake();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('HTTP query data must resolve to an array, string, or null.');
+
+        $this->factory->get('http://foo.com/get', new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                return 123;
+            }
+        });
+    }
+
     public function testGetWithStringQueryParam()
     {
         $this->factory->fake();
 
         $this->factory->get('http://foo.com/get', 'foo=bar');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/get?foo=bar'
+                && $request['foo'] === 'bar';
+        });
+    }
+
+    public function testMultipartGetWithStringQueryParam(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->get('http://foo.com/get', 'foo=bar');
 
         $this->factory->assertSent(function (Request $request) {
             return $request->url() === 'http://foo.com/get?foo=bar'
@@ -1871,6 +2335,32 @@ class HttpClientTest extends TestCase
 
         $this->factory->assertSent(function (Request $request) {
             return $request->url() === 'http://foo.com/get?foo=bar&page=1'
+                && $request['foo'] === 'bar'
+                && $request['page'] === '1';
+        });
+    }
+
+    public function testMultipartGetWithUrlQuery(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->asMultipart()->get('http://foo.com/get?foo=bar&page=1');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/get?foo=bar&page=1'
+                && $request['foo'] === 'bar'
+                && $request['page'] === '1';
+        });
+    }
+
+    public function testHeadWithUrlQuery(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->head('http://foo.com/head?foo=bar&page=1');
+
+        $this->factory->assertSent(function (Request $request) {
+            return $request->url() === 'http://foo.com/head?foo=bar&page=1'
                 && $request['foo'] === 'bar'
                 && $request['page'] === '1';
         });
@@ -3555,13 +4045,219 @@ class HttpClientTest extends TestCase
             Middleware::mapRequest(fn (RequestInterface $request) => $request->withHeader('X-Test-Header', 'Test'))
         );
 
-        $pendingRequest->post('https://laravel.example', ['laravel' => 'framework']);
+        $pendingRequest->post('https://laravel.example', [
+            'laravel' => 'framework',
+            'whole_number_float' => 1.0,
+        ]);
 
         $this->factory->assertSent(function (Request $request) {
             return
                 $request->url() === 'https://laravel.example'
-                && $request->hasHeader('X-Test-Header', 'Test');
+                && $request->hasHeader('X-Test-Header', 'Test')
+                && $request->data() === [
+                    'laravel' => 'framework',
+                    'whole_number_float' => 1.0,
+                ];
         });
+    }
+
+    public function testBeforeSendingBodyReplacementInvalidatesLogicalRequestData(): void
+    {
+        $laterCallbackData = null;
+        $stubData = null;
+        $replacement = ['replaced' => true];
+
+        $this->factory->fake(function (Request $request) use (&$stubData) {
+            $stubData = $request->data();
+
+            return $this->factory->response();
+        });
+
+        $this->factory
+            ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withBody(
+                Utils::streamFor('{"replaced":true}')
+            ))
+            ->beforeSending(function (Request $request) use (&$laterCallbackData): void {
+                $laterCallbackData = $request->data();
+            })
+            ->post('https://example.test', ['original' => true]);
+
+        $this->assertSame($replacement, $laterCallbackData);
+        $this->assertSame($replacement, $stubData);
+        $this->factory->assertSent(fn (Request $request) => $request->data() === $replacement
+            && $request->body() === '{"replaced":true}');
+    }
+
+    public function testPreparedBodyTrackingIsGatedAndHiddenFromBeforeSendingCallbacks(): void
+    {
+        $withoutMiddleware = new PreparedBodyTrackingPendingRequest($this->factory);
+        $withoutMiddleware->buildHandlerStack();
+
+        $this->assertSame(0, $withoutMiddleware->preparedBodyHandlerBuilds);
+
+        $middlewareOptions = null;
+        $callbackOptions = null;
+
+        $withMiddleware = new PreparedBodyTrackingPendingRequest($this->factory);
+        $withMiddleware
+            ->stub(fn () => Factory::response())
+            ->withMiddleware(function (callable $handler) use (&$middlewareOptions): callable {
+                return function (RequestInterface $request, array $options) use ($handler, &$middlewareOptions): PromiseInterface {
+                    $middlewareOptions = $options;
+
+                    return $handler($request, $options);
+                };
+            })
+            ->beforeSending(function (Request $request, array $options) use (&$callbackOptions): void {
+                $callbackOptions = $options;
+            })
+            ->post('https://example.test', ['original' => true]);
+
+        $this->assertSame(1, $withMiddleware->preparedBodyHandlerBuilds);
+        $this->assertArrayHasKey('hypervel_prepared_body', $middlewareOptions);
+        $this->assertArrayNotHasKey('hypervel_prepared_body', $callbackOptions);
+    }
+
+    public function testBeforeSendingHeaderChangePreservesExactLogicalRequestData(): void
+    {
+        $payload = [
+            'whole_number_float' => 1.0,
+            'enabled' => true,
+        ];
+
+        $this->factory->fake();
+
+        $this->factory
+            ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withHeader('X-Test', 'yes'))
+            ->post('https://example.test', $payload);
+
+        $this->factory->assertSent(fn (Request $request) => $request->data() === $payload
+            && $request->hasHeader('X-Test', 'yes'));
+    }
+
+    public function testBeforeSendingHeaderChangePreservesExactLogicalFormData(): void
+    {
+        $payload = [
+            'count' => 1,
+            'enabled' => true,
+        ];
+
+        $this->factory->fake();
+
+        $this->factory
+            ->asForm()
+            ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withHeader('X-Test', 'yes'))
+            ->post('https://example.test', $payload);
+
+        $this->factory->assertSent(fn (Request $request) => $request->data() === $payload);
+    }
+
+    public function testRequestMiddlewareBodyReplacementInvalidatesLogicalRequestData(): void
+    {
+        $laterCallbackData = null;
+        $stubData = null;
+        $replacement = ['middleware' => true];
+
+        $this->factory->fake(function (Request $request) use (&$stubData) {
+            $stubData = $request->data();
+
+            return $this->factory->response();
+        });
+
+        $this->factory
+            ->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
+                Utils::streamFor('{"middleware":true}')
+            ))
+            ->beforeSending(function (Request $request) use (&$laterCallbackData): void {
+                $laterCallbackData = $request->data();
+            })
+            ->post('https://example.test', ['original' => true]);
+
+        $this->assertSame($replacement, $laterCallbackData);
+        $this->assertSame($replacement, $stubData);
+        $this->factory->assertSent(fn (Request $request) => $request->data() === $replacement
+            && $request->body() === '{"middleware":true}');
+    }
+
+    public function testGlobalRequestMiddlewareBodyReplacementInvalidatesLogicalRequestData(): void
+    {
+        $stubData = null;
+
+        $this->factory->fake(function (Request $request) use (&$stubData) {
+            $stubData = $request->data();
+
+            return $this->factory->response();
+        });
+        $this->factory->globalRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
+            Utils::streamFor('{"global":true}')
+        ));
+
+        $this->factory->post('https://example.test', ['original' => true]);
+
+        $this->assertSame(['global' => true], $stubData);
+        $this->factory->assertSent(fn (Request $request) => $request->data() === ['global' => true]);
+    }
+
+    public function testRequestMiddlewareBodyReplacementInvalidatesMultipartMetadata(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withBody(
+                Utils::streamFor('replacement')
+            ))
+            ->attach('photo', 'contents', 'photo.jpg')
+            ->post('https://example.test');
+
+        $this->factory->assertSent(fn (Request $request) => ! $request->hasFile('photo')
+            && $request->body() === 'replacement');
+    }
+
+    public function testRequestDataRejectsScalarJsonAfterBodyReplacement(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->beforeSending(fn (Request $request): RequestInterface => $request->toPsrRequest()->withBody(
+                Utils::streamFor('1')
+            ))
+            ->post('https://example.test', ['original' => true]);
+
+        /** @var Request $request */
+        $request = $this->factory->recorded()->first()[0];
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The request JSON body must decode to an array.');
+
+        $request->data();
+    }
+
+    public function testBodyReplacementInvalidationDoesNotLeakAcrossRetries(): void
+    {
+        $attempt = 0;
+        $payload = ['whole_number_float' => 1.0];
+
+        $this->factory->fake([
+            '*' => $this->factory->sequence()
+                ->push([], 500)
+                ->push([], 200),
+        ]);
+
+        $this->factory
+            ->beforeSending(function (Request $request) use (&$attempt): RequestInterface {
+                ++$attempt;
+
+                return $attempt === 1
+                    ? $request->toPsrRequest()->withBody(Utils::streamFor('{"first":true}'))
+                    : $request->toPsrRequest();
+            })
+            ->retry(2, 0)
+            ->post('https://example.test', $payload);
+
+        $recorded = $this->factory->recorded()->values();
+
+        $this->assertSame(['first' => true], $recorded[0][0]->data());
+        $this->assertSame($payload, $recorded[1][0]->data());
     }
 
     public function testSslCertificateErrorsConvertedToConnectionException(): void
@@ -5022,5 +5718,17 @@ class BodyTrackingResponse extends Response
         ++$this->bodyCallCount;
 
         return parent::body();
+    }
+}
+
+class PreparedBodyTrackingPendingRequest extends PendingRequest
+{
+    public int $preparedBodyHandlerBuilds = 0;
+
+    protected function buildPreparedBodyHandler(): Closure
+    {
+        ++$this->preparedBodyHandlerBuilds;
+
+        return parent::buildPreparedBodyHandler();
     }
 }

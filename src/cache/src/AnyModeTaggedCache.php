@@ -12,7 +12,9 @@ use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\ForgettingKey;
 use Hypervel\Cache\Events\KeyForgetFailed;
 use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\KeyRetrievalFailed;
 use Hypervel\Cache\Events\RetrievingKey;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -136,7 +138,16 @@ abstract class AnyModeTaggedCache extends TaggedCache
 
         $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
 
-        $value = $this->handleIncompleteClass($key, $this->store->get($key));
+        try {
+            $value = $this->handleIncompleteClass($key, $this->store->get($key));
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyRetrievalFailed::class,
+                fn (): KeyRetrievalFailed => new KeyRetrievalFailed($this->getName(), $key, $exception)
+            );
+
+            throw $exception;
+        }
 
         if (is_null($value)) {
             $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
@@ -167,7 +178,16 @@ abstract class AnyModeTaggedCache extends TaggedCache
 
         $this->event(ForgettingKey::class, fn (): ForgettingKey => new ForgettingKey($this->getName(), $key));
 
-        $result = $this->store->forget($key);
+        try {
+            $result = $this->store->forget($key);
+        } catch (Throwable $exception) {
+            $this->event(
+                KeyForgetFailed::class,
+                fn (): KeyForgetFailed => new KeyForgetFailed($this->getName(), $key)
+            );
+
+            throw $exception;
+        }
 
         if ($result) {
             $this->event(KeyForgotten::class, fn (): KeyForgotten => new KeyForgotten($this->getName(), $key));

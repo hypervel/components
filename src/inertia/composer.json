@@ -33,6 +33,11 @@
     },
     "require": {
         "php": "^8.4",
+        "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/promises": "^2.5.2",
+        "symfony/console": "^8.1",
+        "symfony/http-foundation": "^8.1",
+        "symfony/process": "^8.1",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
@@ -45,10 +50,7 @@
         "hypervel/session": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/testing": "^0.4",
-        "hypervel/view": "^0.4",
-        "symfony/console": "^8.1",
-        "symfony/http-foundation": "^8.1",
-        "symfony/process": "^8.1"
+        "hypervel/view": "^0.4"
     },
     "config": {
         "sort-packages": true

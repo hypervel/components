@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Notifications\Events\NotificationFailed;
+use Hypervel\Notifications\Events\NotificationSending;
+use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Sentry\Features\NotificationsFeature;
 use Hypervel\Support\Facades\Mail;
@@ -39,6 +42,36 @@ class NotificationsIntegrationTest extends SentryTestCase
         $this->assertEquals('mail', $span->getData()['channel']);
         $this->assertEquals('notification.send', $span->getOp());
         $this->assertEquals(SpanStatus::ok(), $span->getStatus());
+    }
+
+    public function testFailedNotificationFinishesItsSpanWithAnError(): void
+    {
+        $notification = new NotificationsIntegrationTestNotification;
+        $notification->id = 'notification-id';
+        $transaction = $this->startTransaction();
+
+        $this->dispatchHypervelEvent(new NotificationSending('notifiable', $notification, 'mail'));
+        $this->dispatchHypervelEvent(new NotificationFailed('notifiable', $notification, 'mail'));
+
+        $span = $transaction->getSpanRecorder()->getSpans()[1];
+
+        $this->assertNotNull($span->getEndTimestamp());
+        $this->assertSame(SpanStatus::internalError(), $span->getStatus());
+    }
+
+    public function testSkippedNotificationFinishesItsSpanSuccessfully(): void
+    {
+        $notification = new NotificationsIntegrationTestNotification;
+        $notification->id = 'notification-id';
+        $transaction = $this->startTransaction();
+
+        $this->dispatchHypervelEvent(new NotificationSending('notifiable', $notification, 'mail'));
+        $this->dispatchHypervelEvent(new NotificationSkipped('notifiable', $notification, 'mail'));
+
+        $span = $transaction->getSpanRecorder()->getSpans()[1];
+
+        $this->assertNotNull($span->getEndTimestamp());
+        $this->assertSame(SpanStatus::ok(), $span->getStatus());
     }
 
     public function testSpanIsNotRecordedWhenDisabled(): void

@@ -8,6 +8,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
+use InvalidArgumentException;
 use Symfony\Component\Yaml\Yaml;
 
 use function Hypervel\Testbench\join_paths;
@@ -76,7 +77,7 @@ use function Hypervel\Testbench\transform_relative_path;
  *   dont-discover: array<int, string>,
  *   bootstrappers: array<int, class-string>|class-string|null,
  *   migrations: array<int, string>|bool|string,
- *   seeders: array<int, class-string>|bool|class-string,
+ *   seeders: array<int, mixed>|bool|string,
  *   purge: TOptionalPurgeConfig,
  *   workbench: TOptionalWorkbenchConfig
  * }
@@ -87,7 +88,7 @@ use function Hypervel\Testbench\transform_relative_path;
  *   dont-discover?: array<int, string>,
  *   bootstrappers?: array<int, class-string>|class-string|null,
  *   migrations?: array<int, string>|bool|string,
- *   seeders?: array<int, class-string>|bool|class-string,
+ *   seeders?: array<int, mixed>|bool|string,
  *   purge?: TOptionalPurgeConfig|null,
  *   workbench?: TOptionalWorkbenchConfig|null
  * }
@@ -202,12 +203,20 @@ class Config extends Fluent implements ConfigContract
             ->first();
 
         if (! \is_null($filename)) {
+            $parsed = Yaml::parseFile($filename);
+
             /**
              * @var array<string, mixed> $config
              *
              * @phpstan-var TOptionalConfig $config
              */
-            $config = Yaml::parseFile($filename);
+            if ($parsed === null) {
+                $config = $defaults;
+            } elseif (! is_array($parsed) || ($parsed !== [] && array_is_list($parsed))) {
+                throw new InvalidArgumentException('The Testbench configuration root must be a mapping.');
+            } else {
+                $config = $parsed;
+            }
 
             $config['hypervel'] = transform(
                 Arr::get($config, 'hypervel'),
@@ -216,6 +225,14 @@ class Config extends Fluent implements ConfigContract
 
             if (isset($config['env']) && \is_array($config['env']) && Arr::isAssoc($config['env'])) { /* @phpstan-ignore booleanAnd.rightAlwaysTrue */
                 $config['env'] = parse_environment_variables($config['env']);
+            }
+        }
+
+        foreach (['purge', 'workbench'] as $key) {
+            $config[$key] ??= [];
+
+            if (! is_array($config[$key])) {
+                throw new InvalidArgumentException("The Testbench [{$key}] configuration must be a mapping.");
             }
         }
 

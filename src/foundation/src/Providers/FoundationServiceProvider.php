@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Providers;
 
 use Carbon\FactoryImmutable;
+use Hypervel\Concurrency\Console\InvokeSerializedClosureCommand;
 use Hypervel\Config\Repository;
 use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Scheduling\Schedule;
@@ -48,7 +49,6 @@ use Hypervel\Foundation\Console\EventListCommand;
 use Hypervel\Foundation\Console\EventMakeCommand;
 use Hypervel\Foundation\Console\ExceptionMakeCommand;
 use Hypervel\Foundation\Console\InterfaceMakeCommand;
-use Hypervel\Foundation\Console\InvokeSerializedClosureCommand;
 use Hypervel\Foundation\Console\JobMakeCommand;
 use Hypervel\Foundation\Console\JobMiddlewareMakeCommand;
 use Hypervel\Foundation\Console\LangPublishCommand;

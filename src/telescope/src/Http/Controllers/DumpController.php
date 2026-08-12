@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Http\Controllers;
 
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Http\Request;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
@@ -20,7 +20,7 @@ class DumpController extends EntryController
      * Create a new controller instance.
      */
     public function __construct(
-        protected CacheFactory $cache
+        protected Repository $cache
     ) {
     }
 
@@ -29,7 +29,6 @@ class DumpController extends EntryController
      */
     public function index(Request $request, EntriesRepository $storage): array
     {
-        /* @phpstan-ignore-next-line */
         $this->cache->put('telescope:dump-watcher', true, now()->addSeconds(4));
 
         return [
@@ -47,7 +46,6 @@ class DumpController extends EntryController
      */
     protected function status(): string
     {
-        /* @phpstan-ignore-next-line */
         if ($this->cache->getStore() instanceof ArrayStore) {
             return 'wrong-cache';
         }

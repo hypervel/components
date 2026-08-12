@@ -52,7 +52,7 @@ class LogManager implements LoggerInterface
     /**
      * Context key for shared log context across channels.
      */
-    protected const SHARED_CONTEXT_KEY = '__log.shared_context';
+    protected const string SHARED_CONTEXT_KEY = '__log.shared_context';
 
     /**
      * The array of resolved channels.

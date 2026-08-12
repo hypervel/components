@@ -29,21 +29,21 @@ use RuntimeException;
 
 class Fortify
 {
-    public const PASSWORD_UPDATED = 'password-updated';
+    public const string PASSWORD_UPDATED = 'password-updated';
 
-    public const PROFILE_INFORMATION_UPDATED = 'profile-information-updated';
+    public const string PROFILE_INFORMATION_UPDATED = 'profile-information-updated';
 
-    public const RECOVERY_CODES_GENERATED = 'recovery-codes-generated';
+    public const string RECOVERY_CODES_GENERATED = 'recovery-codes-generated';
 
-    public const TWO_FACTOR_AUTHENTICATION_CONFIRMED = 'two-factor-authentication-confirmed';
+    public const string TWO_FACTOR_AUTHENTICATION_CONFIRMED = 'two-factor-authentication-confirmed';
 
-    public const TWO_FACTOR_AUTHENTICATION_DISABLED = 'two-factor-authentication-disabled';
+    public const string TWO_FACTOR_AUTHENTICATION_DISABLED = 'two-factor-authentication-disabled';
 
-    public const TWO_FACTOR_AUTHENTICATION_ENABLED = 'two-factor-authentication-enabled';
+    public const string TWO_FACTOR_AUTHENTICATION_ENABLED = 'two-factor-authentication-enabled';
 
-    public const VERIFICATION_LINK_SENT = 'verification-link-sent';
+    public const string VERIFICATION_LINK_SENT = 'verification-link-sent';
 
-    private const DEFAULT_REGISTERS_ROUTES = true;
+    private const bool DEFAULT_REGISTERS_ROUTES = true;
 
     private static ?Closure $authenticateThroughCallback = null;
 

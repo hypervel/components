@@ -28,19 +28,19 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * The maximum SQS payload size in bytes (1 MB).
      */
-    public const MAX_SQS_PAYLOAD_SIZE = 1048576;
+    public const int MAX_SQS_PAYLOAD_SIZE = 1048576;
 
     /**
      * The maximum number of messages allowed per SendMessageBatch request.
      */
-    public const MAX_MESSAGES_PER_BATCH = 10;
+    public const int MAX_MESSAGES_PER_BATCH = 10;
 
     /**
      * The cache key prefix for extended SQS payloads.
      *
      * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
-    public const EXTENDED_PAYLOAD_CACHE_PREFIX = 'laravel:sqs-payloads:';
+    public const string EXTENDED_PAYLOAD_CACHE_PREFIX = 'laravel:sqs-payloads:';
 
     /**
      * The overflow storage options for large payload offloading.
@@ -283,10 +283,11 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             return null;
         }
 
-        /** @var DatabaseTransactionsManager $transactions */
         $messages = $this->prepareBatchMessages($afterCommit, $data, $queue);
 
+        // A non-empty deferred group means partitionJobsByAfterCommit() resolved a transactions manager.
         foreach ($afterCommit as $job) {
+            /** @var DatabaseTransactionsManager $transactions */
             $this->addUniqueJobRollbackCallback($transactions, $job);
             $this->addDebouncedJobRollbackCallback($transactions, $job);
         }
@@ -311,25 +312,6 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
         );
 
         return null;
-    }
-
-    /**
-     * Partition jobs by whether they should be deferred until the active transaction commits.
-     *
-     * @return array{0: array, 1: array}
-     */
-    protected function partitionJobsByAfterCommit(
-        array $jobs,
-        ?DatabaseTransactionsManager $transactions
-    ): array {
-        if ($transactions === null || $transactions->callbackApplicableTransactions()->isEmpty()) {
-            return [[], $jobs];
-        }
-
-        return Collection::make($jobs)
-            ->partition(fn ($job) => $this->shouldDispatchAfterCommit($job))
-            ->map(fn ($partition) => $partition->values()->all())
-            ->all();
     }
 
     /**
@@ -371,8 +353,6 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
         $overflow = [];
 
         foreach ($messages as $id => $message) {
-            $this->raiseJobQueueingEvent($queue, $message['job'], $message['payload'], $message['delay']);
-
             $entry = $this->prepareSendMessageBatchEntry($id, $message, $queue);
 
             if ($this->willOverflow($message['payload'])) {
@@ -388,6 +368,15 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
 
         // Dispatch chunks serially so later messages cannot arrive ahead of an unsent failed chunk...
         foreach ($this->chunkBatchEntries($entries) as $chunk) {
+            $attemptedMessages = [];
+
+            foreach ($chunk as $entry) {
+                $message = $messages[$entry['Id']];
+                $attemptedMessages[$entry['Id']] = $message;
+
+                $this->raiseJobQueueingEvent($queue, $message['job'], $message['payload'], $message['delay']);
+            }
+
             $writtenPaths = [];
 
             try {
@@ -404,23 +393,30 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
             } catch (Throwable $exception) {
                 /** @var CacheRepository $store */
                 $this->cleanupOverflowPayloads($store, $writtenPaths);
+                $this->raiseBatchFailedEvents($attemptedMessages, $queue, $exception);
 
                 throw $exception;
             }
 
             // A thrown request is ambiguous for the whole chunk, so retain its pointers.
             // Only explicit per-entry failures below are provably rejected.
-            $result = $this->sqs->sendMessageBatch([
-                'QueueUrl' => $queueUrl,
-                'Entries' => $chunk,
-            ]);
+            try {
+                $result = $this->sqs->sendMessageBatch([
+                    'QueueUrl' => $queueUrl,
+                    'Entries' => $chunk,
+                ]);
+            } catch (Throwable $exception) {
+                $this->raiseBatchFailedEvents($attemptedMessages, $queue, $exception);
+
+                throw $exception;
+            }
 
             foreach ($result['Successful'] ?? [] as $success) {
-                if (! isset($messages[$success['Id']])) {
+                if (! isset($attemptedMessages[$success['Id']])) {
                     continue;
                 }
 
-                $message = $messages[$success['Id']];
+                $message = $attemptedMessages[$success['Id']];
 
                 $this->raiseJobQueuedEvent(
                     $queue,
@@ -464,7 +460,33 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
                 $this->cleanupOverflowPayloads($store, $rejectedPaths);
             }
 
+            $failedMessages = [];
+
+            foreach ($result['Failed'] as $rejected) {
+                if (isset($attemptedMessages[$rejected['Id']])) {
+                    $failedMessages[$rejected['Id']] = $attemptedMessages[$rejected['Id']];
+                }
+            }
+
+            $this->raiseBatchFailedEvents($failedMessages, $queue, $exception);
+
             throw $exception;
+        }
+    }
+
+    /**
+     * Raise queueing-failed events for the given prepared messages.
+     */
+    protected function raiseBatchFailedEvents(array $messages, ?string $queue, Throwable $exception): void
+    {
+        foreach ($messages as $message) {
+            $this->raiseJobQueueingFailedEvent(
+                $queue,
+                $message['job'],
+                $message['payload'],
+                $message['delay'],
+                $exception,
+            );
         }
     }
 

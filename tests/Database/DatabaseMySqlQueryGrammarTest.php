@@ -10,10 +10,19 @@ use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JsonException;
 use Mockery as m;
 
 class DatabaseMySqlQueryGrammarTest extends TestCase
 {
+    public function testUpdateBindingsRejectUnencodableArrays(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new MySqlGrammar(m::mock(Connection::class)))
+            ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
+    }
+
     public function testToRawSql()
     {
         $connection = m::mock(Connection::class);

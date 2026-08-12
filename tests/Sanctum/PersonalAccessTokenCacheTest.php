@@ -1437,7 +1437,7 @@ class TimestampDisabledPersonalAccessToken extends PersonalAccessToken
 
 class CustomTimestampPersonalAccessToken extends PersonalAccessToken
 {
-    public const UPDATED_AT = 'modified_at';
+    public const ?string UPDATED_AT = 'modified_at';
 }
 
 class SecondaryConnectionPersonalAccessToken extends PersonalAccessToken

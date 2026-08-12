@@ -12,13 +12,13 @@
 @include('wayfinder::docblock')
 {!! $method !!}.url = (@include('wayfinder::function-arguments')) => {
 @if ($parameters->count() === 1)
-    if (typeof {!! $args !!} === 'string' || typeof {!! $args !!} === 'number') {
+    if (typeof {!! $args !!} === 'string' || typeof {!! $args !!} === 'number' || typeof {!! $args !!} === 'boolean') {
         {!! $args !!} = { {!! $parameters->first()->name !!}: {!! $args !!} }
     }
 
     @if ($parameters->first()->key)
-        if (typeof {!! $args !!} === 'object' && !Array.isArray({!! $args !!}) && @js($parameters->first()->key) in {!! $args !!}) {
-            {!! $args !!} = { {!! $parameters->first()->name !!}: {!! $args !!}.{!! $parameters->first()->key !!} }
+        if ({!! $args !!} !== null && typeof {!! $args !!} === 'object' && !Array.isArray({!! $args !!}) && @js($parameters->first()->key) in {!! $args !!}) {
+            {!! $args !!} = { {!! $parameters->first()->name !!}: {!! $args !!}[{!! $parameters->first()->keyAccessor() !!}] }
         }
     @endif
 @endif
@@ -35,20 +35,13 @@
     {!! $args !!} = applyUrlDefaults({!! $args !!})
 @endif
 
-@if ($parameters->where('optional')->isNotEmpty())
-    validateParameters({!! $args !!}, [
-    @foreach ($parameters->where('optional') as $parameter)
-        "{!! $parameter->name !!}",
-    @endforeach
-    ])
-@endif
-
 @if ($parameters->isNotEmpty())
     const {!! $parsedArgs !!} = {
     @foreach ($parameters as $parameter)
         @if ($parameter->key)
-            {!! $parameter->name !!}: {!! when($parameter->default !== null, '(') !!}typeof {!! $args !!}{!! when($parameters->every->optional, '?') !!}.{!! $parameter->name !!} === 'object'
-                ? {!! $args !!}.{!! $parameter->name !!}.{!! $parameter->key ?? 'id' !!}
+            {!! $parameter->name !!}: {!! when($parameter->default !== null, '(') !!}{!! $args !!}{!! when($parameters->every->optional, '?') !!}.{!! $parameter->name !!} !== null
+                && typeof {!! $args !!}{!! when($parameters->every->optional, '?') !!}.{!! $parameter->name !!} === 'object'
+                ? {!! $args !!}.{!! $parameter->name !!}[{!! $parameter->keyAccessor() !!}]
                 : {!! $args !!}{!! when($parameters->every->optional, '?') !!}.{!! $parameter->name !!}{!! when($parameter->default !== null, ') ?? ') !!}@if ($parameter->default !== null)@js($parameter->default)@endif,
         @else
             {!! $parameter->name !!}: {!! $args !!}{!! when($parameters->every->optional, '?') !!}.{!! $parameter->name !!}{!! when($parameter->default !== null, ' ?? ') !!}@if ($parameter->default !== null)@js($parameter->default)@endif,
@@ -57,9 +50,17 @@
     }
 @endif
 
+@if ($parameters->where('routeOptional')->isNotEmpty())
+    validateParameters({!! $parsedArgs !!}, [
+    @foreach ($parameters->where('routeOptional') as $parameter)
+        "{!! $parameter->name !!}",
+    @endforeach
+    ])
+@endif
+
     return {!! $method !!}.definition.url
 @foreach ($parameters as $parameter)
-            .replace(@js($parameter->placeholder), {!! $parsedArgs !!}.{!! $parameter->name !!}{!! when($parameter->optional, '?') !!}.toString(){!! when($parameter->optional, " ?? ''") !!})
+            .replace(@js($parameter->placeholder), () => formatRouteParameter({!! $parsedArgs !!}.{!! $parameter->name !!}, @js($parameter->routeOptional), @js($parameter->name)))
     @if ($loop->last)
             .replace(/\/+$/, '')
     @endif

@@ -35,7 +35,7 @@ class PooledConnection implements PoolConnectionInterface
     /**
      * Maximum allowed errors before marking connection as stale.
      */
-    protected const MAX_ERROR_COUNT = 100;
+    protected const int MAX_ERROR_COUNT = 100;
 
     protected ?Connection $connection = null;
 
@@ -117,6 +117,18 @@ class PooledConnection implements PoolConnectionInterface
         } else {
             // Normal path: factory creates fresh connection with new PDO
             $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
+        }
+
+        if ($this->connection->hasUnknownSessionState()) {
+            $this->markInvalid();
+
+            if ($sharedPdo !== null) {
+                throw new RuntimeException(
+                    'The shared in-memory SQLite database session is unknown and its sole connection cannot be replaced without discarding the database.'
+                );
+            }
+
+            throw new RuntimeException('Database session state remains unknown after reconnecting.');
         }
 
         // Configure event dispatcher for query events

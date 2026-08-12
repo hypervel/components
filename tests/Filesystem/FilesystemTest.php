@@ -6,9 +6,11 @@ namespace Hypervel\Tests\Filesystem;
 
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -89,6 +91,26 @@ class FilesystemTest extends TestCase
 
         $filesystem->replace($tempFile, 'Hello World');
         $this->assertStringEqualsFile($tempFile, 'Hello World');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testReplaceUsesOrdinaryFilePermissionsByDefault(): void
+    {
+        $path = $this->tempDir . '/ordinary.txt';
+        $originalUmask = umask(0027);
+
+        try {
+            (new Filesystem)->replace($path, 'created');
+
+            $this->assertSame(0640, $this->getFilePermissions($path));
+
+            chmod($path, 0755);
+            (new Filesystem)->replace($path, 'replaced');
+
+            $this->assertSame(0640, $this->getFilePermissions($path));
+        } finally {
+            umask($originalUmask);
+        }
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
@@ -201,27 +223,29 @@ class FilesystemTest extends TestCase
         $umask = 0131;
         $originalUmask = umask($umask);
 
-        $filesystem = new Filesystem;
+        try {
+            $filesystem = new Filesystem;
 
-        // Test replacing non-existent file.
-        $filesystem->replace($tempFile, 'Hello World');
-        $this->assertStringEqualsFile($tempFile, 'Hello World');
-        $this->assertEquals($umask, 0777 - $this->getFilePermissions($tempFile));
+            // Test replacing non-existent file.
+            $filesystem->replace($tempFile, 'Hello World');
+            $this->assertStringEqualsFile($tempFile, 'Hello World');
+            $this->assertSame(0666 & ~$umask, $this->getFilePermissions($tempFile));
 
-        // Test replacing existing file.
-        $filesystem->replace($tempFile, 'Something Else');
-        $this->assertStringEqualsFile($tempFile, 'Something Else');
-        $this->assertEquals($umask, 0777 - $this->getFilePermissions($tempFile));
+            // Test replacing existing file.
+            $filesystem->replace($tempFile, 'Something Else');
+            $this->assertStringEqualsFile($tempFile, 'Something Else');
+            $this->assertSame(0666 & ~$umask, $this->getFilePermissions($tempFile));
 
-        // Test replacing symlinked file.
-        $filesystem->replace($symlink, 'Yet Something Else Again');
-        $this->assertStringEqualsFile($tempFile, 'Yet Something Else Again');
-        $this->assertEquals($umask, 0777 - $this->getFilePermissions($tempFile));
+            // Test replacing symlinked file.
+            $filesystem->replace($symlink, 'Yet Something Else Again');
+            $this->assertStringEqualsFile($tempFile, 'Yet Something Else Again');
+            $this->assertSame(0666 & ~$umask, $this->getFilePermissions($tempFile));
+        } finally {
+            umask($originalUmask);
 
-        umask($originalUmask);
-
-        // Reset changes to symlink_dir
-        chmod($symlinkDir, 0777 - $originalUmask);
+            // Reset changes to symlink_dir
+            chmod($symlinkDir, 0777 - $originalUmask);
+        }
     }
 
     public function testSetChmod()
@@ -300,14 +324,39 @@ class FilesystemTest extends TestCase
         $this->assertTrue($files->missing($this->tempDir . '/file.txt'));
     }
 
-    public function testDeleteDirectory()
+    public function testDeleteDirectory(): void
     {
         mkdir($this->tempDir . '/foo');
         file_put_contents($this->tempDir . '/foo/file.txt', 'Hello World');
         $files = new Filesystem;
-        $files->deleteDirectory($this->tempDir . '/foo');
+        $this->assertTrue($files->deleteDirectory($this->tempDir . '/foo'));
         $this->assertDirectoryDoesNotExist($this->tempDir . '/foo');
         $this->assertFileDoesNotExist($this->tempDir . '/foo/file.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testDeleteDirectoryRemovesLinkWithoutDeletingTargetContents(): void
+    {
+        $target = $this->tempDir . '/target';
+        $link = $this->tempDir . '/link';
+        mkdir($target);
+        file_put_contents($target . '/file.txt', 'Hello World');
+        symlink($target, $link);
+
+        $this->assertTrue((new Filesystem)->deleteDirectory($link));
+        $this->assertFalse(is_link($link));
+        $this->assertDirectoryExists($target);
+        $this->assertFileExists($target . '/file.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testDeleteDirectoryRemovesBrokenLink(): void
+    {
+        $link = $this->tempDir . '/broken-link';
+        symlink($this->tempDir . '/missing-target', $link);
+
+        $this->assertTrue((new Filesystem)->deleteDirectory($link));
+        $this->assertFalse(is_link($link));
     }
 
     public function testDeleteDirectoryReturnFalseWhenNotADirectory()
@@ -341,7 +390,27 @@ class FilesystemTest extends TestCase
         $this->assertSame(['/root/first', '/root/second'], $filesystem->deleted);
     }
 
-    public function testCleanDirectory()
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testDeleteDirectoriesDoesNotTraverseLinkedChildren(): void
+    {
+        $parent = $this->tempDir . '/parent';
+        $child = $parent . '/child';
+        $target = $this->tempDir . '/target';
+        $link = $parent . '/linked-child';
+        mkdir($child, 0777, true);
+        mkdir($target);
+        file_put_contents($child . '/child.txt', 'child');
+        file_put_contents($target . '/target.txt', 'target');
+        symlink($target, $link);
+
+        $this->assertTrue((new Filesystem)->deleteDirectories($parent));
+        $this->assertDirectoryDoesNotExist($child);
+        $this->assertFalse(is_link($link));
+        $this->assertDirectoryExists($target);
+        $this->assertFileExists($target . '/target.txt');
+    }
+
+    public function testCleanDirectory(): void
     {
         mkdir($this->tempDir . '/baz');
         file_put_contents($this->tempDir . '/baz/file.txt', 'Hello World');
@@ -349,6 +418,21 @@ class FilesystemTest extends TestCase
         $files->cleanDirectory($this->tempDir . '/baz');
         $this->assertDirectoryExists($this->tempDir . '/baz');
         $this->assertFileDoesNotExist($this->tempDir . '/baz/file.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testCleanDirectoryEmptiesLinkedDirectory(): void
+    {
+        $target = $this->tempDir . '/clean-target';
+        $link = $this->tempDir . '/clean-link';
+        mkdir($target);
+        file_put_contents($target . '/file.txt', 'Hello World');
+        symlink($target, $link);
+
+        $this->assertTrue((new Filesystem)->cleanDirectory($link));
+        $this->assertTrue(is_link($link));
+        $this->assertDirectoryExists($target);
+        $this->assertFileDoesNotExist($target . '/file.txt');
     }
 
     public function testMacro()
@@ -493,18 +577,56 @@ class FilesystemTest extends TestCase
         (new Filesystem)->getRequire($this->tempDir . '/unknown-file.txt');
     }
 
-    public function testJsonReturnsDecodedJsonData()
+    public function testJsonReturnsDecodedJsonData(): void
     {
         file_put_contents($this->tempDir . '/file.json', '{"foo": "bar"}');
         $files = new Filesystem;
         $this->assertSame(['foo' => 'bar'], $files->json($this->tempDir . '/file.json'));
     }
 
-    public function testJsonReturnsNullIfJsonDataIsInvalid()
+    public function testJsonReturnsNullIfJsonDataIsInvalid(): void
     {
         file_put_contents($this->tempDir . '/file.json', '{"foo":');
         $files = new Filesystem;
         $this->assertNull($files->json($this->tempDir . '/file.json'));
+    }
+
+    public function testJsonReadsTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        file_put_contents($this->tempDir . '/file.json', Json::encode($value));
+
+        $this->assertSame($value, (new Filesystem)->json($this->tempDir . '/file.json'));
+    }
+
+    public function testJsonRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        file_put_contents(
+            $this->tempDir . '/file.json',
+            json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1)
+        );
+
+        $this->assertNull((new Filesystem)->json($this->tempDir . '/file.json'));
+    }
+
+    public function testJsonSupportsThrowingDecodeFlags(): void
+    {
+        file_put_contents($this->tempDir . '/file.json', '{"foo":');
+
+        $this->expectException(JsonException::class);
+
+        (new Filesystem)->json($this->tempDir . '/file.json', JSON_THROW_ON_ERROR);
     }
 
     public function testAppendAddsDataToFile()

@@ -39,6 +39,18 @@ class TestCommand extends Command
     {
         $oldErrorReporting = error_reporting(E_ALL);
 
+        try {
+            return $this->sendTestEvent();
+        } finally {
+            error_reporting($oldErrorReporting);
+        }
+    }
+
+    /**
+     * Send the test event and optional transaction.
+     */
+    private function sendTestEvent(): int
+    {
         $dsn = $this->option('dsn');
 
         $configuredClient = null;
@@ -121,8 +133,8 @@ class TestCommand extends Command
         }
 
         // Set the Hypervel SDK identifier and version
-        $clientBuilder->setSdkIdentifier(Version::SDK_IDENTIFIER);
-        $clientBuilder->setSdkVersion(Version::SDK_VERSION);
+        $clientBuilder->setSdkIdentifier(Version::getSdkIdentifier());
+        $clientBuilder->setSdkVersion(Version::getSdkVersion());
 
         // We set a logger so we can surface errors thrown internally by the SDK
         $clientBuilder->setLogger(new class($this) extends AbstractLogger {
@@ -199,8 +211,6 @@ class TestCommand extends Command
             $this->info("Transaction sent with ID: {$transactionId}");
         }
 
-        error_reporting($oldErrorReporting);
-
         return 0;
     }
 
@@ -243,7 +253,7 @@ class TestCommand extends Command
         } elseif (count($this->errorMessages) > 0) {
             $this->error('Please check the error message from the SDK above for further hints about what went wrong.');
         } else {
-            $this->error('Please check if your DSN is set properly in your `.env` as `SENTRY_DSN` or in your config file `config/sentry.php`.');
+            $this->error('Please check if your DSN is set properly in your `.env` as `SENTRY_HYPERVEL_DSN` or `SENTRY_DSN`, or in your config file `config/sentry.php`.');
         }
     }
 }

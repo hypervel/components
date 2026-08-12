@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Str;
@@ -26,7 +28,7 @@ class AsEncryptedCollection implements Castable
                 $this->arguments = array_pad(array_values($this->arguments), 2, '');
             }
 
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Collection
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 $collectionClass = empty($this->arguments[0]) ? Collection::class : $this->arguments[0];
 
@@ -38,7 +40,13 @@ class AsEncryptedCollection implements Castable
                     return null;
                 }
 
-                $instance = new $collectionClass(Json::decode(Crypt::decryptString($attributes[$key])));
+                $data = Json::decode(Crypt::decryptString($attributes[$key]));
+
+                if (! is_array($data)) {
+                    return null;
+                }
+
+                $instance = new $collectionClass($data);
 
                 if (! isset($this->arguments[1]) || ! $this->arguments[1]) {
                     return $instance;
@@ -53,10 +61,16 @@ class AsEncryptedCollection implements Castable
                     : $instance->mapInto($this->arguments[1][0]);
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): ?array
+            public function set(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 if (! is_null($value)) {
-                    return [$key => Crypt::encryptString(Json::encode($value))];
+                    $encoded = Json::encode($value);
+
+                    if ($encoded === false) {
+                        throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+                    }
+
+                    return [$key => Crypt::encryptString($encoded)];
                 }
 
                 return null;

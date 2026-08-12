@@ -18,7 +18,7 @@ use Stringable;
  */
 final class BatchDatabaseChecker
 {
-    private const CHUNK_SIZE = 1000;
+    private const int CHUNK_SIZE = 1000;
 
     /**
      * Build a PrecomputedPresenceVerifier from grouped rules.
