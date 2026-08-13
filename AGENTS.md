@@ -377,7 +377,7 @@ Test supported public behavior, meaningful branches, verified regressions, and r
 
 ### Exceptions in tests
 
-PHPUnit assertion failures, skips, and incomplete markers all extend `AssertionFailedError`, which extends `RuntimeException`. A test's `try`/`catch` must not turn any of them into success. When testing behavior after an exception, pin the escaped exception by identity or message, unless later assertions prove a consequence that can occur only when the exception propagates.
+PHPUnit assertion failures, skips, and incomplete markers all extend `AssertionFailedError`, which extends `RuntimeException`. A test's `try`/`catch` must not turn any of them into success. When testing behavior after an exception, the catch must not be reachable by a failure that skips the behavior under test. Satisfy that by pinning the escaped exception by identity or message, or by catching a type that excludes every other failure the code path can produce.
 
 ### Directory layout
 

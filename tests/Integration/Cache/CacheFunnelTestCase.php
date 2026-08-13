@@ -54,18 +54,22 @@ abstract class CacheFunnelTestCase extends TestCase
 
     public function testFunnelLockReleasedOnException(): void
     {
+        $expectedException = new Exception('fail');
+        $caughtException = null;
+
         try {
             $this->cache()->funnel('test')
                 ->limit(1)
                 ->releaseAfter(60)
                 ->block(0)
-                ->then(function () {
-                    throw new Exception('fail');
+                ->then(function () use ($expectedException): never {
+                    throw $expectedException;
                 });
-        } catch (Exception) {
-            // This test only verifies that the funnel lock is released after
-            // the callback fails, regardless of how its exception is handled.
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($expectedException, $caughtException);
 
         $result = $this->cache()->funnel('test')
             ->limit(1)

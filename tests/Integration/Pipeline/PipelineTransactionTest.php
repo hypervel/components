@@ -88,7 +88,7 @@ class PipelineTransactionTest extends TestCase
             Pipeline::withinTransaction()
                 ->send('some string')
                 ->through([
-                    function ($value, $next) use ($expectedException) {
+                    function () use ($expectedException): never {
                         throw $expectedException;
                     },
                 ])
