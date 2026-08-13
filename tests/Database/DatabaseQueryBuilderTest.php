@@ -4044,9 +4044,9 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $this->getMockQueryBuilder();
         $data = m::mock(stdClass::class);
-        $builder->shouldReceive('first')->andReturn($data)->once();
-        $builder->shouldReceive('first')->with(['column'])->andReturn($data)->once();
-        $builder->shouldReceive('first')->andReturn(null)->once();
+        $builder->shouldReceive('get')->with(['*'])->andReturn(new Collection([$data]))->once();
+        $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$data]))->once();
+        $builder->shouldReceive('get')->with(['*'])->andReturn(new Collection)->once();
 
         $this->assertSame($data, $builder->findOr(1, fn () => 'callback result'));
         $this->assertSame($data, $builder->findOr(1, ['column'], fn () => 'callback result'));
@@ -4168,12 +4168,12 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $results);
 
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true, [])->andReturn([['exists' => 1]]);
+        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true)->andReturn([['exists' => 1]]);
         $results = $builder->from('users')->exists();
         $this->assertTrue($results);
 
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true, [])->andReturn([['exists' => 0]]);
+        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true)->andReturn([['exists' => 0]]);
         $results = $builder->from('users')->doesntExist();
         $this->assertTrue($results);
 
@@ -5241,7 +5241,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testPreservedAreAppliedByExists()
     {
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true, []);
+        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true);
         $builder->beforeQuery(function ($builder) {
             $builder->from('users');
         });

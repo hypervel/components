@@ -6,6 +6,9 @@ on:
       - 0.4
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   RUN_BLOCKING_TESTS: true
 
@@ -54,3 +57,4 @@ jobs:
         run: |
           vendor/bin/paratest tests/Integration/Engine
           vendor/bin/paratest tests/Integration/HttpServer
+          vendor/bin/paratest tests/Integration/Saloon

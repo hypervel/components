@@ -11,7 +11,7 @@ use Throwable;
 class RedisSentinelFactory
 {
     /**
-     * Create a redis sentinel client instance.
+     * Create a Redis Sentinel client instance.
      *
      * @param array<string, mixed> $options
      */
@@ -62,20 +62,21 @@ class RedisSentinelFactory
                         ? "{$resolved['scheme']}://{$resolved['host']}"
                         : $resolved['host'],
                     'port' => (int) $resolved['port'],
-                    'connectTimeout' => (float) ($config['timeout'] ?? 0),
-                    'persistent' => $sentinel['persistent'] ?? null,
-                    'retryInterval' => (int) ($config['retry_interval'] ?? 0),
+                    'connectTimeout' => (float) ($sentinel['timeout'] ?? 0),
                     'readTimeout' => (float) ($sentinel['read_timeout'] ?? 0),
                 ];
                 $context = $sentinel['context'] ?? [];
-                $auth = $sentinel['auth'] ?? null;
+                $password = $sentinel['password'] ?? null;
 
                 if ($context !== []) {
                     $options['ssl'] = $this->normalizeContext($context);
                 }
 
-                if ($auth !== null && $auth !== '') {
-                    $options['auth'] = $auth;
+                if ($password !== null && $password !== '') {
+                    $username = $sentinel['username'] ?? null;
+                    $options['auth'] = $username !== null && $username !== '' && is_string($password)
+                        ? [$username, $password]
+                        : $password;
                 }
 
                 $master = $this->create($options)->getMasterAddrByName(

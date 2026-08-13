@@ -194,6 +194,8 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
                         }
                     }
 
+                    // Cluster hash tags are routing syntax, so discovery reports the
+                    // canonical queue name. On standalone Redis, braces remain identity.
                     if ($this->isCluster && preg_match('/^\{([^{}]+)\}$/', $name, $matches) === 1) {
                         $name = $matches[1];
                     }

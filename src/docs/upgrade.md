@@ -4,6 +4,7 @@
 - [Recommended Upgrade Path](#recommended-upgrade-path)
 - [What Changed](#what-changed)
 - [Session Storage](#session-storage)
+- [Redis Configuration](#redis-configuration)
 - [Immutable Dates](#immutable-dates)
 - [Migration References](#migration-references)
 
@@ -49,6 +50,21 @@ The generated sessions table now uses a nullable, indexed string for `user_id`, 
 Existing tables are not changed when you regenerate the migration. Compare your application's sessions migration with the current `make:session-table` output and create a new migration suitable for your database driver. Before managing user sessions, change `sessions.user_id` from an unsigned integer to a nullable, indexed string, add the nullable `sessions.auth_provider` column, and update `sessions.ip_address` to the type created by `ipAddress`. Existing rows with a null provider remain absent from managed session lists until active sessions rewrite them or idle sessions expire. PostgreSQL applications must convert any existing text values appropriately when changing the IP column to `inet`.
 
 See the [session documentation](/docs/{{version}}/session) for native Redis configuration and the user-session management API.
+
+<a name="redis-configuration"></a>
+## Redis Configuration
+
+Redis Cluster, Sentinel, and command event settings have been standardized. Update each Redis connection as follows:
+
+<div class="content-list" markdown="1">
+
+- Replace `cluster.enable` with `cluster.enabled`. Keep `seeds` in the `cluster` array, move `read_timeout` and `context` to the connection level, and remove the `name` and `persistent` options. If the old `enable` key remains on a connection with `host` and `port` values, Hypervel treats it as a standalone connection.
+- Replace `sentinel.enable` with `sentinel.enabled` and `sentinel.auth` with the nested `username` and `password` options. Configure the Sentinel discovery `timeout`, `read_timeout`, and `context` inside the `sentinel` array. Their connection-level counterparts configure the Redis master connection, and are not inherited by Sentinel discovery. Remove the Sentinel `persistent` option. If the old `enable` key remains on a connection with `host` and `port` values, Hypervel connects directly to that server instead of resolving the master through Sentinel.
+- Replace `event.enable` with the connection-level `events` boolean. The old key is ignored, which disables Redis command events without an error.
+
+</div>
+
+Redis Cluster settings belong to each named connection. The top-level `database.redis.clusters` configuration used by Laravel is not supported. See the [Redis documentation](/docs/{{version}}/redis#clusters) for the complete Cluster and Sentinel configuration.
 
 <a name="immutable-dates"></a>
 ## Immutable Dates

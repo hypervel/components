@@ -223,7 +223,7 @@ class Bootstrapper
 
             // A dir is stale when its owning PID is dead, reused by this process
             // without being the active copy, or an identity-matched orphaned
-            // serve process whose parent exited.
+            // serve master whose parent exited.
             foreach (glob($tempDirectory . '/hypervel-components-testbench-*') ?: [] as $staleDirectory) {
                 if (! $filesystem->isDirectory($staleDirectory)) {
                     continue;
@@ -328,8 +328,7 @@ class Bootstrapper
      * Determine if the given PID is an orphaned serve process.
      *
      * A process is considered an orphaned serve process only when its parent
-     * is init and its PID, command, and process incarnation all match the
-     * runtime directory.
+     * is init and its PID file and process incarnation match the runtime.
      */
     protected static function isOrphanedServeProcess(int $pid, string $runtimeDir): bool
     {
@@ -368,23 +367,13 @@ class Bootstrapper
      */
     protected static function matchesServeProcessIdentity(int $pid, string $runtimeDir): bool
     {
+        // The pid file proves a Swoole server booted from this runtime rather than a test worker.
         $pidFile = join_paths($runtimeDir, 'storage/framework/hypervel.pid');
         $pidContents = @file_get_contents($pidFile);
 
         if ($pidContents === false
             || ! ctype_digit($pidContents = trim($pidContents))
             || (int) $pidContents !== $pid
-        ) {
-            return false;
-        }
-
-        $command = static::processCommand($pid);
-
-        if ($command === null
-            || preg_match(
-                '/(?:^|\s)\S*(?:testbench|hypervel)(?:\.php)?\s+serve(?:\s|$)/i',
-                $command,
-            ) !== 1
         ) {
             return false;
         }
@@ -417,35 +406,10 @@ class Bootstrapper
     }
 
     /**
-     * Read the command line for a process.
-     */
-    protected static function processCommand(int $pid): ?string
-    {
-        if (is_dir('/proc')) {
-            $path = "/proc/{$pid}/cmdline";
-
-            if (! is_readable($path)
-                || ($contents = @file_get_contents($path)) === false
-                || $contents === ''
-            ) {
-                return null;
-            }
-
-            return trim(str_replace("\0", ' ', $contents));
-        }
-
-        $output = [];
-        exec("ps -ww -p {$pid} -o command= 2>/dev/null", $output);
-        $command = trim(implode("\n", $output));
-
-        return $command !== '' ? $command : null;
-    }
-
-    /**
      * Read the OS identity of the process incarnation.
      *
      * Linux exposes the start clock tick exactly. macOS `lstart` has one-second
-     * resolution, which is sufficient alongside the PID and validated command.
+     * resolution, the most precise portable process-start identity available there.
      */
     protected static function processStartIdentity(int $pid): ?string
     {

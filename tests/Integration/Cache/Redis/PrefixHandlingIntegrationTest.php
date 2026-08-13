@@ -356,10 +356,9 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $store->put('test_key', 'test_value', 60);
         $this->assertSame('test_value', $store->get('test_key'));
 
-        // Verify actual key structure using raw client
-        $rawClient = $this->rawRedisClientWithoutPrefix();
-        $this->assertTrue($rawClient->exists('opt:test_key') > 0);
-        $rawClient->close();
+        // Verify actual key structure using an unprefixed connection
+        $redis = $this->redisClientWithoutPrefix();
+        $this->assertTrue($redis->exists('opt:test_key') > 0);
     }
 
     public function testBothOptPrefixAndCachePrefix(): void
@@ -371,9 +370,8 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('test_value', $store->get('test_key'));
 
         // Verify actual key structure: OPT_PREFIX + cache prefix + key
-        $rawClient = $this->rawRedisClientWithoutPrefix();
-        $this->assertTrue($rawClient->exists('opt:cache:test_key') > 0);
-        $rawClient->close();
+        $redis = $this->redisClientWithoutPrefix();
+        $this->assertTrue($redis->exists('opt:cache:test_key') > 0);
     }
 
     public function testNoOptPrefixCachePrefixOnly(): void
@@ -385,9 +383,8 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('test_value', $store->get('test_key'));
 
         // Verify actual key structure: cache prefix + key only
-        $rawClient = $this->rawRedisClientWithoutPrefix();
-        $this->assertTrue($rawClient->exists('cache:test_key') > 0);
-        $rawClient->close();
+        $redis = $this->redisClientWithoutPrefix();
+        $this->assertTrue($redis->exists('cache:test_key') > 0);
     }
 
     public function testNoPrefixesAtAll(): void
@@ -399,9 +396,8 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('test_value', $store->get('test_key'));
 
         // Verify actual key structure: just the key
-        $rawClient = $this->rawRedisClientWithoutPrefix();
-        $this->assertTrue($rawClient->exists('test_key') > 0);
-        $rawClient->close();
+        $redis = $this->redisClientWithoutPrefix();
+        $this->assertTrue($redis->exists('test_key') > 0);
     }
 
     public function testOptPrefixIsolation(): void
@@ -418,10 +414,9 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('from_app2', $store2->get('shared_key'));
 
         // Verify in Redis: different keys
-        $rawClient = $this->rawRedisClientWithoutPrefix();
-        $this->assertTrue($rawClient->exists('app1:cache:shared_key') > 0);
-        $this->assertTrue($rawClient->exists('app2:cache:shared_key') > 0);
-        $rawClient->close();
+        $redis = $this->redisClientWithoutPrefix();
+        $this->assertTrue($redis->exists('app1:cache:shared_key') > 0);
+        $this->assertTrue($redis->exists('app2:cache:shared_key') > 0);
     }
 
     public function testOptPrefixWithTaggedOperations(): void
@@ -433,18 +428,16 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('MacBook', $store->get('laptop'));
 
         // Verify actual keys in Redis
-        $rawClient = $this->rawRedisClientWithoutPrefix();
+        $redis = $this->redisClientWithoutPrefix();
 
         // Value key: opt: + cache: + key
-        $this->assertTrue($rawClient->exists('opt:cache:laptop') > 0);
+        $this->assertTrue($redis->exists('opt:cache:laptop') > 0);
 
         // Tag hash: opt: + cache: + _any:tag: + tag + :entries
-        $this->assertTrue($rawClient->exists('opt:cache:_any:tag:products:entries') > 0);
+        $this->assertTrue($redis->exists('opt:cache:_any:tag:products:entries') > 0);
 
         // Reverse index: opt: + cache: + key + :_any:tags
-        $this->assertTrue($rawClient->exists('opt:cache:laptop:_any:tags') > 0);
-
-        $rawClient->close();
+        $this->assertTrue($redis->exists('opt:cache:laptop:_any:tags') > 0);
     }
 
     public function testOptPrefixWithTagFlush(): void
@@ -467,24 +460,19 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertNull($store->get('item2'));
 
         // Verify in Redis
-        $rawClient = $this->rawRedisClientWithoutPrefix();
-        $this->assertFalse($rawClient->exists('opt:cache:item1') > 0);
-        $this->assertFalse($rawClient->exists('opt:cache:item2') > 0);
-        $rawClient->close();
+        $redis = $this->redisClientWithoutPrefix();
+        $this->assertFalse($redis->exists('opt:cache:item1') > 0);
+        $this->assertFalse($redis->exists('opt:cache:item2') > 0);
     }
 
-    protected function tearDown(): void
+    protected function tearDownInCoroutine(): void
     {
-        try {
-            $this->cleanupRedisKeysWithPatterns(
-                'opt:*',
-                'app1:*',
-                'app2:*',
-                'test_key',
-                'cache:*',
-            );
-        } finally {
-            parent::tearDown();
-        }
+        $this->cleanupRedisKeysWithPatterns(
+            'opt:*',
+            'app1:*',
+            'app2:*',
+            'test_key',
+            'cache:*',
+        );
     }
 }

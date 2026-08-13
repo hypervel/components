@@ -446,8 +446,8 @@ class RedisPoolHeartbeatTest extends TestCase
                 'heartbeat' => -1,
             ], ClusterHeartbeatRedisPool::class, [
                 'cluster' => [
-                    'enable' => true,
-                    'seeds' => ['127.0.0.1:6379'],
+                    'enabled' => true,
+                    'seeds' => ['tcp://127.0.0.1:6379'],
                 ],
             ]);
 
@@ -476,7 +476,7 @@ class RedisPoolHeartbeatTest extends TestCase
             'host' => '127.0.0.1',
             'port' => 6379,
             'database' => 0,
-            'cluster' => ['enable' => false],
+            'cluster' => ['enabled' => false],
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 2,

@@ -8,13 +8,14 @@ use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Support\Facades\Cache;
 
 /**
- * Custom StoreContext that simulates cluster mode.
+ * Store context that forces Cluster execution paths.
  *
- * This allows testing cluster code paths (PHP fallbacks instead of Lua)
- * against a real single-instance Redis server.
+ * This exercises PHP fallbacks against standalone Redis and preserves the
+ * same paths when the integration suite runs against a real Redis Cluster.
  */
 class ClusterModeStoreContext extends StoreContext
 {
@@ -25,7 +26,7 @@ class ClusterModeStoreContext extends StoreContext
 }
 
 /**
- * Custom RedisStore that uses cluster-mode context.
+ * Redis store that forces Cluster execution paths.
  */
 class ClusterModeRedisStore extends RedisStore
 {
@@ -43,28 +44,26 @@ class ClusterModeRedisStore extends RedisStore
 }
 
 /**
- * Integration tests for cluster mode code paths (PHP fallbacks).
+ * Integration tests for Cluster fallback code paths.
  *
- * These tests verify that when isCluster() returns true, the PHP fallback
- * code paths work correctly. This is important because:
+ * These tests force the PHP fallback paths required because:
  * - RedisCluster does not support Lua scripts across slots
  * - RedisCluster does not support pipeline() method
- * - Operations must use sequential commands or multi() instead
+ * - Cross-slot operations must use sequential commands
  *
- * We test against real single-instance Redis with isCluster() mocked to true.
+ * The standalone Redis job isolates the fallback branches, while the Cluster
+ * job exercises the same operations through a real RedisCluster client.
  */
 class ClusterFallbackIntegrationTest extends RedisCacheIntegrationTestCase
 {
     private ?ClusterModeRedisStore $clusterStore = null;
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
-        $this->skipIfHashFieldExpirationUnsupported();
+        $this->skipIfAnyTagModeUnsupported();
 
         // Create cluster-mode store using the same factory as the real store
-        $factory = $this->app->make(\Hypervel\Contracts\Redis\Factory::class);
+        $factory = $this->app->make(RedisFactory::class);
         $realStore = Cache::store('redis')->getStore();
 
         $this->clusterStore = new ClusterModeRedisStore(

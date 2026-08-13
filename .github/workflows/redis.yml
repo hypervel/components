@@ -6,6 +6,9 @@ on:
       - 0.4
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   RUN_BLOCKING_TESTS: true
 
@@ -65,13 +68,183 @@ jobs:
         # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
         run: |
           vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis
+
+  redis_cluster:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # GitHub services cannot pass the startup command Redis Cluster requires,
+    # and cluster-enabled is immutable. Debian's security-supported Redis 8.0.x
+    # also exercises near-minimum behavior while redis_8 tracks current Redis 8,
+    # so a Cluster-only failure may be topology-specific or version-specific.
+    container:
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
+
+    name: Redis Cluster (PHP ${{ matrix.php }})
+
+    env:
+      REDIS_CLUSTER_HOSTS_AND_PORTS: 127.0.0.1:7000,127.0.0.1:7001,127.0.0.1:7002
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Log trigger context
+        uses: ./.github/actions/log-trigger-context
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Install Redis
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends redis-server redis-tools
+
+      - name: Verify Redis version
+        run: |
+          # shellcheck disable=SC2016
+          php -r '
+          $output = shell_exec("redis-server --version");
+
+          if (! is_string($output) || preg_match("/\\bv=([0-9.]+)/", $output, $matches) !== 1) {
+              throw new RuntimeException("Unable to determine the installed Redis version.");
+          }
+
+          if (! version_compare($matches[1], "8.0.0", ">=")) {
+              throw new RuntimeException("Redis 8.0.0 or later is required; installed {$matches[1]}.");
+          }
+
+          echo "Redis {$matches[1]}\n";
+          '
+
+      - name: Start Redis Cluster
+        run: |
+          for port in 7000 7001 7002; do
+            redis-server \
+              --bind 127.0.0.1 \
+              --port "$port" \
+              --save "" \
+              --appendonly no \
+              --cluster-enabled yes \
+              --cluster-config-file "/tmp/redis-cluster-$port.conf" \
+              --cluster-node-timeout 5000 \
+              --logfile "/tmp/redis-cluster-$port.log" \
+              --daemonize yes
+          done
+
+          for port in 7000 7001 7002; do
+            ready=false
+
+            for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+              if redis-cli -h 127.0.0.1 -p "$port" ping | grep -q '^PONG$'; then
+                ready=true
+                break
+              fi
+
+              sleep 1
+            done
+
+            if [ "$ready" != true ]; then
+              cat "/tmp/redis-cluster-$port.log"
+              exit 1
+            fi
+          done
+
+          redis-cli --cluster create \
+            127.0.0.1:7000 \
+            127.0.0.1:7001 \
+            127.0.0.1:7002 \
+            --cluster-replicas 0 \
+            --cluster-yes
+
+          for port in 7000 7001 7002; do
+            ready=false
+
+            for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+              if redis-cli -h 127.0.0.1 -p "$port" cluster info | grep -q '^cluster_state:ok'; then
+                ready=true
+                break
+              fi
+
+              sleep 1
+            done
+
+            if [ "$ready" != true ]; then
+              redis-cli -h 127.0.0.1 -p "$port" cluster info
+              exit 1
+            fi
+          done
+
+          # shellcheck disable=SC2016
+          php -r '
+          $redis = new RedisCluster(null, explode(",", getenv("REDIS_CLUSTER_HOSTS_AND_PORTS")), 2, 2);
+          // These tags place one key in each of the three allocated slot ranges.
+          $keys = ["{cluster-ci-a}:ready", "{cluster-ci-c}:ready", "{cluster-ci-d}:ready"];
+
+          try {
+              if (count($redis->_masters()) !== 3) {
+                  throw new RuntimeException("Redis Cluster did not expose all three masters.");
+              }
+
+              foreach ($keys as $key) {
+                  if (! $redis->set($key, $key) || $redis->get($key) !== $key) {
+                      throw new RuntimeException("Redis Cluster keyed routing failed.");
+                  }
+              }
+          } finally {
+              $redis->del(...$keys);
+          }
+          '
+
+      - name: Execute Redis Cluster integration tests
+        run: |
+          vendor/bin/phpunit --no-progress tests/Integration/Auth/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Broadcasting/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Cache/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Horizon
+          vendor/bin/phpunit --no-progress tests/Integration/Http/Redis
+          vendor/bin/phpunit --no-progress tests/Integration/Queue/Redis
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
+          vendor/bin/phpunit --no-progress tests/Integration/RateLimiter/Redis
+          # This explicit list contains the topology-neutral Redis tests; the remaining files require standalone-only behavior.
+          vendor/bin/phpunit --no-progress \
+            tests/Integration/Redis/ConcurrencyLimiterIntegrationTest.php \
+            tests/Integration/Redis/DurationLimiterIntegrationTest.php \
+            tests/Integration/Redis/EvalWithShaCacheIntegrationTest.php \
+            tests/Integration/Redis/RedisClusterIntegrationTest.php \
+            tests/Integration/Redis/RedisPoolHeartbeatIntegrationTest.php \
+            tests/Integration/Redis/RedisPoolTeardownLifecycleTest.php \
+            tests/Integration/Redis/RedisSubscribeIntegrationTest.php \
+            tests/Integration/Redis/SafeScanIntegrationTest.php \
+            tests/Integration/Redis/TransformIntegrationTest.php
+          vendor/bin/phpunit --no-progress \
+            tests/Integration/Reverb/RedisSharedStateTest.php \
+            tests/Integration/Reverb/WebhookBatchBufferTest.php
 
   valkey_9:
     runs-on: ubuntu-latest
@@ -128,10 +301,13 @@ jobs:
         # REDIS_TEST_SECONDARY_DB, leaving 15 worker databases in the 0-15 range.
         run: |
           vendor/bin/paratest --max-processes=15 tests/Integration/Auth/Redis
+          vendor/bin/paratest --max-processes=15 tests/Integration/Broadcasting/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Cache/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Horizon
           vendor/bin/paratest --max-processes=15 tests/Integration/Http/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Queue/Redis
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobChainingTest.php
+          QUEUE_CONNECTION=redis vendor/bin/phpunit --no-progress tests/Integration/Queue/JobDispatchingTest.php
           vendor/bin/paratest --max-processes=15 tests/Integration/RateLimiter/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Redis
           vendor/bin/paratest --max-processes=15 tests/Integration/Session/Redis

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Multiplexing;
 use GuzzleHttp\Promise\Create;
-use GuzzleHttp\Promise\Promise;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransportSharing;
@@ -196,6 +196,8 @@ class HttpConnectionTest extends TestCase
             'pool' => ['pool', []],
             'handler' => ['handler', static fn () => null],
             'cookies' => ['cookies', true],
+            'host connection cap' => ['max_host_connections', 5],
+            'total connection cap' => ['max_total_connections', 10],
         ];
     }
 
@@ -255,6 +257,8 @@ class HttpConnectionTest extends TestCase
             'handler' => ['handler', static fn () => null],
             'cookies' => ['cookies', true],
             'transport sharing' => ['transport_sharing', TransportSharing::HANDLER_PREFER],
+            'host connection cap' => ['max_host_connections', 5],
+            'total connection cap' => ['max_total_connections', 10],
         ];
     }
 
@@ -276,23 +280,53 @@ class HttpConnectionTest extends TestCase
         $this->assertSame(12, $factory->invocations[0]['options']['timeout']);
     }
 
-    public function testReregisteringAConnectionSwapsTheHandlerWithoutBreakingAnInflightRequest(): void
+    public function testDisablingMultiplexingConfiguresTheHandlerAndRequest(): void
     {
-        $factory = new DeferredHttpConnectionFactory;
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api', ['multiplex' => Multiplexing::NONE]);
+
+        $factory->connection('api')->get('https://example.com');
+
+        $this->assertSame([['multiplex' => Multiplexing::NONE]], $factory->createdHandlerOptions);
+        $this->assertSame(Multiplexing::NONE, $factory->invocations[0]['options']['multiplex']);
+    }
+
+    public function testOtherMultiplexingModesConfigureOnlyTheRequest(): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api', ['multiplex' => Multiplexing::EAGER]);
+
+        $factory->connection('api')->get('https://example.com');
+
+        $this->assertSame([[]], $factory->createdHandlerOptions);
+        $this->assertSame(Multiplexing::EAGER, $factory->invocations[0]['options']['multiplex']);
+    }
+
+    public function testRegisteredAsynchronousRequestsDoNotUseTheSharedHandler(): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
         $factory->registerConnection('api');
 
-        $oldPromise = $factory->connection('api')->async()->get('https://example.com/old');
-        $this->assertCount(1, $factory->pending);
+        $factory->connection('api')->async()->buildHandlerStack();
+
+        $this->assertSame([], $factory->createdHandlerOptions);
+
+        $factory->connection('api')->buildHandlerStack();
+
+        $this->assertSame([[]], $factory->createdHandlerOptions);
+    }
+
+    public function testReregisteringAConnectionReplacesItsSharedHandler(): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $factory->registerConnection('api');
+
+        $oldHandler = $factory->getConnectionHandler('api');
 
         $factory->registerConnection('api', ['timeout' => 12]);
-        $newPromise = $factory->connection('api')->async()->get('https://example.com/new');
-        $this->assertCount(2, $factory->pending);
+        $newHandler = $factory->getConnectionHandler('api');
 
-        $factory->pending[1]->resolve(new Psr7Response(200, [], 'new-handler'));
-        $factory->pending[0]->resolve(new Psr7Response(200, [], 'old-handler'));
-
-        $this->assertSame('new-handler', $newPromise->wait()->body());
-        $this->assertSame('old-handler', $oldPromise->wait()->body());
+        $this->assertNotSame($oldHandler, $newHandler);
         $this->assertCount(2, $factory->createdHandlerOptions);
     }
 
@@ -359,25 +393,6 @@ class RecordingHttpConnectionFactory extends Factory
             ];
 
             return Create::promiseFor(new Psr7Response(200, [], "handler-{$number}"));
-        };
-    }
-}
-
-class DeferredHttpConnectionFactory extends Factory
-{
-    /** @var Promise[] */
-    public array $pending = [];
-
-    public array $createdHandlerOptions = [];
-
-    protected function createConnectionHandler(array $options): callable
-    {
-        $this->createdHandlerOptions[] = $options;
-
-        return function (): PromiseInterface {
-            $this->pending[] = $promise = new Promise;
-
-            return $promise;
         };
     }
 }

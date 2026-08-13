@@ -4,20 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
+use ErrorException;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use RedisException;
 
-/**
- * Integration tests for RedisConnection::evalWithShaCache().
- *
- * These tests verify the actual Redis interaction including:
- * - Script SHA caching (evalSha success on subsequent calls)
- * - NOSCRIPT fallback (eval on first call when script not cached)
- * - Error handling for invalid scripts
- */
 class EvalWithShaCacheIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
@@ -51,12 +44,42 @@ class EvalWithShaCacheIntegrationTest extends TestCase
         $this->assertEquals('testvalue', $result);
     }
 
+    public function testClusterRejectsCrossSlotScriptWithoutPoisoningConnection(): void
+    {
+        if (! $this->usingRedisCluster()) {
+            $this->markTestSkipped('This behavior is specific to Redis Cluster.');
+        }
+
+        $connectionName = $this->createRedisConnectionWithOptions(
+            'test_cross_slot_script',
+            [],
+            maxConnections: 1,
+        );
+        $redis = Redis::connection($connectionName);
+
+        try {
+            $redis->evalWithShaCache(
+                'return {KEYS[1], KEYS[2]}',
+                ['{a}:first', '{b}:second'],
+            );
+            $this->fail('Expected PhpRedis to reject keys from different hash slots.');
+        } catch (ErrorException $exception) {
+            $this->assertStringContainsString(
+                'All keys do not map to the same slot',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertTrue($redis->set('{eval-cache}:healthy', 'value'));
+        $this->assertSame('value', $redis->get('{eval-cache}:healthy'));
+    }
+
     public function testEvalWithShaCacheHandlesMultipleKeysAndArgs(): void
     {
         $result = Redis::withConnection(function ($connection) {
             return $connection->evalWithShaCache(
                 'return {KEYS[1], KEYS[2], ARGV[1], ARGV[2]}',
-                ['key1', 'key2'],
+                ['{eval-cache}:key1', '{eval-cache}:key2'],
                 ['arg1', 'arg2']
             );
         });
@@ -66,7 +89,12 @@ class EvalWithShaCacheIntegrationTest extends TestCase
         $config = $this->app->make('config');
         $prefix = $config->get('database.redis.default.options.prefix')
             ?? $config->get('database.redis.options.prefix', '');
-        $this->assertEquals([$prefix . 'key1', $prefix . 'key2', 'arg1', 'arg2'], $result);
+        $this->assertEquals([
+            $prefix . '{eval-cache}:key1',
+            $prefix . '{eval-cache}:key2',
+            'arg1',
+            'arg2',
+        ], $result);
     }
 
     public function testEvalWithShaCacheUsesScriptCaching(): void
@@ -98,19 +126,27 @@ class EvalWithShaCacheIntegrationTest extends TestCase
 
         // Verify script is not cached (fresh unique script)
         $exists = Redis::withConnection(function ($connection) use ($sha) {
+            if ($connection->isCluster()) {
+                return $connection->client()->script('{eval-cache}:route', 'exists', $sha);
+            }
+
             return $connection->client()->script('exists', $sha);
         });
         $this->assertEquals([0], $exists, 'Script should not be cached before test');
 
         // Call evalWithShaCache - should handle NOSCRIPT and fall back to eval
         $result = Redis::withConnection(function ($connection) use ($script) {
-            return $connection->evalWithShaCache($script, [], []);
+            return $connection->evalWithShaCache($script, ['{eval-cache}:route'], []);
         });
 
         $this->assertEquals("fallback_test_{$uniqueId}", $result);
 
         // Verify script is now cached after successful eval
         $exists = Redis::withConnection(function ($connection) use ($sha) {
+            if ($connection->isCluster()) {
+                return $connection->client()->script('{eval-cache}:route', 'exists', $sha);
+            }
+
             return $connection->client()->script('exists', $sha);
         });
         $this->assertEquals([1], $exists, 'Script should be cached after eval');

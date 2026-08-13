@@ -494,13 +494,17 @@ class PooledConnectionTest extends DatabaseTestCase
             $readPdo = new PDO('sqlite::memory:');
             $connection->setReadPdo($readPdo);
             $configurator->desiredState = 'fail';
-            $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+            $configurationException = new Exception('Configuration failed.');
+            $configurator->applyCallback = static fn () => throw $configurationException;
+            $caughtException = null;
 
             try {
                 $connection->getReadPdo();
-                $this->fail('Expected configuration exception was not thrown.');
-            } catch (Exception) {
+            } catch (Exception $exception) {
+                $caughtException = $exception;
             }
+
+            $this->assertSame($configurationException, $caughtException);
 
             $connection->setPdo(static fn () => throw new Exception('Write PDO must not be resolved.'));
             $releasedConnection = $pooledConnection;
@@ -568,7 +572,8 @@ class PooledConnectionTest extends DatabaseTestCase
             ],
         ]);
         $configurator = new PoolSessionConfigurator('session_reconnect_test');
-        $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+        $configurationException = new Exception('Configuration failed.');
+        $configurator->applyCallback = static fn () => throw $configurationException;
         Connection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'session_reconnect_test');
         $pooledConnection = null;
@@ -577,12 +582,15 @@ class PooledConnectionTest extends DatabaseTestCase
             /** @var PooledConnection $pooledConnection */
             $pooledConnection = $pool->get();
             $connection = $pooledConnection->getConnection();
+            $caughtException = null;
 
             try {
                 $connection->getPdo();
-                $this->fail('Expected configuration exception was not thrown.');
-            } catch (Exception) {
+            } catch (Exception $exception) {
+                $caughtException = $exception;
             }
+
+            $this->assertSame($configurationException, $caughtException);
 
             $oldPdo = $connection->getRawPdo();
             $firstPooledConnection = $pooledConnection;

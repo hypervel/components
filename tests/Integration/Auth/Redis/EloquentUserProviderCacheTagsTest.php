@@ -8,7 +8,7 @@ use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
-use Hypervel\Foundation\Testing\Concerns\RequiresHashFieldExpiration;
+use Hypervel\Foundation\Testing\Concerns\RequiresAnyTagModeRedis;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -29,7 +29,7 @@ class EloquentUserProviderCacheTagsTest extends TestCase
 {
     use InteractsWithRedis;
     use RefreshDatabase;
-    use RequiresHashFieldExpiration;
+    use RequiresAnyTagModeRedis;
 
     protected const string DEFAULT_KEY_PREFIX = 'auth_users';
 
@@ -62,11 +62,9 @@ class EloquentUserProviderCacheTagsTest extends TestCase
         ]);
     }
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
-        $this->skipIfHashFieldExpirationUnsupported();
+        $this->skipIfAnyTagModeUnsupported();
     }
 
     protected function afterRefreshingDatabase(): void

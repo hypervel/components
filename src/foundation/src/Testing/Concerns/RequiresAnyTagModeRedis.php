@@ -5,69 +5,69 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 /**
- * Skips tests when the environment doesn't support Redis hash-field
- * expiration operations.
+ * Skips tests when the environment doesn't support Redis any-mode tag
+ * operations.
  *
- * Hash-field expiration requires:
+ * Any-mode requires:
  * - phpredis >= 6.3.0 (HSETEX command)
- * - Redis >= 8.0.0 or Valkey >= 9.0.0 (HEXPIRE command)
+ * - Redis >= 8.0.0 OR Valkey >= 9.0.0 (HEXPIRE command)
  *
  * Expects InteractsWithRedis on the same class — uses redisClient() to
- * probe the server version. Each consuming test class memoizes the check.
+ * probe the server version. The support check is memoized per process.
  */
-trait RequiresHashFieldExpiration
+trait RequiresAnyTagModeRedis
 {
     /**
-     * Minimum phpredis version required for hash-field expiration.
+     * Minimum phpredis version required for any-mode (HSETEX support).
      */
     private const string PHPREDIS_MIN_VERSION = '6.3.0';
 
     /**
-     * Minimum Redis version required for hash-field expiration.
+     * Minimum Redis version required for any-mode (HEXPIRE support).
      */
     private const string REDIS_MIN_VERSION = '8.0.0';
 
     /**
-     * Minimum Valkey version required for hash-field expiration.
+     * Minimum Valkey version required for any-mode (HEXPIRE support).
      */
     private const string VALKEY_MIN_VERSION = '9.0.0';
 
     /**
-     * Cached result of the hash-field expiration support check.
+     * Cached result of the any-mode support check (null = not checked yet).
      */
-    private static ?bool $hashFieldExpirationSupported = null;
+    private static ?bool $anyTagModeSupported = null;
 
     /**
-     * Cached skip reason when hash-field expiration is not supported.
+     * Cached skip reason when any-mode is not supported.
      */
-    private static string $hashFieldExpirationSkipReason = '';
+    private static string $anyTagModeSkipReason = '';
 
     /**
-     * Skip the current test if hash-field expiration requirements are not met.
+     * Skip the current test if any-mode tag requirements are not met.
      *
      * The check runs once per process and is then cached for all
      * subsequent calls.
      */
-    protected function skipIfHashFieldExpirationUnsupported(): void
+    protected function skipIfAnyTagModeUnsupported(): void
     {
-        if (self::$hashFieldExpirationSupported === null) {
-            self::$hashFieldExpirationSupported = $this->checkHashFieldExpirationSupport();
+        if (self::$anyTagModeSupported === null) {
+            self::$anyTagModeSupported = $this->checkAnyTagModeSupport();
         }
 
-        if (! self::$hashFieldExpirationSupported) {
-            $this->markTestSkipped(self::$hashFieldExpirationSkipReason);
+        if (! self::$anyTagModeSupported) {
+            $this->markTestSkipped(self::$anyTagModeSkipReason);
         }
     }
 
     /**
-     * Check whether the environment supports hash-field expiration.
+     * Check whether the environment supports any-mode tag operations.
      */
-    private function checkHashFieldExpirationSupport(): bool
+    private function checkAnyTagModeSupport(): bool
     {
         $phpredisVersion = $this->detectedPhpredisVersion();
 
         if (version_compare($phpredisVersion, self::PHPREDIS_MIN_VERSION, '<')) {
-            self::$hashFieldExpirationSkipReason = 'Hash-field expiration requires phpredis >= '
+            self::$anyTagModeSkipReason = 'Any tag mode requires phpredis >= '
                 . self::PHPREDIS_MIN_VERSION . " (installed: {$phpredisVersion})";
 
             return false;
@@ -77,14 +77,14 @@ trait RequiresHashFieldExpiration
 
         if (isset($info['valkey_version'])) {
             if (version_compare($info['valkey_version'], self::VALKEY_MIN_VERSION, '<')) {
-                self::$hashFieldExpirationSkipReason = 'Hash-field expiration requires Valkey >= '
+                self::$anyTagModeSkipReason = 'Any tag mode requires Valkey >= '
                     . self::VALKEY_MIN_VERSION . " (installed: {$info['valkey_version']})";
 
                 return false;
             }
         } elseif (isset($info['redis_version'])) {
             if (version_compare($info['redis_version'], self::REDIS_MIN_VERSION, '<')) {
-                self::$hashFieldExpirationSkipReason = 'Hash-field expiration requires Redis >= '
+                self::$anyTagModeSkipReason = 'Any tag mode requires Redis >= '
                     . self::REDIS_MIN_VERSION . " (installed: {$info['redis_version']})";
 
                 return false;
@@ -110,5 +110,14 @@ trait RequiresHashFieldExpiration
     protected function detectedServerInfo(): array
     {
         return $this->redisClient()->info('server');
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$anyTagModeSupported = null;
+        self::$anyTagModeSkipReason = '';
     }
 }

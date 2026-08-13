@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
-use Hypervel\Redis\Limiters\ConcurrencyLease;
 use Hypervel\Redis\Limiters\ConcurrencyLimiter;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
@@ -201,7 +200,7 @@ class ConcurrencyLimiterTest extends TestCase
         (new ConcurrencyLimiter($redis, 'neg', -1, 5))->block(0);
     }
 
-    public function testAcquireReturnsLease(): void
+    public function testAcquireReturnsOwnedLease(): void
     {
         $redis = $this->mockRedis();
 
@@ -211,7 +210,6 @@ class ConcurrencyLimiterTest extends TestCase
 
         $lease = $limiter->acquire(5);
 
-        $this->assertInstanceOf(ConcurrencyLease::class, $lease);
         $this->assertNotEmpty($lease->owner());
     }
 

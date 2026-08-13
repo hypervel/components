@@ -48,33 +48,28 @@ class Concurrent
     /**
      * Get the current number of running coroutines.
      */
-    public function length(): int
-    {
-        return $this->channel->getLength();
-    }
-
-    /**
-     * Get the current number of running coroutines.
-     */
-    public function getLength(): int
-    {
-        return $this->channel->getLength();
-    }
-
-    /**
-     * Get the current number of running coroutines.
-     */
     public function getRunningCoroutineCount(): int
     {
-        return $this->getLength();
+        return $this->channel->getLength();
     }
 
     /**
-     * Get the underlying channel.
+     * Wait until a concurrency slot becomes available.
+     *
+     * The observed slot is released before this method returns. Another
+     * producer may claim it first, in which case create() will wait normally.
      */
-    public function getChannel(): Channel
+    public function waitForAvailableSlot(float $timeout = -1): bool
     {
-        return $this->channel;
+        if (! $this->channel->push(true, $timeout)) {
+            return false;
+        }
+
+        // The successful push guarantees this token remains available, so an
+        // unbounded pop cannot block and cannot strand capacity after a timeout.
+        $this->channel->pop();
+
+        return true;
     }
 
     /**

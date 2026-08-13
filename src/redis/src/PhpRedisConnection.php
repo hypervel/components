@@ -38,7 +38,7 @@ class PhpRedisConnection extends RedisConnection
      */
     public function reconnect(): bool
     {
-        $sentinel = $this->config['sentinel']['enable'] ?? false;
+        $sentinel = $this->config['sentinel']['enabled'] ?? false;
 
         $redis = $sentinel
             ? $this->createRedisSentinel()
@@ -69,7 +69,7 @@ class PhpRedisConnection extends RedisConnection
         $this->connection = $redis;
         $this->markReconnected();
 
-        if (($this->config['event']['enable'] ?? false) && $this->container->bound('events')) {
+        if (($this->config['events'] ?? false) && $this->container->bound('events')) {
             $this->eventDispatcher = $this->container->make('events');
         }
 
@@ -117,7 +117,7 @@ class PhpRedisConnection extends RedisConnection
             $this->formatHost($config),
             (int) $config['port'],
             $config['timeout'] ?? 0.0,
-            $config['reserved'] ?? null,
+            null,
             $config['retry_interval'] ?? 0,
             $config['read_timeout'] ?? 0.0,
         ];
@@ -202,9 +202,8 @@ class PhpRedisConnection extends RedisConnection
                 'host' => $host,
                 'port' => $port,
                 'timeout' => $this->config['timeout'] ?? 0,
-                'reserved' => $this->config['reserved'] ?? null,
                 'retry_interval' => $this->config['retry_interval'] ?? 0,
-                'read_timeout' => $this->config['sentinel']['read_timeout'] ?? 0,
+                'read_timeout' => $this->config['read_timeout'] ?? 0,
                 'context' => $this->config['context'] ?? [],
             ]);
         } catch (Throwable $exception) {

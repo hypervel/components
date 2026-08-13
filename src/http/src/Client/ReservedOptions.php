@@ -24,6 +24,8 @@ final class ReservedOptions
             'pool' => 'HTTP clients are not object-pooled; named connections share their low-level transport handler automatically.',
             'handler' => 'Use PendingRequest::setHandler() to provide a request-specific handler.',
             'cookies' => 'Use PendingRequest::withCookies() to seed the request-owned cookie jar.',
+            'max_host_connections' => 'Guzzle applies connection caps through a shared multi-handler, which cannot be driven safely by concurrent coroutines. Use bounded coroutine fan-out or rate limiting instead.',
+            'max_total_connections' => 'Guzzle applies connection caps through a shared multi-handler, which cannot be driven safely by concurrent coroutines. Use bounded coroutine fan-out or rate limiting instead.',
         ];
 
         if (! $allowTransportSharing) {

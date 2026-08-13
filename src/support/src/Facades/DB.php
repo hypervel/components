@@ -46,7 +46,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static void clearBeforeExecutingCallbacks()
  * @method static void commit()
  * @method static void configureSessionUsing(\Hypervel\Database\SessionConfigurator $configurator)
- * @method static \Generator<int, \stdClass> cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = [])
+ * @method static \Generator<int, mixed> cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = [])
  * @method static int delete(string $query, array $bindings = [])
  * @method static void disableQueryLog()
  * @method static void enableQueryLog()
@@ -95,7 +95,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static array select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = [])
  * @method static array selectFromWriteConnection(string $query, array $bindings = [])
  * @method static mixed selectOne(string $query, array $bindings = [], bool $useReadPdo = true)
- * @method static array selectResultSets(string $query, array $bindings = [], bool $useReadPdo = true)
+ * @method static array selectResultSets(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = [])
  * @method static \Hypervel\Database\Connection setDatabaseName(string $database)
  * @method static \Hypervel\Database\Connection setEventDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
  * @method static \Hypervel\Database\Connection setPdo(\PDO|\Closure|null $pdo)
@@ -112,7 +112,6 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static int|null threadCount()
  * @method static float totalQueryDuration()
  * @method static mixed transaction(\Closure $callback, int $attempts = 1)
- * @method static int transactionLevel()
  * @method static bool unprepared(string $query)
  * @method static void unsetEventDispatcher()
  * @method static void unsetTransactionManager()
@@ -125,6 +124,8 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static mixed withoutTablePrefix(\Closure $callback)
  *
  * @see \Hypervel\Database\DatabaseManager
+ *
+ * @mixin \Hypervel\Database\ConnectionInterface
  */
 class DB extends Facade
 {
@@ -148,5 +149,18 @@ class DB extends Facade
     protected static function getFacadeAccessor(): string
     {
         return 'db';
+    }
+
+    /**
+     * Get methods that should be excluded from the generated facade docblock.
+     *
+     * The connection mixin supplies transactionLevel()'s impurity metadata;
+     * name-based exclusion preserves richer manager methods with the same name.
+     *
+     * @return array<int, string>
+     */
+    protected static function ignoredFacadeDocumenterMethods(): array
+    {
+        return ['transactionLevel'];
     }
 }

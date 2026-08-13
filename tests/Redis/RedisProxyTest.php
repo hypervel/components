@@ -676,12 +676,13 @@ class RedisProxyTest extends TestCase
         );
     }
 
-    public function testCallbackTransactionDoesNotClearWatchStateWhenExecThrows(): void
+    public function testCallbackTransactionInvalidatesWithoutClearingWatchStateWhenExecThrows(): void
     {
         $transaction = m::mock(PhpRedis::class);
         $transaction->expects('exec')->andThrow(new RuntimeException('Exec failed.'));
         $connection = $this->mockConnection();
         $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('invalidate');
         $connection->shouldNotReceive('clearWatchState');
         $connection->shouldNotReceive('release');
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
@@ -1039,7 +1040,7 @@ class RedisProxyTest extends TestCase
         [$firstHost, $firstPort] = $servers[0]->hostAndPort();
         [$secondHost, $secondPort] = $servers[1]->hostAndPort();
         $config = [
-            'sentinel' => ['enable' => true],
+            'sentinel' => ['enabled' => true],
             'username' => '0',
             'password' => '0',
             'timeout' => 1.0,
@@ -1073,7 +1074,7 @@ class RedisProxyTest extends TestCase
         }
     }
 
-    public function testClusterSubscriberUsesClusterContextAndReleasesDiscoveryConnectionBeforeEndpointFallback(): void
+    public function testClusterSubscriberUsesConnectionTransportAndReleasesDiscoveryConnectionBeforeEndpointFallback(): void
     {
         $released = false;
         $server = new RespServer;
@@ -1086,12 +1087,12 @@ class RedisProxyTest extends TestCase
         });
         [$host, $port] = $server->hostAndPort();
         $config = [
+            'scheme' => 'tcp',
             'cluster' => [
-                'enable' => true,
+                'enabled' => true,
                 'seeds' => ['tcp://127.0.0.1:1'],
-                'context' => [],
             ],
-            'context' => ['stream' => ['verify_peer' => false]],
+            'context' => [],
             'timeout' => 0.1,
             'options' => ['prefix' => 'cluster:'],
         ];
@@ -1119,6 +1120,7 @@ class RedisProxyTest extends TestCase
             $this->assertTrue($released);
             $this->assertSame($port, $subscriber->port);
             $this->assertSame('cluster:', $subscriber->prefix);
+            $this->assertSame('tcp', $subscriber->scheme);
             $this->assertSame([], $subscriber->context);
         } finally {
             $subscriber->close();
@@ -1126,7 +1128,7 @@ class RedisProxyTest extends TestCase
         }
     }
 
-    public function testClusterSubscriberUsesOnlyClusterContextForMasterTransport(): void
+    public function testClusterSubscriberUsesTlsConnectionTransportForMaster(): void
     {
         $released = false;
         $clientOptions = [
@@ -1152,11 +1154,11 @@ class RedisProxyTest extends TestCase
         });
         [$host, $port] = $server->hostAndPort();
         $config = [
-            'scheme' => 'tcp',
+            'scheme' => 'tls',
+            'context' => $clientOptions,
             'cluster' => [
-                'enable' => true,
-                'seeds' => ['tcp://127.0.0.1:1'],
-                'context' => $clientOptions,
+                'enabled' => true,
+                'seeds' => ['tls://127.0.0.1:1'],
             ],
             'timeout' => 0.1,
         ];
@@ -1179,6 +1181,7 @@ class RedisProxyTest extends TestCase
 
         try {
             $this->assertTrue($released);
+            $this->assertSame('tls', $subscriber->scheme);
             $this->assertSame($clientOptions, $subscriber->context);
         } finally {
             $subscriber->close();
@@ -1190,7 +1193,7 @@ class RedisProxyTest extends TestCase
     {
         $config = [
             'cluster' => [
-                'enable' => true,
+                'enabled' => true,
                 'seeds' => ['tcp://127.0.0.1:1'],
             ],
             'timeout' => 0.01,
@@ -1231,8 +1234,8 @@ class RedisProxyTest extends TestCase
         $pool = m::mock(RedisPool::class);
         $pool->expects('getConfig')->andReturn([
             'cluster' => [
-                'enable' => true,
-                'seeds' => ['127.0.0.1:6379'],
+                'enabled' => true,
+                'seeds' => ['tcp://127.0.0.1:6379'],
             ],
         ]);
         $pool->expects('get')->andReturn($connection);
@@ -1341,7 +1344,7 @@ class RedisProxyTest extends TestCase
     {
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('getConfig')->andReturn([
-            'cluster' => ['enable' => true, 'seeds' => ['127.0.0.1:6379']],
+            'cluster' => ['enabled' => true, 'seeds' => ['tcp://127.0.0.1:6379']],
         ]);
         $pool->shouldReceive('get')->never();
 
