@@ -11,7 +11,6 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Redis\RedisConnection;
@@ -89,18 +88,19 @@ abstract class CacheFunnelTestCase extends TestCase
             ->releaseAfter(60)
             ->block(0);
         $first = $funnel->acquire();
-        $second = $funnel->acquire();
-
-        $this->assertInstanceOf(Lease::class, $first);
-        $this->assertInstanceOf(Lease::class, $second);
-
-        $this->expectException(LimiterTimeoutException::class);
 
         try {
-            $funnel->then(fn () => 'should not run');
+            $second = $funnel->acquire();
+
+            try {
+                $this->expectException(LimiterTimeoutException::class);
+
+                $funnel->then(fn () => 'should not run');
+            } finally {
+                $second->release();
+            }
         } finally {
             $first->release();
-            $second->release();
         }
     }
 
@@ -111,23 +111,24 @@ abstract class CacheFunnelTestCase extends TestCase
             ->releaseAfter(60)
             ->block(0);
         $first = $funnel->acquire();
-        $second = $funnel->acquire();
-
-        $this->assertInstanceOf(Lease::class, $first);
-        $this->assertInstanceOf(Lease::class, $second);
 
         try {
-            $result = $funnel->then(
-                fn () => 'should not run',
-                function ($e) {
-                    $this->assertInstanceOf(LimiterTimeoutException::class, $e);
+            $second = $funnel->acquire();
 
-                    return 'failed';
-                }
-            );
+            try {
+                $result = $funnel->then(
+                    fn () => 'should not run',
+                    function ($e) {
+                        $this->assertInstanceOf(LimiterTimeoutException::class, $e);
+
+                        return 'failed';
+                    }
+                );
+            } finally {
+                $second->release();
+            }
         } finally {
             $first->release();
-            $second->release();
         }
 
         $this->assertSame('failed', $result);
@@ -142,7 +143,6 @@ abstract class CacheFunnelTestCase extends TestCase
             ->acquire();
 
         try {
-            $this->assertInstanceOf(Lease::class, $lease);
             $this->assertNotEmpty($lease->owner());
 
             if ($lease instanceof RefreshableLease) {
@@ -179,8 +179,6 @@ abstract class CacheFunnelTestCase extends TestCase
             ->releaseAfter(60)
             ->block(0)
             ->acquire();
-
-        $this->assertInstanceOf(Lease::class, $lease);
 
         try {
             $result = $this->cache()->funnel('key-b')
@@ -260,34 +258,38 @@ abstract class CacheFunnelTestCase extends TestCase
             ->block(0);
 
         $first = $funnel->acquire();
-        $second = $funnel->acquire();
 
         try {
-            $this->expectException(LimiterTimeoutException::class);
+            $second = $funnel->acquire();
 
             try {
-                $this->cache()->funnel('lease-pair')
-                    ->limit(2)
-                    ->releaseAfter(60)
-                    ->block(0)
-                    ->acquire();
-            } finally {
-                $this->assertTrue($first->release());
+                $this->expectException(LimiterTimeoutException::class);
 
-                $third = $this->cache()->funnel('lease-pair')
-                    ->limit(2)
-                    ->releaseAfter(60)
-                    ->block(0)
-                    ->acquire();
-                $this->assertTrue($third->release());
+                try {
+                    $this->cache()->funnel('lease-pair')
+                        ->limit(2)
+                        ->releaseAfter(60)
+                        ->block(0)
+                        ->acquire();
+                } finally {
+                    $this->assertTrue($first->release());
 
-                if ($second instanceof RefreshableLease) {
-                    $this->assertTrue($second->refresh());
+                    $third = $this->cache()->funnel('lease-pair')
+                        ->limit(2)
+                        ->releaseAfter(60)
+                        ->block(0)
+                        ->acquire();
+                    $this->assertTrue($third->release());
+
+                    if ($second instanceof RefreshableLease) {
+                        $this->assertTrue($second->refresh());
+                    }
                 }
+            } finally {
+                $second->release();
             }
         } finally {
             $first->release();
-            $second->release();
         }
     }
 

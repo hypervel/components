@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Redis\ConcurrencyLimiterIntegrationTest;
 
 use Error;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
-use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Limiters\ConcurrencyLease;
 use Hypervel\Redis\Limiters\ConcurrencyLimiter;
@@ -162,7 +161,6 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         $lease = (new ConcurrencyLimiter($this->redis(), 'lease-release', 1, 5))->acquire(0);
 
         try {
-            $this->assertInstanceOf(RefreshableLease::class, $lease);
             $this->assertNotEmpty($lease->owner());
             $this->assertTrue($lease->release());
 

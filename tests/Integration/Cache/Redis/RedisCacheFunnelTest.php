@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
@@ -29,25 +28,26 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
             ->releaseAfter(60)
             ->block(0);
         $first = $funnel->acquire();
-        $second = $funnel->acquire();
-
-        $this->assertInstanceOf(Lease::class, $first);
-        $this->assertInstanceOf(Lease::class, $second);
 
         try {
-            $parallel = new Parallel(5);
-            for ($i = 0; $i < 10; ++$i) {
-                $parallel->add(
-                    static fn () => $cache->funnel('test')
-                        ->limit(2)->releaseAfter(60)->block(0)
-                        ->then(fn () => 'success', fn () => 'failed')
-                );
-            }
+            $second = $funnel->acquire();
 
-            $this->assertSame(array_fill(0, 10, 'failed'), $parallel->wait());
+            try {
+                $parallel = new Parallel(5);
+                for ($i = 0; $i < 10; ++$i) {
+                    $parallel->add(
+                        static fn () => $cache->funnel('test')
+                            ->limit(2)->releaseAfter(60)->block(0)
+                            ->then(fn () => 'success', fn () => 'failed')
+                    );
+                }
+
+                $this->assertSame(array_fill(0, 10, 'failed'), $parallel->wait());
+            } finally {
+                $second->release();
+            }
         } finally {
             $first->release();
-            $second->release();
         }
     }
 
