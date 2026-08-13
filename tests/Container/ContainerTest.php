@@ -15,6 +15,7 @@ use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
@@ -37,6 +38,16 @@ class ContainerTest extends TestCase
 
         $this->assertInstanceOf(Container::class, $container2);
         $this->assertNotSame($container, $container2);
+    }
+
+    public function testContainerSingletonIsSharedAcrossInheritanceHierarchy(): void
+    {
+        $application = new Application;
+
+        Container::setInstance($application);
+
+        $this->assertSame($application, Container::getInstance());
+        $this->assertSame($application, Application::getInstance());
     }
 
     public function testClosureResolution()

@@ -223,7 +223,8 @@ abstract class HasOneOrManyThrough extends Relation
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $exception) {
-            return $this->where($attributes)->first() ?? throw $exception;
+            // @phpstan-ignore return.type (generic type lost through where()->first() chain)
+            return $this->useWritePdo()->where($attributes)->first() ?? throw $exception;
         }
     }
 

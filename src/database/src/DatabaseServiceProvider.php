@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
+use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Hypervel\Contracts\Foundation\ReloadsConfiguration;
 use Hypervel\Contracts\Queue\EntityResolver;
 use Hypervel\Core\Events\BeforeServerFork;
@@ -119,6 +120,11 @@ class DatabaseServiceProvider extends ServiceProvider implements ReloadsConfigur
      */
     protected function registerConnectionServices(): void
     {
+        $this->app->singletonIf(
+            ConcurrencyErrorDetectorContract::class,
+            ConcurrencyErrorDetector::class,
+        );
+
         $this->app->singleton('db.factory', function ($app) {
             return new ConnectionFactory($app);
         });

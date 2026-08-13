@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache\Redis\Console;
 use Closure;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\HashFieldExpirationCheck;
+use Hypervel\Cache\Redis\Console\Doctor\Checks\PhpRedisCheck;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
@@ -20,6 +21,7 @@ use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -30,6 +32,48 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DoctorCommandTest extends TestCase
 {
+    #[DataProvider('phpRedisRequirements')]
+    public function testPhpRedisCheckUsesRequirementForTagMode(string $taggingMode, string $requiredVersion): void
+    {
+        $installedVersion = phpversion('redis');
+        $this->assertIsString($installedVersion);
+
+        $check = new PhpRedisCheck($taggingMode);
+        $result = $check->run();
+        $meetsRequirement = version_compare($installedVersion, $requiredVersion, '>=');
+
+        $this->assertSame([
+            [
+                'passed' => true,
+                'description' => "PHPRedis extension is installed (v{$installedVersion})",
+            ],
+            [
+                'passed' => $meetsRequirement,
+                'description' => "PHPRedis version >= {$requiredVersion}",
+            ],
+        ], $result->assertions);
+
+        $this->assertSame(
+            $meetsRequirement
+                ? null
+                : "Upgrade PHPRedis: pie install phpredis/phpredis (current: {$installedVersion}, required: {$requiredVersion}+)",
+            $check->getFixInstructions(),
+        );
+    }
+
+    /**
+     * Provide PHPRedis requirements by tag mode.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function phpRedisRequirements(): array
+    {
+        return [
+            'all mode' => ['all', '6.1.0'],
+            'any mode' => ['any', '6.3.0'],
+        ];
+    }
+
     public function testHashFieldExpirationCheckSkipsAllMode(): void
     {
         $connection = m::mock(RedisConnection::class);

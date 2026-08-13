@@ -14,6 +14,8 @@ use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
+use Hypervel\Image\ImageException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -313,6 +315,17 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
         return $this->response($path, $name, $headers, 'attachment');
+    }
+
+    /**
+     * Create an image instance from a file in storage.
+     */
+    public function image(string $path): Image
+    {
+        return new Image(
+            fn (): string => $this->get($path)
+                ?? throw new ImageException("Unable to read image from path [{$path}]."),
+        );
     }
 
     /**

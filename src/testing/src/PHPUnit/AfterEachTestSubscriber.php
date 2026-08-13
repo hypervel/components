@@ -316,6 +316,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
 
         $this->flushFortifyState();
         $this->flushHorizonState();
+        $this->flushImageState();
         $this->flushInertiaState();
         $this->flushJwtState();
         $this->flushNestedSetState();
@@ -348,6 +349,14 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->callIfExists(\Hypervel\Horizon\SupervisorCommandString::class, 'flushState');
         $this->callIfExists(\Hypervel\Horizon\SystemProcessCounter::class, 'flushState');
         $this->callIfExists(\Hypervel\Horizon\WorkerCommandString::class, 'flushState');
+    }
+
+    /**
+     * Flush Image state.
+     */
+    protected function flushImageState(): void
+    {
+        $this->callIfExists(\Hypervel\Image\Image::class, 'flushState');
     }
 
     /**

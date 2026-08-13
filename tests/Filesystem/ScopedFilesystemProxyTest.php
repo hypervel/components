@@ -15,6 +15,7 @@ use Hypervel\Filesystem\ScopedFilesystemProxy;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\ImageException;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\CorruptedPathDetected;
@@ -257,6 +258,91 @@ class ScopedFilesystemProxyTest extends TestCase
 
         $this->assertSame('safe.txt', $proxy->putFileAs('dir', $upload, '../safe.txt'));
         $this->assertTrue($this->disk->exists('tenant/safe.txt'));
+    }
+
+    public function testImageCapturesTheNormalizedPrefixAndResolvedDiskBeforeLazyReading(): void
+    {
+        $readCalls = 0;
+        $first = m::mock(FilesystemContract::class);
+        $first->shouldReceive('get')
+            ->once()
+            ->with('tenants/first/photo.jpg')
+            ->andReturnUsing(function () use (&$readCalls): string {
+                ++$readCalls;
+
+                return 'first image';
+            });
+        $second = m::mock(FilesystemContract::class);
+        $second->shouldNotReceive('get');
+        $currentDisk = $first;
+        $currentPrefix = 'tenants/first/images/..';
+        $diskCalls = 0;
+        $prefixCalls = 0;
+        $proxy = new ScopedFilesystemProxy(
+            function () use (&$currentDisk, &$diskCalls): FilesystemContract {
+                ++$diskCalls;
+
+                return $currentDisk;
+            },
+            function () use (&$currentPrefix, &$prefixCalls): string {
+                ++$prefixCalls;
+
+                return $currentPrefix;
+            },
+        );
+
+        $image = $proxy->image('photo.jpg');
+
+        $this->assertSame(1, $prefixCalls);
+        $this->assertSame(1, $diskCalls);
+        $this->assertSame(0, $readCalls);
+
+        $currentDisk = $second;
+        $currentPrefix = 'tenants/second';
+
+        $this->assertSame('first image', $image->toBytes());
+        $this->assertSame(1, $prefixCalls);
+        $this->assertSame(1, $diskCalls);
+        $this->assertSame(1, $readCalls);
+    }
+
+    public function testImageFailsClosedForAnEmptyPrefixAtCreation(): void
+    {
+        $proxy = new ScopedFilesystemProxy($this->disk, static fn (): string => '');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('returned an empty prefix');
+
+        $proxy->image('photo.jpg');
+    }
+
+    public function testImageHonorsExplicitRootPassthrough(): void
+    {
+        $this->disk->put('photo.jpg', 'root image');
+        $proxy = new ScopedFilesystemProxy($this->disk, static fn (): string => '.', true);
+
+        $image = $proxy->image('photo.jpg');
+
+        $this->assertSame('root image', $image->toBytes());
+    }
+
+    public function testMissingImageReportsOnlyTheCallerPath(): void
+    {
+        $inner = m::mock(FilesystemContract::class);
+        $inner->shouldReceive('get')->once()->with('secret-tenant/missing.jpg')->andReturnNull();
+        $proxy = new ScopedFilesystemProxy($inner, static fn (): string => 'secret-tenant');
+        $image = $proxy->image('missing.jpg');
+
+        try {
+            $image->toBytes();
+            $this->fail('Expected the missing image read to fail.');
+        } catch (ImageException $exception) {
+            $this->assertSame(
+                'Unable to read image from path [missing.jpg].',
+                $exception->getMessage(),
+            );
+            $this->assertStringNotContainsString('secret-tenant', $exception->getMessage());
+        }
     }
 
     public function testNoPathMethodsDoNotResolveThePrefix(): void
@@ -630,6 +716,27 @@ class ScopedFilesystemProxyTest extends TestCase
 
         $this->assertSame('https://example.test/file.txt', $proxy->url('file.txt'));
         $this->assertSame(1, $diskCalls);
+    }
+
+    public function testCloudVariantInheritsLazyImageScoping(): void
+    {
+        $readCalls = 0;
+        $inner = m::mock(Cloud::class);
+        $inner->shouldReceive('get')
+            ->once()
+            ->with('tenant/photo.jpg')
+            ->andReturnUsing(function () use (&$readCalls): string {
+                ++$readCalls;
+
+                return 'cloud image';
+            });
+        $proxy = new ScopedCloudFilesystemProxy($inner, static fn (): string => 'tenant');
+
+        $image = $proxy->image('photo.jpg');
+
+        $this->assertSame(0, $readCalls);
+        $this->assertSame('cloud image', $image->toBytes());
+        $this->assertSame(1, $readCalls);
     }
 
     public function testCloudVariantRejectsANonCloudResolvedDisk(): void

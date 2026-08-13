@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Hypervel\Contracts\Queue\EntityResolver;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Core\Events\TaskTerminated;
 use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\ConcurrencyErrorDetector;
 use Hypervel\Database\DatabaseServiceProvider;
 use Hypervel\Database\Eloquent\QueueEntityResolver;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 use Swoole\Constant;
+use Throwable;
 
 class DatabaseServiceProviderTest extends TestCase
 {
@@ -37,6 +40,31 @@ class DatabaseServiceProviderTest extends TestCase
         $this->assertNotSame($refreshedResolver, $refreshedDirectResolver);
         $this->assertSame('second', $refreshedResolver->getDefaultConnection());
         $this->assertSame('second', $refreshedDirectResolver->getDefaultConnection());
+    }
+
+    public function testConcurrencyErrorDetectorIsRegistered(): void
+    {
+        $this->assertInstanceOf(
+            ConcurrencyErrorDetector::class,
+            $this->app->make(ConcurrencyErrorDetectorContract::class),
+        );
+    }
+
+    public function testConcurrencyErrorDetectorCanBeOverridden(): void
+    {
+        $detector = new class implements ConcurrencyErrorDetectorContract {
+            public function causedByConcurrencyError(Throwable $e): bool
+            {
+                return false;
+            }
+        };
+
+        $this->app->instance(ConcurrencyErrorDetectorContract::class, $detector);
+
+        // Reproduce an application binding the contract before provider registration.
+        (new DatabaseServiceProvider($this->app))->register();
+
+        $this->assertSame($detector, $this->app->make(ConcurrencyErrorDetectorContract::class));
     }
 
     public function testQueueEntityResolverIsRegistered(): void

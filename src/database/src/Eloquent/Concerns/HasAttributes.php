@@ -1391,6 +1391,11 @@ trait HasAttributes
      */
     public function fromFloat(mixed $value): float
     {
+        // The match arms decode string database values, while PHP 8.5 warns when NAN is coerced to a string.
+        if (is_float($value)) {
+            return $value;
+        }
+
         return match ((string) $value) {
             'Infinity' => INF,
             '-Infinity' => -INF,

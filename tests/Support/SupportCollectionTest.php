@@ -2180,7 +2180,7 @@ class SupportCollectionTest extends TestCase
     #[DataProvider('collectionClassProvider')]
     public function testSortByMany($collection): void
     {
-        $defaultLocale = setlocale(LC_ALL, 0);
+        $defaultLocale = setlocale(LC_ALL, '0');
 
         $data = new $collection([['item' => '1'], ['item' => '10'], ['item' => 5], ['item' => 20]]);
         $expected = $data->pluck('item')->toArray();

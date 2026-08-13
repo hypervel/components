@@ -55,6 +55,7 @@
     },
     "suggest": {
         "ext-gd": "Required to use Hypervel\\Http\\Testing\\FileFactory::image().",
+        "hypervel/image": "Required for image() method on requests (^0.4).",
         "hypervel/validation": "Required for validate() method on requests."
     },
     "config": {

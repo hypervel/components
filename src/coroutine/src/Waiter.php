@@ -13,11 +13,18 @@ use Throwable;
 
 class Waiter
 {
-    protected float $pushTimeout = 10.0;
+    /**
+     * The default timeout for deferred result delivery and cancelled child unwind.
+     */
+    public const float DEFAULT_PUSH_TIMEOUT_SECONDS = 10.0;
 
-    protected float $popTimeout = 10.0;
+    protected const float DEFAULT_POP_TIMEOUT_SECONDS = 10.0;
 
-    public function __construct(float $timeout = 10.0)
+    protected float $pushTimeout = self::DEFAULT_PUSH_TIMEOUT_SECONDS;
+
+    protected float $popTimeout = self::DEFAULT_POP_TIMEOUT_SECONDS;
+
+    public function __construct(float $timeout = self::DEFAULT_POP_TIMEOUT_SECONDS)
     {
         $this->popTimeout = $timeout;
     }

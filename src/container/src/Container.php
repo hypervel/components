@@ -76,10 +76,8 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * The current globally available container (if any).
-     *
-     * @var null|static
      */
-    protected static $instance;
+    protected static ?self $instance = null;
 
     /**
      * An array of the types that have been resolved.
@@ -2357,7 +2355,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Get the globally available instance of the container.
      */
-    public static function getInstance(): static
+    public static function getInstance(): self
     {
         return static::$instance ??= new static;
     }
@@ -2368,9 +2366,9 @@ class Container implements ArrayAccess, ContainerContract
      * Tests only. Replaces the process-wide container singleton; runtime use
      * races across coroutines and breaks every facade/global container lookup.
      */
-    public static function setInstance(?ContainerContract $container = null): ?ContainerContract
+    public static function setInstance(?self $container = null): ?self
     {
-        return static::$instance = $container; // @phpstan-ignore assign.propertyType
+        return static::$instance = $container;
     }
 
     /**

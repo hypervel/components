@@ -775,10 +775,6 @@ trait QueriesRelationships
             return $this;
         }
 
-        if (is_null($this->query->columns)) {
-            $this->query->select([$this->query->from . '.*']);
-        }
-
         $relations = is_array($relations) ? $relations : [$relations];
 
         foreach ($this->parseWithRelations($relations) as $name => $constraints) {
@@ -848,6 +844,12 @@ trait QueriesRelationships
                     sprintf('%s %s %s', $name, $function, strtolower($this->getQuery()->getGrammar()->getValue($column)))
                 )
             );
+
+            $this->assertNoTimeoutOnRelationshipConstraint($query);
+
+            if (is_null($this->query->columns)) {
+                $this->query->select([$this->query->from . '.*']);
+            }
 
             if ($function === 'exists') {
                 $this->selectRaw(
@@ -938,10 +940,13 @@ trait QueriesRelationships
     protected function addHasWhere(Builder $hasQuery, Relation $relation, string $operator, Expression|int $count, string $boolean): static
     {
         $hasQuery->mergeConstraintsFrom($relation->getQuery());
+        $query = $hasQuery->toBase();
+
+        $this->assertNoTimeoutOnRelationshipConstraint($query);
 
         return $this->canUseExistsForExistenceCheck($operator, $count)
-            ? $this->addWhereExistsQuery($hasQuery->toBase(), $boolean, $operator === '<' && $count === 1)
-            : $this->addWhereCountQuery($hasQuery->toBase(), $operator, $count, $boolean);
+            ? $this->addWhereExistsQuery($query, $boolean, $operator === '<' && $count === 1)
+            : $this->addWhereCountQuery($query, $operator, $count, $boolean);
     }
 
     /**
@@ -1000,6 +1005,20 @@ trait QueriesRelationships
             is_numeric($count) ? new Expression($count) : $count,
             $boolean
         );
+    }
+
+    /**
+     * Ensure a relationship constraint does not carry a statement-level timeout.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function assertNoTimeoutOnRelationshipConstraint(QueryBuilder $query): void
+    {
+        if ($query->timeout !== null) {
+            throw new InvalidArgumentException(
+                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.'
+            );
+        }
     }
 
     /**

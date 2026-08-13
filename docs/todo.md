@@ -34,10 +34,6 @@
 - Complete Testing assertion coverage: port the remaining current Laravel `TestResponseTest` cases through the incremental upstream-update workflow, and add focused coverage for `TestView`'s public assertion and string surface where Laravel has no equivalent suite.
 - Add the repository-required `: void` return type to the remaining untyped HTTP test methods: 176 in `tests/Http/HttpClientTest.php`, 30 in `tests/Http/HttpRequestTrustedStateTest.php`, and 4 in `tests/Http/HttpRequestTrustedStateCoroutineTest.php`. Verify each file after the mechanical conversion.
 
-## Image
-
-- Port the complete first-party Image component through the dedicated [Image package handoff](notes/image-package.md). The HTTP integration must add `Request::image(string $key): ?Image`, port `testImageMethod` and `testImageMethodReturnsNullForMissingKey`, and add the `hypervel/image` suggestion to `src/http/composer.json` with its package-metadata regression.
-
 ## HTTP Server
 
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.

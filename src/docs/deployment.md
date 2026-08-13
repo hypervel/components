@@ -47,7 +47,7 @@ The Hypervel framework has a few system requirements. Hypervel ships with its ow
 - POSIX PHP Extension
 - Redis PHP Extension >= 6.1
 - Session PHP Extension
-- Swoole PHP Extension >= 6.2
+- Swoole PHP Extension >= 6.2.2
 - Tokenizer PHP Extension
 - XML PHP Extension
 

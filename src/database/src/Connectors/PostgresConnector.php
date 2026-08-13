@@ -119,6 +119,12 @@ class PostgresConnector extends Connector implements ConnectorInterface
             $parts[] = '-c default_transaction_isolation=' . $this->escapeStartupOptionValue((string) $config['isolation_level']);
         }
 
+        $lockTimeout = $this->getLockTimeout($config);
+
+        if ($lockTimeout !== null) {
+            $parts[] = "-c lock_timeout={$lockTimeout}s";
+        }
+
         if (isset($config['synchronous_commit'])) {
             $parts[] = '-c synchronous_commit=' . $this->escapeStartupOptionValue((string) $config['synchronous_commit']);
         }

@@ -130,14 +130,9 @@ class PutMany
                     $tag = (string) $tag;
                     $tagHashKey = $this->context->tagHashKey($tag);
 
-                    // Prepare HSET arguments: [key1 => 1, key2 => 1, ...]
-                    $hsetArgs = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
+                    $fields = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
 
-                    // Use multi() for tag hash updates (same slot)
-                    $multi = $connection->multi();
-                    $multi->hSet($tagHashKey, $hsetArgs); // @phpstan-ignore arguments.count, argument.type (phpredis supports array syntax)
-                    $multi->hexpire($tagHashKey, $ttl, $keys); // @phpstan-ignore method.nonObject (phpredis multi() returns Redis)
-                    $multi->exec();
+                    $connection->hsetex($tagHashKey, $fields, ['EX' => $ttl]);
                 }
 
                 // 5. Batch update Registry (Same slot, single command optimization)
@@ -235,11 +230,9 @@ class PutMany
                     $tag = (string) $tag;
                     $tagHashKey = $this->context->tagHashKey($tag);
 
-                    // Prepare HSET arguments: [key1 => 1, key2 => 1, ...]
-                    $hsetArgs = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
+                    $fields = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
 
-                    $pipeline->hSet($tagHashKey, $hsetArgs); // @phpstan-ignore arguments.count, argument.type (phpredis supports array syntax)
-                    $pipeline->hexpire($tagHashKey, $ttl, $keys); // @phpstan-ignore method.nonObject (phpredis pipeline() returns Redis)
+                    $pipeline->hsetex($tagHashKey, $fields, ['EX' => $ttl]); // @phpstan-ignore method.nonObject (phpredis pipeline() returns Redis)
                 }
 
                 // Update Registry in batch
