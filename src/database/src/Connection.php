@@ -408,11 +408,11 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Run a select statement against the database and returns all of the result sets.
+     * Run a select statement against the database and return all of the result sets.
      */
-    public function selectResultSets(string $query, array $bindings = [], bool $useReadPdo = true): array
+    public function selectResultSets(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
     {
-        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
+        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo, $fetchUsing) {
             if ($this->pretending()) {
                 return [];
             }
@@ -428,7 +428,7 @@ class Connection implements ConnectionInterface
             $sets = [];
 
             do {
-                $sets[] = $statement->fetchAll();
+                $sets[] = $statement->fetchAll(...$fetchUsing);
             } while ($statement->nextRowset());
 
             return $sets;
@@ -436,15 +436,15 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Run a select statement against the database and returns a generator.
+     * Run a select statement against the database and return a generator.
      *
-     * @return Generator<int, stdClass>
+     * @return Generator<int, mixed>
      */
     public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
     {
         $statement = $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
             if ($this->pretending()) {
-                return [];
+                return null;
             }
 
             // First we will create a statement for the query. Then, we will set the fetch
@@ -466,7 +466,27 @@ class Connection implements ConnectionInterface
             return $statement;
         });
 
-        while ($record = $statement->fetch(...$fetchUsing)) {
+        if ($statement === null) {
+            return;
+        }
+
+        if ($fetchUsing !== []) {
+            // fetchAll() supplies default column and class arguments that setFetchMode()
+            // demands explicitly, so a mode-only call keeps the same meaning when streamed.
+            if (count($fetchUsing) === 1) {
+                $mode = $fetchUsing[0] & ~(PDO::FETCH_GROUP | PDO::FETCH_UNIQUE | PDO::FETCH_CLASSTYPE | PDO::FETCH_PROPS_LATE);
+
+                if ($mode === PDO::FETCH_COLUMN) {
+                    $fetchUsing[] = 0;
+                } elseif ($mode === PDO::FETCH_CLASS && ($fetchUsing[0] & PDO::FETCH_CLASSTYPE) === 0) {
+                    $fetchUsing[] = stdClass::class;
+                }
+            }
+
+            $statement->setFetchMode(...$fetchUsing);
+        }
+
+        foreach ($statement as $record) {
             yield $record;
         }
     }

@@ -48,6 +48,9 @@ class DatabaseManagerTest extends TestCase
         $this->assertNull($connection->getRawPdo());
     }
 
+    // REMOVED: Capsule's setter writes unused configuration and cannot safely
+    // define a connection-wide row shape. Use Query\Builder::fetchUsing() per query.
+
     public function testFlushStateClearsMacros()
     {
         try {
