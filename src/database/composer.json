@@ -32,7 +32,7 @@
     "require": {
         "php": "^8.4",
         "ext-pdo": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "brick/math": "^0.17",
         "nesbot/carbon": "^3.13.1",
         "psr/log": "^3.0",

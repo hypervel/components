@@ -147,7 +147,11 @@ php artisan migrate
 <a name="redis"></a>
 #### Redis
 
-Before using a Redis cache with Hypervel, you will need to install the PhpRedis PHP extension via PECL.
+Before using a Redis cache with Hypervel, install the PhpRedis PHP extension using [PIE](https://github.com/php/pie):
+
+```shell
+pie install phpredis/phpredis
+```
 
 Redis cache tags support two modes. The default `all` mode works on standard Redis deployments. The `any` tag mode requires Redis 8.0+ or Valkey 9.0+ and PhpRedis 6.3.0+, because it uses Redis hash-field expiration commands for tag indexes.
 

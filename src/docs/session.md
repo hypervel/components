@@ -66,7 +66,13 @@ The `session:table` command is also available as an alias for `make:session-tabl
 <a name="redis"></a>
 #### Redis
 
-Before using Redis sessions with Hypervel, you will need to install the [PhpRedis](https://github.com/phpredis/phpredis) PHP extension via PECL. For more information on configuring Redis, consult Hypervel's [Redis documentation](/docs/{{version}}/redis#configuration).
+Before using Redis sessions with Hypervel, install the [PhpRedis](https://github.com/phpredis/phpredis) PHP extension using [PIE](https://github.com/php/pie):
+
+```shell
+pie install phpredis/phpredis
+```
+
+For more information on configuring Redis, consult Hypervel's [Redis documentation](/docs/{{version}}/redis#configuration).
 
 > [!NOTE]
 > The `SESSION_CONNECTION` environment variable, or the `connection` option in the `session.php` configuration file, may be used to specify which Redis connection is used for session storage.

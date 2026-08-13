@@ -158,6 +158,7 @@ namespace Hypervel\Support\Facades;
  * @method static array<string, \Hypervel\Http\UploadedFile|\Hypervel\Http\UploadedFile[]> allFiles()
  * @method static bool hasFile(string $key)
  * @method static ($key is null ? array<string, \Hypervel\Http\UploadedFile|\Hypervel\Http\UploadedFile[]> : null|\Hypervel\Http\UploadedFile|\Hypervel\Http\UploadedFile[]) file(string|null $key = null, mixed $default = null)
+ * @method static \Hypervel\Image\Image|null image(string $key)
  * @method static \Hypervel\Http\Request dump(mixed $keys = [])
  * @method static never dd(mixed ...$args)
  * @method static bool exists(array|string $key)

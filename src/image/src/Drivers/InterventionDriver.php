@@ -1,0 +1,233 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Image\Drivers;
+
+use finfo;
+use Hypervel\Contracts\Image\Driver;
+use Hypervel\Contracts\Image\Transformation;
+use Hypervel\Image\ImageException;
+use Hypervel\Image\ImageOutputOptions;
+use Hypervel\Image\ImagePipeline;
+use Hypervel\Image\Transformations\Blur;
+use Hypervel\Image\Transformations\Contain;
+use Hypervel\Image\Transformations\Cover;
+use Hypervel\Image\Transformations\Crop;
+use Hypervel\Image\Transformations\FlipHorizontally;
+use Hypervel\Image\Transformations\FlipVertically;
+use Hypervel\Image\Transformations\Grayscale;
+use Hypervel\Image\Transformations\Orient;
+use Hypervel\Image\Transformations\Resize;
+use Hypervel\Image\Transformations\Rotate;
+use Hypervel\Image\Transformations\Scale;
+use Hypervel\Image\Transformations\Sharpen;
+use Intervention\Image\Direction;
+use Intervention\Image\Encoders\AvifEncoder;
+use Intervention\Image\Encoders\BmpEncoder;
+use Intervention\Image\Encoders\GifEncoder;
+use Intervention\Image\Encoders\HeicEncoder;
+use Intervention\Image\Encoders\JpegEncoder;
+use Intervention\Image\Encoders\MediaTypeEncoder;
+use Intervention\Image\Encoders\PngEncoder;
+use Intervention\Image\Encoders\WebpEncoder;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Interfaces\ImageInterface;
+use Intervention\Image\Interfaces\ImageManagerInterface;
+
+abstract class InterventionDriver implements Driver
+{
+    /**
+     * The registered transformation handlers.
+     *
+     * @var array<class-string<Transformation>, callable>
+     */
+    protected array $transformationHandlers = [];
+
+    /**
+     * The Intervention image manager instance.
+     */
+    protected ImageManagerInterface $manager;
+
+    /**
+     * Create a new Intervention driver instance.
+     */
+    public function __construct()
+    {
+        $this->ensureRequirementsAreMet();
+        $this->manager = $this->createManager();
+    }
+
+    /**
+     * Create the underlying Intervention image manager.
+     */
+    abstract protected function createManager(): ImageManagerInterface;
+
+    /**
+     * Ensure Intervention Image is installed.
+     *
+     * @throws ImageException
+     */
+    public function ensureRequirementsAreMet(): void
+    {
+        if (! class_exists(ImageManager::class)) {
+            throw new ImageException(
+                'Intervention Image is required to use this driver. '
+                . 'You may install it via: composer require intervention/image:^4.0',
+            );
+        }
+    }
+
+    /**
+     * Process the given image contents with the specified pipeline.
+     */
+    public function process(string $contents, ImagePipeline $pipeline): string
+    {
+        $mimeType = (new finfo(FILEINFO_MIME_TYPE))->buffer($contents);
+
+        if (! in_array($mimeType, ['image/jpeg', 'image/png', 'image/bmp', 'image/gif', 'image/webp', 'image/avif', 'image/x-avif', 'image/heic', 'image/x-heic', 'image/heif'], true)) {
+            throw new ImageException("The image format [{$mimeType}] is not supported.");
+        }
+
+        $image = $this->manager->decode($contents);
+
+        foreach ($pipeline->transformations as $transformation) {
+            if ($handler = $this->transformationHandlerFor($transformation)) {
+                $image = $handler($image, $transformation);
+
+                continue;
+            }
+
+            $image = match (true) {
+                $transformation instanceof Orient => $image->orient(),
+                $transformation instanceof Cover => $image->cover($transformation->width, $transformation->height),
+                $transformation instanceof Contain => $image->contain(
+                    $transformation->width,
+                    $transformation->height,
+                    $this->resolveBackground($image, $transformation->background),
+                ),
+                $transformation instanceof Crop => $image->crop($transformation->width, $transformation->height, $transformation->x, $transformation->y),
+                $transformation instanceof Resize => $image->resize($transformation->width, $transformation->height),
+                $transformation instanceof Rotate => $image->rotate(
+                    $transformation->angle,
+                    $this->resolveBackground($image, $transformation->background),
+                ),
+                $transformation instanceof Scale => $image->scaleDown($transformation->width, $transformation->height),
+                $transformation instanceof Blur => $image->blur($transformation->amount),
+                $transformation instanceof Grayscale => $image->grayscale(),
+                $transformation instanceof Sharpen => $image->sharpen($transformation->amount),
+                $transformation instanceof FlipVertically => $image->flip(Direction::VERTICAL),
+                $transformation instanceof FlipHorizontally => $image->flip(Direction::HORIZONTAL),
+                default => throw new ImageException('The image transformation [' . get_class($transformation) . '] is not supported.'),
+            };
+        }
+
+        $quality = $pipeline->output->quality ?? ImageOutputOptions::DEFAULT_QUALITY;
+
+        try {
+            if ($pipeline->output->format !== null) {
+                return $image->encode(match ($pipeline->output->format) {
+                    'webp' => new WebpEncoder($quality),
+                    'jpg', 'jpeg' => new JpegEncoder($quality),
+                    'png' => new PngEncoder,
+                    'gif' => new GifEncoder,
+                    'avif' => new AvifEncoder($quality),
+                    'heic' => new HeicEncoder($quality),
+                    'bmp' => new BmpEncoder,
+                })->toString();
+            }
+
+            $mediaType = match ($image->origin()->mediaType()) {
+                'image/x-gif' => 'image/gif',
+                default => null,
+            };
+
+            return $image->encode(new MediaTypeEncoder($mediaType, quality: $quality))->toString();
+        } finally {
+            unset($image);
+        }
+    }
+
+    /**
+     * Get the dimensions of the given image contents.
+     *
+     * @return array{0: int, 1: int}
+     */
+    public function dimensions(string $contents): array
+    {
+        $image = $this->manager->decode($contents);
+
+        try {
+            return [$image->width(), $image->height()];
+        } finally {
+            unset($image);
+        }
+    }
+
+    /**
+     * Resolve a background color, expanding the "dominant" sentinel when needed.
+     */
+    protected function resolveBackground(ImageInterface $image, ?string $background): ?string
+    {
+        return $background === 'dominant'
+            ? $this->dominantColorFrom($image)
+            : $background;
+    }
+
+    /**
+     * Get the dominant (average) color of the image as a hex string.
+     */
+    public function dominantColor(string $contents): string
+    {
+        $image = $this->manager->decode($contents);
+
+        try {
+            return $this->dominantColorFrom($image);
+        } finally {
+            unset($image);
+        }
+    }
+
+    /**
+     * Sample the dominant color by resizing the image to a single pixel.
+     */
+    protected function dominantColorFrom(ImageInterface $image): string
+    {
+        $sample = clone $image;
+
+        try {
+            // Interpolation during the 1x1 resize can leave alpha slightly non-opaque, so it's dropped here.
+            return substr($sample->resize(1, 1)->colorAt(0, 0)->toHex(true), 0, 7);
+        } finally {
+            unset($sample);
+        }
+    }
+
+    /**
+     * Register a transformation handler.
+     *
+     * Boot-only. The handler persists on this cached driver for the worker lifetime and affects every subsequent image processed by it.
+     *
+     * @param class-string<Transformation> $transformation
+     */
+    public function transformUsing(string $transformation, callable $callback): static
+    {
+        $this->transformationHandlers[$transformation] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Get the handler for the given transformation.
+     */
+    protected function transformationHandlerFor(Transformation $transformation): ?callable
+    {
+        foreach ($this->transformationHandlers as $class => $handler) {
+            if ($transformation instanceof $class) {
+                return $handler;
+            }
+        }
+
+        return null;
+    }
+}

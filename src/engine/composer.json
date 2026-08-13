@@ -26,7 +26,7 @@
     "require": {
         "php": "^8.4",
         "ext-sockets": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "psr/http-message": "^2.0",
         "hypervel/contracts": "^0.4",
         "hypervel/support": "^0.4"

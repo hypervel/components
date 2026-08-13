@@ -2,6 +2,8 @@ name: redis
 
 on:
   push:
+    branches:
+      - 0.4
   pull_request:
 
 env:
@@ -23,14 +25,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    # Swoole 6.2+ required for phpredis 6.3.0+ (HSETEX support for "any" tag mode)
+    # Any-mode coverage requires phpredis 6.3.0+ for HSETEX support.
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
     strategy:
-      fail-fast: true
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
 
-    name: Redis 8
+    name: Redis 8 (PHP ${{ matrix.php }})
 
     steps:
       - name: Checkout code
@@ -41,21 +45,15 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
-
       - name: Cache Composer dependencies
         uses: actions/cache@v5
         with:
           path: /root/.composer/cache
-          key: composer-8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-8.4-
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
-
-      - name: Install procps for Horizon's SystemProcessCounter (ps aux)
-        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends procps > /dev/null
 
       - name: Execute Redis integration tests
         env:
@@ -89,14 +87,16 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    # Swoole 6.2+ required for phpredis 6.3.0+ (HSETEX support for "any" tag mode)
+    # Any-mode coverage requires phpredis 6.3.0+ for HSETEX support.
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
     strategy:
-      fail-fast: true
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
 
-    name: Valkey 9
+    name: Valkey 9 (PHP ${{ matrix.php }})
 
     steps:
       - name: Checkout code
@@ -107,21 +107,15 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
-
       - name: Cache Composer dependencies
         uses: actions/cache@v5
         with:
           path: /root/.composer/cache
-          key: composer-8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-8.4-
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
-
-      - name: Install procps for Horizon's SystemProcessCounter (ps aux)
-        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends procps > /dev/null
 
       - name: Execute Redis integration tests
         env:
