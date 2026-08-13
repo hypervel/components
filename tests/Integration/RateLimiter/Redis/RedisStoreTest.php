@@ -191,7 +191,7 @@ class RedisStoreTest extends TestCase
         $physicalKey = $this->physicalKey($policy);
         $redis = $this->redisClient();
 
-        $redis->set($physicalKey, '010', ['px' => 60_000]);
+        $redis->pSetEx($physicalKey, 60_000, '010');
 
         try {
             $this->limiter()->consume($policy);
@@ -335,7 +335,7 @@ class RedisStoreTest extends TestCase
         $this->limiter()->consume($policy);
 
         $physicalKey = $this->physicalKey($policy);
-        $redis = $this->rawRedisClientWithoutPrefix();
+        $redis = $this->redisClientWithoutPrefix();
 
         $this->assertSame(1, $redis->exists('rate-limiter-test:' . $physicalKey));
         $this->assertSame(0, $redis->exists('rate-limiter-test:rate-limiter-test:' . $physicalKey));
@@ -404,25 +404,21 @@ class RedisStoreTest extends TestCase
         $this->assertTrue($limiter->consume($leaky)->denied());
         $this->assertSame(1, $limiter->recordFailure($backoff)->failures());
 
-        $redis = $this->rawRedisClientWithoutPrefix($connection);
+        $redis = $this->redisClientWithoutPrefix();
 
-        try {
-            $this->assertSame('1', $redis->get('rate-limiter-encoded:' . $this->physicalKey($fixed)));
-            $this->assertSame([
-                'current' => '1',
-                'previous' => '0',
-            ], $redis->hGetAll('rate-limiter-encoded:' . $this->physicalKey($sliding)));
-            $this->assertMatchesRegularExpression(
-                '/^[1-9][0-9]*$/D',
-                (string) $redis->get('rate-limiter-encoded:' . $this->physicalKey($leaky)),
-            );
-            $this->assertSame(
-                '1',
-                $redis->hGet('rate-limiter-encoded:' . $this->physicalKey($backoff), 'failures'),
-            );
-        } finally {
-            $redis->close();
-        }
+        $this->assertSame('1', $redis->get('rate-limiter-encoded:' . $this->physicalKey($fixed)));
+        $this->assertSame([
+            'current' => '1',
+            'previous' => '0',
+        ], $redis->hGetAll('rate-limiter-encoded:' . $this->physicalKey($sliding)));
+        $this->assertMatchesRegularExpression(
+            '/^[1-9][0-9]*$/D',
+            (string) $redis->get('rate-limiter-encoded:' . $this->physicalKey($leaky)),
+        );
+        $this->assertSame(
+            '1',
+            $redis->hGet('rate-limiter-encoded:' . $this->physicalKey($backoff), 'failures'),
+        );
     }
 
     private function limiter(): Limiter
