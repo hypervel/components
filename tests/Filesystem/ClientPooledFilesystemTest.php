@@ -15,6 +15,7 @@ use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Image\ImageException;
 use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
@@ -80,6 +81,45 @@ class ClientPooledFilesystemTest extends TestCase
         $this->assertSame(3, $stackCreations);
         $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
         $this->assertSame(1, $this->pools->get('filesystem:test')->getObjectNumberInPool());
+    }
+
+    public function testImageDefersAndBalancesItsClientBorrowUntilMaterialization(): void
+    {
+        $this->driver->write('image.bin', 'contents');
+        $clientCreations = 0;
+        $stackCreations = 0;
+        $disk = $this->disk($clientCreations, $stackCreations);
+
+        $image = $disk->image('image.bin');
+
+        $this->assertSame(0, $clientCreations);
+        $this->assertSame(0, $stackCreations);
+        $this->assertSame('contents', $image->toBytes());
+        $this->assertSame(1, $clientCreations);
+        $this->assertSame(1, $stackCreations);
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+
+        $this->assertSame('contents', $image->toBytes());
+        $this->assertSame(1, $stackCreations);
+    }
+
+    public function testMissingImageReleasesItsClientBorrowAndReportsTheCallerPath(): void
+    {
+        $clientCreations = 0;
+        $stackCreations = 0;
+        $disk = $this->disk($clientCreations, $stackCreations);
+        $image = $disk->image('missing.bin');
+
+        try {
+            $image->toBytes();
+            $this->fail('Expected the missing image to be rejected.');
+        } catch (ImageException $exception) {
+            $this->assertSame('Unable to read image from path [missing.bin].', $exception->getMessage());
+        }
+
+        $this->assertSame(1, $clientCreations);
+        $this->assertSame(1, $stackCreations);
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
     }
 
     public function testSynchronousFlysystemMethodsAndConditionableUseTheProxyBoundary(): void

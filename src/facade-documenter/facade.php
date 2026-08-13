@@ -1223,7 +1223,10 @@ function resolveMethods($class)
 {
     return collect($class->getMethods(ReflectionMethod::IS_PUBLIC))
         ->map(fn ($method) => new ReflectionMethodDecorator($method, $class->getName()))
-        ->merge(resolveDocMethods($class));
+        ->merge(resolveDocMethods($class))
+        // PHP 8.5 binds traits before parent classes, making reflection order version-dependent.
+        // Stable sorting also keeps native methods ahead of same-name @method tags.
+        ->sortBy(fn ($method) => strtolower(resolveName($method)));
 }
 
 /**

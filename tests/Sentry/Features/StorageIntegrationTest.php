@@ -234,6 +234,7 @@ class StorageIntegrationTest extends SentryTestCase
                     'getAdapter',
                     'getConfig',
                     'getDriver',
+                    'image',
                     'json',
                     'macroCall',
                     'missing',

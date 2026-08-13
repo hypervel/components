@@ -23,7 +23,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
             ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
     }
 
-    public function testToRawSql()
+    public function testToRawSql(): void
     {
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('escape')->with('foo', false)->andReturn("'foo'");
@@ -64,6 +64,74 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
             'select /*+ MAX_EXECUTION_TIME(10000) */ count(*) as `aggregate` from `users`',
             $builder->toSql()
         );
+    }
+
+    public function testTimeoutDecoratesOrdinaryAndAggregateUnionStatementsOnce(): void
+    {
+        $builder = $this->getBuilder()
+            ->select('*')
+            ->from('posts')
+            ->where('published', true)
+            ->unionAll(
+                $this->getBuilder()
+                    ->select('*')
+                    ->from('videos')
+                    ->where('published', false)
+            )
+            ->timeout(5);
+
+        $this->assertSame(
+            '(select /*+ MAX_EXECUTION_TIME(5000) */ * from `posts` where `published` = ?) union all (select * from `videos` where `published` = ?)',
+            $builder->toSql()
+        );
+        $this->assertSame([true, false], $builder->getBindings());
+
+        $builder->aggregate = ['function' => 'count', 'columns' => ['*']];
+
+        $sql = $builder->toSql();
+
+        $this->assertSame(
+            'select /*+ MAX_EXECUTION_TIME(5000) */ count(*) as `aggregate` from ((select * from `posts` where `published` = ?) union all (select * from `videos` where `published` = ?)) as `temp_table`',
+            $sql
+        );
+        $this->assertSame(1, substr_count($sql, 'MAX_EXECUTION_TIME'));
+    }
+
+    public function testTimeoutDecoratesExistsAndLockingStatementsAtTheRoot(): void
+    {
+        $exists = $this->getBuilder()->from('users')->where('active', true)->timeout(4);
+
+        $this->assertSame(
+            'select /*+ MAX_EXECUTION_TIME(4000) */ exists(select * from `users` where `active` = ?) as `exists`',
+            $exists->getGrammar()->compileExists($exists)
+        );
+
+        $locking = $this->getBuilder()->from('users')->where('id', 1)->lockForUpdate()->timeout(3);
+
+        $this->assertSame(
+            'select /*+ MAX_EXECUTION_TIME(3000) */ * from `users` where `id` = ? for update',
+            $locking->toSql()
+        );
+    }
+
+    public function testOuterTimeoutLeavesAnUntimedSubqueryUndecorated(): void
+    {
+        $subquery = $this->getBuilder()->select('user_id')->from('memberships')->where('active', true);
+        $builder = $this->getBuilder()
+            ->select('*')
+            ->from('users')
+            ->whereIn('id', $subquery)
+            ->where('status', 'enabled')
+            ->timeout(6);
+
+        $sql = $builder->toSql();
+
+        $this->assertSame(
+            'select /*+ MAX_EXECUTION_TIME(6000) */ * from `users` where `id` in (select `user_id` from `memberships` where `active` = ?) and `status` = ?',
+            $sql
+        );
+        $this->assertSame([true, 'enabled'], $builder->getBindings());
+        $this->assertSame(1, substr_count($sql, 'MAX_EXECUTION_TIME'));
     }
 
     public function testTimeoutCanBeCleared(): void

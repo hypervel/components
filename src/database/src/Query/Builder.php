@@ -278,11 +278,11 @@ class Builder implements BuilderContract
     /**
      * Add a subselect expression to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      *
      * @throws InvalidArgumentException
      */
-    public function selectSub(Closure|self|EloquentBuilder|string $query, string $as): static
+    public function selectSub(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
         [$query, $bindings] = $this->createSub($query);
 
@@ -319,11 +319,11 @@ class Builder implements BuilderContract
     /**
      * Makes "from" fetch from a subquery.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      *
      * @throws InvalidArgumentException
      */
-    public function fromSub(Closure|self|EloquentBuilder|string $query, string $as): static
+    public function fromSub(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
         [$query, $bindings] = $this->createSub($query);
 
@@ -347,9 +347,9 @@ class Builder implements BuilderContract
     /**
      * Creates a subquery and parse it.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      */
-    protected function createSub(Closure|self|EloquentBuilder|string $query): array
+    protected function createSub(Closure|self|EloquentBuilder|Relation|string $query): array
     {
         // If the given query is a Closure, we will execute it while passing in a new
         // query instance to the Closure. This will give the developer a chance to
@@ -370,7 +370,17 @@ class Builder implements BuilderContract
      */
     protected function parseSub(mixed $query): array
     {
-        if ($query instanceof self || $query instanceof EloquentBuilder || $query instanceof Relation) {
+        if ($query instanceof Relation) {
+            $query = $query->getQuery();
+        }
+
+        if ($query instanceof EloquentBuilder) {
+            $query = $query->toBase();
+        }
+
+        if ($query instanceof self) {
+            $this->assertNoTimeoutOnEmbeddedQuery($query);
+
             $query = $this->prependDatabaseNameIfCrossDatabaseQuery($query);
 
             return [$query->toSql(), $query->getBindings()];
@@ -386,13 +396,15 @@ class Builder implements BuilderContract
     /**
      * Prepend the database name if the given query is on another database.
      */
-    protected function prependDatabaseNameIfCrossDatabaseQuery(self|EloquentBuilder|Relation $query): self|EloquentBuilder|Relation
+    protected function prependDatabaseNameIfCrossDatabaseQuery(self $query): self
     {
         if ($query->getConnection()->getDatabaseName()
             !== $this->getConnection()->getDatabaseName()) {
             $databaseName = $query->getConnection()->getDatabaseName();
 
-            if (! str_starts_with($query->from, $databaseName) && ! str_contains($query->from, '.')) {
+            if (is_string($query->from)
+                && ! str_starts_with($query->from, $databaseName)
+                && ! str_contains($query->from, '.')) {
                 $query->from($databaseName . '.' . $query->from);
             }
         }
@@ -481,9 +493,9 @@ class Builder implements BuilderContract
     /**
      * Set the table which the query is targeting.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $table
      */
-    public function from(Closure|self|EloquentBuilder|ExpressionContract|string $table, ?string $as = null): static
+    public function from(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $table, ?string $as = null): static
     {
         if ($this->isQueryable($table)) {
             return $this->fromSub($table, $as);
@@ -567,11 +579,11 @@ class Builder implements BuilderContract
     /**
      * Add a "subquery join" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      *
      * @throws InvalidArgumentException
      */
-    public function joinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
+    public function joinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
     {
         [$query, $bindings] = $this->createSub($query);
 
@@ -585,9 +597,9 @@ class Builder implements BuilderContract
     /**
      * Add a "lateral join" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      */
-    public function joinLateral(Closure|self|EloquentBuilder|string $query, string $as, string $type = 'inner'): static
+    public function joinLateral(Closure|self|EloquentBuilder|Relation|string $query, string $as, string $type = 'inner'): static
     {
         [$query, $bindings] = $this->createSub($query);
 
@@ -603,9 +615,9 @@ class Builder implements BuilderContract
     /**
      * Add a lateral left join to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      */
-    public function leftJoinLateral(Closure|self|EloquentBuilder|string $query, string $as): static
+    public function leftJoinLateral(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
         return $this->joinLateral($query, $as, 'left');
     }
@@ -629,9 +641,9 @@ class Builder implements BuilderContract
     /**
      * Add a subquery left join to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      */
-    public function leftJoinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function leftJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->joinSub($query, $as, $first, $operator, $second, 'left');
     }
@@ -655,9 +667,9 @@ class Builder implements BuilderContract
     /**
      * Add a subquery right join to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      */
-    public function rightJoinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function rightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->joinSub($query, $as, $first, $operator, $second, 'right');
     }
@@ -679,7 +691,7 @@ class Builder implements BuilderContract
     /**
      * Add a subquery cross join to the query.
      */
-    public function crossJoinSub(Closure|self|EloquentBuilder|string $query, string $as): static
+    public function crossJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
         [$query, $bindings] = $this->createSub($query);
 
@@ -711,9 +723,9 @@ class Builder implements BuilderContract
     /**
      * Add a subquery straight join to the query.
      *
-     * @param Closure|self|EloquentBuilder<*>|string $query
+     * @param Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string $query
      */
-    public function straightJoinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function straightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->joinSub($query, $as, $first, $operator, $second, 'straight_join');
     }
@@ -919,7 +931,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query.
      */
-    public function orWhere(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
+    public function orWhere(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -933,7 +945,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where not" clause to the query.
      */
-    public function whereNot(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function whereNot(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         if (is_array($column)) {
             return $this->whereNested(function ($query) use ($column, $operator, $value, $boolean) {
@@ -947,7 +959,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query.
      */
-    public function orWhereNot(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
+    public function orWhereNot(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereNot($column, $operator, $value, 'or');
     }
@@ -1282,9 +1294,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function whereBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values, string $boolean = 'and', bool $not = false): static
+    public function whereBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and', bool $not = false): static
     {
         $type = 'between';
 
@@ -1309,9 +1321,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement using columns to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function whereBetweenColumns(self|EloquentBuilder|ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
+    public function whereBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
     {
         $type = 'betweenColumns';
 
@@ -1330,9 +1342,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function orWhereBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values): static
+    public function orWhereBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
         return $this->whereBetween($column, $values, 'or');
     }
@@ -1340,7 +1352,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between" statement using columns to the query.
      */
-    public function orWhereBetweenColumns(ExpressionContract|string $column, array $values): static
+    public function orWhereBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
     {
         return $this->whereBetweenColumns($column, $values, 'or');
     }
@@ -1348,9 +1360,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function whereNotBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values, string $boolean = 'and'): static
+    public function whereNotBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and'): static
     {
         return $this->whereBetween($column, $values, $boolean, true);
     }
@@ -1358,7 +1370,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between" statement using columns to the query.
      */
-    public function whereNotBetweenColumns(ExpressionContract|string $column, array $values, string $boolean = 'and'): static
+    public function whereNotBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and'): static
     {
         return $this->whereBetweenColumns($column, $values, $boolean, true);
     }
@@ -1366,9 +1378,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function orWhereNotBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values): static
+    public function orWhereNotBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
         return $this->whereNotBetween($column, $values, 'or');
     }
@@ -1376,7 +1388,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between" statement using columns to the query.
      */
-    public function orWhereNotBetweenColumns(ExpressionContract|string $column, array $values): static
+    public function orWhereNotBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
     {
         return $this->whereNotBetweenColumns($column, $values, 'or');
     }
@@ -1705,9 +1717,11 @@ class Builder implements BuilderContract
     /**
      * Add a full sub-select to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>  $callback
+     *
+     * @throws InvalidArgumentException
      */
-    protected function whereSub(ExpressionContract|string $column, string $operator, Closure|self|EloquentBuilder $callback, string $boolean): static
+    protected function whereSub(ExpressionContract|string $column, string $operator, Closure|self|EloquentBuilder|Relation $callback, string $boolean): static
     {
         $type = 'Sub';
 
@@ -1717,8 +1731,10 @@ class Builder implements BuilderContract
             // in the array of where clauses for the "main" parent query instance.
             $callback($query = $this->forSubQuery());
         } else {
-            $query = $callback instanceof EloquentBuilder ? $callback->toBase() : $callback;
+            $query = $callback instanceof self ? $callback : $callback->toBase();
         }
+
+        $this->assertNoTimeoutOnEmbeddedQuery($query);
 
         $this->wheres[] = compact(
             'type',
@@ -1737,6 +1753,8 @@ class Builder implements BuilderContract
      * Add an "exists" clause to the query.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     *
+     * @throws InvalidArgumentException
      */
     public function whereExists(Closure|self|EloquentBuilder $callback, string $boolean = 'and', bool $not = false): static
     {
@@ -1758,6 +1776,8 @@ class Builder implements BuilderContract
      * Add an "or where exists" clause to the query.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     *
+     * @throws InvalidArgumentException
      */
     public function orWhereExists(Closure|self|EloquentBuilder $callback, bool $not = false): static
     {
@@ -1768,6 +1788,8 @@ class Builder implements BuilderContract
      * Add a "where not exists" clause to the query.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     *
+     * @throws InvalidArgumentException
      */
     public function whereNotExists(Closure|self|EloquentBuilder $callback, string $boolean = 'and'): static
     {
@@ -1778,6 +1800,8 @@ class Builder implements BuilderContract
      * Add an "or where not exists" clause to the query.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     *
+     * @throws InvalidArgumentException
      */
     public function orWhereNotExists(Closure|self|EloquentBuilder $callback): static
     {
@@ -1786,9 +1810,13 @@ class Builder implements BuilderContract
 
     /**
      * Add an "exists" clause to the query.
+     *
+     * @throws InvalidArgumentException
      */
     public function addWhereExistsQuery(self $query, string $boolean = 'and', bool $not = false): static
     {
+        $this->assertNoTimeoutOnEmbeddedQuery($query);
+
         $type = $not ? 'NotExists' : 'Exists';
 
         $this->wheres[] = compact('type', 'query', 'boolean');
@@ -2067,7 +2095,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where" clause to the query for multiple columns with "and" conditions between them.
      *
-     * @param array<Closure|ExpressionContract|string> $columns
+     * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
      */
     public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -2089,7 +2117,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query for multiple columns with "and" conditions between them.
      *
-     * @param array<Closure|ExpressionContract|string> $columns
+     * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
      */
     public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): static
     {
@@ -2099,7 +2127,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where" clause to the query for multiple columns with "or" conditions between them.
      *
-     * @param array<Closure|ExpressionContract|string> $columns
+     * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
      */
     public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -2121,7 +2149,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query for multiple columns with "or" conditions between them.
      *
-     * @param array<Closure|ExpressionContract|string> $columns
+     * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
      */
     public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): static
     {
@@ -2131,7 +2159,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not" clause to the query for multiple columns where none of the conditions should be true.
      *
-     * @param array<Closure|ExpressionContract|string> $columns
+     * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
      */
     public function whereNone(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -2141,7 +2169,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query for multiple columns where none of the conditions should be true.
      *
-     * @param array<Closure|ExpressionContract|string> $columns
+     * @param array<Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string> $columns
      */
     public function orWhereNone(array $columns, mixed $operator = null, mixed $value = null): static
     {
@@ -2396,12 +2424,12 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause to the query.
      *
-     * @param  Closure|self|EloquentBuilder<*>|ExpressionContract|string  $column
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      * @param 'asc'|'desc'|SortDirection $direction
      *
      * @throws InvalidArgumentException
      */
-    public function orderBy(Closure|self|EloquentBuilder|ExpressionContract|string $column, SortDirection|string $direction = SortDirection::Ascending): static
+    public function orderBy(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, SortDirection|string $direction = SortDirection::Ascending): static
     {
         if ($this->isQueryable($column)) {
             [$query, $bindings] = $this->createSub($column);
@@ -2432,9 +2460,9 @@ class Builder implements BuilderContract
     /**
      * Add a descending "order by" clause to the query.
      *
-     * @param  Closure|self|EloquentBuilder<*>|ExpressionContract|string  $column
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      */
-    public function orderByDesc(Closure|self|EloquentBuilder|ExpressionContract|string $column): static
+    public function orderByDesc(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column): static
     {
         return $this->orderBy($column, SortDirection::Descending);
     }
@@ -2442,7 +2470,7 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      */
-    public function latest(Closure|self|ExpressionContract|string $column = 'created_at'): static
+    public function latest(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column = 'created_at'): static
     {
         return $this->orderBy($column, SortDirection::Descending);
     }
@@ -2450,7 +2478,7 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      */
-    public function oldest(Closure|self|ExpressionContract|string $column = 'created_at'): static
+    public function oldest(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column = 'created_at'): static
     {
         return $this->orderBy($column, SortDirection::Ascending);
     }
@@ -2640,7 +2668,7 @@ class Builder implements BuilderContract
      *
      * @param 'asc'|'desc'|SortDirection $direction
      */
-    public function reorder(Closure|self|ExpressionContract|string|null $column = null, SortDirection|string $direction = SortDirection::Ascending): static
+    public function reorder(Closure|self|EloquentBuilder|Relation|ExpressionContract|string|null $column = null, SortDirection|string $direction = SortDirection::Ascending): static
     {
         $this->orders = null;
         $this->unionOrders = null;
@@ -2657,7 +2685,7 @@ class Builder implements BuilderContract
     /**
      * Add descending "reorder" clause to the query.
      */
-    public function reorderDesc(Closure|self|ExpressionContract|string|null $column): static
+    public function reorderDesc(Closure|self|EloquentBuilder|Relation|ExpressionContract|string|null $column): static
     {
         return $this->reorder($column, SortDirection::Descending);
     }
@@ -2677,12 +2705,20 @@ class Builder implements BuilderContract
      * Add a "union" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $query
+     *
+     * @throws InvalidArgumentException
      */
     public function union(Closure|self|EloquentBuilder $query, bool $all = false): static
     {
         if ($query instanceof Closure) {
             $query($query = $this->newQuery());
         }
+
+        if ($query instanceof EloquentBuilder) {
+            $query = $query->toBase();
+        }
+
+        $this->assertNoTimeoutOnEmbeddedQuery($query);
 
         $this->unions[] = compact('query', 'all');
 
@@ -2695,6 +2731,8 @@ class Builder implements BuilderContract
      * Add a "union all" statement to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>  $query
+     *
+     * @throws InvalidArgumentException
      */
     public function unionAll(Closure|self|EloquentBuilder $query): static
     {
@@ -3058,12 +3096,17 @@ class Builder implements BuilderContract
     {
         if ($this->groups || $this->havings) {
             $clone = $this->cloneForPaginationCount();
+            $countQuery = $this->newQuery();
+
+            // The clone becomes an inner derived table, so its timeout belongs on the executed count statement.
+            $countQuery->timeout = $clone->timeout;
+            $clone->timeout = null;
 
             if (is_null($clone->columns) && ! empty($this->joins)) {
                 $clone->select($this->from . '.*');
             }
 
-            return $this->newQuery()
+            return $countQuery
                 ->from(new Expression('(' . $clone->toSql() . ') as ' . $this->grammar->wrap('aggregate_table')))
                 ->mergeBindings($clone)
                 ->setAggregate('count', $this->withoutSelectAliases($columns))
@@ -3566,9 +3609,9 @@ class Builder implements BuilderContract
     /**
      * Insert new records into the table using a subquery.
      *
-     * @param  Closure|self|EloquentBuilder<*>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      */
-    public function insertUsing(array $columns, Closure|self|EloquentBuilder|string $query): int
+    public function insertUsing(array $columns, Closure|self|EloquentBuilder|Relation|string $query): int
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -3583,9 +3626,9 @@ class Builder implements BuilderContract
     /**
      * Insert new records into the table using a subquery while ignoring errors.
      *
-     * @param  Closure|self|EloquentBuilder<*>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      */
-    public function insertOrIgnoreUsing(array $columns, Closure|self|EloquentBuilder|string $query): int
+    public function insertOrIgnoreUsing(array $columns, Closure|self|EloquentBuilder|Relation|string $query): int
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -4081,6 +4124,20 @@ class Builder implements BuilderContract
                || $value instanceof EloquentBuilder
                || $value instanceof Relation
                || $value instanceof Closure;
+    }
+
+    /**
+     * Ensure an embedded query does not carry a statement-level timeout.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function assertNoTimeoutOnEmbeddedQuery(self $query): void
+    {
+        if ($query->timeout !== null) {
+            throw new InvalidArgumentException(
+                'An embedded query cannot define its own timeout. Apply the timeout to the outer query instead.'
+            );
+        }
     }
 
     /**

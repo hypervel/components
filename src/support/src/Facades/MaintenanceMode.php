@@ -7,13 +7,13 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Foundation\MaintenanceModeManager;
 
 /**
- * @method static string getDefaultDriver()
  * @method static mixed driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Foundation\MaintenanceModeManager extend(string $driver, \Closure $callback)
- * @method static array getDrivers()
- * @method static \Hypervel\Contracts\Container\Container getContainer()
- * @method static \Hypervel\Foundation\MaintenanceModeManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Foundation\MaintenanceModeManager forgetDrivers()
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static string getDefaultDriver()
+ * @method static array getDrivers()
+ * @method static \Hypervel\Foundation\MaintenanceModeManager setContainer(\Hypervel\Contracts\Container\Container $container)
  *
  * @see \Hypervel\Foundation\MaintenanceModeManager
  */

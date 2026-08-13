@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Database\DatabaseSessionConfiguratorTest;
 
 use Closure;
 use Exception;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DeadlockException;
 use Hypervel\Database\LostConnectionException;
@@ -677,8 +679,61 @@ class DatabaseSessionConfiguratorTest extends TestCase
         $this->assertNull(TestSessionConnection::physicalSessionStateCount());
     }
 
-    public function testConcurrencyCommitFailureInvalidatesWithoutTaintingBeforeRetry(): void
+    public function testDefaultConcurrencyErrorDetectorDoesNotRetryOrdinaryExceptions(): void
     {
+        $this->assertFalse(Container::getInstance()->has(ConcurrencyErrorDetectorContract::class));
+
+        $connection = $this->connection();
+        $attempts = 0;
+        $exception = new RuntimeException('Ordinary application failure.');
+        $caught = null;
+
+        try {
+            $connection->transaction(function () use (&$attempts, $exception): never {
+                ++$attempts;
+
+                throw $exception;
+            }, 2);
+        } catch (RuntimeException $throwable) {
+            $caught = $throwable;
+        }
+
+        $this->assertSame($exception, $caught);
+        $this->assertSame(1, $attempts);
+    }
+
+    public function testBoundConcurrencyErrorDetectorControlsTransactionRetries(): void
+    {
+        $detector = new class implements ConcurrencyErrorDetectorContract {
+            public function causedByConcurrencyError(Throwable $e): bool
+            {
+                return $e instanceof RuntimeException;
+            }
+        };
+
+        Container::getInstance()->instance(ConcurrencyErrorDetectorContract::class, $detector);
+        $connection = $this->connection();
+        $attempts = 0;
+
+        $result = $connection->transaction(function () use (&$attempts): string {
+            ++$attempts;
+
+            if ($attempts === 1) {
+                throw new RuntimeException('Application-classified concurrency failure.');
+            }
+
+            return 'retried';
+        }, 2);
+
+        $this->assertSame('retried', $result);
+        $this->assertSame(2, $attempts);
+    }
+
+    public function testConcurrencyCommitFailureUsesStandaloneDetectorWithoutTaintingBeforeRetry(): void
+    {
+        // An absent binding pins direct, unbooted use of the Database component.
+        $this->assertFalse(Container::getInstance()->has(ConcurrencyErrorDetectorContract::class));
+
         $configurator = $this->configurator();
         Connection::configureSessionUsing($configurator);
         $pdo = new CommitRetryPdo;

@@ -1394,6 +1394,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
             'hash' => [\Hypervel\Hashing\HashManager::class],
             'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
+            'image' => [\Hypervel\Image\ImageManager::class],
             'jwt' => [
                 \Hypervel\Jwt\JwtManager::class,
                 \Hypervel\Jwt\Contracts\ManagerContract::class,

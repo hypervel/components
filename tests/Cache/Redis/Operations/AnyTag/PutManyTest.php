@@ -19,11 +19,11 @@ class PutManyTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
 
         // Standard mode uses pipeline() not multi()
-        $connection->shouldReceive('pipeline')->andReturn($connection);
+        $connection->shouldReceive('pipeline')->twice()->andReturn($connection);
 
         // First pipeline for getting old tags (smembers)
         $connection->shouldReceive('smembers')->twice()->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([[], []]); // No old tags for first pipeline
+        $connection->shouldReceive('exec')->twice()->andReturn([[], []], []);
 
         // Second pipeline for setex, reverse index updates, and tag hashes
         $connection->shouldReceive('setex')->twice()->andReturn($connection);
@@ -31,9 +31,16 @@ class PutManyTest extends RedisCacheTestCase
         $connection->shouldReceive('sadd')->twice()->andReturn($connection);
         $connection->shouldReceive('expire')->twice()->andReturn($connection);
 
-        // hSet and hexpire for tag hashes (batch operation)
-        $connection->shouldReceive('hSet')->andReturn($connection);
-        $connection->shouldReceive('hexpire')->andReturn($connection);
+        $connection->shouldReceive('hsetex')
+            ->once()
+            ->with(
+                'prefix:_any:tag:users:entries',
+                ['foo' => '1', 'baz' => '1'],
+                ['EX' => 60],
+            )
+            ->andReturn($connection);
+        $connection->shouldNotReceive('hSet');
+        $connection->shouldNotReceive('hexpire');
 
         // zadd for registry
         $connection->shouldReceive('zadd')->andReturn($connection);
@@ -44,6 +51,37 @@ class PutManyTest extends RedisCacheTestCase
             'foo' => 'bar',
             'baz' => 'qux',
         ], 60, ['users']);
+        $this->assertTrue($result);
+    }
+
+    public function testPutManyUsesOneBatchedHsetexPerTagInClusterMode(): void
+    {
+        [$redis, , $connection] = $this->createClusterStore(tagMode: 'any');
+
+        $connection->shouldReceive('smembers')->twice()->andReturn([]);
+        $connection->shouldReceive('setex')->twice()->andReturnTrue();
+        $connection->shouldReceive('multi')->twice()->andReturn($connection);
+        $connection->shouldReceive('del')->twice()->andReturn($connection);
+        $connection->shouldReceive('sadd')->twice()->andReturn($connection);
+        $connection->shouldReceive('expire')->twice()->andReturn($connection);
+        $connection->shouldReceive('exec')->twice()->andReturn([]);
+        $connection->shouldReceive('hsetex')
+            ->once()
+            ->with(
+                'prefix:_any:tag:users:entries',
+                ['foo' => '1', 'baz' => '1'],
+                ['EX' => 60],
+            )
+            ->andReturnTrue();
+        $connection->shouldNotReceive('hSet');
+        $connection->shouldNotReceive('hexpire');
+        $connection->shouldReceive('zadd')->once()->andReturn(1);
+
+        $result = $redis->anyTagOps()->putMany()->execute([
+            'foo' => 'bar',
+            'baz' => 'qux',
+        ], 60, ['users']);
+
         $this->assertTrue($result);
     }
 }
