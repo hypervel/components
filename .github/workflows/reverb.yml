@@ -14,6 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    env:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Keep shared Reverb server state in database 1.
+      REDIS_REVERB_DB: 1
+
     services:
       redis:
         image: redis:8
@@ -55,25 +61,16 @@ jobs:
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Start Reverb test servers
-        env:
-          REDIS_HOST: redis
-          REDIS_PORT: 6379
-          # Keep shared Reverb server state on the database reserved from
-          # ParaTest workers in the integration test step below.
-          REDIS_REVERB_DB: 1
-        run: |
-          rm -f /tmp/test-servers-ready
-          bin/test-servers.sh reverb &
-          while [ ! -f /tmp/test-servers-ready ]; do sleep 1; done
+        uses: ./.github/actions/start-test-servers
+        with:
+          group: reverb
 
       - name: Execute Reverb integration tests
         env:
-          REDIS_HOST: redis
-          REDIS_PORT: 6379
           REDIS_DB: 0
-          # Reserve database 1 for shared Reverb server state so a worker's
-          # test cleanup cannot flush state used by another worker.
-          REDIS_REVERB_DB: 1
+          # The test database allocator excludes its configured secondary
+          # database from ParaTest workers. Keep this aligned with
+          # REDIS_REVERB_DB so cleanup cannot flush shared Reverb state.
           REDIS_TEST_SECONDARY_DB: 1
           TEST_SERVER_HOST: 127.0.0.1
         # Cap ParaTest's auto-detected workers to the 15 unreserved databases.

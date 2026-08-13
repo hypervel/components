@@ -44,10 +44,9 @@ jobs:
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Start test servers
-        run: |
-          rm -f /tmp/test-servers-ready
-          bin/test-servers.sh engine &
-          while [ ! -f /tmp/test-servers-ready ]; do sleep 1; done
+        uses: ./.github/actions/start-test-servers
+        with:
+          group: engine
 
       - name: Execute integration tests
         env:

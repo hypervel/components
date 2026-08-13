@@ -30,6 +30,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
@@ -50,10 +53,9 @@ jobs:
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Start gRPC test servers
-        run: |
-          rm -f /tmp/test-servers-ready
-          bin/test-servers.sh grpc &
-          while [ ! -f /tmp/test-servers-ready ]; do sleep 1; done
+        uses: ./.github/actions/start-test-servers
+        with:
+          group: grpc
 
       - name: Execute PHP integration tests
         env:
