@@ -7,23 +7,10 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 
-/**
- * Integration tests for hash field expiration (ANY MODE ONLY).
- *
- * Tests HSETEX hash field expiration behavior:
- * - Field TTL matches cache TTL
- * - Fields expire automatically with cache keys
- * - Different TTLs for items with same tag
- * - Forever items have no field expiration
- * - Updating item updates field expiration
- *
- * NOTE: These tests require Redis 8.0+ with HSETEX/HTTL support.
- */
 class HashExpirationIntegrationTest extends RedisCacheIntegrationTestCase
 {
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
         $this->setTagMode(TagMode::Any);
     }
 

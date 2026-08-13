@@ -67,6 +67,7 @@ class RedisProxy implements ConnectionContract
         'getlastusetime',
         'getshouldtransform',
         'heartbeatcheck',
+        'invalidate',
         'isidleexpired',
         'islifetimeexpired',
         'masters',
@@ -104,7 +105,7 @@ class RedisProxy implements ConnectionContract
     {
         $config = $this->factory->getPool($this->poolName)->getConfig();
 
-        return $config['cluster']['enable'] ?? false;
+        return $config['cluster']['enabled'] ?? false;
     }
 
     /**
@@ -513,7 +514,7 @@ class RedisProxy implements ConnectionContract
         $pool = $this->factory->getPool($this->poolName);
         $config = $pool->getConfig();
 
-        if ($config['sentinel']['enable'] ?? false) {
+        if ($config['sentinel']['enabled'] ?? false) {
             [$host, $port] = $this->sentinelFactory->resolveMaster($config);
 
             return $this->createSubscriber(
@@ -525,7 +526,7 @@ class RedisProxy implements ConnectionContract
             );
         }
 
-        if (! ($config['cluster']['enable'] ?? false)) {
+        if (! ($config['cluster']['enabled'] ?? false)) {
             return $this->createSubscriber(
                 $config,
                 $config['host'],
@@ -564,7 +565,6 @@ class RedisProxy implements ConnectionContract
             throw $discoveryException;
         }
 
-        $context = $config['cluster']['context'] ?? [];
         $failures = [];
 
         foreach ($masters as $master) {
@@ -582,8 +582,8 @@ class RedisProxy implements ConnectionContract
                     $config,
                     $master[0],
                     (int) $master[1],
-                    null,
-                    $context,
+                    $config['scheme'] ?? null,
+                    $config['context'] ?? [],
                 );
             } catch (Throwable $exception) {
                 $failures[] = sprintf(

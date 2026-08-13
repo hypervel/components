@@ -657,7 +657,7 @@ Integration tests that use an external service must use that service's test trai
 
 | Trait | Service | Key Env Vars |
 |-------|---------|-------------|
-| `InteractsWithRedis` | Redis/Valkey | `REDIS_HOST`, `REDIS_PORT` |
+| `InteractsWithRedis` | Redis / Redis Cluster / Valkey | `REDIS_HOST`, `REDIS_PORT`, `REDIS_CLUSTER_HOSTS_AND_PORTS` |
 | `InteractsWithMeilisearch` | Meilisearch | `MEILISEARCH_HOST`, `MEILISEARCH_PORT`, `MEILISEARCH_KEY` |
 | `InteractsWithTypesense` | Typesense | `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY`, `TYPESENSE_PROTOCOL` |
 | `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
@@ -667,7 +667,7 @@ This applies whether the test calls the service directly or reaches it through t
 
 These traits are required for external-service tests to work under ParaTest. Parallel workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.
 
-The traits handle service-specific setup and cleanup. For example, `InteractsWithRedis` assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
+The traits handle service-specific setup and cleanup. For example, `InteractsWithRedis` assigns each ParaTest worker its own Redis database and flushes it before and after each test. Redis Cluster only supports database zero, so Cluster suites run serially and flush that database between tests. Both approaches isolate the test keyspace without changing the Redis behavior being tested.
 
 If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
 
@@ -685,10 +685,10 @@ Each integration group has its own workflow file in `.github/workflows/`:
 |----------|------|-----------|
 | `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
 | `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database`, `tests/Integration/*/Database/*` |
-| `redis.yml` | Redis, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis` |
+| `redis.yml` | Redis, Redis Cluster, Valkey | `tests/Integration/Auth/Redis`, `tests/Integration/Broadcasting/Redis`, `tests/Integration/Cache/Redis`, `tests/Integration/Horizon`, `tests/Integration/Http/Redis`, `tests/Integration/Queue/Redis`, `tests/Integration/RateLimiter/Redis`, `tests/Integration/Redis`; it also reruns the driver-neutral queue chaining and dispatching tests with Redis, while the Cluster job runs the topology-neutral Redis files and Redis-backed Reverb state tests listed in the workflow |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
 
-When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must spin up the service container and set the appropriate env vars.
+When adding integration tests that need a new service, either add them to an existing workflow or create a new one. The workflow must start the service and set the appropriate env vars.
 
 #### Environment files
 

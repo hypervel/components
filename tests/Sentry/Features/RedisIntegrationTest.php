@@ -59,7 +59,7 @@ class RedisIntegrationTest extends SentryTestCase
 
         $this->assertTrue(
             $this->app->make(RedisConfig::class)
-                ->connectionConfig('observed')['event']['enable'],
+                ->connectionConfig('observed')['events'],
         );
     }
 

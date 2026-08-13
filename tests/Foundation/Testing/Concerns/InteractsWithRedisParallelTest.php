@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Foundation\Testing\RedisTestConfiguration;
+use Hypervel\Foundation\Testing\RedisTestDatabases;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
@@ -21,6 +23,7 @@ class InteractsWithRedisParallelTest extends TestCase
      */
     private const array REDIS_ENVIRONMENT_KEYS = [
         'REDIS_HOST',
+        'REDIS_CLUSTER_HOSTS_AND_PORTS',
         'REDIS_DB',
         'REDIS_TEST_DB_MIN',
         'REDIS_TEST_DB_MAX',
@@ -39,6 +42,7 @@ class InteractsWithRedisParallelTest extends TestCase
         parent::setUp();
 
         $this->captureEnvironmentValues();
+        $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', null);
         $this->setParallelTestingToken(false);
     }
 
@@ -54,14 +58,14 @@ class InteractsWithRedisParallelTest extends TestCase
     {
         $this->setRedisEnvironmentValue('REDIS_DB', '3');
 
-        $this->assertSame(3, $this->harness()->baseRedisDb());
+        $this->assertSame(3, RedisTestDatabases::baseDatabase());
     }
 
     public function testGetBaseRedisDbDefaultsToZero(): void
     {
         $this->setRedisEnvironmentValue('REDIS_DB', null);
 
-        $this->assertSame(0, $this->harness()->baseRedisDb());
+        $this->assertSame(0, RedisTestDatabases::baseDatabase());
     }
 
     public function testGetParallelRedisDbReturnsBaseWhenNotParallel(): void
@@ -95,7 +99,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MAX', null);
         $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', null);
 
-        $this->assertSame([14, 15], $this->harness()->workerDatabases());
+        $this->assertSame([14, 15], RedisTestDatabases::workerDatabases());
     }
 
     public function testParallelWorkerOverflowFails(): void
@@ -185,7 +189,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('REDIS_DB must be a non-negative integer.');
 
-        $this->harness()->baseRedisDb();
+        RedisTestDatabases::baseDatabase();
     }
 
     public function testInvalidTestTokenFails(): void
@@ -253,6 +257,62 @@ class InteractsWithRedisParallelTest extends TestCase
         }
     }
 
+    public function testSequentialClusterUsesDatabaseZeroWithoutAllocatingAWorkerDatabase(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', 'redis-cluster-1:6379');
+        $this->setRedisEnvironmentValue('REDIS_TEST_DB_MIN', 'invalid');
+
+        $this->assertSame(0, $this->harness()->parallelRedisDb());
+    }
+
+    public function testClusterRejectsParallelWorkers(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', 'redis-cluster-1:6379');
+        $this->setParallelTestingToken('9');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Redis Cluster integration tests must run serially. Run them with ./vendor/bin/phpunit instead of ParaTest.');
+
+        $this->harness()->parallelRedisDb();
+    }
+
+    public function testClusterRejectsSecondaryLogicalDatabases(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', 'redis-cluster-1:6379');
+        $this->setRedisEnvironmentValue('REDIS_TEST_SECONDARY_DB', '1');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Redis Cluster does not support secondary logical databases.');
+
+        $this->harness()->secondaryRedisDb();
+    }
+
+    public function testClusterSeedsAreTrimmedAndPreserveTheirConfiguredTransport(): void
+    {
+        $this->setRedisEnvironmentValue(
+            'REDIS_CLUSTER_HOSTS_AND_PORTS',
+            ' redis-cluster-1:6379, tls://redis-cluster-2:6380 '
+        );
+
+        $this->assertSame([
+            'redis-cluster-1:6379',
+            'tls://redis-cluster-2:6380',
+        ], RedisTestConfiguration::clusterSeeds());
+    }
+
+    public function testClusterSeedsRejectEmptyEntries(): void
+    {
+        $this->setRedisEnvironmentValue(
+            'REDIS_CLUSTER_HOSTS_AND_PORTS',
+            'redis-cluster-1:6379, ,redis-cluster-3:6379'
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('REDIS_CLUSTER_HOSTS_AND_PORTS must be a comma-separated list of non-empty Redis Cluster seeds.');
+
+        RedisTestConfiguration::clusterSeeds();
+    }
+
     public function testSequentialSetupNormalizesEveryConfiguredConnectionToTheBaseDatabase(): void
     {
         $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
@@ -289,19 +349,85 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->assertSame(6, $config->integer('database.redis.reverb.database'));
     }
 
-    public function testSetupIgnoresReservedAndNonConnectionConfiguration(): void
+    public function testClusterSetupConfiguresEveryNamedConnectionFromClusterEnvironment(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_HOST', 'standalone-redis');
+        $this->setRedisEnvironmentValue(
+            'REDIS_CLUSTER_HOSTS_AND_PORTS',
+            'redis-cluster-1:6379,redis-cluster-2:6379,redis-cluster-3:6379'
+        );
+        $config = $this->app->make('config');
+        $config->set('database.redis.default.sentinel', [
+            'enabled' => true,
+            'nodes' => ['redis-sentinel:26379'],
+            'master_name' => 'primary',
+        ]);
+
+        $harness = $this->harness();
+        $harness->runSetUp();
+
+        foreach (['default', 'cache', 'session', 'queue', 'reverb'] as $connectionName) {
+            $connection = $config->array("database.redis.{$connectionName}");
+
+            $this->assertSame(0, $connection['database']);
+            $this->assertArrayNotHasKey('host', $connection);
+            $this->assertArrayNotHasKey('port', $connection);
+            $this->assertSame([
+                'enabled' => true,
+                'seeds' => [
+                    'redis-cluster-1:6379',
+                    'redis-cluster-2:6379',
+                    'redis-cluster-3:6379',
+                ],
+            ], $connection['cluster']);
+        }
+
+        $this->assertSame([
+            'enabled' => true,
+            'nodes' => ['redis-sentinel:26379'],
+            'master_name' => 'primary',
+        ], $config->array('database.redis.default.sentinel'));
+        $this->assertTrue($harness->usesCluster());
+        $this->assertSame(1, $harness->flushRedisCalls);
+    }
+
+    public function testDynamicConnectionsInheritTheConfiguredClusterTopology(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', 'redis-cluster-1:6379');
+        $config = $this->app->make('config');
+        $config->set('database.redis.default.username', 'test-user');
+        $config->set('database.redis.default.scheme', 'tls');
+        $config->set('database.redis.default.context', ['verify_peer' => false]);
+        $config->set('database.redis.default.max_retries', 7);
+        $config->set('database.redis.default.options', ['prefix' => 'inherited:']);
+        $harness = $this->harness();
+
+        $harness->runSetUp();
+        $connectionName = $harness->createConnection('assertions', ['prefix' => ''], 3);
+        $connection = $config->array("database.redis.{$connectionName}");
+
+        $this->assertSame('test-user', $connection['username']);
+        $this->assertSame('tls', $connection['scheme']);
+        $this->assertSame(['verify_peer' => false], $connection['context']);
+        $this->assertSame(7, $connection['max_retries']);
+        $this->assertSame(['enabled' => true, 'seeds' => ['redis-cluster-1:6379']], $connection['cluster']);
+        $this->assertSame(['prefix' => ''], $connection['options']);
+        $this->assertSame(3, $connection['pool']['max_connections']);
+        $this->assertArrayNotHasKey('host', $connection);
+        $this->assertArrayNotHasKey('port', $connection);
+    }
+
+    public function testSetupIgnoresMetadataAndNonConnectionConfiguration(): void
     {
         $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
         $config = $this->app->make('config');
         $config->set('database.redis.client', 'phpredis');
-        $config->set('database.redis.clusters', ['enabled' => true]);
         $config->set('database.redis.fixture', 'value');
         $options = $config->array('database.redis.options');
 
         $this->harness()->runSetUp();
 
         $this->assertSame('phpredis', $config->string('database.redis.client'));
-        $this->assertSame(['enabled' => true], $config->array('database.redis.clusters'));
         $this->assertSame('value', $config->string('database.redis.fixture'));
         $this->assertSame($options, $config->array('database.redis.options'));
     }
@@ -328,7 +454,7 @@ class InteractsWithRedisParallelTest extends TestCase
         $harness = $this->harness();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Redis connection [cache] must use REDIS_HOST and REDIS_PORT during integration tests');
+        $this->expectExceptionMessage('Redis connection [cache] must not use a URL during integration tests');
 
         try {
             $harness->runSetUp();
@@ -425,14 +551,6 @@ class InteractsWithRedisHarness
     }
 
     /**
-     * Get the base Redis DB number.
-     */
-    public function baseRedisDb(): int
-    {
-        return $this->getBaseRedisDb();
-    }
-
-    /**
      * Get the current primary Redis DB number.
      */
     public function parallelRedisDb(): int
@@ -449,21 +567,29 @@ class InteractsWithRedisHarness
     }
 
     /**
-     * Get the configured Redis worker databases.
-     *
-     * @return array<int, int>
-     */
-    public function workerDatabases(): array
-    {
-        return $this->redisWorkerDatabases();
-    }
-
-    /**
      * Run Redis setup.
      */
     public function runSetUp(): void
     {
         $this->setUpInteractsWithRedis();
+    }
+
+    /**
+     * Determine if the harness uses Redis Cluster.
+     */
+    public function usesCluster(): bool
+    {
+        return $this->usingRedisCluster();
+    }
+
+    /**
+     * Create a named Redis connection.
+     *
+     * @param array<string, mixed> $options
+     */
+    public function createConnection(string $name, array $options, int $maxConnections): string
+    {
+        return $this->createRedisConnectionWithOptions($name, $options, $maxConnections);
     }
 
     /**

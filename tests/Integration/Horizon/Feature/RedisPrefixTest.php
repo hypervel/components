@@ -17,9 +17,10 @@ class RedisPrefixTest extends IntegrationTestCase
         config(['horizon.prefix' => 'custom:']);
 
         Horizon::use('default');
+        $expected = $this->usingRedisCluster() ? '{custom:}' : 'custom:';
 
-        $this->assertSame('custom:', config('database.redis.horizon.options.prefix'));
-        $this->assertSame('custom:', config('horizon.prefix'));
+        $this->assertSame($expected, config('database.redis.horizon.options.prefix'));
+        $this->assertSame($expected, config('horizon.prefix'));
     }
 
     public function testUseThrowsForUnknownConnection(): void
@@ -69,11 +70,10 @@ class RedisPrefixTest extends IntegrationTestCase
             'username' => 'horizon',
             'password' => 'secret',
             'database' => 4,
+            'context' => ['stream' => ['verify_peer' => true]],
             'cluster' => [
-                'enable' => true,
-                'name' => 'horizon-cluster',
+                'enabled' => true,
                 'seeds' => ['redis-1.example.com:6379', 'redis-2.example.com:6379'],
-                'context' => ['stream' => ['verify_peer' => true]],
             ],
             'pool' => ['max_connections' => 20],
             'prefix' => 'application:',
@@ -104,8 +104,7 @@ class RedisPrefixTest extends IntegrationTestCase
         config([
             'database.redis.horizon-cluster' => [
                 'cluster' => [
-                    'enable' => true,
-                    'name' => 'horizon-cluster',
+                    'enabled' => true,
                     'seeds' => ['redis.example.com:6379'],
                 ],
             ],
@@ -130,8 +129,7 @@ class RedisPrefixTest extends IntegrationTestCase
         config([
             'database.redis.horizon-cluster' => [
                 'cluster' => [
-                    'enable' => true,
-                    'name' => 'horizon-cluster',
+                    'enabled' => true,
                     'seeds' => ['redis.example.com:6379'],
                 ],
             ],

@@ -10,9 +10,9 @@ use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RequiresAnyTagModeRedis;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
-use Redis as PhpRedis;
 
 /**
  * Base test case for Redis Cache integration tests.
@@ -57,12 +57,9 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
     }
 
     /**
-     * Get a raw phpredis client for direct Redis verification.
-     *
-     * Note: This client has OPT_PREFIX set to testPrefix, so keys
-     * are automatically prefixed when using this client.
+     * Get the store's configured Redis connection for direct verification.
      */
-    protected function redis(): PhpRedis
+    protected function redis(): RedisProxy
     {
         return $this->redisClient($this->store()->connection()->getName());
     }
@@ -301,6 +298,23 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
             $this->redis()->exists($key) > 0,
             $message ?: "Redis key '{$key}' should not exist"
         );
+    }
+
+    /**
+     * Assert that two physical keys occupy different Redis Cluster slots.
+     */
+    protected function assertRedisKeysUseDifferentClusterSlots(string $first, string $second): void
+    {
+        if (! $this->usingRedisCluster()) {
+            return;
+        }
+
+        $firstSlot = $this->redis()->executeRaw(['CLUSTER', 'KEYSLOT', $first]);
+        $secondSlot = $this->redis()->executeRaw(['CLUSTER', 'KEYSLOT', $second]);
+
+        $this->assertIsInt($firstSlot);
+        $this->assertIsInt($secondSlot);
+        $this->assertNotSame($firstSlot, $secondSlot, 'The regression keys must occupy different Cluster slots.');
     }
 
     /**

@@ -224,22 +224,34 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
     'timeout' => 5.0,
+    'read_timeout' => 5.0,
+    'context' => [],
     'cluster' => [
-        'enable' => true,
-        'name' => env('REDIS_CLUSTER_NAME', 'mycluster'),
+        'enabled' => true,
         'seeds' => explode(',', env('REDIS_CLUSTER_SEEDS', '127.0.0.1:6379')),
-        'read_timeout' => 5.0,
-        'persistent' => false,
-        'context' => [],
     ],
 ],
 ```
 
 The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so the `database` option is ignored for clustered connections.
 
-Cluster context accepts stream options directly or nested under an `ssl` or `stream` key. You may configure `failover` in the connection's `options` array using one of PhpRedis' `RedisCluster::FAILOVER_*` constants.
+All nodes in a cluster connection must use the same transport. You may select TLS using the top-level `scheme` option, a `tls://` or `ssl://` seed, or a non-empty top-level `context` array. Bare seeds inherit the selected transport. Hypervel rejects conflicting schemes because PhpRedis applies one stream context to every node it discovers.
+
+This restriction only applies to Redis Cluster. Standalone connections may use `scheme => 'tcp'` with non-TLS stream context options such as `bindto`.
+
+The top-level `context` option accepts TLS stream options directly or nested under an `ssl` or `stream` key. You may configure `failover` in the connection's `options` array using one of PhpRedis' `RedisCluster::FAILOVER_*` constants.
+
+PhpRedis can cache the Redis Cluster slot map between pooled connections. You may enable this feature in your `php.ini` file:
+
+```ini
+redis.clusters.cache_slots = 1
+```
 
 Hypervel automatically hash-tags Redis queue storage keys and Redis funnel slot keys when a clustered connection is used and the configured queue or funnel name does not already contain a valid Redis Cluster hash tag. This keeps all keys used by Hypervel's multi-key Lua scripts on the same hash slot. You may still provide your own hash tag, such as `{orders}:high`, when you need to control key placement.
+
+Redis Cluster transactions require every key to use the same hash slot. You may place related keys together by giving them a shared hash tag, such as `{visits}:user` and `{visits}:total`. A transaction that uses different slots on the same master throws a `RedisClusterException` and commits nothing. If the keys are owned by different masters, PhpRedis may split the transaction into independent transactions, so a failure may leave commands committed on one master but not another. After either failure, Hypervel rebuilds the failed connection before its next use.
+
+When a watched key changes, PhpRedis normally reports an aborted transaction by returning `false`. On Redis Cluster, PhpRedis currently returns an array containing `false` for each queued command. Since this is also a valid command result, applications should not rely on the result shape to detect a watched-key conflict when using Redis Cluster.
 
 <a name="sentinel"></a>
 ### Sentinel
@@ -253,27 +265,26 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
     'database' => (int) env('REDIS_DB', 0),
     'timeout' => 5.0,
     'retry_interval' => 0,
+    'read_timeout' => 5.0,
     'sentinel' => [
-        'enable' => true,
+        'enabled' => true,
         'master_name' => env('REDIS_SENTINEL_MASTER', 'mymaster'),
         'nodes' => explode(',', env('REDIS_SENTINEL_NODES', '127.0.0.1:26379')),
-        'persistent' => '',
+        'username' => env('REDIS_SENTINEL_USERNAME'),
+        'password' => env('REDIS_SENTINEL_PASSWORD'),
+        'timeout' => 5.0,
         'read_timeout' => 5.0,
-        'auth' => env('REDIS_SENTINEL_PASSWORD'),
-        'context' => [
-            // 'ssl' => ['verify_peer' => false],
-        ],
     ],
 ],
 ```
 
-When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `auth` value in the `sentinel` array is used to authenticate with Sentinel itself; Redis authentication still uses the connection's top-level `username` and `password` values.
+When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `username` and `password` values in the `sentinel` array authenticate with Sentinel itself. Redis authentication still uses the connection's top-level `username` and `password` values. The nested `timeout`, `read_timeout`, and `context` values configure Sentinel discovery, while their top-level counterparts configure the resolved Redis connection. The top-level `retry_interval` value applies only to the resolved Redis connection.
 
 Sentinel nodes may use `tcp://` or `tls://` schemes. IPv6 addresses must use brackets, including when TLS is enabled:
 
 ```php
 'sentinel' => [
-    'enable' => true,
+    'enabled' => true,
     'master_name' => 'mymaster',
     'nodes' => ['tls://[::1]:26379'],
     'context' => [
@@ -396,7 +407,16 @@ Macros should be registered during application boot. A macro call is recorded as
 <a name="redis-command-events"></a>
 #### Redis Command Events
 
-Redis command events may be enabled or disabled during application boot:
+Redis command events may be enabled for an individual connection using the `events` option:
+
+```php
+'default' => [
+    // ...
+    'events' => true,
+],
+```
+
+You may also enable or disable Redis command events for every connection during application boot:
 
 ```php
 Redis::enableEvents();
@@ -561,10 +581,12 @@ The `Redis` facade's `transaction` method provides a convenient wrapper around R
 use Hypervel\Support\Facades\Redis;
 
 Redis::transaction(function (\Redis|\RedisCluster $redis): void {
-    $redis->incr('user_visits', 1);
-    $redis->incr('total_visits', 1);
+    $redis->incr('{visits}:user', 1);
+    $redis->incr('{visits}:total', 1);
 });
 ```
+
+When using Redis Cluster, every key in a transaction must use the same hash slot. Please review the [Cluster configuration](#clusters) section for the transaction and watched-key constraints that apply to PhpRedis Cluster connections.
 
 > [!NOTE]
 > In Hypervel, the closure form of `transaction` returns the pooled connection as soon as the transaction is executed. Calling `Redis::transaction()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.
@@ -609,6 +631,8 @@ Redis::pipeline(function (\Redis $pipe): void {
     }
 });
 ```
+
+PhpRedis does not support pipelining on Redis Cluster connections. Pipelining remains available for standalone and Sentinel connections.
 
 > [!NOTE]
 > In Hypervel, the closure form of `pipeline` returns the pooled connection as soon as the pipeline is executed. Calling `Redis::pipeline()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Horizon;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Foundation\Testing\RedisTestConfiguration;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\HorizonServiceProvider;
@@ -49,8 +50,8 @@ abstract class IntegrationTestCase extends TestCase
     {
         $config = $app->make('config');
 
-        // Horizon snapshots these values in register(), before the Redis trait applies its normal worker DB.
-        $config->set('database.redis.default.database', $this->getParallelRedisDb());
+        // Horizon snapshots its Redis connection in register(), before the Redis trait runs.
+        RedisTestConfiguration::configure($config, $this->parallelTestingToken());
         $config->set('horizon.prefix', static::HORIZON_PREFIX);
         $config->set('horizon.middleware', [Authenticate::class]);
 

@@ -62,10 +62,8 @@ class EloquentUserProviderCacheTagsTest extends TestCase
         ]);
     }
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         $this->skipIfAnyTagModeUnsupported();
     }
 

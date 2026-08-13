@@ -123,16 +123,20 @@ class Prune
             $memberKeys = array_keys($members);
             $checked += count($memberKeys);
 
-            // Check which keys exist:
-            // - Standard Redis: pipeline() batches commands with less overhead
-            // - Cluster: multi() handles cross-slot commands (pipeline not supported)
-            $batch = $isCluster ? $connection->multi() : $connection->pipeline();
+            if ($isCluster) {
+                $existsResults = array_map(
+                    fn (string $key): mixed => $connection->exists($prefix . $key),
+                    $memberKeys,
+                );
+            } else {
+                $pipeline = $connection->pipeline();
 
-            foreach ($memberKeys as $key) {
-                $batch->exists($prefix . $key);
+                foreach ($memberKeys as $key) {
+                    $pipeline->exists($prefix . $key);
+                }
+
+                $existsResults = $pipeline->exec();
             }
-
-            $existsResults = $batch->exec();
 
             // Collect orphaned members (cache key doesn't exist)
             $orphanedMembers = [];

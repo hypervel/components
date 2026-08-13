@@ -15,7 +15,6 @@ use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Tests\TestCase;
@@ -343,7 +342,6 @@ class ConcurrencyLimiterTest extends TestCase
             ->acquire();
 
         try {
-            $this->assertInstanceOf(Lease::class, $lease);
             $this->assertInstanceOf(RefreshableLease::class, $lease);
             $this->assertNotEmpty($lease->owner());
         } finally {

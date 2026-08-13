@@ -124,18 +124,18 @@ class StoreContext
      * Execute callback with a held connection from the pool.
      *
      * Delegates to Redis::withConnection() for context awareness (respects
-     * active pipeline/multi connections). Uses transform: false to provide
-     * raw phpredis behavior for cache operations.
+     * active pipeline/multi connections). Cache operations use raw phpredis
+     * behavior unless they explicitly request Laravel-style transforms.
      *
      * @template T
      * @param callable(RedisConnection): T $callback
      * @return T
      */
-    public function withConnection(callable $callback): mixed
+    public function withConnection(callable $callback, bool $transform = false): mixed
     {
         return $this->redis
             ->connection($this->connectionName)
-            ->withConnection($callback, transform: false);
+            ->withConnection($callback, transform: $transform);
     }
 
     /**

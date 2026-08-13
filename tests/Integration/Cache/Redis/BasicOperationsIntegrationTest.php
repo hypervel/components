@@ -382,36 +382,50 @@ class BasicOperationsIntegrationTest extends RedisCacheIntegrationTestCase
     public function testPutManyAndManyInAllMode(): void
     {
         $this->setTagMode(TagMode::All);
+        $first = '{many-all-a}:key';
+        $second = '{many-all-b}:key';
+        $third = '{many-all-c}:key';
+        $this->assertRedisKeysUseDifferentClusterSlots(
+            $this->getCachePrefix() . $first,
+            $this->getCachePrefix() . $second,
+        );
 
-        Cache::putMany([
-            'many_key1' => 'value1',
-            'many_key2' => 'value2',
-            'many_key3' => 'value3',
-        ], 60);
+        $this->assertTrue(Cache::putMany([
+            $first => 'value1',
+            $second => 'value2',
+            $third => 'value3',
+        ], 60));
 
-        $result = Cache::many(['many_key1', 'many_key2', 'many_key3', 'nonexistent']);
+        $result = Cache::many([$first, $second, $third, 'nonexistent']);
 
-        $this->assertSame('value1', $result['many_key1']);
-        $this->assertSame('value2', $result['many_key2']);
-        $this->assertSame('value3', $result['many_key3']);
+        $this->assertSame('value1', $result[$first]);
+        $this->assertSame('value2', $result[$second]);
+        $this->assertSame('value3', $result[$third]);
         $this->assertNull($result['nonexistent']);
     }
 
     public function testPutManyAndManyInAnyMode(): void
     {
         $this->setTagMode(TagMode::Any);
+        $first = '{many-any-a}:key';
+        $second = '{many-any-b}:key';
+        $third = '{many-any-c}:key';
+        $this->assertRedisKeysUseDifferentClusterSlots(
+            $this->getCachePrefix() . $first,
+            $this->getCachePrefix() . $second,
+        );
 
-        Cache::putMany([
-            'many_key1' => 'value1',
-            'many_key2' => 'value2',
-            'many_key3' => 'value3',
-        ], 60);
+        $this->assertTrue(Cache::putMany([
+            $first => 'value1',
+            $second => 'value2',
+            $third => 'value3',
+        ], 60));
 
-        $result = Cache::many(['many_key1', 'many_key2', 'many_key3', 'nonexistent']);
+        $result = Cache::many([$first, $second, $third, 'nonexistent']);
 
-        $this->assertSame('value1', $result['many_key1']);
-        $this->assertSame('value2', $result['many_key2']);
-        $this->assertSame('value3', $result['many_key3']);
+        $this->assertSame('value1', $result[$first]);
+        $this->assertSame('value2', $result[$second]);
+        $this->assertSame('value3', $result[$third]);
         $this->assertNull($result['nonexistent']);
     }
 
