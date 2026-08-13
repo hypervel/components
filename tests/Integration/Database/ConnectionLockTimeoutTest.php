@@ -12,17 +12,14 @@ use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
-use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Coroutine\parallel;
 
-class ConnectionLockTimeoutTest extends TestCase
+class ConnectionLockTimeoutTest extends DatabaseTestCase
 {
     private const string CONNECTION_NAME = 'lock_timeout_test';
 
     private const string LOCK_TABLE = 'connection_lock_timeout_probes';
-
-    protected string $driver;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -32,7 +29,6 @@ class ConnectionLockTimeoutTest extends TestCase
         $defaultConnection = $config->string('database.default');
         $connection = $config->array("database.connections.{$defaultConnection}");
 
-        $this->driver = $connection['driver'];
         $connection['lock_timeout'] = 1;
         $connection['pool'] = [
             'testing_enabled' => true,
