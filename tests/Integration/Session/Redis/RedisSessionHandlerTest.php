@@ -479,7 +479,17 @@ class RedisSessionHandlerTest extends TestCase
 
         $this->assertFalse($redis->hGet($this->physicalUserIndexKey($owner), self::SESSION_ID));
         $this->assertSame(0, $redis->exists($this->physicalPayloadKey(self::SESSION_ID)));
-        $this->assertSame(0, $redis->exists($this->physicalUserIndexKey($owner)));
+
+        // Valkey makes expired fields unavailable immediately, then reclaims
+        // the physically empty hash during its periodic expiration cycle.
+        $userIndexKey = $this->physicalUserIndexKey($owner);
+        $deadline = hrtime(true) + 2_000_000_000;
+
+        while (hrtime(true) < $deadline && $redis->exists($userIndexKey) !== 0) {
+            usleep(10_000);
+        }
+
+        $this->assertSame(0, $redis->exists($userIndexKey));
     }
 
     #[DataProvider('redisEncodingProvider')]
