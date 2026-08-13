@@ -323,6 +323,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         $this->flushPasskeysState();
         $this->flushPermissionState();
         $this->flushReverbState();
+        $this->flushSaloonState();
         $this->flushSanctumState();
         $this->flushScoutState();
         $this->flushSentryState();
@@ -407,6 +408,17 @@ class AfterEachTestSubscriber implements FinishedSubscriber
     {
         $this->callIfExists(\Hypervel\Reverb\Loggers\Log::class, 'flushState');
         $this->callIfExists(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class, 'flushState');
+    }
+
+    /**
+     * Flush Saloon state.
+     */
+    protected function flushSaloonState(): void
+    {
+        $this->callIfExists(\Hypervel\Saloon\Http\Connector::class, 'flushState');
+        $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest::class, 'flushState');
+        $this->callIfExists(\Hypervel\Saloon\Http\PendingRequest\BootPlugins::class, 'flushState');
+        $this->callIfExists(\Hypervel\Saloon\Http\Request::class, 'flushState');
     }
 
     /**

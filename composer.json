@@ -71,6 +71,7 @@
             "Hypervel\\Redis\\": "src/redis/src/",
             "Hypervel\\Reverb\\": "src/reverb/src/",
             "Hypervel\\Routing\\": "src/routing/src/",
+            "Hypervel\\Saloon\\": "src/saloon/src/",
             "Hypervel\\Sanctum\\": "src/sanctum/src/",
             "Hypervel\\Scout\\": "src/scout/src/",
             "Hypervel\\Server\\": "src/server/src/",
@@ -146,6 +147,7 @@
         "ext-posix": "*",
         "ext-redis": "^6.1",
         "ext-session": "*",
+        "ext-simplexml": "*",
         "ext-sockets": "*",
         "ext-swoole": "^6.2",
         "ext-tokenizer": "*",
@@ -192,6 +194,7 @@
         "sentry/sentry": "^4.27",
         "spomky-labs/otphp": "^11.0",
         "symfony/console": "^8.1",
+        "symfony/dom-crawler": "^8.1",
         "symfony/error-handler": "^8.1",
         "symfony/event-dispatcher": "^8.1",
         "symfony/finder": "^8.1",
@@ -267,6 +270,7 @@
         "hypervel/redis": "self.version",
         "hypervel/reflection": "self.version",
         "hypervel/routing": "self.version",
+        "hypervel/saloon": "self.version",
         "hypervel/sanctum": "self.version",
         "hypervel/scout": "self.version",
         "hypervel/session": "self.version",
@@ -358,6 +362,7 @@
                 "Hypervel\\Redis\\RedisServiceProvider",
                 "Hypervel\\Reverb\\ReverbServiceProvider",
                 "Hypervel\\Routing\\RoutingServiceProvider",
+                "Hypervel\\Saloon\\SaloonServiceProvider",
                 "Hypervel\\Sanctum\\SanctumServiceProvider",
                 "Hypervel\\Server\\ServerServiceProvider",
                 "Hypervel\\ServerProcess\\ServerProcessServiceProvider",
@@ -378,6 +383,7 @@
                 "Hypervel\\View\\ViewServiceProvider"
             ],
             "aliases": {
+                "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
                 "Sentry": "Hypervel\\Sentry\\Facade"
             }
         },
