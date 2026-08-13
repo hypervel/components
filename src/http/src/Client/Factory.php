@@ -682,6 +682,19 @@ class Factory
     }
 
     /**
+     * Forget all resolved connection handlers.
+     *
+     * Boot or tests only. Request-time use forces subsequent requests to
+     * rebuild warmed keep-alive, DNS, and TLS session state.
+     */
+    public function forgetConnectionHandlers(): static
+    {
+        $this->connectionHandlers = [];
+
+        return $this;
+    }
+
+    /**
      * Ensure the given HTTP client connection is registered.
      */
     protected function ensureConnectionIsRegistered(string $name): void

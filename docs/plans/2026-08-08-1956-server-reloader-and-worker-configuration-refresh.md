@@ -27,6 +27,7 @@ The refresh runs once per replacement worker before it accepts work. It adds no 
   4. remaining application providers, preserving their order.
 - Listing a discovered `Hypervel\` provider in `app.providers` moves it into group 2 because the later `unique()` keeps the first occurrence. A discovered provider hook must therefore not depend on another discovered provider's relative position.
 - Swoole reloads event workers with `SIGUSR1` and task workers with `SIGUSR2`. Custom server processes, queue workers, the scheduler, and Horizon processes are separate process lifecycles.
+- A synchronous request on a registered HTTP connection during master bootstrap stores a live cURL handler on the auto-singleton HTTP factory. `BeforeServerFork` must clear that pure resource cache so the manager and every worker inherit presets but build their own handlers. Bare and asynchronous requests do not use this cache.
 - Laravel boots providers per PHP process. Hypervel must instead separate master bootstrap from worker configuration refresh while keeping Laravel-style provider ownership.
 
 ## Anti-Overengineering Rules
@@ -176,6 +177,7 @@ The plural manager reset methods return `static`, matching existing Laravel-styl
 | Cache | `forgetDrivers()` | Clear resolved cache drivers while preserving custom creators and the shared serialization policy. |
 | `MultipleInstanceManager` | `forgetInstances()` | Clear resolved named instances while preserving creators. Used by Concurrency and Rate Limiter. |
 | Filesystem | `forgetDisks()` | Clear resolved disks while preserving custom creators. |
+| HTTP client | `forgetConnectionHandlers()` | Clear inherited transport handlers while preserving registered connection presets. |
 | Log | `forgetChannels()` | Clear resolved channels while preserving custom creators and shared context. |
 | Queue | `forgetConnections()` | Clear resolved queue connections while preserving connectors and callbacks owned elsewhere. |
 | URL generator | `setAssetRoot(?string)` | Update the retained generator's asset root at worker boot. |
@@ -248,6 +250,7 @@ Add `forgetLoadedGroups(): void` with a `Boot or tests only.` warning. It clears
 | Encryption | Reset the Serializable Closure secret and forget the encrypter. No framework master-boot object requires retaining the old encrypter identity. |
 | Filesystem | Clear disks and forget `filesystem.disk`. |
 | Hashing | Clear drivers and forget `hash.driver`. |
+| HTTP | On `BeforeServerFork`, clear connection handlers on an already resolved HTTP factory. Preserve registered presets, middleware, fakes, and other factory state; workers rebuild process-local handlers lazily. |
 | Log | Clear channels and refresh the retained stdout logger in place. Guard and resolve `StdoutLoggerInterface`, then mutate only the framework `StdoutLogger`. Remove the hard-coded stdout refresh from `WorkerStartCallback`. |
 | Mail | Clear mailers and forget Markdown. |
 | Notifications | Clear ChannelManager drivers and forget MailChannel. |
@@ -262,7 +265,7 @@ No configuration hook is added to these base/default providers:
 
 - Event and Context register process-wide infrastructure with no config-derived snapshot.
 - Console, Engine, Form Request, and Pipeline register commands, callbacks, or stateless factories without copying configuration.
-- HTTP's fallback request binding reads the preserved config repository when it resolves.
+- HTTP's fallback request binding reads the preserved config repository when it resolves. Its named-connection handlers are discarded before the server fork rather than through a configuration hook.
 - Pagination's boot-installed resolvers read request context or the retained container when invoked.
 - Redis retains its config repository and pool factory, reads connection configuration on demand, and already discards process connections before worker start.
 - Server and Server Process own master-installed server/process topology, not reloadable worker configuration.
@@ -276,6 +279,7 @@ No configuration hook is added to these base/default providers:
 | JWT | `ClaimFactory::reloadConfiguration()` rereads issuer and subject-lock settings. `JwtManager::reloadConfiguration()` clears drivers and validations, rereads blacklist enablement, and resolves the current Blacklist only when enabled. The provider updates a resolved ClaimFactory, forgets resolved Parser and Blacklist objects, then refreshes a resolved manager. Constructors delegate to these boot-only methods after their required base initialization. Preserve custom driver creators. |
 | Permission | If resolved, call `PermissionRegistrar::initializeCache()`. |
 | Reverb | Clear resolved `ApplicationManager` drivers and forget an already resolved `WebhookBatchBuffer`. Preserve `ServerProviderManager`; server topology remains restart-owned. |
+| Saloon | Re-register the current configured HTTP connection after configuration replay. This replaces same-name options and their cached handler, registers a changed name, and preserves application-owned presets under previous names. Keep console resources on the initial boot path only. |
 | Scout | If `EngineManager` is resolved, call `forgetEngines()` while preserving custom creators. Forget resolved Algolia, Meilisearch, and Typesense client bindings so rebuilt engines use current client configuration. |
 | Sentry | Extract the existing Hub binding's client construction and integration setup into one protected `createClient(): ClientInterface` method. Use it both for initial Hub construction and reload. Guard canonical `HubInterface`, mutate only the framework `Hub` through `bindClient()`, preserve the same global `SentrySdk` Hub, and forget BacktraceHelper after the client swap. Its log-channel defaults are already recomputed during config mutation replay. Listener/decorator topology and package enablement remain restart-owned. |
 | Socialite | If resolved, clear `SocialiteManager` drivers while preserving custom creators. |
@@ -333,6 +337,8 @@ Update `src/docs/deployment.md` in the same style:
 - Name Cache and Rate Limiter Swoole table definitions as restart-owned, and explain that the first use of a newly configured table after reload fails explicitly because shared tables can only be created before the server fork.
 - Explain the invalid-config restart-loop behavior and recovery: fix configuration, then reload again.
 
+Update the HTTP client's Connections section with one short paragraph: connection presets registered only during `boot()` retain those options across worker reloads. Providers whose presets come from reloadable configuration must implement `ReloadsConfiguration` and re-register them. Link to the providers guide and state that application hooks run after package hooks, so applications remain the final authority for shared connection names when they re-register them.
+
 Remove the completed service-provider reload item from `docs/todo.md`. Do not duplicate these explanations in package READMEs.
 
 ## Tests
@@ -351,6 +357,7 @@ Remove the completed service-provider reload item from `docs/todo.md`. Do not du
 ### Shared APIs and identity
 
 - Add focused unit coverage for every new plural reset method, including preservation of custom creators and callbacks.
+- Prove `forgetConnectionHandlers()` preserves registered HTTP presets while rebuilding handlers, and prove the HTTP provider clears only an already resolved factory on `BeforeServerFork`.
 - Add the container alias-forget regression.
 - Add Cache table-manager coverage proving known tables remain available after sealing, unknown tables fail with the fork-specific exception, and `CreateSwooleTable` initializes then seals safely across two `BeforeServerStart` dispatches.
 - Add URL generator tests for refreshed request, asset root, and both `forceHttps(true)` and `forceHttps(false)` paths while retaining identity.
@@ -375,6 +382,7 @@ Add or extend provider tests for every matrix row. Headline regressions must inc
 - Log refreshes the canonical stdout logger before later hooks can log;
 - Auth and Sanctum validation still run only after all configuration hooks;
 - optional-provider resolved guards do not instantiate unused services.
+- Saloon refreshes same-name options and handlers, registers a changed name without removing an application-owned old-name preset, and rejects invalid refreshed options before mutating the registered preset.
 
 Run each changed test file immediately. After each coherent package slice, run its focused test group. At the final checkpoint run `composer fix`, then trace all changed callers/callees and retained-object relationships during self-review.
 
@@ -385,8 +393,8 @@ Run each changed test file immediately. After each coherent package slice, run i
 3. Add shared manager reset/mutation APIs and their focused tests one file at a time.
 4. Correct Translator base-locale ownership and tests before adding the Translation provider hook.
 5. Correct derived-config mutation recording, then extend `ReloadDotenvAndConfig` to call provider hooks and prove ordering/failure semantics.
-6. Implement core/default provider hooks in provider order. Seal Cache's Swoole table manager in the Cache slice. Add the Log hook and remove `WorkerStartCallback`'s stdout special case in the same slice, then verify its event-order test immediately.
-7. Implement optional provider hooks, preserving resolved guards and object identity.
+6. Implement core/default provider hooks in provider order. Seal Cache's Swoole table manager in the Cache slice. Clear resolved HTTP connection handlers before fork. Add the Log hook and remove `WorkerStartCallback`'s stdout special case in the same slice, then verify its event-order test immediately.
+7. Implement optional provider hooks, including Saloon's shared boot/reload registration path, while preserving resolved guards and object identity.
 8. Complete the Queue/View container-access cleanup.
 9. Update Foundation package metadata.
 10. Update provider/deployment docs, Translation README, and remove the completed todo entry.
@@ -398,6 +406,7 @@ Run each changed test file immediately. After each coherent package slice, run i
 - Every replacement event/task worker rebuilds dotenv/config, replays tracked mutations, and refreshes every registered provider implementing `ReloadsConfiguration` before readiness.
 - Programmatic and CLI reloads share one strict `ServerReloader` implementation.
 - Config-derived objects resolved before fork either rebuild lazily or update in place according to their real retainers.
+- Registered HTTP connection presets survive the fork while every process builds its own transport handlers.
 - Cache and Rate Limiter reject Swoole table definitions that were not initialized before the server fork instead of creating process-private state.
 - Pure derived config is reevaluated from current worker inputs; recorded snapshots remain only for master-installed provider and server topology.
 - No optional hook constructs a service merely to refresh it.

@@ -330,6 +330,28 @@ class HttpConnectionTest extends TestCase
         $this->assertCount(2, $factory->createdHandlerOptions);
     }
 
+    public function testForgettingConnectionHandlersPreservesPresetsAndRebuildsEveryHandler(): void
+    {
+        $factory = new RecordingHttpConnectionFactory;
+        $apiConfig = ['timeout' => 12];
+        $reportingConfig = ['timeout' => 30];
+        $factory->registerConnection('api', $apiConfig);
+        $factory->registerConnection('reporting', $reportingConfig);
+        $oldApiHandler = $factory->getConnectionHandler('api');
+        $oldReportingHandler = $factory->getConnectionHandler('reporting');
+
+        $this->assertSame($factory, $factory->forgetConnectionHandlers());
+        $this->assertSame($apiConfig, $factory->getConnectionConfig('api'));
+        $this->assertSame($reportingConfig, $factory->getConnectionConfig('reporting'));
+
+        $newApiHandler = $factory->getConnectionHandler('api');
+        $newReportingHandler = $factory->getConnectionHandler('reporting');
+
+        $this->assertNotSame($oldApiHandler, $newApiHandler);
+        $this->assertNotSame($oldReportingHandler, $newReportingHandler);
+        $this->assertCount(4, $factory->createdHandlerOptions);
+    }
+
     public function testConcurrentRequestsOwnIsolatedCookieJars(): void
     {
         $factory = new RecordingHttpConnectionFactory;
