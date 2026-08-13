@@ -208,7 +208,7 @@ class HeartbeatConnectionTest extends TestCase
 
     protected function getContainer(array $poolConfig = []): ContainerContract
     {
-        $container = m::mock(ContainerContract::class);
+        $container = m::mock(Container::class);
         Container::setInstance($container);
 
         $container->shouldReceive('make')->with(HeartbeatPoolStub::class)->andReturnUsing(function () use ($container, $poolConfig) {

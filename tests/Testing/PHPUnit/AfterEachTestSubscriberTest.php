@@ -21,6 +21,7 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Process\InvokedProcess;
 use Hypervel\Support\Carbon;
@@ -67,6 +68,7 @@ class AfterEachTestSubscriberTest extends TestCase
             JsonApiResource::class,
             HttpResponse::class,
             UploadedFile::class,
+            Image::class,
             InvokedProcess::class,
             NotificationFake::class,
         ];

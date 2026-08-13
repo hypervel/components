@@ -13,6 +13,7 @@ use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Image\ImageException;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
@@ -82,6 +83,60 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
 
         $this->assertSame('value', $proxy->json('value.json'));
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+    }
+
+    public function testImageDefersAndBalancesTheWholeDriverLease(): void
+    {
+        $this->driver->write('photo.jpg', 'image bytes');
+        $creations = 0;
+        $releaseCalls = 0;
+        $proxy = $this->proxy(
+            function () use (&$creations): FilesystemAdapter {
+                ++$creations;
+
+                return $this->filesystem();
+            },
+            function (object $filesystem) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+        );
+
+        $image = $proxy->image('photo.jpg');
+
+        $this->assertSame(0, $creations);
+        $this->assertFalse($this->pools->has('filesystem:driver'));
+        $this->assertSame('image bytes', $image->toBytes());
+        $this->assertSame(1, $creations);
+        $this->assertSame(1, $releaseCalls);
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+
+        $this->assertSame('image bytes', $image->toBytes());
+        $this->assertSame(1, $releaseCalls);
+    }
+
+    public function testMissingImageReleasesTheWholeDriverLease(): void
+    {
+        $releaseCalls = 0;
+        $proxy = $this->proxy(
+            fn (): FilesystemAdapter => $this->filesystem(),
+            function (object $filesystem) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+        );
+        $image = $proxy->image('missing.jpg');
+
+        try {
+            $image->toBytes();
+            $this->fail('Expected the missing image read to fail.');
+        } catch (ImageException $exception) {
+            $this->assertSame(
+                'Unable to read image from path [missing.jpg].',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(1, $releaseCalls);
         $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
     }
 

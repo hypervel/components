@@ -73,6 +73,7 @@ use function Hypervel\Support\enum_value;
  * @method static \Symfony\Component\HttpFoundation\StreamedResponse response(string $path, string|null $name = null, array $headers = [], string $disposition = 'inline')
  * @method static \Symfony\Component\HttpFoundation\Response serve(\Hypervel\Http\Request $request, string $path, string|null $name = null, array $headers = [])
  * @method static \Symfony\Component\HttpFoundation\StreamedResponse download(string $path, string|null $name = null, array $headers = [])
+ * @method static \Hypervel\Image\Image image(string $path)
  * @method static string|false checksum(string $path, array $options = [])
  * @method static string|false mimeType(string $path)
  * @method static string url(string $path)

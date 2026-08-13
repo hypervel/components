@@ -2,6 +2,8 @@ name: scout
 
 on:
   push:
+    branches:
+      - 0.4
   pull_request:
 
 env:
@@ -27,12 +29,14 @@ jobs:
           --health-retries 5
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
     strategy:
-      fail-fast: true
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
 
-    name: Meilisearch
+    name: Meilisearch (PHP ${{ matrix.php }})
 
     steps:
       - name: Checkout code
@@ -43,15 +47,12 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
-
       - name: Cache Composer dependencies
         uses: actions/cache@v5
         with:
           path: /root/.composer/cache
-          key: composer-8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-8.4-
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
@@ -78,12 +79,14 @@ jobs:
           - 8108:8108
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
     strategy:
-      fail-fast: true
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
 
-    name: Typesense
+    name: Typesense (PHP ${{ matrix.php }})
 
     steps:
       - name: Checkout code
@@ -94,15 +97,12 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
-
       - name: Cache Composer dependencies
         uses: actions/cache@v5
         with:
           path: /root/.composer/cache
-          key: composer-8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-8.4-
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
@@ -121,12 +121,14 @@ jobs:
     timeout-minutes: 5
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
 
     strategy:
-      fail-fast: true
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
 
-    name: Algolia
+    name: Algolia (PHP ${{ matrix.php }})
 
     steps:
       - name: Checkout code
@@ -137,15 +139,12 @@ jobs:
       - name: Log trigger context
         uses: ./.github/actions/log-trigger-context
 
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
-
       - name: Cache Composer dependencies
         uses: actions/cache@v5
         with:
           path: /root/.composer/cache
-          key: composer-8.4-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-8.4-
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o

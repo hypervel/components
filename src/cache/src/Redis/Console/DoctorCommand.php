@@ -154,7 +154,7 @@ class DoctorCommand extends Command
     protected function getEnvironmentChecks(string $storeName, RedisStore $store, string $tagMode, RedisConnection $redis): array
     {
         return [
-            new PhpRedisCheck,
+            new PhpRedisCheck($tagMode),
             new RedisVersionCheck($redis, $tagMode),
             new HashFieldExpirationCheck($redis, $tagMode),
             new CacheStoreCheck($storeName, 'redis', $tagMode),
