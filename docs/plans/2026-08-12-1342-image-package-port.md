@@ -494,6 +494,7 @@ Every test class extends `Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCa
   - driver switching re-renders the retained recipe;
   - instance metadata caches and clone invalidation;
   - clone hash independence by calling both objects;
+  - normal storage methods preserve caller options, public storage methods force public visibility, and failed writes return `false`; assert these at the filesystem `put()` boundary because a local disk reports an ordinary write as public;
   - broken-driver `TypeError` escapes processing and HEIC fallback;
   - `flushState()` removes macros;
   - native Responsable signature/data URI string behavior.
@@ -595,7 +596,7 @@ No edit is needed in PHPStan paths or split/release scripts: PHPStan analyzes al
 - No request/image/native resource is retained by a worker singleton or static property.
 - Tenant isolation remains at the filesystem/path boundary: a per-image scoped source may capture its tenant prefix/disk, no worker-cached image infrastructure retains that state, scoped filesystems fail closed unless root passthrough was explicitly enabled, and pooled sources never retain a released lease.
 - All static macros are centrally reset between tests.
-- Missing optional dependencies fail with actionable domain/dependency errors, never raw class-not-found failures.
+- A missing Intervention Image installation fails with an actionable Hypervel `ImageException` before manager construction. Missing GD or Imagick extensions surface Intervention's actionable `checkHealth()` exception, which `Image` wraps during processing; the bundled drivers therefore do not duplicate native extension checks. Request and filesystem `image()` integration methods deliberately match Laravel: when they need to instantiate an image and `hypervel/image` is absent, they fail with PHP's native class-not-found `Error`, and their Composer suggestions provide the install signal.
 - CI executes GD WebP/AVIF and Imagick paths rather than silently skipping them, tests both supported PHP minors, and never compiles extensions independently in each consumer job.
 - Package, root components, facade, consumers, docs, tests, split metadata, and framework meta-package agree on the same feature surface.
 - No compatibility shim, deprecated provider machinery, obsolete processed flag, dead helper, stale comment, duplicated docs, TODO, skipped applicable test, or unjustified cache remains.
