@@ -49,7 +49,7 @@ class MakeRequest extends MakeCommand
     protected function getOptions(): array
     {
         return [
-            ['method', 'm', InputOption::VALUE_REQUIRED, 'the method of the request'],
+            ['method', 'm', InputOption::VALUE_REQUIRED, 'The method of the request'],
         ];
     }
 
