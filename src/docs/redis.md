@@ -274,9 +274,6 @@ Redis Sentinel provides high availability for Redis by monitoring your Redis mas
         'password' => env('REDIS_SENTINEL_PASSWORD'),
         'timeout' => 5.0,
         'read_timeout' => 5.0,
-        'context' => [
-            // 'ssl' => ['verify_peer' => false],
-        ],
     ],
 ],
 ```
