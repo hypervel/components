@@ -2,9 +2,7 @@
 
 ## Plan status
 
-This is the implementation plan for replacing the cache-backed Redis session driver with native session persistence and adding a driver-neutral API for listing and invalidating a user's sessions. It targets Hypervel `0.4` and deliberately optimizes the final codebase rather than preserving unreleased Hypervel-specific internals.
-
-Implement the whole plan as one coherent change. Remove every superseded cache-backed path, configuration key, test, comment, and documentation statement. Do not leave compatibility aliases, deprecated wrappers, duplicate implementations, or TODOs for work defined here. The completed source should read as though database and Redis session management were designed together from the beginning.
+The complete design is implemented and reviewed. It is locally validated on Redis 8, a real three-master Cluster, and all four database drivers. `composer fix`, facade linting, Composer validation, targeted review-fix checks, and residue checks pass. Valkey 9 runs the same fixture in CI.
 
 This plan supersedes the cache-backed Redis decisions in `docs/plans/2026-07-27-0530-session-lifecycle-persistence-and-current-laravel-parity.md`; that completed plan remains useful history, but the current tree and this plan are authoritative.
 
@@ -363,7 +361,8 @@ Do not put suppression in `migrate()` or `regenerate()`: authentication delibera
 - Remove `SessionManager::createCacheHandler()` and the cache-store validation/mutation branch.
 - Remove the `session.store` configuration option, `SESSION_STORE`, and every config test/comment/doc reference to that obsolete cache-store selector.
 - Replace the README statement inviting cache-backed handlers with the final native-driver difference.
-- Add `hypervel/redis: ^0.4` to `require`.
+- Add `hypervel/redis: ^0.4` to `require` and suggest `ext-redis`, stating the
+  base driver and tracking-specific phpredis floors.
 - Keep `hypervel/cache: ^0.4` in `require`: session blocking and `$session->cache()` are unconditional public features, and installing the split session package must not leave either feature broken. Cache does not require session, so this creates no dependency cycle.
 
 The package dependency does not weaken the persistence boundary. `$session->cache()` uses cache's `SessionStore` adapter over the current session's in-memory `_cache` attribute, so it adds no storage call or separate cache key; session blocking deliberately uses cache locks. Ordinary file, database, Redis, array, null, and cookie persistence never resolve or delegate through a cache store. Native Redis still performs its direct one-command or one-script paths.
@@ -499,12 +498,16 @@ payload:    <session.prefix><40-character session ID>
 user hash:  <session.prefix>_users:<owner digest>:sessions
 ```
 
-The owner digest is a lowercase `xxh128` over a length-prefixed auth provider and normalized user ID. This makes unrelated providers distinct even when their user IDs overlap, while bounding user-controlled key material; it is not presented as secrecy. The length prefix makes the input injective even when either string contains delimiters. Do not seed the digest: the logical session prefix is already part of the physical index key, unlike the rate limiter where the digest is the whole key, so seeding would add no namespace separation.
+The owner digest is the first 32 lowercase hexadecimal characters of SHA-256 over a length-prefixed auth provider and normalized user ID. It is both the index address and the ownership proof used by scoped deletion, so it requires cryptographic second-preimage resistance when identifiers are user-controlled. Truncation preserves the 32-byte envelope format while retaining 128 bits of security. The length prefix makes the input injective even when either string contains delimiters. Do not seed it or couple it to `APP_KEY`; SHA-256 provides the required property without making sessions depend on secret rotation.
 
 ```php
-$ownerDigest = hash(
-    'xxh128',
-    strlen($authProvider) . ':' . $authProvider . ':' . $userId,
+$ownerDigest = substr(
+    hash(
+        'sha256',
+        strlen($authProvider) . ':' . $authProvider . ':' . $userId,
+    ),
+    0,
+    32,
 );
 ```
 
@@ -686,6 +689,11 @@ Rename its constants/cache fields/messages to generic HFE terminology and update
 - auth tagged-cache integration tests;
 - the new Redis session integration tests.
 
+Keep `flushState()` on the trait so its focused unit test can reset the consuming
+class's private memoized capability state without duplicating private property
+names. Do not register this process-stable environment probe with global PHPUnit
+cleanup.
+
 Use `mv` for file renames, then verify zero references to the old symbol. This is test infrastructure, not a runtime dependency between session and cache.
 
 ## Documentation
@@ -741,7 +749,7 @@ Recommend comparing an application's migration with the current `make:session-ta
 - Retain only genuine lasting Laravel differences. Update the driver difference to state that Hypervel's Redis session driver is direct/native and Laravel's cache-backed APC, Memcached, DynamoDB, and shared cache wrapper are not provided.
 - Add the lasting schema difference: Hypervel's generated `sessions.user_id` is a nullable indexed string (supporting integer, UUID, ULID, and application-defined IDs) rather than Laravel's `foreignId`; managed ownership also uses a nullable `auth_provider`, and `ipAddress()` gives PostgreSQL its native semantic type.
 - Do not duplicate configuration or API documentation in the README.
-- After adding the manager methods, regenerate the Session facade with `composer facade -- 'Hypervel\Support\Facades\Session'`, commit the generated annotations, and verify them with `composer facade -- --lint 'Hypervel\Support\Facades\Session'`. Do not hand-edit generated facade method tags.
+- The Session facade annotations are generated rather than hand-edited; verify them with `composer facade -- --lint 'Hypervel\Support\Facades\Session'`.
 
 ## Test plan
 
@@ -815,14 +823,14 @@ Mock `RedisFactory`, `RedisProxy`, and `RedisConnection`; assert behavior and no
 - Delete `CacheBasedSessionHandlerTest` with its source.
 - `StartSessionTest`: retain the required cache factory, constructor order, lock behavior, and persistence retry coverage; native persistence does not change middleware's cache-backed blocking feature.
 - `SessionConfigTest`: new flag/default and removed store.
-- `PackageMetadataTest`: Redis and cache are both required; cache remains for session cache/blocking rather than persistence.
+- `PackageMetadataTest`: Redis and cache are both required; cache remains for session cache/blocking rather than persistence, and the phpredis suggestion states the base and tracking-specific floors.
 - `tests/Foundation/Testing/Concerns/InteractsWithSessionTest.php`: remove the cache-backed custom-driver regression and its dead import; the ordinary array-driver coverage already exercises `withSession()`, while custom-driver construction remains covered by `SessionManagerTest`.
 - `SessionStoreTest` / encrypted tests: shared `SessionId` generation/validation behavior, a separately named CSRF-token length, no regressions to serialization or request handling, and proof that the existing `invalidate()` API cannot create an associated unauthenticated replacement while login-time regeneration is not suppressed.
-- Auth README/facade metadata: retain `getDefaultUserProvider()`, add guard-aware `getUserProviderName()`, and regenerate/lint the Auth facade rather than hand-editing it.
+- Auth README/facade metadata retain `getDefaultUserProvider()` and expose guard-aware `getUserProviderName()`. The Auth facade annotations are generated rather than hand-edited; verify them with `composer facade -- --lint 'Hypervel\Support\Facades\Auth'`.
 
 ### Database integration matrix
 
-Move the current database handler integration body into a shared abstract fixture and run it through the existing convention:
+The database handler integration body lives in a shared abstract fixture and runs through the existing convention:
 
 ```text
 tests/Integration/Session/Database/DatabaseSessionHandlerTestCase.php
@@ -853,46 +861,88 @@ Keep all four driver directories deliberately. The current standalone rate-limit
 
 Use query listeners/logging to assert one statement for listing/individual/handler-bulk operations, one repository-bulk statement without a started Store, at most two with a started current record, and absence of payload/N+1 reads. A normal known-missing write executes one insert after its initial read; a direct write with unknown state against an existing row executes one read and one update without attempting an insert.
 
-### Redis/Valkey integration
+### Redis, Valkey, and Cluster integration
 
-Add `tests/Integration/Session/Redis/RedisSessionHandlerTest.php` using both `InteractsWithRedis` and `RequiresHashFieldExpiration`; add `tests/Integration/Session/Redis` to both jobs in `.github/workflows/redis.yml`.
+`tests/Integration/Session/Redis/RedisSessionHandlerTest.php` uses both
+`InteractsWithRedis` and `RequiresHashFieldExpiration`. Run the same fixture
+against Redis 8, Valkey 9, and the real three-master Redis Cluster in
+`.github/workflows/redis.yml`; the Cluster job must use serial PHPUnit because
+Cluster supports only database zero. Add the directory to the authorized
+`AGENTS.md` workflow table.
 
-Call the HFE gate only from tracking-enabled tests. Tracking-disabled GET/SETEX/DEL coverage must still run against an older Redis server when available because that path intentionally has no HFE floor.
+Call the HFE gate only from tracking-enabled tests. Tracking-disabled
+GET/SETEX/DEL coverage must still run against an older Redis server when
+available because that path intentionally has no HFE floor.
 
-Cover against Redis 8 and Valkey 9:
+Use `InteractsWithRedis::redisClientWithoutPrefix()` for direct physical-key
+assertions on every topology. Option-specific handler connections share its
+server/database/topology, so the helper needs no connection argument. Use
+positional `set($key, $value, 'EX', $seconds)` calls; remove standalone clients,
+manual `close()`, and their `try`/`finally` blocks because the trait owns teardown.
+Proxy `get()` misses are `null`, not raw phpredis `false`; use `exists()` for
+absence assertions.
 
-- plain JSON, PHP-serialized, and encrypted session round trips;
-- enabled tracking write/list/reassignment/preserve/unowned/destroy/bulk flows;
-- selected non-default guard and non-selected secondary guard behavior, same-ID isolation across providers, and deliberate sharing across guards with one provider;
-- identity-less public-route write preserves owner while refreshing metadata, payload TTL, and field `HTTL`;
-- logout without invalidation preserves the last proven association, including across later identity-less writes, until explicit destruction or eventual inactivity expiry;
-- remember-me self-invalidation authenticates into a fresh tracked session, while logout-first storage invalidation does not;
-- observable server state after every operation: raw/enveloped payload contents, user-index field presence/removal, payload TTL, field `HTTL` synchronization, malformed-field pruning, and current-single-plus-bulk outcomes;
-- positive connection `OPT_PREFIX` plus session prefix with neither omission nor duplication;
-- phpredis PHP serializer for plain and tracked read/write/list/destroy, plus LZF compression when the extension exposes `Redis::COMPRESSION_LZF`; skip only the compression combination when unavailable, and verify option restoration after an exception;
-- tracking flag enable/disable transitions and old index natural expiration;
-- raw, corrupt family, malformed V1, and unknown-version records;
-- HFE removes fields and the empty user hash after lifetime;
-- stale/wrong-owner index fields cannot delete authoritative payloads;
-- metadata corruption skips only the bad record and prunes its index field without hiding valid sessions;
-- deliberate index `WRONGTYPE` failures prove standalone Lua's partial-commit ordering: a resulting-index failure leaves the old payload authoritative, while a late obsolete-index cleanup failure propagates after the new/unowned payload has already made the old field harmless and TTL-bounded;
-- tracked writes give payloads and index fields one absolute expiry, including metadata-preserving identity-less writes.
+Move `assertRedisKeysUseDifferentClusterSlots()` from the cache fixture to
+`InteractsWithRedis`; report both physical keys and slots on failure. Keep and
+comment the session fixture's untagged prefix because a hash tag would collapse
+the payload and index into one slot and invalidate the cross-slot proof.
 
-Cluster behavior is unit-tested with ordered transport mocks because the Redis workflow does not provide a cluster. Do not pretend standalone integration proves cluster routing or add a single-node test that merely forces the Cluster flag. Real Cluster infrastructure and cross-slot integration coverage require their own reviewed CI change.
+Cover against all three topologies:
+
+- raw JSON, PHP-serialized, binary-safe, enveloped, corrupt-family, malformed-V1, and unknown-version payloads plus tracking flag transitions;
+- tracked write/list/reassignment/preserve/unowned/destroy/bulk flows, synchronized absolute payload/field expiry, HFE empty-hash removal, and observable index cleanup;
+- selected/non-selected guard behavior, same-ID provider isolation, identity-less metadata/TTL refresh, stale-owner safety, and malformed-metadata pruning;
+- both prefix layers exactly once, PHP serialization, optional LZF compression, and option restoration after failure; skip only the LZF case when compression is unavailable;
+- real payload/index keys in different Cluster slots.
+
+Exercise real framework composition in the same fixture:
+
+1. Resolve the real Redis driver through `SessionManager` with an empty
+   `session.connection`, distinctive default/session connection prefixes, a
+   distinctive session prefix, tracking enabled, and a known lifetime. Assert
+   `RedisSessionHandler`, the exact key on the `session` connection only, its TTL,
+   and a fresh `Store` round trip.
+2. Resolve a tracked, owned, encrypted store through the manager. Assert the
+   physical value begins with the exact ownership envelope, contains neither a
+   plaintext marker nor its attribute name, has a user-index field, and decrypts
+   through a fresh store with the same ID.
+3. Persist an owned session through a real store, call `Store::invalidate()`,
+   then save. Assert the old payload and index field are absent while the
+   replacement payload is raw and absent from the user's index. Keep the stronger
+   guard short-circuit assertion in `UserSessionIdentityTest` only.
+
+Deliberate `WRONGTYPE` failures have topology-specific transport shapes:
+standalone SHA-cached Lua throws `LuaScriptException`, while a direct Cluster
+index command returns `false`. Use one private test helper for every such write
+site, including serializer/compression failure, without weakening state
+assertions. `Store::save()` treats either as failure. Rename the NUL-containing
+case to “binary-safe bytes”; the owned composition test proves real ciphertext.
+
+Retain the ordered transport-mock Cluster cases listed in the unit-test section;
+live Cluster integration proves routing and server state but cannot replace them.
 
 ### Auth and end-to-end lifecycle
 
-Add `tests/Integration/Session/Database/Sqlite/UserSessionLifecycleTest.php` with focused request-level coverage for:
+`tests/Integration/Session/Database/Sqlite/UserSessionLifecycleTest.php` owns the
+storage-neutral request/Auth contract. Do not duplicate its routes, database
+users, or remember-cookie setup in Redis integration. Use focused request-level
+coverage for:
 
 - current invalidation followed by normal response-end save cannot resurrect the deleted ID;
 - the replacement is unowned despite the selected guard's cached user;
 - exception rendering's same-coroutine retry remains unowned;
 - application-called save plus middleware save remains unowned;
 - a fresh login regenerates away from suppression and tracks normally;
+- a remember cookie reauthenticates into a fresh tracked session after invalidation;
 - two guards backed by different providers may authenticate the same scalar ID without cross-listing or cross-invalidation, and an explicit guard management call does not mutate the selected guard;
 - admin management of another user leaves admin auth/session untouched;
-- password/remember-token changes occur only when the application calls Auth APIs.
+- logout without storage invalidation preserves the last proven ownership, while logout-first bulk invalidation still rotates from storage proof;
+- password/remember-token changes occur only when the application calls Auth APIs;
 - direct `Store::invalidate()` and repository-driven current invalidation share the same unowned replacement invariant.
+
+Keep shared-provider guard resolution in `SessionManagerTest` and repository
+current-single-plus-bulk sequencing in `UserSessionsTest`; neither behavior needs
+a storage-specific Redis copy.
 
 ### Verification commands
 
@@ -913,14 +963,22 @@ bin/run-database-tests.sh mariadb --filter=DatabaseSessionHandlerTest
 bin/run-database-tests.sh pgsql --filter=DatabaseSessionHandlerTest
 bin/run-database-tests.sh sqlite --filter=UserSessionLifecycleTest
 
-vendor/bin/phpunit tests/Integration/Session/Redis/RedisSessionHandlerTest.php
+# Run once with REDIS_HOST/REDIS_PORT targeting Redis 8, then again targeting Valkey 9.
+vendor/bin/phpunit tests/Integration/Session/Redis
+REDIS_CLUSTER_HOSTS_AND_PORTS=127.0.0.1:7000,127.0.0.1:7001,127.0.0.1:7002 \
+    vendor/bin/phpunit tests/Integration/Session/Redis
 vendor/bin/phpunit tests/Foundation/Testing/Concerns/RequiresHashFieldExpirationTest.php
 
-composer facade -- 'Hypervel\Support\Facades\Session'
+grep -RsniE 'RequiresAnyTagModeRedis|skipIfAnyTagModeUnsupported|anyTagMode' src tests
+grep -nEi 'any([ -]tag)?[ -]mode' \
+    src/foundation/src/Testing/Concerns/RequiresHashFieldExpiration.php \
+    tests/Foundation/Testing/Concerns/RequiresHashFieldExpirationTest.php
+
 composer facade -- --lint 'Hypervel\Support\Facades\Session'
-composer facade -- 'Hypervel\Support\Facades\Auth'
 composer facade -- --lint 'Hypervel\Support\Facades\Auth'
 ```
+
+Both residue commands must print nothing.
 
 External database/Redis commands require their documented services. The implementation must still run every locally available path and leave CI wiring complete.
 
@@ -934,25 +992,9 @@ git diff --check
 
 After package metadata changes, run `composer update`/`composer install` as appropriate to validate dependency resolution; `composer.lock` remains untracked.
 
-## Implementation sequence and file checklist
+## Final file checklist
 
-Work one file at a time and run the narrowest relevant test after each behavioral source edit.
-
-1. Rename `RequiresAnyTagModeRedis` and its test with `mv`; update all auth/cache consumers and prove zero old references.
-2. Add `Contracts/CanManageUserSessions.php`, `SessionId.php`, `UserSession.php`, `UserSessionIdentity.php`, and `UserSessions.php`, with their unit tests; provider-qualify every managed owner and delegate Store ID generation/validation to the shared utility.
-3. Integrate identity suppression with `Store::invalidate()` and cover the inherited lifecycle regression.
-4. Extend `DatabaseSessionHandler.php`; persist and query the provider/user ownership pair; restructure its database integration test into the four-driver matrix; update the published and testbench migrations plus generator tests.
-5. Add `RedisSessionHandler.php`, its unit test, and Redis/Valkey integration test, using the provider-qualified owner digest without changing command counts.
-6. Generalize Auth's provider-name accessor while preserving `getDefaultUserProvider()`; replace `SessionManager` Redis construction and add guard/provider API, capability, and coroutine-isolation tests.
-7. Delete `CacheBasedSessionHandler` and its test; grep the entire source/tests tree for stale references.
-8. Keep `StartSession`'s required cache dependency and verify existing middleware construction/blocking tests remain green.
-9. Add Redis while retaining cache in session Composer metadata; update package metadata tests and validate the split dependency direction.
-10. Replace configuration/env entries and update config tests.
-11. Update the Auth and Session package READMEs, `src/docs/session.md`, and `src/docs/upgrade.md`; regenerate and lint the Auth and Session facades rather than editing generated annotations.
-12. Add the Redis workflow directory and run all targeted/integration suites.
-13. Run formatter/static analysis/full tests, inspect the complete diff, and remove any stale comments, imports, fixtures, config keys, or docs.
-
-Files expected to be added:
+Final file additions:
 
 ```text
 src/session/src/Contracts/CanManageUserSessions.php
@@ -973,7 +1015,7 @@ src/foundation/src/Testing/Concerns/RequiresHashFieldExpiration.php
 tests/Foundation/Testing/Concerns/RequiresHashFieldExpirationTest.php
 ```
 
-Files expected to be removed:
+Final file removals:
 
 ```text
 src/session/src/CacheBasedSessionHandler.php
@@ -983,15 +1025,17 @@ src/foundation/src/Testing/Concerns/RequiresAnyTagModeRedis.php
 tests/Foundation/Testing/Concerns/RequiresAnyTagModeRedisTest.php
 ```
 
-Key existing files expected to be modified:
+Key files changed by the complete plan:
 
 ```text
 .github/workflows/redis.yml
+AGENTS.md
 src/docs/session.md
 src/docs/upgrade.md
 src/auth/README.md
 src/auth/src/CreatesUserProviders.php
 src/foundation/config/session.php
+src/foundation/src/Testing/Concerns/InteractsWithRedis.php
 src/session/README.md
 src/session/composer.json
 src/session/src/Console/stubs/database.stub
@@ -1033,5 +1077,6 @@ The last database path is removed only after its content is moved into the share
 - Existing `Store::invalidate()` and the new repository path both enforce that invariant without suppressing login-time regeneration.
 - Multi-guard unresolved writes preserve the correct owner; unowned writes explicitly clear it; Auth provider selection remains coroutine-isolated.
 - Cluster failure ordering never commits an owner-tagged payload unless that operation first updated the expected owner's index, and never lets a stale index delete an unproven/live session.
+- The same live session fixture passes on Redis 8, Valkey 9, and a real multi-master Cluster, with physical payload/index keys proven to occupy different slots; deterministic transport mocks retain only race and failure-shape coverage that live services cannot force.
 - User docs, README, config, Composer metadata, migration stub, facade annotations, workflows, and tests all describe the final design only.
-- Targeted tests, database matrix, Redis/Valkey integration, `composer fix`, full tests, and `git diff --check` pass in their available environments.
+- Targeted tests, database matrix, Redis/Valkey/Cluster integration, `composer fix`, full tests, and `git diff --check` pass in their available environments.
