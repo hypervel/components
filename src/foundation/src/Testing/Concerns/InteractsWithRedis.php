@@ -171,7 +171,7 @@ trait InteractsWithRedis
         $database = $this->getParallelRedisDb();
 
         foreach ($config->array('database.redis') as $name => $connection) {
-            if (in_array($name, ['client', 'options', 'clusters'], true) || ! is_array($connection)) {
+            if (in_array($name, ['client', 'options'], true) || ! is_array($connection)) {
                 continue;
             }
 

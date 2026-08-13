@@ -32,7 +32,7 @@ class RedisWatcherTest extends FeatureTestCase
     {
         $this->assertTrue(
             $this->app->make(RedisConfig::class)
-                ->connectionConfig('foo')['event']['enable']
+                ->connectionConfig('foo')['events']
         );
     }
 

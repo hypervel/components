@@ -74,7 +74,7 @@ class RedisPoolTest extends TestCase
                         'host' => 'redis',
                         'port' => 16379,
                         'database' => 0,
-                        'event' => ['enable' => false],
+                        'events' => false,
                         'pool' => [
                             'min_connections' => 1,
                             'max_connections' => 30,
@@ -94,8 +94,8 @@ class RedisPoolTest extends TestCase
 
         $redisConfig->enableEvents();
 
-        $this->assertFalse($pool->getConfig()['event']['enable']);
-        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+        $this->assertFalse($pool->getConfig()['events']);
+        $this->assertTrue($redisConfig->connectionConfig('default')['events']);
     }
 
     public function testLowFrequencyFlushClosesIdleConnections(): void

@@ -211,9 +211,10 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame($options, $connection->normalizeClusterContextForTest(['stream' => $options]));
     }
 
-    #[DataProvider('clusterTransportContexts')]
-    public function testClusterContextSelectsTheExpectedTransport(array $context, bool $tls): void
+    #[DataProvider('clusterTransports')]
+    public function testClusterSchemeSelectsTheExpectedTransport(string $scheme, array $context): void
     {
+        $tls = $scheme === 'tls';
         $server = new RespServer(
             $tls ? 'tls://127.0.0.1:0' : 'tcp://127.0.0.1:0',
             $tls
@@ -239,11 +240,12 @@ class PhpRedisClusterConnectionTest extends TestCase
                 $this->getContainer(),
                 $this->getMockedPool(),
                 [
+                    'scheme' => $scheme,
+                    'context' => $context,
                     'timeout' => 1.0,
                     'cluster' => [
-                        'enable' => true,
-                        'seeds' => ["{$host}:{$port}"],
-                        'context' => $context,
+                        'enabled' => true,
+                        'seeds' => ["{$scheme}://{$host}:{$port}"],
                     ],
                 ],
             );
@@ -257,15 +259,16 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame('*2', $bytes);
     }
 
-    public static function clusterTransportContexts(): array
+    public static function clusterTransports(): array
     {
         return [
-            'empty context uses plaintext' => [[], false],
-            'non-empty context uses TLS' => [[
+            'tcp' => ['tcp', []],
+            'tls without custom context' => ['tls', []],
+            'tls with custom context' => ['tls', [
                 'verify_peer' => false,
                 'verify_peer_name' => false,
                 'allow_self_signed' => true,
-            ], true],
+            ]],
         ];
     }
 
@@ -394,7 +397,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $clientB->shouldReceive('scan')->andReturn(false);
 
         $callCount = 0;
-        $connection = new class($container, $pool, ['cluster' => ['enable' => true, 'seeds' => ['10.0.0.1:6379']]], $clientA, $clientB, $callCount) extends PhpRedisClusterConnection {
+        $connection = new class($container, $pool, ['cluster' => ['enabled' => true, 'seeds' => ['tcp://10.0.0.1:6379']]], $clientA, $clientB, $callCount) extends PhpRedisClusterConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,

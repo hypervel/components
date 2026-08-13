@@ -69,11 +69,10 @@ class RedisPrefixTest extends IntegrationTestCase
             'username' => 'horizon',
             'password' => 'secret',
             'database' => 4,
+            'context' => ['stream' => ['verify_peer' => true]],
             'cluster' => [
-                'enable' => true,
-                'name' => 'horizon-cluster',
+                'enabled' => true,
                 'seeds' => ['redis-1.example.com:6379', 'redis-2.example.com:6379'],
-                'context' => ['stream' => ['verify_peer' => true]],
             ],
             'pool' => ['max_connections' => 20],
             'prefix' => 'application:',
@@ -104,8 +103,7 @@ class RedisPrefixTest extends IntegrationTestCase
         config([
             'database.redis.horizon-cluster' => [
                 'cluster' => [
-                    'enable' => true,
-                    'name' => 'horizon-cluster',
+                    'enabled' => true,
                     'seeds' => ['redis.example.com:6379'],
                 ],
             ],
@@ -130,8 +128,7 @@ class RedisPrefixTest extends IntegrationTestCase
         config([
             'database.redis.horizon-cluster' => [
                 'cluster' => [
-                    'enable' => true,
-                    'name' => 'horizon-cluster',
+                    'enabled' => true,
                     'seeds' => ['redis.example.com:6379'],
                 ],
             ],

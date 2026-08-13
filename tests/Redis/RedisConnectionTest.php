@@ -400,7 +400,7 @@ class RedisConnectionTest extends TestCase
         $connection->reconnect();
     }
 
-    public function testSentinelResolvedMasterRetainsEmptyStandaloneContext(): void
+    public function testSentinelResolvedMasterUsesStandaloneDataConnectionSettings(): void
     {
         $sentinelFactory = m::mock(RedisSentinelFactory::class);
         $sentinelFactory->expects('resolveMaster')->andReturn(['127.0.0.1', 6380]);
@@ -411,7 +411,8 @@ class RedisConnectionTest extends TestCase
         $container->shouldReceive('has')->andReturnFalse();
         $container->shouldReceive('bound')->with('events')->andReturnFalse();
         $redis = m::mock(Redis::class);
-        $connection = new class($container, $this->getMockedPool(), ['sentinel' => ['enable' => true, 'nodes' => ['127.0.0.1:26379'], 'master_name' => 'primary']], $redis) extends PhpRedisConnection {
+        $redis->expects('setOption')->with(Redis::OPT_READ_TIMEOUT, 2.5)->andReturnTrue();
+        $connection = new class($container, $this->getMockedPool(), ['timeout' => 1.5, 'retry_interval' => 100, 'read_timeout' => 2.5, 'context' => ['stream' => ['tcp_nodelay' => true]], 'sentinel' => ['enabled' => true, 'nodes' => ['127.0.0.1:26379'], 'master_name' => 'primary', 'read_timeout' => 9.0, 'context' => ['ssl' => ['verify_peer' => true]]]], $redis) extends PhpRedisConnection {
             private array $createdConfig = [];
 
             public function __construct(
@@ -436,7 +437,13 @@ class RedisConnectionTest extends TestCase
             }
         };
 
-        $this->assertSame([], $connection->getCreatedConfig()['context']);
+        $this->assertSame(1.5, $connection->getCreatedConfig()['timeout']);
+        $this->assertSame(100, $connection->getCreatedConfig()['retry_interval']);
+        $this->assertSame(2.5, $connection->getCreatedConfig()['read_timeout']);
+        $this->assertSame(
+            ['stream' => ['tcp_nodelay' => true]],
+            $connection->getCreatedConfig()['context'],
+        );
     }
 
     public function testConnectionConfigMergesDefaults(): void
@@ -455,12 +462,8 @@ class RedisConnectionTest extends TestCase
                     'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
                 ],
                 'cluster' => [
-                    'enable' => false,
-                    'name' => null,
+                    'enabled' => false,
                     'seeds' => ['127.0.0.1:6379'],
-                    'context' => [
-                        'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
-                    ],
                 ],
                 'pool' => [
                     'min_connections' => 1,
@@ -476,34 +479,27 @@ class RedisConnectionTest extends TestCase
         $this->assertSame(
             [
                 'timeout' => 0.0,
-                'reserved' => null,
                 'retry_interval' => 5,
                 'read_timeout' => 3.0,
                 'cluster' => [
-                    'enable' => false,
-                    'name' => null,
+                    'enabled' => false,
                     'seeds' => ['127.0.0.1:6379'],
-                    'read_timeout' => 0.0,
-                    'persistent' => false,
-                    'context' => [
-                        'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
-                    ],
                 ],
                 'sentinel' => [
-                    'enable' => false,
+                    'enabled' => false,
                     'master_name' => '',
                     'nodes' => [],
-                    'persistent' => '',
-                    'read_timeout' => 0,
+                    'username' => null,
+                    'password' => null,
+                    'timeout' => 0.0,
+                    'read_timeout' => 0.0,
                     'context' => [],
                 ],
                 'options' => [],
                 'context' => [
                     'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
                 ],
-                'event' => [
-                    'enable' => false,
-                ],
+                'events' => false,
                 'host' => 'redis',
                 'port' => 16379,
                 'password' => 'redis',
@@ -613,7 +609,7 @@ class RedisConnectionTest extends TestCase
         $this->expectException(ConnectionException::class);
         $this->expectExceptionMessage('Connection reconnect failed');
 
-        new class($this->getContainer(), $this->getMockedPool(), ['cluster' => ['enable' => true, 'name' => 'mycluster', 'seeds' => [], 'read_timeout' => 1.0, 'persistent' => false], 'timeout' => 1.0]) extends PhpRedisClusterConnection {
+        new class($this->getContainer(), $this->getMockedPool(), ['cluster' => ['enabled' => true, 'seeds' => []], 'timeout' => 1.0, 'read_timeout' => 1.0]) extends PhpRedisClusterConnection {
         };
     }
 
@@ -937,7 +933,7 @@ class RedisConnectionTest extends TestCase
         $connection = new PhpRedisConnectionStub(
             $this->getContainer(),
             $this->getMockedPool(),
-            ['sentinel' => ['enable' => $sentinel]],
+            ['sentinel' => ['enabled' => $sentinel]],
         );
         $connection->setActiveConnection($redis);
 

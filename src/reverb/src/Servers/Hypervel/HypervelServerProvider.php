@@ -141,9 +141,9 @@ class HypervelServerProvider extends ServerProvider
         $connectionName = (string) $this->config['scaling']['connection'];
         $connection = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
 
-        if ((bool) ($connection['cluster']['enable'] ?? false)) {
+        if ((bool) ($connection['cluster']['enabled'] ?? false)) {
             throw new InvalidArgumentException(sprintf(
-                "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.%s.cluster.enable' to false.",
+                "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.%s.cluster.enabled' to false.",
                 $connectionName,
             ));
         }

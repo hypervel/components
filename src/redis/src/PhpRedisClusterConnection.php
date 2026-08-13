@@ -39,7 +39,7 @@ class PhpRedisClusterConnection extends PhpRedisConnection
         $this->connection = $redis;
         $this->markReconnected();
 
-        if (($this->config['event']['enable'] ?? false) && $this->container->bound('events')) {
+        if (($this->config['events'] ?? false) && $this->container->bound('events')) {
             $this->eventDispatcher = $this->container->make('events');
         }
 
@@ -129,16 +129,19 @@ class PhpRedisClusterConnection extends PhpRedisConnection
     protected function createRedisCluster(): RedisCluster
     {
         try {
-            $parameters = [];
-            $parameters[] = $this->config['cluster']['name'] ?? null;
-            $parameters[] = $this->config['cluster']['seeds'] ?? [];
-            $parameters[] = $this->config['timeout'] ?? 0.0;
-            $parameters[] = $this->config['cluster']['read_timeout'] ?? 0.0;
-            $parameters[] = $this->config['cluster']['persistent'] ?? false;
-            $parameters[] = $this->formatClusterPassword();
-            if (! empty($this->config['cluster']['context'])) {
+            $parameters = [
+                null,
+                $this->config['cluster']['seeds'] ?? [],
+                $this->config['timeout'] ?? 0.0,
+                $this->config['read_timeout'] ?? 0.0,
+                false,
+                $this->formatClusterPassword(),
+            ];
+
+            if (($this->config['scheme'] ?? 'tcp') === 'tls') {
+                // RedisCluster needs the context argument to carry TLS to endpoints discovered after bootstrapping.
                 $parameters[] = $this->normalizeClusterContext(
-                    $this->config['cluster']['context']
+                    $this->config['context'] ?? []
                 );
             }
 

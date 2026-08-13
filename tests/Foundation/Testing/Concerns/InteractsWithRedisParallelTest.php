@@ -289,19 +289,17 @@ class InteractsWithRedisParallelTest extends TestCase
         $this->assertSame(6, $config->integer('database.redis.reverb.database'));
     }
 
-    public function testSetupIgnoresReservedAndNonConnectionConfiguration(): void
+    public function testSetupIgnoresMetadataAndNonConnectionConfiguration(): void
     {
         $this->setRedisEnvironmentValue('REDIS_HOST', '127.0.0.1');
         $config = $this->app->make('config');
         $config->set('database.redis.client', 'phpredis');
-        $config->set('database.redis.clusters', ['enabled' => true]);
         $config->set('database.redis.fixture', 'value');
         $options = $config->array('database.redis.options');
 
         $this->harness()->runSetUp();
 
         $this->assertSame('phpredis', $config->string('database.redis.client'));
-        $this->assertSame(['enabled' => true], $config->array('database.redis.clusters'));
         $this->assertSame('value', $config->string('database.redis.fixture'));
         $this->assertSame($options, $config->array('database.redis.options'));
     }

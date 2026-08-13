@@ -353,30 +353,25 @@ abstract class RedisConnection extends BaseConnection
 
     protected array $config = [
         'timeout' => 0.0,
-        'reserved' => null,
         'retry_interval' => 0,
         'read_timeout' => 0.0,
         'cluster' => [
-            'enable' => false,
-            'name' => null,
+            'enabled' => false,
             'seeds' => [],
-            'read_timeout' => 0.0,
-            'persistent' => false,
-            'context' => [],
         ],
         'sentinel' => [
-            'enable' => false,
+            'enabled' => false,
             'master_name' => '',
             'nodes' => [],
-            'persistent' => '',
-            'read_timeout' => 0,
+            'username' => null,
+            'password' => null,
+            'timeout' => 0.0,
+            'read_timeout' => 0.0,
             'context' => [],
         ],
         'options' => [],
         'context' => [],
-        'event' => [
-            'enable' => false,
-        ],
+        'events' => false,
     ];
 
     /**
@@ -869,7 +864,7 @@ abstract class RedisConnection extends BaseConnection
             return true;
         }
 
-        if (! ($this->config['sentinel']['enable'] ?? false)) {
+        if (! ($this->config['sentinel']['enabled'] ?? false)) {
             return false;
         }
 

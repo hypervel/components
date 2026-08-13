@@ -96,7 +96,7 @@ class Horizon
 
         $prefix = config()->string('horizon.prefix');
 
-        if (($config['cluster']['enable'] ?? false)
+        if (($config['cluster']['enabled'] ?? false)
             && ! RedisConnection::hasHashTag($prefix)) {
             $prefix = '{' . $prefix . '}';
         }
