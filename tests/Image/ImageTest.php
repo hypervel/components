@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Image;
 use finfo;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
+use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Contracts\Image\Driver;
 use Hypervel\Contracts\Image\Transformation;
 use Hypervel\Contracts\Support\Responsable;
@@ -454,6 +456,65 @@ class ImageTest extends TestCase
         $this->assertSame('#123456', $image->dominantColor());
         $this->assertSame('processed image', $image->toBytes());
         $this->assertSame('#123456', $image->dominantColor());
+    }
+
+    public function testStorePassesOptionsToTheFilesystem(): void
+    {
+        $contents = $this->fakeImageContents();
+        $image = new Image($contents);
+        $path = $image->hashName('images');
+
+        $this->expectImageStored('photos', $path, $contents, ['visibility' => 'private']);
+
+        $this->assertSame($path, $image->store('images', 'photos', ['visibility' => 'private']));
+    }
+
+    public function testStoreReturnsFalseWhenTheWriteFails(): void
+    {
+        $contents = $this->fakeImageContents();
+        $image = new Image($contents);
+        $path = $image->hashName('images');
+
+        $this->expectImageStored('photos', $path, $contents, [], result: false);
+
+        $this->assertFalse($image->store('images', 'photos'));
+    }
+
+    public function testStorePubliclyForcesPublicVisibility(): void
+    {
+        $contents = $this->fakeImageContents();
+        $image = new Image($contents);
+        $path = $image->hashName('images');
+
+        $this->expectImageStored('photos', $path, $contents, ['visibility' => 'public']);
+
+        $this->assertSame($path, $image->storePublicly('images', 'photos', ['visibility' => 'private']));
+    }
+
+    public function testStoreAsPassesOptionsToTheFilesystem(): void
+    {
+        $contents = $this->fakeImageContents();
+        $image = new Image($contents);
+
+        $this->expectImageStored('photos', 'images/avatar.jpg', $contents, ['visibility' => 'private']);
+
+        $this->assertSame(
+            'images/avatar.jpg',
+            $image->storeAs('images', 'avatar.jpg', 'photos', ['visibility' => 'private']),
+        );
+    }
+
+    public function testStorePubliclyAsForcesPublicVisibility(): void
+    {
+        $contents = $this->fakeImageContents();
+        $image = new Image($contents);
+
+        $this->expectImageStored('photos', 'images/avatar.jpg', $contents, ['visibility' => 'public']);
+
+        $this->assertSame(
+            'images/avatar.jpg',
+            $image->storePubliclyAs('images', 'avatar.jpg', 'photos', ['visibility' => 'private']),
+        );
     }
 
     public function testHashNameReturnsNameWithExtension(): void
@@ -1440,6 +1501,34 @@ class ImageTest extends TestCase
     protected function makeImage(): Image
     {
         return new Image($this->fakeImageContents());
+    }
+
+    /**
+     * Expect an image to be stored with the given options through a concrete global container.
+     *
+     * @param array<string, mixed> $options
+     */
+    protected function expectImageStored(
+        string $diskName,
+        string $path,
+        string $contents,
+        array $options,
+        bool|string $result = true,
+    ): void {
+        $filesystem = m::mock(FilesystemContract::class);
+        $filesystem->expects('put')
+            ->with($path, $contents, $options)
+            ->andReturn($result);
+
+        $factory = m::mock(FilesystemFactory::class);
+        $factory->expects('disk')
+            ->with($diskName)
+            ->andReturn($filesystem);
+
+        $container = new Container;
+        $container->instance(FilesystemFactory::class, $factory);
+
+        Container::setInstance($container);
     }
 
     protected function fakeImageContents(int $width = 100, int $height = 100): string

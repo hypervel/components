@@ -574,7 +574,7 @@ class ImageTest extends TestCase
     }
 
     #[RequiresFunction('imagewebp')]
-    public function testStorePubliclySetsVisibility(): void
+    public function testStorePubliclyStoresTheProcessedImage(): void
     {
         Storage::fake('local');
 
