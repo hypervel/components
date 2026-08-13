@@ -21,6 +21,7 @@ use Hypervel\Saloon\Http\PendingRequest;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Traits\Plugins\AlwaysThrowOnErrors;
+use Hypervel\Saloon\Traits\Responses\HasResponse;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
@@ -362,19 +363,7 @@ class ResponseRequestDtoStub
 
 class ResponseWithResponseDtoStub implements WithResponse
 {
-    protected ?Response $response = null;
-
-    public function setResponse(Response $response): static
-    {
-        $this->response = $response;
-
-        return $this;
-    }
-
-    public function getResponse(): Response
-    {
-        return $this->response ?? throw new LogicException('The response has not been set.');
-    }
+    use HasResponse;
 }
 
 class ResponseConnectorExceptionStub extends RequestException
