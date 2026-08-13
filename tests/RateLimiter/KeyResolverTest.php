@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
@@ -44,6 +45,10 @@ class KeyResolverTest extends TestCase
                 resetAfter: 3600,
             )->by('login')),
         );
+        $this->assertSame(
+            'a3dd7b78c15c9b73db830b25294f3f50',
+            $resolver->resolve(Cooldown::for('provider:account'), 'saloon:resource'),
+        );
     }
 
     // REMOVED: Laravel's fallback-key collision handling is replaced by
@@ -62,6 +67,7 @@ class KeyResolverTest extends TestCase
         $this->assertNotSame($key, $resolver->resolve(Limit::perMinute(61)->by('user:1'), 'api'));
         $this->assertNotSame($key, $resolver->resolve(LeakyBucket::perMinute(60)->by('user:1'), 'api'));
         $this->assertNotSame($key, $resolver->resolve($policy->globally(), 'api'));
+        $this->assertNotSame($key, $resolver->resolve(Cooldown::for('user:1'), 'api'));
     }
 
     public function testRequestCostAndCallbacksDoNotChangeIdentity(): void

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\Config\Repository;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\Exceptions\SwooleTableFullException;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
@@ -22,6 +23,8 @@ use Mockery as m;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use UnexpectedValueException;
+
+use function Hypervel\Coroutine\parallel;
 
 class SwooleStoreTest extends TestCase
 {
@@ -112,6 +115,22 @@ class SwooleStoreTest extends TestCase
 
         CarbonImmutable::setTestNow($now->addSeconds(6));
         $this->assertSame(1, $store->pruneExpiredRows());
+    }
+
+    public function testConcurrentCooldownBlocksRetainTheLongestExpiry(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-04 00:00:00');
+        [$store] = $this->store();
+
+        parallel([
+            static fn () => $store->block('cooldown', 1_000_000),
+            static fn () => $store->block('cooldown', 5_000_000),
+            static fn () => $store->block('cooldown', 2_000_000),
+            static fn () => $store->block('cooldown', 3_000_000),
+        ]);
+
+        $this->assertSame(5, $store->inspect('cooldown', Cooldown::for('resource'))->retryAfter());
+        $this->assertSame(5, $store->block('cooldown', 1_000_000)->retryAfter());
     }
 
     public function testSwitchingToTestTimeKeepsTheEpochClockScale(): void

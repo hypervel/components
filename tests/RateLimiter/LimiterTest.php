@@ -9,6 +9,8 @@ use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\BackoffResult;
 use Hypervel\RateLimiter\Contracts\Store;
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\Exceptions\InvalidRateLimitException;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
@@ -136,6 +138,43 @@ class LimiterTest extends TestCase
         $this->assertSame(0, $store->calls);
     }
 
+    public function testCooldownDurationValidationHappensBeforeKeyOrStoreAccess(): void
+    {
+        $store = new LimiterCountingStore;
+        $scopeCalls = 0;
+        $limiter = new Limiter($store, new KeyResolver('app', static function () use (&$scopeCalls): ?string {
+            ++$scopeCalls;
+
+            return 'scope';
+        }));
+        $cooldown = Cooldown::for('provider');
+
+        foreach ([0, -1, intdiv(AdmissionPolicy::MAX_INTEGER, 1_000_000) + 1] as $seconds) {
+            try {
+                $limiter->block($cooldown, $seconds, 'api');
+                $this->fail('Expected an invalid rate limit exception.');
+            } catch (InvalidRateLimitException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC(
+            intdiv(AdmissionPolicy::MAX_INTEGER, 1_000_000) - 30,
+        ));
+
+        try {
+            $limiter->block($cooldown, 60, 'api');
+            $this->fail('Expected an invalid rate limit exception.');
+        } catch (InvalidRateLimitException) {
+            $this->addToAssertionCount(1);
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
+
+        $this->assertSame(0, $scopeCalls);
+        $this->assertSame(0, $store->calls);
+    }
+
     // REMOVED: Laravel's primitive counter and fallback-key tests are replaced
     // by atomic policy decisions and canonical identity coverage.
 
@@ -184,13 +223,24 @@ class LimiterCountingStore implements Store
         return new LimitResult(true, 1, 0, 0, 1_000_000);
     }
 
-    public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
+    public function block(string $key, int $durationMicroseconds): CooldownResult
     {
         ++$this->calls;
 
-        return $policy instanceof Backoff
-            ? new BackoffResult(true, 0, 0)
-            : new LimitResult(true, 1, 1, 0, 0);
+        return new CooldownResult(false, $durationMicroseconds);
+    }
+
+    public function inspect(
+        string $key,
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult {
+        ++$this->calls;
+
+        return match (true) {
+            $policy instanceof Backoff => new BackoffResult(true, 0, 0),
+            $policy instanceof Cooldown => new CooldownResult(true, 0),
+            default => new LimitResult(true, 1, 1, 0, 0),
+        };
     }
 
     public function recordFailure(string $key, Backoff $backoff): BackoffResult

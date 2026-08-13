@@ -20,10 +20,11 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\RateLimiter\RateLimiter setApplication(\Hypervel\Contracts\Foundation\Application $app)
  * @method static \Hypervel\RateLimiter\Contracts\Store getStore()
  * @method static \Hypervel\RateLimiter\LimitResult consume(\Hypervel\RateLimiter\AdmissionPolicy $policy, \UnitEnum|string|null $limiterName = null)
- * @method static ($policy is \Hypervel\RateLimiter\Backoff ? \Hypervel\RateLimiter\BackoffResult : \Hypervel\RateLimiter\LimitResult) inspect(\Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Backoff $policy, \UnitEnum|string|null $limiterName = null)
+ * @method static \Hypervel\RateLimiter\CooldownResult block(\Hypervel\RateLimiter\Cooldown $cooldown, int $seconds, \UnitEnum|string|null $limiterName = null)
+ * @method static ($policy is \Hypervel\RateLimiter\Backoff ? \Hypervel\RateLimiter\BackoffResult : ($policy is \Hypervel\RateLimiter\Cooldown ? \Hypervel\RateLimiter\CooldownResult : \Hypervel\RateLimiter\LimitResult)) inspect(\Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Backoff|\Hypervel\RateLimiter\Cooldown $policy, \UnitEnum|string|null $limiterName = null)
  * @method static mixed attempt(\Hypervel\RateLimiter\AdmissionPolicy $policy, \Closure $callback, \UnitEnum|string|null $limiterName = null)
  * @method static \Hypervel\RateLimiter\BackoffResult recordFailure(\Hypervel\RateLimiter\Backoff $backoff, \UnitEnum|string|null $limiterName = null)
- * @method static bool clear(\Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Backoff $policy, \UnitEnum|string|null $limiterName = null)
+ * @method static bool clear(\Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Backoff|\Hypervel\RateLimiter\Cooldown $policy, \UnitEnum|string|null $limiterName = null)
  *
  * @see \Hypervel\RateLimiter\RateLimiter
  * @see \Hypervel\RateLimiter\Limiter

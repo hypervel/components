@@ -76,13 +76,55 @@ class SwooleStore implements Store
     }
 
     /**
+     * Atomically extend a cooldown block.
+     */
+    public function block(string $key, int $durationMicroseconds): CooldownResult
+    {
+        for ($attempt = 0; $attempt < 2; ++$attempt) {
+            /** @var array{CooldownResult, bool} $outcome */
+            $outcome = $this->state->withLock($key, function () use ($key, $durationMicroseconds): array {
+                [$value, $secondaryValue, $expiresAt] = $this->storedState($key);
+
+                $result = $this->calculateCooldownBlock(
+                    $durationMicroseconds,
+                    $this->currentTimeInMicroseconds(),
+                    $value,
+                    $secondaryValue,
+                    $expiresAt,
+                );
+
+                return [
+                    $result,
+                    $this->writeState($key, $value, $secondaryValue, $expiresAt),
+                ];
+            });
+
+            [$result, $stored] = $outcome;
+
+            if ($stored) {
+                return $result;
+            }
+
+            if ($attempt === 0) {
+                $this->pruneExpiredRows();
+            }
+        }
+
+        throw new SwooleTableFullException(
+            "Swoole rate limiter table [{$this->state->name()}] cannot allocate a new entry after pruning expired state."
+        );
+    }
+
+    /**
      * Inspect a policy without mutating its state.
      *
-     * @return ($policy is Backoff ? BackoffResult : LimitResult)
+     * @return ($policy is Backoff ? BackoffResult : ($policy is Cooldown ? CooldownResult : LimitResult))
      */
-    public function inspect(string $key, AdmissionPolicy|Backoff $policy): LimitResult|BackoffResult
-    {
-        return $this->state->withLock($key, function () use ($key, $policy): LimitResult|BackoffResult {
+    public function inspect(
+        string $key,
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult {
+        return $this->state->withLock($key, function () use ($key, $policy): LimitResult|BackoffResult|CooldownResult {
             [$value, $secondaryValue, $expiresAt] = $this->storedState($key);
 
             return $this->calculateInspection(
