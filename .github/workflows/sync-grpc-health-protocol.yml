@@ -1,0 +1,76 @@
+name: synchronize gRPC health protocol
+
+on:
+  schedule:
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    container:
+      image: phpswoole/swoole:6.2.0-php8.4
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq curl git rsync unzip > /dev/null
+
+      - name: Checkout default branch
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Setup PHP extensions
+        uses: ./.github/actions/setup-php
+
+      - name: Install protoc
+        run: bin/grpc-health-protoc.sh install /usr/local/bin/protoc
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install Composer dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Synchronize gRPC health protocol
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: composer sync:grpc-health
+
+      - name: Verify synchronized gRPC package
+        run: |
+          vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.php --dry-run --diff src/grpc
+          vendor/bin/paratest tests/Grpc
+
+      - name: Open update pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          add-paths: |
+            src/grpc/resources/proto/README.md
+            src/grpc/resources/proto/grpc/health/v1/health.proto
+            src/grpc/src/Health/V1
+          base: ${{ github.event.repository.default_branch }}
+          branch: sync-grpc-health-protocol
+          delete-branch: true
+          commit-message: "grpc: synchronize health protocol"
+          title: "grpc: synchronize health protocol"
+          body: |
+            Automated synchronization from the canonical [`grpc/grpc-proto` health schema](https://github.com/grpc/grpc-proto/blob/master/grpc/health/v1/health.proto).
+
+            Review the upstream schema and generated PHP changes before merging. Confirm that message and behavior changes remain compatible with Hypervel's authored health implementation.

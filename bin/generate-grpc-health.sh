@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-required_protoc_version="35.1"
+required_protoc_version="$("$repository_root/bin/grpc-health-protoc.sh" version)"
 
 cd "$repository_root"
 
