@@ -123,18 +123,28 @@ class TransformIntegrationTest extends TestCase
         $redis->flushdb();
 
         // Set two keys, then use eval with 2 KEYS + 1 ARGV
-        $redis->set('eval_k1', 'v1');
-        $redis->set('eval_k2', 'v2');
+        $redis->set('{eval}:k1', 'v1');
+        $redis->set('{eval}:k2', 'v2');
 
         $result = $redis->eval(
             'return {redis.call("GET", KEYS[1]), redis.call("GET", KEYS[2]), ARGV[1]}',
             2,
-            'eval_k1',
-            'eval_k2',
+            '{eval}:k1',
+            '{eval}:k2',
             'extra_arg'
         );
 
         $this->assertSame(['v1', 'v2', 'extra_arg'], $result);
+    }
+
+    public function testEvalNormalizesNestedNilReplies(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $result = $redis->eval('return {1, {false, 2}}', 0);
+
+        $this->assertSame([1, [false, 2]], $result);
     }
 
     public function testHmsetWithArrayForm()
@@ -370,6 +380,13 @@ class TransformIntegrationTest extends TestCase
         $this->assertTrue($result);
     }
 
+    public function testPingUsesTheConfiguredTopology(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+
+        $this->assertTrue($redis->ping());
+    }
+
     public function testExecuteRawDelegatesToRawCommand()
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
@@ -383,6 +400,16 @@ class TransformIntegrationTest extends TestCase
         $this->assertSame('raw_value', $result);
     }
 
+    public function testExecuteRawNormalizesAMissingValue(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $result = $redis->executeRaw(['GET', 'missing_raw_key']);
+
+        $this->assertFalse($result);
+    }
+
     public function testEvalshaLoadsAndExecutesScript()
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
@@ -390,7 +417,7 @@ class TransformIntegrationTest extends TestCase
 
         $redis->set('evalsha_key', 'evalsha_value');
 
-        // Transform: evalsha(script, numKeys, key) → script('load', script) + evalSha(sha, [key], numKeys)
+        // Transform: evalsha(script, numKeys, key) → cached evalSha with an eval fallback.
         $result = $redis->evalsha('return redis.call("GET", KEYS[1])', 1, 'evalsha_key');
 
         $this->assertSame('evalsha_value', $result);

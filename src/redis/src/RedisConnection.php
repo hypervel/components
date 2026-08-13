@@ -1439,7 +1439,7 @@ abstract class RedisConnection extends BaseConnection
     {
         [$method, $args] = $this->prepareEval($script, $numberOfKeys, ...$arguments);
 
-        return $this->connection->{$method}(...$args);
+        return $this->normalizeNullReplies($this->connection->{$method}(...$args));
     }
 
     /**
@@ -1640,17 +1640,33 @@ abstract class RedisConnection extends BaseConnection
                 if ($result === false) {
                     $evalError = $this->connection->getLastError();
                     if ($evalError !== null) {
-                        throw new LuaScriptException('Lua script execution failed: ' . $evalError);
+                        throw $this->scriptException($evalError);
                     }
                     // If no error, script legitimately returned nil (which becomes false)
                 }
             } elseif ($error !== null) {
                 // Some other error (syntax, OOM, WRONGTYPE, etc.)
-                throw new LuaScriptException('Lua script execution failed: ' . $error);
+                throw $this->scriptException($error);
             }
             // If $error is null and $result is false, the script legitimately returned false
         }
 
+        return $this->normalizeNullReplies($result);
+    }
+
+    /**
+     * Create an exception for a Lua script error.
+     */
+    protected function scriptException(string $error): Throwable
+    {
+        return new LuaScriptException('Lua script execution failed: ' . $error);
+    }
+
+    /**
+     * Normalize topology-specific null replies.
+     */
+    protected function normalizeNullReplies(mixed $result): mixed
+    {
         return $result;
     }
 

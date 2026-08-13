@@ -56,7 +56,7 @@ class EvalWithShaCacheIntegrationTest extends TestCase
         $result = Redis::withConnection(function ($connection) {
             return $connection->evalWithShaCache(
                 'return {KEYS[1], KEYS[2], ARGV[1], ARGV[2]}',
-                ['key1', 'key2'],
+                ['{eval-cache}:key1', '{eval-cache}:key2'],
                 ['arg1', 'arg2']
             );
         });
@@ -66,7 +66,12 @@ class EvalWithShaCacheIntegrationTest extends TestCase
         $config = $this->app->make('config');
         $prefix = $config->get('database.redis.default.options.prefix')
             ?? $config->get('database.redis.options.prefix', '');
-        $this->assertEquals([$prefix . 'key1', $prefix . 'key2', 'arg1', 'arg2'], $result);
+        $this->assertEquals([
+            $prefix . '{eval-cache}:key1',
+            $prefix . '{eval-cache}:key2',
+            'arg1',
+            'arg2',
+        ], $result);
     }
 
     public function testEvalWithShaCacheUsesScriptCaching(): void
@@ -98,19 +103,27 @@ class EvalWithShaCacheIntegrationTest extends TestCase
 
         // Verify script is not cached (fresh unique script)
         $exists = Redis::withConnection(function ($connection) use ($sha) {
+            if ($connection->isCluster()) {
+                return $connection->client()->script('{eval-cache}:route', 'exists', $sha);
+            }
+
             return $connection->client()->script('exists', $sha);
         });
         $this->assertEquals([0], $exists, 'Script should not be cached before test');
 
         // Call evalWithShaCache - should handle NOSCRIPT and fall back to eval
         $result = Redis::withConnection(function ($connection) use ($script) {
-            return $connection->evalWithShaCache($script, [], []);
+            return $connection->evalWithShaCache($script, ['{eval-cache}:route'], []);
         });
 
         $this->assertEquals("fallback_test_{$uniqueId}", $result);
 
         // Verify script is now cached after successful eval
         $exists = Redis::withConnection(function ($connection) use ($sha) {
+            if ($connection->isCluster()) {
+                return $connection->client()->script('{eval-cache}:route', 'exists', $sha);
+            }
+
             return $connection->client()->script('exists', $sha);
         });
         $this->assertEquals([1], $exists, 'Script should be cached after eval');
