@@ -33,9 +33,7 @@ use Hypervel\Image\Transformations\Rotate;
 use Hypervel\Image\Transformations\Scale;
 use Hypervel\Image\Transformations\Sharpen;
 use Hypervel\Tests\TestCase;
-use Imagick;
 use Mockery as m;
-use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use ReflectionProperty;
 use RuntimeException;
 use Stringable;
@@ -301,21 +299,17 @@ class ImageTest extends TestCase
         $this->assertSame('jpg', $image->extension());
     }
 
-    #[RequiresPhpExtension('imagick')]
     public function testExtensionReturnsAvifForAvif(): void
     {
-        $imagick = new Imagick;
+        $contents = file_get_contents(__DIR__ . '/Fixtures/image.avif');
 
-        try {
-            $imagick->newImage(10, 10, 'red');
-            $imagick->setImageFormat('avif');
-            $contents = $imagick->getImageBlob();
-        } finally {
-            $imagick->clear();
-            $imagick->destroy();
-        }
+        // Validate the fixture independently of the installed magic database.
+        $this->assertSame('ftypavif', substr($contents, 4, 8));
+        $this->assertNotFalse(getimagesizefromstring($contents), 'The AVIF fixture is truncated or corrupt.');
 
-        if ((new finfo(FILEINFO_MIME_TYPE))->buffer($contents) !== 'image/avif') {
+        $mimeType = (new finfo(FILEINFO_MIME_TYPE))->buffer($contents);
+
+        if ($mimeType !== 'image/avif') {
             $this->markTestSkipped('The installed fileinfo database does not recognize AVIF.');
         }
 
