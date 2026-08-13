@@ -7,12 +7,14 @@ namespace Hypervel\Tests\Integration\Cache;
 use Exception;
 use Hypervel\Cache\Limiters\ConcurrencyLease as CacheConcurrencyLease;
 use Hypervel\Cache\Limiters\RefreshableConcurrencyLease as CacheRefreshableConcurrencyLease;
+use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Limiters\Lease;
 use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Contracts\Limiters\RefreshableLease;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Throwable;
 
@@ -76,28 +78,40 @@ abstract class CacheFunnelTestCase extends TestCase
 
     public function testFunnelTimeoutExceptionWithoutFailureCallback(): void
     {
-        $this->cache()->lock('test1', 60)->get();
-        $this->cache()->lock('test2', 60)->get();
+        $funnel = $this->cache()->funnel('test')
+            ->limit(2)
+            ->releaseAfter(60)
+            ->block(0);
+        $first = $funnel->acquire();
+        $second = $funnel->acquire();
+
+        $this->assertInstanceOf(Lease::class, $first);
+        $this->assertInstanceOf(Lease::class, $second);
 
         $this->expectException(LimiterTimeoutException::class);
 
-        $this->cache()->funnel('test')
-            ->limit(2)
-            ->releaseAfter(60)
-            ->block(0)
-            ->then(fn () => 'should not run');
+        try {
+            $funnel->then(fn () => 'should not run');
+        } finally {
+            $first->release();
+            $second->release();
+        }
     }
 
     public function testFunnelFailureCallbackReceivesException(): void
     {
-        $this->cache()->lock('test1', 60)->get();
-        $this->cache()->lock('test2', 60)->get();
-
-        $result = $this->cache()->funnel('test')
+        $funnel = $this->cache()->funnel('test')
             ->limit(2)
             ->releaseAfter(60)
-            ->block(0)
-            ->then(
+            ->block(0);
+        $first = $funnel->acquire();
+        $second = $funnel->acquire();
+
+        $this->assertInstanceOf(Lease::class, $first);
+        $this->assertInstanceOf(Lease::class, $second);
+
+        try {
+            $result = $funnel->then(
                 fn () => 'should not run',
                 function ($e) {
                     $this->assertInstanceOf(LimiterTimeoutException::class, $e);
@@ -105,6 +119,10 @@ abstract class CacheFunnelTestCase extends TestCase
                     return 'failed';
                 }
             );
+        } finally {
+            $first->release();
+            $second->release();
+        }
 
         $this->assertSame('failed', $result);
     }
@@ -150,13 +168,23 @@ abstract class CacheFunnelTestCase extends TestCase
 
     public function testFunnelIndependentKeys(): void
     {
-        $this->cache()->lock('key-a1', 60)->get();
-
-        $result = $this->cache()->funnel('key-b')
+        $lease = $this->cache()->funnel('key-a')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
-            ->then(fn () => 'key-b-ok');
+            ->acquire();
+
+        $this->assertInstanceOf(Lease::class, $lease);
+
+        try {
+            $result = $this->cache()->funnel('key-b')
+                ->limit(1)
+                ->releaseAfter(60)
+                ->block(0)
+                ->then(fn () => 'key-b-ok');
+        } finally {
+            $lease->release();
+        }
 
         $this->assertSame('key-b-ok', $result);
     }
@@ -259,7 +287,7 @@ abstract class CacheFunnelTestCase extends TestCase
 
     public function testWrongOwnerCannotReleaseOrRefreshHeldFunnelSlot(): void
     {
-        $lease = $this->cache()->funnel('lease-owner')
+        $lease = $this->cache()->funnel('{lease-owner}')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
@@ -272,7 +300,7 @@ abstract class CacheFunnelTestCase extends TestCase
                 $this->markTestSkipped('This cache store does not support restoring locks.');
             }
 
-            $wrongLock = $store->restoreLock('lease-owner1', 'wrong-owner');
+            $wrongLock = $store->restoreLock('{lease-owner}1', 'wrong-owner');
             $wrongLease = $wrongLock instanceof RefreshableLock
                 ? new CacheRefreshableConcurrencyLease($wrongLock)
                 : new CacheConcurrencyLease($wrongLock);
@@ -285,7 +313,7 @@ abstract class CacheFunnelTestCase extends TestCase
 
             $this->expectException(LimiterTimeoutException::class);
 
-            $this->cache()->funnel('lease-owner')
+            $this->cache()->funnel('{lease-owner}')
                 ->limit(1)
                 ->releaseAfter(60)
                 ->block(0)
@@ -297,17 +325,30 @@ abstract class CacheFunnelTestCase extends TestCase
 
     protected function releaseFunnelLocks(): void
     {
-        $this->cache()->lock('test1')->forceRelease();
-        $this->cache()->lock('test2')->forceRelease();
-        $this->cache()->lock('key-a1')->forceRelease();
-        $this->cache()->lock('key-b1')->forceRelease();
-        $this->cache()->lock('lease-test1')->forceRelease();
-        $this->cache()->lock('lease-release-test1')->forceRelease();
-        $this->cache()->lock('lease-reclaim1')->forceRelease();
-        $this->cache()->lock('lease-refresh1')->forceRelease();
-        $this->cache()->lock('lease-pair1')->forceRelease();
-        $this->cache()->lock('lease-pair2')->forceRelease();
-        $this->cache()->lock('lease-owner1')->forceRelease();
+        $cache = $this->cache();
+        $store = $cache->getStore();
+        $cluster = $store instanceof RedisStore && $store->lockConnection()->isCluster();
+        $slots = [
+            ['test', 1],
+            ['test', 2],
+            ['key-a', 1],
+            ['key-b', 1],
+            ['lease-test', 1],
+            ['lease-release-test', 1],
+            ['lease-reclaim', 1],
+            ['lease-refresh', 1],
+            ['lease-pair', 1],
+            ['lease-pair', 2],
+            ['{lease-owner}', 1],
+        ];
+
+        foreach ($slots as [$name, $slot]) {
+            $tagged = $cluster && ! RedisConnection::hasHashTag($name)
+                ? '{' . $name . '}'
+                : $name;
+
+            $cache->lock($tagged . $slot)->forceRelease();
+        }
     }
 
     protected function tearDownInCoroutine(): void
