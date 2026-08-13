@@ -67,16 +67,22 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testWithoutEventsRestoresStateAfterException(): void
     {
         $this->assertFalse(Model::eventsDisabled());
+        $expectedException = new RuntimeException('Test exception');
+        $eventsDisabledInsideCallback = null;
+        $caughtException = null;
 
         try {
-            Model::withoutEvents(function () {
-                $this->assertTrue(Model::eventsDisabled());
-                throw new RuntimeException('Test exception');
+            Model::withoutEvents(function () use ($expectedException, &$eventsDisabledInsideCallback): never {
+                $eventsDisabledInsideCallback = Model::eventsDisabled();
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertTrue($eventsDisabledInsideCallback);
         $this->assertFalse(Model::eventsDisabled());
     }
 
@@ -144,16 +150,22 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testWithoutBroadcastingRestoresStateAfterException(): void
     {
         $this->assertTrue(Model::isBroadcasting());
+        $expectedException = new RuntimeException('Test exception');
+        $broadcastingInsideCallback = null;
+        $caughtException = null;
 
         try {
-            Model::withoutBroadcasting(function () {
-                $this->assertFalse(Model::isBroadcasting());
-                throw new RuntimeException('Test exception');
+            Model::withoutBroadcasting(function () use ($expectedException, &$broadcastingInsideCallback): never {
+                $broadcastingInsideCallback = Model::isBroadcasting();
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertFalse($broadcastingInsideCallback);
         $this->assertTrue(Model::isBroadcasting());
     }
 
@@ -232,16 +244,22 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testWithoutTouchingRestoresStateAfterException(): void
     {
         $this->assertFalse(Model::isIgnoringTouch(CoroutineTestUser::class));
+        $expectedException = new RuntimeException('Test exception');
+        $ignoringTouchInsideCallback = null;
+        $caughtException = null;
 
         try {
-            Model::withoutTouching(function () {
-                $this->assertTrue(Model::isIgnoringTouch(CoroutineTestUser::class));
-                throw new RuntimeException('Test exception');
+            Model::withoutTouching(function () use ($expectedException, &$ignoringTouchInsideCallback): never {
+                $ignoringTouchInsideCallback = Model::isIgnoringTouch(CoroutineTestUser::class);
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertTrue($ignoringTouchInsideCallback);
         $this->assertFalse(Model::isIgnoringTouch(CoroutineTestUser::class));
     }
 
@@ -315,16 +333,22 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
     public function testWithoutTimestampsRestoresStateAfterException(): void
     {
         $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+        $expectedException = new RuntimeException('Test exception');
+        $ignoringTimestampsInsideCallback = null;
+        $caughtException = null;
 
         try {
-            Model::withoutTimestamps(function () {
-                $this->assertTrue(Model::isIgnoringTimestamps(CoroutineTestUser::class));
-                throw new RuntimeException('Test exception');
+            Model::withoutTimestamps(function () use ($expectedException, &$ignoringTimestampsInsideCallback): never {
+                $ignoringTimestampsInsideCallback = Model::isIgnoringTimestamps(CoroutineTestUser::class);
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertTrue($ignoringTimestampsInsideCallback);
         $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
     }
 

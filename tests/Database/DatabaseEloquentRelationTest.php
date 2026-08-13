@@ -198,19 +198,31 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
 
+        $expectedException = new Exception;
+        $relatedIgnoredTouch = null;
+        $relatedChildIgnoredTouch = null;
+        $caughtException = null;
+
         try {
-            NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
-                $this->assertTrue($related::isIgnoringTouch());
-                $this->assertTrue($relatedChild::isIgnoringTouch());
+            NoTouchingModelStub::withoutTouching(function () use (
+                $expectedException,
+                $related,
+                &$relatedIgnoredTouch,
+                $relatedChild,
+                &$relatedChildIgnoredTouch,
+            ): never {
+                $relatedIgnoredTouch = $related::isIgnoringTouch();
+                $relatedChildIgnoredTouch = $relatedChild::isIgnoringTouch();
 
-                throw new Exception;
+                throw $expectedException;
             });
-
-            $this->fail('Exception was not thrown');
-        } catch (Exception) {
-            // Does nothing.
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertTrue($relatedIgnoredTouch);
+        $this->assertTrue($relatedChildIgnoredTouch);
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
     }

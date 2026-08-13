@@ -1776,16 +1776,24 @@ class SupportStrTest extends TestCase
     public function testItCreatesUuidsNormallyAfterFailureWithinFreezeMethod(): void
     {
         $frozenUuid = Uuid::fromString('00000000-0000-0000-0000-000000000123');
+        $expectedException = new Exception('Something failed.');
+        $uuidInsideCallback = null;
+        $caughtException = null;
 
         try {
-            Str::freezeUuids(function () use ($frozenUuid) {
+            Str::freezeUuids(function () use ($expectedException, $frozenUuid, &$uuidInsideCallback): never {
                 Str::createUuidsUsing(fn () => $frozenUuid);
-                $this->assertSame($frozenUuid->toString(), Str::uuid()->toString());
-                throw new Exception('Something failed.');
+                $uuidInsideCallback = Str::uuid()->toString();
+
+                throw $expectedException;
             });
-        } catch (Exception) {
-            $this->assertNotSame($frozenUuid->toString(), Str::uuid()->toString());
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertSame($frozenUuid->toString(), $uuidInsideCallback);
+        $this->assertNotSame($frozenUuid->toString(), Str::uuid()->toString());
     }
 
     public function testItCanSpecifyASequenceOfUuidsToUtilise(): void
@@ -1899,16 +1907,24 @@ class SupportStrTest extends TestCase
     public function testItCreatesUlidsNormallyAfterFailureWithinFreezeMethod(): void
     {
         $frozenUlid = new Ulid('01HGJ9Y6P4RT2R4PQJ4M0N9N8C');
+        $expectedException = new Exception('Something failed');
+        $ulidInsideCallback = null;
+        $caughtException = null;
 
         try {
-            Str::freezeUlids(function () use ($frozenUlid) {
+            Str::freezeUlids(function () use ($expectedException, $frozenUlid, &$ulidInsideCallback): never {
                 Str::createUlidsUsing(fn () => $frozenUlid);
-                $this->assertSame((string) $frozenUlid, (string) Str::ulid());
-                throw new Exception('Something failed');
+                $ulidInsideCallback = (string) Str::ulid();
+
+                throw $expectedException;
             });
-        } catch (Exception) {
-            $this->assertNotSame((string) $frozenUlid, (string) Str::ulid());
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertSame((string) $frozenUlid, $ulidInsideCallback);
+        $this->assertNotSame((string) $frozenUlid, (string) Str::ulid());
     }
 
     public function testItCanSpecifyASequenceOfUlidsToUtilise(): void

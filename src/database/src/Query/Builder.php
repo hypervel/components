@@ -38,14 +38,17 @@ use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
 use SortDirection;
-use stdClass;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
+/**
+ * @template TKey of array-key = int
+ * @template TValue = \stdClass
+ */
 class Builder implements BuilderContract
 {
-    /** @use \Hypervel\Database\Concerns\BuildsQueries<\stdClass> */
+    /** @use \Hypervel\Database\Concerns\BuildsQueries<TKey, TValue> */
     use BuildsWhereDateClauses, BuildsQueries, ExplainsQueries, ForwardsCalls, Macroable {
         __call as macroCall;
     }
@@ -203,6 +206,8 @@ class Builder implements BuilderContract
 
     /**
      * The callbacks that should be invoked after retrieving data from the database.
+     *
+     * @var array<Closure(Collection<TKey, TValue>): (Collection<TKey, TValue>|void)>
      */
     protected array $afterQueryCallbacks = [];
 
@@ -238,6 +243,11 @@ class Builder implements BuilderContract
      * The PDO fetch mode arguments for the query.
      */
     public array $fetchUsing = [];
+
+    /**
+     * The scoped PDO fetch mode arguments for the current query, or null when no override is active.
+     */
+    protected ?array $fetchUsingOverride = null;
 
     /**
      * Create a new query builder instance.
@@ -2806,6 +2816,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a closure to be invoked after the query is executed.
+     *
+     * @param Closure(Collection<TKey, TValue>): (Collection<TKey, TValue>|void) $callback
      */
     public function afterQuery(Closure $callback): static
     {
@@ -2816,6 +2828,9 @@ class Builder implements BuilderContract
 
     /**
      * Invoke the "after query" modification callbacks.
+     *
+     * @param Collection<TKey, TValue> $result
+     * @return Collection<TKey, TValue>
      */
     public function applyAfterQueryCallbacks(Collection $result): Collection
     {
@@ -2851,8 +2866,9 @@ class Builder implements BuilderContract
      * Execute a query for a single record by ID.
      *
      * @param array<ExpressionContract|string>|ExpressionContract|string $columns
+     * @return null|TValue
      */
-    public function find(int|string $id, ExpressionContract|array|string $columns = ['*']): object|array|null
+    public function find(int|string $id, ExpressionContract|array|string $columns = ['*']): mixed
     {
         return $this->where('id', '=', $id)->first($columns);
     }
@@ -2860,11 +2876,11 @@ class Builder implements BuilderContract
     /**
      * Execute a query for a single record by ID or call a callback.
      *
-     * @template TValue
+     * @template TFindOrValue
      *
-     * @param array<ExpressionContract|string>|(Closure(): TValue)|ExpressionContract|string $columns
-     * @param null|(Closure(): TValue) $callback
-     * @return stdClass|TValue
+     * @param array<ExpressionContract|string>|(Closure(): TFindOrValue)|ExpressionContract|string $columns
+     * @param null|(Closure(): TFindOrValue) $callback
+     * @return TFindOrValue|TValue
      */
     public function findOr(mixed $id, Closure|ExpressionContract|array|string $columns = ['*'], ?Closure $callback = null): mixed
     {
@@ -2874,8 +2890,11 @@ class Builder implements BuilderContract
             $columns = ['*'];
         }
 
-        if (! is_null($data = $this->find($id, $columns))) {
-            return $data;
+        // Inspect collection presence so a matching scalar null row is not mistaken for no row.
+        $results = $this->where('id', '=', $id)->limit(1)->get($columns);
+
+        if ($results->isNotEmpty()) {
+            return $results->first();
         }
 
         return $callback();
@@ -2886,9 +2905,11 @@ class Builder implements BuilderContract
      */
     public function value(string $column): mixed
     {
-        $result = (array) $this->first([$column]);
+        return $this->withoutFetchUsing(function () use ($column) {
+            $result = (array) $this->first([$column]);
 
-        return count($result) > 0 ? array_first($result) : null;
+            return count($result) > 0 ? array_first($result) : null;
+        });
     }
 
     /**
@@ -2896,9 +2917,11 @@ class Builder implements BuilderContract
      */
     public function rawValue(string $expression, array $bindings = []): mixed
     {
-        $result = (array) $this->selectRaw($expression, $bindings)->first();
+        return $this->withoutFetchUsing(function () use ($expression, $bindings) {
+            $result = (array) $this->selectRaw($expression, $bindings)->first();
 
-        return count($result) > 0 ? array_first($result) : null;
+            return count($result) > 0 ? array_first($result) : null;
+        });
     }
 
     /**
@@ -2909,16 +2932,18 @@ class Builder implements BuilderContract
      */
     public function soleValue(string $column): mixed
     {
-        $result = (array) $this->sole([$column]);
+        return $this->withoutFetchUsing(function () use ($column) {
+            $result = (array) $this->sole([$column]);
 
-        return array_first($result);
+            return array_first($result);
+        });
     }
 
     /**
      * Execute the query as a "select" statement.
      *
      * @param array<ExpressionContract|string>|ExpressionContract|string $columns
-     * @return Collection<int, stdClass>
+     * @return Collection<TKey, TValue>
      */
     public function get(ExpressionContract|array|string $columns = ['*']): Collection
     {
@@ -2933,6 +2958,8 @@ class Builder implements BuilderContract
 
     /**
      * Run the query as a "select" statement against the connection.
+     *
+     * @return array<TKey, TValue>
      */
     protected function runSelect(): array
     {
@@ -2940,12 +2967,35 @@ class Builder implements BuilderContract
             $this->toSql(),
             $this->getBindings(),
             ! $this->useWritePdo,
-            $this->fetchUsing
+            $this->fetchUsingOverride ?? $this->fetchUsing
         );
     }
 
     /**
+     * Execute the given callback without custom fetch mode arguments.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
+     */
+    protected function withoutFetchUsing(callable $callback): mixed
+    {
+        $previousOverride = $this->fetchUsingOverride;
+        $this->fetchUsingOverride = [];
+
+        try {
+            return $callback();
+        } finally {
+            $this->fetchUsingOverride = $previousOverride;
+        }
+    }
+
+    /**
      * Remove the group limit keys from the results in the collection.
+     *
+     * @param Collection<TKey, TValue> $items
+     * @return Collection<TKey, TValue>
      */
     protected function withoutGroupLimitKeys(Collection $items): Collection
     {
@@ -2958,13 +3008,17 @@ class Builder implements BuilderContract
             $keysToRemove[] = '@hypervel_group := ' . $this->grammar->wrap('pivot_' . $column);
         }
 
-        $items->each(function ($item) use ($keysToRemove) {
+        return $items->transform(function ($item) use ($keysToRemove) {
             foreach ($keysToRemove as $key) {
-                unset($item->{$key});
+                if (is_array($item)) {
+                    unset($item[$key]);
+                } elseif (is_object($item)) {
+                    unset($item->{$key});
+                }
             }
-        });
 
-        return $items;
+            return $item;
+        });
     }
 
     /**
@@ -3071,7 +3125,9 @@ class Builder implements BuilderContract
      */
     public function getCountForPagination(array $columns = ['*']): int
     {
-        $results = $this->runPaginationCountQuery($columns);
+        $results = $this->withoutFetchUsing(
+            fn () => $this->runPaginationCountQuery($columns)
+        );
 
         // Once we have run the pagination count query, we will get the resulting count and
         // take into account what type of query it was. When there is a group by we will
@@ -3148,7 +3204,7 @@ class Builder implements BuilderContract
     /**
      * Get a lazy collection for the given query.
      *
-     * @return LazyCollection<int, stdClass>
+     * @return LazyCollection<int, TValue>
      */
     public function cursor(): LazyCollection
     {
@@ -3156,16 +3212,21 @@ class Builder implements BuilderContract
             $this->columns = ['*'];
         }
 
-        return (new LazyCollection(function () {
-            yield from $this->connection->cursor(
+        return new LazyCollection(function () {
+            // Deferred execution must read the public query mode, not a scoped terminal override.
+            foreach ($this->connection->cursor(
                 $this->toSql(),
                 $this->getBindings(),
                 ! $this->useWritePdo,
                 $this->fetchUsing
-            );
-        }))->map(function ($item) {
-            return $this->applyAfterQueryCallbacks(new Collection([$item]))->first();
-        })->reject(fn ($item) => is_null($item));
+            ) as $key => $item) {
+                $items = $this->applyAfterQueryCallbacks(new Collection([$item]));
+
+                if ($items->isNotEmpty()) {
+                    yield $key => $items->first();
+                }
+            }
+        });
     }
 
     /**
@@ -3187,35 +3248,37 @@ class Builder implements BuilderContract
      */
     public function pluck(ExpressionContract|string $column, ?string $key = null): Collection
     {
-        // First, we will need to select the results of the query accounting for the
-        // given columns / key. Once we have the results, we will be able to take
-        // the results and get the exact data that was requested for the query.
-        $queryResult = $this->onceWithColumns(
-            is_null($key) || $key === $column ? [$column] : [$column, $key],
-            function () {
-                return $this->processor->processSelect(
-                    $this,
-                    $this->runSelect()
-                );
+        return $this->withoutFetchUsing(function () use ($column, $key) {
+            // First, we will need to select the results of the query accounting for the
+            // given columns / key. Once we have the results, we will be able to take
+            // the results and get the exact data that was requested for the query.
+            $queryResult = $this->onceWithColumns(
+                is_null($key) || $key === $column ? [$column] : [$column, $key],
+                function () {
+                    return $this->processor->processSelect(
+                        $this,
+                        $this->runSelect()
+                    );
+                }
+            );
+
+            if (empty($queryResult)) {
+                return new Collection;
             }
-        );
 
-        if (empty($queryResult)) {
-            return new Collection;
-        }
+            // If the columns are qualified with a table or have an alias, we cannot use
+            // those directly in the "pluck" operations since the results from the DB
+            // are only keyed by the column itself. We'll strip the table out here.
+            $column = $this->stripTableForPluck($column);
 
-        // If the columns are qualified with a table or have an alias, we cannot use
-        // those directly in the "pluck" operations since the results from the DB
-        // are only keyed by the column itself. We'll strip the table out here.
-        $column = $this->stripTableForPluck($column);
+            $key = $this->stripTableForPluck($key);
 
-        $key = $this->stripTableForPluck($key);
-
-        return $this->applyAfterQueryCallbacks(
-            is_array($queryResult[0])
-                ? $this->pluckFromArrayColumn($queryResult, $column, $key)
-                : $this->pluckFromObjectColumn($queryResult, $column, $key)
-        );
+            return $this->applyAfterQueryCallbacks(
+                is_array($queryResult[0])
+                    ? $this->pluckFromArrayColumn($queryResult, $column, $key)
+                    : $this->pluckFromObjectColumn($queryResult, $column, $key)
+            );
+        });
     }
 
     /**
@@ -3294,8 +3357,7 @@ class Builder implements BuilderContract
         $results = $this->connection->select(
             $this->grammar->compileExists($this),
             $this->getBindings(),
-            ! $this->useWritePdo,
-            $this->fetchUsing
+            ! $this->useWritePdo
         );
 
         // If the results have rows, we will get the row and see if the exists column is a
@@ -3391,16 +3453,18 @@ class Builder implements BuilderContract
      */
     public function aggregate(string $function, array $columns = ['*']): mixed
     {
-        $results = $this->cloneWithout($this->unions || $this->havings ? [] : ['columns'])
-            ->cloneWithoutBindings($this->unions || $this->havings ? [] : ['select'])
-            ->setAggregate($function, $columns)
-            ->get($columns);
+        return $this->withoutFetchUsing(function () use ($function, $columns) {
+            $results = $this->cloneWithout($this->unions || $this->havings ? [] : ['columns'])
+                ->cloneWithoutBindings($this->unions || $this->havings ? [] : ['select'])
+                ->setAggregate($function, $columns)
+                ->get($columns);
 
-        if (! $results->isEmpty()) {
-            return array_change_key_case((array) $results[0])['aggregate'];
-        }
+            if (! $results->isEmpty()) {
+                return array_change_key_case((array) $results[0])['aggregate'];
+            }
 
-        return null;
+            return null;
+        });
     }
 
     /**
@@ -3466,11 +3530,11 @@ class Builder implements BuilderContract
             $this->columns = $columns;
         }
 
-        $result = $callback();
-
-        $this->columns = $original;
-
-        return $result;
+        try {
+            return $callback();
+        } finally {
+            $this->columns = $original;
+        }
     }
 
     /**
@@ -4107,6 +4171,12 @@ class Builder implements BuilderContract
 
     /**
      * Set the PDO fetch mode arguments for the query.
+     *
+     * The @return $this tag lets @phpstan-this-out reach a chained call.
+     *
+     * @return $this
+     *
+     * @phpstan-this-out self<array-key, mixed>
      */
     public function fetchUsing(mixed ...$fetchUsing): static
     {
