@@ -36,8 +36,6 @@ class ConcurrentTest extends TestCase
         $this->assertTrue($concurrent->isFull());
         $this->assertSame(5, $count);
         $this->assertSame($limit, $concurrent->getRunningCoroutineCount());
-        $this->assertSame($limit, $concurrent->getLength());
-        $this->assertSame($limit, $concurrent->length());
 
         while (! $concurrent->isEmpty()) {
             Coroutine::sleep(0.01);
@@ -66,6 +64,39 @@ class ConcurrentTest extends TestCase
             Coroutine::sleep(0.01);
         }
         $this->assertSame(15, $count);
+    }
+
+    public function testWaitForAvailableSlotWakesWhenARunningCoroutineFinishes(): void
+    {
+        $concurrent = new Concurrent(1);
+        $finished = false;
+
+        $concurrent->create(function () use (&$finished): void {
+            Coroutine::sleep(0.01);
+            $finished = true;
+        });
+
+        $this->assertTrue($concurrent->isFull());
+        $this->assertTrue($concurrent->waitForAvailableSlot(1));
+        $this->assertTrue($finished);
+        $this->assertTrue($concurrent->isEmpty());
+    }
+
+    public function testWaitForAvailableSlotReturnsFalseAfterTimeout(): void
+    {
+        $concurrent = new Concurrent(1);
+
+        $concurrent->create(static function (): void {
+            Coroutine::sleep(0.2);
+        });
+
+        $this->assertTrue($concurrent->isFull());
+        $this->assertFalse($concurrent->waitForAvailableSlot(0.01));
+        $this->assertSame(1, $concurrent->getRunningCoroutineCount());
+
+        while (! $concurrent->isEmpty()) {
+            Coroutine::sleep(0.01);
+        }
     }
 
     protected function getContainer(): void

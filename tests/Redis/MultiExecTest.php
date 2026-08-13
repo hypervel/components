@@ -155,9 +155,7 @@ class MultiExecTest extends TestCase
         // Set up existing connection in context BEFORE the pipeline call
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
-        // Connection is NOT released during the test (it already existed in context),
-        // but allow release() call for test cleanup
-        $connection->shouldReceive('release')->zeroOrMoreTimes();
+        $connection->shouldNotReceive('release');
 
         $redis = $this->createRedis($connection);
 
@@ -166,7 +164,7 @@ class MultiExecTest extends TestCase
         });
     }
 
-    public function testPipelineWithCallbackReleasesOnException(): void
+    public function testPipelineWithCallbackInvalidatesAndReleasesOnException(): void
     {
         $pipelineInstance = m::mock(PhpRedis::class);
         // exec throws exception
@@ -176,7 +174,7 @@ class MultiExecTest extends TestCase
         $phpRedis->shouldReceive('pipeline')->once()->andReturn($pipelineInstance);
 
         $connection = $this->createMockConnection($phpRedis);
-        // Connection should still be released even on exception
+        $connection->shouldReceive('invalidate')->once();
         $connection->shouldReceive('release')->once();
 
         $redis = $this->createRedis($connection);
@@ -201,9 +199,7 @@ class MultiExecTest extends TestCase
         // Set up existing connection in context BEFORE the transaction call
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
 
-        // Connection is NOT released during the test (it already existed in context),
-        // but allow release() call for test cleanup
-        $connection->shouldReceive('release')->zeroOrMoreTimes();
+        $connection->shouldNotReceive('release');
         $connection->shouldReceive('clearWatchState')->once();
 
         $redis = $this->createRedis($connection);
@@ -213,7 +209,7 @@ class MultiExecTest extends TestCase
         });
     }
 
-    public function testTransactionWithCallbackReleasesOnException(): void
+    public function testTransactionWithCallbackInvalidatesAndReleasesOnException(): void
     {
         $multiInstance = m::mock(PhpRedis::class);
         $multiInstance->shouldReceive('exec')->once()->andThrow(new RuntimeException('Transaction failed'));
@@ -222,7 +218,7 @@ class MultiExecTest extends TestCase
         $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
 
         $connection = $this->createMockConnection($phpRedis);
-        // Connection should still be released even on exception
+        $connection->shouldReceive('invalidate')->once();
         $connection->shouldReceive('release')->once();
 
         $redis = $this->createRedis($connection);
@@ -233,6 +229,34 @@ class MultiExecTest extends TestCase
         $redis->transaction(function ($tx) {
             // callback runs, but exec will throw
         });
+    }
+
+    public function testTransactionWithCallbackInvalidatesExistingContextConnectionOnException(): void
+    {
+        $exception = new RuntimeException('Transaction failed');
+        $multiInstance = m::mock(PhpRedis::class);
+        $multiInstance->shouldReceive('exec')->once()->andThrow($exception);
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+        $connection->shouldReceive('invalidate')->once();
+        $connection->shouldNotReceive('release');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);
+
+        try {
+            $this->createRedis($connection)->transaction(static function (): void {
+            });
+            $this->fail('Expected the transaction failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertSame(
+            $connection,
+            CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+        );
     }
 
     public function testShouldTransformIsResetWhenConnectionReleasedAfterCallback(): void

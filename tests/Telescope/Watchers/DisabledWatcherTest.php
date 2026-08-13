@@ -54,15 +54,13 @@ class DisabledWatcherTest extends FeatureTestCase
         'host' => '127.0.0.1',
         'port' => 6379,
         'database' => 0,
-        'event' => [
-            'enable' => false,
-        ],
+        'events' => false,
     ])]
     public function testDisabledRedisWatcherDoesNotEnableRedisEvents(): void
     {
         $this->assertFalse(
             $this->app->make(RedisConfig::class)
-                ->connectionConfig('foo')['event']['enable'],
+                ->connectionConfig('foo')['events'],
             'Redis connection should not have events enabled when RedisWatcher is disabled.'
         );
     }
@@ -77,9 +75,7 @@ class DisabledWatcherTest extends FeatureTestCase
         'host' => '127.0.0.1',
         'port' => 6379,
         'database' => 0,
-        'event' => [
-            'enable' => false,
-        ],
+        'events' => false,
     ])]
     public function testGloballyDisabledTelescopeRegistersStorageWithoutInstrumentation(): void
     {
@@ -90,7 +86,7 @@ class DisabledWatcherTest extends FeatureTestCase
         $this->assertFalse(config('cache.stores.array.events'));
         $this->assertFalse(
             $this->app->make(RedisConfig::class)
-                ->connectionConfig('foo')['event']['enable'],
+                ->connectionConfig('foo')['events'],
         );
         $this->assertSame([], AspectCollector::getRule(GuzzleHttpClientAspect::class));
     }

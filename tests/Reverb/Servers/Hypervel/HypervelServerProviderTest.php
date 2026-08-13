@@ -98,7 +98,7 @@ class HypervelServerProviderTest extends ReverbTestCase
     public function testRedisClusterScalingIsRejectedWithoutCreatingAPool(): void
     {
         $this->app->make('config')->set('database.redis.reverb.cluster', [
-            'enable' => true,
+            'enabled' => true,
             'seeds' => ['127.0.0.1:6379'],
         ]);
         $this->app->instance(PoolFactory::class, $poolFactory = m::mock(PoolFactory::class));
@@ -116,7 +116,7 @@ class HypervelServerProviderTest extends ReverbTestCase
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage(
-            "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.reverb.cluster.enable' to false.",
+            "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.reverb.cluster.enabled' to false.",
         );
 
         $provider->register();

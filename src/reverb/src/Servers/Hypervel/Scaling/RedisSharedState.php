@@ -334,7 +334,12 @@ class RedisSharedState implements SharedState
      */
     protected function key(string $type, string ...$parts): string
     {
-        return 'reverb:' . $this->logicalKey($type, ...$parts);
+        // The leading parts identify the application and, when present, channel. They
+        // choose the Cluster slot so related counters remain atomically scriptable.
+        $scope = array_slice($parts, 0, 2);
+        $hashTag = hash('xxh128', $this->logicalKey('scope', ...$scope));
+
+        return 'reverb:{' . $hashTag . '}:' . $this->logicalKey($type, ...$parts);
     }
 
     /**

@@ -10,6 +10,7 @@ use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Http\Request;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Support\Arr;
+use RedisClusterException;
 use RedisException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -131,9 +132,9 @@ class RedisBroadcaster extends Broadcaster
                     ...$this->formatChannels($channels),
                 );
             }
-        } catch (ConnectionException|RedisException $e) {
+        } catch (ConnectionException|RedisException|RedisClusterException $exception) {
             throw new BroadcastException(
-                sprintf('Redis error: %s.', $e->getMessage())
+                sprintf('Redis error: %s.', $exception->getMessage())
             );
         }
     }

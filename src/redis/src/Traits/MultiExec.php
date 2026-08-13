@@ -6,9 +6,9 @@ namespace Hypervel\Redis\Traits;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Redis\RedisProxy;
 use Redis;
 use RedisCluster;
+use Throwable;
 
 /**
  * Coroutine multi-exec trait.
@@ -48,10 +48,6 @@ trait MultiExec
             return $this->__call($command, []);
         }
 
-        if (! $this instanceof RedisProxy) {
-            return tap($this->__call($command, []), $callback)->exec();
-        }
-
         $hasExistingConnection = CoroutineContext::has($this->getContextKey());
         $instance = $this->__call($command, []);
 
@@ -67,6 +63,14 @@ trait MultiExec
             }
 
             return $result;
+        } catch (Throwable $exception) {
+            $connection = CoroutineContext::get($this->getContextKey());
+
+            if ($connection instanceof RedisConnection) {
+                $connection->invalidate();
+            }
+
+            throw $exception;
         } finally {
             if (! $hasExistingConnection) {
                 $this->releaseContextConnection();

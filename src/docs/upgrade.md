@@ -3,6 +3,7 @@
 - [Upgrading To 0.4 From 0.3](#upgrade-04)
 - [Recommended Upgrade Path](#recommended-upgrade-path)
 - [What Changed](#what-changed)
+- [Redis Configuration](#redis-configuration)
 - [Immutable Dates](#immutable-dates)
 - [Migration References](#migration-references)
 
@@ -37,6 +38,21 @@ The biggest areas to review are:
 - Testing uses Hypervel's new PHPUnit 13-based testing stack, including coroutine-aware feature tests and the new Testbench package.
 
 </div>
+
+<a name="redis-configuration"></a>
+## Redis Configuration
+
+Redis Cluster, Sentinel, and command event settings have been standardized. Update each Redis connection as follows:
+
+<div class="content-list" markdown="1">
+
+- Replace `cluster.enable` with `cluster.enabled`. Keep `seeds` in the `cluster` array, move `read_timeout` and `context` to the connection level, and remove the `name` and `persistent` options. If the old `enable` key remains on a connection with `host` and `port` values, Hypervel treats it as a standalone connection.
+- Replace `sentinel.enable` with `sentinel.enabled` and `sentinel.auth` with the nested `username` and `password` options. Configure the Sentinel discovery `timeout`, `read_timeout`, and `context` inside the `sentinel` array. Their connection-level counterparts configure the Redis master connection, and are not inherited by Sentinel discovery. Remove the Sentinel `persistent` option. If the old `enable` key remains on a connection with `host` and `port` values, Hypervel connects directly to that server instead of resolving the master through Sentinel.
+- Replace `event.enable` with the connection-level `events` boolean. The old key is ignored, which disables Redis command events without an error.
+
+</div>
+
+Redis Cluster settings belong to each named connection. The top-level `database.redis.clusters` configuration used by Laravel is not supported. See the [Redis documentation](/docs/{{version}}/redis#clusters) for the complete Cluster and Sentinel configuration.
 
 <a name="immutable-dates"></a>
 ## Immutable Dates

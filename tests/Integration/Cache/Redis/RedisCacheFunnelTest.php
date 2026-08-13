@@ -23,25 +23,32 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
     public function testCoroutineConcurrencyAllSlotsHeldAllFail(): void
     {
         $cache = $this->cache();
+        $funnel = $cache->funnel('test')
+            ->limit(2)
+            ->releaseAfter(60)
+            ->block(0);
+        $first = $funnel->acquire();
 
-        $lock1 = $cache->lock('test1', 60);
-        $lock1->get();
-        $lock2 = $cache->lock('test2', 60);
-        $lock2->get();
+        try {
+            $second = $funnel->acquire();
 
-        $parallel = new Parallel(5);
-        for ($i = 0; $i < 10; ++$i) {
-            $parallel->add(
-                static fn () => $cache->funnel('test')
-                    ->limit(2)->releaseAfter(60)->block(0)
-                    ->then(fn () => 'success', fn () => 'failed')
-            );
+            try {
+                $parallel = new Parallel(5);
+                for ($i = 0; $i < 10; ++$i) {
+                    $parallel->add(
+                        static fn () => $cache->funnel('test')
+                            ->limit(2)->releaseAfter(60)->block(0)
+                            ->then(fn () => 'success', fn () => 'failed')
+                    );
+                }
+
+                $this->assertSame(array_fill(0, 10, 'failed'), $parallel->wait());
+            } finally {
+                $second->release();
+            }
+        } finally {
+            $first->release();
         }
-
-        $this->assertSame(array_fill(0, 10, 'failed'), $parallel->wait());
-
-        $lock1->forceRelease();
-        $lock2->forceRelease();
     }
 
     public function testCoroutineConcurrencyLimitMatchesCount(): void
@@ -71,31 +78,31 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
         // The Lua acquire path must SET without EX in that case (EX 0 errors).
         // Slot still releases via the explicit RedisLock release after the callback.
         $cache = $this->cache();
-        $cache->lock('perm1')->forceRelease();
+        $cache->lock('{perm}1')->forceRelease();
 
-        $first = $cache->funnel('perm')
+        $first = $cache->funnel('{perm}')
             ->limit(1)
             ->releaseAfter(0)
             ->block(0)
             ->then(fn () => 'first');
         $this->assertSame('first', $first);
 
-        $second = $cache->funnel('perm')
+        $second = $cache->funnel('{perm}')
             ->limit(1)
             ->releaseAfter(0)
             ->block(0)
             ->then(fn () => 'second');
         $this->assertSame('second', $second);
 
-        $cache->lock('perm1')->forceRelease();
+        $cache->lock('{perm}1')->forceRelease();
     }
 
     public function testFastPathLeaseRefreshReappliesReleaseAfterTtl(): void
     {
         $cache = $this->cache();
-        $cache->lock('refresh-ttl1')->forceRelease();
+        $cache->lock('{refresh-ttl}1')->forceRelease();
 
-        $lease = $cache->funnel('refresh-ttl')
+        $lease = $cache->funnel('{refresh-ttl}')
             ->limit(1)
             ->releaseAfter(2)
             ->block(0)
@@ -116,7 +123,7 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
             $this->assertGreaterThan($decayedLifetime, $refreshedLifetime);
         } finally {
             $lease->release();
-            $cache->lock('refresh-ttl1')->forceRelease();
+            $cache->lock('{refresh-ttl}1')->forceRelease();
         }
     }
 

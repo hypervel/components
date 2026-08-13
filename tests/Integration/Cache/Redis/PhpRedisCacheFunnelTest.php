@@ -172,9 +172,9 @@ class PhpRedisCacheFunnelTest extends TestCase
     protected function assertFunnelAcquiresAndReleases(): void
     {
         $repository = Cache::store('redis');
-        $repository->lock('test1')->forceRelease();
+        $repository->lock('{test}1')->forceRelease();
 
-        $first = $repository->funnel('test')
+        $first = $repository->funnel('{test}')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
@@ -182,7 +182,7 @@ class PhpRedisCacheFunnelTest extends TestCase
 
         $this->assertSame('first', $first);
 
-        $second = $repository->funnel('test')
+        $second = $repository->funnel('{test}')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
@@ -190,7 +190,7 @@ class PhpRedisCacheFunnelTest extends TestCase
 
         $this->assertSame('second', $second);
 
-        $lease = $repository->funnel('test')
+        $lease = $repository->funnel('{test}')
             ->limit(1)
             ->releaseAfter(60)
             ->block(0)
@@ -203,6 +203,6 @@ class PhpRedisCacheFunnelTest extends TestCase
             $lease->release();
         }
 
-        $repository->lock('test1')->forceRelease();
+        $repository->lock('{test}1')->forceRelease();
     }
 }
