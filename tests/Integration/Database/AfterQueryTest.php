@@ -8,6 +8,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Schema;
+use PDO;
 
 class AfterQueryTest extends DatabaseTestCase
 {
@@ -119,6 +120,32 @@ class AfterQueryTest extends DatabaseTestCase
 
         $this->assertCount(2, $users);
         $this->assertEqualsCanonicalizing($afterQueryIds->toArray(), $users->pluck('id')->toArray());
+    }
+
+    public function testAfterQueryOnBaseBuilderCursorDistinguishesNullFromAnEmptyResult(): void
+    {
+        AfterQueryUser::create(['team_id' => null]);
+
+        $query = AfterQueryUser::query()
+            ->toBase()
+            ->select('team_id')
+            ->fetchUsing(PDO::FETCH_COLUMN);
+
+        $this->assertSame([null], $query->clone()->cursor()->all());
+        $this->assertSame(
+            [],
+            $query->clone()
+                ->afterQuery(static fn (Collection $items): Collection => $items->take(0))
+                ->cursor()
+                ->all()
+        );
+        $this->assertSame(
+            [null],
+            $query->clone()
+                ->afterQuery(static fn (Collection $items): Collection => new Collection([null]))
+                ->cursor()
+                ->all()
+        );
     }
 
     public function testAfterQueryOnEloquentPluck()

@@ -131,16 +131,22 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUnguardedRestoresStateAfterException(): void
     {
         $this->assertFalse(Model::isUnguarded());
+        $expectedException = new RuntimeException('Test exception');
+        $unguardedInsideCallback = null;
+        $caughtException = null;
 
         try {
-            Model::unguarded(function () {
-                $this->assertTrue(Model::isUnguarded());
-                throw new RuntimeException('Test exception');
+            Model::unguarded(function () use ($expectedException, &$unguardedInsideCallback): never {
+                $unguardedInsideCallback = Model::isUnguarded();
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertTrue($unguardedInsideCallback);
         $this->assertFalse(Model::isUnguarded());
     }
 
@@ -215,16 +221,26 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $manager = $this->app->make(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
         $testConnection = 'sqlite';
+        $expectedException = new RuntimeException('Test exception');
+        $connectionInsideCallback = null;
+        $caughtException = null;
 
         try {
-            $manager->usingConnection($testConnection, function () use ($manager, $testConnection) {
-                $this->assertSame($testConnection, $manager->getDefaultConnection());
-                throw new RuntimeException('Test exception');
+            $manager->usingConnection($testConnection, function () use (
+                &$connectionInsideCallback,
+                $expectedException,
+                $manager,
+            ): never {
+                $connectionInsideCallback = $manager->getDefaultConnection();
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertSame($testConnection, $connectionInsideCallback);
         $this->assertSame($originalDefault, $manager->getDefaultConnection());
     }
 

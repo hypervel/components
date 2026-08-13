@@ -125,14 +125,16 @@ class CreateVendorSymlinkTest extends TestCase
         $filesystem->ensureDirectoryExists($application->basePath('vendor'));
         $filesystem->put($application->basePath('vendor/owned.txt'), 'owned');
         $this->ownsVendorDirectory = true;
+        $caughtException = null;
 
         try {
             (new CreateVendorSymlinkAction($workingPath))->handle($application);
-            $this->fail('Expected vendor link creation to fail.');
-        } catch (Throwable) {
-            $this->addToAssertionCount(1);
+        } catch (Throwable $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertNotNull($caughtException);
+        $this->assertFalse(is_link($application->basePath('vendor')));
         $this->assertDirectoryExists($application->basePath('vendor'));
         $this->assertFileExists($application->basePath('vendor/owned.txt'));
     }

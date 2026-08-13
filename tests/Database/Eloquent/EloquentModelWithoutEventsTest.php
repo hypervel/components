@@ -67,15 +67,22 @@ class EloquentModelWithoutEventsTest extends TestCase
     public function testWithoutEventsRestoresStateAfterException(): void
     {
         $this->assertFalse(TestModel::eventsDisabled());
+        $expectedException = new RuntimeException('Test exception');
+        $eventsDisabledInsideCallback = null;
+        $caughtException = null;
 
         try {
-            TestModel::withoutEvents(function () {
-                $this->assertTrue(TestModel::eventsDisabled());
-                throw new RuntimeException('Test exception');
+            TestModel::withoutEvents(function () use ($expectedException, &$eventsDisabledInsideCallback): never {
+                $eventsDisabledInsideCallback = TestModel::eventsDisabled();
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // Expected
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertTrue($eventsDisabledInsideCallback);
 
         // State should be restored even after exception
         $this->assertFalse(TestModel::eventsDisabled());

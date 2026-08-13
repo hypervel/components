@@ -67,16 +67,18 @@ class FileCacheLockTest extends TestCase
     public function testLocksWithFailedBlockCallbackAreReleased(): void
     {
         $firstLock = Cache::lock('foo', 10);
+        $expectedException = new Exception('failed');
+        $caughtException = null;
 
         try {
-            $firstLock->block(1, function () {
-                throw new Exception('failed');
+            $firstLock->block(1, function () use ($expectedException): never {
+                throw $expectedException;
             });
-        } catch (Exception) {
-            // Not testing the exception, just testing the lock
-            // is released regardless of the how the exception
-            // thrown by the callback was handled.
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($expectedException, $caughtException);
 
         $secondLock = Cache::lock('foo', 1);
 

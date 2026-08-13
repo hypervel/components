@@ -10,6 +10,13 @@ class Processor
 {
     /**
      * Process the results of a "select" query.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param Builder<TKey, TValue> $query
+     * @param array<TKey, TValue> $results
+     * @return array<TKey, TValue>
      */
     public function processSelect(Builder $query, array $results): array
     {
