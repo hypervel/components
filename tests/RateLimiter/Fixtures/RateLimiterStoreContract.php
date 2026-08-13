@@ -6,6 +6,7 @@ namespace Hypervel\Tests\RateLimiter\Fixtures;
 
 use Closure;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
@@ -243,6 +244,40 @@ trait RateLimiterStoreContract
         );
 
         $this->assertTrue($limiter->inspect($inactivity)->allowed());
+    }
+
+    public function testStoreContractCooldownExtendsWithoutShorteningAndExpires(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $cooldown = Cooldown::for($this->rateLimiterStoreContractKey('cooldown'));
+
+        $missing = $limiter->inspect($cooldown);
+        $this->assertTrue($missing->allowed());
+        $this->assertSame(0, $missing->retryAfter());
+
+        $initial = $limiter->block($cooldown, 2);
+        $this->assertTrue($initial->denied());
+        $this->assertSame(2, $initial->retryAfter());
+
+        $shorter = $limiter->block($cooldown, 1);
+        $this->assertTrue($shorter->denied());
+        $this->assertSame(2, $shorter->retryAfter());
+
+        $longer = $limiter->block($cooldown, 3);
+        $this->assertTrue($longer->denied());
+        $this->assertSame(3, $longer->retryAfter());
+
+        $this->assertTrue($limiter->clear($cooldown));
+        $this->assertTrue($limiter->inspect($cooldown)->allowed());
+
+        $limiter->block($cooldown, 1);
+
+        $this->waitForRateLimiterStoreContract(
+            static fn (): bool => $limiter->inspect($cooldown)->allowed(),
+            1,
+        );
+
+        $this->assertSame(0, $limiter->inspect($cooldown)->retryAfter());
     }
 
     abstract protected function rateLimiterStoreContract(): Limiter;

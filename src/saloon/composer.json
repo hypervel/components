@@ -1,0 +1,79 @@
+{
+    "name": "hypervel/saloon",
+    "type": "library",
+    "description": "Build API integrations and SDKs for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "saloon",
+        "sdk",
+        "api",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Saloon\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "ext-dom": "*",
+        "ext-mbstring": "*",
+        "ext-simplexml": "*",
+        "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/psr7": "^2.13",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/events": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/prompts": "^0.4",
+        "hypervel/rate-limiter": "^0.4",
+        "hypervel/reflection": "^0.4",
+        "hypervel/support": "^0.4",
+        "nesbot/carbon": "^3.13.1",
+        "psr/http-message": "^2.0",
+        "symfony/console": "^8.1",
+        "symfony/dom-crawler": "^8.1",
+        "symfony/finder": "^8.1",
+        "symfony/var-dumper": "^8.1"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Saloon\\SaloonServiceProvider"
+            ],
+            "aliases": {
+                "Saloon": "Hypervel\\Saloon\\Facades\\Saloon"
+            }
+        }
+    }
+}

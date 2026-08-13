@@ -54,3 +54,4 @@ jobs:
         run: |
           vendor/bin/paratest tests/Integration/Engine
           vendor/bin/paratest tests/Integration/HttpServer
+          vendor/bin/paratest tests/Integration/Saloon

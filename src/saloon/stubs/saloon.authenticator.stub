@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Saloon\Contracts\Authenticator;
+use Hypervel\Saloon\Http\PendingRequest;
+
+class {{ class }} implements Authenticator
+{
+    /**
+     * Apply the authentication to the request.
+     */
+    public function set(PendingRequest $pendingRequest): void
+    {
+    }
+}
