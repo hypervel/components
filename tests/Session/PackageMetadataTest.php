@@ -10,11 +10,11 @@ use JsonException;
 class PackageMetadataTest extends TestCase
 {
     /**
-     * Ensure direct runtime dependencies are installed with the split package.
+     * Ensure runtime requirements are declared by the split package.
      *
      * @throws JsonException
      */
-    public function testDirectRuntimeDependenciesAreDeclared(): void
+    public function testRuntimePackageRequirementsAreDeclared(): void
     {
         $composer = json_decode(
             file_get_contents(__DIR__ . '/../../src/session/composer.json'),
@@ -50,5 +50,10 @@ class PackageMetadataTest extends TestCase
             $this->assertIsString($composer['require'][$dependency]);
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
+
+        $this->assertSame(
+            'Required to use the Redis session driver (^6.1); user session tracking requires ^6.3.',
+            $composer['suggest']['ext-redis'],
+        );
     }
 }
