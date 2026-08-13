@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
@@ -43,6 +44,11 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
     protected const string USER_INDEX_PREFIX = '_users:';
 
     protected const string USER_INDEX_SUFFIX = ':sessions';
+
+    /**
+     * Context key prefix for owners observed from Redis Cluster payloads.
+     */
+    protected const string REDIS_OWNER_CONTEXT_KEY_PREFIX = '__session.redis.owner.';
 
     protected const string LUA_OWNER_OF = <<<'LUA'
         -- Mirrors RedisSessionHandler's envelope constants.
@@ -98,7 +104,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
 
     protected const string WRITE_SCRIPT = self::LUA_OWNER_OF . "\n" . self::LUA_VALID_METADATA . "\n" . <<<'LUA'
         local payloadKey = KEYS[1]
-        local ttl = ARGV[1]
+        local expiresAt = ARGV[1]
         local sessionId = ARGV[2]
         local physicalPrefix = ARGV[3]
         local identityState = ARGV[4]
@@ -124,7 +130,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
         if newOwner then
             local indexKey = physicalPrefix .. '_users:' .. newOwner .. ':sessions'
 
-            if not hasFreshMetadata and oldOwner == newOwner then
+            if not hasFreshMetadata then
                 local previousMetadata = validMetadata(redis.call('HGET', indexKey, sessionId))
 
                 if previousMetadata then
@@ -133,10 +139,10 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
                 end
             end
 
-            redis.call('HSETEX', indexKey, 'EX', ttl, 'FIELDS', 1, sessionId, metadata)
-            redis.call('SETEX', payloadKey, ttl, version .. newOwner .. payload)
+            redis.call('HSETEX', indexKey, 'EXAT', expiresAt, 'FIELDS', 1, sessionId, metadata)
+            redis.call('SET', payloadKey, version .. newOwner .. payload, 'EXAT', expiresAt)
         else
-            redis.call('SETEX', payloadKey, ttl, payload)
+            redis.call('SET', payloadKey, payload, 'EXAT', expiresAt)
         end
 
         if oldOwner and oldOwner ~= newOwner then
@@ -212,46 +218,50 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
 
     protected const string CLUSTER_WRITE_SCRIPT = self::LUA_OWNER_OF . "\n" . <<<'LUA'
         local payloadKey = KEYS[1]
-        local ttl = ARGV[1]
+        local expiresAt = ARGV[1]
         local identityState = ARGV[2]
         local resolvedOwner = ARGV[3]
-        local payload = ARGV[4]
+        local expectedOwner = ARGV[4]
+        local payload = ARGV[5]
         local oldOwner = ownerOf(redis.call('GET', payloadKey))
         local newOwner = nil
 
         if identityState == 'resolved' then
             newOwner = resolvedOwner
         elseif identityState == 'unresolved' then
+            -- Cross-slot writes pre-index the expected owner, so refuse to
+            -- commit a payload whose actual owner was not indexed here.
+            if (oldOwner or '') ~= expectedOwner then
+                return {0, oldOwner or '', ''}
+            end
+
             newOwner = oldOwner
         elseif identityState ~= 'unowned' then
             return redis.error_reply('Invalid session identity state')
         end
 
         if newOwner then
-            redis.call('SETEX', payloadKey, ttl, version .. newOwner .. payload)
+            redis.call('SET', payloadKey, version .. newOwner .. payload, 'EXAT', expiresAt)
         else
-            redis.call('SETEX', payloadKey, ttl, payload)
+            redis.call('SET', payloadKey, payload, 'EXAT', expiresAt)
         end
 
-        return {oldOwner or '', newOwner or ''}
+        return {1, oldOwner or '', newOwner or ''}
         LUA;
 
     protected const string CLUSTER_UPDATE_INDEX_SCRIPT = self::LUA_VALID_METADATA . "\n" . <<<'LUA'
         local userIndexKey = KEYS[1]
         local sessionId = ARGV[1]
-        local ttl = ARGV[2]
+        local expiresAt = ARGV[2]
         local metadata = ARGV[3]
+        local previousMetadata = validMetadata(redis.call('HGET', userIndexKey, sessionId))
 
-        if ARGV[4] == '1' then
-            local previousMetadata = validMetadata(redis.call('HGET', userIndexKey, sessionId))
-
-            if previousMetadata then
-                previousMetadata['last_activity'] = tonumber(ARGV[5])
-                metadata = cjson.encode(previousMetadata)
-            end
+        if previousMetadata then
+            previousMetadata['last_activity'] = tonumber(ARGV[4])
+            metadata = cjson.encode(previousMetadata)
         end
 
-        redis.call('HSETEX', userIndexKey, 'EX', ttl, 'FIELDS', 1, sessionId, metadata)
+        redis.call('HSETEX', userIndexKey, 'EXAT', expiresAt, 'FIELDS', 1, sessionId, metadata)
 
         return 1
         LUA;
@@ -280,6 +290,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
         protected bool $trackUserSessions = false,
         protected ?Container $container = null,
     ) {
+        $this->forgetOwnerObservations();
     }
 
     /**
@@ -303,19 +314,22 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
      */
     public function read(string $sessionId): string
     {
-        $value = $this->withConnection(
-            fn (RedisConnection $connection): mixed => $connection->get($this->payloadKey($sessionId)),
-        );
+        return $this->withConnection(function (RedisConnection $connection, bool $cluster) use ($sessionId): string {
+            $value = $connection->get($this->payloadKey($sessionId));
 
-        if ($value === false) {
-            return '';
-        }
+            if ($value !== false && ! is_string($value)) {
+                throw new UnexpectedValueException('Redis returned an invalid session payload.');
+            }
 
-        if (! is_string($value)) {
-            throw new UnexpectedValueException('Redis returned an invalid session payload.');
-        }
+            if ($this->trackUserSessions && $cluster) {
+                $this->rememberOwner(
+                    $sessionId,
+                    $value === false ? '' : $this->ownerFromStoredValue($value),
+                );
+            }
 
-        return $this->payloadFromStoredValue($value);
+            return $value === false ? '' : $this->payloadFromStoredValue($value);
+        });
     }
 
     /**
@@ -341,6 +355,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
             ? ''
             : $this->ownerDigest($identity->authProvider, $identity->userId);
         $lastActivity = $this->currentTime();
+        $expiresAt = $lastActivity + $this->lifetimeInSeconds();
         // No request means preserve prior metadata; fresh nulls are real values.
         $hasFreshMetadata = $this->container !== null && RequestContext::has();
         $metadata = $this->encodeMetadata($lastActivity, $hasFreshMetadata);
@@ -351,6 +366,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
             $identityState,
             $resolvedOwner,
             $lastActivity,
+            $expiresAt,
             $hasFreshMetadata,
             $metadata,
         ): bool {
@@ -362,6 +378,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
                     $identityState,
                     $resolvedOwner,
                     $lastActivity,
+                    $expiresAt,
                     $hasFreshMetadata,
                     $metadata,
                 );
@@ -371,7 +388,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
                 self::WRITE_SCRIPT,
                 [$this->payloadKey($sessionId)],
                 [
-                    (string) $this->lifetimeInSeconds(),
+                    (string) $expiresAt,
                     $sessionId,
                     $this->physicalPrefix($connection),
                     $identityState,
@@ -395,44 +412,52 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
         string $identityState,
         string $resolvedOwner,
         int $lastActivity,
+        int $expiresAt,
         bool $hasFreshMetadata,
         string $metadata,
     ): bool {
-        $owners = $connection->evalWithShaCache(
+        $expectedOwner = match ($identityState) {
+            'resolved' => $resolvedOwner,
+            'unresolved' => $this->observedOwner($sessionId)
+                ?? $this->probeOwner($connection, $sessionId),
+            default => '',
+        };
+
+        // An owner-tagged payload cannot be committed safely until its resulting
+        // index exists. Unowned writes have no resulting index and stay payload-first.
+        if ($expectedOwner !== ''
+            && ! $this->updateClusterIndex(
+                $connection,
+                $expectedOwner,
+                $sessionId,
+                $expiresAt,
+                $lastActivity,
+                $hasFreshMetadata,
+                $metadata,
+            )) {
+            return false;
+        }
+
+        $transition = $connection->evalWithShaCache(
             self::CLUSTER_WRITE_SCRIPT,
             [$this->payloadKey($sessionId)],
             [
-                (string) $this->lifetimeInSeconds(),
+                (string) $expiresAt,
                 $identityState,
                 $resolvedOwner,
+                $expectedOwner,
                 $data,
             ],
         );
-        [$oldOwner, $newOwner] = $this->parseOwnerTransition($owners);
+        [$status, $oldOwner, $newOwner] = $this->parseOwnerTransition($transition);
 
-        if ($newOwner !== '') {
-            $result = $hasFreshMetadata
-                ? $connection->hsetex(
-                    $this->userIndexKey($newOwner),
-                    [$sessionId => $metadata],
-                    ['EX' => $this->lifetimeInSeconds()],
-                )
-                : $connection->evalWithShaCache(
-                    self::CLUSTER_UPDATE_INDEX_SCRIPT,
-                    [$this->userIndexKey($newOwner)],
-                    [
-                        $sessionId,
-                        (string) $this->lifetimeInSeconds(),
-                        $metadata,
-                        $oldOwner === $newOwner ? '1' : '0',
-                        (string) $lastActivity,
-                    ],
-                );
+        if ($status === 0) {
+            $this->rememberOwner($sessionId, $oldOwner);
 
-            if ($result !== 1) {
-                return false;
-            }
+            return false;
         }
+
+        $this->rememberOwner($sessionId, $newOwner);
 
         if ($oldOwner !== '' && $oldOwner !== $newOwner) {
             $result = $connection->hdel($this->userIndexKey($oldOwner), $sessionId);
@@ -443,6 +468,38 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
         }
 
         return true;
+    }
+
+    /**
+     * Update a session field in a Redis Cluster user index.
+     */
+    protected function updateClusterIndex(
+        RedisConnection $connection,
+        string $owner,
+        string $sessionId,
+        int $expiresAt,
+        int $lastActivity,
+        bool $hasFreshMetadata,
+        string $metadata,
+    ): bool {
+        $result = $hasFreshMetadata
+            ? $connection->hsetex(
+                $this->userIndexKey($owner),
+                [$sessionId => $metadata],
+                ['EXAT' => $expiresAt],
+            )
+            : $connection->evalWithShaCache(
+                self::CLUSTER_UPDATE_INDEX_SCRIPT,
+                [$this->userIndexKey($owner)],
+                [
+                    $sessionId,
+                    (string) $expiresAt,
+                    $metadata,
+                    (string) $lastActivity,
+                ],
+            );
+
+        return $result === 1;
     }
 
     /**
@@ -472,6 +529,8 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
                     [''],
                 ),
             );
+
+            $this->rememberOwner($sessionId, '');
 
             // Payload-first ordering is required across slots: stale index
             // drift is safe, while leaving a live payload after deletion is not.
@@ -581,13 +640,15 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
                 ) === 1;
             }
 
-            [$deleted] = $this->parseDestroyResult(
+            [$deleted, $actualOwner] = $this->parseDestroyResult(
                 $connection->evalWithShaCache(
                     self::CLUSTER_DESTROY_SCRIPT,
                     [$this->payloadKey($sessionId)],
                     [$owner],
                 ),
             );
+
+            $this->rememberOwner($sessionId, $deleted === 1 ? '' : $actualOwner);
 
             // The payload script has already proved or rejected ownership.
             // Cross-slot index cleanup follows so drift cannot authorize deletion.
@@ -644,6 +705,8 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
         string $owner,
         array $except,
     ): int {
+        $this->forgetOwnerObservations();
+
         $sessionIds = $connection->hKeys($this->userIndexKey($owner));
 
         if (! is_array($sessionIds)) {
@@ -761,6 +824,21 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
     }
 
     /**
+     * Get the proven owner from a stored session value.
+     */
+    protected function ownerFromStoredValue(string $value): string
+    {
+        if (strlen($value) < self::ENVELOPE_HEADER_LENGTH
+            || ! str_starts_with($value, self::ENVELOPE_VERSION)) {
+            return '';
+        }
+
+        $owner = substr($value, strlen(self::ENVELOPE_VERSION), self::OWNER_DIGEST_LENGTH);
+
+        return $this->validOwnerDigest($owner) ? $owner : '';
+    }
+
+    /**
      * Strip a valid ownership envelope from a stored session payload.
      */
     protected function payloadFromStoredValue(string $value): string
@@ -769,9 +847,7 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
             return $value;
         }
 
-        if (strlen($value) < self::ENVELOPE_HEADER_LENGTH
-            || ! str_starts_with($value, self::ENVELOPE_VERSION)
-            || ! $this->validOwnerDigest(substr($value, strlen(self::ENVELOPE_VERSION), self::OWNER_DIGEST_LENGTH))) {
+        if ($this->ownerFromStoredValue($value) === '') {
             return '';
         }
 
@@ -784,6 +860,70 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
     protected function validOwnerDigest(string $owner): bool
     {
         return preg_match('/\A[0-9a-f]{32}\z/', $owner) === 1;
+    }
+
+    /**
+     * Probe and remember the owner of a Redis Cluster session payload.
+     */
+    protected function probeOwner(RedisConnection $connection, string $sessionId): string
+    {
+        $value = $connection->get($this->payloadKey($sessionId));
+
+        if ($value !== false && ! is_string($value)) {
+            throw new UnexpectedValueException('Redis returned an invalid session payload.');
+        }
+
+        $owner = $value === false ? '' : $this->ownerFromStoredValue($value);
+        $this->rememberOwner($sessionId, $owner);
+
+        return $owner;
+    }
+
+    /**
+     * Get an owner observed for a Redis Cluster session.
+     */
+    protected function observedOwner(string $sessionId): ?string
+    {
+        $owners = $this->ownerObservations();
+
+        return array_key_exists($sessionId, $owners) ? $owners[$sessionId] : null;
+    }
+
+    /**
+     * Remember a Redis Cluster session owner for the current coroutine.
+     */
+    protected function rememberOwner(string $sessionId, string $owner): void
+    {
+        $owners = $this->ownerObservations();
+        $owners[$sessionId] = $owner;
+
+        CoroutineContext::set($this->ownerContextKey(), $owners);
+    }
+
+    /**
+     * Get this handler's Redis Cluster owner observations.
+     *
+     * @return array<string, string>
+     */
+    protected function ownerObservations(): array
+    {
+        return CoroutineContext::get($this->ownerContextKey(), []);
+    }
+
+    /**
+     * Forget this handler's Redis Cluster owner observations.
+     */
+    protected function forgetOwnerObservations(): void
+    {
+        CoroutineContext::forget($this->ownerContextKey());
+    }
+
+    /**
+     * Get this handler's Redis Cluster owner context key.
+     */
+    protected function ownerContextKey(): string
+    {
+        return self::REDIS_OWNER_CONTEXT_KEY_PREFIX . spl_object_id($this);
     }
 
     /**
@@ -854,20 +994,26 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
     /**
      * Parse the ownership transition returned by the cluster write script.
      *
-     * @return array{string, string}
+     * A status of zero means the second element is the actual current owner
+     * and the third element is empty because no payload mutation occurred.
+     *
+     * @return array{0|1, string, string}
      */
     protected function parseOwnerTransition(mixed $value): array
     {
         if (! is_array($value)
-            || count($value) !== 2
-            || ! is_string($value[0] ?? null)
+            || count($value) !== 3
+            || ! is_int($value[0] ?? null)
+            || ! in_array($value[0], [0, 1], true)
             || ! is_string($value[1] ?? null)
-            || ($value[0] !== '' && ! $this->validOwnerDigest($value[0]))
-            || ($value[1] !== '' && ! $this->validOwnerDigest($value[1]))) {
+            || ! is_string($value[2] ?? null)
+            || ($value[1] !== '' && ! $this->validOwnerDigest($value[1]))
+            || ($value[2] !== '' && ! $this->validOwnerDigest($value[2]))
+            || ($value[0] === 0 && $value[2] !== '')) {
             throw new UnexpectedValueException('Redis returned an invalid session ownership transition.');
         }
 
-        return [$value[0], $value[1]];
+        return [$value[0], $value[1], $value[2]];
     }
 
     /**
@@ -905,5 +1051,16 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
             ),
             transform: false,
         );
+    }
+
+    /**
+     * Reset this handler's observed owners when it is cloned.
+     *
+     * PHP reuses freed object IDs, so a clone can land on a released handler's
+     * ID and must not inherit its owner observations.
+     */
+    public function __clone(): void
+    {
+        $this->forgetOwnerObservations();
     }
 }

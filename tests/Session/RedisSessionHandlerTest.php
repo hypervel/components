@@ -23,6 +23,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use UnexpectedValueException;
 
+use function Hypervel\Coroutine\parallel;
+
 class RedisSessionHandlerTest extends TestCase
 {
     private const string SESSION_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -152,7 +154,10 @@ class RedisSessionHandlerTest extends TestCase
 
         $this->assertTrue($this->handler(tracked: true, container: $container)->write(self::SESSION_ID, 'payload'));
         $this->assertSame(['sessions:' . self::SESSION_ID], $captured['keys']);
-        $this->assertSame('600', $captured['arguments'][0]);
+        $this->assertSame(
+            (string) (CarbonImmutable::now()->getTimestamp() + 600),
+            $captured['arguments'][0],
+        );
         $this->assertSame(self::SESSION_ID, $captured['arguments'][1]);
         $this->assertSame('redis:sessions:', $captured['arguments'][2]);
         $this->assertSame('resolved', $captured['arguments'][3]);
@@ -258,26 +263,33 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertNotSame($owners['users'], $owners['admins']);
     }
 
-    public function testClusterWriteUpdatesNewIndexBeforeCleaningOldIndex(): void
+    public function testClusterResolvedWriteUpdatesNewIndexBeforePayloadAndOldIndexCleanup(): void
     {
+        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
         $oldOwner = $this->ownerDigest('users', 'old-user');
         $newOwner = $this->ownerDigest('users', 'new-user');
+        $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $container = $this->authenticatedContainer('new-user', withRequest: true);
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->ordered()
-            ->andReturn([$oldOwner, $newOwner]);
         $connection->shouldReceive('hsetex')
             ->once()
             ->ordered()
             ->with(
                 'sessions:_users:' . $newOwner . ':sessions',
                 m::on(static fn (array $fields): bool => array_key_exists(self::SESSION_ID, $fields)),
-                ['EX' => 600],
+                ['EXAT' => $expiresAt],
             )
             ->andReturn(1);
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'resolved', $newOwner, $newOwner, 'payload'],
+            )
+            ->andReturn([1, $oldOwner, $newOwner]);
         $connection->shouldReceive('hdel')
             ->once()
             ->ordered()
@@ -289,35 +301,60 @@ class RedisSessionHandlerTest extends TestCase
 
     public function testClusterWritePreservesSameOwnerMetadataWithOneIndexScript(): void
     {
+        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
         $owner = $this->ownerDigest('users', 'user-1');
+        $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
+        $handler = $this->handler(tracked: true);
+        $readConnection = $this->expectConnection(cluster: true);
+        $readConnection->shouldReceive('get')->once()->andReturn("\0HVS1{$owner}old");
+
+        $this->assertSame('old', $handler->read(self::SESSION_ID));
+
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->ordered()
-            ->andReturn([$owner, $owner]);
         $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->ordered()
             ->with(
                 m::type('string'),
                 ['sessions:_users:' . $owner . ':sessions'],
-                m::on(static fn (array $arguments): bool => $arguments[0] === self::SESSION_ID && $arguments[3] === '1'),
+                m::on(static fn (array $arguments): bool => $arguments[0] === self::SESSION_ID
+                    && $arguments[1] === (string) $expiresAt
+                    && count($arguments) === 4),
             )
             ->andReturn(1);
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'unresolved', '', $owner, 'payload'],
+            )
+            ->andReturn([1, $owner, $owner]);
         $connection->shouldReceive('hdel')->never();
+        $connection->shouldReceive('get')->never();
 
-        $this->assertTrue($this->handler(tracked: true)->write(self::SESSION_ID, 'payload'));
+        $this->assertTrue($handler->write(self::SESSION_ID, 'payload'));
     }
 
     public function testClusterWriteReturnsFalseWhenFreshIndexWriteFails(): void
     {
+        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
         $owner = $this->ownerDigest('users', 'user-1');
+        $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
         $container = $this->authenticatedContainer('user-1', withRequest: true);
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn(['', $owner]);
-        $connection->shouldReceive('hsetex')->once()->ordered()->andReturn(0);
+        $connection->shouldReceive('hsetex')
+            ->once()
+            ->with(
+                'sessions:_users:' . $owner . ':sessions',
+                m::type('array'),
+                ['EXAT' => $expiresAt],
+            )
+            ->andReturn(0);
+        $connection->shouldReceive('evalWithShaCache')->never();
         $connection->shouldReceive('hdel')->never();
 
         $this->assertFalse(
@@ -325,16 +362,24 @@ class RedisSessionHandlerTest extends TestCase
         );
     }
 
-    public function testClusterWriteReturnsFalseWhenPreservedMetadataIndexWriteFails(): void
+    public function testClusterUnresolvedWriteDoesNotRefreshPayloadWhenIndexRefreshFails(): void
     {
         $owner = $this->ownerDigest('users', 'user-1');
+        $handler = $this->handler(tracked: true);
+        $readConnection = $this->expectConnection(cluster: true);
+        $readConnection->shouldReceive('get')->once()->andReturn("\0HVS1{$owner}old");
+
+        $this->assertSame('old', $handler->read(self::SESSION_ID));
+
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([$owner, $owner]);
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturnFalse();
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->with(m::type('string'), ['sessions:_users:' . $owner . ':sessions'], m::type('array'))
+            ->andReturnFalse();
         $connection->shouldReceive('hdel')->never();
 
-        $this->assertFalse($this->handler(tracked: true)->write(self::SESSION_ID, 'payload'));
+        $this->assertFalse($handler->write(self::SESSION_ID, 'payload'));
     }
 
     public function testClusterWriteReturnsFalseWhenObsoleteIndexCleanupFails(): void
@@ -342,26 +387,234 @@ class RedisSessionHandlerTest extends TestCase
         $oldOwner = $this->ownerDigest('users', 'old-user');
         $newOwner = $this->ownerDigest('users', 'new-user');
         $container = $this->authenticatedContainer('new-user', withRequest: true);
+        $handler = new ObservableRedisSessionHandler(
+            $this->redis,
+            'session',
+            'sessions:',
+            10,
+            true,
+            $container,
+        );
         $connection = $this->expectConnection(cluster: true);
 
-        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([$oldOwner, $newOwner]);
         $connection->shouldReceive('hsetex')->once()->ordered()->andReturn(1);
+        $connection->shouldReceive('evalWithShaCache')->once()->ordered()->andReturn([1, $oldOwner, $newOwner]);
         $connection->shouldReceive('hdel')->once()->ordered()->andReturnFalse();
 
-        $this->assertFalse(
-            $this->handler(tracked: true, container: $container)->write(self::SESSION_ID, 'payload')
-        );
+        $this->assertFalse($handler->write(self::SESSION_ID, 'payload'));
+        $this->assertSame($newOwner, $handler->observedOwnerForTesting(self::SESSION_ID));
     }
 
-    public function testClusterWriteRejectsMalformedOwnershipResults(): void
+    public function testClusterUnresolvedWriteProbesAnUnobservedOwnerBeforeUpdatingItsIndex(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
+        $owner = $this->ownerDigest('users', 'user-1');
+        $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
+        $connection = $this->expectConnection(cluster: true);
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->ordered()
+            ->with('sessions:' . self::SESSION_ID)
+            ->andReturn("\0HVS1{$owner}old");
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(m::type('string'), ['sessions:_users:' . $owner . ':sessions'], m::type('array'))
+            ->andReturn(1);
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'unresolved', '', $owner, 'payload'],
+            )
+            ->andReturn([1, $owner, $owner]);
+        $connection->shouldReceive('hdel')->never();
+
+        $this->assertTrue($this->handler(tracked: true)->write(self::SESSION_ID, 'payload'));
+    }
+
+    public function testClusterUnresolvedWriteRejectsAnOwnerAppearingAfterAnOwnerlessReadAndRetriesWithoutAProbe(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
+        $owner = $this->ownerDigest('users', 'user-1');
+        $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
+        $handler = $this->handler(tracked: true);
+        $readConnection = $this->expectConnection(cluster: true);
+        $readConnection->shouldReceive('get')->once()->andReturnFalse();
+
+        $this->assertSame('', $handler->read(self::SESSION_ID));
+
+        $racedConnection = $this->expectConnection(cluster: true);
+        $racedConnection->shouldReceive('get')->never();
+        $racedConnection->shouldReceive('hsetex')->never();
+        $racedConnection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'unresolved', '', '', 'first'],
+            )
+            ->andReturn([0, $owner, '']);
+        $racedConnection->shouldReceive('hdel')->never();
+
+        $this->assertFalse($handler->write(self::SESSION_ID, 'first'));
+
+        $retryConnection = $this->expectConnection(cluster: true);
+        $retryConnection->shouldReceive('get')->never();
+        $retryConnection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(m::type('string'), ['sessions:_users:' . $owner . ':sessions'], m::type('array'))
+            ->andReturn(1);
+        $retryConnection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'unresolved', '', $owner, 'second'],
+            )
+            ->andReturn([1, $owner, $owner]);
+        $retryConnection->shouldReceive('hdel')->never();
+
+        $this->assertTrue($handler->write(self::SESSION_ID, 'second'));
+    }
+
+    public function testClusterUnresolvedWriteRejectsAReassignmentAfterPreIndexingTheObservedOwnerAndRetriesWithTheActualOwner(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
+        $observedOwner = $this->ownerDigest('users', 'observed-user');
+        $actualOwner = $this->ownerDigest('users', 'actual-user');
+        $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
+        $handler = new ObservableRedisSessionHandler($this->redis, 'session', 'sessions:', 10, true);
+        $readConnection = $this->expectConnection(cluster: true);
+        $readConnection->shouldReceive('get')->once()->andReturn("\0HVS1{$observedOwner}old");
+
+        $this->assertSame('old', $handler->read(self::SESSION_ID));
+
+        $racedConnection = $this->expectConnection(cluster: true);
+        $racedConnection->shouldReceive('get')->never();
+        $racedConnection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(m::type('string'), ['sessions:_users:' . $observedOwner . ':sessions'], m::type('array'))
+            ->andReturn(1);
+        $racedConnection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'unresolved', '', $observedOwner, 'first'],
+            )
+            ->andReturn([0, $actualOwner, '']);
+        $racedConnection->shouldReceive('hdel')->never();
+
+        $this->assertFalse($handler->write(self::SESSION_ID, 'first'));
+        $this->assertSame($actualOwner, $handler->observedOwnerForTesting(self::SESSION_ID));
+
+        $retryConnection = $this->expectConnection(cluster: true);
+        $retryConnection->shouldReceive('get')->never();
+        $retryConnection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(m::type('string'), ['sessions:_users:' . $actualOwner . ':sessions'], m::type('array'))
+            ->andReturn(1);
+        $retryConnection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'unresolved', '', $actualOwner, 'second'],
+            )
+            ->andReturn([1, $actualOwner, $actualOwner]);
+        $retryConnection->shouldReceive('hdel')->never();
+
+        $this->assertTrue($handler->write(self::SESSION_ID, 'second'));
+        $this->assertSame($actualOwner, $handler->observedOwnerForTesting(self::SESSION_ID));
+    }
+
+    public function testClusterUnownedWriteChangesThePayloadBeforeCleaningItsOldIndex(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
+        $oldOwner = $this->ownerDigest('users', 'old-user');
+        $expiresAt = CarbonImmutable::now()->getTimestamp() + 600;
+        UserSessionIdentity::suppress(self::SESSION_ID);
+        $connection = $this->expectConnection(cluster: true);
+
+        $connection->shouldReceive('get')->never();
+        $connection->shouldReceive('hsetex')->never();
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->ordered()
+            ->with(
+                m::type('string'),
+                ['sessions:' . self::SESSION_ID],
+                [(string) $expiresAt, 'unowned', '', '', 'payload'],
+            )
+            ->andReturn([1, $oldOwner, '']);
+        $connection->shouldReceive('hdel')
+            ->once()
+            ->ordered()
+            ->with('sessions:_users:' . $oldOwner . ':sessions', self::SESSION_ID)
+            ->andReturn(1);
+
+        $this->assertTrue($this->handler(tracked: true)->write(self::SESSION_ID, 'payload'));
+    }
+
+    #[DataProvider('invalidOwnershipTransitionProvider')]
+    public function testClusterWriteRejectsMalformedOwnershipResults(mixed $result): void
     {
         $connection = $this->expectConnection(cluster: true);
-        $connection->shouldReceive('evalWithShaCache')->once()->andReturn(['invalid']);
+        $connection->shouldReceive('get')->once()->andReturnFalse();
+        $connection->shouldReceive('evalWithShaCache')->once()->andReturn($result);
 
         $this->expectException(UnexpectedValueException::class);
         $this->expectExceptionMessage('Redis returned an invalid session ownership transition.');
 
         $this->handler(tracked: true)->write(self::SESSION_ID, 'payload');
+    }
+
+    public static function invalidOwnershipTransitionProvider(): array
+    {
+        return [
+            'wrong tuple size' => [[1, '']],
+            'invalid status' => [[2, '', '']],
+            'non-string old owner' => [[1, 1, '']],
+            'invalid old owner' => [[1, 'invalid', '']],
+            'invalid resulting owner' => [[1, '', 'invalid']],
+            'failure with a resulting owner' => [[0, '', str_repeat('a', 32)]],
+        ];
+    }
+
+    public function testClusterOwnerObservationsAreIsolatedBetweenCoroutines(): void
+    {
+        $firstOwner = $this->ownerDigest('users', 'first');
+        $secondOwner = $this->ownerDigest('users', 'second');
+        $handler = new ObservableRedisSessionHandler($this->redis, 'session', 'sessions:', 10, true);
+
+        $owners = parallel([
+            'first' => function () use ($handler, $firstOwner): ?string {
+                $handler->rememberOwnerForTesting(self::SESSION_ID, $firstOwner);
+                usleep(1000);
+
+                return $handler->observedOwnerForTesting(self::SESSION_ID);
+            },
+            'second' => function () use ($handler, $secondOwner): ?string {
+                $handler->rememberOwnerForTesting(self::SESSION_ID, $secondOwner);
+                usleep(1000);
+
+                return $handler->observedOwnerForTesting(self::SESSION_ID);
+            },
+        ]);
+
+        $this->assertSame($firstOwner, $owners['first']);
+        $this->assertSame($secondOwner, $owners['second']);
+        $this->assertNull($handler->observedOwnerForTesting(self::SESSION_ID));
     }
 
     public function testStandaloneTrackedDestroyUsesOneScript(): void
@@ -622,6 +875,18 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertSame(1, $deleted);
     }
 
+    public function testClusterBulkDestroyClearsObservedOwners(): void
+    {
+        $owner = $this->ownerDigest('users', 'user-1');
+        $handler = new ObservableRedisSessionHandler($this->redis, 'session', 'sessions:', 10, true);
+        $handler->rememberOwnerForTesting(self::SESSION_ID, $owner);
+        $connection = $this->expectConnection(cluster: true);
+        $connection->shouldReceive('hKeys')->once()->andReturn([]);
+
+        $this->assertSame(0, $handler->destroyUserSessions('users', 'user-1'));
+        $this->assertNull($handler->observedOwnerForTesting(self::SESSION_ID));
+    }
+
     public function testClusterBulkDestroyRethrowsPayloadFailureAfterSuccessfulCleanup(): void
     {
         $owner = $this->ownerDigest('users', 'user-1');
@@ -799,5 +1064,18 @@ class RedisSessionHandlerTest extends TestCase
     private function ownerDigest(string $authProvider, string $userId): string
     {
         return hash('xxh128', strlen($authProvider) . ':' . $authProvider . ':' . $userId);
+    }
+}
+
+class ObservableRedisSessionHandler extends RedisSessionHandler
+{
+    public function rememberOwnerForTesting(string $sessionId, string $owner): void
+    {
+        $this->rememberOwner($sessionId, $owner);
+    }
+
+    public function observedOwnerForTesting(string $sessionId): ?string
+    {
+        return $this->observedOwner($sessionId);
     }
 }

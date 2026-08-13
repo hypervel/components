@@ -94,7 +94,9 @@ class RedisSessionHandlerTest extends TestCase
     public function testTrackedWriteStoresEnvelopeMetadataAndSynchronizedExpiry(): void
     {
         $this->skipIfHashFieldExpirationUnsupported();
-        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
+        $lastActivity = time();
+        $expiresAt = $lastActivity + 600;
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC($lastActivity));
         $handler = $this->handler(tracked: true, container: $this->identityContainer('user-1'));
         $owner = $this->ownerDigest('users', 'user-1');
         $redis = $this->rawRedisClientWithoutPrefix();
@@ -113,7 +115,7 @@ class RedisSessionHandlerTest extends TestCase
             $this->assertSame([
                 'ip_address' => '203.0.113.10',
                 'user_agent' => 'Browser/1.0',
-                'last_activity' => CarbonImmutable::now()->getTimestamp(),
+                'last_activity' => $lastActivity,
             ], $metadata);
 
             $payloadTtl = $redis->ttl($this->physicalPayloadKey(self::SESSION_ID));
@@ -121,6 +123,11 @@ class RedisSessionHandlerTest extends TestCase
             $this->assertGreaterThan(590, $payloadTtl);
             $this->assertGreaterThan(590, $fieldTtl[0]);
             $this->assertLessThanOrEqual(1, abs($payloadTtl - $fieldTtl[0]));
+            $this->assertSame($expiresAt, $redis->expiretime($this->physicalPayloadKey(self::SESSION_ID)));
+            $this->assertSame(
+                [$expiresAt],
+                $redis->hexpiretime($this->physicalUserIndexKey($owner), [self::SESSION_ID]),
+            );
 
             $sessions = $handler->userSessions('users', 'user-1');
             $this->assertCount(1, $sessions);
@@ -269,13 +276,16 @@ class RedisSessionHandlerTest extends TestCase
     public function testIdentityLessWritePreservesOwnerAndRequestMetadata(): void
     {
         $this->skipIfHashFieldExpirationUnsupported();
-        CarbonImmutable::setTestNow('2026-08-12 12:00:00');
+        $firstActivity = time();
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC($firstActivity));
         $owner = $this->ownerDigest('users', 'user-1');
         $redis = $this->rawRedisClientWithoutPrefix();
 
         try {
             $this->assertTrue($this->handler(true, $this->identityContainer('user-1'))->write(self::SESSION_ID, 'first'));
-            CarbonImmutable::setTestNow('2026-08-12 12:05:00');
+            $lastActivity = $firstActivity + 300;
+            $expiresAt = $lastActivity + 600;
+            CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC($lastActivity));
             RequestContext::forget();
 
             $this->assertTrue($this->handler(tracked: true)->write(self::SESSION_ID, 'second'));
@@ -289,13 +299,18 @@ class RedisSessionHandlerTest extends TestCase
             );
             $this->assertSame('203.0.113.10', $metadata['ip_address']);
             $this->assertSame('Browser/1.0', $metadata['user_agent']);
-            $this->assertSame(CarbonImmutable::now()->getTimestamp(), $metadata['last_activity']);
+            $this->assertSame($lastActivity, $metadata['last_activity']);
 
             $payloadTtl = $redis->ttl($this->physicalPayloadKey(self::SESSION_ID));
             $fieldTtl = $redis->httl($this->physicalUserIndexKey($owner), [self::SESSION_ID]);
             $this->assertGreaterThan(590, $payloadTtl);
             $this->assertGreaterThan(590, $fieldTtl[0]);
             $this->assertLessThanOrEqual(1, abs($payloadTtl - $fieldTtl[0]));
+            $this->assertSame($expiresAt, $redis->expiretime($this->physicalPayloadKey(self::SESSION_ID)));
+            $this->assertSame(
+                [$expiresAt],
+                $redis->hexpiretime($this->physicalUserIndexKey($owner), [self::SESSION_ID]),
+            );
         } finally {
             $redis->close();
         }

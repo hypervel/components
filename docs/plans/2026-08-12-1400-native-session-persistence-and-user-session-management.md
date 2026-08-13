@@ -16,7 +16,7 @@ This plan supersedes the cache-backed Redis decisions in `docs/plans/2026-07-27-
 - Managed ownership is qualified by the selected guard's auth provider, so unrelated providers may safely reuse scalar user IDs.
 - Redis user-session tracking is opt-in so ordinary Redis sessions do not acquire a Redis 8 / Valkey 9 requirement.
 - Each tracking-enabled standalone Redis handler mutation is atomic and uses one client round trip once the script is cached on that Redis node; a bulk repository call uses a preliminary ownership-scoped current-session mutation when needed. Healthy listing uses one `HGETALL` and never performs per-session payload reads.
-- Redis Cluster keeps the session-ID-keyed payload layout and uses the minimum safe cross-slot operations. Session payloads remain authoritative; index drift is safe and TTL-bounded.
+- Redis Cluster keeps the session-ID-keyed payload layout and uses the minimum safe cross-slot operations. Session payloads remain authoritative; owner observations are coroutine-local, and partial failures may create only safe, TTL-bounded index drift.
 - Database listing and individual invalidation use one query. Bulk invalidation uses one query without a started current session and at most two when it must first prove whether the current record belongs to the scoped user.
 - Deleting the current session cannot be undone by response-end persistence and cannot create an indexed but unauthenticated replacement session.
 - Cache remains a required package for the first-class session blocking and `$session->cache()` APIs, but no persistence handler routes storage through cache.
@@ -547,7 +547,7 @@ Each user has one Redis hash. The hash field is the session ID and the value is 
 {"ip_address":"203.0.113.5","user_agent":"Browser/1.0","last_activity":1786543200}
 ```
 
-Nullable metadata remains JSON `null`. Write each field with `HSETEX ... EX <lifetime> FIELDS 1 ...`; the field expiry matches the payload expiry. Redis removes the hash after its last field expires. `expiresAt` is derived from `last_activity`, so listing requires no `HTTL` command. Tests may use `HTTL` to prove synchronization.
+Nullable metadata remains JSON `null`. Write each field with `HSETEX ... EXAT <expires-at> FIELDS 1 ...`; tracked payload writes use the same absolute deadline. Redis removes the hash after its last field expires. `expiresAt` is derived from `last_activity`, so listing requires no `HTTL` command. Tests may use `HTTL` to prove synchronization.
 
 Capture IP address and user agent with the same semantics as the database handler: nullable IP, UTF-8-normalized user agent truncated to 500 characters, and one current timestamp per write. When no `RequestContext` exists, preserve valid existing IP/user-agent metadata while advancing `last_activity`. The standalone mutation already has local access to the index field; the cluster branch uses one index-local Lua update in place of its ordinary direct `HSETEX`, so neither path adds a payload read or another client call. If no valid prior metadata exists, use null IP/user-agent values. A normal request always supplies fresh values. A subsequent valid write repairs corrupt metadata rather than perpetuating it.
 
@@ -572,9 +572,9 @@ Tracked write is one atomic script:
 
 1. `GET` the payload and parse any proven old owner.
 2. Apply resolved/preserve/unowned intent.
-3. When a valid envelope proves that the old and resulting owner are the same and PHP supplied no request metadata, `HGET` that owner's existing field and strictly preserve valid IP/user-agent values locally.
-4. When there is a resulting owner, `HSETEX` its field with fresh or locally preserved metadata and the same TTL.
-5. `SETEX` the raw or enveloped authoritative payload.
+3. When PHP supplied no request metadata, `HGET` the resulting owner's existing field and strictly preserve valid IP/user-agent values locally.
+4. When there is a resulting owner, `HSETEX` its field with fresh or locally preserved metadata and the write's absolute expiry.
+5. Store the raw or enveloped authoritative payload with that same absolute expiry.
 6. Remove a different old owner's index field, or the unowned old owner's field, last.
 
 Pass the current timestamp, an explicit fresh-request-metadata flag, and the encoded metadata from PHP; do not issue Redis `TIME`. The explicit flag distinguishes “no request context, preserve valid prior metadata” from fresh metadata containing nullable values. Dynamic old-owner index keys use the full physical prefix through `ARGV`.
@@ -608,14 +608,19 @@ Above that operational range, `HGETALL` allocates proportionally in Redis/PHP an
 
 ### Redis Cluster branch
 
-Cross-slot atomicity is impossible with session-ID-keyed payloads and user-keyed indexes. Moving payloads into user hash slots would make ordinary reads require an owner lookup and an extra round trip, and sessions exist before login. Keep the optimal payload layout and branch explicitly when `RedisProxy::isCluster()` is true.
+Cross-slot atomicity is impossible with session-ID-keyed payloads and user-keyed indexes. Moving payloads into user hash slots would make ordinary reads require an owner lookup and an extra round trip, and sessions exist before login. Keep the optimal payload layout and branch explicitly when `RedisProxy::isCluster()` is true. Retain each tracking-enabled Cluster read's proven envelope owner in `CoroutineContext` under `__session.redis.owner.` plus the handler object ID. The per-handler value maps session IDs to either a digest or `''`; an empty string means proven ownerless, while an absent entry means unobserved. Clear the slot on construction, cloning, and Cluster bulk deletion so PHP object-ID reuse or same-coroutine bulk invalidation cannot leave stale ownership state.
 
 Cluster mutation ordering:
 
-- A session-local Lua script operates only on the declared payload key, parses/stores/deletes it atomically, and returns proven old/resulting ownership.
-- On write, update the resulting owner's index first, then remove a different old owner. If cleanup fails, a stale old field cannot delete the reassigned session because all scoped deletion rechecks the authoritative envelope.
+- A session-local Lua script operates only on the declared payload key, parses/stores/deletes it atomically, and returns a validated status plus proven old/resulting ownership.
+- A resolved write knows its target owner before Redis access: update that owner's index first, mutate the payload, then remove a different old-owner field.
+- An unresolved write uses the owner observed by the normal session read. If no observation exists, issue one plain `GET`, parse it through the same strict PHP envelope parser as `read()`, and remember the result. Update a non-empty observed owner's index first, then let the payload-local script write only when its actual owner—including no owner—still exactly matches the observation. A mismatch performs no payload mutation, records the actual owner, and returns false so the existing Store retry can pre-index the correct owner. The pre-indexed expected-owner field deliberately remains: its field TTL bounds the drift, and an ownership-rechecked scoped operation prunes it without touching the reassigned payload. This prevents a concurrent reassignment from committing a payload whose actual owner was not indexed by that operation.
+- An unowned write has no resulting index, so mutate the authoritative payload first and remove its proven old-owner field afterward.
+- Compute one absolute expiry from the write timestamp and configured lifetime. Every tracked field and payload mutation uses that deadline, so cross-slot call ordering cannot create relative-TTL skew.
+- After a successful payload mutation, update the coroutine observation before fallible old-index cleanup. If cleanup fails, a stale old field cannot delete the reassigned session because all scoped deletion rechecks the authoritative envelope.
 - On deletion, delete/verify the authoritative payload first, then clean its index field. Cleanup failure may leave a stale field but never a supposedly invalidated live payload. Put a short comment at this cluster call site explaining that separate cross-slot calls require payload-first ordering; do not make it match the standalone same-slot script.
 - HFE bounds every stale field, and a subsequent write repairs a missing/current field.
+- If a tracked Cluster session's current owner index cannot be updated, fail the write before refreshing its authoritative payload. The first save failure remains the request failure; an exception-rendering retry cannot replace that primary failure.
 
 Operation counts:
 
@@ -623,7 +628,7 @@ Operation counts:
 | --- | --- |
 | read | one `GET` |
 | list | one `HGETALL` |
-| tracked write | one payload Lua call, then zero to two index-local commands/scripts |
+| tracked write | one index-local command/script when owned, one payload Lua call, then at most one obsolete-index cleanup; an unobserved unresolved write first performs one `GET` |
 | unscoped delete | one payload Lua call, then at most one `HDEL` |
 | scoped single delete | one payload Lua call, then one requested-index `HDEL` |
 | bulk delete | one `HKEYS`, one session-local ownership/delete script per valid non-except candidate, and at most one final `HDEL` for confirmed/stale/invalid fields |
@@ -799,7 +804,7 @@ Mock `RedisFactory`, `RedisProxy`, and `RedisConnection`; assert behavior and no
 - list decode, sort, derived expiry, invalid-ID/malformed-value skipping, and one-call exceptional-path index pruning;
 - logical versus physical prefix arguments with non-empty `OPT_PREFIX`;
 - deterministic injective provider/user digest, isolation for equal IDs under different providers, shared ownership for guards using one provider, and no framework-generated literal hash tags;
-- cluster authoritative ordering, minimum calls, stale cleanup, exception propagation, and bulk exception handling, including failed index writes, failed obsolete/requested-index cleanup, failed malformed-list pruning, invalid bulk result shapes, and retention of the cleanup failure as `previous` when payload and final cleanup both fail;
+- cluster authoritative ordering, owner observation/probing, minimum normal-lifecycle calls, stale cleanup, exception propagation, and bulk exception handling, including resolved and unresolved index failures before payload mutation, full equality for a proven-ownerless observation, concurrent owner mismatch and retry state, failed obsolete/requested-index cleanup, failed malformed-list pruning, invalid status/owner result shapes, observation isolation/reset, and retention of the cleanup failure as `previous` when payload and final cleanup both fail;
 - raw wrapper restores serializer/compression after success and exception;
 - tracked write returns true only for the script's explicit success result, returns false for a false/nil result, and preserves Store live state for retry after failure;
 - transport-mock call counts prove one healthy `HGETALL`, one additional cleanup `HDEL` only for malformed listing metadata, and one `evalWithShaCache()` delegation per standalone handler mutation; transport mocks own these handler assertions because pinned raw `RedisConnection` calls deliberately bypass `RedisProxy` command events, while `UserSessionsTest` owns the repository's optional current-single-plus-bulk call sequence;
@@ -870,9 +875,10 @@ Cover against Redis 8 and Valkey 9:
 - HFE removes fields and the empty user hash after lifetime;
 - stale/wrong-owner index fields cannot delete authoritative payloads;
 - metadata corruption skips only the bad record and prunes its index field without hiding valid sessions;
-- deliberate index `WRONGTYPE` failures prove standalone Lua's partial-commit ordering: a resulting-index failure leaves the old payload authoritative, while a late obsolete-index cleanup failure propagates after the new/unowned payload has already made the old field harmless and TTL-bounded.
+- deliberate index `WRONGTYPE` failures prove standalone Lua's partial-commit ordering: a resulting-index failure leaves the old payload authoritative, while a late obsolete-index cleanup failure propagates after the new/unowned payload has already made the old field harmless and TTL-bounded;
+- tracked writes give payloads and index fields one absolute expiry, including metadata-preserving identity-less writes.
 
-Cluster behavior is unit-tested with ordered transport mocks because the Redis workflow does not provide a cluster. Do not pretend standalone integration proves cluster routing.
+Cluster behavior is unit-tested with ordered transport mocks because the Redis workflow does not provide a cluster. Do not pretend standalone integration proves cluster routing or add a single-node test that merely forces the Cluster flag. Real Cluster infrastructure and cross-slot integration coverage require their own reviewed CI change.
 
 ### Auth and end-to-end lifecycle
 
@@ -1026,6 +1032,6 @@ The last database path is removed only after its content is moved into the share
 - Current-session invalidation cannot resurrect the deleted ID or track its unauthenticated replacement.
 - Existing `Store::invalidate()` and the new repository path both enforce that invariant without suppressing login-time regeneration.
 - Multi-guard unresolved writes preserve the correct owner; unowned writes explicitly clear it; Auth provider selection remains coroutine-isolated.
-- Cluster failure ordering never lets a stale index delete an unproven/live session.
+- Cluster failure ordering never commits an owner-tagged payload unless that operation first updated the expected owner's index, and never lets a stale index delete an unproven/live session.
 - User docs, README, config, Composer metadata, migration stub, facade annotations, workflows, and tests all describe the final design only.
 - Targeted tests, database matrix, Redis/Valkey integration, `composer fix`, full tests, and `git diff --check` pass in their available environments.

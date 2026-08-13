@@ -377,7 +377,7 @@ In multi-tenant applications, use globally unique user identifiers for tenant-ow
 
 Calling `Auth::logout()` alone does not delete the stored session. The session remains associated with its previous user until it is invalidated or expires. In addition, a remember-me cookie may authenticate the browser again during a later request and create a new tracked session.
 
-When using Redis Cluster, the session and its user index may be stored in different hash slots and cannot be changed atomically. If Redis fails between these operations, an expired or reassigned session may temporarily remain in a user's session list. These entries expire automatically, and Hypervel verifies the session's owner before deleting it.
+When using Redis Cluster, the session and its user index may be stored in different hash slots and cannot be changed atomically. Hypervel updates the current owner's index before refreshing the session payload. If the index cannot be updated, the session write fails without extending the payload. A concurrent reassignment or a failure during later cleanup may temporarily leave a stale session in a user's session list. These entries expire automatically, and Hypervel verifies the session's owner before deleting it.
 
 Hypervel returns all active sessions belonging to the user and does not impose a session limit. This is intended for ordinary browser and device usage, generally tens of sessions and comfortably fewer than one thousand per user. Applications that allow automated session creation should rate-limit authentication and enforce an appropriate device or session limit.
 
