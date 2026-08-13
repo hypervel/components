@@ -83,6 +83,25 @@ class StoreContextTest extends TestCase
         $this->assertSame('callback-result', $result);
     }
 
+    public function testWithConnectionCanEnableLaravelStyleTransforms(): void
+    {
+        $connection = m::mock(PhpRedisConnection::class);
+        $transform = null;
+        $context = $this->createContextWithRedisFactory(
+            'default',
+            function ($callback, bool $shouldTransform) use ($connection, &$transform) {
+                $transform = $shouldTransform;
+
+                return $callback($connection);
+            },
+        );
+
+        $result = $context->withConnection(fn () => 'callback-result', transform: true);
+
+        $this->assertTrue($transform);
+        $this->assertSame('callback-result', $result);
+    }
+
     public function testWithConnectionPropagatesExceptions(): void
     {
         $context = $this->createContextWithRedisFactory('default', function ($callback) {
