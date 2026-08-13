@@ -111,4 +111,13 @@ trait RequiresAnyTagModeRedis
     {
         return $this->redisClient()->info('server');
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$anyTagModeSupported = null;
+        self::$anyTagModeSkipReason = '';
+    }
 }

@@ -24,7 +24,7 @@ class RequiresAnyTagModeRedisTest extends TestCase
 
         // Reset the trait's memoized static state on the subject class
         // so each test starts with a clean slate.
-        RequiresAnyTagModeRedisTestSubject::flushStaticState();
+        RequiresAnyTagModeRedisTestSubject::flushState();
     }
 
     public function testSkipsWhenPhpredisBelowMinimum(): void
@@ -117,17 +117,6 @@ class RequiresAnyTagModeRedisTestSubject
     public array $stubServerInfo = ['redis_version' => '8.0.0'];
 
     public int $serverInfoCalls = 0;
-
-    /**
-     * Reset the trait's memoized static state. Traits copy static
-     * properties into the using class, so self::$anyTagModeSupported
-     * here refers to this class's own copy.
-     */
-    public static function flushStaticState(): void
-    {
-        self::$anyTagModeSupported = null;
-        self::$anyTagModeSkipReason = '';
-    }
 
     public function runCheck(): void
     {
