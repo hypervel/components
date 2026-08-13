@@ -249,6 +249,10 @@ redis.clusters.cache_slots = 1
 
 Hypervel automatically hash-tags Redis queue storage keys and Redis funnel slot keys when a clustered connection is used and the configured queue or funnel name does not already contain a valid Redis Cluster hash tag. This keeps all keys used by Hypervel's multi-key Lua scripts on the same hash slot. You may still provide your own hash tag, such as `{orders}:high`, when you need to control key placement.
 
+Redis Cluster transactions require every key to use the same hash slot. You may place related keys together by giving them a shared hash tag, such as `{visits}:user` and `{visits}:total`. A transaction that uses different slots on the same master throws a `RedisClusterException` and commits nothing. If the keys are owned by different masters, PhpRedis may split the transaction into independent transactions, so a failure may leave commands committed on one master but not another. After either failure, Hypervel rebuilds the failed connection before its next use.
+
+When a watched key changes, PhpRedis normally reports an aborted transaction by returning `false`. On Redis Cluster, PhpRedis currently returns an array containing `false` for each queued command. Since this is also a valid command result, applications should not rely on the result shape to detect a watched-key conflict when using Redis Cluster.
+
 <a name="sentinel"></a>
 ### Sentinel
 
@@ -580,10 +584,12 @@ The `Redis` facade's `transaction` method provides a convenient wrapper around R
 use Hypervel\Support\Facades\Redis;
 
 Redis::transaction(function (\Redis|\RedisCluster $redis): void {
-    $redis->incr('user_visits', 1);
-    $redis->incr('total_visits', 1);
+    $redis->incr('{visits}:user', 1);
+    $redis->incr('{visits}:total', 1);
 });
 ```
+
+When using Redis Cluster, every key in a transaction must use the same hash slot. Please review the [Cluster configuration](#clusters) section for the transaction and watched-key constraints that apply to PhpRedis Cluster connections.
 
 > [!NOTE]
 > In Hypervel, the closure form of `transaction` returns the pooled connection as soon as the transaction is executed. Calling `Redis::transaction()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.
@@ -628,6 +634,8 @@ Redis::pipeline(function (\Redis $pipe): void {
     }
 });
 ```
+
+PhpRedis does not support pipelining on Redis Cluster connections. Pipelining remains available for standalone and Sentinel connections.
 
 > [!NOTE]
 > In Hypervel, the closure form of `pipeline` returns the pooled connection as soon as the pipeline is executed. Calling `Redis::pipeline()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.

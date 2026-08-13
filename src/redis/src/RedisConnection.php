@@ -25,6 +25,7 @@ use Hypervel\Support\Traits\Macroable;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
+use RedisClusterException;
 use RedisException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -414,7 +415,7 @@ abstract class RedisConnection extends BaseConnection
 
             $name = strtolower($name);
             $result = $this->executeCommand($name, $arguments);
-        } catch (RedisException $exception) {
+        } catch (RedisException|RedisClusterException $exception) {
             if ($this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
             }
@@ -527,6 +528,16 @@ abstract class RedisConnection extends BaseConnection
         }
 
         return true;
+    }
+
+    /**
+     * Mark the connection invalid before its next use.
+     *
+     * @internal
+     */
+    public function invalidate(): void
+    {
+        $this->markInvalid();
     }
 
     /**
@@ -858,7 +869,7 @@ abstract class RedisConnection extends BaseConnection
     /**
      * Determine whether a failed command left the connection unsafe to reuse.
      */
-    protected function shouldInvalidateAfter(RedisException $exception): bool
+    protected function shouldInvalidateAfter(RedisException|RedisClusterException $exception): bool
     {
         if ($this->connection->getLastError() !== $exception->getMessage()) {
             return true;

@@ -676,12 +676,13 @@ class RedisProxyTest extends TestCase
         );
     }
 
-    public function testCallbackTransactionDoesNotClearWatchStateWhenExecThrows(): void
+    public function testCallbackTransactionInvalidatesWithoutClearingWatchStateWhenExecThrows(): void
     {
         $transaction = m::mock(PhpRedis::class);
         $transaction->expects('exec')->andThrow(new RuntimeException('Exec failed.'));
         $connection = $this->mockConnection();
         $connection->expects('multi')->andReturn($transaction);
+        $connection->expects('invalidate');
         $connection->shouldNotReceive('clearWatchState');
         $connection->shouldNotReceive('release');
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $connection);

@@ -67,6 +67,7 @@ class RedisProxy implements ConnectionContract
         'getlastusetime',
         'getshouldtransform',
         'heartbeatcheck',
+        'invalidate',
         'isidleexpired',
         'islifetimeexpired',
         'masters',

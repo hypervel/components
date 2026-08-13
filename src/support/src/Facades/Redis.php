@@ -331,6 +331,7 @@ class Redis extends Facade
             'getLastUseTime',
             'getShouldTransform',
             'heartbeatCheck',
+            'invalidate',
             'isIdleExpired',
             'isLifetimeExpired',
             'macroCall',

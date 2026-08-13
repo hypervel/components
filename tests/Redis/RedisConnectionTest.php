@@ -26,6 +26,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
+use RedisClusterException;
 use RedisException;
 use RuntimeException;
 use TypeError;
@@ -920,6 +921,30 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($connection->isInvalidForTest());
     }
 
+    public function testClusterTransportFailureInvalidatesWithoutReplayingCommand(): void
+    {
+        $exception = new RedisClusterException('Error processing EXEC across the cluster');
+        $redis = m::mock(Redis::class);
+        $redis->expects('exec')
+            ->once()
+            ->andThrow($exception);
+        $redis->expects('getLastError')->andReturn("CROSSSLOT Keys in request don't hash to the same slot");
+        $connection = new PhpRedisConnectionStub(
+            $this->getContainer(),
+            $this->getMockedPool(),
+        );
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->__call('exec', []);
+            $this->fail('Expected the Cluster transport failure to propagate.');
+        } catch (RedisClusterException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertTrue($connection->isInvalidForTest());
+    }
+
     #[DataProvider('synchronizedServerErrorDispositionProvider')]
     public function testSynchronizedServerErrorDispositionDoesNotReplayCommand(
         string $message,
@@ -955,7 +980,7 @@ class RedisConnectionTest extends TestCase
             'standalone LOADING' => ['LOADING data is loading', false, false],
             'standalone OOM' => ['OOM command not allowed', false, false],
             'standalone MISCONF' => ['MISCONF persistence error', false, false],
-            'standalone CROSSSLOT' => ['CROSSSLOT keys do not hash to the same slot', false, false],
+            'standalone CROSSSLOT' => ["CROSSSLOT Keys in request don't hash to the same slot", false, false],
             'Sentinel READONLY' => ['READONLY replica is read-only', true, true],
             'Sentinel MASTERDOWN' => ['MASTERDOWN link is down', true, true],
             'Sentinel LOADING' => ['LOADING data is loading', true, false],
@@ -2652,18 +2677,13 @@ class RedisConnectionTest extends TestCase
                 return $this->fakeRedis;
             }
 
-            public function invalidateForTest(): void
-            {
-                $this->markInvalid();
-            }
-
             public function isInvalidForTest(): bool
             {
                 return $this->invalid;
             }
         };
 
-        $connection->invalidateForTest();
+        $connection->invalidate();
 
         $this->assertTrue($connection->isInvalidForTest());
 
@@ -2694,18 +2714,13 @@ class RedisConnectionTest extends TestCase
                 return $this->fakeRedis;
             }
 
-            public function invalidateForTest(): void
-            {
-                $this->markInvalid();
-            }
-
             public function setLastReleaseTimeForTest(float $lastReleaseTime): void
             {
                 $this->lastReleaseTime = $lastReleaseTime;
             }
         };
 
-        $connection->invalidateForTest();
+        $connection->invalidate();
         $connection->setLastReleaseTimeForTest(hrtime(true) / 1e9);
 
         $this->assertFalse($connection->check());
