@@ -17,9 +17,10 @@ class RedisPrefixTest extends IntegrationTestCase
         config(['horizon.prefix' => 'custom:']);
 
         Horizon::use('default');
+        $expected = $this->usingRedisCluster() ? '{custom:}' : 'custom:';
 
-        $this->assertSame('custom:', config('database.redis.horizon.options.prefix'));
-        $this->assertSame('custom:', config('horizon.prefix'));
+        $this->assertSame($expected, config('database.redis.horizon.options.prefix'));
+        $this->assertSame($expected, config('horizon.prefix'));
     }
 
     public function testUseThrowsForUnknownConnection(): void
