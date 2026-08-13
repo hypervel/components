@@ -155,16 +155,22 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $user = UserWithCreatedAndUpdated::create(['email' => 'foo@example.com']);
 
         $user->timestamps = true;
+        $expectedException = new RuntimeException;
+        $usedTimestamps = null;
+        $caughtException = null;
 
         try {
-            $user->withoutTimestamps(function () use ($user) {
-                $this->assertFalse($user->usesTimestamps());
-                throw new RuntimeException;
+            $user->withoutTimestamps(function () use ($expectedException, $user, &$usedTimestamps): never {
+                $usedTimestamps = $user->usesTimestamps();
+
+                throw $expectedException;
             });
-            $this->fail();
-        } catch (RuntimeException) {
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertFalse($usedTimestamps);
         $this->assertTrue($user->timestamps);
     }
 

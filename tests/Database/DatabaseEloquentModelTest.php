@@ -1999,13 +1999,18 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testUnguardedCallDoesNotChangeUnguardedStateOnException()
     {
+        $expectedException = new Exception;
+        $caughtException = null;
+
         try {
-            Model::unguarded(function () {
-                throw new Exception;
+            Model::unguarded(function () use ($expectedException): never {
+                throw $expectedException;
             });
-        } catch (Exception) {
-            // ignore the exception
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertSame($expectedException, $caughtException);
         $this->assertFalse(Model::isUnguarded());
     }
 

@@ -81,22 +81,26 @@ class PipelineTransactionTest extends TestCase
         Event::fake();
 
         $finallyRan = false;
+        $expectedException = new Exception('I was thrown');
+        $caughtException = null;
+
         try {
             Pipeline::withinTransaction()
                 ->send('some string')
                 ->through([
-                    function ($value, $next) {
-                        throw new Exception('I was thrown');
+                    function ($value, $next) use ($expectedException) {
+                        throw $expectedException;
                     },
                 ])
                 ->finally(function () use (&$finallyRan) {
                     $finallyRan = true;
                 })
                 ->thenReturn();
-            $this->fail('No exception was thrown');
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
         $this->assertTrue($finallyRan);
         Event::assertDispatched(TransactionBeginning::class);
         Event::assertDispatched(TransactionRolledBack::class);
