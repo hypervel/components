@@ -163,6 +163,6 @@ class ConcurrentForkTest extends TestCase
         }
 
         $this->assertTrue($concurrent->isEmpty());
-        $this->assertSame(0, $concurrent->length());
+        $this->assertSame(0, $concurrent->getRunningCoroutineCount());
     }
 }

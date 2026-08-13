@@ -655,10 +655,6 @@ You may inspect the current limit and number of running coroutines:
 $limit = $concurrent->getLimit();
 
 $runningCoroutineCount = $concurrent->getRunningCoroutineCount();
-
-$runningCoroutineCount = $concurrent->getLength();
-
-$runningCoroutineCount = $concurrent->length();
 ```
 
 You may use the `isFull` method to determine if the concurrency limit has been reached and the `isEmpty` method to determine if all child coroutines have finished:
@@ -673,11 +669,15 @@ if ($concurrent->isEmpty()) {
 }
 ```
 
-You may access the underlying channel using `getChannel`:
+If you need to wait for capacity without starting another coroutine, you may use the `waitForAvailableSlot` method. The method returns `false` when the timeout is reached:
 
 ```php
-$channel = $concurrent->getChannel();
+if (! $concurrent->waitForAvailableSlot(timeout: 1.0)) {
+    // No slot became available within one second...
+}
 ```
+
+This method only waits until a slot becomes available; it does not reserve the slot after returning. A later `create` or `fork` call will wait again if another producer claims the available slot first.
 
 You may use `fork` instead of `create` when child coroutines should receive a copy of the parent context:
 
