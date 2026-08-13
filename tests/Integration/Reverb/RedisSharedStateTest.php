@@ -18,7 +18,7 @@ class RedisSharedStateTest extends TestCase
 {
     use InteractsWithRedis;
 
-    protected RedisSharedState $state;
+    protected RedisSharedStateProbe $state;
 
     protected function setUp(): void
     {
@@ -190,9 +190,9 @@ class RedisSharedStateTest extends TestCase
 
     public function testChannelStateKeysShareOneClusterSlot(): void
     {
-        $keys = $this->probe()->keysForTest('app1', 'presence-channel', 'user-1');
-        $otherChannelKeys = $this->probe()->keysForTest('app1', 'other-channel', 'user-1');
-        $otherApplicationKeys = $this->probe()->keysForTest('app2', 'presence-channel', 'user-1');
+        $keys = $this->state->keysForTest('app1', 'presence-channel', 'user-1');
+        $otherChannelKeys = $this->state->keysForTest('app1', 'other-channel', 'user-1');
+        $otherApplicationKeys = $this->state->keysForTest('app2', 'presence-channel', 'user-1');
 
         $this->assertCount(1, array_unique(array_map($this->clusterTag(...), $keys)));
         $this->assertStringEndsWith(
@@ -385,12 +385,6 @@ class RedisSharedStateTest extends TestCase
     public function testClearMemberSmoothingPendingReturnsFalseWhenNoMarker(): void
     {
         $this->assertFalse($this->state->clearMemberSmoothingPending('app1', 'presence-channel', 'user-1', 5000));
-    }
-
-    private function probe(): RedisSharedStateProbe
-    {
-        /** @var RedisSharedStateProbe */
-        return $this->state;
     }
 
     private function clusterTag(string $key): string
