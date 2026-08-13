@@ -377,7 +377,7 @@ Test supported public behavior, meaningful branches, verified regressions, and r
 
 ### Exceptions in tests
 
-PHPUnit assertion failures, skips, and incomplete markers all extend `AssertionFailedError`, which extends `RuntimeException`. A test's `try`/`catch` must not turn any of them into success. When testing behavior after an exception, the catch must not be reachable by a failure that skips the behavior under test. Satisfy that by pinning the escaped exception by identity or message, or by catching a type that excludes every other failure the code path can produce.
+In any test, PHPUnit assertion failures, skips, and incomplete markers extend `AssertionFailedError`, which extends `RuntimeException`; a catch must not swallow one and let the test pass. An exception test must fail unless its intended behavior and exception path occurred. Before rewriting an existing or ported exception test, demonstrate a concrete violation; a broad catch alone is not a defect. When writing a new test that controls the exception, prefer prebuilding it and asserting its identity after the catch.
 
 ### Directory layout
 
