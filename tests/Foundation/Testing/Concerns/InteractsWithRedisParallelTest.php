@@ -257,13 +257,23 @@ class InteractsWithRedisParallelTest extends TestCase
         }
     }
 
-    public function testClusterAlwaysUsesDatabaseZeroWithoutAllocatingAWorkerDatabase(): void
+    public function testSequentialClusterUsesDatabaseZeroWithoutAllocatingAWorkerDatabase(): void
     {
         $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', 'redis-cluster-1:6379');
         $this->setRedisEnvironmentValue('REDIS_TEST_DB_MIN', 'invalid');
-        $this->setParallelTestingToken('9');
 
         $this->assertSame(0, $this->harness()->parallelRedisDb());
+    }
+
+    public function testClusterRejectsParallelWorkers(): void
+    {
+        $this->setRedisEnvironmentValue('REDIS_CLUSTER_HOSTS_AND_PORTS', 'redis-cluster-1:6379');
+        $this->setParallelTestingToken('9');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Redis Cluster integration tests must run serially. Run them with ./vendor/bin/phpunit instead of ParaTest.');
+
+        $this->harness()->parallelRedisDb();
     }
 
     public function testClusterRejectsSecondaryLogicalDatabases(): void

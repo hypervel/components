@@ -53,9 +53,15 @@ class RedisTestConfiguration
      */
     public static function primaryDatabase(string|false $token): int
     {
-        return static::usesCluster()
-            ? 0
-            : RedisTestDatabases::primaryDatabase($token);
+        if (static::usesCluster()) {
+            if ($token !== false) {
+                throw new RuntimeException('Redis Cluster integration tests must run serially. Run them with ./vendor/bin/phpunit instead of ParaTest.');
+            }
+
+            return 0;
+        }
+
+        return RedisTestDatabases::primaryDatabase($token);
     }
 
     /**
