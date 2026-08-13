@@ -1063,7 +1063,11 @@ class RedisSessionHandlerTest extends TestCase
 
     private function ownerDigest(string $authProvider, string $userId): string
     {
-        return hash('xxh128', strlen($authProvider) . ':' . $authProvider . ':' . $userId);
+        return substr(
+            hash('sha256', strlen($authProvider) . ':' . $authProvider . ':' . $userId),
+            0,
+            32,
+        );
     }
 }
 

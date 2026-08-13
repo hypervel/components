@@ -820,7 +820,13 @@ class RedisSessionHandler implements CanManageUserSessions, SessionHandlerInterf
      */
     protected function ownerDigest(string $authProvider, string $userId): string
     {
-        return hash('xxh128', strlen($authProvider) . ':' . $authProvider . ':' . $userId);
+        // This digest is an ownership proof, so a forged collision would
+        // allow cross-account session access; the usual internal xxh128 is unsafe here.
+        return substr(
+            hash('sha256', strlen($authProvider) . ':' . $authProvider . ':' . $userId),
+            0,
+            self::OWNER_DIGEST_LENGTH,
+        );
     }
 
     /**
